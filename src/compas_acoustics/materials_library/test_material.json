@@ -1,0 +1,28 @@
+{
+    "data": {
+        "id": "test_material",
+        "description": "Test Material",
+        "absorption_coefficients": [
+            0.1,
+            0.1,
+            0.2,
+            0.4,
+            0.6,
+            0.8,
+            0.1,
+            0.1
+        ],
+        "scattering_coefficients": [
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.2
+        ],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}

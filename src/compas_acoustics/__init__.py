@@ -12,10 +12,13 @@ __version__ = "0.1.0"
 
 HERE = os.path.dirname(__file__)
 
-HOME = os.path.abspath(os.path.join(HERE, "../../"))
-DATA = os.path.abspath(os.path.join(HOME, "data"))
-DOCS = os.path.abspath(os.path.join(HOME, "docs"))
-TEMP = os.path.abspath(os.path.join(HOME, "temp"))
 
+from .defaults import *
+from .acoustic_material import *
+from .materials_library import *
+# from .geometry import *
+# from .receiver import *
+# from .scene import *
+# from .source import *
 
-__all__ = ["HOME", "DATA", "DOCS", "TEMP"]
+__all__ = [name for name in dir() if not name.startswith('_')]
