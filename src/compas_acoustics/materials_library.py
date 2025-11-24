@@ -69,3 +69,17 @@ class MaterialsLibrary(Data):
         """
         
         return os.path.join(self._library_path, f"{material_id}.json")
+
+
+    @property
+    def material_names(self) -> list:
+        """List of all material names in the library.
+        
+        Returns
+        -------
+        list
+            A list of material names.
+        """
+        material_files = [f for f in os.listdir(self._library_path) if f.endswith('.json')]
+        material_names = [os.path.splitext(f)[0] for f in material_files]
+        return material_names
