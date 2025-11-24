@@ -16,9 +16,9 @@ HERE = os.path.dirname(__file__)
 from .defaults import *
 from .acoustic_material import *
 from .materials_library import *
+from .source import *
 # from .geometry import *
 # from .receiver import *
 # from .scene import *
-# from .source import *
 
 __all__ = [name for name in dir() if not name.startswith('_')]
