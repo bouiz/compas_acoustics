@@ -9,8 +9,8 @@ class AcousticMaterial(Data):
     
     Parameters
     ----------
-    id : str
-        The identifier of the acoustic material. Lowercase and no spaces.
+    name : str
+        The name of the acoustic material. Lowercase and no spaces.
     description : str
         A text describing the material.
     absorption_coefficients : list
@@ -21,28 +21,37 @@ class AcousticMaterial(Data):
         A list of transmission coefficients corresponding to frequency bands. Optional.
     """
     
-    def __init__(self, id: str, absorption_coefficients: list, scattering_coefficients: list = None, transmission_coefficients: list = None, description: str = None):
+    def __init__(self, name: str, absorption_coefficients: list, scattering_coefficients: list = None, transmission_coefficients: list = None, description: str = None):
         super().__init__()
-        self.id = id
-        self.description = None
-        self.number_of_frequency_bands = len(Defaults().DEFAULT_FREQUENCY_BANDS)
+        self.name = name
+        self.description = description
         self.absorption_coefficients = absorption_coefficients
         self.scattering_coefficients = scattering_coefficients
         self.transmission_coefficients = transmission_coefficients
         
     
     @property
-    def id(self):
-        return self._id
+    def name(self):
+        return self._name
     
     
-    @id.setter
-    def id(self, id):
-        if " " in id:
-            raise ValueError("Material id cannot contain spaces.")
-        if any(char.isupper() for char in id):
-            raise ValueError("Material id must be lowercase.")
-        self._id = id
+    @name.setter
+    def name(self, name):
+        if " " in name:
+            raise ValueError("Material name cannot contain spaces.")
+        if any(char.isupper() for char in name):
+            raise ValueError("Material name must be lowercase.")
+        self._name = name
+        
+        
+    @property
+    def description(self):
+        return self._description
+    
+    
+    @description.setter
+    def description(self, description):
+        self._description = description
 
     
     @property
@@ -51,16 +60,12 @@ class AcousticMaterial(Data):
     
     
     @absorption_coefficients.setter
-    def absorption_coefficients(self, coefficients: list):
-        match len(coefficients):
-            case 1:
-                coefficients = coefficients * self.number_of_frequency_bands
-                self._absorption_coefficients = coefficients
-            case 8:
-                self._absorption_coefficients = coefficients
-            case _:
-                raise ValueError(f"Absorption coefficients list must have {self.number_of_frequency_bands} values corresponding to the frequency bands.")
-    
+    def absorption_coefficients(self, coefficients):
+        if coefficients:
+            self._absorption_coefficients = self._sanitize_coefficients(coefficients, "Absorption")
+        else:
+            raise ValueError("You need to provide absorption coefficients.")
+        
     
     @property
     def scattering_coefficients(self):
@@ -68,18 +73,11 @@ class AcousticMaterial(Data):
     
     
     @scattering_coefficients.setter
-    def scattering_coefficients(self, coefficients: list):
+    def scattering_coefficients(self, coefficients):
         if coefficients:
-            match len(coefficients):
-                case 1:
-                    coefficients = coefficients * self.number_of_frequency_bands
-                    self._scattering_coefficients = coefficients
-                case 8:
-                    self._scattering_coefficients = coefficients
-                case _:
-                    raise ValueError(f"Scattering coefficients list must have {self.number_of_frequency_bands} values corresponding to the frequency bands.")
+            self._scattering_coefficients = self._sanitize_coefficients(coefficients, "Scattering")
         else:
-            self._scattering_coefficients = coefficients
+            self._scattering_coefficients = None
     
     
     @property
@@ -90,29 +88,33 @@ class AcousticMaterial(Data):
     @transmission_coefficients.setter
     def transmission_coefficients(self, coefficients: list):
         if coefficients:
-            match len(coefficients):
-                case 1:
-                    coefficients = coefficients * self.number_of_frequency_bands
-                    self._transmission_coefficients = coefficients
-                case 8:
-                    self._transmission_coefficients = coefficients
-                case _:
-                    raise ValueError(f"Transmission coefficients list must have {self.number_of_frequency_bands} values corresponding to the frequency bands.")
+            self._transmission_coefficients = self._sanitize_coefficients(coefficients, "Transmission")
         else:
-            self._transmission_coefficients = coefficients
+            self._transmission_coefficients = None
+            
+            
+    def _sanitize_coefficients(self, coefficients, coeff_type:str):
+        if isinstance(coefficients, int) or isinstance(coefficients, float):
+                coefficients = [coefficients] * Defaults().NUMBER_OF_FREQUENCY_BANDS
+        elif isinstance(coefficients, (list, tuple)):
+            if len(coefficients) != Defaults().NUMBER_OF_FREQUENCY_BANDS:
+                raise ValueError(f"{coeff_type} coefficients list must have {Defaults().NUMBER_OF_FREQUENCY_BANDS} values corresponding to the frequency bands.")
+            else:
+                coefficients = list(coefficients)
+        return coefficients
 
 
     @property
     def __data__(self):
         return{
-            "id": self.id,
+            "name": self.name,
             "description": self.description or "",
             "absorption_coefficients": self.absorption_coefficients,
             "scattering_coefficients": self.scattering_coefficients or [],
             "transmission_coefficients": self.transmission_coefficients or [],
         }
-      
+        
   
-    def __repr__(self):
+    def __str__(self):
         return f"AcousticMaterial(name={self.name}, absorption_coefficients={self.absorption_coefficients})"
     
