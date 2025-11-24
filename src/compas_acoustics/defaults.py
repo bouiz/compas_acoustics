@@ -3,7 +3,7 @@ import os
 __all__ = ['Defaults']
 
 class Defaults:
-    _DEFAULT_FREQUENCY_BANDS = [64, 125, 250, 500, 1000, 2000, 4000, 8000]
+    _DEFAULT_FREQUENCY_BANDS = [63, 125, 250, 500, 1000, 2000, 4000, 8000]
     _DEFAULT_SCATTERING_COEFFICENTS = [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
     _DEFAULT_ABSORPTION_COEFFICIENTS = [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
     _DEFAULT_TRANSMISSION_COEFFICIENTS = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
@@ -12,6 +12,10 @@ class Defaults:
     @property
     def DEFAULT_FREQUENCY_BANDS(self):
         return self._DEFAULT_FREQUENCY_BANDS
+    
+    @property
+    def NUMBER_OF_FREQUENCY_BANDS(self):
+        return len(self._DEFAULT_FREQUENCY_BANDS)
     
     @property
     def DEFAULT_SCATTERING_COEFFICENTS(self):
