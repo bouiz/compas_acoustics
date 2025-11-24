@@ -104,6 +104,11 @@ class Source(Point):
         return self.position
     
     
+    @property
+    def id(self):
+        return self.guid
+    
+    
     @classmethod
     def omni(cls, name: str, x:float, y:float, z:float):
         source = cls(name, x, y, z)
