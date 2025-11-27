@@ -7,7 +7,7 @@ class Defaults:
     _DEFAULT_SCATTERING_COEFFICENTS = [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
     _DEFAULT_ABSORPTION_COEFFICIENTS = [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
     _DEFAULT_TRANSMISSION_COEFFICIENTS = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-    _METERIALS_LIBRARY_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), 'materials_library'))
+    _MATERIALS_LIBRARY_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), 'materials_library'))
     
     @property
     def DEFAULT_FREQUENCY_BANDS(self):
@@ -31,4 +31,4 @@ class Defaults:
     
     @property
     def MATERIALS_LIBRARY_PATH(self):
-        return self._METERIALS_LIBRARY_PATH
+        return self._MATERIALS_LIBRARY_PATH
