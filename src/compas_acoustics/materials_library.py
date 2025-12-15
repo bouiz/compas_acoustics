@@ -12,7 +12,7 @@ __all__ = ['MaterialsLibrary']
 
 class MaterialsLibrary(Data):
     """
-    A class from handling acoustic materials.
+    A class for handling acoustic materials.
     """
 
 

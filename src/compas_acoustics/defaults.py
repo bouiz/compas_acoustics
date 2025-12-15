@@ -7,6 +7,7 @@ class Defaults:
     _DEFAULT_SCATTERING_COEFFICENTS = [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
     _DEFAULT_ABSORPTION_COEFFICIENTS = [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
     _DEFAULT_TRANSMISSION_COEFFICIENTS = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    _DEFAULT_SPEED_OF_SOUND = 343
     _MATERIALS_LIBRARY_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), 'materials_library'))
     
     @property
@@ -28,6 +29,10 @@ class Defaults:
     @property
     def DEFAULT_TRANSMISSION_COEFFICIENTS(self):
         return self._DEFAULT_TRANSMISSION_COEFFICIENTS
+    
+    @property
+    def DEFAULT_SPEED_OF_SOUND(self) :
+        return self._DEFAULT_SPEED_OF_SOUND
     
     @property
     def MATERIALS_LIBRARY_PATH(self):
