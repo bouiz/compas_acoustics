@@ -96,7 +96,7 @@ class AcousticMaterial(Data):
             self._transmission_coefficients = None
     
         
-    def scattering_coefficients_from_depth(self, depth, s_max=0.8, c=343):
+    def scattering_coefficients_from_depth(self, depth, s_max=0.8, c = Defaults().DEFAULT_SPEED_OF_SOUND):
         """
         Compute scattering coefficients for octave bands
         based on surface depth using a wavelength-dependent model.
