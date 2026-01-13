@@ -1,3 +1,5 @@
+[![Made with COMPAS](https://compas.dev/badge.svg)](https://compas.dev)
+
 # compas_acoustics
 
 
