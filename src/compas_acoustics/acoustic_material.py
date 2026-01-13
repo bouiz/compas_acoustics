@@ -24,7 +24,7 @@ class AcousticMaterial(Data):
         A list of transmission coefficients corresponding to frequency bands. Optional.
     """
     
-    def __init__(self, name: str, absorption_coefficients: list, scattering_coefficients: list = None, transmission_coefficients: list = None, description: str = None):
+    def __init__(self, name: str, absorption_coefficients, scattering_coefficients: list = None, transmission_coefficients: list = None, description: str = None):
         super().__init__()
         self.name = name
         self.description = description

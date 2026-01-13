@@ -1,13 +1,11 @@
 from __future__ import print_function
 
-import os
-
-from .defaults import *
-from .acoustic_material import *
-from .materials_library import *
-from .source import *
-from .receiver import *
-# from .geometry import *
+from .defaults import Defaults
+from .acoustic_material import AcousticMaterial
+from .materials_library import MaterialsLibrary
+from .source import Source
+from .receiver import Receiver
+from .geometry import AcousticObject, AcousticObjectsLibrary
 # from .scene import *
 
 __author__ = ["Achilleas Xydis"]
@@ -16,6 +14,12 @@ __license__ = "MIT License"
 __email__ = "xydis@arch.ethz.ch"
 __version__ = "0.1.0"
 
-HERE = os.path.dirname(__file__)
-
-__all__ = [name for name in dir() if not name.startswith('_')]
+__all__ = [
+    'Defaults',
+    'AcousticMaterial',
+    'MaterialsLibrary',
+    'Source',
+    'Receiver',
+    'AcousticObject',
+    'AcousticObjectsLibrary'
+    ]

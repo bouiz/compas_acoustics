@@ -109,6 +109,10 @@ class Source(Point):
         return self.guid
     
     
+    #TODO
+    #Point receiver to a source
+    
+    
     @classmethod
     def omni(cls, name: str, x:float, y:float, z:float):
         source = cls(name, x, y, z)
