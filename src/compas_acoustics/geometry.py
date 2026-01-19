@@ -1,7 +1,8 @@
+from random import random
+
 from collections import defaultdict
-
+from compas.colors import Color
 from compas.data import Data
-
 from compas.datastructures import Mesh
 from compas.geometry import Box
 from compas.files import OBJ
@@ -121,6 +122,35 @@ class AcousticObject(Data):
             raise ValueError("Visualisation geometry must be a compas.datastructures.Mesh object.")
     
     
+    @property
+    def surface_group_colors(self):
+        """
+        Generate unique random colors for each surface group.
+        
+        Returns
+        -------
+        dict
+            A dictionary where keys are surface group names and values are random Color objects.
+        """
+        group_colors = {sk: Color(random(), random(), random(), 0.5) for sk in self.surface_groups.keys()}
+        return group_colors
+    
+    
+    @property
+    def face_colors(self):
+        """
+        Generate a face color mapping based on surface groups.
+        
+        Returns
+        -------
+        dict
+            A dictionary where keys are face indices and values are Color objects corresponding to their surface group.
+        """
+        group_colors = self.surface_group_colors
+        facecolor = {fkey: group_colors[self.acoustic_geometry.face_attribute(fkey, 'surface_group')] for fkey in self.acoustic_geometry.faces()}
+        return facecolor
+    
+    
     @classmethod
     def acoustic_object_from_obj(cls, obj_path:str):
         obj = OBJ(obj_path)
@@ -142,11 +172,22 @@ class AcousticObjectsLibrary(AcousticObject):
     """
 
     @classmethod
-    def shoebox_room(cls, width:float, depth:float, height:float, sources:list=None):
-        box = Box(width, depth, height)
+    def shoebox_room(cls, length:float, width:float, height:float, sources:list=None):
+        box = Box(length, width, height)
         acoustic_geometry = Mesh.from_shape(box)
-        #TODO: assign face groups
+        
         acoustic_object = cls(acoustic_geometry=acoustic_geometry)
+        
+        # Set surface groups attribute
+        surface_groups = {
+            'floor': [0],
+            'left_wall': [1],
+            'front_wall': [2],
+            'right_wall': [3],
+            'back_wall': [4],
+            'ceiling': [5],
+        }
+        acoustic_object.surface_groups = surface_groups
 
         if sources:
             acoustic_object.sources=sources
