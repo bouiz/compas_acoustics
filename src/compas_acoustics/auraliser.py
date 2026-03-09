@@ -107,6 +107,11 @@ class Auraliser(Data):
             if data['ir'] is None or not isinstance(data['ir'], np.ndarray) or data['ir'].size == 0:
                 raise ValueError(f"Impulse response {ir_id} is empty or invalid.")
 
+            # Check if impulse response is transposed
+            if data['ir'].shape[1] > data['ir'].shape[0]:
+                warnings.warn(f"Impulse response {ir_id} is transposed. Impulse response will be transposed to thecorrect format")
+                data['ir'] = data['ir'].T
+
             ambisonics_order_from_ir = np.sqrt(data['ir'].shape[1]) - 1
             # Check if impulse response follows typical ambisonics channel count, (ambisonics_order + 1)**2
             if ambisonics_order_from_ir != int(ambisonics_order_from_ir):
@@ -183,7 +188,7 @@ class Auraliser(Data):
     
 
     def multiconvolution(self):
-        return 0
+        return 0 # TODO
 
     def check_number_of_impulse_responses_vs_anechoic_sounds(self):
         anechoic_sounds_number = self.get_impulse_response_count()
