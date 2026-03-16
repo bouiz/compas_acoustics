@@ -560,22 +560,31 @@ def test_export_convolved_sound(tmp_path):
     # Temporary output file
     output_file = tmp_path / "test_output.wav"
 
-    result = a.export_convolved_sound(output_file, convolved)
+    allowed = {"mono", "stereo", "ambisonics", "binaural"}
+    for out_fmt in allowed:
+        a.output_format = out_fmt
+        result = a.export_convolved_sound(output_file, convolved)
 
-    # Test 1: result should be numpy array
-    assert isinstance(result, np.ndarray), f"Expected numpy array, got {type(result)}"
+        # Test 1: result should be numpy array
+        assert isinstance(result, np.ndarray), f"Expected numpy array, got {type(result)}"
 
-    # Test 2: channel count for ambisonics
-    expected_channels = (a.maximum_ambisonics_order + 1) ** 2
-    assert result.shape[1] == expected_channels, f"Expected {expected_channels} channels, got {result.shape[1]}"
+        # Test 2: channel count for ambisonics
+        if out_fmt == "mono":
+            expected_channels = 1
+        elif out_fmt == "stereo":
+            expected_channels = 2
+        elif out_fmt == "binaural":
+            expected_channels = 2
+        elif out_fmt == "ambisonics":
+            expected_channels = (a.maximum_ambisonics_order + 1) ** 2
+        
+        assert result.shape[1] == expected_channels, f"Expected {expected_channels} channels, got {result.shape[1]}"
 
-    # Test 3: output file exists
-    assert output_file.exists(), "Output WAV file was not created"
+        # Test 3: output file exists
+        assert output_file.exists(), "Output WAV file was not created"
 
-    # Test 4: dtype should be float32
-    assert result.dtype == np.float32, f"Expected float32, got {result.dtype}"
-
-
+        # Test 4: dtype should be float32
+        assert result.dtype == np.float32, f"Expected float32, got {result.dtype}"
 
 
     

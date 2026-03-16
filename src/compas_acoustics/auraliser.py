@@ -291,14 +291,9 @@ class Auraliser(Data):
         if self.output_format == "mono":
             exported_sound = np.mean(convolved_sound, axis=1, keepdims=True)
         elif self.output_format == "stereo":
-            speaker_positions = np.array([
-            self.sph2cart(np.deg2rad(-30), 0),   # Left
-            self.sph2cart(np.deg2rad(30), 0)     # Right
-            ])
-            decoder = spa.decoder.allrad(self.maximum_ambisonics_order, speaker_positions)
-            exported_sound = decoder @ convolved_sound.T
+            exported_sound = self.decode_stereo_simple(convolved_sound)
         elif  self.output_format == "binaural":
-            exported_sound = spa.decoder.binaural(convolved_sound, self.sample_rate)
+            exported_sound = self.decode_stereo_simple(convolved_sound) # TODO - Need to change to proper binaural export (https://www.york.ac.uk/sadie-project/database.html)
         elif self.output_format == "ambisonics":
             exported_sound = convolved_sound
 
@@ -309,13 +304,17 @@ class Auraliser(Data):
 
         return exported_sound
 
-  
-    def sph2cart(az, el):
-        x = np.cos(el) * np.cos(az)
-        y = np.cos(el) * np.sin(az)
-        z = np.sin(el)
-        return [x, y, z]
 
+    def decode_stereo_simple(self, ambisonics_sound):
+        W = ambisonics_sound[:, 0]
 
+        if ambisonics_sound.shape[1] > 3:
+            X = ambisonics_sound[:, 3]
+        else:
+            X = 0
 
+        left = W + X
+        right = W - X
+
+        return np.stack([left, right], axis=1)
 
