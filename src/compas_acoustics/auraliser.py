@@ -128,7 +128,7 @@ class Auraliser(Data):
                 warnings.warn(f"Mismatch detected between({data['ambisonic_order']} != {data['ir'].shape[1]}). Overwriting.")
                 data['ambisonic_order'] = ambisonics_order_from_ir
 
-            # check if impulse response is correct sample rate
+            # check if impulse response is correct sample rate and resample if needed
             if data['sample_rate'] != self.sample_rate:
                 warnings.warn(f"Mismatch detected between {ir_id} sample rate of {data['sample_rate']} Hz, and default sample rate of {self.sample_rate} Hz. Impulse response will be resampled to {self.sample_rate} Hz.")
                 data['ir'] = self.resample_signal(data['ir'], data['sample_rate'], self.sample_rate)
@@ -165,18 +165,21 @@ class Auraliser(Data):
     @property
     def maximum_ambisonics_order(self):
         if self._maximum_ambisonics_order is None:
-            self._maximum_ambisonics_order = self.get_maximum_ambisonics_order()
+            maximum_ambisonics_order = 0
+            for ir_id, data in self.impulse_responses.items():
+                print(data['ambisonic_order'])
+                if data['ambisonic_order'] > maximum_ambisonics_order:
+                    maximum_ambisonics_order = data['ambisonic_order']
+            self._maximum_ambisonics_order = maximum_ambisonics_order
         return self._maximum_ambisonics_order
     
 
-    def get_maximum_ambisonics_order(self):
-        maximum_ambisonics_order = 0
-        for ir_id, data in self.impulse_responses.items():
-            print(data['ambisonic_order'])
-            if data['ambisonic_order'] > maximum_ambisonics_order:
-                maximum_ambisonics_order = data['ambisonic_order']
+    @property
+    def longest_impulse_response_length(self):
+        if not self.impulse_responses:
+            return 0
 
-        return maximum_ambisonics_order
+        return max(data["ir"].shape[0] for data in self.impulse_responses.values())
 
 
     def get_impulse_response_count(self):
@@ -186,9 +189,6 @@ class Auraliser(Data):
     def get_anechoic_sounds_count(self):
         return len(self.anechoic_sounds)
     
-
-    def multiconvolution(self):
-        return 0 # TODO
 
     def check_number_of_impulse_responses_vs_anechoic_sounds(self):
         anechoic_sounds_number = self.get_impulse_response_count()
@@ -221,6 +221,21 @@ class Auraliser(Data):
         return anechoic_sound
 
 
+    def ambisonics_upmix_downmix(self, sound, ambisonics_order):
+        target_channels = (ambisonics_order + 1)**2
+        current_channels = sound.shape[1]
+        if current_channels < target_channels:
+            # Pad extra channels with zeros
+            pad_width = ((0, 0), (0, target_channels - current_channels))
+            return np.pad(sound, pad_width)
+        elif current_channels > target_channels:
+            # Truncate channels (downmix naively)
+            return sound[:, :target_channels]
+        else:
+            # Channel count is same as ambisonics order
+            return sound
+    
+
     def convolve(self, impulse_response, anechoic_sound):         
         impulse_response_channel_count = impulse_response.shape[1]
         impulse_response_length = impulse_response.shape[0]
@@ -234,7 +249,31 @@ class Auraliser(Data):
         return convolved_sound
 
 
+    def multiconvolution(self):
+        convolved_sound_summed = np.zeros((0, (self.maximum_ambisonics_order+1)**2))
 
+        for (ir_id, ir_data), (ac_id, ac_data) in zip(
+            self.impulse_responses.items(),
+            self.anechoic_sounds.items()
+        ):
+
+            anechoic_sound = self.import_anechoic_sound(ac_data['filepath'], self.sample_rate)
+            impulse_response = ir_data['ir']
+
+            convolved_sound_single = self.convolve(impulse_response, anechoic_sound)
+
+            # Make sure all convolved sounds are the maximum ambisonics order
+            convolved_sound_single = self.ambisonics_upmix_downmix(convolved_sound_single, self.maximum_ambisonics_order)
+
+            # Pad summed array dynamically
+            new_len = max(convolved_sound_summed.shape[0], convolved_sound_single.shape[0])
+            convolved_sound_summed = np.pad(convolved_sound_summed, ((0, new_len - convolved_sound_summed.shape[0]), (0, 0)))
+            convolved_sound_single = np.pad(convolved_sound_single, ((0, new_len - convolved_sound_single.shape[0]), (0, 0)))
+
+            
+            convolved_sound_summed += convolved_sound_single
+
+        return convolved_sound_summed
 
 
 

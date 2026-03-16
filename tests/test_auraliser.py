@@ -216,6 +216,40 @@ def test_ir_invalid_ambisonics_order():
         )
 
 
+def test_ir_maximum_length():
+    a = Auraliser(
+        name="room1",
+        impulse_responses={
+            "ir1": {
+                    "info": "maximum_ambisonic_order",
+                    "sample_rate": sample_rate_default,
+                    "ambisonic_order": 2,
+                    "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
+                    "ir": np.zeros([100000,9]),
+                },
+            "ir2": {
+                    "info": "maximum_ambisonic_order",
+                    "sample_rate": sample_rate_default,
+                    "ambisonic_order": 4,
+                    "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
+                    "ir": np.zeros([48000,25]),
+                },
+        },
+        anechoic_sounds={
+                "ac1": {
+                    "info": "whatevs",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                },
+                "ac2": {
+                    "info": "whatevs",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                }
+            },
+        output_format="mono"
+    )
+    assert a.longest_impulse_response_length == 100000
+
+
 def test_anechoioc_sounds_allowed_extensions():
     with pytest.raises(ValueError):
         Auraliser(
@@ -285,7 +319,7 @@ def test_maximum_ambisonic_order():
             },
         output_format="mono"
     )
-    assert a.get_maximum_ambisonics_order() == 4
+    assert a.maximum_ambisonics_order == 4
 
 
 def test_impulse_response_and_anechoic_sounds_count():
@@ -353,6 +387,51 @@ def test_import_anechoic_sound():
     assert audio.ndim == 1, "Audio should be mono (1D array)"
 
 
+def test_ambisonics_upmix_downmix():
+    a = Auraliser(
+            name="room1",
+            impulse_responses={
+                "ir1": {
+                    "info": "invalid_ir_hoa_order",
+                    "sample_rate": sample_rate_default,
+                    "ambisonic_order": 2,
+                    "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
+                    "ir": np.zeros([48000,9]),
+                },
+            },
+            anechoic_sounds={
+                "ac1": {
+                    "info": "anechoic_sound_test",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
+                }
+            },
+            output_format="mono"
+        )
+    
+    # Dummy 2-channel signal
+    impulse_response = np.array([
+        [1, 0],
+        [0.5, 1],
+        [0, 0.5]
+    ])
+    
+    # Test upmix to 2nd-order Ambisonics (target 9 channels)
+    result = a.ambisonics_upmix_downmix(impulse_response, 2)
+    
+    # Check shape
+    assert result.shape == (3, 9), f"Expected shape (3,9), got {result.shape}"
+    
+    # Test downmix: provide 16-channel input, target 2nd-order (9 channels)
+    dummy_16ch = np.zeros((5, 16))
+    result2 = a.ambisonics_upmix_downmix(dummy_16ch, 2)
+    assert result2.shape == (5, 9), f"Expected shape (5,9), got {result2.shape}"
+    
+    # Test no change if already correct channels
+    dummy_9ch = np.zeros((4, 9))
+    result3 = a.ambisonics_upmix_downmix(dummy_9ch, 2)
+    assert result3.shape == (4, 9), f"Expected shape (4,9), got {result3.shape}"
+
+
 def test_convolve():
     a = Auraliser(
             name="room1",
@@ -373,6 +452,7 @@ def test_convolve():
             },
             output_format="mono"
         )
+
 
     # Dummy signals
     impulse_response = np.array([
@@ -396,37 +476,49 @@ def test_convolve():
     np.testing.assert_allclose(output[:,0], expected_ch0)
 
 
-def test_main_output():
+def test_multiconvolution():
     a = Auraliser(
         name="room1",
         impulse_responses={
             "ir1": {
-                    "info": "maximum_ambisonic_order",
-                    "sample_rate": sample_rate_default,
-                    "ambisonic_order": 2,
-                    "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
-                    "ir": np.zeros([48000,9]),
-                },
+                "info": "multi1",
+                "sample_rate": sample_rate_default,
+                "ambisonic_order": 2,
+                "mic_position": [0.0, 0.0, 1.5],
+                "ir": np.zeros([48000, 9]),
+            },
             "ir2": {
-                    "info": "maximum_ambisonic_order",
-                    "sample_rate": sample_rate_default,
-                    "ambisonic_order": 4,
-                    "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
-                    "ir": np.zeros([48000,25]),
-                },
+                "info": "multi2",
+                "sample_rate": sample_rate_default,
+                "ambisonic_order": 4,
+                "mic_position": [0.0, 0.0, 1.5],
+                "ir": np.zeros([48000, 25]),
+            },
         },
         anechoic_sounds={
-                "ac1": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
-                },
-                "ac2": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
-                }
+            "ac1": {
+                "info": "whatevs",
+                "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
             },
+            "ac2": {
+                "info": "whatevs",
+                "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
+            }
+        },
         output_format="ambisonics"
     )
 
+    result = a.multiconvolution()
+
+    # Test 1: result should be a NumPy array
+    assert isinstance(result, np.ndarray), f"Expected a NumPy array, got {type(result)}"
+
+    # Test 2: number of channels should match maximum Ambisonics order
+    expected_channels = (a.maximum_ambisonics_order + 1) ** 2
+    assert result.shape[1] == expected_channels, f"Expected {expected_channels} channels, got {result.shape[1]}"
+
+    # Test 3: number of samples should be >= longest IR length
+    longest_ir = max(ir_data['ir'].shape[0] for ir_data in a.impulse_responses.values())
+    assert result.shape[0] >= longest_ir, f"Expected at least {longest_ir} samples, got {result.shape[0]}"
 
 
