@@ -4,8 +4,10 @@ import numpy as np
 from pathlib import Path
 from scipy.signal import resample
 from scipy.signal import fftconvolve
+from scipy.io.wavfile import write
 import soundfile as sf
 import librosa
+import spaudiopy as spa
 
 from compas_acoustics.defaults import Defaults
 
@@ -20,14 +22,16 @@ class Auraliser(Data):
     ----------
     name : str
         The name of the impulse responses. Lowercase and no spaces.
-    description : str
-        A text describing the impulse response group.
     impulse_responses : list
         A list of all impulse responses to be used for the auralisation.
     anechoic_sounds : list
         A list of the anechoic sounds to be used to convolve with the impulse responses.
     output_format : str
         The type of  output format. Lowercase and no spaces.
+    description : str
+        A text describing the impulse response group.
+    sample_rate : int
+        An integer dictating the sampling response of the auralisation
     """
 
     def __init__(self, name: str, impulse_responses: dict, anechoic_sounds: dict, output_format: str, description: str = None, sample_rate: int = 48000):
@@ -274,6 +278,44 @@ class Auraliser(Data):
             convolved_sound_summed += convolved_sound_single
 
         return convolved_sound_summed
+
+
+    def export_convolved_sound(self, filepath, convolved_sound):
+        output_format = self.output_format
+
+        # Normalize
+        max_val = np.max(np.abs(convolved_sound))
+        if max_val > 0:
+            convolved_sound = convolved_sound / max_val
+
+        if self.output_format == "mono":
+            exported_sound = np.mean(convolved_sound, axis=1, keepdims=True)
+        elif self.output_format == "stereo":
+            speaker_positions = np.array([
+            self.sph2cart(np.deg2rad(-30), 0),   # Left
+            self.sph2cart(np.deg2rad(30), 0)     # Right
+            ])
+            decoder = spa.decoder.allrad(self.maximum_ambisonics_order, speaker_positions)
+            exported_sound = decoder @ convolved_sound.T
+        elif  self.output_format == "binaural":
+            exported_sound = spa.decoder.binaural(convolved_sound, self.sample_rate)
+        elif self.output_format == "ambisonics":
+            exported_sound = convolved_sound
+
+        # Convert to float32
+        exported_sound = exported_sound.astype(np.float32)
+
+        write(filepath, self.sample_rate, exported_sound)
+
+        return exported_sound
+
+  
+    def sph2cart(az, el):
+        x = np.cos(el) * np.cos(az)
+        y = np.cos(el) * np.sin(az)
+        z = np.sin(el)
+        return [x, y, z]
+
 
 
 
