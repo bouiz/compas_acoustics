@@ -1,2 +1,5 @@
 compas >=2.13, <3.0
 librosa
+soundfile
+spaudiopy
+sofar

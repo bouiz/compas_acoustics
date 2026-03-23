@@ -1,13 +1,16 @@
 from compas.data import Data
 import warnings
 import numpy as np
+import math
 from pathlib import Path
 from scipy.signal import resample
 from scipy.signal import fftconvolve
 from scipy.io.wavfile import write
+from scipy.special import lpmv
+from scipy.fft import rfft, irfft
 import soundfile as sf
 import librosa
-import spaudiopy as spa
+import sofar
 
 from compas_acoustics.defaults import Defaults
 
@@ -41,7 +44,7 @@ class Auraliser(Data):
         self._sample_rate = sample_rate
         self.impulse_responses = impulse_responses
         self.anechoic_sounds = anechoic_sounds
-        self._sample_rate = sample_rate
+        self._hrtf_path = Path(__file__).parent / "hrtfs_library" / "KEMAR_Knowl_EarSim_SmallEars_FreeFieldComp_48kHz.sofa"
         self.output_format = output_format
         self._maximum_ambisonics_order = None
         self.check_number_of_impulse_responses_vs_anechoic_sounds()
@@ -81,6 +84,15 @@ class Auraliser(Data):
             raise ValueError("Sample rate must be a positive integer.")
         self._sample_rate = value
 
+    @property
+    def hrtf_path(self):
+        return self._hrtf_path
+
+    @hrtf_path.setter
+    def hrtf_path(self, path_str: str):
+        if path_str is None:
+            raise ValueError("Path can't be empty.")
+        self._hrtf_path = Path(path_str)
 
     @property
     def output_format(self):
@@ -138,6 +150,12 @@ class Auraliser(Data):
                 data['ir'] = self.resample_signal(data['ir'], data['sample_rate'], self.sample_rate)
                 data['sample_rate'] = self.sample_rate
 
+            if not data.get('normalisation'):
+                warnings.warn(f"No normalisation noted for {ir_id}. SN3D assumed.")
+
+            if not data.get('channel_order'):
+                warnings.warn(f"No channel order noted for {ir_id}. ACN assumed.")
+        
         self._impulse_responses = impulse_responses
 
 
@@ -293,7 +311,8 @@ class Auraliser(Data):
         elif self.output_format == "stereo":
             exported_sound = self.decode_stereo_simple(convolved_sound)
         elif  self.output_format == "binaural":
-            exported_sound = self.decode_stereo_simple(convolved_sound) # TODO - Need to change to proper binaural export (https://www.york.ac.uk/sadie-project/database.html)
+            print('Output format: binaural, has been chosen. Normal stereo is exported for now. Please choose output format: ambisonics and use a personalised binaural decoder instead.')
+            exported_sound = self.decode_stereo_simple(convolved_sound)
         elif self.output_format == "ambisonics":
             exported_sound = convolved_sound
 
