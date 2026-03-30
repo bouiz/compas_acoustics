@@ -10,10 +10,8 @@ from scipy.special import lpmv
 from scipy.fft import rfft, irfft
 import soundfile as sf
 import librosa
-import sofar
 
 from compas_acoustics.defaults import Defaults
-
 
 __all__ = ['Auraliser']
 
@@ -78,21 +76,25 @@ class Auraliser(Data):
     def sample_rate(self):
         return self._sample_rate
 
+
     @sample_rate.setter
     def sample_rate(self, value: int):
         if value <= 0:
             raise ValueError("Sample rate must be a positive integer.")
         self._sample_rate = value
 
+
     @property
     def hrtf_path(self):
         return self._hrtf_path
+
 
     @hrtf_path.setter
     def hrtf_path(self, path_str: str):
         if path_str is None:
             raise ValueError("Path can't be empty.")
         self._hrtf_path = Path(path_str)
+
 
     @property
     def output_format(self):
@@ -128,6 +130,9 @@ class Auraliser(Data):
                 warnings.warn(f"Impulse response {ir_id} is transposed. Impulse response will be transposed to thecorrect format")
                 data['ir'] = data['ir'].T
 
+            if data['sample_rate'] <= 0:
+                raise ValueError(f"Impulse response {ir_id} has invalid sample rate {data['sample_rate']}. Must be positive.")
+
             ambisonics_order_from_ir = np.sqrt(data['ir'].shape[1]) - 1
             # Check if impulse response follows typical ambisonics channel count, (ambisonics_order + 1)**2
             if ambisonics_order_from_ir != int(ambisonics_order_from_ir):
@@ -151,10 +156,41 @@ class Auraliser(Data):
                 data['sample_rate'] = self.sample_rate
 
             if not data.get('normalisation'):
-                warnings.warn(f"No normalisation noted for {ir_id}. SN3D assumed.")
+                warnings.warn(f"No normalisation noted for {ir_id}. sn3d assumed.")
+                data['normalisation'] = 'sn3d'
 
             if not data.get('channel_order'):
-                warnings.warn(f"No channel order noted for {ir_id}. ACN assumed.")
+                warnings.warn(f"No channel order noted for {ir_id}. acn assumed.")
+                data['channel_order'] = 'acn'
+
+            if data['channel_order'].lower() == "fuma":
+                if data['ir'].shape[1] != 4:
+                    raise ValueError(f"FuMa format only supports 1st order (4 channels). Got {data['ir'].shape[1]} channels in {ir_id}.")
+
+                warnings.warn(f"Converting {ir_id} from FuMa to ACN channel order.")
+
+                # Reorder channels: [W, X, Y, Z] → [W, Y, Z, X]
+                data['ir'] = data['ir'][:, [0, 2, 3, 1]]
+
+                data['channel_order'] = 'acn'
+
+            if data['normalisation'].lower() == "n3d":
+                warnings.warn(f"Converting {ir_id} from n3d to sn3d.")
+
+                num_channels = data['ir'].shape[1]
+                indices = np.arange(num_channels)
+
+                # ACN → order n
+                n = np.floor(np.sqrt(indices)).astype(int)
+
+                # scale factors
+                scale = 1.0 / np.sqrt(2 * n + 1)
+
+                # apply per-channel scaling
+                data['ir'] = data['ir'] * scale[np.newaxis, :]
+
+                # update metadata
+                data['normalisation'] = 'SN3D'
         
         self._impulse_responses = impulse_responses
 
@@ -336,4 +372,10 @@ class Auraliser(Data):
         right = W - X
 
         return np.stack([left, right], axis=1)
+
+
+
+
+
+
 

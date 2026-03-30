@@ -91,6 +91,57 @@ def test_ir_empty():
         )
 
 
+def test_ir_sampling_rate_negative():
+    with pytest.raises(ValueError):
+        Auraliser(
+            name="room1",
+            impulse_responses={
+                "ir1": {
+                    "info": "invalid_ir_hoa_order",
+                    "sample_rate": -sample_rate_default,
+                    "ambisonic_order": 2,
+                    "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
+                    "ir": np.zeros([48000,9]),
+                    "normalisation": "sn3d",
+                    "channel_order": "acn",
+                },
+            },
+            anechoic_sounds={
+                "ac1": {
+                    "info": "whatevs",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                }
+            },
+            output_format="mono"
+        )
+
+
+def test_sampling_rate_negative():
+    with pytest.raises(ValueError):
+        a = Auraliser(
+            name="room1",
+            impulse_responses={
+                "ir1": {
+                    "info": "invalid_ir_hoa_order",
+                    "sample_rate": sample_rate_default,
+                    "ambisonic_order": 2,
+                    "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
+                    "ir": np.zeros([48000,9]),
+                    "normalisation": "sn3d",
+                    "channel_order": "acn",
+                },
+            },
+            anechoic_sounds={
+                "ac1": {
+                    "info": "whatevs",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                }
+            },
+            output_format="mono",
+        )
+        a.sample_rate = -sample_rate_default
+
+
 def test_ir_warning_resample():
     with pytest.warns(UserWarning):
         a = Auraliser(
@@ -228,6 +279,7 @@ def test_ir_warning_normalisation_empty():
             output_format="mono"
         )
 
+
 def test_ir_warning_channel_order_empty():
     with pytest.warns(UserWarning):
         Auraliser(
@@ -264,6 +316,81 @@ def test_ir_invalid_ambisonics_order():
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([48000,8]),
                     "normalisation": "sn3d",
+                    "channel_order": "acn",
+                },
+            },
+            anechoic_sounds={
+                "ac1": {
+                    "info": "whatevs",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                }
+            },
+            output_format="mono"
+        )
+
+
+def test_ir_fuma_channel_ordering_not_1st_order():
+    with pytest.raises(ValueError):
+        Auraliser(
+            name="room1",
+            impulse_responses={
+                "ir1": {
+                    "info": "invalid_ir_hoa_order",
+                    "sample_rate": sample_rate_default,
+                    "ambisonic_order": 2,
+                    "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
+                    "ir": np.zeros([48000,9]),
+                    "normalisation": "n3d",
+                    "channel_order": "fuma",
+                },
+            },
+            anechoic_sounds={
+                "ac1": {
+                    "info": "whatevs",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                }
+            },
+            output_format="mono"
+        )
+
+
+def test_ir_fuma_channel_ordering():
+    with pytest.warns(UserWarning):
+        Auraliser(
+            name="room1",
+            impulse_responses={
+                "ir1": {
+                    "info": "invalid_ir_hoa_order",
+                    "sample_rate": sample_rate_default,
+                    "ambisonic_order": 1,
+                    "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
+                    "ir": np.zeros([48000,4]),
+                    "normalisation": "n3d",
+                    "channel_order": "fuma",
+                },
+            },
+            anechoic_sounds={
+                "ac1": {
+                    "info": "whatevs",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                }
+            },
+            output_format="mono"
+        )
+
+
+def test_warning_ir_n3d_normalisation():
+    with pytest.warns(UserWarning):
+        Auraliser(
+            name="room1",
+            impulse_responses={
+                "ir1": {
+                    "info": "invalid_ir_hoa_order",
+                    "sample_rate": sample_rate_default,
+                    "ambisonic_order": 2,
+                    "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
+                    "ir": np.zeros([48000,9]),
+                    "normalisation": "n3d",
                     "channel_order": "acn",
                 },
             },
@@ -674,5 +801,12 @@ def test_export_convolved_sound(tmp_path):
 
         # Test 4: dtype should be float32
         assert result.dtype == np.float32, f"Expected float32, got {result.dtype}"
+
+
+
+
+
+
+
 
 
