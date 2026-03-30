@@ -292,7 +292,7 @@ class Auraliser(Data):
         else:
             # Channel count is same as ambisonics order
             return sound
-    
+
 
     def convolve(self, impulse_response, anechoic_sound):         
         impulse_response_channel_count = impulse_response.shape[1]
