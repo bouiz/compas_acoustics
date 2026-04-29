@@ -7,3 +7,5 @@ ruff
 sphinx_compas2_theme
 twine
 wheel
+
+compas_viewer >=2.0, <3.0
