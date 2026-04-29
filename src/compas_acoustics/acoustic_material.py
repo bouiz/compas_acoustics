@@ -1,3 +1,4 @@
+import os
 import math
 import warnings
 
@@ -31,6 +32,7 @@ class AcousticMaterial(Data):
         self.absorption_coefficients = absorption_coefficients
         self.scattering_coefficients = scattering_coefficients
         self.transmission_coefficients = transmission_coefficients
+        self.frequency_bands = Defaults().DEFAULT_FREQUENCY_BANDS
         
     
     @property
@@ -94,6 +96,19 @@ class AcousticMaterial(Data):
             self._transmission_coefficients = self._sanitize_coefficients(coefficients, "Transmission")
         else:
             self._transmission_coefficients = None
+            
+    
+    @property
+    def frequency_bands(self):
+        return self._frequency_bands
+    
+    
+    @frequency_bands.setter
+    def frequency_bands(self, frequency_bands):
+        if frequency_bands:
+            self._frequency_bands = frequency_bands
+        else:
+            self._frequency_bands = Defaults().DEFAULT_FREQUENCY_BANDS
     
         
     def scattering_coefficients_from_depth(self, depth, s_max=0.8, c = Defaults().DEFAULT_SPEED_OF_SOUND):
@@ -124,7 +139,7 @@ class AcousticMaterial(Data):
         if depth > 2:
             warnings.warn(f"Depth value should me in meters! Calculating scattering coefficients for depth {depth} meters.")
         
-        freq_bands = Defaults().DEFAULT_FREQUENCY_BANDS
+        freq_bands = self.frequency_bands
         
         coeffs = []
         for f in freq_bands:
@@ -146,6 +161,16 @@ class AcousticMaterial(Data):
             else:
                 coefficients = list(coefficients)
         return coefficients
+    
+    
+    def add_to_library(self):
+        """
+        Add the AcousticMaterial to the library.
+        """
+        #TODO check if material with same name exists
+        #TODO check if material with same properties exists
+        path = os.path.join(Defaults().MATERIALS_LIBRARY_PATH, f"{self.name}.json")
+        self.to_json(path, compact=True, minimal=True)
 
 
     @property
