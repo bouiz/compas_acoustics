@@ -21,6 +21,7 @@ class AcousticAnalyser(Data):
     def __init__(self, ir):
         self.ir = ir
         self.analysis_data = None
+        self.sampling_rate = Defaults().SAMPLING_RATE
 
     @property
     def ir(self):
@@ -226,7 +227,7 @@ class AcousticAnalyser(Data):
             print(f"{p:14}" + "".join(f"{v:>8.2f}" for v in row))
 
 
-    def plotter(self, parameters=None):
+    def plot(self, parameters=None):
 
         if parameters is not None:
             if isinstance(parameters, str):
@@ -343,3 +344,6 @@ class AcousticAnalyser(Data):
                 writer.writerow(formatted_row)
         
         print(f"Selected results successfully saved to: {filepath}")
+
+
+# TODO: plot_time_domain, plot_freqency_domain

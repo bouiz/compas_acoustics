@@ -1,9 +1,8 @@
 {
     "data": {
-        "id": "test_material",
+        "name": "test_material",
         "description": "Test Material",
         "absorption_coefficients": [
-            0.1,
             0.1,
             0.2,
             0.4,
@@ -13,7 +12,6 @@
             0.1
         ],
         "scattering_coefficients": [
-            0.2,
             0.2,
             0.2,
             0.2,

@@ -1,8 +1,9 @@
 from compas_acoustics import AcousticAnalyser
 import soundfile as sf
+import os
 
-ir, fs = sf.read("/Users/gpapadim/Desktop/odeon_srir.wav")
-ir = ir[:, 0]
+path = os.path.join(os.path.dirname(__file__), 'rir_mono.wav')
+ir, fs = sf.read(path)
 
 analyzer = AcousticAnalyser(ir)
 analyzer.sampling_rate = fs
@@ -11,6 +12,7 @@ results = analyzer.analyse()
 
 analyzer.print_table()
 
-analyzer.plotter('T30')
+analyzer.plot('T30')
 
-analyzer.export_csv("analysis_results.csv")
+csv_path = os.path.join(os.path.dirname(__file__), "analysis_results.csv")
+analyzer.export_csv(csv_path)
