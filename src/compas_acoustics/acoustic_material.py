@@ -137,7 +137,7 @@ class AcousticMaterial(Data):
             List of scattering coefficients.
         """
         if depth > 2:
-            warnings.warn(f"Depth value should me in meters! Calculating scattering coefficients for depth {depth} meters.")
+            warnings.warn(f"Depth value should be in meters! Calculating scattering coefficients for depth {depth} meters.")
         
         freq_bands = self.frequency_bands
         
