@@ -20,12 +20,12 @@ class MaterialsLibrary(Data):
         self._library_path = Defaults().MATERIALS_LIBRARY_PATH
     
     
-    def material_from_id(self, material_id: str) -> AcousticMaterial:
-        """Retrieve an AcousticMaterial instance by its ID.
+    def material_from_name(self, material_name: str) -> AcousticMaterial:
+        """Retrieve an AcousticMaterial instance by its name.
         
         Parameters
         ----------
-        material_id : str
+        material_name : str
             The identifier of the acoustic material.
         
         Returns
@@ -33,7 +33,7 @@ class MaterialsLibrary(Data):
         AcousticMaterial
             An instance of AcousticMaterial.
         """
-        path = self.path_from_material_id(material_id)
+        path = self.path_from_material_name(material_name)
         return self.material_from_json(path)
     
     
@@ -54,12 +54,12 @@ class MaterialsLibrary(Data):
         return material
 
 
-    def path_from_material_id(self, material_id: str) -> str:
-        """Construct the path to a JSON file for an AcousticMaterial by its ID.
+    def path_from_material_name(self, material_name: str) -> str:
+        """Construct the path to a JSON file for an AcousticMaterial by its name.
         
         Parameters
         ----------
-        material_id : str
+        material_name : str
             The identifier of the acoustic material.
         
         Returns
@@ -68,7 +68,7 @@ class MaterialsLibrary(Data):
             The path to the JSON file for the specified material.
         """
         
-        return os.path.join(self._library_path, f"{material_id}.json")
+        return os.path.join(self._library_path, f"{material_name}.json")
 
 
     @property
