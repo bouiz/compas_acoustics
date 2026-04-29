@@ -6,7 +6,7 @@ from .materials_library import MaterialsLibrary
 from .source import Source
 from .receiver import Receiver
 from .geometry import AcousticObject, AcousticObjectsLibrary
-# from .scene import *
+from .scene import Scene
 
 __author__ = ["Achilleas Xydis"]
 __copyright__ = "Gramazio Kohler Research"
@@ -21,5 +21,6 @@ __all__ = [
     'Source',
     'Receiver',
     'AcousticObject',
-    'AcousticObjectsLibrary'
+    'AcousticObjectsLibrary',
+    'Scene'
     ]
