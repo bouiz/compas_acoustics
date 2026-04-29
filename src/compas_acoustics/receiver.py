@@ -19,7 +19,7 @@ class Receiver(Point):
     """
 
     def __init__(self, name: str, x:float, y:float, z:float):
-        super().__init__(x=x, y=y, z=z)
+        super().__init__(x, y, z)
         self.name=name
         self.direction = [1, 0, 0] # Default direction along the x-axis
         
