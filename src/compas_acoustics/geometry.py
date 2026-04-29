@@ -7,14 +7,14 @@ from compas.datastructures import Mesh
 from compas.geometry import Box
 from compas.files import OBJ
 
-from compas_acoustics import Source
+from compas_acoustics import Source, AcousticMaterial
 
 
 __all__ = ['AcousticObject', 'AcousticObjectsLibrary']
 
 class AcousticObject(Data):
     
-    def __init__(self, acoustic_geometry:Mesh, x:float=0, y:float=0, z:float=0):
+    def __init__(self, acoustic_geometry:Mesh, surface_groups:dict, x:float=0, y:float=0, z:float=0):
         """Initialize Acoustic object
 
         Parameters
@@ -28,19 +28,37 @@ class AcousticObject(Data):
         z : float
             The z-coordinate of the geometry's reference point.
         """
-        
+        super().__init__()
         self._x = x
         self._y = y
         self._z = z
-        self.acoustic_geometry = self._prepare_mesh(acoustic_geometry)
-        self.surface_groups = {} # {group name : list of face indices}
+        self.acoustic_geometry = acoustic_geometry
+        self.surface_groups = surface_groups # {group name : list of face indices}
+        self.acoustic_materials = {} # {surface group name : AcousticMaterial}
         self.sources = []
         self.visualisation_geometry = None
+        self._prepare_mesh()
         
     
-    def _prepare_mesh(self, mesh:Mesh):
-        mesh.update_default_face_attributes({'surface_group': 'default'})
-        return mesh
+    def _prepare_mesh(self):
+        """
+        Prepare the acoustic geometry mesh by setting default face attributes.
+        """
+        self.acoustic_geometry.update_default_face_attributes({'surface_group': 'default'})
+        
+        for fkey in list(self.acoustic_geometry.faces()):
+            surface_group = self.acoustic_geometry.face_attribute(fkey, 'surface_group')
+            vertices = self.acoustic_geometry.face_vertices(fkey)
+            
+            if len(vertices) == 4:
+                _a, b, _c, d = vertices
+                f1, f2 = self.acoustic_geometry.split_face(fkey, b, d)
+                self.acoustic_geometry.face_attribute(f1, 'surface_group', surface_group)
+                self.acoustic_geometry.face_attribute(f2, 'surface_group', surface_group)
+                
+                # update surface groups dictionary
+                self.surface_groups[surface_group].remove(fkey)
+                self.surface_groups[surface_group].extend([f1, f2])
        
        
     @property
@@ -161,8 +179,8 @@ class AcousticObject(Data):
                 surface_groups[group_name].append(item[1])
                 
         mesh = Mesh.from_obj(obj_path)
-        acoustic_object = cls(acoustic_geometry=mesh)
-        acoustic_object.surface_groups = surface_groups
+        acoustic_object = cls(acoustic_geometry=mesh, surface_groups=surface_groups)
+        # acoustic_object.surface_groups = surface_groups
         return acoustic_object
         
         
@@ -176,8 +194,6 @@ class AcousticObjectsLibrary(AcousticObject):
         box = Box(length, width, height)
         acoustic_geometry = Mesh.from_shape(box)
         
-        acoustic_object = cls(acoustic_geometry=acoustic_geometry)
-        
         # Set surface groups attribute
         surface_groups = {
             'floor': [0],
@@ -187,7 +203,8 @@ class AcousticObjectsLibrary(AcousticObject):
             'back_wall': [4],
             'ceiling': [5],
         }
-        acoustic_object.surface_groups = surface_groups
+        
+        acoustic_object = cls(acoustic_geometry=acoustic_geometry, surface_groups=surface_groups)
 
         if sources:
             acoustic_object.sources=sources
