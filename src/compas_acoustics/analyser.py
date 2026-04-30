@@ -79,16 +79,17 @@ class AcousticAnalyser(Data):
         return edc_db, t
 
 
-    def _smooth_octave(self, mag_db, freqs, fraction=1):
-        smoothed = np.zeros_like(mag_db)
-        for i, f in enumerate(freqs):
-            if f <= 0:
-                smoothed[i] = mag_db[i]
-                continue
-            f_low = f / (2 ** (1 / (2 * fraction)))
-            f_high = f * (2 ** (1 / (2 * fraction)))
-            idx = np.where((freqs >= f_low) & (freqs <= f_high))[0]
-            smoothed[i] = np.mean(mag_db[idx]) if len(idx) > 0 else mag_db[i]
+    def _smooth_octave(self, mag_db, freqs, fraction=3):
+        f = 2.0 ** (1.0 / (2.0 * fraction))
+        i_low = np.searchsorted(freqs, freqs / f, 'left')
+        i_high = np.searchsorted(freqs, freqs * f, 'right')
+        
+        cmag = np.r_[0.0, np.cumsum(mag_db)]
+        counts = i_high - i_low
+        
+        smoothed = np.where(counts > 0, (cmag[i_high] - cmag[i_low]) / np.maximum(counts, 1), mag_db)
+        smoothed[0] = mag_db[0]
+        
         return smoothed
 
 
