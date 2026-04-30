@@ -1,8 +1,9 @@
 import numpy as np
-from scipy import signal
 import math
 import warnings
 import matplotlib.pyplot as plt
+from scipy import signal
+from scipy.fft import rfft, rfftfreq, next_fast_len
 
 from compas.data import Data
 from compas_acoustics.defaults import Defaults
@@ -56,6 +57,9 @@ class AcousticAnalyser(Data):
             raise TypeError("Frequency bands must be a list or numpy array.")
         self._frequency_bands = list(bands)
 
+
+    # Helper functions
+
     def _filter_impulse_response(self, impulse_response: np.ndarray, center_frequency: float) -> np.ndarray:
         nyquist = 0.5 * self.sampling_rate
         lower_cutoff = center_frequency / math.sqrt(2)
@@ -66,16 +70,35 @@ class AcousticAnalyser(Data):
         sos = signal.butter(6, [low, high], btype='band', output='sos')
         return signal.sosfiltfilt(sos, impulse_response)
 
-    def schroeder_integration(self, impulse_response: list):
+
+    def _schroeder_integration(self, impulse_response: list):
         ir = np.asarray(impulse_response)
         edc = np.cumsum(ir[::-1] ** 2)[::-1]
         edc_db = 10.0 * np.log10(edc / np.max(edc) + 1e-12)
         t = np.arange(len(edc_db)) / self.sampling_rate
         return edc_db, t
 
+
+    def _smooth_octave(self, mag_db, freqs, fraction=1):
+        smoothed = np.zeros_like(mag_db)
+        for i, f in enumerate(freqs):
+            if f <= 0:
+                smoothed[i] = mag_db[i]
+                continue
+            f_low = f / (2 ** (1 / (2 * fraction)))
+            f_high = f * (2 ** (1 / (2 * fraction)))
+            idx = np.where((freqs >= f_low) & (freqs <= f_high))[0]
+            smoothed[i] = np.mean(mag_db[idx]) if len(idx) > 0 else mag_db[i]
+        return smoothed
+
+
     # Calculate acoustic parameters
 
-    def compute_rt(self, impulse_response: list) -> dict:
+    def compute_rt(self, impulse_response=None) -> dict:
+        """Compute reverberation times (EDT, T20, T30) per frequency band."""
+        if impulse_response is None:
+            impulse_response = self.ir
+
         ir_array = np.asarray(impulse_response, dtype=float)
         if ir_array.ndim > 1:
             ir_array = ir_array[:, 0]
@@ -85,7 +108,7 @@ class AcousticAnalyser(Data):
 
         for center_freq in freqs:
             filtered_ir = self._filter_impulse_response(ir_array, center_freq)
-            decay_curve, t = self.schroeder_integration(filtered_ir)
+            decay_curve, t = self._schroeder_integration(filtered_ir)
 
             for key, (low, high) in zip(['EDT', 'T20', 'T30'], [(0, -10), (-5, -25), (-5, -35)]):
                 mask = (decay_curve <= low) & (decay_curve >= high)
@@ -96,7 +119,11 @@ class AcousticAnalyser(Data):
                     results[key].append(np.nan)
         return results
 
-    def compute_clarity_definition(self, impulse_response: list) -> dict:
+    def compute_clarity_definition(self, impulse_response=None) -> dict:
+        """Compute clarity and definitions parameters (C50, C80, D50) per frequency band."""
+        if impulse_response is None:
+            impulse_response = self.ir
+
         ir_array = np.asarray(impulse_response, dtype=float)
         freqs = self.frequency_bands
         results = {'C50': [], 'C80': [], 'D50': []}
@@ -117,7 +144,12 @@ class AcousticAnalyser(Data):
             results['D50'].append(round((e50 / (e50 + l50 + 1e-12)) * 100.0, 2))
         return results
 
-    def compute_drr(self, impulse_response: list) -> dict:
+    def compute_drr(self, impulse_response=None) -> dict:
+        """Compute Direct-to-Reverberant Ratio (DRR) per frequency band."""
+
+        if impulse_response is None:
+            impulse_response = self.ir
+
         ir_array = np.asarray(impulse_response, dtype=float)
         peak_idx = int(np.argmax(ir_array**2))
         d_win = int(0.0025 * self.sampling_rate)
@@ -133,7 +165,11 @@ class AcousticAnalyser(Data):
             results['DRR'].append(round(10.0 * np.log10(np.sum(er[s_dir:e_dir]) / (np.sum(er[s_late:]) + 1e-12)), 2))
         return results
 
-    def center_time(self, impulse_response: list) -> dict:
+    def center_time(self, impulse_response=None) -> dict:
+
+        if impulse_response is None:
+            impulse_response = self.ir
+
         ir_array = np.asarray(impulse_response, dtype=float)
         t = np.arange(len(ir_array)) / self.sampling_rate
         results = {'Ts': []}
@@ -143,8 +179,12 @@ class AcousticAnalyser(Data):
             results['Ts'].append(round(np.sum(t * er) / (np.sum(er) + 1e-12), 4))
         return results
 
-    def compute_sti(self, impulse_response: list, snr=np.inf) -> dict:
-        """Computes STI and MTI (octave band values)."""
+    def compute_sti(self, impulse_response=None, snr=np.inf) -> dict:
+        """Compute the Speech Transmission Index (STI) and Modulation Transfer Index (MTI) per frequency band."""
+
+        if impulse_response is None:
+            impulse_response = self.ir
+        
         ir_array = np.asarray(impulse_response, dtype=float)
         octave_bands = [125, 250, 500, 1000, 2000, 4000, 8000]
         mod_freqs = np.array([0.63, 0.8, 1.0, 1.25, 1.6, 2.0, 2.5, 3.15, 4.0, 5.0, 6.3, 8.0, 10.0, 12.5])
@@ -346,4 +386,51 @@ class AcousticAnalyser(Data):
         print(f"Selected results successfully saved to: {filepath}")
 
 
-# TODO: plot_time_domain, plot_freqency_domain
+    def plot_rir(self):
+        """Plot the impulse response in the time domain."""
+
+        t = np.arange(len(self.ir)) / self.sampling_rate
+        plt.figure(figsize=(10, 4))
+        plt.plot(t, self.ir, label='Impulse Response')
+        plt.xlabel('Time (s)')
+        plt.ylabel('Amplitude')
+        plt.title('Impulse Response in Time Domain')
+        plt.grid(alpha=0.3)
+        plt.tight_layout()
+        plt.show()
+
+
+    def plot_frequency_response(self, smooth=3, raw_alpha=0.3):
+        """Plot the frequency response of a signal with optional octave smoothing."""
+
+        Nfft = next_fast_len(len(self.ir))
+        IR_fft = rfft(self.ir, n=Nfft)
+        freqs = rfftfreq(Nfft, 1 / self.sampling_rate)
+
+        mag_db = 20 * np.log10(np.abs(IR_fft) + 1e-12)
+        mag_db = mag_db - np.max(mag_db)
+
+        plt.figure(figsize=(10, 6))
+
+        if smooth is not None:
+            plt.semilogx(freqs, mag_db, linewidth=0.5, alpha=raw_alpha, color="gray", label="Raw")
+            mag_db_smooth = self._smooth_octave(mag_db, freqs, fraction=smooth)
+            plt.semilogx(freqs, mag_db_smooth, linewidth=1.5, label=f"1/{int(1/smooth)} Octave Smoothed")
+            plt.legend(loc="best")
+        else:
+            plt.semilogx(freqs, mag_db, linewidth=1)
+
+        xtick_positions = [20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000]
+        xtick_labels = ["20", "50", "100", "200", "500", "1k", "2k", "5k", "10k", "20k"]
+        plt.xticks(xtick_positions, xtick_labels)
+
+        plt.xlim([20, 20000])
+        plt.ylim([-60, 10])
+        plt.xlabel("Frequency (Hz)")
+        plt.ylabel("Magnitude (dB)")
+        plt.title("Frequency Response")
+        plt.grid(True, which="both", ls="-", alpha=0.3)
+        plt.grid(True, which="minor", ls=":", alpha=0.2)
+        plt.tight_layout()
+        plt.show()
+
