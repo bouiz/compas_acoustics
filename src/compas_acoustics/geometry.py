@@ -7,6 +7,10 @@ from compas.datastructures import Mesh
 from compas.geometry import Box
 from compas.files import OBJ
 
+from compas_viewer import Viewer
+from compas_viewer.scene import Tag
+from compas.colors import Color
+
 from compas_acoustics import Source, AcousticMaterial
 
 
@@ -14,7 +18,7 @@ __all__ = ['AcousticObject', 'AcousticObjectsLibrary']
 
 class AcousticObject(Data):
     
-    def __init__(self, acoustic_geometry:Mesh, surface_groups:dict, x:float=0, y:float=0, z:float=0):
+    def __init__(self, acoustic_geometry:Mesh, surface_groups:dict, x:float=0, y:float=0, z:float=0, name:str=None):
         """Initialize Acoustic object
 
         Parameters
@@ -27,8 +31,10 @@ class AcousticObject(Data):
             The y-coordinate of the geometry's reference point.
         z : float
             The z-coordinate of the geometry's reference point.
+        name : str
+            The name of the acoustic object. Optional. If not provided, a unique identifier will be generated.
         """
-        super().__init__()
+        super().__init__(name=name)
         self._x = x
         self._y = y
         self._z = z
@@ -37,6 +43,7 @@ class AcousticObject(Data):
         self.acoustic_materials = {} # {surface group name : AcousticMaterial}
         self.sources = []
         self.visualisation_geometry = None
+        self.surface_group_colors = None
         self._prepare_mesh()
         
     
@@ -150,8 +157,14 @@ class AcousticObject(Data):
         dict
             A dictionary where keys are surface group names and values are random Color objects.
         """
-        group_colors = {sk: Color(random(), random(), random(), 0.5) for sk in self.surface_groups.keys()}
-        return group_colors
+        if self._surface_group_colors is None:
+            self._surface_group_colors = {sk: Color(random(), random(), random(), 0.5) for sk in self.surface_groups.keys()}
+        return self._surface_group_colors
+    
+    
+    @surface_group_colors.setter
+    def surface_group_colors(self, surface_group_colors:dict):
+        self._surface_group_colors = surface_group_colors
     
     
     @property
@@ -180,8 +193,24 @@ class AcousticObject(Data):
                 
         mesh = Mesh.from_obj(obj_path)
         acoustic_object = cls(acoustic_geometry=mesh, surface_groups=surface_groups)
-        # acoustic_object.surface_groups = surface_groups
         return acoustic_object
+    
+    
+    def display_surface_groups(self):
+        viewer = Viewer()
+        group_colors = self.surface_group_colors
+        print(self.surface_groups)
+        print(group_colors)
+        print(self.face_colors)
+        
+        for fkey in self.acoustic_geometry.faces():
+            f_centroid = self.acoustic_geometry.face_centroid(fkey)
+            surface_group = self.acoustic_geometry.face_attribute(fkey, 'surface_group')
+            tag = Tag(surface_group, f_centroid, height=30, color=group_colors[surface_group])
+            viewer.scene.add(tag, name=f"tag_{fkey}")
+        
+        viewer.scene.add(self.acoustic_geometry, name=self.name, show_points=True, facecolor=self.face_colors)
+        viewer.show()
         
         
 class AcousticObjectsLibrary(AcousticObject):
@@ -190,8 +219,10 @@ class AcousticObjectsLibrary(AcousticObject):
     """
 
     @classmethod
-    def shoebox_room(cls, length:float, width:float, height:float, sources:list=None):
+    def shoebox_room(cls, length:float, width:float, height:float, sources:list=None, name:str=None):
         box = Box(length, width, height)
+        if name is None:
+            name = f"shoebox_room_{length}x{width}x{height}"
         acoustic_geometry = Mesh.from_shape(box)
         
         # Set surface groups attribute
@@ -204,7 +235,7 @@ class AcousticObjectsLibrary(AcousticObject):
             'ceiling': [5],
         }
         
-        acoustic_object = cls(acoustic_geometry=acoustic_geometry, surface_groups=surface_groups)
+        acoustic_object = cls(acoustic_geometry=acoustic_geometry, surface_groups=surface_groups, name=name)
 
         if sources:
             acoustic_object.sources=sources
