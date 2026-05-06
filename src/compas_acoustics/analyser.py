@@ -315,7 +315,7 @@ class AcousticAnalyser(Data):
             else:
                 ylim = None
 
-            plt.figure(figsize=(8, 5))
+            plt.figure(figsize=(8, 4))
             ax = plt.gca()
             plt.plot([str(f) for f in self.analysis_data['freqs']], y, marker='o', linewidth=2, label=param)
             
@@ -391,7 +391,7 @@ class AcousticAnalyser(Data):
         """Plot the impulse response in the time domain."""
 
         t = np.arange(len(self.ir)) / self.sampling_rate
-        plt.figure(figsize=(10, 4))
+        plt.figure(figsize=(8, 4))
         plt.plot(t, self.ir, label='Impulse Response')
         plt.xlabel('Time (s)')
         plt.ylabel('Amplitude')
@@ -411,12 +411,12 @@ class AcousticAnalyser(Data):
         mag_db = 20 * np.log10(np.abs(IR_fft) + 1e-12)
         mag_db = mag_db - np.max(mag_db)
 
-        plt.figure(figsize=(10, 6))
+        plt.figure(figsize=(8, 4))
 
         if smooth is not None:
             plt.semilogx(freqs, mag_db, linewidth=0.5, alpha=raw_alpha, color="gray", label="Raw")
             mag_db_smooth = self._smooth_octave(mag_db, freqs, fraction=smooth)
-            plt.semilogx(freqs, mag_db_smooth, linewidth=1.5, label=f"1/{int(1/smooth)} Octave Smoothed")
+            plt.semilogx(freqs, mag_db_smooth, linewidth=1.5, label=f"1/{smooth} octave smoothing")
             plt.legend(loc="best")
         else:
             plt.semilogx(freqs, mag_db, linewidth=1)
