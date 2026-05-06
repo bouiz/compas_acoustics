@@ -1,5 +1,5 @@
 compas >=2.13, <3.0
-pyroomacoustics >=0.9
+pyroomacoustics >=0.10.1
 matplotlib >=3.10, <4.0
 librosa
 soundfile
