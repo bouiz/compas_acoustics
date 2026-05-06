@@ -183,7 +183,7 @@ class AcousticObject(Data):
     
     
     @classmethod
-    def acoustic_object_from_obj(cls, obj_path:str):
+    def acoustic_object_from_obj(cls, obj_path:str, name:str=None):
         obj = OBJ(obj_path)
 
         surface_groups = defaultdict(list)
@@ -192,7 +192,7 @@ class AcousticObject(Data):
                 surface_groups[group_name].append(item[1])
                 
         mesh = Mesh.from_obj(obj_path)
-        acoustic_object = cls(acoustic_geometry=mesh, surface_groups=surface_groups)
+        acoustic_object = cls(acoustic_geometry=mesh, surface_groups=surface_groups, name=name)
         return acoustic_object
     
     
@@ -212,6 +212,16 @@ class AcousticObject(Data):
         viewer.scene.add(self.acoustic_geometry, name=self.name, show_points=True, facecolor=self.face_colors)
         viewer.show()
         
+    
+    def print_surface_groups(self, print_fkeys=False):
+        print("Surface groups:")
+        if not print_fkeys:
+            for group_name in self.surface_groups.keys():
+                print(f"  {group_name}: {len(self.surface_groups[group_name])} faces")
+        else:
+            for group_name, face_indices in self.surface_groups.items():
+                print(f"  {group_name}: {len(self.surface_groups[group_name])} faces {face_indices}")
+       
         
 class AcousticObjectsLibrary(AcousticObject):
     """
