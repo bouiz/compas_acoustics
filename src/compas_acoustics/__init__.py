@@ -8,6 +8,7 @@ from .receiver import Receiver
 from .geometry import AcousticObject, AcousticObjectsLibrary
 from .scene import Scene
 from .analyser import AcousticAnalyser
+from .tools import Tools
 
 __author__ = ["Achilleas Xydis"]
 __copyright__ = "Gramazio Kohler Research"
@@ -24,5 +25,6 @@ __all__ = [
     'AcousticObject',
     'AcousticObjectsLibrary',
     'Scene',
-    'AcousticAnalyser'
+    'AcousticAnalyser',
+    'Tools'
     ]
