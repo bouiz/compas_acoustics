@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 from .defaults import Defaults
+from .tools import Tools
 from .acoustic_material import AcousticMaterial
 from .materials_library import MaterialsLibrary
 from .source import Source
@@ -8,7 +9,6 @@ from .receiver import Receiver
 from .geometry import AcousticObject, AcousticObjectsLibrary
 from .scene import Scene
 from .analyser import AcousticAnalyser
-from .tools import Tools
 
 __author__ = ["Achilleas Xydis"]
 __copyright__ = "Gramazio Kohler Research"
