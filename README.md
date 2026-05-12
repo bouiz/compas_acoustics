@@ -6,10 +6,9 @@
 
 ## Installation
 
-Stable releases can be installed from PyPI.
-
+Create a virtual environment with `python >= 3.10`
 ```bash
-pip install compas_acoustics
+conda create -n your_env_name python=3.10
 ```
 
 To install the latest version for development, do:
