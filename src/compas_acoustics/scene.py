@@ -7,7 +7,7 @@ from compas_viewer.scene import Tag
 
 from compas.data import Data
 from compas_acoustics import Defaults
-from compas_acoustics.tools import Tools
+from compas_acoustics import Tools
 
 __all__ = ['Scene']
 
