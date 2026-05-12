@@ -66,7 +66,8 @@ class AcousticAnalyser(Data):
         upper_cutoff = center_frequency * math.sqrt(2)
         low = lower_cutoff / nyquist
         high = upper_cutoff / nyquist
-        if high >= 1.0: high = 0.99
+        if high >= 1.0:
+            high = 0.99
         sos = signal.butter(6, [low, high], btype='band', output='sos')
         return signal.sosfiltfilt(sos, impulse_response)
 
@@ -191,7 +192,8 @@ class AcousticAnalyser(Data):
         mod_freqs = np.array([0.63, 0.8, 1.0, 1.25, 1.6, 2.0, 2.5, 3.15, 4.0, 5.0, 6.3, 8.0, 10.0, 12.5])
         alpha = np.array([0.129, 0.143, 0.114, 0.114, 0.186, 0.171, 0.143])
 
-        if np.ndim(snr) == 0: snr = np.full(7, float(snr))
+        if np.ndim(snr) == 0:
+            snr = np.full(7, float(snr))
         t = np.arange(len(ir_array)) / self.sampling_rate
         mti_values = []
 
@@ -206,7 +208,8 @@ class AcousticAnalyser(Data):
             m_band = []
             for fm in mod_freqs:
                 m_val = np.abs(np.sum(h2 * np.exp(-1j * 2 * np.pi * fm * t))) / total_e
-                if not np.isinf(snr[i]): m_val *= (1.0 / (1.0 + 10 ** (-snr[i] / 10.0)))
+                if not np.isinf(snr[i]):
+                    m_val *= (1.0 / (1.0 + 10 ** (-snr[i] / 10.0)))
                 m_band.append(m_val)
             
             snr_app = 10.0 * np.log10(np.array(m_band) / (1.0 - np.array(m_band) + 1e-12) + 1e-12)

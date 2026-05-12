@@ -151,7 +151,8 @@ class Auraliser(Data):
 
             # check if impulse response is correct sample rate and resample if needed
             if data['sample_rate'] != self.sample_rate:
-                warnings.warn(f"Mismatch detected between {ir_id} sample rate of {data['sample_rate']} Hz, and default sample rate of {self.sample_rate} Hz. Impulse response will be resampled to {self.sample_rate} Hz.")
+                warnings.warn(f"Mismatch detected between {ir_id} sample rate of {data['sample_rate']} Hz, and default sample rate of {self.sample_rate} Hz. " +
+                              f"Impulse response will be resampled to {self.sample_rate} Hz.")
                 data['ir'] = self.resample_signal(data['ir'], data['sample_rate'], self.sample_rate)
                 data['sample_rate'] = self.sample_rate
 
@@ -335,7 +336,7 @@ class Auraliser(Data):
 
 
     def export_convolved_sound(self, filepath, convolved_sound):
-        output_format = self.output_format
+        # output_format = self.output_format
 
         # Normalize
         max_val = np.max(np.abs(convolved_sound))
@@ -347,7 +348,8 @@ class Auraliser(Data):
         elif self.output_format == "stereo":
             exported_sound = self.decode_stereo_simple(convolved_sound)
         elif  self.output_format == "binaural":
-            print('Output format: binaural, has been chosen. Normal stereo is exported for now. Please choose output format: ambisonics and use a personalised binaural decoder instead.')
+            print("Output format: binaural, has been chosen. Normal stereo is exported for now." +
+                  "Please choose output format: ambisonics and use a personalised binaural decoder instead.")
             exported_sound = self.decode_stereo_simple(convolved_sound)
         elif self.output_format == "ambisonics":
             exported_sound = convolved_sound
