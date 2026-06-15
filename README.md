@@ -16,6 +16,7 @@ To install the latest version for development, do:
 ```bash
 git clone https://github.com/gramaziokohler/compas_acoustics.git
 cd compas_acoustics
+conda activate your_env_name
 pip install -e ".[dev]"
 ```
 
