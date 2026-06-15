@@ -4,11 +4,11 @@ from collections import defaultdict
 from compas.colors import Color
 from compas.data import Data
 from compas.datastructures import Mesh
-from compas.geometry import Box
+from compas.geometry import Box, Frame, Transformation, Transformation
 from compas.files import OBJ
 
-from compas_viewer import Viewer
-from compas_viewer.scene import Tag
+# from compas_viewer import Viewer # Does not work in Rhino
+# from compas_viewer.scene import Tag # Does not work in Rhino
 from compas.colors import Color
 
 from compas_acoustics import Source, AcousticMaterial
@@ -231,6 +231,11 @@ class AcousticObjectsLibrary(AcousticObject):
     @classmethod
     def shoebox_room(cls, length:float, width:float, height:float, sources:list=None, name:str=None):
         box = Box(length, width, height)
+        f1 = box.frame
+        f2 = Frame([box.xmax, box.ymax, box.zmax])
+        T = Transformation.from_frame_to_frame(f1, f2)
+        box.transform(T)
+        
         if name is None:
             name = f"shoebox_room_{length}x{width}x{height}"
         acoustic_geometry = Mesh.from_shape(box)
