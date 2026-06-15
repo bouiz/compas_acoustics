@@ -28,10 +28,6 @@ scene.add_receiver(receiver_1)
 # scene.add_receiver(receiver_2)
 
 
-########### visualize the scene and its surface groups
-scene.display_surface_groups()
-
-
 ########### what are the scene's surface groups?
 # scene.print_scene_surface_groups()
 
@@ -56,26 +52,23 @@ scene.acoustic_materials = scene_materials
 
 
 ########### initialize the simulation
-scene.simulation_platform = 'pyroomacoustics'
-
-
-########### run an Image Source Method simulation
-# rirs = scene.rir_from_image_source_method()
+simulator = ca.Simulator(scene, simulation_platform='pyroomacoustics')
 
 
 ########### run a ray tracing simulation
-rirs = scene.rir_from_ray_tracing(n_rays=10000)
+rirs = simulator.rir_from_ray_tracing(n_rays=10000, air_absorption=True)
 
 
-########### analyze the RIRs
-for rir in rirs:
-    analyser = ca.AcousticAnalyser(rir[0])
-    results = analyser.analyse()
+########### analyze the RIR
+analyser = ca.AcousticAnalyser(rirs[0][0])
+results = analyser.analyse()
 
 
-    ########### print the results
-    analyser.print_table()
+########### print the results
+analyser.print_table()
 
 
-    ########### plot results
-    analyser.plot(['T30', 'C50'])
+########## plot results
+# analyser.plot_rir()
+# analyser.plot_frequency_response(smooth=3)
+analyser.plot('T30')
