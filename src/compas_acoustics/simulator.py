@@ -39,6 +39,25 @@ class Simulator:
     
     
     def _pyroomacoustics_simulation(self, image_source_order:int=3, ray_tracing:bool=False, n_rays:int=10000, air_absorption:bool=True):
+        """
+        Prepare the walls and materials for a pyroomacoustics simulation.
+        
+        Parameters
+        ----------
+        image_source_order : int, default=3
+            The maximum order of image sources to consider in the simulation. This is used to determine the maximum path length for ray tracing.
+        ray_tracing : bool, default=False
+            Whether to use ray tracing in the simulation. If False, the image source method will be used.
+        n_rays : int, default=10000
+            The number of rays to trace in the simulation. Only used if ray_tracing is True.
+        air_absorption : bool, default=True
+            Whether to include air absorption in the simulation.
+        Returns
+        -------
+        pyroomacoustics.Room
+            A pyroomacoustics Room object prepared for simulation.
+        """
+        
         import pyroomacoustics as pra
         
         # create the walls
@@ -96,6 +115,22 @@ class Simulator:
     
 
     def rir_from_image_source_method(self, image_source_order:int=6, air_absorption:bool=True):
+        """
+        Compute the room impulse response (RIR) using the image source method.
+        
+        Parameters
+        ----------
+        image_source_order : int, default=6
+            The maximum order of image sources to consider in the simulation.
+        air_absorption : bool, default=True
+            Whether to include air absorption in the simulation.
+        Returns
+        -------
+        List[List[NDArray[np.float64]]]
+            A nested list of impulse responses, where the outer list corresponds to microphones and the inner list corresponds to sources.
+            Each impulse response is a 1D numpy array.
+        """
+        
         if self.simulation_platform == 'pyroomacoustics':
             # prepare the walls and materials for the simulation
             simulation = self._pyroomacoustics_simulation(image_source_order, ray_tracing=False, air_absorption=air_absorption)
@@ -122,6 +157,24 @@ class Simulator:
     
     
     def rir_from_ray_tracing(self, image_source_order:int=3, n_rays:int=10000, air_absorption:bool=True):
+        """
+        Compute the room impulse response (RIR) using ray tracing.
+        
+        Parameters
+        ----------
+        image_source_order : int, default=3
+            The maximum order of image sources to consider in the simulation. This is used to determine the maximum path length for ray tracing.
+        n_rays : int, default=10000
+            The number of rays to trace in the simulation.
+        air_absorption : bool, default=True
+            Whether to include air absorption in the simulation.
+        Returns
+        -------
+        List[List[NDArray[np.float64]]]
+            A nested list of impulse responses, where the outer list corresponds to microphones and the inner list corresponds to sources.
+            Each impulse response is a 1D numpy array.
+        """
+        
         if self.simulation_platform == 'pyroomacoustics':
             # prepare the walls and materials for the simulation
             simulation = self._pyroomacoustics_simulation(image_source_order, ray_tracing=True, n_rays=n_rays, air_absorption=air_absorption)
