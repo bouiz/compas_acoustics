@@ -25,6 +25,8 @@ class AcousticObject(Data):
         ----------
         acoustic_geometry : :class:`compas.datastructures.Mesh`
             A COMPAS Mesh representing the acoustic geometry.
+        surface_groups : dict
+            A dictionary where keys are group names and values are lists of face indices belonging to each group.
         x : float
             The x-coordinate of the geometry's reference point.
         y : float
@@ -184,6 +186,21 @@ class AcousticObject(Data):
     
     @classmethod
     def acoustic_object_from_obj(cls, obj_path:str, name:str=None):
+        """
+        Create an AcousticObject from an OBJ file.
+        
+        Parameters
+        ----------
+        obj_path : str
+            The file path to the OBJ file containing the acoustic geometry.
+        name : str
+            The name of the acoustic object. Optional. If not provided, a unique identifier will be generated.
+        Returns
+        -------
+        AcousticObject
+            An instance of AcousticObject created from the OBJ file.
+        """
+        
         obj = OBJ(obj_path)
 
         surface_groups = defaultdict(list)
@@ -230,6 +247,27 @@ class AcousticObjectsLibrary(AcousticObject):
 
     @classmethod
     def shoebox_room(cls, length:float, width:float, height:float, sources:list=None, name:str=None):
+        """
+        Create a shoebox room acoustic object.
+        
+        Parameters
+        ----------
+        length : float
+            The length of the shoebox room.
+        width : float
+            The width of the shoebox room.
+        height : float
+            The height of the shoebox room.
+        sources : list
+            A list of Source objects to be added to the room. Optional.
+        name : str
+            The name of the acoustic object. Optional. If not provided, a name will be generated using the room's dimensions.
+        Returns
+        -------
+        AcousticObject
+        An instance of AcousticObject representing the shoebox room.
+        """
+        
         box = Box(length, width, height)
         f1 = box.frame
         f2 = Frame([box.xmax, box.ymax, box.zmax])
