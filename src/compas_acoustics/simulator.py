@@ -1,9 +1,12 @@
-from typing import List
+from typing import List, Tuple
 import numpy as np
 from numpy.typing import NDArray
 
 from compas_acoustics import Defaults
-from compas_acoustics import Tools
+# from compas_acoustics import Tools
+from compas_acoustics import ImpulseResponse
+from compas_acoustics.receiver import Receiver
+from compas_acoustics.source import Source
 
 
 __all__ = ['Simulator']
@@ -113,6 +116,31 @@ class Simulator:
 
         return room
     
+    
+    def _add_pyroomacoustics_sources_receivers(self, room) -> Tuple[List[Source], List[Receiver]]:
+        sim_sources = []
+        sim_receivers = []
+
+        for source in self.scene.sources:
+            if room.is_inside(source.position):
+                room.add_source(source.position)
+                sim_sources.append(source)
+            else:
+                print(f"Warning: Source '{source.name}' is outside the room and will not be added to the simulation.")
+
+        for receiver in self.scene.receivers:
+            if room.is_inside(receiver.position):
+                room.add_microphone(receiver.position)
+                sim_receivers.append(receiver)
+            else:
+                print(f"Warning: Receiver '{receiver.name}' is outside the room and will not be added to the simulation.")
+
+        return sim_sources, sim_receivers
+
+    
+    def _update_scene_ir_graph(self, rirs: dict) -> None:
+        self.scene.populate_ir_graph(rirs)
+    
 
     def rir_from_image_source_method(self, image_source_order:int=6, air_absorption:bool=True):
         """
@@ -126,33 +154,29 @@ class Simulator:
             Whether to include air absorption in the simulation.
         Returns
         -------
-        List[List[NDArray[np.float64]]]
-            A nested list of impulse responses, where the outer list corresponds to microphones and the inner list corresponds to sources.
-            Each impulse response is a 1D numpy array.
+        Dict[str, ImpulseResponse]
+            A dictionary of ImpulseResponse objects, where each object contains the source index, receiver index, impulse response,
+            and sample rate for a single source-receiver pair.
         """
         
         if self.simulation_platform == 'pyroomacoustics':
             # prepare the walls and materials for the simulation
             simulation = self._pyroomacoustics_simulation(image_source_order, ray_tracing=False, air_absorption=air_absorption)
             
-            # add sources and receivers to the simulation
-            for source in self.sources:
-                if(simulation.is_inside(source.position)):
-                    simulation.add_source(source.position)
-                else:
-                    print(f"Warning: Source '{source.name}' is outside the room and will not be added to the simulation.")
-            for receiver in self.receivers:
-                if(simulation.is_inside(receiver.position)):
-                    simulation.add_microphone(receiver.position)
-                else:
-                    print(f"Warning: Receiver '{receiver.name}' is outside the room and will not be added to the simulation.")
+            sim_sources, sim_receivers = self._add_pyroomacoustics_sources_receivers(simulation)
+            
+            simulation.image_source_model()
+            simulation.compute_rir()
+            self.rirs = self._convert_pyroomacoustics_rirs(
+                room_rir=simulation.rir,
+                sample_rate=simulation.fs,
+                sim_sources=sim_sources,
+                sim_receivers=sim_receivers,
+            )
+            self._update_scene_ir_graph(self.rirs)
         else:
             raise NotImplementedError(f"Simulation platform '{self.simulation_platform}' is not implemented yet.")
         
-        simulation.image_source_model()
-        simulation.compute_rir()
-        
-        self.rirs = self.resample_room_rir(room_rir=simulation.rir, orig_sr=simulation.fs, target_sr=self.sampling_rate)
         return self.rirs
     
     
@@ -170,68 +194,104 @@ class Simulator:
             Whether to include air absorption in the simulation.
         Returns
         -------
-        List[List[NDArray[np.float64]]]
-            A nested list of impulse responses, where the outer list corresponds to microphones and the inner list corresponds to sources.
-            Each impulse response is a 1D numpy array.
+        Dict[str, ImpulseResponse]
+            A dictionary of ImpulseResponse objects, where each object contains the source index, receiver index, impulse response,
+            and sample rate for a single source-receiver pair.
         """
         
         if self.simulation_platform == 'pyroomacoustics':
             # prepare the walls and materials for the simulation
             simulation = self._pyroomacoustics_simulation(image_source_order, ray_tracing=True, n_rays=n_rays, air_absorption=air_absorption)
             
-            # add sources and receivers to the simulation
-            for source in self.scene.sources:
-                if(simulation.is_inside(source.position)):
-                    simulation.add_source(source.position)
-                else:
-                    print(f"Warning: Source '{source.name}' is outside the room and will not be added to the simulation.")
-            for receiver in self.scene.receivers:
-                if(simulation.is_inside(receiver.position)):
-                    simulation.add_microphone(receiver.position)
-                else:
-                    print(f"Warning: Receiver '{receiver.name}' is outside the room and will not be added to the simulation.")
+            sim_sources, sim_receivers = self._add_pyroomacoustics_sources_receivers(simulation)
+                    
+            simulation.compute_rir()
+            self.rirs = self._convert_pyroomacoustics_rirs(
+                room_rir=simulation.rir,
+                sample_rate=simulation.fs,
+                sim_sources=sim_sources,
+                sim_receivers=sim_receivers,
+            )
+            self._update_scene_ir_graph(self.rirs)
         else:
             raise NotImplementedError(f"Simulation platform '{self.simulation_platform}' is not implemented yet.")
         
-        simulation.compute_rir()
-        
-        self.rirs = self.resample_room_rir(room_rir=simulation.rir, orig_sr=simulation.fs, target_sr=self.sampling_rate)
         return self.rirs
     
     
-    def resample_room_rir(self, room_rir:List[List], orig_sr:int, target_sr:int, method:str = "poly") -> List[List[NDArray[np.float64]]]:
+    def _convert_pyroomacoustics_rirs(
+        self,
+        room_rir: List[List[NDArray[np.float64]]],
+        sample_rate: int,
+        sim_sources: List[Source],
+        sim_receivers: List[Receiver],
+    ) -> dict:
         """
-        Resample all impulse responses in a pyroomacoustics room.rir structure.
-
+        Store the room impulse responses (RIRs) from a pyroomacoustics simulation in a structured format.
+        
         Parameters
         ----------
-        room_rir : Sequence[Sequence[ArrayLike]]
-            room.rir structure:
-            room_rir[mic_idx][source_idx] -> 1D impulse response
-        orig_sr : int
-            Original sample rate.
-        target_sr : int
-            Target sample rate.
-        method : str, default="poly"
-            Resampling method passed to resample_ir().
-
+        room_rir : List[List[NDArray[np.float64]]]
+            A nested list of impulse responses, where the outer list corresponds to microphones and the inner list corresponds to sources.
+            Each impulse response is a 1D numpy array.
+        sample_rate : int
+            The sampling rate of the impulse responses.
         Returns
         -------
-        List[List[NDArray[np.float64]]]
-            Resampled room.rir with the same nested-list structure.
+        Dict[str, ImpulseResponse]
+            A dictionary of ImpulseResponse objects, where each object contains the source index, receiver index, impulse response,
+            and sample rate for a single source-receiver pair.
         """
-        #TODO does not work in Rhino.
-        # return [
-        #     [Tools().resample_signal(ir, orig_sr, target_sr, method=method) for ir in mic_rirs]
-        #     for mic_rirs in room_rir
-        # ]
+        rirs = {}
+        for mic_idx, mic_rirs in enumerate(room_rir):
+            for source_idx, ir in enumerate(mic_rirs):
+                source = sim_sources[source_idx]
+                receiver = sim_receivers[mic_idx]
+                key = f"{receiver.guid}_{source.guid}"
+                response = ImpulseResponse(
+                    name=key,
+                    source=source,
+                    receiver=receiver,
+                    ir=ir,
+                    sample_rate=sample_rate,
+                    simulation_platform=self.simulation_platform
+                )
+                rirs[key] = response
+        return rirs
+    
+    
+    # def resample_room_rir(self, room_rir:List[List], orig_sr:int, target_sr:int, method:str = "poly") -> List[List[NDArray[np.float64]]]:
+    #     """
+    #     Resample all impulse responses in a pyroomacoustics room.rir structure.
+
+    #     Parameters
+    #     ----------
+    #     room_rir : Sequence[Sequence[ArrayLike]]
+    #         room.rir structure:
+    #         room_rir[mic_idx][source_idx] -> 1D impulse response
+    #     orig_sr : int
+    #         Original sample rate.
+    #     target_sr : int
+    #         Target sample rate.
+    #     method : str, default="poly"
+    #         Resampling method passed to resample_ir().
+
+    #     Returns
+    #     -------
+    #     List[List[NDArray[np.float64]]]
+    #         Resampled room.rir with the same nested-list structure.
+    #     """
+    #     #TODO does not work in Rhino.
+    #     # return [
+    #     #     [Tools().resample_signal(ir, orig_sr, target_sr, method=method) for ir in mic_rirs]
+    #     #     for mic_rirs in room_rir
+    #     # ]
         
-        #TODO this one works in Rhino, but not when run in a Jupyter notebook. Not sure why.
-        results = []
-        for mic_rirs in room_rir:
-            mic_results = []
-            for ir in mic_rirs:
-                result = Tools().resample_signal(ir, orig_sr, target_sr, method=method)
-                mic_results.append(result)
-            results.append(mic_results)
-        return results 
+    #     #TODO this one works in Rhino, but not when run in a Jupyter notebook. Not sure why.
+    #     results = []
+    #     for mic_rirs in room_rir:
+    #         mic_results = []
+    #         for ir in mic_rirs:
+    #             result = Tools().resample_signal(ir, orig_sr, target_sr, method=method)
+    #         results.append(mic_results)
+    #     return results

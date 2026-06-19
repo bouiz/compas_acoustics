@@ -1,12 +1,13 @@
 from __future__ import print_function
 
 from .defaults import Defaults
-from .tools import Tools
+# from .tools import Tools
 from .acoustic_material import AcousticMaterial
 from .materials_library import MaterialsLibrary
 from .source import Source
 from .receiver import Receiver
 from .geometry import AcousticObject, AcousticObjectsLibrary
+from .ir import ImpulseResponse
 from .scene import Scene
 from .analyser import AcousticAnalyser
 from .simulator import Simulator
@@ -28,5 +29,6 @@ __all__ = [
     'Scene',
     'AcousticAnalyser',
     'Simulator',
-    'Tools'
+    # 'Tools',
+    'ImpulseResponse'
     ]
