@@ -1,13 +1,16 @@
-from typing import List, Optional, Tuple
+from typing import List
+from typing import Optional
+from typing import Tuple
+
 import numpy as np
 from numpy.typing import NDArray
 
 from compas_acoustics import Defaults
+
 # from compas_acoustics import Tools
 from compas_acoustics import ImpulseResponse
 from compas_acoustics.receiver import Receiver
 from compas_acoustics.source import Source
-
 
 __all__ = ['Simulator']
 

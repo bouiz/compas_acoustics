@@ -1,18 +1,17 @@
+from collections import defaultdict
 from random import random
 
-from collections import defaultdict
 from compas.colors import Color
 from compas.data import Data
 from compas.datastructures import Mesh
-from compas.geometry import Box, Frame, Transformation, Transformation
 from compas.files import OBJ
+from compas.geometry import Box
+from compas.geometry import Frame
+from compas.geometry import Transformation
 
 # from compas_viewer import Viewer # Does not work in Rhino
 # from compas_viewer.scene import Tag # Does not work in Rhino
-from compas.colors import Color
-
-from compas_acoustics import Source, AcousticMaterial
-
+from compas_acoustics import Source
 
 __all__ = ['AcousticObject', 'AcousticObjectsLibrary']
 

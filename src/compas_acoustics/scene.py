@@ -1,15 +1,14 @@
 # from compas_viewer import Viewer # Does not work in Rhino
 # from compas_viewer.scene import Tag # Does not work in Rhino
-from typing import Iterable, Union
-
-from compas.datastructures import Graph
+from typing import Iterable
+from typing import Union
 
 from compas.data import Data
+from compas.datastructures import Graph
 
 from compas_acoustics.ir import ImpulseResponse
 from compas_acoustics.receiver import Receiver
 from compas_acoustics.source import Source
-
 
 __all__ = ['Scene']
 

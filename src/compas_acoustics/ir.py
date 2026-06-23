@@ -1,13 +1,12 @@
-import numpy as np
 from math import gcd
 
-from numpy.typing import ArrayLike, NDArray
-from scipy import signal
+import numpy as np
 from compas.data import Data
+from numpy.typing import NDArray
+from scipy import signal
 
 from compas_acoustics.receiver import Receiver
 from compas_acoustics.source import Source
-
 
 __all__ = ['ImpulseResponse']
 

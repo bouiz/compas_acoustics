@@ -1,17 +1,13 @@
-from compas.data import Data
 import warnings
-import numpy as np
-import math
 from pathlib import Path
-from scipy.signal import resample
-from scipy.signal import fftconvolve
-from scipy.io.wavfile import write
-from scipy.special import lpmv
-from scipy.fft import rfft, irfft
-import soundfile as sf
-import librosa
 
-from compas_acoustics.defaults import Defaults
+import librosa
+import numpy as np
+import soundfile as sf
+from compas.data import Data
+from scipy.io.wavfile import write
+from scipy.signal import fftconvolve
+from scipy.signal import resample
 
 __all__ = ['Auraliser']
 

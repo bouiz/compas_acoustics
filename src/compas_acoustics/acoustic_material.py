@@ -1,8 +1,9 @@
-import os
 import math
+import os
 import warnings
 
 from compas.data import Data
+
 from compas_acoustics.defaults import Defaults
 
 __all__ = ['AcousticMaterial']

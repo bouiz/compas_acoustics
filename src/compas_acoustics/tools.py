@@ -1,7 +1,8 @@
 from math import gcd
 
 import numpy as np
-from numpy.typing import ArrayLike, NDArray
+from numpy.typing import ArrayLike
+from numpy.typing import NDArray
 from scipy import signal
 
 __all__ = ['Tools']
