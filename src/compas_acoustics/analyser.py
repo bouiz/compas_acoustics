@@ -265,7 +265,8 @@ class AcousticAnalyser(Data):
 
     def print_table(self, parameters=None):
         params = parameters if parameters else self.analysis_data['params']
-        if isinstance(params, str): params = [params]
+        if isinstance(params, str):
+            params = [params]
         header = self.analysis_data['freqs'] + ['Overall']
         print(f"{'':14}" + "".join(f"{str(f):>8}" for f in header))
         print("-" * (14 + 8 * len(header)))
