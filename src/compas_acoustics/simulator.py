@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 import numpy as np
 from numpy.typing import NDArray
 
@@ -103,7 +103,7 @@ class Simulator:
             air_absorption=air_absorption,
         )
         
-        print(f"Simulation setting:\n"+
+        print("Simulation setting:\n"+
               f"Sampling rate={self.sampling_rate}\n"+
               f"Image source order={image_source_order}\n"+
               f"Air absorption={air_absorption}"
@@ -136,6 +136,14 @@ class Simulator:
                 print(f"Warning: Receiver '{receiver.name}' is outside the room and will not be added to the simulation.")
 
         return sim_sources, sim_receivers
+
+    def _seed_pyroomacoustics(self, random_seed: Optional[int]) -> None:
+        import pyroomacoustics as pra
+
+        if random_seed is not None:
+            pra.random.seed(numpy=random_seed, libroom=random_seed)
+        else:
+            pra.random.seed()
 
     
     def _update_scene_ir_graph(self, rirs: dict) -> None:
@@ -180,7 +188,13 @@ class Simulator:
         return self.rirs
     
     
-    def rir_from_ray_tracing(self, image_source_order:int=3, n_rays:int=10000, air_absorption:bool=True):
+    def rir_from_ray_tracing(
+        self,
+        image_source_order: int = 3,
+        n_rays: int = 10000,
+        air_absorption: bool = True,
+        random_seed: Optional[int] = None,
+    ):
         """
         Compute the room impulse response (RIR) using ray tracing.
         
@@ -192,6 +206,11 @@ class Simulator:
             The number of rays to trace in the simulation.
         air_absorption : bool, default=True
             Whether to include air absorption in the simulation.
+        random_seed : int, optional
+            Seed for the pyroomacoustics random number generator (NumPy and libroom).
+            When ``None``, both generators are re-seeded with fresh entropy before
+            each simulation so results vary across runs. Pass an integer for
+            reproducible ray-tracing results.
         Returns
         -------
         Dict[str, ImpulseResponse]
@@ -200,11 +219,15 @@ class Simulator:
         """
         
         if self.simulation_platform == 'pyroomacoustics':
+            self._seed_pyroomacoustics(random_seed)
+
             # prepare the walls and materials for the simulation
             simulation = self._pyroomacoustics_simulation(image_source_order, ray_tracing=True, n_rays=n_rays, air_absorption=air_absorption)
             
             sim_sources, sim_receivers = self._add_pyroomacoustics_sources_receivers(simulation)
-                    
+
+            self._seed_pyroomacoustics(random_seed)
+
             simulation.compute_rir()
             self.rirs = self._convert_pyroomacoustics_rirs(
                 room_rir=simulation.rir,
