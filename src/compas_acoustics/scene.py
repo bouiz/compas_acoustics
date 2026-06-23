@@ -1,5 +1,3 @@
-# from compas_viewer import Viewer # Does not work in Rhino
-# from compas_viewer.scene import Tag # Does not work in Rhino
 from typing import Iterable
 from typing import Union
 
@@ -119,7 +117,13 @@ class Scene(Data):
                 print(f"  {group_name}")
                 
     
-    def display_surface_groups(self):
+    def display_surface_groups_in_viewer(self):
+        import compas
+        if compas.is_rhino:
+            raise RuntimeError("Displaying surface groups is not supported in Rhino.")
+        from compas_viewer import Viewer  # Does not work in Rhino
+        from compas_viewer.scene import Tag  # Does not work in Rhino
+
         viewer = Viewer()
         
         for acoustic_geometry in self.acoustic_objects:
