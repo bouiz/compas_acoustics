@@ -104,6 +104,7 @@ replace = "[{new_version}] {now:%Y-%m-%d}"
 
 [tool.black]
 line-length = 179
+extend-exclude = '(/[a-zA-Z\./]*[\s]?)'  # exclude everything, black should be removed..
 
 [tool.ruff]
 line-length = 179

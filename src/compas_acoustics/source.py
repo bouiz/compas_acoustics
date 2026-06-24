@@ -1,4 +1,6 @@
-from compas.geometry import Point, Vector
+from compas.geometry import Point
+from compas.geometry import Vector
+
 from compas_acoustics.defaults import Defaults
 
 __all__ = ['Source']

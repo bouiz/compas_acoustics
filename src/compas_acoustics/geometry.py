@@ -1,18 +1,15 @@
+from collections import defaultdict
 from random import random
 
-from collections import defaultdict
 from compas.colors import Color
 from compas.data import Data
 from compas.datastructures import Mesh
-from compas.geometry import Box, Frame, Transformation, Transformation
 from compas.files import OBJ
+from compas.geometry import Box
+from compas.geometry import Frame
+from compas.geometry import Transformation
 
-# from compas_viewer import Viewer # Does not work in Rhino
-# from compas_viewer.scene import Tag # Does not work in Rhino
-from compas.colors import Color
-
-from compas_acoustics import Source, AcousticMaterial
-
+from compas_acoustics import Source
 
 __all__ = ['AcousticObject', 'AcousticObjectsLibrary']
 
@@ -213,7 +210,13 @@ class AcousticObject(Data):
         return acoustic_object
     
     
-    def display_surface_groups(self):
+    def display_surface_groups_in_viewer(self):
+        import compas
+        if compas.is_rhino:
+            raise RuntimeError("Displaying surface groups is not supported in Rhino.")
+        from compas_viewer import Viewer  # Does not work in Rhino
+        from compas_viewer.scene import Tag  # Does not work in Rhino
+
         viewer = Viewer()
         group_colors = self.surface_group_colors
         print(self.surface_groups)

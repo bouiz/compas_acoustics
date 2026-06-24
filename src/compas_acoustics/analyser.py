@@ -1,11 +1,14 @@
-import numpy as np
 import math
 import warnings
-import matplotlib.pyplot as plt
-from scipy import signal
-from scipy.fft import rfft, rfftfreq, next_fast_len
 
+import matplotlib.pyplot as plt
+import numpy as np
 from compas.data import Data
+from scipy import signal
+from scipy.fft import next_fast_len
+from scipy.fft import rfft
+from scipy.fft import rfftfreq
+
 from compas_acoustics.defaults import Defaults
 
 __all__ = ["AcousticAnalyser"]
@@ -262,7 +265,8 @@ class AcousticAnalyser(Data):
 
     def print_table(self, parameters=None):
         params = parameters if parameters else self.analysis_data['params']
-        if isinstance(params, str): params = [params]
+        if isinstance(params, str):
+            params = [params]
         header = self.analysis_data['freqs'] + ['Overall']
         print(f"{'':14}" + "".join(f"{str(f):>8}" for f in header))
         print("-" * (14 + 8 * len(header)))
@@ -324,7 +328,8 @@ class AcousticAnalyser(Data):
             
             # Formatting logic for RT parameters
             if param in ['EDT', 'T20', 'T30']:
-                from matplotlib.ticker import FormatStrFormatter, MultipleLocator
+                from matplotlib.ticker import FormatStrFormatter
+                from matplotlib.ticker import MultipleLocator
                 ax.yaxis.set_major_locator(MultipleLocator(0.2))
                 ax.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
                 if ylim and (ylim[1] - ylim[0]) < 0.4:
