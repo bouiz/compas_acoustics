@@ -82,14 +82,21 @@ class Simulator:
                     if acoustic_material is None:
                         raise ValueError(f"No acoustic material assigned to surface group '{surface_group}'.")
                     
-                material_settings = {
+                absorption_settings = {
                     'description': acoustic_material.name,
                     'coeffs': acoustic_material.absorption_coefficients,
-                    'scattering': acoustic_material.scattering_coefficients,
-                    'center_freqs': acoustic_material.frequency_bands
+                    'center_freqs': acoustic_material.frequency_bands,
                 }
-                
-                mat = pra.Material(material_settings)
+
+                if acoustic_material.scattering_coefficients is not None:
+                    scattering_settings = {
+                        'coeffs': acoustic_material.scattering_coefficients,
+                        'center_freqs': acoustic_material.frequency_bands,
+                    }
+                else:
+                    scattering_settings = None
+
+                mat = pra.Material(energy_absorption=absorption_settings, scattering=scattering_settings)
                
                 # create wall
                 wall = pra.wall_factory(pts.T,
@@ -245,6 +252,284 @@ class Simulator:
         return self.rirs
     
     
+    def trace_rays(
+        self,
+        n_rays: int = 500,
+        max_reflection_order: int = 10,
+        time_thres: Optional[float] = None,
+        energy_thres: Optional[float] = None,
+        sources: Optional[List[Source]] = None,
+        include_scattering: bool = False,
+        scatter_density: int = 10,
+        scatter_max_bounces: int = 1,
+        scatter_band: Optional[int] = None,
+        random_seed: Optional[int] = None,
+    ):
+        """Trace acoustic rays through the scene for visualisation.
+
+        The specular ray paths are reconstructed by replicating the ray-tracing loop
+        of the pyroomacoustics ``libroom`` engine (which does not itself expose ray
+        paths) using its ``next_wall_hit`` and ``normal_reflect`` primitives. When
+        ``include_scattering`` is set, extra scattered rays are spawned at each hit,
+        with their number and directions driven by the surface scattering coefficient.
+
+        Parameters
+        ----------
+        n_rays : int, default=500
+            The number of rays to shoot from each source.
+        max_reflection_order : int, default=10
+            The maximum number of reflections (segments) to trace per ray.
+        time_thres : float, optional
+            Maximum travel time of a ray in seconds. Converted to a distance using
+            the speed of sound. When reached, the ray is stopped.
+        energy_thres : float, optional
+            Energy threshold below which a ray is stopped (based on surface absorption).
+        sources : list of :class:`compas_acoustics.Source`, optional
+            The sources to shoot rays from. Defaults to all sources in the scene.
+        include_scattering : bool, default=False
+            Whether to spawn coefficient-driven scattered rays at each reflection.
+        scatter_density : int, default=10
+            The maximum number of scattered rays per hit (scaled by the scattering coefficient).
+        scatter_max_bounces : int, default=1
+            The number of further reflections to trace for each scattered ray.
+        scatter_band : int, optional
+            Index of the frequency band whose scattering coefficient to use. Defaults
+            to the mean across all bands.
+        random_seed : int, optional
+            Seed for the scattered-direction sampler, for reproducible results.
+
+        Returns
+        -------
+        :class:`compas_acoustics.RayField`
+        """
+        if self.simulation_platform != 'pyroomacoustics':
+            raise NotImplementedError(f"Simulation platform '{self.simulation_platform}' is not implemented yet.")
+
+        import pyroomacoustics as pra
+        from compas.geometry import Point
+        from compas.geometry import Vector
+
+        from compas_acoustics.ray import Ray
+        from compas_acoustics.ray import RayField
+
+        simulation = self._pyroomacoustics_simulation(
+            image_source_order=max_reflection_order,
+            ray_tracing=False,
+            air_absorption=False,
+        )
+        engine = simulation.room_engine
+        walls = engine.walls
+        max_dist = float(engine.max_dist)
+        sound_speed = float(getattr(simulation, 'c', 343.0))
+
+        if sources is None:
+            sources = self.scene.sources
+
+        sim_sources = []
+        for source in sources:
+            if simulation.is_inside(source.position):
+                sim_sources.append(source)
+            else:
+                print(f"Warning: Source '{source.name}' is outside the room and no rays will be traced from it.")
+
+        rng = np.random.default_rng(random_seed)
+        directions = np.asarray(pra.fibonacci_spherical_sampling(n_rays)).T
+
+        distance_thres = time_thres * sound_speed if time_thres is not None else None
+
+        rays = []
+        for source_index, source in enumerate(sim_sources):
+            source_position = np.asarray(source.position, dtype=float)
+
+            for ray_index in range(directions.shape[0]):
+                initial_direction = directions[ray_index] / np.linalg.norm(directions[ray_index])
+                direction = initial_direction.copy()
+                start = source_position.copy()
+                points = [Point(*start)]
+                scattered_reflections = []
+                transmitted = 1.0
+                travel_distance = 0.0
+
+                for bounce in range(max_reflection_order):
+                    hit, wall_index, hit_distance = engine.next_wall_hit(start, start + direction * max_dist, False)
+                    if wall_index == -1:
+                        break
+
+                    hit = np.asarray(hit, dtype=float)
+                    points.append(Point(*hit))
+                    travel_distance += float(hit_distance)
+                    wall = walls[wall_index]
+
+                    absorption = float(np.mean(np.asarray(wall.absorption, dtype=float)))
+                    transmitted *= max(1.0 - absorption, 0.0)
+
+                    if include_scattering:
+                        scatter = self._scatter_coefficient(wall, scatter_band)
+                        if scatter > 0.0:
+                            scattered_reflections.extend(
+                                self._make_scattered_rays(
+                                    engine=engine,
+                                    walls=walls,
+                                    hit=hit,
+                                    incident_direction=direction,
+                                    wall=wall,
+                                    scatter=scatter,
+                                    transmitted=transmitted,
+                                    travel_distance=travel_distance,
+                                    origin_reflection_order=bounce + 1,
+                                    source=source,
+                                    source_index=source_index,
+                                    ray_index=ray_index,
+                                    max_dist=max_dist,
+                                    sound_speed=sound_speed,
+                                    scatter_density=scatter_density,
+                                    scatter_max_bounces=scatter_max_bounces,
+                                    rng=rng,
+                                )
+                            )
+                            transmitted *= max(1.0 - scatter, 0.0)
+
+                    if distance_thres is not None and travel_distance > distance_thres:
+                        break
+                    if energy_thres is not None and transmitted < energy_thres:
+                        break
+
+                    direction = np.asarray(wall.normal_reflect(direction), dtype=float)
+                    start = hit
+
+                ray = Ray(
+                    points,
+                    source=source,
+                    source_index=source_index,
+                    ray_index=ray_index,
+                    direction=Vector(*initial_direction),
+                    sound_speed=sound_speed,
+                )
+                ray.scattered_reflections = scattered_reflections
+                rays.append(ray)
+
+        return RayField(rays, sound_speed=sound_speed)
+
+    @staticmethod
+    def _scatter_coefficient(wall, scatter_band: Optional[int]) -> float:
+        coefficients = np.asarray(wall.scatter, dtype=float)
+        if coefficients.size == 0:
+            return 0.0
+        if scatter_band is not None:
+            value = float(coefficients[scatter_band])
+        else:
+            value = float(np.mean(coefficients))
+        return min(max(value, 0.0), 1.0)
+
+    def _make_scattered_rays(
+        self,
+        engine,
+        walls,
+        hit,
+        incident_direction,
+        wall,
+        scatter: float,
+        transmitted: float,
+        travel_distance: float,
+        origin_reflection_order: int,
+        source: Source,
+        source_index: int,
+        ray_index: int,
+        max_dist: float,
+        sound_speed: float,
+        scatter_density: int,
+        scatter_max_bounces: int,
+        rng,
+    ):
+        from compas.geometry import Point
+        from compas.geometry import Vector
+
+        from compas_acoustics.ray import ScatteredRay
+
+        n_scatter = int(round(scatter * scatter_density))
+        if n_scatter <= 0:
+            return []
+
+        normal = np.asarray(wall.normal, dtype=float)
+        normal = normal / np.linalg.norm(normal)
+        if np.dot(normal, incident_direction) > 0:
+            normal = -normal
+
+        specular = np.asarray(wall.normal_reflect(incident_direction), dtype=float)
+        specular = specular / np.linalg.norm(specular)
+
+        axis = (1.0 - scatter) * specular + scatter * normal
+        axis_norm = np.linalg.norm(axis)
+        axis = normal if axis_norm < 1e-9 else axis / axis_norm
+
+        theta_max = np.radians(scatter * 90.0)
+        directions = self._sample_cone_directions(axis, normal, n_scatter, theta_max, rng)
+
+        energy = transmitted * scatter / n_scatter
+        scattered_rays = []
+        for scatter_direction in directions:
+            points = [Point(*hit)]
+            start = np.asarray(hit, dtype=float)
+            direction = scatter_direction
+            for _ in range(max(scatter_max_bounces, 1)):
+                sub_hit, wall_index, _ = engine.next_wall_hit(start, start + direction * max_dist, False)
+                if wall_index == -1:
+                    break
+                sub_hit = np.asarray(sub_hit, dtype=float)
+                points.append(Point(*sub_hit))
+                start = sub_hit
+                direction = np.asarray(walls[wall_index].normal_reflect(direction), dtype=float)
+
+            if len(points) < 2:
+                continue
+
+            scattered_rays.append(
+                ScatteredRay(
+                    points,
+                    parent_ray_index=ray_index,
+                    energy=energy,
+                    origin_reflection_order=origin_reflection_order,
+                    source=source,
+                    source_index=source_index,
+                    ray_index=ray_index,
+                    direction=Vector(*scatter_direction),
+                    sound_speed=sound_speed,
+                    distance_offset=travel_distance,
+                )
+            )
+        return scattered_rays
+
+    @staticmethod
+    def _sample_cone_directions(axis, normal, n_directions: int, theta_max: float, rng):
+        """Sample cosine-weighted directions inside a cone around ``axis`` (half-angle ``theta_max``)."""
+        axis = np.asarray(axis, dtype=float)
+        axis = axis / np.linalg.norm(axis)
+
+        helper = np.array([1.0, 0.0, 0.0]) if abs(axis[0]) < 0.9 else np.array([0.0, 1.0, 0.0])
+        tangent_1 = np.cross(axis, helper)
+        tangent_1 /= np.linalg.norm(tangent_1)
+        tangent_2 = np.cross(axis, tangent_1)
+
+        sin_max = np.sin(theta_max)
+        directions = []
+        attempts = 0
+        max_attempts = max(n_directions * 20, 20)
+        while len(directions) < n_directions and attempts < max_attempts:
+            attempts += 1
+            u1 = rng.random()
+            u2 = rng.random()
+            radius = sin_max * np.sqrt(u1)
+            phi = 2.0 * np.pi * u2
+            x = radius * np.cos(phi)
+            y = radius * np.sin(phi)
+            z = np.sqrt(max(1.0 - x * x - y * y, 0.0))
+            direction = x * tangent_1 + y * tangent_2 + z * axis
+            direction /= np.linalg.norm(direction)
+            if np.dot(direction, normal) <= 1e-6:
+                continue
+            directions.append(direction)
+        return directions
+
     def _convert_pyroomacoustics_rirs(
         self,
         room_rir: List[List[NDArray[np.float64]]],

@@ -8,6 +8,7 @@ from .source import Source
 from .receiver import Receiver
 from .geometry import AcousticObject, AcousticObjectsLibrary
 from .ir import ImpulseResponse
+from .ray import Ray, ScatteredRay, RayField
 from .scene import Scene
 from .analyser import AcousticAnalyser
 from .simulator import Simulator
@@ -26,6 +27,9 @@ __all__ = [
     'Receiver',
     'AcousticObject',
     'AcousticObjectsLibrary',
+    'Ray',
+    'ScatteredRay',
+    'RayField',
     'Scene',
     'AcousticAnalyser',
     'Simulator',
