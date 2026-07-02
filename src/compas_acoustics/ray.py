@@ -454,7 +454,7 @@ class RayField(Data):
         """
         import compas
 
-        if compas.is_rhino:
+        if compas.is_rhino():
             raise RuntimeError("Displaying rays in the viewer is not supported in Rhino.")
 
         from compas.colors import Color
