@@ -25,18 +25,23 @@ scene.add_receiver(receiver_1)
 
 
 ########### assign materials with non-zero scattering coefficients
+concrete = ca.AcousticMaterial(
+    name="concrete",
+    absorption_coefficients=[0.01, 0.01, 0.02, 0.02, 0.02, 0.05, 0.05]
+    )
+
 diffusing = ca.AcousticMaterial(
     name="diffuser",
     absorption_coefficients=[0.1, 0.1, 0.15, 0.2, 0.25, 0.3, 0.3],
     scattering_coefficients=[0.4, 0.5, 0.6, 0.7, 0.7, 0.8, 0.8],
 )
 scene.acoustic_materials = {
-    "floor": diffusing,
+    "floor": concrete,
     "left_wall": diffusing,
-    "front_wall": diffusing,
+    "front_wall": concrete,
     "right_wall": diffusing,
     "back_wall": diffusing,
-    "ceiling": diffusing,
+    "ceiling": concrete,
 }
 
 
@@ -54,7 +59,7 @@ print(f"Traced {len(rays)} specular rays and {len(rays.scattered_rays)} scattere
 
 
 ########### keep a single ray so the scattering is easy to see
-single = rays.filter(source=source_1, ray_index=0)
+single = rays.filter(source=source_1, ray_index=44)
 
 
 ########### display both the specular ray and its scattered rays, in distinct styles
