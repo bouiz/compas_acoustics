@@ -256,6 +256,8 @@ class Simulator:
         self,
         n_rays: int = 500,
         max_reflection_order: int = 10,
+        direction=None,
+        angle: Optional[float] = None,
         time_thres: Optional[float] = None,
         energy_thres: Optional[float] = None,
         sources: Optional[List[Source]] = None,
@@ -273,12 +275,22 @@ class Simulator:
         ``include_scattering`` is set, extra scattered rays are spawned at each hit,
         with their number and directions driven by the surface scattering coefficient.
 
+        By default rays are emitted omnidirectionally from each source. If a spotlight
+        cone is specified (via ``direction`` and ``angle``), all ``n_rays`` are instead
+        emitted directly into that cone (apex at each source), so no separate filtering
+        step is needed.
+
         Parameters
         ----------
         n_rays : int, default=500
             The number of rays to shoot from each source.
         max_reflection_order : int, default=10
             The maximum number of reflections (segments) to trace per ray.
+        direction : :class:`compas.geometry.Vector` or list, optional
+            The axis of a spotlight cone (apex at each source) to emit rays into.
+            When omitted, rays are emitted omnidirectionally. Requires ``angle``.
+        angle : float, optional
+            The half angle of the spotlight cone in degrees. Requires ``direction``.
         time_thres : float, optional
             Maximum travel time of a ray in seconds. Converted to a distance using
             the speed of sound. When reached, the ray is stopped.
@@ -287,7 +299,7 @@ class Simulator:
         sources : list of :class:`compas_acoustics.Source`, optional
             The sources to shoot rays from. Defaults to all sources in the scene.
         include_scattering : bool, default=False
-            Whether to spawn coefficient-driven scattered rays at each reflection.
+            Whether to spawn coefficient-driven scattered (diffuse) rays at each reflection.
         scatter_density : int, default=10
             The maximum number of scattered rays per hit (scaled by the scattering coefficient).
         scatter_max_bounces : int, default=1
@@ -302,6 +314,8 @@ class Simulator:
         -------
         :class:`compas_acoustics.RayField`
         """
+        if (direction is None) != (angle is None):
+            raise ValueError("Both 'direction' and 'angle' must be provided together to emit rays into a cone.")
         if self.simulation_platform != 'pyroomacoustics':
             raise NotImplementedError(f"Simulation platform '{self.simulation_platform}' is not implemented yet.")
 
@@ -333,7 +347,10 @@ class Simulator:
                 print(f"Warning: Source '{source.name}' is outside the room and no rays will be traced from it.")
 
         rng = np.random.default_rng(random_seed)
-        directions = np.asarray(pra.fibonacci_spherical_sampling(n_rays)).T
+        if direction is None:
+            directions = np.asarray(pra.fibonacci_spherical_sampling(n_rays)).T
+        else:
+            directions = self._cone_sampling(direction, angle, n_rays)
 
         distance_thres = time_thres * sound_speed if time_thres is not None else None
 
@@ -409,6 +426,51 @@ class Simulator:
                 rays.append(ray)
 
         return RayField(rays, sound_speed=sound_speed)
+
+    @staticmethod
+    def _cone_sampling(direction, angle: float, n_rays: int) -> NDArray[np.float64]:
+        """Evenly sample ``n_rays`` unit directions on the spherical cap of a cone.
+
+        The cone axis is ``direction`` and its half aperture is ``angle`` (degrees).
+        A deterministic fibonacci-cap lattice is used so results are reproducible and
+        do not depend on the random seed.
+
+        Parameters
+        ----------
+        direction : :class:`compas.geometry.Vector` or list
+            The cone axis. Does not need to be normalised.
+        angle : float
+            The half angle of the cone in degrees.
+        n_rays : int
+            The number of directions to sample.
+
+        Returns
+        -------
+        numpy.ndarray
+            An array of shape ``(n_rays, 3)`` of unit direction vectors.
+        """
+        axis = np.asarray(direction, dtype=float)
+        norm = np.linalg.norm(axis)
+        if norm < 1e-12:
+            raise ValueError("Cone 'direction' must be a non-zero vector.")
+        axis = axis / norm
+
+        helper = np.array([1.0, 0.0, 0.0]) if abs(axis[0]) < 0.9 else np.array([0.0, 1.0, 0.0])
+        tangent_1 = np.cross(axis, helper)
+        tangent_1 /= np.linalg.norm(tangent_1)
+        tangent_2 = np.cross(axis, tangent_1)
+
+        cos_half = np.cos(np.radians(angle))
+        golden = np.pi * (3.0 - np.sqrt(5.0))
+
+        directions = np.empty((n_rays, 3), dtype=float)
+        for i in range(n_rays):
+            z = 1.0 - (i + 0.5) / n_rays * (1.0 - cos_half)
+            radius = np.sqrt(max(1.0 - z * z, 0.0))
+            phi = i * golden
+            vector = radius * np.cos(phi) * tangent_1 + radius * np.sin(phi) * tangent_2 + z * axis
+            directions[i] = vector / np.linalg.norm(vector)
+        return directions
 
     @staticmethod
     def _scatter_coefficient(wall, scatter_band: Optional[int]) -> float:

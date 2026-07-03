@@ -48,15 +48,15 @@ scene.acoustic_materials = {
 ########### trace the rays including scattering
 simulator = ca.Simulator(scene, simulation_platform="pyroomacoustics")
 rays = simulator.trace_rays(
-    n_rays=100,
+    n_rays=5,
     max_reflection_order=4,
     include_scattering=True,
-    scatter_density=12,
+    scatter_density=10,
     scatter_max_bounces=1,
     random_seed=42,
 )
 print(f"Traced {len(rays)} specular rays and {len(rays.scattered_rays)} scattered rays.")
-
+rays.display_in_viewer(scene=scene, show_scattered=True, reflection_order=3)
 
 ########### keep a single ray so the scattering is easy to see
 single = rays.filter(source=source_1, ray_index=44)

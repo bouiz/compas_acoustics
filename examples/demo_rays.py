@@ -1,8 +1,9 @@
 """Visualise the specular rays of a ray-tracing simulation.
 
-This example traces specular rays from the sources of a shoebox room, filters
-them by source and by a spotlight cone (a direction + half angle), and displays
-them, optionally truncated by reflection order or sound travel time.
+This example traces specular rays from the sources of a shoebox room directly
+into a spotlight cone (a direction + half angle) in a single call, then keeps a
+single source and displays them, optionally truncated by reflection order or
+sound travel time.
 """
 
 from compas.geometry import Vector
@@ -39,16 +40,16 @@ scene.acoustic_materials = {
 }
 
 
-########### trace the rays
-simulator = ca.Simulator(scene, simulation_platform="pyroomacoustics")
-rays = simulator.trace_rays(n_rays=500, max_reflection_order=6)
-print(f"Traced {len(rays)} rays.")
-
-
-########### filter: only rays from source_1 that fall inside a spotlight cone
+########### trace the rays directly into a spotlight cone
 cone_axis = Vector(-1, -1, 0)
-filtered = rays.filter(source=source_1, direction=cone_axis, angle=25)
-print(f"{len(filtered)} rays fall inside the 25 degree cone from source_1.")
+simulator = ca.Simulator(scene, simulation_platform="pyroomacoustics")
+rays = simulator.trace_rays(n_rays=500, max_reflection_order=6, direction=cone_axis, angle=25)
+print(f"Traced {len(rays)} rays into the 25 degree cone.")
+
+
+########### keep only the rays from source_1
+filtered = rays.filter(source=source_1)
+print(f"{len(filtered)} rays emitted from source_1.")
 
 
 ########### display, truncated to the first 3 reflections (or use travel_time_ms=...)

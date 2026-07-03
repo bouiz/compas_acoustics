@@ -315,8 +315,6 @@ class RayField(Data):
         self,
         source=None,
         ray_index: Optional[Union[int, List[int]]] = None,
-        direction=None,
-        angle: Optional[float] = None,
     ) -> "RayField":
         """Return a new :class:`RayField` keeping only the rays matching the filters.
 
@@ -326,18 +324,11 @@ class RayField(Data):
             Keep only rays emitted from this source (matched by object or index).
         ray_index : int or list of int, optional
             Keep only rays with these ray indices.
-        direction : :class:`compas.geometry.Vector` or list, optional
-            The axis of a spotlight cone (apex at each ray's source). Requires ``angle``.
-        angle : float, optional
-            The half angle of the spotlight cone in degrees. Requires ``direction``.
 
         Returns
         -------
         :class:`RayField`
         """
-        if (direction is None) != (angle is None):
-            raise ValueError("Both 'direction' and 'angle' must be provided together to filter by cone.")
-
         ray_indices = None
         if ray_index is not None:
             ray_indices = {ray_index} if isinstance(ray_index, int) else set(ray_index)
@@ -347,8 +338,6 @@ class RayField(Data):
             if source is not None and not self._matches_source(ray, source):
                 continue
             if ray_indices is not None and ray.ray_index not in ray_indices:
-                continue
-            if direction is not None and not ray.is_in_cone(direction, angle):
                 continue
             kept.append(ray)
 
