@@ -5,16 +5,17 @@ from compas_acoustics.defaults import Defaults
 
 __all__ = ['Source']
 
+# directivity = ["bidirectional", "hypercardioid", "supercardioid", "cardioid", "omnidirectional", "custom",]
 
 class Source(Point):
     
-    def __init__(self, name: str, x: float, y: float, z: float, directional: bool = False):
+    def __init__(self, name: str, x: float, y: float, z: float, directivity: str = None, direction: Vector = None):
         super().__init__(x, y, z)
         self.name = name
-        self.description = "omni" if not directional else "directional"
-        self.directional = directional
-        self.direction = [1, 0, 0] # Default direction along the x-axis
-        self.spl = 120.0 # Default SPL value for omni source
+        self.description = None
+        self.directivity = directivity if directivity is not None else "omnidirectional"
+        self.direction = direction if direction is not None else Vector(0, 0, 1)
+        self.spl = 120.0 # Default SPL value for omni source TODO: swl?
     
     
     @property
