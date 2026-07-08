@@ -11,6 +11,7 @@ from compas_acoustics import Defaults
 from compas_acoustics import ImpulseResponse
 from compas_acoustics.receiver import Receiver
 from compas_acoustics.source import Source
+from compas_acoustics.pra_converter import acoustic_object_to_pra_walls
 
 __all__ = ['Simulator']
 
@@ -66,44 +67,11 @@ class Simulator:
         
         import pyroomacoustics as pra
         
-        # create the walls
+        # create walls
         walls = []
-        for acoustic_geometry in self.scene.acoustic_objects:
-            for fkey in acoustic_geometry.acoustic_geometry.faces():
-                # verticies of the face
-                face_vertices = acoustic_geometry.acoustic_geometry.face_vertices(fkey)
-                pts = np.asarray([acoustic_geometry.acoustic_geometry.vertex_coordinates(vkey) for vkey in face_vertices])
-                
-                # acoustic material of the face
-                surface_group = acoustic_geometry.acoustic_geometry.face_attribute(fkey, 'surface_group')
-                acoustic_material = acoustic_geometry.acoustic_materials.get(surface_group, None)
-                if acoustic_material is None:
-                    acoustic_material = self.scene.acoustic_materials.get(surface_group, None)
-                    if acoustic_material is None:
-                        raise ValueError(f"No acoustic material assigned to surface group '{surface_group}'.")
-                    
-                absorption_settings = {
-                    'description': acoustic_material.name,
-                    'coeffs': acoustic_material.absorption_coefficients,
-                    'center_freqs': acoustic_material.frequency_bands,
-                }
-
-                if acoustic_material.scattering_coefficients is not None:
-                    scattering_settings = {
-                        'coeffs': acoustic_material.scattering_coefficients,
-                        'center_freqs': acoustic_material.frequency_bands,
-                    }
-                else:
-                    scattering_settings = None
-
-                mat = pra.Material(energy_absorption=absorption_settings, scattering=scattering_settings)
-               
-                # create wall
-                wall = pra.wall_factory(pts.T,
-                                        mat.energy_absorption['coeffs'],
-                                        mat.scattering['coeffs'])
-                walls.append(wall)
-                            
+        for obj in self.scene.acoustic_objects:
+            walls.extend(acoustic_object_to_pra_walls(obj))
+    
         # create the room
         room = pra.Room(
             walls,
