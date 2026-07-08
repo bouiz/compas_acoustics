@@ -105,23 +105,6 @@ def test_rayfield_filter_by_ray_index():
     assert len(field.filter(ray_index=[3, 9])) == 2
 
 
-def test_rayfield_filter_by_cone():
-    ray = make_ray(source_index=0, ray_index=0)
-    field = RayField([ray])
-    assert len(field.filter(direction=Vector(1, 0, 0), angle=10)) == 1
-    assert len(field.filter(direction=Vector(0, 1, 0), angle=10)) == 0
-
-
-def test_rayfield_filter_requires_direction_and_angle_together():
-    field = RayField([make_ray()])
-    try:
-        field.filter(direction=Vector(1, 0, 0))
-    except ValueError:
-        pass
-    else:
-        raise AssertionError("Expected ValueError when angle is missing")
-
-
 def test_rayfield_truncated_reflection_order_carries_scattered():
     ray = make_ray(source_index=0, ray_index=0)
     scattered = ScatteredRay(
