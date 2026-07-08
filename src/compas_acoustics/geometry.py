@@ -10,12 +10,13 @@ from compas.geometry import Frame
 from compas.geometry import Transformation
 
 from compas_acoustics import Source
+from compas_acoustics.acoustic_material import AcousticMaterial
 
 __all__ = ['AcousticObject', 'AcousticObjectsLibrary']
 
 class AcousticObject(Data):
     
-    def __init__(self, acoustic_geometry:Mesh, surface_groups:dict, x:float=0, y:float=0, z:float=0, name:str=None):
+    def __init__(self, acoustic_geometry:Mesh, material: AcousticMaterial, x:float=0, y:float=0, z:float=0, name:str=None):
         """Initialize Acoustic object
 
         Parameters
@@ -24,6 +25,8 @@ class AcousticObject(Data):
             A COMPAS Mesh representing the acoustic geometry.
         surface_groups : dict
             A dictionary where keys are group names and values are lists of face indices belonging to each group.
+        material : :class:`compas_acoustics.acoustic_material.AcousticMaterial`
+            The acoustic material assigned to the acoustic object.
         x : float
             The x-coordinate of the geometry's reference point.
         y : float
@@ -38,8 +41,7 @@ class AcousticObject(Data):
         self._y = y
         self._z = z
         self.acoustic_geometry = acoustic_geometry
-        self.surface_groups = surface_groups # {group name : list of face indices}
-        self.acoustic_materials = {} # {surface group name : AcousticMaterial}
+        self.material = material
         self.sources = []
         self.visualisation_geometry = None
         self.surface_group_colors = None
@@ -249,7 +251,7 @@ class AcousticObjectsLibrary(AcousticObject):
     """
 
     @classmethod
-    def shoebox_room(cls, length:float, width:float, height:float, sources:list=None, name:str=None):
+    def shoebox_room(cls, length:float, width:float, height:float, sources:list=None, name:str=None, material: AcousticMaterial = None):
         """
         Create a shoebox room acoustic object.
         
@@ -291,7 +293,7 @@ class AcousticObjectsLibrary(AcousticObject):
             'ceiling': [5],
         }
         
-        acoustic_object = cls(acoustic_geometry=acoustic_geometry, surface_groups=surface_groups, name=name)
+        acoustic_object = cls(acoustic_geometry=acoustic_geometry, material=material, name=name)
 
         if sources:
             acoustic_object.sources=sources
