@@ -212,7 +212,7 @@ class AcousticObject(Data):
     
     def display_surface_groups_in_viewer(self):
         import compas
-        if compas.is_rhino:
+        if compas.is_rhino():
             raise RuntimeError("Displaying surface groups is not supported in Rhino.")
         from compas_viewer import Viewer  # Does not work in Rhino
         from compas_viewer.scene import Tag  # Does not work in Rhino
