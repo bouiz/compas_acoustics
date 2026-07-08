@@ -19,10 +19,10 @@ class Receiver(Point):
         The z-coordinate of the receiver's position.
     """
 
-    def __init__(self, name: str, x:float, y:float, z:float):
+    def __init__(self, name: str, x:float, y:float, z:float, direction: Vector = None):
         super().__init__(x, y, z)
         self.name=name
-        self.direction = [1, 0, 0] # Default direction along the x-axis
+        self.direction = direction if direction is not None else Vector(0, 0, 1)
         
     
     @property
