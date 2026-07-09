@@ -45,7 +45,7 @@ class AcousticObject(Data):
         self.sources = []
         self.visualisation_geometry = None
         self.surface_group_colors = None
-        self._prepare_mesh()
+        # self._prepare_mesh()
         
     
     def _prepare_mesh(self):
