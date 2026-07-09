@@ -23,7 +23,9 @@ class AcousticAnalyser(Data):
     Parameters
     ----------
     ir : list or np.ndarray
-        The impulse response to analyze. Can be a 1D or 2D array (mono or multi-channel).
+        The impulse response to analyze, shaped (samples,) or (samples, channels).
+        Multi-channel input is reduced to channel 0, which is the omnidirectional
+        component of an ambisonic impulse response.
     """
 
     def __init__(self, ir):
@@ -39,7 +41,14 @@ class AcousticAnalyser(Data):
     def ir(self, ir):
         if not isinstance(ir, (list, np.ndarray)):
             raise TypeError("Impulse response must be a list or numpy array.")
-        self._ir = np.asarray(ir, dtype=float)
+        ir_array = np.asarray(ir, dtype=float)
+        if ir_array.ndim > 2:
+            raise ValueError(f"Impulse response must be 1D or 2D, got {ir_array.ndim}D.")
+        if ir_array.ndim == 2:
+            if ir_array.shape[1] > 1:
+                warnings.warn(f"Impulse response has {ir_array.shape[1]} channels; analysing channel 0 only.")
+            ir_array = ir_array[:, 0]
+        self._ir = ir_array
 
     @property
     def sampling_rate(self):
@@ -171,8 +180,6 @@ class AcousticAnalyser(Data):
             impulse_response = self.ir
 
         ir_array = np.asarray(impulse_response, dtype=float)
-        if ir_array.ndim > 1:
-            ir_array = ir_array[:, 0]
 
         results = {'EDT': [], 'T20': [], 'T30': []}
         for center_freq in self.frequency_bands:
@@ -238,8 +245,6 @@ class AcousticAnalyser(Data):
             impulse_response = self.ir
 
         ir_array = np.asarray(impulse_response, dtype=float)
-        if ir_array.ndim > 1:
-            ir_array = ir_array[:, 0]
 
         d_half = int(0.0025 * self.sampling_rate)
 
