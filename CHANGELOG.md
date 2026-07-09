@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** RIRs are returned at the simulation sample rate; automatic resampling to `Defaults.SAMPLING_RATE` was removed — use `ImpulseResponse.resampled()` when a different rate is needed
 - `Simulator` now populates `scene.ir_graph` automatically after each successful RIR computation
 - `Scene.add_acoustic_objects()` now calls `add_acoustic_object()` per item so embedded sources are registered in the IR graph
+- `Analyser` now uses numpy and returns a dictionary with parameters and overall values
 
 ### Fixed
 
