@@ -1,9 +1,11 @@
 import warnings
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pyfar as pf
 import pyrato
-import matplotlib.pyplot as plt
 from compas.data import Data
+
 from compas_acoustics.defaults import Defaults
 
 __all__ = ["AcousticAnalyser"]
@@ -114,13 +116,6 @@ class AcousticAnalyser(Data):
     @property
     def EDT_overall(self):
         return self.analysis_data['EDT_overall'] if self.analysis_data else None
-    
-    @property
-    def frequency_bands(self):
-        # Return custom bands if set, otherwise return defaults
-        if hasattr(self, '_frequency_bands'):
-            return self._frequency_bands
-        return Defaults().DEFAULT_FREQUENCY_BANDS
 
     @sampling_rate.setter
     def sampling_rate(self, sampling_rate):
