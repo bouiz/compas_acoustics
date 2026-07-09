@@ -3,5 +3,6 @@ pyroomacoustics >=0.10.1
 matplotlib >=3.10, <4.0
 librosa
 soundfile
-spaudiopy
 sofar
+pyfar>=0.8.0
+pyrato>=1.0.0
