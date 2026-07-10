@@ -12,10 +12,12 @@ from compas_acoustics import ImpulseResponse
 from compas_acoustics.receiver import Receiver
 from compas_acoustics.source import Source
 from compas_acoustics.pra_converter import acoustic_object_to_pra_walls
+from compas_acoustics.pra_converter import receivers_to_pra_mic_array
+from compas_acoustics.pra_converter import source_to_pra
 
 __all__ = ['Simulator']
-
-
+import pyroomacoustics as pra
+pra.Room
 class Simulator:
     """Base class for acoustic simulators."""
 
@@ -101,14 +103,14 @@ class Simulator:
 
         for source in self.scene.sources:
             if room.is_inside(source.position):
-                room.add_source(source.position)
+                room.add_soundsource(source_to_pra(source))
                 sim_sources.append(source)
             else:
                 print(f"Warning: Source '{source.name}' is outside the room and will not be added to the simulation.")
 
         for receiver in self.scene.receivers:
             if room.is_inside(receiver.position):
-                room.add_microphone(receiver.position)
+                room.add_microphone_array(receivers_to_pra_mic_array(receiver, sample_rate=self.sampling_rate))
                 sim_receivers.append(receiver)
             else:
                 print(f"Warning: Receiver '{receiver.name}' is outside the room and will not be added to the simulation.")
