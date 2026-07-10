@@ -29,7 +29,7 @@ def vector_to_pra(vec: Vector, tol=1e-9) -> pra.DirectionVector:
         degrees=False  # NOTE: Always use radians?
     )
 
-def directivity_to_pra(dirt: str) -> pra.CardioidFamily:
+def directivity_to_pra(dirt: str, vec: Vector) -> pra.CardioidFamily:
     """Convert a Directivity. Only support CardioidFamily now."""
     supported_directivity = {
         "bidirectional": 0.0,
@@ -43,7 +43,7 @@ def directivity_to_pra(dirt: str) -> pra.CardioidFamily:
         raise ValueError(f"Directivity '{dirt}' is not supported.")
     
     return pra.CardioidFamily(
-        orientation=vector_to_pra(dirt.direction),
+        orientation=vector_to_pra(vec),
         p=supported_directivity[dirt],
         gain=1.0
     )
@@ -59,7 +59,7 @@ def source_to_pra(src : Source) -> pra.SoundSource:
     """Convert a compas_acoustics Source to a pyroomacoustics SoundSource."""
     return pra.SoundSource(
         position=points_to_array(src.position),
-        directivity=directivity_to_pra(src.directivity),
+        directivity=directivity_to_pra(src.directivity, src.direction),
     )
 
 def receivers_to_pra_mic_array(receivers, sample_rate=None):
