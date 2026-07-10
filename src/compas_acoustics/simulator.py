@@ -16,8 +16,8 @@ from compas_acoustics.pra_converter import receivers_to_pra_mic_array
 from compas_acoustics.pra_converter import source_to_pra
 
 __all__ = ['Simulator']
-import pyroomacoustics as pra
-pra.Room
+
+
 class Simulator:
     """Base class for acoustic simulators."""
 
