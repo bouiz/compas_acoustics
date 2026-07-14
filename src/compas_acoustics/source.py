@@ -9,13 +9,14 @@ __all__ = ['Source']
 
 class Source(Point):
     
-    def __init__(self, name: str, x: float, y: float, z: float, directivity: str = None, direction: Vector = None):
+    def __init__(self, name: str, x: float, y: float, z: float, directivity: str = None, direction: Vector = None, sound_file: str = None):
         super().__init__(x, y, z)
         self.name = name
         self.description = None
         self.directivity = directivity if directivity is not None else "omnidirectional"
         self.direction = direction if direction is not None else Vector(0, 0, 1)
         self.spl = 120.0 # Default SPL value for omni source TODO: swl?
+        self._sound_file = sound_file
     
     
     @property
@@ -106,6 +107,9 @@ class Source(Point):
         self.z = position[2]
         return self.position
     
+    @property
+    def sound_file(self):
+        return self._sound_file
     
     @property
     def id(self):
