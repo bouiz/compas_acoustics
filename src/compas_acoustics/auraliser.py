@@ -9,8 +9,42 @@ from scipy.io.wavfile import write
 from scipy.signal import fftconvolve
 from scipy.signal import resample
 
-__all__ = ['Auraliser']
+import platform
+import os
+import subprocess
 
+__all__ = ['Auraliser', 'play_sound']
+
+
+def play_sound(file_path):
+    """
+    Plays a sound file based on the operating system.
+
+    Parameters:
+    file_path (str): The path to the sound file to be played.
+    Only supports .wav files for Windows.
+    """
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"The file {file_path} does not exist.")
+    
+    current_os = platform.system()
+    if current_os == "Windows":
+        import System.Media as sm  # type: ignore
+        try:
+            player = sm.SoundPlayer(file_path)
+            player.Play()
+        except Exception as e:
+            print (f"Error playing sound on Windows: {e}")
+    
+    elif current_os == "Darwin":  # macOS
+        try:
+            subprocess.Popen(["afplay", file_path])
+        except Exception as e:
+            print(f"Error playing sound on macOS: {e}")
+    
+    else:
+        raise NotImplementedError(f"Sound playback is not implemented for system {current_os}.")
+    
 class Auraliser(Data):
     """
     A class for handling auralisation.
