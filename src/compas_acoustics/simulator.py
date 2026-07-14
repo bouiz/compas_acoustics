@@ -27,6 +27,7 @@ class Simulator:
         self.simulation_platform = simulation_platform
         self.sampling_rate = Defaults().SAMPLING_RATE
         self.rirs = None
+        self._pra_room = None
     
     
     @property
@@ -218,7 +219,7 @@ class Simulator:
             self._update_scene_ir_graph(self.rirs)
         else:
             raise NotImplementedError(f"Simulation platform '{self.simulation_platform}' is not implemented yet.")
-        
+        self._pra_room = simulation
         return self.rirs
     
     
