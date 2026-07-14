@@ -2,6 +2,7 @@ import pyroomacoustics as pra
 import math
 import numpy as np
 from typing import Union
+import scipy.io.wavfile as wav
 
 from compas.geometry import Vector, Point
 from compas.datastructures import Mesh
@@ -57,8 +58,16 @@ def points_to_array(pts):
 
 def source_to_pra(src : Source) -> pra.SoundSource:
     """Convert a compas_acoustics Source to a pyroomacoustics SoundSource."""
+    sound_file = src.sound_file
+    fs, audio_clean = wav.read(sound_file)
+
+    if len(audio_clean.shape) > 1:
+        audio_clean = audio_clean[:, 0]
+    audio_clean = audio_clean.astype(np.float32) / np.max(np.abs(audio_clean))
+
     return pra.SoundSource(
         position=points_to_array(src.position),
+        signal=audio_clean,
         directivity=directivity_to_pra(src.directivity, src.direction),
     )
 

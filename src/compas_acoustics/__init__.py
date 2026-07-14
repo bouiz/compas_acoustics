@@ -12,6 +12,8 @@ from .ray import Ray, ScatteredRay, RayField
 from .scene import Scene
 from .analyser import AcousticAnalyser
 from .simulator import Simulator
+from .auraliser import Auraliser
+from .auraliser import play_sound
 
 __author__ = ["Achilleas Xydis"]
 __copyright__ = "Gramazio Kohler Research"
@@ -33,6 +35,8 @@ __all__ = [
     'Scene',
     'AcousticAnalyser',
     'Simulator',
+    'Auraliser',
+    'play_sound',
     # 'Tools',
     'ImpulseResponse'
     ]
