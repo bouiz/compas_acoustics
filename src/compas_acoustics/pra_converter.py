@@ -142,10 +142,11 @@ def acoustic_object_to_pra_walls(acoustic_object: AcousticObject) -> list[pra.Wa
 
 def scene_to_pra_room(scene: Scene, fs: int, max_order: int, ray_tracing: bool, air_absorption: bool) -> pra.Room:
     """Convert a compas_acoustics Scene to a pyroomacoustics Room."""
-    # create walls
+    # create walls (recurse into groups to reach leaf acoustic objects)
     walls = []
     for obj in scene.acoustic_objects:
-        walls.extend(acoustic_object_to_pra_walls(obj))
+        for leaf in obj.iter_acoustic_objects():
+            walls.extend(acoustic_object_to_pra_walls(leaf))
 
     # create the room
     room = pra.Room(

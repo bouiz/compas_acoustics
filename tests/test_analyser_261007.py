@@ -13,7 +13,7 @@ receiver_2 = ca.Receiver(name="receiver_2", x=1.0, y=1.0, z=1.1, direction=Vecto
 # 2. Create a shoebox room with concrete material
 concrete = ca.AcousticMaterial(name='concrete', absorption_coefficients=[0.01, 0.01, 0.02, 0.02, 0.02, 0.05, 0.05], scattering_coefficients=[0.01, 0.01, 0.03, 0.05, 0.1, 0.1, 0.1])
 # brickwall = ca.AcousticMaterial(name='brickwall', absorption_coefficients=[0.01, 0.02, 0.02, 0.03, 0.03, 0.04, 0.04], scattering_coefficients=[0.01, 0.01, 0.03, 0.05, 0.2, 0.25, 0.3])
-room = ca.AcousticObjectsLibrary.shoebox_room(length=5, width=4, height=3, material=concrete)
+room = ca.AcousticObjectsLibrary.shoebox_room(length=5, width=4, height=3, materials=concrete)
 
 # 3. Create a scene and add the room, sources, and receivers
 scene = ca.Scene(name="Test Scene", description="This is a test scene.")

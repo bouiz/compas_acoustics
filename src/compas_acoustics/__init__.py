@@ -6,7 +6,7 @@ from .acoustic_material import AcousticMaterial
 from .materials_library import MaterialsLibrary
 from .source import Source
 from .receiver import Receiver
-from .geometry import AcousticObject, AcousticObjectsLibrary
+from .geometry import AcousticObject, AcousticObjectsGroup, AcousticObjectsLibrary
 from .ir import ImpulseResponse
 from .ray import Ray, ScatteredRay, RayField
 from .scene import Scene
@@ -28,6 +28,7 @@ __all__ = [
     'Source',
     'Receiver',
     'AcousticObject',
+    'AcousticObjectsGroup',
     'AcousticObjectsLibrary',
     'Ray',
     'ScatteredRay',
