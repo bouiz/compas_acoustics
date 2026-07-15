@@ -100,42 +100,56 @@ class Scene(Data):
         self._acoustic_materials = acoustic_materials          
     
     
+    def iter_acoustic_objects(self):
+        """Yield every leaf :class:`AcousticObject` in the scene, recursing into groups."""
+        for acoustic_object in self.acoustic_objects:
+            yield from acoustic_object.iter_acoustic_objects()
+    
+    
     @property
-    def scene_surface_groups(self):
-        surface_groups = []
-        for acoustic_geometry in self.acoustic_objects:
-            groups = acoustic_geometry.surface_groups.keys()
-            surface_groups.extend(groups)
-        return surface_groups
+    def scene_materials(self):
+        """The unique acoustic materials used in the scene, keyed by material name."""
+        materials = {}
+        for acoustic_object in self.iter_acoustic_objects():
+            material = acoustic_object.material
+            if material is not None:
+                materials[material.name] = material
+        return materials
     
     
-    def print_scene_surface_groups(self):
-        print(f"Scene '{self.name}' surface groups:")
-        for acoustic_geometry in self.acoustic_objects:
-            print(f"Acoustic Object '{acoustic_geometry.name}':")
-            for group_name in acoustic_geometry.surface_groups.keys():
-                print(f"  {group_name}")
+    def print_scene_materials(self):
+        print(f"Scene '{self.name}' materials:")
+        for acoustic_object in self.iter_acoustic_objects():
+            material_name = acoustic_object.material.name if acoustic_object.material else "none"
+            print(f"  {acoustic_object.name}: {material_name}")
                 
     
-    def display_surface_groups_in_viewer(self):
+    def display_materials_in_viewer(self):
         import compas
         if compas.is_rhino():
-            raise RuntimeError("Displaying surface groups is not supported in Rhino.")
+            raise RuntimeError("Displaying materials is not supported in Rhino.")
+        from random import random
+
+        from compas.colors import Color
         from compas_viewer import Viewer  # Does not work in Rhino
         from compas_viewer.scene import Tag  # Does not work in Rhino
 
+        material_colors = {name: Color(random(), random(), random(), 0.5) for name in self.scene_materials}
+        default_color = Color(0.5, 0.5, 0.5, 0.5)
+
         viewer = Viewer()
-        
-        for acoustic_geometry in self.acoustic_objects:
-            group_colors = acoustic_geometry.surface_group_colors
-            
-            for fkey in acoustic_geometry.acoustic_geometry.faces():
-                f_centroid = acoustic_geometry.acoustic_geometry.face_centroid(fkey)
-                surface_group = acoustic_geometry.acoustic_geometry.face_attribute(fkey, 'surface_group')
-                tag = Tag(surface_group, f_centroid, height=30, color=group_colors[surface_group])
-                viewer.scene.add(tag, name=f"tag_{fkey}")
-            
-            viewer.scene.add(acoustic_geometry.acoustic_geometry, name=acoustic_geometry.name, show_points=True, facecolor=acoustic_geometry.face_colors)
+
+        for acoustic_object in self.iter_acoustic_objects():
+            material = acoustic_object.material
+            material_name = material.name if material else "none"
+            color = material_colors.get(material_name, default_color)
+
+            mesh = acoustic_object.acoustic_geometry
+            tag = Tag(material_name, mesh.centroid(), height=30, color=color)
+            viewer.scene.add(tag, name=f"tag_{acoustic_object.name}")
+
+            facecolor = {fkey: color for fkey in mesh.faces()}
+            viewer.scene.add(mesh, name=acoustic_object.name, show_points=True, facecolor=facecolor)
         viewer.show()
            
 
