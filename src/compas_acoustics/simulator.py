@@ -9,13 +9,11 @@ from compas_acoustics import Defaults
 
 # from compas_acoustics import Tools
 from compas_acoustics import ImpulseResponse
+from compas_acoustics.pra_converter import receivers_to_pra_mic_array
+from compas_acoustics.pra_converter import scene_to_pra_room
+from compas_acoustics.pra_converter import source_to_pra
 from compas_acoustics.receiver import Receiver
 from compas_acoustics.source import Source
-from compas_acoustics.pra_converter import acoustic_object_to_pra_walls
-from compas_acoustics.pra_converter import receivers_to_pra_mic_array
-from compas_acoustics.pra_converter import source_to_pra
-from compas_acoustics.pra_converter import scene_to_pra_room
-
 
 __all__ = ['Simulator']
 

@@ -1,18 +1,19 @@
-import pyroomacoustics as pra
 import math
+
 import numpy as np
-from typing import Union
+import pyroomacoustics as pra
 import scipy.io.wavfile as wav
-
-from compas.geometry import Vector, Point
 from compas.datastructures import Mesh
+from compas.geometry import Point
+from compas.geometry import Vector
 
-from compas_acoustics.source import Source
-from compas_acoustics.receiver import Receiver
+from compas_acoustics import Defaults
 from compas_acoustics.acoustic_material import AcousticMaterial
 from compas_acoustics.geometry import AcousticObject
-from compas_acoustics import Defaults
+from compas_acoustics.receiver import Receiver
 from compas_acoustics.scene import Scene
+from compas_acoustics.source import Source
+
 
 def vector_to_pra(vec: Vector, tol=1e-9) -> pra.DirectionVector:
     """
