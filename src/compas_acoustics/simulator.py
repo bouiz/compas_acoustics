@@ -14,6 +14,8 @@ from compas_acoustics.source import Source
 from compas_acoustics.pra_converter import acoustic_object_to_pra_walls
 from compas_acoustics.pra_converter import receivers_to_pra_mic_array
 from compas_acoustics.pra_converter import source_to_pra
+from compas_acoustics.pra_converter import scene_to_pra_room
+
 
 __all__ = ['Simulator']
 
@@ -67,18 +69,9 @@ class Simulator:
         pyroomacoustics.Room
             A pyroomacoustics Room object prepared for simulation.
         """
-        
-        import pyroomacoustics as pra
-        
-        # create walls
-        walls = []
-        for obj in self.scene.acoustic_objects:
-            walls.extend(acoustic_object_to_pra_walls(obj))
-    
-        # create the room
-        room = pra.Room(
-            walls,
-            fs=16000, #TODO Figure out how to set this to something more than 16000. Currently, anything above 16000 will cause an error when air absorption is enabled.
+        room = scene_to_pra_room(
+            self.scene,
+            fs=16000,  #TODO Figure out how to set this to something more than 16000. Currently, anything above 16000 will cause an error when air absorption is enabled.
             max_order=image_source_order,
             ray_tracing=ray_tracing,
             air_absorption=air_absorption,

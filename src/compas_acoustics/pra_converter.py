@@ -12,7 +12,7 @@ from compas_acoustics.receiver import Receiver
 from compas_acoustics.acoustic_material import AcousticMaterial
 from compas_acoustics.geometry import AcousticObject
 from compas_acoustics import Defaults
-
+from compas_acoustics.scene import Scene
 
 def vector_to_pra(vec: Vector, tol=1e-9) -> pra.DirectionVector:
     """
@@ -138,3 +138,20 @@ def acoustic_object_to_pra_walls(acoustic_object: AcousticObject) -> list[pra.Wa
                                 name=f"{acoustic_object.name}_{fkey}")
         walls.append(wall)
     return walls
+
+def scene_to_pra_room(scene: Scene, fs: int, max_order: int, ray_tracing: bool, air_absorption: bool) -> pra.Room:
+    """Convert a compas_acoustics Scene to a pyroomacoustics Room."""
+    # create walls
+    walls = []
+    for obj in scene.acoustic_objects:
+        walls.extend(acoustic_object_to_pra_walls(obj))
+
+    # create the room
+    room = pra.Room(
+        walls,
+        fs=fs,
+        max_order=max_order,
+        ray_tracing=ray_tracing,
+        air_absorption=air_absorption,
+    )
+    return room
