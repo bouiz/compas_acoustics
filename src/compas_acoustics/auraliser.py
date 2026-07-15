@@ -3,7 +3,7 @@ import platform
 import subprocess
 import warnings
 from pathlib import Path
-
+from compas_acoustics.defaults import Defaults
 import librosa
 import numpy as np
 import soundfile as sf
@@ -71,7 +71,7 @@ class Auraliser(Data):
         self._sample_rate = sample_rate
         self.impulse_responses = impulse_responses
         self.anechoic_sounds = anechoic_sounds
-        self._hrtf_path = Path(__file__).parent / "hrtfs_library" / "KEMAR_Knowl_EarSim_SmallEars_FreeFieldComp_48kHz.sofa"
+        self._hrtf_path = Defaults.HRTF_LIBRARY_PATH / "mit_kemar_normal_pinna.sofa"
         self.output_format = output_format
         self._maximum_ambisonics_order = None
         self.check_number_of_impulse_responses_vs_anechoic_sounds()
