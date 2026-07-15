@@ -1,4 +1,5 @@
 import math
+from typing import Union
 
 import numpy as np
 import pyroomacoustics as pra
@@ -50,8 +51,9 @@ def directivity_to_pra(dirt: str, vec: Vector) -> pra.CardioidFamily:
         gain=1.0
     )
 
-def points_to_array(pts):
-    # type: (Union[Point, list[Point], list[list[float]]]) -> np.ndarray
+def points_to_array(
+    pts: Union[Point, list[Point], list[float], list[list[float]]],
+) -> np.ndarray:
     """Convert a single point or a list of points to a (3, N) 2D numpy array."""
     if isinstance(pts, Point) or (isinstance(pts, list) and isinstance(pts[0], (int, float))):
         pts = [pts]
@@ -72,8 +74,10 @@ def source_to_pra(src : Source) -> pra.SoundSource:
         directivity=directivity_to_pra(src.directivity, src.direction),
     )
 
-def receivers_to_pra_mic_array(receivers, sample_rate=None):
-    # type: (Union[Receiver, list[Receiver]], int) -> pra.MicrophoneArray
+def receivers_to_pra_mic_array(
+    receivers: Union[Receiver, list[Receiver]],
+    sample_rate: int | None = None,
+) -> pra.MicrophoneArray:
     """
     Convert compas_acoustics Receiver(s) to a pyroomacoustics MicrophoneArray,
     which is a (3, N) 2D numpy array.
