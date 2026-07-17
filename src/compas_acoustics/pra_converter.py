@@ -1,5 +1,5 @@
 import math
-from typing import Union
+from typing import Union, Optional
 
 import numpy as np
 import pyroomacoustics as pra
@@ -76,7 +76,7 @@ def source_to_pra(src : Source) -> pra.SoundSource:
 
 def receivers_to_pra_mic_array(
     receivers: Union[Receiver, list[Receiver]],
-    sample_rate: int | None = None,
+    sample_rate: Optional[int] = None,
 ) -> pra.MicrophoneArray:
     """
     Convert compas_acoustics Receiver(s) to a pyroomacoustics MicrophoneArray,
