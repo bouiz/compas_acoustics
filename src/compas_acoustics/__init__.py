@@ -13,7 +13,7 @@ from .scene import Scene
 from .analyser import AcousticAnalyser
 from .simulator import Simulator
 from .auraliser import Auraliser
-from .auraliser import play_sound
+from .audio_player import AudioPlayer
 
 __author__ = ["Achilleas Xydis"]
 __copyright__ = "Gramazio Kohler Research"
@@ -37,7 +37,7 @@ __all__ = [
     'AcousticAnalyser',
     'Simulator',
     'Auraliser',
-    'play_sound',
+    'AudioPlayer',
     # 'Tools',
     'ImpulseResponse'
     ]
