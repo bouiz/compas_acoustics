@@ -39,7 +39,7 @@ class Auraliser(Data):
         self._sample_rate = sample_rate
         self.impulse_responses = impulse_responses
         self.anechoic_sounds = anechoic_sounds
-        self._hrtf_path = Defaults.HRTF_LIBRARY_PATH / "mit_kemar_normal_pinna.sofa"
+        self._hrtf_path = Path(Defaults().HRTF_LIBRARY_PATH) / "mit_kemar_normal_pinna.sofa"
         self.output_format = output_format
         self._maximum_ambisonics_order = None
         self.check_number_of_impulse_responses_vs_anechoic_sounds()
