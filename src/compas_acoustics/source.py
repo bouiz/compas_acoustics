@@ -16,7 +16,7 @@ class Source(Point):
         self.directivity = directivity if directivity is not None else "omnidirectional"
         self.direction = direction if direction is not None else Vector(0, 0, 1)
         self.spl = 120.0 # Default SPL value for omni source TODO: swl?
-        self._sound_file = sound_file
+        self.sound_file = sound_file
     
     
     @property
@@ -110,6 +110,36 @@ class Source(Point):
     @property
     def sound_file(self):
         return self._sound_file
+
+    @sound_file.setter
+    def sound_file(self, file_path: str):
+        """
+        Set the sound file for the source. Automatically checks if the file 
+        is stereo/multi-channel and downmixes it to 1D mono to prevent convolution errors.
+        """
+        if file_path is None:
+            self._sound_file = None
+            return
+
+        from pathlib import Path
+        import soundfile as sf
+        import numpy as np
+
+        path = Path(file_path)
+        if not path.exists():
+            raise ValueError(f"Sound file {file_path} does not exist.")
+
+        data, sr = sf.read(str(path))
+
+        if data.ndim > 1:
+            data = np.mean(data, axis=1)
+
+            mono_filename = f"mono_{path.name}"
+            mono_path = path.parent / mono_filename
+            sf.write(str(mono_path), data, sr)
+            self._sound_file = str(mono_path)
+        else:
+            self._sound_file = str(path)
     
     @property
     def id(self):
