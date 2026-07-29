@@ -1,6 +1,6 @@
 import os
 import platform
-
+from compas_acoustics.defaults import Defaults
 
 __all__ = ["AudioPlayer"]
 
@@ -18,6 +18,8 @@ class AudioPlayer:
     sound_type : str
         The type of sound being played. It can be 'file' for audio files or 'array' for audio signals represented as numpy arrays.
     """
+
+    DEFAULT_SAMPLE_RATE = Defaults().SAMPLING_RATE
 
     def __init__(self):
         self.system = platform.system()
@@ -75,11 +77,19 @@ class AudioPlayer:
         self.stop()
 
         try:
-            max_val = np.max(np.abs(array))
-            if max_val > 1.0:
-                array = array / max_val  # Normalize to [-1, 1]
+            if sample_rate is None:
+                sample_rate = self.DEFAULT_SAMPLE_RATE
 
-            sd.play(array, sample_rate)
+            sample_rate = int(sample_rate)
+            audio_data = np.asarray(array, dtype=np.float32)
+
+            max_val = np.max(np.abs(audio_data))
+            if max_val > 0:
+                audio_data = (audio_data / max_val) * 0.99 # Normalize to [-1, 1]
+
+            sd.check_output_settings(samplerate=sample_rate)
+
+            sd.play(audio_data, sample_rate)
             self._active_player = sd
             self.sound_type = 'array'
         except Exception as e:
@@ -101,7 +111,7 @@ class AudioPlayer:
                 self.play_file(sound)
             except Exception as e:
                 print(f"Error playing sound by type: {e}")
-        elif hasattr(sound, "shape") and hasattr(sound, "ndim") and sample_rate is not None:
+        elif hasattr(sound, "shape") and hasattr(sound, "ndim"):
             try:
                 self.play_array(sound, sample_rate)
             except Exception as e:
