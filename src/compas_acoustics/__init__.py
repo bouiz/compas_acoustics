@@ -14,6 +14,9 @@ from .analyser import AcousticAnalyser
 from .simulator import Simulator
 from .auraliser import Auraliser
 from .audio_player import AudioPlayer
+from .rhino.plotter import AcousticParameter
+from .rhino.plotter import Plotter2D
+from .rhino.plotter import Plotter2DSettings
 
 __author__ = ["Achilleas Xydis"]
 __copyright__ = "Gramazio Kohler Research"
@@ -39,5 +42,8 @@ __all__ = [
     'Auraliser',
     'AudioPlayer',
     # 'Tools',
-    'ImpulseResponse'
+    'ImpulseResponse',
+    'AcousticParameter',
+    'Plotter2D',
+    'Plotter2DSettings',
     ]
