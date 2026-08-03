@@ -10,6 +10,8 @@ class Defaults:
     _ANECHOIC_SOUNDFILES_LIBRARY_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), 'anechoic_soundfiles_library'))
     _SAMPLING_RATE = 48000
 
+    _PARAM_NAMES = ['EDT', 'T20', 'T30', 'C50', 'C80', 'D50', 'DRR', 'Ts', 'STI',]
+
     @property
     def SAMPLING_RATE(self):
         return self._SAMPLING_RATE
@@ -37,3 +39,7 @@ class Defaults:
     @property
     def ANECHOIC_SOUNDFILES_LIBRARY_PATH(self):
         return self._ANECHOIC_SOUNDFILES_LIBRARY_PATH
+
+    @property
+    def PARAM_NAMES(self):
+        return self._PARAM_NAMES
