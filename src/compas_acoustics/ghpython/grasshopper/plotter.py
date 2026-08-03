@@ -1,6 +1,6 @@
-from ..analyser import AcousticAnalyser
-from ..analyser import _PARAM_NAMES
-from ..ir import ImpulseResponse
+from ...analyser import AcousticAnalyser
+from ...analyser import _PARAM_NAMES
+from ...ir import ImpulseResponse
 import Rhino.Geometry as rg  # type: ignore
 import math
 from typing import Optional
