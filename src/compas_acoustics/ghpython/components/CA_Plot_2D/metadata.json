@@ -1,0 +1,87 @@
+{
+    "name": "Plot 2D",
+    "nickname": "Plot2D",
+    "category": "COMPAS Acoustics",
+    "subcategory": "00 Display",
+    "description": "Create a 2D chart of the acoustic parameter.",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "param",
+                "description": "AcousticParameter (AP) object.",
+                "optional": false,
+                "scriptParamAccess": 0,
+                "typeHintID": "ghdoc"
+            },
+            {
+                "name": "plane",
+                "description": "Plane to draw the chart.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "plane"
+            },
+            {
+                "name": "x_size",
+                "description": "Width of the chart.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "float"
+            },
+            {
+                "name": "y_size",
+                "description": "Height of the chart.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "float"
+            },
+            {
+                "name": "settings",
+                "description": "Plotter2DSettings for the chart.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "ghdoc"
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "title",
+                "description": "Title of the chart."
+            },
+            {
+                "name": "x_title",
+                "description": "Title of the x-axis."
+            },
+            {
+                "name": "y_title",
+                "description": "Title of the y-axis."
+            },
+            {
+                "name": "x_labels",
+                "description": "Labels of the x-axis."
+            },
+            {
+                "name": "y_labels",
+                "description": "Labels of the y-axis."
+            },
+            {
+                "name": "values",
+                "description": "Data values of the acoustic parameter."
+            },
+            {
+                "name": "points",
+                "description": "Data points of the chart."
+            },
+            {
+                "name": "polyline",
+                "description": "Data polyline of the chart."
+            },
+            {
+                "name": "grid",
+                "description": "Grid of the chart."
+            }
+        ]
+    }
+}
