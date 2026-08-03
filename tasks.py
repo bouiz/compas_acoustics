@@ -21,14 +21,14 @@ ns = Collection(
     build.prepare_changelog,
     build.clean,
     build.release,
-    build.build_ghuser_components,
+    build.build_cpython_ghuser_components,
 )
 ns.configure(
     {
         "base_folder": os.path.dirname(__file__),
-        "ghuser": {
-            "source_dir": "src/compas_acoustics_ghpython/components",
-            "target_dir": "src/compas_acoustics_ghpython/components/ghuser",
+        "ghuser_cpython": {
+            "source_dir": "src/compas_acoustics/ghpython/components",
+            "target_dir": "src/compas_acoustics/ghpython/components/ghuser",
             "prefix": "compas_acoustics: ",
         },
     }

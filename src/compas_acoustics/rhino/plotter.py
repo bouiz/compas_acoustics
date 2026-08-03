@@ -104,7 +104,8 @@ class AcousticParameter:
         'dB', 'Time (s)', 'Index (0-1)',
     ]
 
-    def __init__(self, 
+    def __init__(
+        self,
         name=None,
         frequencies=None,
         values=None, 
