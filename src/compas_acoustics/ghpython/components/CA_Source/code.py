@@ -1,0 +1,45 @@
+# flake8: noqa
+import Grasshopper
+import Rhino
+from compas_acoustics import Source
+
+
+class CreateSource(Grasshopper.Kernel.GH_ScriptInstance):
+
+    DIRECTIVITY_MAP = {
+        0: "bidirectional",
+        1: "hypercardioid",
+        2: "supercardioid",
+        3: "cardioid",
+        4: "omnidirectional"
+    }
+
+    def RunScript(self, position, direction, directivity, name, sound_file):
+        if position is None:
+            position = Rhino.Geometry.Point3d(0, 0, 0)
+        if direction is None:
+            direction = Rhino.Geometry.Vector3d(1, 0, 0)
+
+        if directivity is None:
+            dirt = "omnidirectional"
+        elif directivity not in self.DIRECTIVITY_MAP.keys():
+            ghenv.Component.AddRuntimeMessage(
+                Grasshopper.Kernel.GH_RuntimeMessageLevel.Error, "Input parameter 'directivity' is not valid."
+            )
+            return None
+        else:
+            dirt = self.DIRECTIVITY_MAP[directivity]
+
+        if name is None:
+            name = "my_source"
+
+        x, y, z = position
+        return Source(
+            name=name,
+            x=x,
+            y=y,
+            z=z,
+            directivity=dirt,
+            direction=[*direction],
+            sound_file=sound_file
+        )

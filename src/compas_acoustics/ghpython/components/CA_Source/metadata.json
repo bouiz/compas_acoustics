@@ -1,0 +1,55 @@
+{
+    "name": "Source",
+    "nickname": "Source",
+    "category": "COMPAS Acoustics",
+    "subcategory": "00 Elements",
+    "description": "Acoustic Source object (speaker, human, etc.).",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "position",
+                "description": "Position of the source.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "point"
+            },
+            {
+                "name": "direction",
+                "description": "Direction of the source.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "vector"
+            },
+            {
+                "name": "directivity",
+                "description": "Directivity of the source. Default is 4 (Omnidirectional).\n\n0=Cardioid\n1=Hypercardioid\n2=Supercardioid\n3=Subcardioid\n4=Omnidirectional",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "int"
+            },
+            {
+                "name": "name",
+                "description": "Name of the source.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "str"
+            },
+            {
+                "name": "sound_file",
+                "description": "Sound file associated with the source.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "str"
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "source",
+                "description": "Source object."
+            }
+        ]
+    }
+}
