@@ -1,0 +1,26 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.17,
+            0.36,
+            0.66,
+            0.65,
+            0.62,
+            0.68,
+            0.8
+        ],
+        "description": "Acoustic Plaster",
+        "name": "acoustic_plaster",
+        "scattering_coefficients": [
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.2
+        ],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}
