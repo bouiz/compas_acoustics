@@ -1,0 +1,27 @@
+{
+    "name": "Channel",
+    "nickname": "Channel",
+    "category": "COMPAS Acoustics",
+    "subcategory": "06 Util",
+    "description": "Number of channels in the audio file.",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "sound_file",
+                "description": "Path to the audio file.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "str"
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "channels",
+                "description": "Number of channels in the audio file."
+            }
+        ]
+    }
+}
