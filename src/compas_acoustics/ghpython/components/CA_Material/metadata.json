@@ -1,0 +1,41 @@
+{
+    "name": "Material",
+    "nickname": "Mat",
+    "category": "COMPAS Acoustics",
+    "subcategory": "00 Elements",
+    "description": "Create an AcousticMaterial for AcousticObject(s).",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "absorption",
+                "description": "Comma-separated list of absorption coefficients for each frequency band. \ne.g. '0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7' for 7 frequency bands.",
+                "optional": false,
+                "scriptParamAccess": 0,
+                "typeHintID": "str"
+            },
+            {
+                "name": "scattering",
+                "description": "Optional. Comma-separated list of scattering coefficients for each frequency band. \ne.g. '0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7' for 7 frequency bands.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "str"
+            },
+            {
+                "name": "name",
+                "description": "Name of the material preset in the library (e.g. 'concrete', 'carpet').",
+                "optional": false,
+                "scriptParamAccess": 0,
+                "typeHintID": "str"
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "material",
+                "description": "AcousticMaterial object."
+            }
+        ]
+    }
+}
