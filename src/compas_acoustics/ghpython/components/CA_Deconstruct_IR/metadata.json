@@ -2,7 +2,7 @@
     "name": "Deconstruct Parameter",
     "nickname": "DeParam",
     "category": "COMPAS Acoustics",
-    "subcategory": "00 Analysis",
+    "subcategory": "03 Analysis",
     "description": "Deconstruct acoustic parameter.",
     "exposure": 2,
     "ghpython": {

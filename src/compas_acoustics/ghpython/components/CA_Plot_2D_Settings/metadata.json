@@ -2,7 +2,7 @@
     "name": "Plot 2D Settings",
     "nickname": "Plot2DSettings",
     "category": "COMPAS Acoustics",
-    "subcategory": "00 Display",
+    "subcategory": "05 Display",
     "description": "Settings for a 2D chart of the acoustic parameter.",
     "exposure": 2,
     "ghpython": {

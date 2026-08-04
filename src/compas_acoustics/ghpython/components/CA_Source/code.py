@@ -33,12 +33,9 @@ class CreateSource(Grasshopper.Kernel.GH_ScriptInstance):
         if name is None:
             name = "my_source"
 
-        x, y, z = position
         return Source(
-            name=name,
-            x=x,
-            y=y,
-            z=z,
+            name,
+            *position,
             directivity=dirt,
             direction=[*direction],
             sound_file=sound_file

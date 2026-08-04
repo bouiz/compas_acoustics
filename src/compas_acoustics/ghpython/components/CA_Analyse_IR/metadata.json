@@ -2,7 +2,7 @@
     "name": "Analyse Impulse Response",
     "nickname": "AnalyseIR",
     "category": "COMPAS Acoustics",
-    "subcategory": "00 Analysis",
+    "subcategory": "03 Analysis",
     "description": "Analyse impulse response (IR) and return acoustic parameters such as EDT, T20, C50, etc.",
     "exposure": 2,
     "ghpython": {
