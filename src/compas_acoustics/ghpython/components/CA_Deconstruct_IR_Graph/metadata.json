@@ -1,0 +1,46 @@
+{
+    "name": "Deconstruct IR Graph",
+    "nickname": "DecIRGraph",
+    "category": "COMPAS Acoustics",
+    "subcategory": "02 Simulation",
+    "description": "Deconstruct impulse response graph structure into ImpulseResponse(s).",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "ir_graph",
+                "description": "Impulse response graph structure.",
+                "optional": false,
+                "scriptParamAccess": 0,
+                "typeHintID": "ghdoc"
+            },
+            {
+                "name": "receiver_idx",
+                "description": "Index(s) of the receiver(s) to filter.",
+                "optional": true,
+                "scriptParamAccess": 1,
+                "typeHintID": "int"
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "ir",
+                "description": "ImpulseResponse object(s)."
+            },
+            {
+                "name": "sources",
+                "description": "Source object(s)."
+            },
+            {
+                "name": "receivers",
+                "description": "Receiver object(s)."
+            },
+            {
+                "name": "edges",
+                "description": "Relationships between sources and receivers as Line(s)."
+            }
+        ]
+    }
+}
