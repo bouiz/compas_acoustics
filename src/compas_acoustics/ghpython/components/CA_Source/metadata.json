@@ -25,10 +25,10 @@
             },
             {
                 "name": "directivity",
-                "description": "Directivity of the source. Default is 4 (Omnidirectional).\n\n0=Cardioid\n1=Hypercardioid\n2=Supercardioid\n3=Subcardioid\n4=Omnidirectional",
+                "description": "Directivity of the source. Default is Omnidirectional.\n\nOptions:\n- Bidirectional\n- Hypercardioid\n- Supercardioid\n- Cardioid\n- Omnidirectional",
                 "optional": true,
                 "scriptParamAccess": 0,
-                "typeHintID": "int"
+                "typeHintID": "str"
             },
             {
                 "name": "name",

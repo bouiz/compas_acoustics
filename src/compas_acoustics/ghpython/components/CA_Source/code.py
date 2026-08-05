@@ -5,14 +5,7 @@ from compas_acoustics import Source
 
 
 class CreateSource(Grasshopper.Kernel.GH_ScriptInstance):
-
-    DIRECTIVITY_MAP = {
-        0: "bidirectional",
-        1: "hypercardioid",
-        2: "supercardioid",
-        3: "cardioid",
-        4: "omnidirectional"
-    }
+    ITEMS = ["bidirectional", "hypercardioid", "supercardioid", "cardioid", "omnidirectional"]
 
     def RunScript(self, position, direction, directivity, name, sound_file):
         if position is None:
@@ -22,13 +15,13 @@ class CreateSource(Grasshopper.Kernel.GH_ScriptInstance):
 
         if directivity is None:
             dirt = "omnidirectional"
-        elif directivity not in self.DIRECTIVITY_MAP.keys():
+        elif directivity not in self.ITEMS:
             ghenv.Component.AddRuntimeMessage(
                 Grasshopper.Kernel.GH_RuntimeMessageLevel.Error, "Input parameter 'directivity' is not valid."
             )
             return None
         else:
-            dirt = self.DIRECTIVITY_MAP[directivity]
+            dirt = directivity
 
         if name is None:
             name = "my_source"
