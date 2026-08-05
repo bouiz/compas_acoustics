@@ -38,18 +38,18 @@ def calculate_ticks(values, max_value=None):
         # find the order of magnitude
         magnitude = order_of_magnitude(val_range)
 
-        nice_max = math.ceil(raw_max / magnitude) * magnitude
-        nice_min = math.floor(raw_min / magnitude) * magnitude
+        approx_max = math.ceil(raw_max / magnitude) * magnitude
+        approx_min = math.floor(raw_min / magnitude) * magnitude
     else:
-        nice_max = max_value
-        val_range = nice_max - raw_min
+        approx_max = max_value
+        val_range = approx_max - raw_min
         magnitude = order_of_magnitude(val_range)
-        nice_min = math.floor(raw_min / magnitude) * magnitude
+        approx_min = math.floor(raw_min / magnitude) * magnitude
 
-    graph_range = nice_max - nice_min
+    graph_range = approx_max - approx_min
     if math.isclose(graph_range, 0.0):
-        return [nice_min]
-    
+        return [approx_min]
+
     # Heckbert's Label Placement Algorithm to determine a "nice" step size for ticks
     segment = 5
     raw_step = graph_range / segment
@@ -64,6 +64,18 @@ def calculate_ticks(values, max_value=None):
         nice_step = 5.0 * step_magnitude
     else:
         nice_step = 10.0 * step_magnitude
+
+    # Snap the range to whole multiples of the chosen step so the generated
+    # ticks always reach (or exceed) raw_max instead of stopping short of it
+    # (approx_min/approx_max above are rounded to the value's own order of
+    # magnitude, not to nice_step, so they don't always land on a tick).
+    nice_min = math.floor(raw_min / nice_step) * nice_step
+    if math.isclose(nice_min, raw_min):
+        # Data's lowest point would land exactly on the axis minimum, i.e. the
+        # plotted curve would sit right on top of the x-axis line. Drop the
+        # axis one more step below so the curve stays visually clear of it.
+        nice_min -= nice_step
+    nice_max = approx_max if max_value is not None else math.ceil(raw_max / nice_step) * nice_step
 
     if nice_step < 1.0:
         decimal = max(0, -math.floor(math.log10(nice_step)))
