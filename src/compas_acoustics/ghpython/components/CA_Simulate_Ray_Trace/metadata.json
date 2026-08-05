@@ -1,0 +1,62 @@
+{
+    "name": "Simulate Ray Tracing",
+    "nickname": "SimRT",
+    "category": "COMPAS Acoustics",
+    "subcategory": "02 Simulation",
+    "description": "Simulate room acoustics using Image Source Method (ISM) and Ray Tracing (RT) to generate impulse response graph structure.",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "scene",
+                "description": "Room scene object.",
+                "optional": false,
+                "scriptParamAccess": 0,
+                "typeHintID": "ghdoc"
+            },
+            {
+                "name": "sample_rate",
+                "description": "Sample rate for the simulation.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "int"
+            },
+            {
+                "name": "max_order",
+                "description": "Maximum order of image sources.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "int"
+            },
+            {
+                "name": "n_rays",
+                "description": "Number of rays for ray tracing.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "int"
+            },
+            {
+                "name": "absorb_air",
+                "description": "Whether to consider air absorption.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "bool"
+            },
+            {
+                "name": "seed",
+                "description": "Random seed for reproducibility.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "int"
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "ir_graph",
+                "description": "Impulse response graph structure."
+            }
+        ]
+    }
+}
