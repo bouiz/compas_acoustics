@@ -1,6 +1,6 @@
 {
-    "name": "Material",
-    "nickname": "Mat",
+    "name": "Construct Material",
+    "nickname": "ConMat",
     "category": "COMPAS Acoustics",
     "subcategory": "00 Elements",
     "description": "Create an AcousticMaterial for AcousticObject(s).",
@@ -11,17 +11,17 @@
         "inputParameters": [
             {
                 "name": "absorption",
-                "description": "Comma-separated list of absorption coefficients for each frequency band. \ne.g. '0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7' for 7 frequency bands.",
+                "description": "List of absorption coefficients for each frequency band.",
                 "optional": false,
-                "scriptParamAccess": 0,
-                "typeHintID": "str"
+                "scriptParamAccess": 1,
+                "typeHintID": "float"
             },
             {
                 "name": "scattering",
-                "description": "Optional. Comma-separated list of scattering coefficients for each frequency band. \ne.g. '0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7' for 7 frequency bands.",
+                "description": "Optional. List of scattering coefficients for each frequency band.",
                 "optional": true,
-                "scriptParamAccess": 0,
-                "typeHintID": "str"
+                "scriptParamAccess": 1,
+                "typeHintID": "float"
             },
             {
                 "name": "name",

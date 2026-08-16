@@ -1,9 +1,10 @@
 # flake8: noqa
 import Grasshopper
+import System
 from compas_acoustics.acoustic_material import AcousticMaterial
 
 
-class CreateMaterial(Grasshopper.Kernel.GH_ScriptInstance):
+class ConstructMaterial(Grasshopper.Kernel.GH_ScriptInstance):
 
     def RunScript(self, absorption, scattering, name):
         if absorption is None:
@@ -18,9 +19,6 @@ class CreateMaterial(Grasshopper.Kernel.GH_ScriptInstance):
                 "Input parameter 'name' failed to collect data."
             )
             return
-
-        absorption = [float(x) for x in absorption.split(",")]
-        scattering = [float(x) for x in scattering.split(",")] if scattering is not None else None
 
         return AcousticMaterial(
             name=name,

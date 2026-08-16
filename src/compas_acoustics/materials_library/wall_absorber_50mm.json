@@ -1,0 +1,26 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.20,
+            0.65,
+            0.95,
+            0.98,
+            0.95,
+            0.90,
+            0.85
+        ],
+        "description": "50mm Fabric-wrapped High-density Glasswool / Polyester Wall Absorber mounted directly on wall",
+        "name": "wall_absorber_50mm",
+        "scattering_coefficients": [
+            0.15,
+            0.15,
+            0.15,
+            0.15,
+            0.15,
+            0.15,
+            0.15
+        ],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}
