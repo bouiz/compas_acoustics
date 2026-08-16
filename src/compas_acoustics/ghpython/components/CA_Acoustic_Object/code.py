@@ -3,6 +3,7 @@ import Grasshopper
 import Rhino
 from compas_acoustics.geometry import AcousticObject
 from compas_rhino.conversions import mesh_to_compas
+from compas_rhino.conversions import polyline_to_compas
 
 # TODO: Change the typeHintID in metadata.json from "mesh" to "geometrybase"
 
@@ -25,5 +26,13 @@ class CreateAcousticObject(Grasshopper.Kernel.GH_ScriptInstance):
         # TODO: Figure out how to handle other geometry types (e.g., Brep, Surface, etc.)
         if isinstance(geometry, Rhino.Geometry.Mesh):
             geometry = mesh_to_compas(geometry)
-
+        elif isinstance(geometry, Rhino.Geometry.Polyline):
+            geometry = polyline_to_compas(geometry)
+        elif isinstance(geometry, Rhino.Geometry.PolylineCurve):
+            geometry = polyline_to_compas(geometry.ToPolyline())
+        else:
+            ghenv.Component.AddRuntimeMessage(
+                Grasshopper.Kernel.GH_RuntimeMessageLevel.Error, "Unsupported geometry type."
+            )
+            return
         return AcousticObject(acoustic_geometry=geometry, material=material, name=name)

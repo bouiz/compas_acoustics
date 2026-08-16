@@ -14,7 +14,7 @@
                 "description": "Geometry of the AcousticObject.",
                 "optional": false,
                 "scriptParamAccess": 0,
-                "typeHintID": "mesh"
+                "typeHintID": "geometrybase"
             },
             {
                 "name": "material",

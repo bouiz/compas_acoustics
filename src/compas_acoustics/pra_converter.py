@@ -7,6 +7,7 @@ import scipy.io.wavfile as wav
 from compas.datastructures import Mesh
 from compas.geometry import Point
 from compas.geometry import Vector
+from compas.geometry import Polyline
 
 from compas_acoustics import Defaults
 from compas_acoustics.acoustic_material import AcousticMaterial
@@ -61,12 +62,15 @@ def points_to_array(
 
 def source_to_pra(src : Source) -> pra.SoundSource:
     """Convert a compas_acoustics Source to a pyroomacoustics SoundSource."""
-    sound_file = src.sound_file
-    fs, audio_clean = wav.read(sound_file)
+    if src.sound_file:
+        sound_file = src.sound_file
+        fs, audio_clean = wav.read(sound_file)
 
-    if len(audio_clean.shape) > 1:
-        audio_clean = audio_clean[:, 0]
-    audio_clean = audio_clean.astype(np.float32) / np.max(np.abs(audio_clean))
+        if len(audio_clean.shape) > 1:
+            audio_clean = audio_clean[:, 0]
+        audio_clean = audio_clean.astype(np.float32) / np.max(np.abs(audio_clean))
+    else:
+        audio_clean = None
 
     return pra.SoundSource(
         position=points_to_array(src.position),
@@ -127,23 +131,47 @@ def mesh_to_pra_wall(mesh: Mesh) -> pra.Wall:
 
 def acoustic_object_to_pra_walls(acoustic_object: AcousticObject) -> list[pra.Wall]:
     """Convert a compas_acoustics AcousticObject to a list of pyroomacoustics Walls."""
-    mesh = acoustic_object.acoustic_geometry
+    geo = acoustic_object.acoustic_geometry
     mat = material_to_pra(acoustic_object.material)
 
     walls = []
-    for fkey in mesh.faces():
-        # vertices of the face
-        face_vertices = mesh.face_vertices(fkey)
-        pts = points_to_array([mesh.vertex_coordinates(vkey) for vkey in face_vertices])
-            
-        # create wall
-        wall = pra.wall_factory(pts,
-                                mat.absorption_coeffs,
-                                mat.scattering_coeffs,
-                                name=f"{acoustic_object.name}_{fkey}")
-        walls.append(wall)
+    if isinstance(geo, Mesh):
+        for fkey in geo.faces():
+            # vertices of the face
+            face_vertices = geo.face_vertices(fkey)
+            pts = points_to_array([geo.vertex_coordinates(vkey) for vkey in face_vertices])
+                
+            # create wall
+            wall = pra.wall_factory(pts,
+                                    mat.absorption_coeffs,
+                                    mat.scattering_coeffs,
+                                    name=f"{acoustic_object.name}_{fkey}")
+            walls.append(wall)
+    elif isinstance(geo, list) and isinstance(geo[0], Point):
+        # TODO: Test if the points are coplanar
+        pts = points_to_array(geo)
+        walls.append(
+            pra.wall_factory(
+                corners=pts,
+                absorption=mat.absorption_coeffs,
+                scattering=mat.scattering_coeffs,
+                name = acoustic_object.name
+            )
+        )
+    elif isinstance(geo, Polyline):
+        pts = points_to_array(geo.points[:-1])
+        walls.append(
+            pra.wall_factory(
+                corners=pts,
+                absorption=mat.absorption_coeffs,
+                scattering=mat.scattering_coeffs,
+                name = acoustic_object.name
+            )
+        )
+    else:
+        raise ValueError("Unsupported acoustic geometry type.")
     return walls
-
+    
 def scene_to_pra_room(scene: Scene, fs: int, max_order: int, ray_tracing: bool, air_absorption: bool) -> pra.Room:
     """Convert a compas_acoustics Scene to a pyroomacoustics Room."""
     # create walls (recurse into groups to reach leaf acoustic objects)
