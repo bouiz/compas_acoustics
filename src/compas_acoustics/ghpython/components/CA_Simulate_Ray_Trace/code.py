@@ -5,7 +5,7 @@ from compas_acoustics.simulator import Simulator
 
 class SimulateRayTracing(Grasshopper.Kernel.GH_ScriptInstance):
 
-    def RunScript(self, scene, sample_rate, max_order, n_rays, absorb_air, seed):
+    def RunScript(self, scene, sample_rate, max_order, n_rays, absorb_air, energy_thres, time_thres, seed):
 
         if scene is None:
             ghenv.Component.AddRuntimeMessage(
@@ -19,6 +19,10 @@ class SimulateRayTracing(Grasshopper.Kernel.GH_ScriptInstance):
             n_rays = 1000
         if absorb_air is None:
             absorb_air = True
+        if energy_thres is None:
+            energy_thres = 1e-7
+        if time_thres is None:
+            time_thres = 10.0
 
         sim = Simulator(scene)
         if sample_rate is not None:
@@ -28,11 +32,13 @@ class SimulateRayTracing(Grasshopper.Kernel.GH_ScriptInstance):
             image_source_order=max_order,
             n_rays=n_rays,
             air_absorption=absorb_air,
+            energy_thres=energy_thres,
+            time_thres=time_thres,
             random_seed=seed,
         )
 
-        ghenv.Component.Message = "{}Hz, order={}, rays={}, air={}, seed={}".format(
-            sim.sampling_rate, max_order, n_rays, absorb_air, seed if seed is not None else "random"
+        ghenv.Component.Message = "{}Hz, order={}, rays={}, air={}, seed={}, energy_thres={}, time_thres={}".format(
+            sim.sampling_rate, max_order, n_rays, absorb_air, seed if seed is not None else "random", energy_thres, time_thres
         )
 
         return sim.scene.ir_graph

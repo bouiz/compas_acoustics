@@ -14,6 +14,7 @@ from compas_acoustics.pra_converter import scene_to_pra_room
 from compas_acoustics.pra_converter import source_to_pra
 from compas_acoustics.receiver import Receiver
 from compas_acoustics.source import Source
+import pyroomacoustics as pra
 
 __all__ = ['Simulator']
 
@@ -48,7 +49,15 @@ class Simulator:
         self._simulation_platform = simulation_platform
     
     
-    def _pyroomacoustics_simulation(self, image_source_order:int=3, ray_tracing:bool=False, n_rays:int=10000, air_absorption:bool=True):
+    def _pyroomacoustics_simulation(
+        self,
+        image_source_order:int=3,
+        ray_tracing:bool=False,
+        n_rays:int=10000,
+        air_absorption:bool=True,
+        energy_thres=1e-7,
+        time_thres=10.0,
+    ):
         """
         Prepare the walls and materials for a pyroomacoustics simulation.
         
@@ -82,7 +91,7 @@ class Simulator:
               )
         
         if ray_tracing:
-            room.set_ray_tracing(n_rays=n_rays)
+            room.set_ray_tracing(n_rays=n_rays, energy_thres=energy_thres, time_thres=time_thres)
             print(f"Ray tracing={ray_tracing}\n"+
                 f"N rays={n_rays}\n")
 
@@ -110,8 +119,6 @@ class Simulator:
         return sim_sources, sim_receivers
 
     def _seed_pyroomacoustics(self, random_seed: Optional[int]) -> None:
-        import pyroomacoustics as pra
-
         if random_seed is not None:
             pra.random.seed(numpy=random_seed, libroom=random_seed)
         else:
@@ -165,6 +172,8 @@ class Simulator:
         image_source_order: int = 3,
         n_rays: int = 10000,
         air_absorption: bool = True,
+        energy_thres: Optional[float] = 1e-7,
+        time_thres: Optional[float] = 10.0,
         random_seed: Optional[int] = None,
     ):
         """
@@ -194,11 +203,16 @@ class Simulator:
             self._seed_pyroomacoustics(random_seed)
 
             # prepare the walls and materials for the simulation
-            simulation = self._pyroomacoustics_simulation(image_source_order, ray_tracing=True, n_rays=n_rays, air_absorption=air_absorption)
+            simulation = self._pyroomacoustics_simulation(
+                image_source_order,
+                ray_tracing=True,
+                n_rays=n_rays,
+                air_absorption=air_absorption,
+                energy_thres=energy_thres,
+                time_thres=time_thres
+            )
             
             sim_sources, sim_receivers = self._add_pyroomacoustics_sources_receivers(simulation)
-
-            self._seed_pyroomacoustics(random_seed)
 
             simulation.compute_rir()
             self.rirs = self._convert_pyroomacoustics_rirs(

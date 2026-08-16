@@ -45,6 +45,20 @@
                 "typeHintID": "bool"
             },
             {
+                "name": "energy_thres",
+                "description": "Energy threshold for ray tracing.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "float"
+            },
+            {
+                "name": "time_thres",
+                "description": "Time threshold for ray tracing.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "float"
+            },
+            {
                 "name": "seed",
                 "description": "Random seed for reproducibility.",
                 "optional": true,
