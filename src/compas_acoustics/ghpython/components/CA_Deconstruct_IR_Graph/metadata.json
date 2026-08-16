@@ -1,6 +1,6 @@
 {
     "name": "Deconstruct IR Graph",
-    "nickname": "DecIRGraph",
+    "nickname": "DeIRGraph",
     "category": "COMPAS Acoustics",
     "subcategory": "02 Simulation",
     "description": "Deconstruct impulse response graph structure into ImpulseResponse(s).",

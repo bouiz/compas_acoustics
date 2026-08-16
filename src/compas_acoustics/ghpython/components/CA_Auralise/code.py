@@ -1,9 +1,6 @@
 # flake8: noqa
 import Grasshopper
 from Grasshopper import DataTree
-from Grasshopper.Kernel.Data import GH_Path
-import System
-import scriptcontext as sc
 import numpy as np
 import os
 
@@ -12,50 +9,7 @@ from compas_acoustics.auraliser import Auraliser
 
 class Auralise(Grasshopper.Kernel.GH_ScriptInstance):
 
-    def offer_buttons(self):
-        component = ghenv.Component
-        offered_key = "Auraliser_buttons_offered_{}".format(component.InstanceGuid)
-        if sc.sticky.get(offered_key):
-            return
-        sc.sticky[offered_key] = True
-
-        doc = component.OnPingDocument()
-        if doc is None:
-            return
-
-        targets = [
-            (index, nickname, comp) for index, nickname, comp in ((2, "Multiconvolve", "tog"), (5, "Save", "but"))
-            if component.Params.Input[index].SourceCount == 0
-        ]
-        if not targets:
-            return
-
-        def deferred(gh_doc):
-            base = component.Attributes.Pivot
-            for row, (index, nickname, comp) in enumerate(targets):
-                input_param = component.Params.Input[index]
-                if input_param.SourceCount > 0:
-                    continue
-
-                if comp == "tog":
-                    popout = Grasshopper.Kernel.Special.GH_BooleanToggle()
-                elif comp == "but":
-                    popout = Grasshopper.Kernel.Special.GH_ButtonObject()
-                else:
-                    continue
-                popout.CreateAttributes()
-                popout.NickName = nickname
-                popout.Attributes.Pivot = System.Drawing.PointF(base.X - 280, base.Y - 20 + row * 60)
-                gh_doc.AddObject(popout, False)
-                input_param.AddSource(popout)
-                popout.ExpireSolution(True)
-
-        doc.ScheduleSolution(1, deferred)
-
     def RunScript(self, irs, signals, multiconvolve, save_file_path, save_file_name, save):
-
-        self.offer_buttons()
-
         if irs is None:
             ghenv.Component.AddRuntimeMessage(
                 Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning, "Input parameter 'irs' failed to collect data."
