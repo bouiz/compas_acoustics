@@ -1,0 +1,31 @@
+{
+    "name": "Orchestra Layout",
+    "nickname": "Orchestra",
+    "category": "COMPAS Acoustics",
+    "subcategory": "00 Layouts",
+    "description": "Named performer positions for a standard string ensemble formation, for use as Source/Receiver positions.\n\nOptions:\n- string_quartet (4 players)\n- chamber_strings (16 players)\n- chamber_strings_24 (24 players)\n- symphonic_strings_50 (50 players)",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "plane",
+                "description": "Plane the layout is built on. Defaults to WorldXY if omitted.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "plane"
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "points",
+                "description": "Named performer positions."
+            },
+            {
+                "name": "names",
+                "description": "Names matching each point, e.g. 'violin_1'."
+            }
+        ]
+    }
+}
