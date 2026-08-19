@@ -1,7 +1,7 @@
 from typing import List
 from typing import Optional
 from typing import Tuple
-
+import math
 import numpy as np
 from numpy.typing import NDArray
 
@@ -200,8 +200,6 @@ class Simulator:
         """
         
         if self.simulation_platform == 'pyroomacoustics':
-            self._seed_pyroomacoustics(random_seed)
-
             # prepare the walls and materials for the simulation
             simulation = self._pyroomacoustics_simulation(
                 image_source_order,
@@ -211,7 +209,8 @@ class Simulator:
                 energy_thres=energy_thres,
                 time_thres=time_thres
             )
-            
+            self._seed_pyroomacoustics(random_seed)
+
             sim_sources, sim_receivers = self._add_pyroomacoustics_sources_receivers(simulation)
 
             simulation.compute_rir()
@@ -644,3 +643,100 @@ class Simulator:
     #             result = Tools().resample_signal(ir, orig_sr, target_sr, method=method)
     #         results.append(mic_results)
     #     return results
+
+
+def trace_rays_simple(
+    scene,
+    source_idx,
+    source_db,
+    receiver_radius,
+    n_rays,
+    max_order,
+):
+    
+    room = scene_to_pra_room(
+        scene,
+        fs=16000,
+        max_order=10,
+        ray_tracing=False,
+        air_absorption=False,
+    )
+    engine = room.room_engine
+    walls = engine.walls
+    max_dist = float(engine.max_dist)
+
+    source_position = np.asarray(scene.sources[source_idx].position, dtype=float)
+    receiver_positions = np.asarray([rcv.position for rcv in scene.receivers], dtype=float)
+
+    source_energy = 10 ** (source_db / 10.0)
+    energy_per_ray = source_energy / n_rays
+
+    receiver_energy = np.zeros(len(receiver_positions))
+    directions = np.asarray(pra.fibonacci_spherical_sampling(n_rays)).T
+
+    for direction in directions:
+        direction = direction / np.linalg.norm(direction)
+        position = source_position.copy()
+        distance_travelled = 0.0
+        energy = energy_per_ray
+
+        for _ in range(max_order):
+            hit, wall_index, hit_distance = engine.next_wall_hit(
+                position, position + direction * max_dist, False
+            )
+            if wall_index == -1:
+                break
+            hit = np.asarray(hit, dtype=float)
+
+            _deposit_segment_energy(
+                position, hit, distance_travelled, energy,
+                receiver_positions, receiver_energy, receiver_radius,
+            )
+
+            distance_travelled += float(hit_distance)
+            wall = walls[wall_index]
+            absorption = float(np.mean(np.asarray(wall.absorption, dtype=float)))
+            energy *= (1.0 - absorption)
+
+            direction = np.asarray(wall.normal_reflect(direction), dtype=float)
+            position = hit
+
+    return receiver_energy, receiver_energy > 0.0
+
+def _deposit_segment_energy(start, end, distance_so_far, energy,
+                             receivers, receiver_energy, radius):
+    """Add this segment's energy contribution to any receiver whose capture
+    sphere the segment passes through, using distance-to-closest-point for
+    the inverse-square falloff."""
+    segment = end - start
+    length = np.linalg.norm(segment)
+    if length < 1e-9:
+        return
+    direction = segment / length
+
+    to_receivers = receivers - start
+    projection = np.clip(to_receivers @ direction, 0.0, length)
+    closest_points = start + np.outer(projection, direction)
+    perpendicular_dist = np.linalg.norm(receivers - closest_points, axis=1)
+
+    hits = perpendicular_dist <= radius
+    if not np.any(hits):
+        return
+
+    travelled = distance_so_far + projection[hits]
+    receiver_energy[hits] += energy / np.maximum(travelled, radius) ** 2
+
+
+def spl_at_distance(start_db, distance):
+    """
+    Calculate sound pressure level (Lp) in dB after geometric spreading over distance (meters).
+    Only support omni directivity now.
+    """
+
+    if distance <= 0:
+        return (start_db)
+
+    sphere_area = 4.0 * math.pi * (distance ** 2)
+
+    return start_db - 10.0 * math.log10(sphere_area)
+
