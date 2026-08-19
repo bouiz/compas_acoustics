@@ -1,7 +1,6 @@
 # flake8: noqa
 import Grasshopper
 from System.Windows.Forms import ToolStripSeparator
-from compas_acoustics.materials_library import MaterialsLibrary
 
 
 class DirectivitySelector(Grasshopper.Kernel.GH_ScriptInstance):
