@@ -666,13 +666,31 @@ def distance_between_db(from_db, to_db):
 
     return math.sqrt((10.0 ** exponent) / sphere_angle)
 
-def random_directions(n_rays, seed=None):
+def random_directions(n_rays, seed=None, jitter=0.5):
     """
-    Generate n_rays unit direction vectors, uniformly distributed on the sphere, from the given random seed.
+    n_rays unit direction vectors on the sphere via a jittered Fibonacci
+    lattice -- much more even angular coverage per ray than i.i.d. random
+    sampling, while still varying with `seed`.
+
+    jitter : float in [0, 1]
+        0 = exact deterministic lattice, no randomness.
+        1 = perturbation on the order of one full lattice-cell spacing.
     """
-    rng = np.random.default_rng(seed)
-    vectors = rng.normal(size=(n_rays, 3))
-    return vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
+    golden = np.pi * (3.0 - np.sqrt(5.0))
+    i = np.arange(n_rays)
+    z = 1.0 - 2.0 * (i + 0.5) / n_rays
+    radius = np.sqrt(np.maximum(1.0 - z * z, 0.0))
+    phi = i * golden
+
+    directions = np.stack([radius * np.cos(phi), radius * np.sin(phi), z], axis=1)
+
+    if jitter > 0:
+        rng = np.random.default_rng(seed)
+        cell_size = 2.0 / np.sqrt(n_rays)  # ~ spacing between neighboring lattice points
+        directions += rng.normal(size=(n_rays, 3)) * cell_size * jitter
+        directions /= np.linalg.norm(directions, axis=1, keepdims=True)
+
+    return directions
 
 from compas.geometry import Point
 from compas.geometry import Polyline
@@ -724,7 +742,7 @@ def trace_rays_single(room, sources, start_db, target_db, max_order=100):
         polylines.append(Polyline(pts))
     return polylines
 
-def trace_rays_scattered(room, sources, start_db, target_db, n_rays=50, max_order=100, seed=7):
+def trace_rays_scattered(room, sources, start_db, target_db, n_rays=50, max_order=100, seed=7, jitter=0.5):
 
     polyline_tree = []
 
@@ -733,13 +751,14 @@ def trace_rays_scattered(room, sources, start_db, target_db, n_rays=50, max_orde
     max_dist = float(engine.max_dist)
 
     for i, source in enumerate(sources):
-        dire_lst = random_directions(n_rays, seed * (i + 1) + 7)
-
+        dire_lst = random_directions(n_rays, seed * (i + 1) + 7, jitter)
+        
         polylines = []
         for dire in dire_lst:
             pos = np.asarray(source.position, dtype=float)
+            db = start_db
             dist_travelled = 0.0
-            # hits = []
+
             pts = [Point(*pos)]
             for _ in range(max_order):
                 hit, wall_idx, hit_dist = engine.next_wall_hit(pos, pos + dire * max_dist, False)
@@ -748,23 +767,25 @@ def trace_rays_scattered(room, sources, start_db, target_db, n_rays=50, max_orde
 
                 # Stop the loop when the sound reaches the target_db over the distance
                 dist_travelled += hit_dist
-                curr_spl = spl_at_distance(start_db, dist_travelled)
+                curr_spl = spl_at_distance(db, dist_travelled)
                 if curr_spl <= target_db:
                     # Generate the stop point
-                    dist_at_target = distance_between_db(start_db, target_db)
+                    dist_at_target = distance_between_db(db, target_db)
                     dist_end = dist_travelled - dist_at_target
                     pt_end = hit + (-dire * dist_end)
                     pts.append(Point(*pt_end))
                     break
 
-                # hits.append({"point": hit, "distance": dist_travelled, "spl": curr_spl})
                 pts.append(Point(*hit))
                 wall_hitted = walls[wall_idx]
 
                 # Attenuate absorption
                 absorption = float(np.mean(np.asarray(wall_hitted.absorption, dtype=float)))
                 remaining = 1.0 - absorption
-                start_db += 10.0 * math.log10(remaining)
+                if remaining <= 0.0:
+                    break
+
+                db += 10.0 * math.log10(remaining)
 
                 # Specular reflection update
                 dire = np.asarray(wall_hitted.normal_reflect(dire), dtype=float)
