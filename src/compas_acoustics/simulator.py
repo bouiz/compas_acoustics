@@ -650,11 +650,126 @@ def spl_at_distance(start_db, distance):
     Calculate sound pressure level (Lp) in dB after geometric spreading over distance (meters).
     Only support omni directivity now.
     """
-
     if distance <= 0:
-        return (start_db)
+        return start_db
 
     sphere_area = 4.0 * math.pi * (distance ** 2)
 
     return start_db - 10.0 * math.log10(sphere_area)
 
+def distance_between_db(from_db, to_db):
+    if from_db <= to_db:
+        return 0.0
+
+    sphere_angle = 4.0 * math.pi
+    exponent = (from_db - to_db) / 10.0
+
+    return math.sqrt((10.0 ** exponent) / sphere_angle)
+
+def random_directions(n_rays, seed=None):
+    """
+    Generate n_rays unit direction vectors, uniformly distributed on the sphere, from the given random seed.
+    """
+    rng = np.random.default_rng(seed)
+    vectors = rng.normal(size=(n_rays, 3))
+    return vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
+
+from compas.geometry import Point
+from compas.geometry import Polyline
+
+def trace_rays_single(room, sources, start_db, target_db, max_order=100):
+
+    polylines = []
+
+    engine = room.room_engine
+    walls = room.walls
+    max_dist = float(engine.max_dist)
+
+    for source in sources:
+        dire = np.asarray(source.direction.unitized(), dtype=float)
+        pos = np.asarray(source.position, dtype=float)
+
+        dist_travelled = 0.0
+        # hits = []
+        pts = [Point(*pos)]
+        for _ in range(max_order):
+            hit, wall_idx, hit_dist = engine.next_wall_hit(pos, pos + dire * max_dist, False)
+            if wall_idx == -1:
+                break
+
+            # Stop the loop when the sound reaches the target_db over the distance
+            dist_travelled += hit_dist
+            curr_spl = spl_at_distance(start_db, dist_travelled)
+            if curr_spl <= target_db:
+                # Generate the stop point
+                dist_at_target = distance_between_db(start_db, target_db)
+                dist_end = dist_travelled - dist_at_target
+                pt_end = hit + (-dire * dist_end)
+                pts.append(Point(*pt_end))
+                break
+
+            # hits.append({"point": hit, "distance": dist_travelled, "spl": curr_spl})
+            pts.append(Point(*hit))
+            wall_hitted = walls[wall_idx]
+
+            # Attenuate absorption
+            absorption = float(np.mean(np.asarray(wall_hitted.absorption, dtype=float)))
+            remaining = 1.0 - absorption
+            start_db += 10.0 * math.log10(remaining)
+
+            # Specular reflection update
+            dire = np.asarray(wall_hitted.normal_reflect(dire), dtype=float)
+            pos = hit
+
+        polylines.append(Polyline(pts))
+    return polylines
+
+def trace_rays_scattered(room, sources, start_db, target_db, n_rays=50, max_order=100, seed=7):
+
+    polyline_tree = []
+
+    engine = room.room_engine
+    walls = room.walls
+    max_dist = float(engine.max_dist)
+
+    for i, source in enumerate(sources):
+        dire_lst = random_directions(n_rays, seed * (i + 1) + 7)
+
+        polylines = []
+        for dire in dire_lst:
+            pos = np.asarray(source.position, dtype=float)
+            dist_travelled = 0.0
+            # hits = []
+            pts = [Point(*pos)]
+            for _ in range(max_order):
+                hit, wall_idx, hit_dist = engine.next_wall_hit(pos, pos + dire * max_dist, False)
+                if wall_idx == -1:
+                    break
+
+                # Stop the loop when the sound reaches the target_db over the distance
+                dist_travelled += hit_dist
+                curr_spl = spl_at_distance(start_db, dist_travelled)
+                if curr_spl <= target_db:
+                    # Generate the stop point
+                    dist_at_target = distance_between_db(start_db, target_db)
+                    dist_end = dist_travelled - dist_at_target
+                    pt_end = hit + (-dire * dist_end)
+                    pts.append(Point(*pt_end))
+                    break
+
+                # hits.append({"point": hit, "distance": dist_travelled, "spl": curr_spl})
+                pts.append(Point(*hit))
+                wall_hitted = walls[wall_idx]
+
+                # Attenuate absorption
+                absorption = float(np.mean(np.asarray(wall_hitted.absorption, dtype=float)))
+                remaining = 1.0 - absorption
+                start_db += 10.0 * math.log10(remaining)
+
+                # Specular reflection update
+                dire = np.asarray(wall_hitted.normal_reflect(dire), dtype=float)
+                pos = hit
+
+            polylines.append(Polyline(pts))
+        polyline_tree.append(polylines)
+    return polyline_tree
