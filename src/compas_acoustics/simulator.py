@@ -657,7 +657,7 @@ def spl_at_distance(start_db, distance):
 
     return start_db - 10.0 * math.log10(sphere_area)
 
-def distance_between_db(from_db, to_db):
+def distance_between_spl(from_db, to_db):
     if from_db <= to_db:
         return 0.0
 
@@ -665,6 +665,15 @@ def distance_between_db(from_db, to_db):
     exponent = (from_db - to_db) / 10.0
 
     return math.sqrt((10.0 ** exponent) / sphere_angle)
+
+def sum_spl(spl_list):
+    if not spl_list:
+        return 0.0
+    valids = [spl for spl in spl_list if spl >= 0.0]
+    if not valids:
+        return 0.0
+
+    return 10.0 * math.log10(sum(10 ** (spl / 10) for spl in valids))
 
 def random_directions(n_rays, seed=None, jitter=0.5):
     """
@@ -720,7 +729,7 @@ def trace_rays_single(room, sources, start_db, target_db, max_order=100):
             curr_spl = spl_at_distance(start_db, dist_travelled)
             if curr_spl <= target_db:
                 # Generate the stop point
-                dist_at_target = distance_between_db(start_db, target_db)
+                dist_at_target = distance_between_spl(start_db, target_db)
                 dist_end = dist_travelled - dist_at_target
                 pt_end = hit + (-dire * dist_end)
                 pts.append(Point(*pt_end))
@@ -770,7 +779,7 @@ def trace_rays_scattered(room, sources, start_db, target_db, n_rays=50, max_orde
                 curr_spl = spl_at_distance(db, dist_travelled)
                 if curr_spl <= target_db:
                     # Generate the stop point
-                    dist_at_target = distance_between_db(db, target_db)
+                    dist_at_target = distance_between_spl(db, target_db)
                     dist_end = dist_travelled - dist_at_target
                     pt_end = hit + (-dire * dist_end)
                     pts.append(Point(*pt_end))
@@ -794,3 +803,98 @@ def trace_rays_scattered(room, sources, start_db, target_db, n_rays=50, max_orde
             polylines.append(Polyline(pts))
         polyline_tree.append(polylines)
     return polyline_tree
+
+def receive_ray_segment(receiver, segment, from_spl):
+    """
+    Check if a ray segment passes through the receiver in its radius, and then calcuate the remained sound pressure level (spl).
+    
+    Parameters
+    ----------
+    receiver : Receiver
+        compas_acoustics Receiver with radius.
+    segment : Line
+
+    from_spl : float
+        sound pressure level from the last hit.
+
+    Returns
+    -------
+    bool
+        Is the ray segment pass through the receiver or not.
+    float
+        Remained sound pressure level.
+
+
+    """
+    seg_len = segment.length
+    dire = segment.direction
+
+    r_vec = Point(receiver.position - segment.start)
+
+    # Project length (dot product)
+    t_proj = r_vec * dire
+    if t_proj <= 0.0 or t_proj > seg_len:
+        return False, 0.0
+
+    # Vertical distance using Pythagorean theorem
+    d_perp_sq = r_vec.length ** 2 - t_proj ** 2
+    if d_perp_sq <= receiver.radius**2:
+        end_spl = spl_at_distance(from_spl, t_proj)
+        return True, end_spl
+    
+    return False, 0.0
+
+from compas.geometry import Line
+
+def trace_rays_to_receivers(room, sources, receivers, start_db, target_db,
+                             n_rays=50, max_order=100, seed=7, jitter=0.5):
+    """Same specular-bounce loop as trace_rays_scattered, but instead of
+    building polylines, checks every segment against every receiver and
+    keeps the loudest SPL that reaches each one.
+
+    Returns
+    -------
+    list of (float or None), length len(receivers)
+        Loudest captured SPL per receiver, None if nothing arrived.
+    """
+    engine = room.room_engine
+    walls = room.walls
+    max_dist = float(engine.max_dist)
+
+    receiver_spl = [None] * len(receivers)
+
+    for i, source in enumerate(sources):
+        dire_lst = random_directions(n_rays, seed * (i + 1) + 7, jitter)
+
+        for dire in dire_lst:
+            pos = np.asarray(source.position, dtype=float)
+            db = start_db
+            dist_travelled = 0.0
+
+            for _ in range(max_order):
+                hit, wall_idx, hit_dist = engine.next_wall_hit(pos, pos + dire * max_dist, False)
+                if wall_idx == -1:
+                    break
+
+                segment = Line(Point(*pos), Point(*hit))
+                for r_idx, receiver in enumerate(receivers):
+                    captured, end_spl = receive_ray_segment(receiver, segment, db, dist_travelled)
+                    if captured and (receiver_spl[r_idx] is None or end_spl > receiver_spl[r_idx]):
+                        receiver_spl[r_idx] = end_spl
+
+                dist_travelled += hit_dist
+                curr_spl = spl_at_distance(db, dist_travelled)
+                if curr_spl <= target_db:
+                    break
+
+                wall_hitted = walls[wall_idx]
+                absorption = float(np.mean(np.asarray(wall_hitted.absorption, dtype=float)))
+                remaining = 1.0 - absorption
+                if remaining <= 0.0:
+                    break
+
+                db += 10.0 * math.log10(remaining)
+                dire = np.asarray(wall_hitted.normal_reflect(dire), dtype=float)
+                pos = hit
+
+    return receiver_spl

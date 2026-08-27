@@ -1,5 +1,6 @@
 from compas.geometry import Point
 from compas.geometry import Vector
+import math
 
 __all__ = ['Receiver']
 
@@ -19,12 +20,14 @@ class Receiver(Point):
         The z-coordinate of the receiver's position.
     """
 
-    def __init__(self, name: str, x:float, y:float, z:float, direction: Vector = None):
+    def __init__(self, name: str, x:float, y:float, z:float, direction: Vector = None, radius=0.5):
         super().__init__(x, y, z)
         self.name=name
         self.direction = direction if direction is not None else Vector(0, 0, 1)
-        
-    
+        self.radius = radius
+
+        self.received_spls = []  # Placeholder after running trace rays simulation
+
     @property
     def name(self):
         return self._name
@@ -83,3 +86,12 @@ class Receiver(Point):
     
     def __str__(self):
         return f"Receiver(name={self.name}, position={self.position})"
+
+    def total_spl(self):
+        if not self.received_spls:
+            return 0.0
+        valids = [spl for spl in self.received_spls if spl >= 0.0]
+        if not valids:
+            return 0.0
+
+        return 10.0 * math.log10(sum(10 ** (spl / 10) for spl in valids))
