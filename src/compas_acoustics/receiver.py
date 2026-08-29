@@ -87,11 +87,9 @@ class Receiver(Point):
     def __str__(self):
         return f"Receiver(name={self.name}, position={self.position})"
 
+    @property
     def total_spl(self):
         if not self.received_spls:
             return 0.0
-        valids = [spl for spl in self.received_spls if spl >= 0.0]
-        if not valids:
-            return 0.0
 
-        return 10.0 * math.log10(sum(10 ** (spl / 10) for spl in valids))
+        return 10.0 * math.log10(sum(10 ** (spl / 10) for spl in self.received_spls))

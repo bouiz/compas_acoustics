@@ -742,6 +742,8 @@ def trace_rays_single(room, sources, start_db, target_db, max_order=100):
             # Attenuate absorption
             absorption = float(np.mean(np.asarray(wall_hitted.absorption, dtype=float)))
             remaining = 1.0 - absorption
+            if remaining <= 0.0:
+                break
             start_db += 10.0 * math.log10(remaining)
 
             # Specular reflection update
@@ -804,7 +806,7 @@ def trace_rays_scattered(room, sources, start_db, target_db, n_rays=50, max_orde
         polyline_tree.append(polylines)
     return polyline_tree
 
-def receive_ray_segment(receiver, segment, from_spl):
+def receive_ray_segment(receiver, segment, from_spl):  # NOTE: Old function
     """
     Check if a ray segment passes through the receiver in its radius, and then calcuate the remained sound pressure level (spl).
     
@@ -844,24 +846,28 @@ def receive_ray_segment(receiver, segment, from_spl):
     
     return False, 0.0
 
-from compas.geometry import Line
+def trace_rays_to_receivers(
+    room, sources, receivers, start_db, target_db, n_rays=50, max_order=100, seed=7, jitter=0.5
+):
 
-def trace_rays_to_receivers(room, sources, receivers, start_db, target_db,
-                             n_rays=50, max_order=100, seed=7, jitter=0.5):
-    """Same specular-bounce loop as trace_rays_scattered, but instead of
-    building polylines, checks every segment against every receiver and
-    keeps the loudest SPL that reaches each one.
+    for rcv in receivers:
+        rcv.received_spls = []
 
-    Returns
-    -------
-    list of (float or None), length len(receivers)
-        Loudest captured SPL per receiver, None if nothing arrived.
-    """
     engine = room.room_engine
     walls = room.walls
     max_dist = float(engine.max_dist)
 
-    receiver_spl = [None] * len(receivers)
+    # Precomputed once: batched receiver test avoids building a Line/Vector
+    # per receiver per bounce.
+    rcv_positions = np.array([rcv.position for rcv in receivers], dtype=float)
+    rcv_radii_sq = np.array([rcv.radius ** 2 for rcv in receivers], dtype=float)
+
+    # Each ray represents only a 1/n_rays share of the source's power. Ray
+    # propagation/termination still tracks the true (unnormalized) level --
+    # otherwise every ray dies near the source and coverage collapses --
+    # but only a 1/n_rays share of that level is credited to a receiver,
+    # so summed hits converge instead of climbing with n_rays.
+    ray_energy_db = -10.0 * math.log10(n_rays)
 
     for i, source in enumerate(sources):
         dire_lst = random_directions(n_rays, seed * (i + 1) + 7, jitter)
@@ -876,25 +882,97 @@ def trace_rays_to_receivers(room, sources, receivers, start_db, target_db,
                 if wall_idx == -1:
                     break
 
-                segment = Line(Point(*pos), Point(*hit))
-                for r_idx, receiver in enumerate(receivers):
-                    captured, end_spl = receive_ray_segment(receiver, segment, db, dist_travelled)
-                    if captured and (receiver_spl[r_idx] is None or end_spl > receiver_spl[r_idx]):
-                        receiver_spl[r_idx] = end_spl
+                # Project every receiver onto the segment [pos, hit] at once.
+                r_vecs = rcv_positions - pos
+                t_proj = r_vecs @ dire
+                d_perp_sq = np.sum(r_vecs * r_vecs, axis=1) - t_proj ** 2
+                captured = (t_proj > 0.0) & (t_proj <= hit_dist) & (d_perp_sq <= rcv_radii_sq)
 
+                if np.any(captured):
+                    # Clamp to the receiver's own radius: spl_at_distance is
+                    # unbounded as distance -> 0, and a receiver isn't a
+                    # point, so it's not physically meaningful for it to
+                    # register a level as if closer than its own size.
+                    eff_dist = np.maximum(dist_travelled + t_proj[captured], np.sqrt(rcv_radii_sq[captured]))
+                    raw_spls = db - 10.0 * np.log10(4.0 * np.pi * eff_dist ** 2)
+                    for j, raw_spl in zip(np.flatnonzero(captured), raw_spls):
+                        if raw_spl > target_db:
+                            receivers[j].received_spls.append(float(raw_spl + ray_energy_db))
+
+                # Stop the loop when the sound reaches the target_db over the distance
                 dist_travelled += hit_dist
                 curr_spl = spl_at_distance(db, dist_travelled)
                 if curr_spl <= target_db:
                     break
 
                 wall_hitted = walls[wall_idx]
+
+                # Attenuate absorption
                 absorption = float(np.mean(np.asarray(wall_hitted.absorption, dtype=float)))
                 remaining = 1.0 - absorption
                 if remaining <= 0.0:
                     break
 
                 db += 10.0 * math.log10(remaining)
+
+                # Specular reflection update
                 dire = np.asarray(wall_hitted.normal_reflect(dire), dtype=float)
                 pos = hit
 
-    return receiver_spl
+    return [rcv.total_spl for rcv in receivers]
+
+
+def spls_from_image_source_method(room, sources, receivers, start_db, target_db):
+    """
+    Deterministic alternative to trace_rays_to_receivers, for use inside
+    optimization loops where a noisy, n_rays-dependent objective is a
+    problem: uses pyroomacoustics's compiled image-source engine to find
+    every exact specular reflection path from each source to each receiver,
+    up to room.max_order. No random sampling -- the same geometry always
+    gives the same result.
+
+    room must have been constructed with the reflection order you want,
+    e.g. `scene_to_pra_room(scene, fs, max_order=3, ...)` -- max_order
+    is baked into the compiled room engine at construction and cannot be
+    changed on the room object afterwards.
+    """
+    for rcv in receivers:
+        rcv.received_spls = []
+
+    for source in sources:
+        room.add_soundsource(source_to_pra(source))
+    room.add_microphone_array(receivers_to_pra_mic_array(receivers, sample_rate=room.fs))
+
+    room.image_source_model()
+
+    rcv_positions = np.array([rcv.position for rcv in receivers], dtype=float)
+    rcv_radii = np.array([rcv.radius for rcv in receivers], dtype=float)
+
+    for si, src in enumerate(room.sources):
+        n_images = src.images.shape[1]
+        if n_images == 0:
+            continue
+
+        # damping is amplitude-domain; square + band-average to get the
+        # broadband energy reflection coefficient, matching how absorption
+        # is averaged everywhere else in this module.
+        energy_damping = np.mean(src.damping ** 2, axis=0)
+        damping_db = 10.0 * np.log10(np.maximum(energy_damping, 1e-30))
+        visible = np.asarray(room.visibility[si]).astype(bool)
+
+        # Every (receiver, image source) pair at once: (n_receivers, n_images).
+        diffs = src.images[None, :, :] - rcv_positions[:, :, None]
+        distances = np.linalg.norm(diffs, axis=1)
+        # Clamp to each receiver's own radius -- see the same clamp in
+        # trace_rays_to_receivers for why (spl_at_distance is unbounded as
+        # distance -> 0, and a receiver isn't a point).
+        distances = np.maximum(distances, rcv_radii[:, None])
+
+        raw_spls = start_db - 10.0 * np.log10(4.0 * np.pi * distances ** 2) + damping_db[None, :]
+        mask = visible & (raw_spls > target_db)
+
+        rows, cols = np.nonzero(mask)
+        for m, k in zip(rows, cols):
+            receivers[m].received_spls.append(float(raw_spls[m, k]))
+
+    return [rcv.total_spl for rcv in receivers]
