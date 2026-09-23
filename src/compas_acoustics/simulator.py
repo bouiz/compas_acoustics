@@ -28,7 +28,6 @@ class Simulator:
         self.simulation_platform = simulation_platform
         self.sampling_rate = Defaults().SAMPLING_RATE
         self.rirs = None
-        self._pra_room = None
     
     
     @property
@@ -223,7 +222,6 @@ class Simulator:
             self._update_scene_ir_graph(self.rirs)
         else:
             raise NotImplementedError(f"Simulation platform '{self.simulation_platform}' is not implemented yet.")
-        self._pra_room = simulation
         return self.rirs
     
     
@@ -607,322 +605,8 @@ class Simulator:
                 rirs[key] = response
         return rirs
     
-    
-    # def resample_room_rir(self, room_rir:List[List], orig_sr:int, target_sr:int, method:str = "poly") -> List[List[NDArray[np.float64]]]:
-    #     """
-    #     Resample all impulse responses in a pyroomacoustics room.rir structure.
 
-    #     Parameters
-    #     ----------
-    #     room_rir : Sequence[Sequence[ArrayLike]]
-    #         room.rir structure:
-    #         room_rir[mic_idx][source_idx] -> 1D impulse response
-    #     orig_sr : int
-    #         Original sample rate.
-    #     target_sr : int
-    #         Target sample rate.
-    #     method : str, default="poly"
-    #         Resampling method passed to resample_ir().
-
-    #     Returns
-    #     -------
-    #     List[List[NDArray[np.float64]]]
-    #         Resampled room.rir with the same nested-list structure.
-    #     """
-    #     #TODO does not work in Rhino.
-    #     # return [
-    #     #     [Tools().resample_signal(ir, orig_sr, target_sr, method=method) for ir in mic_rirs]
-    #     #     for mic_rirs in room_rir
-    #     # ]
-        
-    #     #TODO this one works in Rhino, but not when run in a Jupyter notebook. Not sure why.
-    #     results = []
-    #     for mic_rirs in room_rir:
-    #         mic_results = []
-    #         for ir in mic_rirs:
-    #             result = Tools().resample_signal(ir, orig_sr, target_sr, method=method)
-    #         results.append(mic_results)
-    #     return results
-
-
-def spl_at_distance(start_db, distance):
-    """
-    Calculate sound pressure level (Lp) in dB after geometric spreading over distance (meters).
-    Only support omni directivity now.
-    """
-    if distance <= 0:
-        return start_db
-
-    sphere_area = 4.0 * math.pi * (distance ** 2)
-
-    return start_db - 10.0 * math.log10(sphere_area)
-
-def distance_between_spl(from_db, to_db):
-    if from_db <= to_db:
-        return 0.0
-
-    sphere_angle = 4.0 * math.pi
-    exponent = (from_db - to_db) / 10.0
-
-    return math.sqrt((10.0 ** exponent) / sphere_angle)
-
-def sum_spl(spl_list):
-    if not spl_list:
-        return 0.0
-    valids = [spl for spl in spl_list if spl >= 0.0]
-    if not valids:
-        return 0.0
-
-    return 10.0 * math.log10(sum(10 ** (spl / 10) for spl in valids))
-
-def random_directions(n_rays, seed=None, jitter=0.5):
-    """
-    n_rays unit direction vectors on the sphere via a jittered Fibonacci
-    lattice -- much more even angular coverage per ray than i.i.d. random
-    sampling, while still varying with `seed`.
-
-    jitter : float in [0, 1]
-        0 = exact deterministic lattice, no randomness.
-        1 = perturbation on the order of one full lattice-cell spacing.
-    """
-    golden = np.pi * (3.0 - np.sqrt(5.0))
-    i = np.arange(n_rays)
-    z = 1.0 - 2.0 * (i + 0.5) / n_rays
-    radius = np.sqrt(np.maximum(1.0 - z * z, 0.0))
-    phi = i * golden
-
-    directions = np.stack([radius * np.cos(phi), radius * np.sin(phi), z], axis=1)
-
-    if jitter > 0:
-        rng = np.random.default_rng(seed)
-        cell_size = 2.0 / np.sqrt(n_rays)  # ~ spacing between neighboring lattice points
-        directions += rng.normal(size=(n_rays, 3)) * cell_size * jitter
-        directions /= np.linalg.norm(directions, axis=1, keepdims=True)
-
-    return directions
-
-from compas.geometry import Point
-from compas.geometry import Polyline
-
-def trace_rays_single(room, sources, start_db, target_db, max_order=100):
-
-    polylines = []
-
-    engine = room.room_engine
-    walls = room.walls
-    max_dist = float(engine.max_dist)
-
-    for source in sources:
-        dire = np.asarray(source.direction.unitized(), dtype=float)
-        pos = np.asarray(source.position, dtype=float)
-
-        dist_travelled = 0.0
-        # hits = []
-        pts = [Point(*pos)]
-        for _ in range(max_order):
-            hit, wall_idx, hit_dist = engine.next_wall_hit(pos, pos + dire * max_dist, False)
-            if wall_idx == -1:
-                break
-
-            # Stop the loop when the sound reaches the target_db over the distance
-            dist_travelled += hit_dist
-            curr_spl = spl_at_distance(start_db, dist_travelled)
-            if curr_spl <= target_db:
-                # Generate the stop point
-                dist_at_target = distance_between_spl(start_db, target_db)
-                dist_end = dist_travelled - dist_at_target
-                pt_end = hit + (-dire * dist_end)
-                pts.append(Point(*pt_end))
-                break
-
-            # hits.append({"point": hit, "distance": dist_travelled, "spl": curr_spl})
-            pts.append(Point(*hit))
-            wall_hitted = walls[wall_idx]
-
-            # Attenuate absorption
-            absorption = float(np.mean(np.asarray(wall_hitted.absorption, dtype=float)))
-            remaining = 1.0 - absorption
-            if remaining <= 0.0:
-                break
-            start_db += 10.0 * math.log10(remaining)
-
-            # Specular reflection update
-            dire = np.asarray(wall_hitted.normal_reflect(dire), dtype=float)
-            pos = hit
-
-        polylines.append(Polyline(pts))
-    return polylines
-
-def trace_rays_scattered(room, sources, start_db, target_db, n_rays=50, max_order=100, seed=7, jitter=0.5):
-
-    polyline_tree = []
-
-    engine = room.room_engine
-    walls = room.walls
-    max_dist = float(engine.max_dist)
-
-    for i, source in enumerate(sources):
-        dire_lst = random_directions(n_rays, seed * (i + 1) + 7, jitter)
-        
-        polylines = []
-        for dire in dire_lst:
-            pos = np.asarray(source.position, dtype=float)
-            db = start_db
-            dist_travelled = 0.0
-
-            pts = [Point(*pos)]
-            for _ in range(max_order):
-                hit, wall_idx, hit_dist = engine.next_wall_hit(pos, pos + dire * max_dist, False)
-                if wall_idx == -1:
-                    break
-
-                # Stop the loop when the sound reaches the target_db over the distance
-                dist_travelled += hit_dist
-                curr_spl = spl_at_distance(db, dist_travelled)
-                if curr_spl <= target_db:
-                    # Generate the stop point
-                    dist_at_target = distance_between_spl(db, target_db)
-                    dist_end = dist_travelled - dist_at_target
-                    pt_end = hit + (-dire * dist_end)
-                    pts.append(Point(*pt_end))
-                    break
-
-                pts.append(Point(*hit))
-                wall_hitted = walls[wall_idx]
-
-                # Attenuate absorption
-                absorption = float(np.mean(np.asarray(wall_hitted.absorption, dtype=float)))
-                remaining = 1.0 - absorption
-                if remaining <= 0.0:
-                    break
-
-                db += 10.0 * math.log10(remaining)
-
-                # Specular reflection update
-                dire = np.asarray(wall_hitted.normal_reflect(dire), dtype=float)
-                pos = hit
-
-            polylines.append(Polyline(pts))
-        polyline_tree.append(polylines)
-    return polyline_tree
-
-def receive_ray_segment(receiver, segment, from_spl):  # NOTE: Old function
-    """
-    Check if a ray segment passes through the receiver in its radius, and then calcuate the remained sound pressure level (spl).
-    
-    Parameters
-    ----------
-    receiver : Receiver
-        compas_acoustics Receiver with radius.
-    segment : Line
-
-    from_spl : float
-        sound pressure level from the last hit.
-
-    Returns
-    -------
-    bool
-        Is the ray segment pass through the receiver or not.
-    float
-        Remained sound pressure level.
-
-
-    """
-    seg_len = segment.length
-    dire = segment.direction
-
-    r_vec = Point(receiver.position - segment.start)
-
-    # Project length (dot product)
-    t_proj = r_vec * dire
-    if t_proj <= 0.0 or t_proj > seg_len:
-        return False, 0.0
-
-    # Vertical distance using Pythagorean theorem
-    d_perp_sq = r_vec.length ** 2 - t_proj ** 2
-    if d_perp_sq <= receiver.radius**2:
-        end_spl = spl_at_distance(from_spl, t_proj)
-        return True, end_spl
-    
-    return False, 0.0
-
-def trace_rays_to_receivers(
-    room, sources, receivers, start_db, target_db, n_rays=50, max_order=100, seed=7, jitter=0.5
-):
-
-    for rcv in receivers:
-        rcv.received_spls = []
-
-    engine = room.room_engine
-    walls = room.walls
-    max_dist = float(engine.max_dist)
-
-    # Precomputed once: batched receiver test avoids building a Line/Vector
-    # per receiver per bounce.
-    rcv_positions = np.array([rcv.position for rcv in receivers], dtype=float)
-    rcv_radii_sq = np.array([rcv.radius ** 2 for rcv in receivers], dtype=float)
-
-    # Each ray represents only a 1/n_rays share of the source's power. Ray
-    # propagation/termination still tracks the true (unnormalized) level --
-    # otherwise every ray dies near the source and coverage collapses --
-    # but only a 1/n_rays share of that level is credited to a receiver,
-    # so summed hits converge instead of climbing with n_rays.
-    ray_energy_db = -10.0 * math.log10(n_rays)
-
-    for i, source in enumerate(sources):
-        dire_lst = random_directions(n_rays, seed * (i + 1) + 7, jitter)
-
-        for dire in dire_lst:
-            pos = np.asarray(source.position, dtype=float)
-            db = start_db
-            dist_travelled = 0.0
-
-            for _ in range(max_order):
-                hit, wall_idx, hit_dist = engine.next_wall_hit(pos, pos + dire * max_dist, False)
-                if wall_idx == -1:
-                    break
-
-                # Project every receiver onto the segment [pos, hit] at once.
-                r_vecs = rcv_positions - pos
-                t_proj = r_vecs @ dire
-                d_perp_sq = np.sum(r_vecs * r_vecs, axis=1) - t_proj ** 2
-                captured = (t_proj > 0.0) & (t_proj <= hit_dist) & (d_perp_sq <= rcv_radii_sq)
-
-                if np.any(captured):
-                    # Clamp to the receiver's own radius: spl_at_distance is
-                    # unbounded as distance -> 0, and a receiver isn't a
-                    # point, so it's not physically meaningful for it to
-                    # register a level as if closer than its own size.
-                    eff_dist = np.maximum(dist_travelled + t_proj[captured], np.sqrt(rcv_radii_sq[captured]))
-                    raw_spls = db - 10.0 * np.log10(4.0 * np.pi * eff_dist ** 2)
-                    for j, raw_spl in zip(np.flatnonzero(captured), raw_spls):
-                        if raw_spl > target_db:
-                            receivers[j].received_spls.append(float(raw_spl + ray_energy_db))
-
-                # Stop the loop when the sound reaches the target_db over the distance
-                dist_travelled += hit_dist
-                curr_spl = spl_at_distance(db, dist_travelled)
-                if curr_spl <= target_db:
-                    break
-
-                wall_hitted = walls[wall_idx]
-
-                # Attenuate absorption
-                absorption = float(np.mean(np.asarray(wall_hitted.absorption, dtype=float)))
-                remaining = 1.0 - absorption
-                if remaining <= 0.0:
-                    break
-
-                db += 10.0 * math.log10(remaining)
-
-                # Specular reflection update
-                dire = np.asarray(wall_hitted.normal_reflect(dire), dtype=float)
-                pos = hit
-
-    return [rcv.total_spl for rcv in receivers]
-
-
-def spls_from_image_source_method(room, sources, receivers, start_db, target_db):
+def spls_from_image_source_method(room, sources, receivers, start_db, target_db, time_window=0.125):
     """
     Deterministic alternative to trace_rays_to_receivers, for use inside
     optimization loops where a noisy, n_rays-dependent objective is a
@@ -935,6 +619,21 @@ def spls_from_image_source_method(room, sources, receivers, start_db, target_db)
     e.g. `scene_to_pra_room(scene, fs, max_order=3, ...)` -- max_order
     is baked into the compiled room engine at construction and cannot be
     changed on the room object afterwards.
+
+    Parameters
+    ----------
+    time_window : float, default=0.125
+        Only image sources arriving within this many seconds of the direct
+        sound are summed into a receiver's total SPL. Without this, every
+        visible image up to room.max_order gets summed as if it arrived
+        simultaneously -- physically fine as *total energy*, but not what
+        "SPL" means: a real meter (and human loudness perception) integrates
+        over a short window, not the full reflection sequence, which is why
+        that gave inflated readings especially close to the shell (more
+        higher-order images are geometrically visible there, arriving well
+        after the direct sound). The default, 0.125 s, is the IEC 61672
+        "Fast" time constant -- the standard approximation of how long
+        loudness perception actually integrates over.
     """
     for rcv in receivers:
         rcv.received_spls = []
@@ -945,6 +644,7 @@ def spls_from_image_source_method(room, sources, receivers, start_db, target_db)
 
     room.image_source_model()
 
+    sound_speed = float(getattr(room, 'c', 343.0))
     rcv_positions = np.array([rcv.position for rcv in receivers], dtype=float)
     rcv_radii = np.array([rcv.radius for rcv in receivers], dtype=float)
 
@@ -968,8 +668,12 @@ def spls_from_image_source_method(room, sources, receivers, start_db, target_db)
         # distance -> 0, and a receiver isn't a point).
         distances = np.maximum(distances, rcv_radii[:, None])
 
-        raw_spls = start_db - 10.0 * np.log10(4.0 * np.pi * distances ** 2) + damping_db[None, :]
-        mask = visible & (raw_spls > target_db)
+        arrival_time = distances / sound_speed
+        within_window = arrival_time <= time_window
+
+        spl_dist_drop = 20.0 * np.log10(distances / 1.0)  # spherical spread start at 1 meter
+        raw_spls = start_db - spl_dist_drop + damping_db[None, :]
+        mask = visible & within_window & (raw_spls > target_db)
 
         rows, cols = np.nonzero(mask)
         for m, k in zip(rows, cols):
