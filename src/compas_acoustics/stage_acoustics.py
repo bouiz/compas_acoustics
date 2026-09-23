@@ -1,6 +1,6 @@
 import numpy as np
-from compas_acoustics.ir import ImpulseResponse
 
+from compas_acoustics.ir import ImpulseResponse
 
 
 def _direct_sound_index(ir: np.ndarray) -> int:

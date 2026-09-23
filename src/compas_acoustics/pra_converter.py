@@ -1,13 +1,14 @@
 import math
-from typing import Union, Optional
+from typing import Optional
+from typing import Union
 
 import numpy as np
 import pyroomacoustics as pra
 import scipy.io.wavfile as wav
 from compas.datastructures import Mesh
 from compas.geometry import Point
-from compas.geometry import Vector
 from compas.geometry import Polyline
+from compas.geometry import Vector
 
 from compas_acoustics import Defaults
 from compas_acoustics.acoustic_material import AcousticMaterial

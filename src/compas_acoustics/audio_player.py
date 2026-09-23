@@ -1,5 +1,6 @@
 import os
 import platform
+
 from compas_acoustics.defaults import Defaults
 
 __all__ = ["AudioPlayer"]
@@ -72,8 +73,8 @@ class AudioPlayer:
         sample_rate : int
             The sample rate of the audio signal.
         """
-        import sounddevice as sd  # type: ignore
         import numpy as np
+        import sounddevice as sd  # type: ignore
         self.stop()
 
         try:

@@ -14,13 +14,15 @@ from .analyser import AcousticAnalyser
 from .simulator import Simulator
 from .auraliser import Auraliser
 from .audio_player import AudioPlayer
-from .ghpython.grasshopper.rhino_plotter import AcousticParameter
-from .ghpython.grasshopper.rhino_plotter import Plotter2D
-from .ghpython.grasshopper.rhino_plotter import Plotter2DSettings
 from .numerical.fitness import regularized_fitness
 from . import pra_converter
 from . import orchestra_layouts
 from . import stage_acoustics
+import compas
+if compas.RHINO:
+    from .ghpython.grasshopper.rhino_plotter import AcousticParameter
+    from .ghpython.grasshopper.rhino_plotter import Plotter2D
+    from .ghpython.grasshopper.rhino_plotter import Plotter2DSettings
 
 
 __author__ = ["Achilleas Xydis"]

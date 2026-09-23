@@ -1,6 +1,7 @@
+import math
+
 from compas.geometry import Point
 from compas.geometry import Vector
-import math
 
 __all__ = ['Receiver']
 

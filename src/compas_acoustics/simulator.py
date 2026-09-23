@@ -1,8 +1,9 @@
 from typing import List
 from typing import Optional
 from typing import Tuple
-import math
+
 import numpy as np
+import pyroomacoustics as pra
 from numpy.typing import NDArray
 
 from compas_acoustics import Defaults
@@ -14,7 +15,6 @@ from compas_acoustics.pra_converter import scene_to_pra_room
 from compas_acoustics.pra_converter import source_to_pra
 from compas_acoustics.receiver import Receiver
 from compas_acoustics.source import Source
-import pyroomacoustics as pra
 
 __all__ = ['Simulator']
 

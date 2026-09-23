@@ -1,6 +1,5 @@
 from compas.geometry import Frame
 
-
 # -------------------------------
 # String orchestra layouts
 # -------------------------------

@@ -1,6 +1,6 @@
 import warnings
 from pathlib import Path
-from compas_acoustics.defaults import Defaults
+
 import librosa
 import numpy as np
 import soundfile as sf
@@ -8,6 +8,8 @@ from compas.data import Data
 from scipy.io.wavfile import write
 from scipy.signal import fftconvolve
 from scipy.signal import resample
+
+from compas_acoustics.defaults import Defaults
 
 __all__ = ['Auraliser']
 

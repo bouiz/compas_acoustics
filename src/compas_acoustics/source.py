@@ -122,8 +122,9 @@ class Source(Point):
             return
 
         from pathlib import Path
-        import soundfile as sf
+
         import numpy as np
+        import soundfile as sf
 
         path = Path(file_path)
         if not path.exists():
