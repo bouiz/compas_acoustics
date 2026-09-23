@@ -9,8 +9,11 @@ from scipy.io.wavfile import write
 from scipy.signal import fftconvolve
 from scipy.signal import resample
 
+from compas_acoustics.defaults import Defaults
+
 __all__ = ['Auraliser']
 
+    
 class Auraliser(Data):
     """
     A class for handling auralisation.
@@ -38,7 +41,7 @@ class Auraliser(Data):
         self._sample_rate = sample_rate
         self.impulse_responses = impulse_responses
         self.anechoic_sounds = anechoic_sounds
-        self._hrtf_path = Path(__file__).parent / "hrtfs_library" / "KEMAR_Knowl_EarSim_SmallEars_FreeFieldComp_48kHz.sofa"
+        self._hrtf_path = Path(Defaults().HRTF_LIBRARY_PATH) / "mit_kemar_normal_pinna.sofa"
         self.output_format = output_format
         self._maximum_ambisonics_order = None
         self.check_number_of_impulse_responses_vs_anechoic_sounds()

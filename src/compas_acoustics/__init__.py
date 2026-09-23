@@ -6,12 +6,24 @@ from .acoustic_material import AcousticMaterial
 from .materials_library import MaterialsLibrary
 from .source import Source
 from .receiver import Receiver
-from .geometry import AcousticObject, AcousticObjectsLibrary
+from .geometry import AcousticObject, AcousticObjectsGroup, AcousticObjectsLibrary
 from .ir import ImpulseResponse
 from .ray import Ray, ScatteredRay, RayField
 from .scene import Scene
 from .analyser import AcousticAnalyser
 from .simulator import Simulator
+from .auraliser import Auraliser
+from .audio_player import AudioPlayer
+from .numerical.fitness import regularized_fitness
+from . import pra_converter
+from . import orchestra_layouts
+from . import stage_acoustics
+import compas
+if compas.RHINO:
+    from .ghpython.grasshopper.rhino_plotter import AcousticParameter
+    from .ghpython.grasshopper.rhino_plotter import Plotter2D
+    from .ghpython.grasshopper.rhino_plotter import Plotter2DSettings
+
 
 __author__ = ["Achilleas Xydis"]
 __copyright__ = "Gramazio Kohler Research"
@@ -26,6 +38,7 @@ __all__ = [
     'Source',
     'Receiver',
     'AcousticObject',
+    'AcousticObjectsGroup',
     'AcousticObjectsLibrary',
     'Ray',
     'ScatteredRay',
@@ -33,6 +46,15 @@ __all__ = [
     'Scene',
     'AcousticAnalyser',
     'Simulator',
+    'Auraliser',
+    'AudioPlayer',
     # 'Tools',
-    'ImpulseResponse'
+    'ImpulseResponse',
+    'AcousticParameter',
+    'Plotter2D',
+    'Plotter2DSettings',
+    'regularized_fitness',
+    'pra_converter',
+    'orchestra_layouts',
+    'stage_acoustics',
     ]

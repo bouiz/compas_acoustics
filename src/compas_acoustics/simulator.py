@@ -3,12 +3,16 @@ from typing import Optional
 from typing import Tuple
 
 import numpy as np
+import pyroomacoustics as pra
 from numpy.typing import NDArray
 
 from compas_acoustics import Defaults
 
 # from compas_acoustics import Tools
 from compas_acoustics import ImpulseResponse
+from compas_acoustics.pra_converter import receivers_to_pra_mic_array
+from compas_acoustics.pra_converter import scene_to_pra_room
+from compas_acoustics.pra_converter import source_to_pra
 from compas_acoustics.receiver import Receiver
 from compas_acoustics.source import Source
 
@@ -44,7 +48,15 @@ class Simulator:
         self._simulation_platform = simulation_platform
     
     
-    def _pyroomacoustics_simulation(self, image_source_order:int=3, ray_tracing:bool=False, n_rays:int=10000, air_absorption:bool=True):
+    def _pyroomacoustics_simulation(
+        self,
+        image_source_order:int=3,
+        ray_tracing:bool=False,
+        n_rays:int=10000,
+        air_absorption:bool=True,
+        energy_thres=1e-7,
+        time_thres=10.0,
+    ):
         """
         Prepare the walls and materials for a pyroomacoustics simulation.
         
@@ -63,51 +75,9 @@ class Simulator:
         pyroomacoustics.Room
             A pyroomacoustics Room object prepared for simulation.
         """
-        
-        import pyroomacoustics as pra
-        
-        # create the walls
-        walls = []
-        for acoustic_geometry in self.scene.acoustic_objects:
-            for fkey in acoustic_geometry.acoustic_geometry.faces():
-                # verticies of the face
-                face_vertices = acoustic_geometry.acoustic_geometry.face_vertices(fkey)
-                pts = np.asarray([acoustic_geometry.acoustic_geometry.vertex_coordinates(vkey) for vkey in face_vertices])
-                
-                # acoustic material of the face
-                surface_group = acoustic_geometry.acoustic_geometry.face_attribute(fkey, 'surface_group')
-                acoustic_material = acoustic_geometry.acoustic_materials.get(surface_group, None)
-                if acoustic_material is None:
-                    acoustic_material = self.scene.acoustic_materials.get(surface_group, None)
-                    if acoustic_material is None:
-                        raise ValueError(f"No acoustic material assigned to surface group '{surface_group}'.")
-                    
-                absorption_settings = {
-                    'description': acoustic_material.name,
-                    'coeffs': acoustic_material.absorption_coefficients,
-                    'center_freqs': acoustic_material.frequency_bands,
-                }
-
-                if acoustic_material.scattering_coefficients is not None:
-                    scattering_settings = {
-                        'coeffs': acoustic_material.scattering_coefficients,
-                        'center_freqs': acoustic_material.frequency_bands,
-                    }
-                else:
-                    scattering_settings = None
-
-                mat = pra.Material(energy_absorption=absorption_settings, scattering=scattering_settings)
-               
-                # create wall
-                wall = pra.wall_factory(pts.T,
-                                        mat.energy_absorption['coeffs'],
-                                        mat.scattering['coeffs'])
-                walls.append(wall)
-                            
-        # create the room
-        room = pra.Room(
-            walls,
-            fs=16000, #TODO Figure out how to set this to something more than 16000. Currently, anything above 16000 will cause an error when air absorption is enabled.
+        room = scene_to_pra_room(
+            self.scene,
+            fs=16000,  #TODO Figure out how to set this to something more than 16000. Currently, anything above 16000 will cause an error when air absorption is enabled.
             max_order=image_source_order,
             ray_tracing=ray_tracing,
             air_absorption=air_absorption,
@@ -120,7 +90,7 @@ class Simulator:
               )
         
         if ray_tracing:
-            room.set_ray_tracing(n_rays=n_rays)
+            room.set_ray_tracing(n_rays=n_rays, energy_thres=energy_thres, time_thres=time_thres)
             print(f"Ray tracing={ray_tracing}\n"+
                 f"N rays={n_rays}\n")
 
@@ -133,14 +103,14 @@ class Simulator:
 
         for source in self.scene.sources:
             if room.is_inside(source.position):
-                room.add_source(source.position)
+                room.add_soundsource(source_to_pra(source))
                 sim_sources.append(source)
             else:
                 print(f"Warning: Source '{source.name}' is outside the room and will not be added to the simulation.")
 
         for receiver in self.scene.receivers:
             if room.is_inside(receiver.position):
-                room.add_microphone(receiver.position)
+                room.add_microphone_array(receivers_to_pra_mic_array(receiver, sample_rate=self.sampling_rate))
                 sim_receivers.append(receiver)
             else:
                 print(f"Warning: Receiver '{receiver.name}' is outside the room and will not be added to the simulation.")
@@ -148,8 +118,6 @@ class Simulator:
         return sim_sources, sim_receivers
 
     def _seed_pyroomacoustics(self, random_seed: Optional[int]) -> None:
-        import pyroomacoustics as pra
-
         if random_seed is not None:
             pra.random.seed(numpy=random_seed, libroom=random_seed)
         else:
@@ -203,6 +171,8 @@ class Simulator:
         image_source_order: int = 3,
         n_rays: int = 10000,
         air_absorption: bool = True,
+        energy_thres: Optional[float] = 1e-7,
+        time_thres: Optional[float] = 10.0,
         random_seed: Optional[int] = None,
     ):
         """
@@ -229,14 +199,18 @@ class Simulator:
         """
         
         if self.simulation_platform == 'pyroomacoustics':
-            self._seed_pyroomacoustics(random_seed)
-
             # prepare the walls and materials for the simulation
-            simulation = self._pyroomacoustics_simulation(image_source_order, ray_tracing=True, n_rays=n_rays, air_absorption=air_absorption)
-            
-            sim_sources, sim_receivers = self._add_pyroomacoustics_sources_receivers(simulation)
-
+            simulation = self._pyroomacoustics_simulation(
+                image_source_order,
+                ray_tracing=True,
+                n_rays=n_rays,
+                air_absorption=air_absorption,
+                energy_thres=energy_thres,
+                time_thres=time_thres
+            )
             self._seed_pyroomacoustics(random_seed)
+
+            sim_sources, sim_receivers = self._add_pyroomacoustics_sources_receivers(simulation)
 
             simulation.compute_rir()
             self.rirs = self._convert_pyroomacoustics_rirs(
@@ -248,7 +222,6 @@ class Simulator:
             self._update_scene_ir_graph(self.rirs)
         else:
             raise NotImplementedError(f"Simulation platform '{self.simulation_platform}' is not implemented yet.")
-        
         return self.rirs
     
     
@@ -632,39 +605,78 @@ class Simulator:
                 rirs[key] = response
         return rirs
     
-    
-    # def resample_room_rir(self, room_rir:List[List], orig_sr:int, target_sr:int, method:str = "poly") -> List[List[NDArray[np.float64]]]:
-    #     """
-    #     Resample all impulse responses in a pyroomacoustics room.rir structure.
 
-    #     Parameters
-    #     ----------
-    #     room_rir : Sequence[Sequence[ArrayLike]]
-    #         room.rir structure:
-    #         room_rir[mic_idx][source_idx] -> 1D impulse response
-    #     orig_sr : int
-    #         Original sample rate.
-    #     target_sr : int
-    #         Target sample rate.
-    #     method : str, default="poly"
-    #         Resampling method passed to resample_ir().
+def spls_from_image_source_method(room, sources, receivers, start_db, target_db, time_window=0.125):
+    """
+    Deterministic alternative to trace_rays_to_receivers, for use inside
+    optimization loops where a noisy, n_rays-dependent objective is a
+    problem: uses pyroomacoustics's compiled image-source engine to find
+    every exact specular reflection path from each source to each receiver,
+    up to room.max_order. No random sampling -- the same geometry always
+    gives the same result.
 
-    #     Returns
-    #     -------
-    #     List[List[NDArray[np.float64]]]
-    #         Resampled room.rir with the same nested-list structure.
-    #     """
-    #     #TODO does not work in Rhino.
-    #     # return [
-    #     #     [Tools().resample_signal(ir, orig_sr, target_sr, method=method) for ir in mic_rirs]
-    #     #     for mic_rirs in room_rir
-    #     # ]
-        
-    #     #TODO this one works in Rhino, but not when run in a Jupyter notebook. Not sure why.
-    #     results = []
-    #     for mic_rirs in room_rir:
-    #         mic_results = []
-    #         for ir in mic_rirs:
-    #             result = Tools().resample_signal(ir, orig_sr, target_sr, method=method)
-    #         results.append(mic_results)
-    #     return results
+    room must have been constructed with the reflection order you want,
+    e.g. `scene_to_pra_room(scene, fs, max_order=3, ...)` -- max_order
+    is baked into the compiled room engine at construction and cannot be
+    changed on the room object afterwards.
+
+    Parameters
+    ----------
+    time_window : float, default=0.125
+        Only image sources arriving within this many seconds of the direct
+        sound are summed into a receiver's total SPL. Without this, every
+        visible image up to room.max_order gets summed as if it arrived
+        simultaneously -- physically fine as *total energy*, but not what
+        "SPL" means: a real meter (and human loudness perception) integrates
+        over a short window, not the full reflection sequence, which is why
+        that gave inflated readings especially close to the shell (more
+        higher-order images are geometrically visible there, arriving well
+        after the direct sound). The default, 0.125 s, is the IEC 61672
+        "Fast" time constant -- the standard approximation of how long
+        loudness perception actually integrates over.
+    """
+    for rcv in receivers:
+        rcv.received_spls = []
+
+    for source in sources:
+        room.add_soundsource(source_to_pra(source))
+    room.add_microphone_array(receivers_to_pra_mic_array(receivers, sample_rate=room.fs))
+
+    room.image_source_model()
+
+    sound_speed = float(getattr(room, 'c', 343.0))
+    rcv_positions = np.array([rcv.position for rcv in receivers], dtype=float)
+    rcv_radii = np.array([rcv.radius for rcv in receivers], dtype=float)
+
+    for si, src in enumerate(room.sources):
+        n_images = src.images.shape[1]
+        if n_images == 0:
+            continue
+
+        # damping is amplitude-domain; square + band-average to get the
+        # broadband energy reflection coefficient, matching how absorption
+        # is averaged everywhere else in this module.
+        energy_damping = np.mean(src.damping ** 2, axis=0)
+        damping_db = 10.0 * np.log10(np.maximum(energy_damping, 1e-30))
+        visible = np.asarray(room.visibility[si]).astype(bool)
+
+        # Every (receiver, image source) pair at once: (n_receivers, n_images).
+        diffs = src.images[None, :, :] - rcv_positions[:, :, None]
+        distances = np.linalg.norm(diffs, axis=1)
+        # Clamp to each receiver's own radius -- see the same clamp in
+        # trace_rays_to_receivers for why (spl_at_distance is unbounded as
+        # distance -> 0, and a receiver isn't a point).
+        distances = np.maximum(distances, rcv_radii[:, None])
+
+        arrival_time = distances / sound_speed
+        within_window = arrival_time <= time_window
+
+        spl_dist_drop = 20.0 * np.log10(distances / 1.0)  # spherical spread start at 1 meter
+        raw_spls = start_db - spl_dist_drop + damping_db[None, :]
+        mask = visible & within_window & (raw_spls > target_db)
+
+        rows, cols = np.nonzero(mask)
+        for m, k in zip(rows, cols):
+            receivers[m].received_spls.append(float(raw_spls[m, k]))
+
+    return [rcv.total_spl for rcv in receivers]

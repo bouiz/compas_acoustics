@@ -1,0 +1,34 @@
+{
+    "name": "Receiver",
+    "nickname": "Receiver",
+    "category": "COMPAS Acoustics",
+    "subcategory": "00 Elements",
+    "description": "Acoustic Receiver object (microphone, human ear, etc.).",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "position",
+                "description": "Position of the receiver.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "point"
+            },
+            {
+                "name": "name",
+                "description": "Name of the receiver.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "str"
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "receiver",
+                "description": "Receiver object."
+            }
+        ]
+    }
+}

@@ -5,16 +5,18 @@ from compas_acoustics.defaults import Defaults
 
 __all__ = ['Source']
 
+# directivity = ["bidirectional", "hypercardioid", "supercardioid", "cardioid", "omnidirectional", "custom",]
 
 class Source(Point):
     
-    def __init__(self, name: str, x: float, y: float, z: float, directional: bool = False):
+    def __init__(self, name: str, x: float, y: float, z: float, directivity: str = None, direction: Vector = None, sound_file: str = None):
         super().__init__(x, y, z)
         self.name = name
-        self.description = "omni" if not directional else "directional"
-        self.directional = directional
-        self.direction = [1, 0, 0] # Default direction along the x-axis
-        self.spl = 120.0 # Default SPL value for omni source
+        self.description = None
+        self.directivity = directivity if directivity is not None else "omnidirectional"
+        self.direction = direction if direction is not None else Vector(0, 0, 1)
+        self.spl = 120.0 # Default SPL value for omni source TODO: swl?
+        self.sound_file = sound_file
     
     
     @property
@@ -105,6 +107,40 @@ class Source(Point):
         self.z = position[2]
         return self.position
     
+    @property
+    def sound_file(self):
+        return self._sound_file
+
+    @sound_file.setter
+    def sound_file(self, file_path: str):
+        """
+        Set the sound file for the source. Automatically checks if the file 
+        is stereo/multi-channel and downmixes it to 1D mono to prevent convolution errors.
+        """
+        if file_path is None:
+            self._sound_file = None
+            return
+
+        from pathlib import Path
+
+        import numpy as np
+        import soundfile as sf
+
+        path = Path(file_path)
+        if not path.exists():
+            raise ValueError(f"Sound file {file_path} does not exist.")
+
+        data, sr = sf.read(str(path))
+
+        if data.ndim > 1:
+            data = np.mean(data, axis=1)
+
+            mono_filename = f"mono_{path.name}"
+            mono_path = path.parent / mono_filename
+            sf.write(str(mono_path), data, sr)
+            self._sound_file = str(mono_path)
+        else:
+            self._sound_file = str(path)
     
     @property
     def id(self):

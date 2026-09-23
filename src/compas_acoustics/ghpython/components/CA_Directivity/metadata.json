@@ -1,0 +1,19 @@
+{
+    "name": "Directivity",
+    "nickname": "Directivity",
+    "category": "COMPAS Acoustics",
+    "subcategory": "00 Elements",
+    "description": "Preset picker for directivity patterns. Right-click to choose a pattern from the available options.",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [],
+        "outputParameters": [
+            {
+                "name": "directivity",
+                "description": "Directivity pattern."
+            }
+        ]
+    }
+}

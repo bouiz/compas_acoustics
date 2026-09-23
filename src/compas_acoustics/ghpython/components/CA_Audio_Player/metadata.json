@@ -1,0 +1,36 @@
+{
+    "name": "Audio Player",
+    "nickname": "Player",
+    "category": "COMPAS Acoustics",
+    "subcategory": "06 Util",
+    "description": "Play audio files, accepting .wav, numpy arrays, and Source objects.",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "sound",
+                "description": "Audio file path, numpy array, or Source object.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "ghdoc"
+            },
+            {
+                "name": "play",
+                "description": "Play the audio.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "bool"
+            },
+            {
+                "name": "stop",
+                "description": "Stop the audio.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "bool"
+            }
+        ],
+        "outputParameters": []
+    }
+}
