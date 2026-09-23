@@ -92,4 +92,4 @@ class Receiver(Point):
         if not self.received_spls:
             return 0.0
 
-        return 10.0 * math.log10(sum(10 ** (spl / 10) for spl in self.received_spls))
+        return 10.0 * math.log10(sum(10 ** (spl / 10) for spl in self.received_spls))  # NOTE: Validate code
