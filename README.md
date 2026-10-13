@@ -25,6 +25,7 @@ pip install -e ".[dev]"
 `compas_acoustics` is not on PyPI yet. To install it in Rhino 8, use the Grasshopper installer:
 
 1. Run `invoke installer-bundle`. It creates `dist/compas_acoustics_installer.zip`.
+   GitHub Actions also builds it: download it from the `compas_acoustics_installer` artifact of the build workflow, or from the release.
 2. Unzip it and open `compas_acoustics_installer.gh` in Grasshopper.
 3. Press **Install**. When the component says *Restart Rhino*, restart Rhino.
 

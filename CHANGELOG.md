@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Grasshopper installer for Rhino 8: `installer/compas_acoustics_installer.gh`. It installs a `.whl` file (local file or download link) into a Rhino script environment, and adds the Grasshopper components.
 - `invoke installer-bundle`: builds the Grasshopper components and the wheel, and zips them with the installer.
+- GitHub Actions use the new `compas-dev/compas-actions` (v1). The build workflow makes the installer bundle (artifact). Releases are made with a pull request (`prepare release` workflow). After the merge, the release workflow builds the Grasshopper components into the wheel, and adds the wheel and the installer bundle to the GitHub release. Tests also run on Python 3.9.
+- `invoke pre-build` and `invoke build-cpython-ghuser-components` build the Grasshopper components with `ghpython_componentizer`.
 - `MaterialCategory` and `AcousticMaterial.category`. `MaterialsLibrary.materials_by_category`.
 - `tools/import_backend_materials.py`: imports the materials of pyroomacoustics into the materials library, with a category and the name `"<key> (from pyroomacoustics)"`.
 - Material Library component: materials are grouped by category. Construct and Deconstruct Material components: new `category` input and output.
@@ -43,7 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Defaults.HRTF_LIBRARY_PATH`, `Defaults.ANECHOIC_SOUNDFILES_LIBRARY_PATH`, `Defaults.PARAM_NAMES`
 - `compas_acoustics_ghpython` — a new package for Rhino and Grasshopper, with 18 Grasshopper components covering the full workflow (Acoustic Object, Source, Receiver, Directivity, Channel, Model, Orchestra Layout, Material Library, Construct/Deconstruct Material, Simulate Ray Trace, Analyse IR, Deconstruct IR, Deconstruct IR Graph, Auralise, Audio Player, Regularized Fitness, Plot 2D, Plot 2D Settings). Build the `.ghuser` files with `invoke build-cpython-ghuser-components`
 - `compas_acoustics_ghpython.plotter` — `AcousticParameter`, `Plotter2D`, `Plotter2DSettings` for plotting acoustic parameters in Rhino/Grasshopper
-- `sounddevice` added as a runtime dependency (used by `AudioPlayer.play_array`); `pythonnet` added as a dev dependency
+- `sounddevice` added as a runtime dependency (used by `AudioPlayer.play_array`); `ghpython_componentizer` added as a dev dependency
 
 ### Changed
 
