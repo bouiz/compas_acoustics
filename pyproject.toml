@@ -54,6 +54,16 @@ optional-dependencies = { dev = { file = "requirements-dev.txt" } }
 
 [tool.setuptools.packages.find]
 where = ["src"]
+# component sources are compiled into .ghuser files, only those are shipped
+exclude = ["compas_acoustics_ghpython.components*"]
+
+[tool.setuptools.package-data]
+compas_acoustics = [
+    "materials_library/*.json",
+    "hrtfs_library/*.sofa",
+    "anechoic_soundfiles_library/*",
+]
+compas_acoustics_ghpython = ["components/ghuser/*.ghuser"]
 
 # ============================================================================
 # replace pytest.ini
@@ -94,6 +104,11 @@ search = "{current_version}"
 replace = "{new_version}"
 
 [[tool.bumpversion.files]]
+filename = "src/compas_acoustics_ghpython/__init__.py"
+search = "{current_version}"
+replace = "{new_version}"
+
+[[tool.bumpversion.files]]
 filename = "CHANGELOG.md"
 search = "Unreleased"
 replace = "[{new_version}] {now:%Y-%m-%d}"
@@ -121,7 +136,7 @@ select = ["E", "F", "I"]
 
 [tool.ruff.lint.isort]
 force-single-line = true
-known-first-party = ["compas_acoustics"]
+known-first-party = ["compas_acoustics", "compas_acoustics_ghpython"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "numpy"

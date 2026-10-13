@@ -1,0 +1,19 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.49,
+            0.66,
+            0.8,
+            0.88,
+            0.82,
+            0.7,
+            0.7
+        ],
+        "category": "Seating",
+        "description": "Medium upholstered concert chairs, empty. Imported from pyroomacoustics (Seating (2 seats per m2)) at ff7d61f. Not given above 4000 Hz upstream, the last value is repeated.",
+        "name": "chairs_medium_upholstered (from pyroomacoustics)",
+        "scattering_coefficients": [],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}

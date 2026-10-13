@@ -11,4 +11,4 @@ class DeconstructMaterial(Grasshopper.Kernel.GH_ScriptInstance):
                 "Input parameter 'material' failed to collect data."
             )
             return
-        return material.absorption_coefficients, material.scattering_coefficients, material.name
+        return material.absorption_coefficients, material.scattering_coefficients, material.name, material.category.value

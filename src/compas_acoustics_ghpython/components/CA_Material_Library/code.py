@@ -1,5 +1,6 @@
 # flake8: noqa
 import Grasshopper
+from System.Windows.Forms import ToolStripMenuItem
 from System.Windows.Forms import ToolStripSeparator
 from compas_acoustics.materials_library import MaterialsLibrary
 
@@ -31,9 +32,13 @@ class MaterialLibraryPicker(Grasshopper.Kernel.GH_ScriptInstance):
         return self.library.material_from_name(self.material_name)
 
     def AppendAdditionalMenuItems(self, menu):
-        for name in sorted(self.library.material_names):
-            item = menu.Items.Add(name, None, self.on_item_click)
-            item.Checked = (name == self.material_name)
+        for category, names in self.library.materials_by_category.items():
+            group = ToolStripMenuItem(category.value)
+            group.Checked = self.material_name in names
+            for name in names:
+                item = group.DropDownItems.Add(name, None, self.on_item_click)
+                item.Checked = (name == self.material_name)
+            menu.Items.Add(group)
 
         menu.Items.Add(ToolStripSeparator())
 

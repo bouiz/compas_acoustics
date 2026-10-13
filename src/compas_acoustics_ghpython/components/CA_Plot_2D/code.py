@@ -3,7 +3,7 @@ import Grasshopper
 from Grasshopper import DataTree
 from Grasshopper.Kernel.Data import GH_Path
 import Rhino
-from compas_acoustics import Plotter2D
+from compas_acoustics_ghpython import Plotter2D
 
 
 class Plot2D(Grasshopper.Kernel.GH_ScriptInstance):

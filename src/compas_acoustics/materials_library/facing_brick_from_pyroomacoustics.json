@@ -1,0 +1,19 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.04,
+            0.14,
+            0.49,
+            0.35,
+            0.31,
+            0.36,
+            0.36
+        ],
+        "category": "Masonry",
+        "description": "Facing-brick brickwork, open butt joins, brick dimensions 230 \u00d7 50 \u00d7 55 mm. Imported from pyroomacoustics (Wall absorbers) at ff7d61f. Not given above 4000 Hz upstream, the last value is repeated.",
+        "name": "facing_brick (from pyroomacoustics)",
+        "scattering_coefficients": [],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}

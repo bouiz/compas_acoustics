@@ -1,0 +1,19 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.02,
+            0.02,
+            0.05,
+            0.15,
+            0.3,
+            0.4,
+            0.4
+        ],
+        "category": "Floor Coverings",
+        "description": "Needle felt 5 mm stuck to concrete. Imported from pyroomacoustics (Floor coverings) at ff7d61f.",
+        "name": "felt_5mm (from pyroomacoustics)",
+        "scattering_coefficients": [],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}

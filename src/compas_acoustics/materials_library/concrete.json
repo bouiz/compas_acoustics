@@ -9,6 +9,7 @@
             0.05,
             0.05
         ],
+        "category": "Concrete",
         "description": "Concrete",
         "name": "concrete",
         "scattering_coefficients": [

@@ -29,6 +29,10 @@
             {
                 "name": "name",
                 "description": "Name of the material."
+            },
+            {
+                "name": "category",
+                "description": "Category of the material."
             }
         ]
     }

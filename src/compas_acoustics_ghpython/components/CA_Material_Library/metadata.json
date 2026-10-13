@@ -3,7 +3,7 @@
     "nickname": "MatLib",
     "category": "COMPAS Acoustics",
     "subcategory": "00 Elements",
-    "description": "Preset picker for AcousticMaterial. Right-click to choose a material from the materials_library folder.",
+    "description": "Preset picker for AcousticMaterial. Right-click to choose a material from the materials library, grouped by category.",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,

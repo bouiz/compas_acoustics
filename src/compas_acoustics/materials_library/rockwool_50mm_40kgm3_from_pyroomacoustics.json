@@ -1,0 +1,19 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.23,
+            0.59,
+            0.86,
+            0.86,
+            0.86,
+            0.86,
+            0.86
+        ],
+        "category": "Absorbers",
+        "description": "Rockwool thickness = 50 mm, 40 kg/m3. Imported from pyroomacoustics (Wall absorbers) at ff7d61f.",
+        "name": "rockwool_50mm_40kgm3 (from pyroomacoustics)",
+        "scattering_coefficients": [],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}

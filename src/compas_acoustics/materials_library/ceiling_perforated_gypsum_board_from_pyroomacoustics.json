@@ -1,0 +1,19 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.45,
+            0.55,
+            0.6,
+            0.9,
+            0.86,
+            0.75,
+            0.75
+        ],
+        "category": "Plaster & Gypsum",
+        "description": "Perforated 27 mm gypsum board (16%), d = 4,5 mm, 300 mm from ceiling. Imported from pyroomacoustics (Ceiling absorbers) at ff7d61f. Not given above 4000 Hz upstream, the last value is repeated.",
+        "name": "ceiling_perforated_gypsum_board (from pyroomacoustics)",
+        "scattering_coefficients": [],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}

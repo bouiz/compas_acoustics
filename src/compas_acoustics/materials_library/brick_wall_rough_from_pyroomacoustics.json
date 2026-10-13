@@ -1,0 +1,19 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.03,
+            0.03,
+            0.03,
+            0.04,
+            0.05,
+            0.07,
+            0.07
+        ],
+        "category": "Masonry",
+        "description": "Brick wall, stuccoed with a rough finish. Imported from pyroomacoustics (Massive constructions and hard surfaces) at ff7d61f.",
+        "name": "brick_wall_rough (from pyroomacoustics)",
+        "scattering_coefficients": [],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}

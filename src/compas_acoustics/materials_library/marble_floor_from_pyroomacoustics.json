@@ -1,0 +1,19 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.01,
+            0.01,
+            0.01,
+            0.02,
+            0.02,
+            0.02,
+            0.02
+        ],
+        "category": "Stone & Tiles",
+        "description": "Marble floor. Imported from pyroomacoustics (Massive constructions and hard surfaces) at ff7d61f.",
+        "name": "marble_floor (from pyroomacoustics)",
+        "scattering_coefficients": [],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}

@@ -1,0 +1,19 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.11,
+            0.14,
+            0.37,
+            0.43,
+            0.27,
+            0.25,
+            0.25
+        ],
+        "category": "Floor Coverings",
+        "description": "Hairy carpet on 3 mm felt. Imported from pyroomacoustics (Floor coverings) at ff7d61f.",
+        "name": "carpet_hairy (from pyroomacoustics)",
+        "scattering_coefficients": [],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}

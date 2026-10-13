@@ -1,0 +1,19 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.03,
+            0.03,
+            0.15,
+            0.4,
+            0.5,
+            0.5,
+            0.5
+        ],
+        "category": "Textiles & Curtains",
+        "description": "Curtains of close-woven glass mat hung 50 mm from wall. Imported from pyroomacoustics (Curtains) at ff7d61f.",
+        "name": "curtains_glass_mat (from pyroomacoustics)",
+        "scattering_coefficients": [],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}

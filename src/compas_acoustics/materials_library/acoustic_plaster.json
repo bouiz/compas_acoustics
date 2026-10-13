@@ -9,6 +9,7 @@
             0.68,
             0.8
         ],
+        "category": "Plaster & Gypsum",
         "description": "Acoustic Plaster",
         "name": "acoustic_plaster",
         "scattering_coefficients": [

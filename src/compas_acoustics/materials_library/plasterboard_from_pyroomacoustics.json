@@ -1,0 +1,19 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.15,
+            0.1,
+            0.06,
+            0.04,
+            0.04,
+            0.05,
+            0.05
+        ],
+        "category": "Plaster & Gypsum",
+        "description": "2 * 13 mm plasterboard on steel frame, 50 mm mineral wool in cavity, surface painted. Imported from pyroomacoustics (Lightweight constructions and linings) at ff7d61f.",
+        "name": "plasterboard (from pyroomacoustics)",
+        "scattering_coefficients": [],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}

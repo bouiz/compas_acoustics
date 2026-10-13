@@ -1,0 +1,19 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.03,
+            0.09,
+            0.2,
+            0.54,
+            0.7,
+            0.72,
+            0.72
+        ],
+        "category": "Floor Coverings",
+        "description": "6 mm pile carpet bonded to open-cell foam underlay. Imported from pyroomacoustics (Floor coverings) at ff7d61f.",
+        "name": "carpet_6mm_open_cell_foam (from pyroomacoustics)",
+        "scattering_coefficients": [],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}

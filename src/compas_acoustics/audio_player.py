@@ -15,7 +15,7 @@ class AudioPlayer:
     system : str
         The operating system of the computer. It supports "Windows" and "Darwin" (macOS).
     _active_player : object
-        The status of the audio playback. It can be a SoundPlayer object on Windows or a Popen object on macOS.
+        The status of the audio playback. It can be the winsound module on Windows or a Popen object on macOS.
     sound_type : str
         The type of sound being played. It can be 'file' for audio files or 'array' for audio signals represented as numpy arrays.
     """
@@ -45,10 +45,10 @@ class AudioPlayer:
         self.stop()
 
         if self.system == "Windows":
-            import System.Media as sm  # type: ignore
+            import winsound
             try:
-                self._active_player = sm.SoundPlayer(file_path)
-                self._active_player.Play()
+                winsound.PlaySound(file_path, winsound.SND_FILENAME | winsound.SND_ASYNC)
+                self._active_player = winsound
                 self.sound_type = 'file'
             except Exception as e:
                 print (f"Error playing sound on Windows: {e}")
@@ -125,7 +125,8 @@ class AudioPlayer:
         if self.sound_type == 'file':
             if self.system == "Windows":
                 try:
-                    self._active_player.Stop()
+                    # passing None stops any sound currently played asynchronously
+                    self._active_player.PlaySound(None, 0)
                 except Exception as e:
                     print (f"Error stopping sound on Windows: {e}")
                 finally:

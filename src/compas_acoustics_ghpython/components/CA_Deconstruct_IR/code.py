@@ -1,7 +1,7 @@
 # flake8: noqa
 import Grasshopper
 from compas_acoustics.analyser import AcousticAnalyser
-from compas_acoustics import AcousticParameter
+from compas_acoustics_ghpython import AcousticParameter
 from compas_acoustics import Defaults
 
 

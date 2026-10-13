@@ -1,0 +1,19 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.05,
+            0.08,
+            0.1,
+            0.12,
+            0.12,
+            0.12,
+            0.12
+        ],
+        "category": "Seating",
+        "description": "Wooden chairs without cushion. Imported from pyroomacoustics (Seating (2 seats per m2)) at ff7d61f. Not given above 4000 Hz upstream, the last value is repeated.",
+        "name": "chairs_wooden (from pyroomacoustics)",
+        "scattering_coefficients": [],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}

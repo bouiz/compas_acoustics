@@ -1,0 +1,19 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.09,
+            0.06,
+            0.05,
+            0.05,
+            0.05,
+            0.04,
+            0.04
+        ],
+        "category": "Wood",
+        "description": "Audience floor, 2 layers, 33 mm on sleepers over concrete. Imported from pyroomacoustics (Wood) at ff7d61f. Not given above 4000 Hz upstream, the last value is repeated.",
+        "name": "audience_floor (from pyroomacoustics)",
+        "scattering_coefficients": [],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}

@@ -9,6 +9,7 @@
             0.04,
             0.04
         ],
+        "category": "Masonry",
         "description": "Brick Wall",
         "name": "brickwall",
         "scattering_coefficients": [

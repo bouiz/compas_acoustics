@@ -3,9 +3,9 @@ from typing import Optional
 
 import Rhino.Geometry as rg  # type: ignore
 
-from ...analyser import _PARAM_NAMES
-from ...analyser import AcousticAnalyser
-from ...ir import ImpulseResponse
+from compas_acoustics.analyser import _PARAM_NAMES
+from compas_acoustics.analyser import AcousticAnalyser
+from compas_acoustics.ir import ImpulseResponse
 
 __all__ = ["AcousticParameter", "Plotter2D", "Plotter2DSettings",]
 

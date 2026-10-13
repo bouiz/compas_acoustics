@@ -1,0 +1,19 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.06,
+            0.28,
+            0.7,
+            0.68,
+            0.74,
+            0.53,
+            0.53
+        ],
+        "category": "Absorbers",
+        "description": "Microperforated foil \u201cMicrosorber\u201d (Kaefer). Imported from pyroomacoustics (Special absorbers) at ff7d61f. Not given above 4000 Hz upstream, the last value is repeated.",
+        "name": "microperforated_foil_kaefer (from pyroomacoustics)",
+        "scattering_coefficients": [],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}

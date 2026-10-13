@@ -1,0 +1,19 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.17,
+            0.36,
+            0.66,
+            0.65,
+            0.62,
+            0.68,
+            0.68
+        ],
+        "category": "Plaster & Gypsum",
+        "description": "Acoustical plaster, approx. 25 mm thick, 3.5 kg/m2/cm. Imported from pyroomacoustics (Wall absorbers) at ff7d61f. Not given above 4000 Hz upstream, the last value is repeated.",
+        "name": "acoustical_plaster_25mm (from pyroomacoustics)",
+        "scattering_coefficients": [],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}

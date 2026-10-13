@@ -1,0 +1,19 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.3,
+            0.45,
+            0.65,
+            0.56,
+            0.59,
+            0.71,
+            0.71
+        ],
+        "category": "Textiles & Curtains",
+        "description": "Cotton curtains (0.5 kg/m2) draped to 3/4 area approx. 130 mm from wall. Imported from pyroomacoustics (Curtains) at ff7d61f.",
+        "name": "curtains_cotton_0.5 (from pyroomacoustics)",
+        "scattering_coefficients": [],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}

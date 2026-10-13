@@ -6,7 +6,7 @@ from compas_acoustics.acoustic_material import AcousticMaterial
 
 class ConstructMaterial(Grasshopper.Kernel.GH_ScriptInstance):
 
-    def RunScript(self, absorption, scattering, name):
+    def RunScript(self, absorption, scattering, name, category):
         if absorption is None:
             ghenv.Component.AddRuntimeMessage(
                 Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning,
@@ -24,4 +24,5 @@ class ConstructMaterial(Grasshopper.Kernel.GH_ScriptInstance):
             name=name,
             absorption_coefficients=absorption,
             scattering_coefficients=scattering,
+            category=category or None,
         )

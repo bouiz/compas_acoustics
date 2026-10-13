@@ -1,0 +1,19 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.24,
+            0.4,
+            0.78,
+            0.98,
+            0.96,
+            0.87,
+            0.87
+        ],
+        "category": "Audience",
+        "description": "Audience on wooden chairs, 2 per m2. Imported from pyroomacoustics (Audience (unless not specified explicitly, 2 persons per m2)) at ff7d61f.",
+        "name": "audience_wooden_chairs_2_m2 (from pyroomacoustics)",
+        "scattering_coefficients": [],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}

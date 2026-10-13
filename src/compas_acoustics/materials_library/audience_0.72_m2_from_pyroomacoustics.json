@@ -1,0 +1,19 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.1,
+            0.21,
+            0.41,
+            0.65,
+            0.75,
+            0.71,
+            0.71
+        ],
+        "category": "Audience",
+        "description": "Audience area, 0.72 persons / m2. Imported from pyroomacoustics (Audience (unless not specified explicitly, 2 persons per m2)) at ff7d61f. Not given above 4000 Hz upstream, the last value is repeated.",
+        "name": "audience_0.72_m2 (from pyroomacoustics)",
+        "scattering_coefficients": [],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}

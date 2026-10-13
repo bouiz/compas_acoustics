@@ -1,0 +1,19 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.02,
+            0.03,
+            0.04,
+            0.05,
+            0.04,
+            0.03,
+            0.02
+        ],
+        "category": "Plaster & Gypsum",
+        "description": "Rough lime wash. Imported from pyroomacoustics (Massive constructions and hard surfaces) at ff7d61f.",
+        "name": "rough_lime_wash (from pyroomacoustics)",
+        "scattering_coefficients": [],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}

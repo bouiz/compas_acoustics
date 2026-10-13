@@ -3,6 +3,7 @@ from __future__ import print_function
 from .defaults import Defaults
 # from .tools import Tools
 from .acoustic_material import AcousticMaterial
+from .acoustic_material import MaterialCategory
 from .materials_library import MaterialsLibrary
 from .source import Source
 from .receiver import Receiver
@@ -18,11 +19,6 @@ from .numerical.fitness import regularized_fitness
 from . import pra_converter
 from . import orchestra_layouts
 from . import stage_acoustics
-import compas
-if compas.RHINO:
-    from .ghpython.grasshopper.rhino_plotter import AcousticParameter
-    from .ghpython.grasshopper.rhino_plotter import Plotter2D
-    from .ghpython.grasshopper.rhino_plotter import Plotter2DSettings
 
 
 __author__ = ["Achilleas Xydis"]
@@ -34,6 +30,7 @@ __version__ = "0.1.0"
 __all__ = [
     'Defaults',
     'AcousticMaterial',
+    'MaterialCategory',
     'MaterialsLibrary',
     'Source',
     'Receiver',
@@ -50,9 +47,6 @@ __all__ = [
     'AudioPlayer',
     # 'Tools',
     'ImpulseResponse',
-    'AcousticParameter',
-    'Plotter2D',
-    'Plotter2DSettings',
     'regularized_fitness',
     'pra_converter',
     'orchestra_layouts',

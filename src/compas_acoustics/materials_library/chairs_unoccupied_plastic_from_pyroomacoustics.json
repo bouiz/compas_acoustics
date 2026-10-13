@@ -1,0 +1,19 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.06,
+            0.1,
+            0.1,
+            0.2,
+            0.3,
+            0.2,
+            0.2
+        ],
+        "category": "Seating",
+        "description": "Unoccupied plastic chairs. Imported from pyroomacoustics (Seating (2 seats per m2)) at ff7d61f.",
+        "name": "chairs_unoccupied_plastic (from pyroomacoustics)",
+        "scattering_coefficients": [],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}

@@ -25,8 +25,15 @@
             },
             {
                 "name": "name",
-                "description": "Name of the material preset in the library (e.g. 'concrete', 'carpet').",
+                "description": "Name of the material.",
                 "optional": false,
+                "scriptParamAccess": 0,
+                "typeHintID": "str"
+            },
+            {
+                "name": "category",
+                "description": "Optional. Material category, e.g. 'Concrete', 'Wood' or 'Absorbers' (defaults to 'Other').",
+                "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "str"
             }

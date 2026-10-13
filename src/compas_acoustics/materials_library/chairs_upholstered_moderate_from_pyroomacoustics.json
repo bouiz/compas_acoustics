@@ -1,0 +1,19 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.44,
+            0.56,
+            0.67,
+            0.74,
+            0.83,
+            0.87,
+            0.87
+        ],
+        "category": "Seating",
+        "description": "Unoccupied, moderately upholstered chairs (0.90 m \u00d7 0.55 m). Imported from pyroomacoustics (Seating (2 seats per m2)) at ff7d61f. Not given above 4000 Hz upstream, the last value is repeated.",
+        "name": "chairs_upholstered_moderate (from pyroomacoustics)",
+        "scattering_coefficients": [],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}

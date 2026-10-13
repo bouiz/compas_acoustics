@@ -1,0 +1,19 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.1,
+            0.4,
+            0.62,
+            0.7,
+            0.63,
+            0.88,
+            0.88
+        ],
+        "category": "Floor Coverings",
+        "description": "Loop pile tufted carpet, 1.4 kg/m2, 9.5 mm pile height: On hair pad, 3.0 kg/m2. Imported from pyroomacoustics (Floor coverings) at ff7d61f. Not given above 4000 Hz upstream, the last value is repeated.",
+        "name": "carpet_tufted_9.5mm (from pyroomacoustics)",
+        "scattering_coefficients": [],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}
