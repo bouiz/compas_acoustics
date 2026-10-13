@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Grasshopper installer for Rhino 8: `installer/compas_acoustics_installer.gh`. It installs a `.whl` file (local file or download link) with the Python of Rhino, and adds the Grasshopper components.
+- Grasshopper installer for Rhino 8: `installer/compas_acoustics_installer.gh`. It installs a `.whl` file (local file or download link) into a Rhino script environment, and adds the Grasshopper components.
 - `invoke installer-bundle`: builds the Grasshopper components and the wheel, and zips them with the installer.
 - `MaterialCategory` and `AcousticMaterial.category`. `MaterialsLibrary.materials_by_category`.
 - `tools/import_backend_materials.py`: imports the materials of pyroomacoustics into the materials library, with a category and the name `"<key> (from pyroomacoustics)"`.

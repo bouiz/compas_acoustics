@@ -31,6 +31,7 @@ pip install -e ".[dev]"
 Installer options:
 
 - `source`: path or download link of a `.whl` file. Empty: use the `.whl` file next to the `.gh` file.
+- `venv`: name of the Rhino script environment to install into. Empty: `default`. With another name, the installed components use that environment.
 
 Rhino 8 uses Python 3.9. With Python older than 3.12, the Speech Transmission Index (STI) is not available.
 
