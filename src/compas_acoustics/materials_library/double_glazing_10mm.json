@@ -1,0 +1,20 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.1,
+            0.07,
+            0.05,
+            0.03,
+            0.02,
+            0.02,
+            0.02
+        ],
+        "category": "Glass",
+        "data_origin": "pyroomacoustics",
+        "description": "Double glazing, 2\u20133 mm glass, 10 mm gap. Imported from pyroomacoustics (Glazing) at ff7d61f.",
+        "name": "double_glazing_10mm",
+        "scattering_coefficients": [],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}

@@ -1,0 +1,20 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.02,
+            0.03,
+            0.03,
+            0.03,
+            0.03,
+            0.02,
+            0.02
+        ],
+        "category": "Floor Coverings",
+        "data_origin": "pyroomacoustics",
+        "description": "Linoleum, asphalt, rubber, or cork tile on concrete. Imported from pyroomacoustics (Floor coverings) at ff7d61f. Not given above 4000 Hz upstream, the last value is repeated.",
+        "name": "linoleum_on_concrete",
+        "scattering_coefficients": [],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}

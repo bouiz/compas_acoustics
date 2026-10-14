@@ -13,6 +13,9 @@ __all__ = ["AcousticAnalyser"]
 # Row order used throughout the class
 _PARAM_NAMES = ['EDT', 'T20', 'T30', 'C50', 'C80', 'D50', 'DRR', 'Ts', 'STI']
 
+# STI needs pyrato >= 1.0, which requires Python >= 3.12 (not available in Rhino 8)
+_STI_SUPPORTED = hasattr(pyrato, 'parameters') and hasattr(pyrato.parameters, 'speech_transmission_index_indirect')
+
 # Parameters whose "Overall" is averaged over 500 & 1000 Hz (ISO 3382-1:2009)
 _RT_PARAMS = {'EDT', 'T20', 'T30'}
 
@@ -287,6 +290,13 @@ class AcousticAnalyser(Data):
         per IEC 60268-16:2020. Overall STI is computed by pyrato; per-band MTI is derived
         from the MTF via the standard TI conversion.
         """
+        if not _STI_SUPPORTED:
+            warnings.warn(
+                "STI is not available with pyrato {} (requires pyrato >= 1.0 and Python >= 3.12). "
+                "STI and MTI values are set to NaN.".format(pyrato.__version__)
+            )
+            return {'mti': np.full(7, np.nan), 'sti': np.nan}
+
         if impulse_response is None:
             impulse_response = self.ir
 

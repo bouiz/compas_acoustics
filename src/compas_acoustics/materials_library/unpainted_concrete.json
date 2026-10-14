@@ -1,0 +1,20 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.01,
+            0.01,
+            0.02,
+            0.02,
+            0.02,
+            0.05,
+            0.05
+        ],
+        "category": "Concrete",
+        "data_origin": "pyroomacoustics",
+        "description": "Smooth unpainted concrete. Imported from pyroomacoustics (Massive constructions and hard surfaces) at ff7d61f.",
+        "name": "unpainted_concrete",
+        "scattering_coefficients": [],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}

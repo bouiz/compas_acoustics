@@ -2,29 +2,85 @@ name: release
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
+
+permissions:
+  contents: read
 
 jobs:
+  release:
+    name: Detect release merge
+    runs-on: ubuntu-latest
+    outputs:
+      is-release: ${{ steps.release.outputs.is-release }}
+      version: ${{ steps.release.outputs.version }}
+      tag: ${{ steps.release.outputs.tag }}
+    steps:
+      - uses: compas-dev/compas-actions/release-check@v1
+        id: release
+
   build:
+    needs: release
+    if: needs.release.outputs.is-release == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        python: ['3.9', '3.10', '3.11']
-
+        # 3.9 is the Python of Rhino 8
+        python: ["3.9", "3.10", "3.11", "3.12"]
+        exclude:
+          - os: macos-latest
+            python: "3.9"
     steps:
-      - uses: compas-dev/compas-actions.build@v4
+      - uses: compas-dev/compas-actions/ci@v1
         with:
-          python: ${{ matrix.python }}
-          invoke_lint: true
-          invoke_test: true
+          python-version: ${{ matrix.python }}
+          management-tool: uv
+          invoke-tasks: lint test
 
-  Publish:
-    needs: build
+  prepare:
+    needs: [release, build]
+    if: needs.release.outputs.is-release == 'true'
+    # pre-build creates the Grasshopper components that go into the wheel, which needs Windows
+    runs-on: windows-latest
+    steps:
+      - uses: compas-dev/compas-actions/prepare-release@v1
+        with:
+          python-version: "3.12"
+          management-tool: uv
+          run-prebuild: true
+
+  installer-bundle:
+    needs: [release, build]
+    if: needs.release.outputs.is-release == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: compas-dev/compas-actions/release-assets@v1
+        with:
+          python-version: "3.12"
+          management-tool: uv
+          extras: dev
+          invoke-tasks: installer-bundle
+          paths: dist/compas_acoustics_installer.zip
+          artifact-name: github-release-assets-installer
+
+  # Not on PyPI yet. For the first PyPI release, add a `publish` job here like in
+  # compas_pb (pypa/gh-action-pypi-publish with a Trusted Publisher) and make
+  # `create-release` depend on it.
+
+  create-release:
+    needs: [release, prepare, installer-bundle]
+    if: needs.release.outputs.is-release == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - uses: compas-dev/compas-actions.publish@v3
+      - uses: compas-dev/compas-actions/github-release@v1
         with:
-          pypi_token: ${{ secrets.PYPI }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ github.token }}
+          tag-name: ${{ needs.release.outputs.tag }}
+          target: ${{ github.sha }}
+          release-name-prefix: COMPAS Acoustics
+          release-assets-artifact-pattern: github-release-assets-*

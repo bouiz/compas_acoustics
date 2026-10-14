@@ -1,0 +1,20 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.44,
+            0.6,
+            0.77,
+            0.89,
+            0.82,
+            0.7,
+            0.7
+        ],
+        "category": "Seating",
+        "data_origin": "pyroomacoustics",
+        "description": "Empty chairs, upholstered with cloth cover. Imported from pyroomacoustics (Seating (2 seats per m2)) at ff7d61f.",
+        "name": "chairs_upholstered_cloth",
+        "scattering_coefficients": [],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}

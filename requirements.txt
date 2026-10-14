@@ -1,9 +1,14 @@
 compas >=2.13, <3.0
 pyroomacoustics >=0.10.1
-matplotlib >=3.10, <4.0
+matplotlib >=3.10, <4.0; python_version >= "3.10"
+matplotlib >=3.7, <4.0; python_version < "3.10"
 librosa
 sounddevice
 soundfile
 sofar
-pyfar>=0.8.0
-pyrato>=1.0.0
+# Rhino 8 ships CPython 3.9: recent pyfar/pyrato releases are not available there,
+# so older versions are used and the analyser falls back to reduced functionality.
+pyfar >=0.8.0; python_version >= "3.11"
+pyfar >=0.6, <0.8; python_version < "3.11"
+pyrato >=1.0.0; python_version >= "3.12"
+pyrato >=0.4, <1.0; python_version < "3.12"

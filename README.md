@@ -20,6 +20,30 @@ conda activate your_env_name
 pip install -e ".[dev]"
 ```
 
+## Install in Rhino 8 / Grasshopper
+
+`compas_acoustics` is not on PyPI yet. To install it in Rhino 8, use the Grasshopper installer:
+
+1. Run `invoke installer-bundle`. It creates `dist/compas_acoustics_installer.zip`.
+   GitHub Actions also builds it: download it from the `compas_acoustics_installer` artifact of the build workflow, or from the release.
+2. Unzip it and open `compas_acoustics_installer.gh` in Grasshopper.
+3. Press **Install**. When the component says *Restart Rhino*, restart Rhino.
+
+Installer options:
+
+- `source`: path or download link of a `.whl` file. Empty: use the `.whl` file next to the `.gh` file.
+- `venv`: name of the Rhino script environment to install into. Empty: `default`. With another name, the installed components use that environment.
+
+Rhino 8 uses Python 3.9. With Python older than 3.12, the Speech Transmission Index (STI) is not available.
+
+## Materials library
+
+Materials are grouped in categories (`MaterialCategory`). To update the materials that come from pyroomacoustics, run:
+
+```bash
+python tools/import_backend_materials.py
+```
+
 ## Documentation
 
 For further "getting started" instructions, a tutorial, examples, and an API reference,

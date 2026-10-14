@@ -1,0 +1,20 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.08,
+            0.08,
+            0.3,
+            0.6,
+            0.75,
+            0.8,
+            0.8
+        ],
+        "category": "Floor Coverings",
+        "data_origin": "pyroomacoustics",
+        "description": "9 mm tufted pile carpet on felt underlay. Imported from pyroomacoustics (Floor coverings) at ff7d61f.",
+        "name": "carpet_tufted_9m",
+        "scattering_coefficients": [],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}

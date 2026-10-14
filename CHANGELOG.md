@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Grasshopper installer for Rhino 8: `installer/compas_acoustics_installer.gh`. It installs a `.whl` file (local file or download link) into a Rhino script environment, and adds the Grasshopper components.
+- `invoke installer-bundle`: builds the Grasshopper components and the wheel, and zips them with the installer.
+- GitHub Actions use the new `compas-dev/compas-actions` (v1). The build workflow makes the installer bundle (artifact). Releases are made with a pull request (`prepare release` workflow). After the merge, the release workflow builds the Grasshopper components into the wheel, and adds the wheel and the installer bundle to the GitHub release. Tests also run on Python 3.9.
+- `invoke pre-build` and `invoke build-cpython-ghuser-components` build the Grasshopper components with `ghpython_componentizer`.
+- `MaterialCategory` and `AcousticMaterial.category`. `MaterialsLibrary.materials_by_category`.
+- `tools/import_backend_materials.py`: imports the materials of pyroomacoustics into the materials library, with a category, the key as the name, and `data_origin` set to the backend.
+- Material Library component: materials are grouped by category. Construct and Deconstruct Material components: new `category` input and output.
+- `AcousticMaterial.data_origin`: where the coefficients come from. Defaults to `"custom"`; materials imported from pyroomacoustics store `"pyroomacoustics"`. Included in serialization and in `AcousticMaterial.__str__`.
+- Material Library component: a remark when the chosen material has no scattering coefficients, and the component message shows the material name and `data_origin`.
+- Deconstruct Material component: `data_origin` output.
 - `ImpulseResponse` data class wrapping a source–receiver pair, raw IR array, sample rate, and simulation platform; includes `resampled()` for poly/FFT resampling
 - Export `ImpulseResponse` from the public package API
 - `Scene.ir_graph` — a compas `Graph` linking sources and receivers, with `ImpulseResponse` stored on edges
@@ -36,9 +46,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `hrtfs_library` — bundled MIT KEMAR HRTF sets (`mit_kemar_normal_pinna.sofa`, `mit_kemar_large_pinna.sofa`) used by `Auraliser`
 - Preset acoustic materials in `MaterialsLibrary`: `acoustic_plaster`, `brickwall`, `concrete`, `carpet` (renamed from `test_material`), `wall_absorber_50mm`
 - `Defaults.HRTF_LIBRARY_PATH`, `Defaults.ANECHOIC_SOUNDFILES_LIBRARY_PATH`, `Defaults.PARAM_NAMES`
-- `compas_acoustics.ghpython` — a new GhPython component subpackage with 18 Grasshopper components covering the full workflow (Acoustic Object, Source, Receiver, Directivity, Channel, Model, Orchestra Layout, Material Library, Construct/Deconstruct Material, Simulate Ray Trace, Analyse IR, Deconstruct IR, Deconstruct IR Graph, Auralise, Audio Player, Regularized Fitness, Plot 2D, Plot 2D Settings), plus their compiled `.ghuser` files
-- `compas_acoustics.ghpython.grasshopper.rhino_plotter` — `AcousticParameter`, `Plotter2D`, `Plotter2DSettings` for plotting acoustic parameters in Rhino/Grasshopper
-- `sounddevice` added as a runtime dependency (used by `AudioPlayer.play_array`); `pythonnet` added as a dev dependency
+- `compas_acoustics_ghpython` — a new package for Rhino and Grasshopper, with 18 Grasshopper components covering the full workflow (Acoustic Object, Source, Receiver, Directivity, Channel, Model, Orchestra Layout, Material Library, Construct/Deconstruct Material, Simulate Ray Trace, Analyse IR, Deconstruct IR, Deconstruct IR Graph, Auralise, Audio Player, Regularized Fitness, Plot 2D, Plot 2D Settings). Build the `.ghuser` files with `invoke build-cpython-ghuser-components`
+- `compas_acoustics_ghpython.plotter` — `AcousticParameter`, `Plotter2D`, `Plotter2DSettings` for plotting acoustic parameters in Rhino/Grasshopper
+- `sounddevice` added as a runtime dependency (used by `AudioPlayer.play_array`); `ghpython_componentizer` added as a dev dependency
 
 ### Changed
 
@@ -53,10 +63,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** `Receiver.direction` is now a `compas.geometry.Vector` defaulting to `(0, 0, 1)` (was a plain list defaulting to `(1, 0, 0)`)
 - `Simulator._pyroomacoustics_simulation()` now builds walls and materials via `pra_converter.scene_to_pra_room()` instead of inline pyroomacoustics wall construction, recursing into `AcousticObjectsGroup` via `iter_acoustic_objects()`
 - `Simulator._add_pyroomacoustics_sources_receivers()` now adds sources/receivers via `pra_converter.source_to_pra()` / `receivers_to_pra_mic_array()`, so source directivity and sound files are respected during simulation
-- Grasshopper component build task renamed `build.build_ghuser_components` → `build.build_cpython_ghuser_components`, and repointed from `src/compas_acoustics_ghpython/components` to `src/compas_acoustics/ghpython/components`
+- Grasshopper component build task renamed `build.build_ghuser_components` → `build.build_cpython_ghuser_components`
+- The `compas_acoustics` package does not use Rhino, Grasshopper or .NET anymore. This code is now in `compas_acoustics_ghpython`. On Windows, `AudioPlayer` uses `winsound` instead of `System.Media`.
+- The package installs on Python 3.9 (Rhino 8). There, it uses older versions of pyfar and pyrato, and STI is not available: `AcousticAnalyser.compute_sti` shows a warning and returns NaN.
+- **Breaking:** material names can have spaces and capital letters. Library files are named after `AcousticMaterial.slug`.
+- **Breaking:** library material names and filenames no longer include the backend suffix. Example: `carpet_thin_from_pyroomacoustics` is now `carpet_thin`. The backend is stored as `data_origin` instead. `tools/import_backend_materials.py` writes the key as the name and passes the backend as `data_origin`.
+- Material Library component no longer sets the component nickname to the selected material name.
 
 ### Fixed
 
+- Wheels were missing the materials library, the HRTFs, the sound files and the Grasshopper components.
 - `Simulator._pyroomacoustics_simulation` now passes surface scattering coefficients to `pyroomacoustics.Material` correctly; previously the whole material dict was passed as the positional `energy_absorption` argument and scattering was silently dropped (always zero)
 - `AcousticObject.display_surface_groups_in_viewer`, `Scene.display_surface_groups_in_viewer`, and `RayField.display_in_viewer` now call `compas.is_rhino()` instead of treating it as a boolean attribute, so the Rhino guard actually raises when appropriate
 - `Auraliser` now resolves its default HRTF file via `Defaults.HRTF_LIBRARY_PATH` and ships `mit_kemar_normal_pinna.sofa`; previously it pointed at `KEMAR_Knowl_EarSim_SmallEars_FreeFieldComp_48kHz.sofa`, a file not present anywhere in the repository

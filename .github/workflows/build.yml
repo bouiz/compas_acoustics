@@ -8,18 +8,60 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
+  release-change:
+    name: Detect release merge
+    runs-on: ubuntu-latest
+    outputs:
+      is-release: ${{ steps.release.outputs.is-release }}
+    steps:
+      - uses: compas-dev/compas-actions/release-check@v1
+        id: release
+
   build:
-    if: "!contains(github.event.pull_request.labels.*.name, 'docs-only')"
+    needs: release-change
+    if: github.event_name == 'pull_request' || needs.release-change.outputs.is-release != 'true'
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        python: ["3.10", "3.11", "3.12"]
-
+        # 3.9 is the Python of Rhino 8
+        python: ["3.9", "3.10", "3.11", "3.12"]
+        exclude:
+          - os: macos-latest
+            python: "3.9"
     steps:
-      - uses: compas-dev/compas-actions.build@v4
+      - uses: compas-dev/compas-actions/ci@v1
         with:
-          python: ${{ matrix.python }}
-          invoke_lint: true
-          invoke_test: true
+          python-version: ${{ matrix.python }}
+          management-tool: uv
+          invoke-tasks: lint test
+
+  installer-bundle:
+    needs: release-change
+    if: github.event_name == 'pull_request' || needs.release-change.outputs.is-release != 'true'
+    # the Grasshopper components can only be built on Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: compas-dev/compas-actions/setup-python@v1
+        with:
+          python-version: "3.12"
+          management-tool: uv
+          extras: dev
+
+      - name: Build Grasshopper components, wheel and installer bundle
+        run: invoke installer-bundle
+
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: compas_acoustics_installer
+          path: dist/compas_acoustics_installer
+          if-no-files-found: error

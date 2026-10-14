@@ -1,12 +1,44 @@
 import math
 import os
+import re
 import warnings
+from enum import Enum
 
 from compas.data import Data
 
 from compas_acoustics.defaults import Defaults
 
-__all__ = ['AcousticMaterial']
+__all__ = ['AcousticMaterial', 'MaterialCategory']
+
+
+class MaterialCategory(str, Enum):
+    """Broad groups used to organise acoustic materials, e.g. in the materials library."""
+
+    CONCRETE = "Concrete"
+    MASONRY = "Masonry"
+    STONE_AND_TILES = "Stone & Tiles"
+    PLASTER_AND_GYPSUM = "Plaster & Gypsum"
+    WOOD = "Wood"
+    GLASS = "Glass"
+    METAL = "Metal"
+    FLOOR_COVERINGS = "Floor Coverings"
+    TEXTILES_AND_CURTAINS = "Textiles & Curtains"
+    SEATING = "Seating"
+    AUDIENCE = "Audience"
+    ABSORBERS = "Absorbers"
+    OTHER = "Other"
+
+    @classmethod
+    def parse(cls, value):
+        """Get a category from a member, its value (``"Stone & Tiles"``) or its name (``"STONE_AND_TILES"``)."""
+        if value is None:
+            return cls.OTHER
+        if isinstance(value, cls):
+            return value
+        for member in cls:
+            if value in (member.value, member.name):
+                return member
+        raise ValueError(f"Unknown material category '{value}'. Valid categories: {', '.join(m.value for m in cls)}.")
 
 
 class AcousticMaterial(Data):
@@ -15,9 +47,11 @@ class AcousticMaterial(Data):
     Parameters
     ----------
     name : str
-        The name of the acoustic material. Lowercase and no spaces.
+        The name of the acoustic material.
     description : str
         A text describing the material.
+    category : :class:`MaterialCategory` | str, optional
+        The broad group the material belongs to. Defaults to ``MaterialCategory.OTHER``.
     absorption_coefficients : list
         A list of absorption coefficients corresponding to frequency bands.
     scattering_coefficients : list
@@ -26,13 +60,15 @@ class AcousticMaterial(Data):
         A list of transmission coefficients corresponding to frequency bands. Optional.
     """
     
-    def __init__(self, name: str, absorption_coefficients, scattering_coefficients: list = None, transmission_coefficients: list = None, description: str = None):
+    def __init__(self, name: str, absorption_coefficients, scattering_coefficients: list=None, transmission_coefficients: list=None, description: str=None, category=None, data_origin: str=None): # noqa: E501
         super().__init__()
         self.name = name
         self.description = description
+        self.category = category
         self.absorption_coefficients = absorption_coefficients
         self.scattering_coefficients = scattering_coefficients
         self.transmission_coefficients = transmission_coefficients
+        self.data_origin = data_origin or "custom"
         self.frequency_bands = Defaults().DEFAULT_FREQUENCY_BANDS
         
     
@@ -43,12 +79,23 @@ class AcousticMaterial(Data):
     
     @name.setter
     def name(self, name):
-        if " " in name:
-            raise ValueError("Material name cannot contain spaces.")
-        if any(char.isupper() for char in name):
-            raise ValueError("Material name must be lowercase.")
-        self._name = name
-        
+        if not name or not name.strip():
+            raise ValueError("Material name cannot be empty.")
+        self._name = name.strip()
+
+    @property
+    def slug(self):
+        """File-system friendly version of the name, used as file name in the materials library."""
+        return re.sub(r"[^a-z0-9.]+", "_", self.name.lower()).strip("_")
+
+    @property
+    def category(self):
+        return self._category
+
+    @category.setter
+    def category(self, category):
+        self._category = MaterialCategory.parse(category)
+
         
     @property
     def description(self):
@@ -110,6 +157,19 @@ class AcousticMaterial(Data):
             self._frequency_bands = frequency_bands
         else:
             self._frequency_bands = Defaults().DEFAULT_FREQUENCY_BANDS
+            
+    
+    @property
+    def data_origin(self):
+        return self._data_origin
+    
+    
+    @data_origin.setter
+    def data_origin(self, origin):
+        if origin:
+            self._data_origin = origin
+        else:
+            self._data_origin = "user"
     
         
     def scattering_coefficients_from_depth(self, depth, s_max=0.8, c = Defaults().DEFAULT_SPEED_OF_SOUND):
@@ -170,7 +230,7 @@ class AcousticMaterial(Data):
         """
         #TODO check if material with same name exists
         #TODO check if material with same properties exists
-        path = os.path.join(Defaults().MATERIALS_LIBRARY_PATH, f"{self.name}.json")
+        path = os.path.join(Defaults().MATERIALS_LIBRARY_PATH, f"{self.slug}.json")
         self.to_json(path, compact=True, minimal=True)
 
 
@@ -179,12 +239,14 @@ class AcousticMaterial(Data):
         return{
             "name": self.name,
             "description": self.description or "",
+            "category": self.category.value,
             "absorption_coefficients": self.absorption_coefficients,
             "scattering_coefficients": self.scattering_coefficients or [],
             "transmission_coefficients": self.transmission_coefficients or [],
+            "data_origin": self.data_origin,
         }
         
   
     def __str__(self):
-        return f"AcousticMaterial(name={self.name}, absorption_coefficients={self.absorption_coefficients})"
+        return f"AcousticMaterial(name={self.name}, category={self.category.value}, data_origin={self.data_origin}, absorption_coefficients={self.absorption_coefficients}, scattering_coefficients={self.scattering_coefficients}, transmission_coefficients={self.transmission_coefficients})" # noqa: E501
     
