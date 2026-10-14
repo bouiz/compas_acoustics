@@ -60,7 +60,7 @@ class AcousticMaterial(Data):
         A list of transmission coefficients corresponding to frequency bands. Optional.
     """
     
-    def __init__(self, name: str, absorption_coefficients, scattering_coefficients: list = None, transmission_coefficients: list = None, description: str = None, category=None, data_origin: str = None):
+    def __init__(self, name: str, absorption_coefficients, scattering_coefficients: list=None, transmission_coefficients: list=None, description: str=None, category=None, data_origin: str=None): # noqa: E501
         super().__init__()
         self.name = name
         self.description = description
@@ -68,7 +68,7 @@ class AcousticMaterial(Data):
         self.absorption_coefficients = absorption_coefficients
         self.scattering_coefficients = scattering_coefficients
         self.transmission_coefficients = transmission_coefficients
-        self.data_origin = data_origin or "user"
+        self.data_origin = data_origin or "custom"
         self.frequency_bands = Defaults().DEFAULT_FREQUENCY_BANDS
         
     
@@ -248,5 +248,5 @@ class AcousticMaterial(Data):
         
   
     def __str__(self):
-        return f"AcousticMaterial(name={self.name}, category={self.category.value}, data_origin={self.data_origin}, absorption_coefficients={self.absorption_coefficients}, scattering_coefficients={self.scattering_coefficients}, transmission_coefficients={self.transmission_coefficients})"
+        return f"AcousticMaterial(name={self.name}, category={self.category.value}, data_origin={self.data_origin}, absorption_coefficients={self.absorption_coefficients}, scattering_coefficients={self.scattering_coefficients}, transmission_coefficients={self.transmission_coefficients})" # noqa: E501
     
