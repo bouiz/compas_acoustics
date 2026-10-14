@@ -33,6 +33,10 @@
             {
                 "name": "category",
                 "description": "Category of the material."
+            },
+            {
+                "name": "data_origin",
+                "description": "Origin of the material data."
             }
         ]
     }
