@@ -1,0 +1,20 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.1,
+            0.07,
+            0.06,
+            0.06,
+            0.06,
+            0.06,
+            0.06
+        ],
+        "category": "Wood",
+        "data_origin": "pyroomacoustics",
+        "description": "Wood, stage floor, 2 layers, 27 mm over airspace. Imported from pyroomacoustics (Wood) at ff7d61f. Not given above 4000 Hz upstream, the last value is repeated.",
+        "name": "stage_floor",
+        "scattering_coefficients": [],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}

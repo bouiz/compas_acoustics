@@ -1,3 +1,5 @@
+# venv: compas_acoustics_rhino
+"""Preset picker for AcousticMaterial. Right-click to choose a material from the materials library, grouped by category."""
 # flake8: noqa
 import Grasshopper
 from System.Windows.Forms import ToolStripMenuItem
@@ -27,9 +29,17 @@ class MaterialLibraryPicker(Grasshopper.Kernel.GH_ScriptInstance):
             )
             ghenv.Component.Message = None
             return None
+        
+        mat = self.library.material_from_name(self.material_name)
+        if mat.scattering_coefficients is None:
+            ghenv.Component.AddRuntimeMessage(
+                Grasshopper.Kernel.GH_RuntimeMessageLevel.Remark,
+                "This material has no scattering coefficients. \n You must add them on your own."
+            )
+        
+        ghenv.Component.Message = f"{self.material_name} \n {mat.data_origin}"
 
-        ghenv.Component.Message = self.material_name
-        return self.library.material_from_name(self.material_name)
+        return mat
 
     def AppendAdditionalMenuItems(self, menu):
         for category, names in self.library.materials_by_category.items():
@@ -47,5 +57,5 @@ class MaterialLibraryPicker(Grasshopper.Kernel.GH_ScriptInstance):
         if name == self.material_name:
             return
         self.material_name = name
-        ghenv.Component.NickName = name
+        # ghenv.Component.NickName = name
         ghenv.Component.ExpireSolution(True)

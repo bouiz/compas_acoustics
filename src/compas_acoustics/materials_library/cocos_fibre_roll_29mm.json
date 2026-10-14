@@ -1,0 +1,20 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.1,
+            0.13,
+            0.22,
+            0.35,
+            0.47,
+            0.57,
+            0.57
+        ],
+        "category": "Floor Coverings",
+        "data_origin": "pyroomacoustics",
+        "description": "Cocos fibre roll felt, 29 mm thick (unstressed), reverse side clad with paper, 2.2 kg/m2, 2 Rayl. Imported from pyroomacoustics (Floor coverings) at ff7d61f. Not given above 4000 Hz upstream, the last value is repeated.",
+        "name": "cocos_fibre_roll_29mm",
+        "scattering_coefficients": [],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}

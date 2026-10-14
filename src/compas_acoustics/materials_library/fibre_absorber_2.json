@@ -1,0 +1,20 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.07,
+            0.07,
+            0.2,
+            0.41,
+            0.75,
+            0.97,
+            0.97
+        ],
+        "category": "Absorbers",
+        "data_origin": "pyroomacoustics",
+        "description": "Fibre absorber, mats of porous flexible fibrous web fabric, self-extinguishing. Imported from pyroomacoustics (Wall absorbers) at ff7d61f. Not given above 4000 Hz upstream, the last value is repeated.",
+        "name": "fibre_absorber_2",
+        "scattering_coefficients": [],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}

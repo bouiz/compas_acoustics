@@ -1,0 +1,20 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.02,
+            0.04,
+            0.08,
+            0.2,
+            0.35,
+            0.4,
+            0.4
+        ],
+        "category": "Floor Coverings",
+        "data_origin": "pyroomacoustics",
+        "description": "Thin carpet, cemented to concrete. Imported from pyroomacoustics (Floor coverings) at ff7d61f. Not given above 4000 Hz upstream, the last value is repeated.",
+        "name": "carpet_thin",
+        "scattering_coefficients": [],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}

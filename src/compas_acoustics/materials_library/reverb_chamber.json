@@ -1,0 +1,20 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.01,
+            0.01,
+            0.01,
+            0.02,
+            0.02,
+            0.04,
+            0.04
+        ],
+        "category": "Other",
+        "data_origin": "pyroomacoustics",
+        "description": "Reverberation chamber walls. Imported from pyroomacoustics (Massive constructions and hard surfaces) at ff7d61f.",
+        "name": "reverb_chamber",
+        "scattering_coefficients": [],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}

@@ -153,10 +153,11 @@ def import_pyroomacoustics(ref):
                 notes.append("Not given above {} Hz upstream, the last value is repeated.".format(BANDS[-padded - 1]))
             materials.append(
                 AcousticMaterial(
-                    name=material_name(key, backend),
+                    name=key,
                     absorption_coefficients=coefficients,
                     description=" ".join(notes),
                     category=PRA_OVERRIDES.get(key, group_category),
+                    data_origin=backend,
                 )
             )
 

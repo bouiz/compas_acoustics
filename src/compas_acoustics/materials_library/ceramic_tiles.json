@@ -1,0 +1,20 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.01,
+            0.01,
+            0.01,
+            0.02,
+            0.02,
+            0.02,
+            0.02
+        ],
+        "category": "Stone & Tiles",
+        "data_origin": "pyroomacoustics",
+        "description": "Ceramic tiles with a smooth surface. Imported from pyroomacoustics (Massive constructions and hard surfaces) at ff7d61f.",
+        "name": "ceramic_tiles",
+        "scattering_coefficients": [],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}

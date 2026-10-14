@@ -1,0 +1,20 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.59,
+            0.8,
+            0.82,
+            0.65,
+            0.27,
+            0.23,
+            0.23
+        ],
+        "category": "Metal",
+        "data_origin": "pyroomacoustics",
+        "description": "Metal panel ceiling, backed by 20 mm Sillan acoustic tiles, panel width 85 mm, panel spacing 15 mm, cavity 35 cm. Imported from pyroomacoustics (Ceiling absorbers) at ff7d61f. Not given above 4000 Hz upstream, the last value is repeated.",
+        "name": "ceiling_metal_panel",
+        "scattering_coefficients": [],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}

@@ -1,0 +1,20 @@
+{
+    "data": {
+        "absorption_coefficients": [
+            0.25,
+            0.45,
+            0.8,
+            0.9,
+            0.85,
+            0.8,
+            0.8
+        ],
+        "category": "Absorbers",
+        "data_origin": "pyroomacoustics",
+        "description": "Hanging absorber panels (foam), 400 mm depth, 400 mm distance. Imported from pyroomacoustics (Special absorbers) at ff7d61f. Not given above 4000 Hz upstream, the last value is repeated.",
+        "name": "hanging_absorber_panels_1",
+        "scattering_coefficients": [],
+        "transmission_coefficients": []
+    },
+    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+}
