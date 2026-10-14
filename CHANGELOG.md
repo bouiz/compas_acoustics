@@ -14,8 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions use the new `compas-dev/compas-actions` (v1). The build workflow makes the installer bundle (artifact). Releases are made with a pull request (`prepare release` workflow). After the merge, the release workflow builds the Grasshopper components into the wheel, and adds the wheel and the installer bundle to the GitHub release. Tests also run on Python 3.9.
 - `invoke pre-build` and `invoke build-cpython-ghuser-components` build the Grasshopper components with `ghpython_componentizer`.
 - `MaterialCategory` and `AcousticMaterial.category`. `MaterialsLibrary.materials_by_category`.
-- `tools/import_backend_materials.py`: imports the materials of pyroomacoustics into the materials library, with a category and the name `"<key> (from pyroomacoustics)"`.
+- `tools/import_backend_materials.py`: imports the materials of pyroomacoustics into the materials library, with a category, the key as the name, and `data_origin` set to the backend.
 - Material Library component: materials are grouped by category. Construct and Deconstruct Material components: new `category` input and output.
+- `AcousticMaterial.data_origin`: where the coefficients come from. Defaults to `"custom"`; materials imported from pyroomacoustics store `"pyroomacoustics"`. Included in serialization and in `AcousticMaterial.__str__`.
+- Material Library component: a remark when the chosen material has no scattering coefficients, and the component message shows the material name and `data_origin`.
+- Deconstruct Material component: `data_origin` output.
 - `ImpulseResponse` data class wrapping a source–receiver pair, raw IR array, sample rate, and simulation platform; includes `resampled()` for poly/FFT resampling
 - Export `ImpulseResponse` from the public package API
 - `Scene.ir_graph` — a compas `Graph` linking sources and receivers, with `ImpulseResponse` stored on edges
@@ -64,6 +67,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The `compas_acoustics` package does not use Rhino, Grasshopper or .NET anymore. This code is now in `compas_acoustics_ghpython`. On Windows, `AudioPlayer` uses `winsound` instead of `System.Media`.
 - The package installs on Python 3.9 (Rhino 8). There, it uses older versions of pyfar and pyrato, and STI is not available: `AcousticAnalyser.compute_sti` shows a warning and returns NaN.
 - **Breaking:** material names can have spaces and capital letters. Library files are named after `AcousticMaterial.slug`.
+- **Breaking:** library material names and filenames no longer include the backend suffix. Example: `carpet_thin_from_pyroomacoustics` is now `carpet_thin`. The backend is stored as `data_origin` instead. `tools/import_backend_materials.py` writes the key as the name and passes the backend as `data_origin`.
+- Material Library component no longer sets the component nickname to the selected material name.
 
 ### Fixed
 
