@@ -49,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `compas_acoustics_ghpython` — a new package for Rhino and Grasshopper, with 18 Grasshopper components covering the full workflow (Acoustic Object, Source, Receiver, Directivity, Channel, Model, Orchestra Layout, Material Library, Construct/Deconstruct Material, Simulate Ray Trace, Analyse IR, Deconstruct IR, Deconstruct IR Graph, Auralise, Audio Player, Regularized Fitness, Plot 2D, Plot 2D Settings). Build the `.ghuser` files with `invoke build-cpython-ghuser-components`
 - `compas_acoustics_ghpython.plotter` — `AcousticParameter`, `Plotter2D`, `Plotter2DSettings` for plotting acoustic parameters in Rhino/Grasshopper
 - `sounddevice` added as a runtime dependency (used by `AudioPlayer.play_array`); `ghpython_componentizer` added as a dev dependency
+- `tests/test_python39.py`: the package imports on Python 3.9 without the optional dependencies
 
 ### Changed
 
@@ -76,6 +77,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Simulator._pyroomacoustics_simulation` now passes surface scattering coefficients to `pyroomacoustics.Material` correctly; previously the whole material dict was passed as the positional `energy_absorption` argument and scattering was silently dropped (always zero)
 - `AcousticObject.display_surface_groups_in_viewer`, `Scene.display_surface_groups_in_viewer`, and `RayField.display_in_viewer` now call `compas.is_rhino()` instead of treating it as a boolean attribute, so the Rhino guard actually raises when appropriate
 - `Auraliser` now resolves its default HRTF file via `Defaults.HRTF_LIBRARY_PATH` and ships `mit_kemar_normal_pinna.sofa`; previously it pointed at `KEMAR_Knowl_EarSim_SmallEars_FreeFieldComp_48kHz.sofa`, a file not present anywhere in the repository
+- `AcousticAnalyser.compute_sti` now zero-pads IRs shorter than the 1.6 s required by IEC 60268-16:2020 instead of silently returning NaN for STI, and warns when the STI computation fails rather than swallowing the error
 
 ### Removed
 

@@ -19,6 +19,9 @@ _STI_SUPPORTED = hasattr(pyrato, 'parameters') and hasattr(pyrato.parameters, 's
 # Parameters whose "Overall" is averaged over 500 & 1000 Hz (ISO 3382-1:2009)
 _RT_PARAMS = {'EDT', 'T20', 'T30'}
 
+# Minimum IR length for STI in seconds (IEC 60268-16:2020, Section 6.2)
+_STI_MIN_DURATION = 1.6
+
 
 class AcousticAnalyser(Data):
     """Class for analyzing acoustic parameters from an impulse response (IR).
@@ -289,6 +292,9 @@ class AcousticAnalyser(Data):
         Uses pyrato's modulation_transfer_function and speech_transmission_index_indirect
         per IEC 60268-16:2020. Overall STI is computed by pyrato; per-band MTI is derived
         from the MTF via the standard TI conversion.
+
+        IRs shorter than the 1.6 s required by IEC 60268-16:2020 (Section 6.2) are
+        zero-padded to that length, which assumes the IR has fully decayed.
         """
         if not _STI_SUPPORTED:
             warnings.warn(
@@ -301,6 +307,9 @@ class AcousticAnalyser(Data):
             impulse_response = self.ir
 
         ir_array = np.asarray(impulse_response, dtype=float)
+        min_samples = int(np.ceil(_STI_MIN_DURATION * self.sampling_rate))
+        if ir_array.size < min_samples:
+            ir_array = np.pad(ir_array, (0, min_samples - ir_array.size))
         sig = pf.Signal(ir_array, self.sampling_rate)
         snr_arg = float(snr) if np.ndim(snr) == 0 else snr
         try:
@@ -309,7 +318,8 @@ class AcousticAnalyser(Data):
             snr_app = 10.0 * np.log10(mtf / (1.0 - mtf + 1e-12) + 1e-12)
             mti = np.mean(np.clip((snr_app + 15.0) / 30.0, 0, 1), axis=-1)  # (7,)
             sti_val = round(float(np.squeeze(pyrato.parameters.speech_transmission_index_indirect(sig, snr=snr_arg))), 4)
-        except Exception:
+        except Exception as e:
+            warnings.warn(f"STI computation failed: {e}")
             mti = np.full(7, np.nan)
             sti_val = np.nan
         return {'mti': mti, 'sti': sti_val}

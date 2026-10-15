@@ -4,7 +4,10 @@ import numpy as np
 import pytest
 
 from compas_acoustics import AcousticAnalyser
+from compas_acoustics.analyser import _STI_SUPPORTED
 from compas_acoustics.defaults import Defaults
+
+needs_sti = pytest.mark.skipif(not _STI_SUPPORTED, reason="STI needs pyrato >= 1.0")
 
 
 def make_ir(duration=2.0, seed=0):
@@ -77,3 +80,35 @@ def test_multichannel_analysis_matches_first_channel_alone():
             equal_nan=True,
             err_msg=f"{key} differs between multichannel and mono input",
         )
+
+
+@needs_sti
+def test_sti_is_finite_for_ir_shorter_than_iec_minimum():
+    analyser = AcousticAnalyser(make_ir(duration=1.0))
+    analyser.analyse()
+    assert np.isfinite(analyser.STI_overall)
+    assert np.all(np.isfinite(analyser.STI))
+
+
+@needs_sti
+def test_sti_of_short_ir_matches_zero_padded_ir():
+    fs = Defaults().SAMPLING_RATE
+    short = make_ir(duration=1.0)
+    padded = np.pad(short, (0, int(1.6 * fs) - short.size))
+    np.testing.assert_allclose(
+        AcousticAnalyser(short).compute_sti()["mti"],
+        AcousticAnalyser(padded).compute_sti()["mti"],
+    )
+
+
+@needs_sti
+def test_sti_failure_warns_instead_of_passing_silently(monkeypatch):
+    import pyrato
+
+    def fail(*args, **kwargs):
+        raise ValueError("boom")
+
+    monkeypatch.setattr(pyrato.parameters, "modulation_transfer_function", fail)
+    with pytest.warns(UserWarning, match="STI computation failed: boom"):
+        result = AcousticAnalyser(make_ir()).compute_sti()
+    assert np.isnan(result["sti"])
