@@ -62,9 +62,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Auraliser` output level: `level='relative'` (default; one gain for a group of renders so the loudest peaks at `headroom_db`, keeping level differences), `'individual'` or `'none'`, `headroom_db=-1`; `Auraliser.render_gains()` and `Auraliser.peak_dbfs()`; `export_convolved_sound(..., gain=None)`
 - `AudioPlayer.play(..., normalize=True)` option to play arrays at their rendered level
 - Grasshopper: Auralise `level` input (Value List) applying one gain across all signals of a run and showing the output peak in dBFS; Audio Player `normalize` input; Simulate Ray Tracing `normalize` input
+- `RoomGeometry` — a scene's surfaces as one validated room: vertices welded transitively across objects, surfaces oriented consistently and outward, closedness checked, obstacles stored two-sided while the drawn obstacles stay available (`obstacle_faces`), materials extended to a 62.5 Hz band; `RoomGeometry.from_mesh()` for shared vertices and faces; coplanar faces merged by default in `from_scene`; `to_pra()` builds the pyroomacoustics room at any sample rate, holding the 8 kHz coefficients above 8 kHz, and gives a material without scattering coefficients a scattering of 0.05 in every band (`room_geometry.DEFAULT_SCATTERING`)
+- `RoomGeometry.is_inside()` — generalised winding numbers over the drawn faces: a point inside a closed obstacle (a pillar, a cabinet) is outside the room, and a scene without a closed boundary (an open field) has no outside; every pyroomacoustics room built by `to_pra` answers `is_inside` with it
+- `RoomGeometry.mergeable_faces` and a `UserWarning` when coplanar neighbours of one object and material could be merged (triangulated Rhino surfaces lose image sources at their seams)
+- `role` on `AcousticObject` and `AcousticObjectsGroup` (`'boundary'` or `'obstacle'`, inherited through groups) and `Scene.iter_acoustic_objects_with_roles()`: obstacles are free-standing objects inside the room, boundaries close it
+- `compas_acoustics.diffuse` — Sabine and Eyring reverberation times through pyrato (`predicted_rt`, `mean_absorption`, `DiffuseFieldWarning`), in closed form on pyrato < 1.0 (Python 3.9)
+- Receiver orientation: `Receiver.up`, `Receiver.rotation` (columns facing, left, up), `Receiver.frame` and `Receiver.from_frame()`; the orientation sets the axes of ambisonic responses (x facing, y left, z up), and `transform()` turns it with the receiver
 
 ### Changed
 
+- `Receiver.direction` defaults to +x instead of +z
 - **Breaking:** `Simulator.rir_from_image_source_method()` and `Simulator.rir_from_ray_tracing()` now return `dict[str, ImpulseResponse]` (keys `{receiver_guid}_{source_guid}`) instead of a nested `list[list[ndarray]]`
 - **Breaking:** RIRs are returned at the simulation sample rate; automatic resampling to `Defaults.SAMPLING_RATE` was removed — use `ImpulseResponse.resampled()` when a different rate is needed
 - `Simulator` now populates `scene.ir_graph` automatically after each successful RIR computation
@@ -115,6 +122,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Simulations above 16 kHz with air absorption failed because wall materials kept 7 octave bands while pyroomacoustics uses 8; `pra_converter.material_to_pra()` now resamples materials to the room's octave bands (`room_octave_bands()`), holding the 8 kHz value for the 16 kHz band, and treats missing scattering coefficients as zero
 - `pra_converter.receivers_to_pra_mic_array()` read `Defaults.SAMPLING_RATE` from the class, which returned the property object instead of the sample rate
 - Grasshopper Simulate Ray Tracing component reports the sample rate of the generated impulse responses
+- `Receiver` and `Source` serialise their name, orientation or directivity, and settings (`__data__`), so JSON and `copy()` keep them (they kept only the position and failed to load)
 
 ### Removed
 

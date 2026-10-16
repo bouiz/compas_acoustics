@@ -197,5 +197,35 @@ class Source(Point):
         return source
     
     
+    @property
+    def __data__(self):
+        return {
+            "name": self.name,
+            "point": [float(v) for v in self.position],
+            "directivity": self.directivity,
+            "direction": [float(v) for v in self.direction],
+            "sound_file": self.sound_file,
+            "spl": list(self.spl),
+            "description": self.description,
+        }
+
+
+    @classmethod
+    def __from_data__(cls, data):
+        source = cls(data["name"], *data["point"], directivity=data.get("directivity"), direction=data.get("direction"))
+        # Already mono when it was stored, and it may not exist on this machine
+        source._sound_file = data.get("sound_file")
+        if data.get("spl") is not None:
+            source.spl = data["spl"]
+        source.description = data.get("description")
+        return source
+
+
+    def transform(self, T):
+        """Transform the source: its position and its direction."""
+        super().transform(T)
+        self.direction = self.direction.transformed(T)
+
+
     def __str__(self):
         return f"Source(name={self.name}, description={self.description}, position={self.position})"

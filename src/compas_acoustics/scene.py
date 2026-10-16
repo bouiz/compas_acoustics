@@ -104,8 +104,14 @@ class Scene(Data):
         """Yield every leaf :class:`AcousticObject` in the scene, recursing into groups."""
         for acoustic_object in self.acoustic_objects:
             yield from acoustic_object.iter_acoustic_objects()
-    
-    
+
+
+    def iter_acoustic_objects_with_roles(self):
+        """Yield ``(leaf, role)`` for every leaf :class:`AcousticObject`, roles resolved through groups."""
+        for acoustic_object in self.acoustic_objects:
+            yield from acoustic_object.iter_acoustic_objects_with_roles()
+
+
     @property
     def scene_materials(self):
         """The unique acoustic materials used in the scene, keyed by material name."""

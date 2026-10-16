@@ -9,6 +9,7 @@ from .source import Source
 from .receiver import Receiver
 from .geometry import AcousticObject, AcousticObjectsGroup, AcousticObjectsLibrary
 from .ir import ImpulseResponse
+from .room_geometry import RoomGeometry
 from .ray import Ray, ScatteredRay, RayField
 from .scene import Scene
 from .analyser import AcousticAnalyser
@@ -46,6 +47,7 @@ __all__ = [
     'AudioPlayer',
     # 'Tools',
     'ImpulseResponse',
+    'RoomGeometry',
     'regularized_fitness',
     'pra_converter',
     'orchestra_layouts',

@@ -9,9 +9,19 @@ from compas_acoustics.acoustic_material import AcousticMaterial
 
 __all__ = ['AcousticObject', 'AcousticObjectsGroup', 'AcousticObjectsLibrary']
 
+#: Roles a surface can play: part of the closed room, or a free-standing object inside it.
+ROLES = ('boundary', 'obstacle')
+
+
+def _checked_role(role):
+    if role is not None and role not in ROLES:
+        raise ValueError(f"role must be None or one of {ROLES}, got {role!r}")
+    return role
+
+
 class AcousticObject(Data):
     
-    def __init__(self, acoustic_geometry:Mesh, material: AcousticMaterial, x:float=0, y:float=0, z:float=0, name:str=None):
+    def __init__(self, acoustic_geometry:Mesh, material: AcousticMaterial, x:float=0, y:float=0, z:float=0, name:str=None, role:str=None):
         """Initialize Acoustic object
 
         Parameters
@@ -28,6 +38,9 @@ class AcousticObject(Data):
             The z-coordinate of the geometry's reference point.
         name : str
             The name of the acoustic object. Optional. If not provided, a unique identifier will be generated.
+        role : str
+            ``'boundary'`` (part of the closed room), ``'obstacle'`` (a free-standing
+            object inside it), or None to take the enclosing group's role, else ``'boundary'``.
         """
         super().__init__(name=name)
         self._x = x
@@ -35,6 +48,7 @@ class AcousticObject(Data):
         self._z = z
         self.acoustic_geometry = acoustic_geometry
         self.material = material
+        self.role = role
         self.sources = []
         self.visualisation_geometry = None
         
@@ -95,6 +109,21 @@ class AcousticObject(Data):
 
 
     @property
+    def role(self):
+        return self._role
+
+
+    @role.setter
+    def role(self, role):
+        self._role = _checked_role(role)
+
+
+    def iter_acoustic_objects_with_roles(self, inherited=None):
+        """Yield ``(self, role)``: its own role, else ``inherited``, else ``'boundary'``."""
+        yield self, self.role or inherited or 'boundary'
+
+
+    @property
     def visualisation_geometry(self):
         return self._visualisation_geometry
 
@@ -124,11 +153,15 @@ class AcousticObjectsGroup(Data):
         The name of the group. Optional.
     acoustic_objects : list
         The acoustic objects (or nested groups) contained in this group. Optional.
+    role : str
+        ``'boundary'``, ``'obstacle'``, or None to take the enclosing group's role.
+        A role set on a contained object or nested group overrides it.
     """
 
-    def __init__(self, name:str=None, acoustic_objects:list=None):
+    def __init__(self, name:str=None, acoustic_objects:list=None, role:str=None):
         super().__init__(name=name)
         self.acoustic_objects = acoustic_objects if acoustic_objects is not None else []
+        self.role = role
 
     @property
     def id(self):
@@ -163,6 +196,20 @@ class AcousticObjectsGroup(Data):
         """
         for item in self.acoustic_objects:
             yield from item.iter_acoustic_objects()
+
+    @property
+    def role(self):
+        return self._role
+
+    @role.setter
+    def role(self, role):
+        self._role = _checked_role(role)
+
+    def iter_acoustic_objects_with_roles(self, inherited=None):
+        """Yield ``(leaf, role)`` for every leaf, the nearest explicit role winning."""
+        role = self.role or inherited
+        for item in self.acoustic_objects:
+            yield from item.iter_acoustic_objects_with_roles(role)
 
     def add_acoustic_object(self, acoustic_object:AcousticObject):
         self.acoustic_objects.append(acoustic_object)
