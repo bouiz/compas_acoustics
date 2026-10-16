@@ -40,10 +40,8 @@ class PlayAudio(Grasshopper.Kernel.GH_ScriptInstance):
 
         doc.ScheduleSolution(1, deferred)
 
-    def RunScript(self, sound, play, stop):
+    def RunScript(self, sound, play, stop, sample_rate):
         self.offer_buttons()
-
-        sample_rate = None
 
         if sound is None:
             return
@@ -60,7 +58,12 @@ class PlayAudio(Grasshopper.Kernel.GH_ScriptInstance):
             except:
                 pass
         elif hasattr(sound, "shape") and hasattr(sound, "ndim"):  # numpy array
-            pass
+            if sound.ndim == 2 and sound.shape[1] > 2:
+                ghenv.Component.AddRuntimeMessage(
+                    Grasshopper.Kernel.GH_RuntimeMessageLevel.Error,
+                    "Only mono or stereo signals can be played. Save ambisonic signals as a multichannel file, or auralise to binaural for headphone playback."
+                )
+                return
         else:
             ghenv.Component.AddRuntimeMessage(
                 Grasshopper.Kernel.GH_RuntimeMessageLevel.Error, "Input parameter 'sound' is not valid."

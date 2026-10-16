@@ -3,7 +3,7 @@
     "nickname": "Player",
     "category": "COMPAS Acoustics",
     "subcategory": "06 Util",
-    "description": "Play audio files, accepting .wav, numpy arrays, and Source objects.",
+    "description": "Play mono or stereo audio, accepting .wav files, numpy arrays, and Source objects.",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,
@@ -29,6 +29,13 @@
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "bool"
+            },
+            {
+                "name": "sample_rate",
+                "description": "Sample rate of a numpy array sound, in Hz, e.g. from the Auralise component. Default is the project sample rate.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "int"
             }
         ],
         "outputParameters": []

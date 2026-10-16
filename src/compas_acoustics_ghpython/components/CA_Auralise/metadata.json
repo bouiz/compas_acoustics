@@ -3,7 +3,7 @@
     "nickname": "Auralise",
     "category": "COMPAS Acoustics",
     "subcategory": "04 Auralisation",
-    "description": "Auralise the room scene by convolving the impulse response with the source signal(s).",
+    "description": "Auralise the room scene by convolving the impulse response with the source signal(s) and decoding to the chosen output format.",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,
@@ -50,12 +50,30 @@
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "bool"
+            },
+            {
+                "name": "output_format",
+                "description": "Output format: 'stereo' (default, loudspeakers), 'binaural' (headphones, needs ambisonic impulse responses), 'mono', or 'ambisonics' (multichannel file only, cannot be played).",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "str"
+            },
+            {
+                "name": "hrtf",
+                "description": "HRTF set for binaural output: 'kemar_normal_pinna' (default), 'kemar_large_pinna', or the path to a .sofa file.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "str"
             }
         ],
         "outputParameters": [
             {
                 "name": "signals",
-                "description": "Convolved signal(s)."
+                "description": "Auralised signal(s) in the output format, shaped (samples, channels)."
+            },
+            {
+                "name": "sample_rate",
+                "description": "Sample rate of each auralised signal, in Hz."
             }
         ]
     }
