@@ -18,7 +18,6 @@ from .audio_player import AudioPlayer
 from .numerical.fitness import regularized_fitness
 from . import pra_converter
 from . import orchestra_layouts
-from . import stage_acoustics
 
 
 __author__ = ["Achilleas Xydis"]
@@ -50,5 +49,4 @@ __all__ = [
     'regularized_fitness',
     'pra_converter',
     'orchestra_layouts',
-    'stage_acoustics',
     ]

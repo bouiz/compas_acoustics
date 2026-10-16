@@ -11,7 +11,8 @@ class AnalyseIR(Grasshopper.Kernel.GH_ScriptInstance):
             ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning, "Input parameter 'ir' failed to collect data.")
             return None
 
-        analyser = AcousticAnalyser(ir.ir)
+        # Pass the ImpulseResponse so its sample rate is used
+        analyser = AcousticAnalyser(ir)
         analyser.analyse()
 
         return [AcousticParameter().from_analyser(analyser, name) for name in Defaults().PARAM_NAMES]
