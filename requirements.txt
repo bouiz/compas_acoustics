@@ -1,5 +1,5 @@
 compas >=2.13, <3.0
-pyroomacoustics >=0.10.1
+pyroomacoustics >=0.10.1, <0.11
 matplotlib >=3.10, <4.0; python_version >= "3.10"
 matplotlib >=3.7, <4.0; python_version < "3.10"
 sounddevice

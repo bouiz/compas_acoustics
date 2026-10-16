@@ -271,6 +271,72 @@ class AcousticObjectsLibrary:
         )
 
     @classmethod
+    def from_obj(cls, filepath, materials, roles=None, name=None):
+        """
+        Read a Wavefront OBJ file as a group with one :class:`AcousticObject` per OBJ group.
+
+        Each ``g`` group of the file (Rhino writes one per layer or object) becomes an
+        acoustic object named after it; faces before any ``g`` line belong to ``"default"``.
+        Coordinates are taken as metres. Vertices shared between groups are welded later,
+        by :class:`compas_acoustics.RoomGeometry`. The group-to-material convention is
+        hybrid-rir's ``MeshGeometry.from_obj``.
+
+        Parameters
+        ----------
+        filepath : str
+            The OBJ file.
+        materials : :class:`AcousticMaterial` or dict
+            One material for every group, or a dict keyed by group name. A group
+            without a material raises a ``ValueError`` naming it.
+        roles : str or dict, optional
+            ``'boundary'`` or ``'obstacle'`` for the whole file (``'obstacle'`` for
+            furniture), or a dict keyed by group name; groups not in it take the
+            enclosing group's role, else ``'boundary'``.
+        name : str, optional
+            The name of the returned group; defaults to the file name.
+
+        Returns
+        -------
+        :class:`AcousticObjectsGroup`
+        """
+        import os
+
+        points = []
+        groups = {}
+        group = "default"
+        with open(filepath) as f:
+            for line in f:
+                tokens = line.split()
+                if not tokens:
+                    continue
+                if tokens[0] == "v":
+                    points.append([float(c) for c in tokens[1:4]])
+                elif tokens[0] == "g" and len(tokens) > 1:
+                    group = " ".join(tokens[1:])
+                elif tokens[0] == "f":
+                    # 1-based, possibly v/vt/vn or negative (relative to the vertices read so far)
+                    indices = [int(token.split("/")[0]) for token in tokens[1:]]
+                    groups.setdefault(group, []).append([i - 1 if i > 0 else len(points) + i for i in indices])
+
+        if name is None:
+            name = os.path.splitext(os.path.basename(filepath))[0]
+        whole_file_role = roles if isinstance(roles, str) or roles is None else None
+        objects = []
+        for group, faces in groups.items():
+            if isinstance(materials, AcousticMaterial):
+                material = materials
+            elif group in materials:
+                material = materials[group]
+            else:
+                raise ValueError(f"No material for OBJ group '{group}' of {filepath}; groups: {sorted(groups)}")
+            used = sorted({i for face in faces for i in face})
+            index = {old: new for new, old in enumerate(used)}
+            mesh = Mesh.from_vertices_and_faces([points[i] for i in used], [[index[i] for i in face] for face in faces])
+            role = roles.get(group) if isinstance(roles, dict) else None
+            objects.append(AcousticObject(mesh, material, name=f"{name}_{group}", role=role))
+        return AcousticObjectsGroup(name=name, acoustic_objects=objects, role=whole_file_role)
+
+    @classmethod
     def shoebox_room(cls, length:float, width:float, height:float, materials=None, sources:list=None, name:str=None):
         """
         Create a shoebox room as a group of six single-material surfaces.

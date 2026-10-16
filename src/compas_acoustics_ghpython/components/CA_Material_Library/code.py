@@ -34,7 +34,7 @@ class MaterialLibraryPicker(Grasshopper.Kernel.GH_ScriptInstance):
         if mat.scattering_coefficients is None:
             ghenv.Component.AddRuntimeMessage(
                 Grasshopper.Kernel.GH_RuntimeMessageLevel.Remark,
-                "This material has no scattering coefficients. \n You must add them on your own."
+                "This material has no scattering coefficients. \n Simulations use 0.05 in every band; add your own to change that."
             )
         
         ghenv.Component.Message = f"{self.material_name} \n {mat.data_origin}"

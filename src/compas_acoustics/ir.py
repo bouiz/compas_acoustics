@@ -9,6 +9,7 @@ from compas.data import Data
 from numpy.typing import NDArray
 from scipy import signal
 
+from compas_acoustics.defaults import Defaults
 from compas_acoustics.receiver import Receiver
 from compas_acoustics.source import Source
 
@@ -39,26 +40,34 @@ class ImpulseResponse(Data):
         The raw impulse response, shaped (samples,) or (samples, channels).
     sample_rate : int
         The sample rate in Hz.
-    simulation_platform : str
-        The platform that generated the impulse response.
     normalized : bool, optional
         Whether :attr:`ir` returns the peak-normalised response. Default is True.
     generation : dict, optional
         How the impulse response was generated, e.g. the method and its settings.
         Written to the JSON metadata on export.
+    ambisonic_order : int, optional
+        The ambisonic order of a multichannel response, or None for a mono or
+        non-ambisonic one.
+    normalisation : str, optional
+        The ambisonic normalisation, ``'sn3d'`` or ``'n3d'``.
+    channel_order : str, optional
+        The ambisonic channel order, ``'acn'``.
     """
 
-    def __init__(self, name: str, source: Source, receiver: Receiver, ir: np.ndarray, sample_rate: int, simulation_platform: str,
-                 normalized: bool = True, generation: dict = None):
+    def __init__(self, name: str, source: Source, receiver: Receiver, ir: np.ndarray, sample_rate: int,
+                 normalized: bool = True, generation: dict = None, ambisonic_order: int = None, normalisation: str = None,
+                 channel_order: str = None):
         super().__init__(name=name)
         self.source = source
         self.receiver = receiver
         self.description = f"{receiver.name} - {source.name}"
         self.ir = ir
         self.sample_rate = sample_rate
-        self.simulation_platform = simulation_platform
         self.normalized = normalized
         self.generation = dict(generation) if generation else {}
+        self.ambisonic_order = ambisonic_order
+        self.normalisation = normalisation
+        self.channel_order = channel_order
 
 
     @property
@@ -74,7 +83,10 @@ class ImpulseResponse(Data):
 
     @ir.setter
     def ir(self, ir):
-        self._raw_ir = np.asarray(ir, dtype=float)
+        ir = np.asarray(ir, dtype=float)
+        if ir.ndim not in (1, 2):
+            raise ValueError(f"An impulse response is shaped (samples,) or (samples, channels), not {ir.shape}")
+        self._raw_ir = ir
         peak = float(np.max(np.abs(self._raw_ir))) if self._raw_ir.size else 0.0
         # A silent impulse response is left unscaled
         self._normalization_factor = peak if peak > 0 else 1.0
@@ -84,6 +96,12 @@ class ImpulseResponse(Data):
     def normalization_factor(self):
         """float : Peak absolute value of the raw impulse response across all channels."""
         return self._normalization_factor
+
+
+    @property
+    def n_channels(self):
+        """int : The number of channels."""
+        return 1 if self._raw_ir.ndim == 1 else self._raw_ir.shape[1]
 
 
     @property
@@ -131,44 +149,52 @@ class ImpulseResponse(Data):
 
 
     def resampled(self, target_sample_rate: int, method: str = "poly") -> NDArray[np.float64]:
-        """
-        Resample a single 1D impulse response.
+        """Return :attr:`ir` resampled to ``target_sample_rate``, every channel along axis 0.
 
         Parameters
         ----------
-        ir : ArrayLike
-            1D impulse response.
-        orig_sr : int
-            Original sample rate.
-        target_sr : int
-            Target sample rate.
+        target_sample_rate : int
+            Target sample rate in Hz.
         method : str, default="poly"
             Resampling method: "poly" or "fft".
 
         Returns
         -------
         NDArray[np.float64]
-            Resampled 1D impulse response.
+            The resampled impulse response, shaped as :attr:`ir`.
         """
         ir_array = np.asarray(self.ir, dtype=np.float64)
-
-        if ir_array.ndim != 1:
-            raise ValueError("ir must be a 1D array")
 
         if self.sample_rate == target_sample_rate:
             return ir_array.copy()
 
         if method == "poly":
-            g = gcd(self.sample_rate, target_sample_rate)
-            up = target_sample_rate // g
-            down = self.sample_rate // g
-            return signal.resample_poly(ir_array, up, down)
+            g = gcd(int(self.sample_rate), int(target_sample_rate))
+            up = int(target_sample_rate) // g
+            down = int(self.sample_rate) // g
+            return signal.resample_poly(ir_array, up, down, axis=0)
 
         if method == "fft":
             new_len = int(round(len(ir_array) * target_sample_rate / self.sample_rate))
-            return signal.resample(ir_array, new_len)
+            return signal.resample(ir_array, new_len, axis=0)
 
         raise ValueError("method must be 'poly' or 'fft'")
+
+
+    def direct_sound_index(self, speed_of_sound: float = None) -> int:
+        """Sample of the direct sound.
+
+        On the package scale (``generation['scale'] == 'package'``) the direct
+        sound sits on its geometric sample, distance / c, even when early
+        ray-traced histogram bins are louder or an obstacle blocks it.
+        Otherwise the largest sample of the omnidirectional channel.
+        """
+        if self.generation.get("scale") == "package":
+            c = speed_of_sound or self.generation.get("speed_of_sound") or Defaults().DEFAULT_SPEED_OF_SOUND
+            distance = float(np.linalg.norm(np.subtract(self.receiver.position, self.source.position)))
+            return int(round(distance / c * self.sample_rate))
+        omni = self._raw_ir if self._raw_ir.ndim == 1 else self._raw_ir[:, 0]
+        return int(np.argmax(omni ** 2))
 
 
     # Export and import
@@ -178,7 +204,6 @@ class ImpulseResponse(Data):
         """dict : Metadata describing the impulse response and how it was generated."""
         import compas_acoustics
 
-        channels = 1 if self._raw_ir.ndim == 1 else self._raw_ir.shape[1]
         return {
             'metadata_version': _METADATA_VERSION,
             'compas_acoustics_version': compas_acoustics.__version__,
@@ -187,14 +212,18 @@ class ImpulseResponse(Data):
             'description': self.description,
             'sample_rate': self.sample_rate,
             'samples': int(self._raw_ir.shape[0]),
-            'channels': channels,
-            'simulation_platform': self.simulation_platform,
+            'channels': self.n_channels,
             'generation': self.generation,
             'normalization': {
                 'method': 'peak',
                 'wav_normalized': True,
                 'factor': self.normalization_factor,
                 'level_db': self.level_db,
+            },
+            'ambisonics': None if self.ambisonic_order is None else {
+                'order': int(self.ambisonic_order),
+                'normalisation': self.normalisation,
+                'channel_order': self.channel_order,
             },
             'source': {
                 'name': self.source.name,
@@ -207,6 +236,7 @@ class ImpulseResponse(Data):
                 'name': self.receiver.name,
                 'position': [float(v) for v in self.receiver.position],
                 'direction': [float(v) for v in self.receiver.direction],
+                'up': [float(v) for v in self.receiver.up],
             },
         }
 
@@ -274,7 +304,9 @@ class ImpulseResponse(Data):
                             directivity=source_data.get('directivity'))
         if receiver is None:
             receiver_data = metadata.get('receiver', {})
-            receiver = Receiver(receiver_data.get('name', 'receiver'), *receiver_data.get('position', [0.0, 0.0, 0.0]))
+            receiver = Receiver(receiver_data.get('name', 'receiver'), *receiver_data.get('position', [0.0, 0.0, 0.0]),
+                                direction=receiver_data.get('direction'), up=receiver_data.get('up'))
+        ambisonics = metadata.get('ambisonics') or {}
 
         return cls(
             name=metadata.get('name', wav_path.stem),
@@ -282,7 +314,9 @@ class ImpulseResponse(Data):
             receiver=receiver,
             ir=data,
             sample_rate=sample_rate,
-            simulation_platform=metadata.get('simulation_platform', 'unknown'),
             normalized=normalized,
             generation=metadata.get('generation'),
+            ambisonic_order=ambisonics.get('order'),
+            normalisation=ambisonics.get('normalisation'),
+            channel_order=ambisonics.get('channel_order'),
         )

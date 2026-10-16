@@ -10,8 +10,6 @@ from compas.geometry import Vector
 
 import compas_acoustics as ca
 
-########### create a shoebox room
-room = ca.AcousticObjectsLibrary.shoebox_room(length=5, width=4, height=3)
 
 
 ########### create sources and receivers
@@ -22,7 +20,6 @@ receiver_1 = ca.Receiver(x=2.0, y=2.0, z=1.6, name="receiver_1")
 
 ########### create a scene
 scene = ca.Scene(name="Ray Demo Scene", description="Specular ray visualisation.")
-scene.add_acoustic_object(room)
 scene.add_source(source_1)
 scene.add_source(source_2)
 scene.add_receiver(receiver_1)
@@ -30,20 +27,20 @@ scene.add_receiver(receiver_1)
 
 ########### assign acoustic materials
 concrete = ca.AcousticMaterial(name="concrete", absorption_coefficients=[0.01, 0.01, 0.02, 0.02, 0.02, 0.05, 0.05])
-scene.acoustic_materials = {
+room = ca.AcousticObjectsLibrary.shoebox_room(length=5, width=4, height=3, materials={
     "floor": concrete,
     "left_wall": concrete,
     "front_wall": concrete,
     "right_wall": concrete,
     "back_wall": concrete,
     "ceiling": concrete,
-}
+})
+scene.add_acoustic_object(room)
 
 
 ########### trace the rays directly into a spotlight cone
 cone_axis = Vector(-1, -1, 0)
-simulator = ca.Simulator(scene, simulation_platform="pyroomacoustics")
-rays = simulator.trace_rays(n_rays=500, max_reflection_order=6, direction=cone_axis, angle=25)
+rays = ca.RayField.from_scene(scene, n_rays=500, max_reflection_order=6, direction=cone_axis, angle=25)
 print(f"Traced {len(rays)} rays into the 25 degree cone.")
 
 

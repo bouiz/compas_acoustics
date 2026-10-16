@@ -11,7 +11,7 @@ from compas_acoustics.defaults import Defaults
 __all__ = ["AcousticAnalyser"]
 
 # Row order used throughout the class
-_PARAM_NAMES = ['EDT', 'T20', 'T30', 'C50', 'C80', 'D50', 'DRR', 'Ts', 'STI']
+_PARAM_NAMES = ['EDT', 'T20', 'T30', 'C50', 'C80', 'D50', 'DRR', 'Ts', 'STI', 'G']
 
 # Parameters whose "Overall" is averaged over 500 & 1000 Hz (ISO 3382-1:2009)
 _RT_PARAMS = {'EDT', 'T20', 'T30'}
@@ -31,6 +31,9 @@ _STAGE_SUPPORT_BANDS = [250, 500, 1000, 2000]
 
 # Single-number strength G averages the 500 and 1000 Hz octaves (ISO 3382-1:2009 Table A.1)
 _STRENGTH_BANDS = [500, 1000]
+
+# Distance of the free-field reference of G, in metres (ISO 3382-1:2009 Section 4.3)
+_STRENGTH_DISTANCE = 10.0
 
 # Zero padding after a windowed segment so the octave filters can ring out, in seconds
 _FILTER_TAIL = 0.5
@@ -64,7 +67,17 @@ class AcousticAnalyser(Data):
     
     @ir.setter
     def ir(self, ir):
+        # Geometric direct-sound sample of a package-scale response (see ImpulseResponse.direct_sound_index):
+        # the ISO 3382-1 rule would pick an early ray-traced bin louder than the direct sound.
+        generation = getattr(ir, 'generation', None) or {}
+        self._package_scale = generation.get('scale') == 'package'
+        self.onset = ir.direct_sound_index() if self._package_scale else None
         self._ir = self._as_mono_array(ir)
+
+    def _on_package_scale(self, ir=None):
+        if ir is None:
+            return self._package_scale
+        return (getattr(ir, 'generation', None) or {}).get('scale') == 'package'
 
     @staticmethod
     def _as_mono_array(ir):
@@ -120,6 +133,10 @@ class AcousticAnalyser(Data):
     def Ts(self):
         return self.analysis_data['Ts'] if self.analysis_data else None
     
+    @property
+    def G(self):
+        return self.analysis_data['G'] if self.analysis_data else None
+
     @property
     def EDT(self):
         return self.analysis_data['EDT'] if self.analysis_data else None
@@ -301,7 +318,10 @@ class AcousticAnalyser(Data):
 
         ir_array = np.asarray(impulse_response, dtype=float)
         d_half = int(0.0025 * self.sampling_rate)
-        peak_idx = int(np.argmax(ir_array ** 2))
+        if self.onset is not None and ir_array is self.ir:
+            peak_idx = self.onset
+        else:
+            peak_idx = int(np.argmax(ir_array ** 2))
         i_dir_start = max(0, peak_idx - d_half)
         i_dir_end = min(len(ir_array), peak_idx + d_half)
 
@@ -385,6 +405,9 @@ class AcousticAnalyser(Data):
 
     def _direct_sound_onset(self, ir_array) -> int:
         """Index of the direct sound: the first sample within 20 dB of the maximum (ISO 3382-1)."""
+        # The stored onset belongs to the analyser's own response only
+        if self.onset is not None and ir_array is self.ir:
+            return self.onset
         energy = ir_array ** 2
         return int(np.argmax(energy >= np.max(energy) * 0.01))
 
@@ -437,7 +460,7 @@ class AcousticAnalyser(Data):
             result[f'{name}_overall'] = round(float(np.nanmean([values[f] for f in _STAGE_SUPPORT_BANDS])), 2)
         return result
 
-    def sound_strength(self, reference_ir, impulse_response=None) -> dict:
+    def sound_strength(self, reference_ir=None, impulse_response=None) -> dict:
         """Compute the sound strength G per octave band with pyrato.
 
         G is the total energy of the impulse response relative to the energy of a
@@ -448,8 +471,10 @@ class AcousticAnalyser(Data):
 
         Parameters
         ----------
-        reference_ir : ImpulseResponse or np.ndarray
+        reference_ir : ImpulseResponse or np.ndarray, optional
             Free-field impulse response of the same source at 10 m, at the same sample rate.
+            Without one, the package-scale free field ``1 / (4 pi 10)`` is used, which needs
+            the impulse response to be package-scale (as every simulation method returns).
         impulse_response : ImpulseResponse or np.ndarray, optional
             The impulse response to evaluate. Default is :attr:`ir`.
 
@@ -458,17 +483,22 @@ class AcousticAnalyser(Data):
         dict
             ``'freqs'``, ``'G'`` per band in :attr:`frequency_bands`, and ``'G_overall'``.
         """
-        reference_rate = getattr(reference_ir, 'sample_rate', None)
-        if reference_rate is not None and int(reference_rate) != self.sampling_rate:
-            raise ValueError(f"Reference impulse response sample rate {reference_rate} Hz differs from {self.sampling_rate} Hz.")
+        ir_array = self.ir if impulse_response is None else self._as_mono_array(impulse_response)
+        if reference_ir is None:
+            if not self._on_package_scale(impulse_response):
+                raise ValueError("G without a reference_ir needs a package-scale ImpulseResponse; pass the free-field response at 10 m.")
+            reference = np.zeros(self.sampling_rate)
+            reference[int(_ZERO_PHASE_LEAD * self.sampling_rate)] = 1.0 / (4.0 * np.pi * _STRENGTH_DISTANCE)
+        else:
+            reference_rate = getattr(reference_ir, 'sample_rate', None)
+            if reference_rate is not None and int(reference_rate) != self.sampling_rate:
+                raise ValueError(f"Reference impulse response sample rate {reference_rate} Hz differs from {self.sampling_rate} Hz.")
+            reference = self._as_mono_array(reference_ir)
 
         if not _PYRATO_PARAMETERS:
             warnings.warn("Sound strength G needs pyrato >= 1.0 (pyrato {} is installed); G is NaN.".format(pyrato.__version__))
             freqs = list(self.frequency_bands)
             return {'freqs': freqs, 'G': [np.nan] * len(freqs), 'G_overall': np.nan}
-
-        ir_array = self.ir if impulse_response is None else self._as_mono_array(impulse_response)
-        reference = self._as_mono_array(reference_ir)
 
         freqs = list(self.frequency_bands)
         bands = list(dict.fromkeys(freqs + _STRENGTH_BANDS))
@@ -497,6 +527,13 @@ class AcousticAnalyser(Data):
         drr = self.direct_to_reverberant_ratio(ir)
         ct = self.center_time(ir)
         sti_data = self.speech_transmission_index(ir)
+        # G needs the absolute level; an array or a normalised-only response has none
+        own = None if ir is self.ir else ir
+        if _PYRATO_PARAMETERS and self._on_package_scale(own):
+            strength = self.sound_strength(impulse_response=own)
+            g_vector, g_overall = strength['G'], strength['G_overall']
+        else:
+            g_vector, g_overall = [np.nan] * len(self.frequency_bands), np.nan
 
         freqs = list(self.frequency_bands)
 
@@ -511,7 +548,7 @@ class AcousticAnalyser(Data):
         param_vectors = {
             'EDT': rt['EDT'], 'T20': rt['T20'], 'T30': rt['T30'],
             'C50': clarity['C50'], 'C80': clarity['C80'], 'D50': clarity['D50'],
-            'DRR': drr['DRR'], 'Ts': ct['Ts'], 'STI': sti_freq_mapped
+            'DRR': drr['DRR'], 'Ts': ct['Ts'], 'STI': sti_freq_mapped, 'G': g_vector
         }
 
         result = {'freqs': freqs}
@@ -520,6 +557,8 @@ class AcousticAnalyser(Data):
             result[param] = vals.tolist()
             if param == 'STI':
                 overall = round(float(sti_data['sti']), 4)
+            elif param == 'G':
+                overall = g_overall
             else:
                 idx = [freqs.index(500), freqs.index(1000)] if param in _RT_PARAMS else [freqs.index(500), freqs.index(1000), freqs.index(2000)]
                 overall = round(float(np.nanmean(vals[idx])), 2)
@@ -581,7 +620,8 @@ class AcousticAnalyser(Data):
             'C80': 'dB',
             'DRR': 'dB',
             'D50': 'Percentage',
-            'Ts': 'Time (s)'
+            'Ts': 'Time (s)',
+            'G': 'dB',
         }
         
         for param in parameters:

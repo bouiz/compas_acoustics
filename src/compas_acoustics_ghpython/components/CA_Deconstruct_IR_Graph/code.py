@@ -7,12 +7,29 @@ import System
 
 class DeconstructIRGraph(Grasshopper.Kernel.GH_ScriptInstance):
 
-    def RunScript(self, ir_graph, receiver_idx):
+    def RunScript(self, ir_graph, receiver_idx, method):
 
         if ir_graph is None:
             ghenv.Component.AddRuntimeMessage(
                 Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning, "Input parameter 'ir_graph' failed to collect data."
             )
+            return None, None, None, None
+
+        # Each simulation method stores its responses under its own name; 'data' is the latest mono one
+        methods = []
+        for edge in ir_graph.edges():
+            for name in ir_graph.edge_attributes(edge):
+                if name not in methods:
+                    methods.append(name)
+        if not method:
+            # 'data' by default; without it (only ambisonic results, e.g. hybrid), the first method on the graph
+            method = "data" if "data" in methods or not methods else methods[0]
+        if methods and method not in methods:
+            ghenv.Component.AddRuntimeMessage(
+                Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning,
+                "No responses of method '{}' on the graph; available: {}.".format(method, ", ".join(methods)),
+            )
+        ghenv.Component.Message = method
 
         ir_out = DataTree[object]()
         source_out = DataTree[object]()
@@ -32,7 +49,9 @@ class DeconstructIRGraph(Grasshopper.Kernel.GH_ScriptInstance):
         ir_group = {}
 
         for u, v in ir_graph.edges():
-            ir = ir_graph.edge_attribute((u, v), 'data')
+            ir = ir_graph.edge_attribute((u, v), method)
+            if ir is None:
+                continue
             data_u = ir_graph.node_attribute(u, 'data')
             data_v = ir_graph.node_attribute(v, 'data')
 

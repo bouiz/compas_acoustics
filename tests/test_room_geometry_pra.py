@@ -117,9 +117,40 @@ def test_a_point_inside_a_closed_obstacle_is_outside_the_room():
     assert not room.is_inside(np.array([3.5, 2.5, 1.5])) and room.is_inside(np.array([1.0, 1.0, 1.0]))
 
 
+def test_a_receiver_in_a_pillar_is_left_out_with_a_warning():
+    from compas_acoustics import Receiver
+    from compas_acoustics import Source
+    from compas_acoustics.methods import Pyroomacoustics
+
+    scene = Scene("pillar")
+    scene.add_acoustic_object(AcousticObjectsLibrary.shoebox_room(7, 5, 3, materials=WALL))
+    scene.add_acoustic_object(pillar())
+    scene.add_source(Source("s", 1, 1, 1.5))
+    scene.add_receiver(Receiver("in_pillar", 3.5, 2.5, 1.5))
+    scene.add_receiver(Receiver("free", 6, 4, 1.5))
+    with pytest.warns(UserWarning, match="in_pillar"):
+        rirs = scene.simulate(Pyroomacoustics(image_source_order=2))
+    assert [ir.receiver.name for ir in rirs.values()] == ["free"]
+
+
 def test_an_open_panel_does_not_make_points_outside():
     g = geometry(extra=[panel()])
     assert g.is_inside([2.0, 2.0, 1.5]) and g.is_inside([4.0, 2.0, 1.5])
+
+
+def test_a_scene_of_obstacles_only_is_an_open_field():
+    from compas_acoustics import Receiver
+    from compas_acoustics import Source
+    from compas_acoustics.methods import Pyroomacoustics
+
+    scene = Scene("field")
+    for name, corners in (("a", [[0, 0, 0], [4, 0, 0], [4, 0, 3], [0, 0, 3]]), ("b", [[0, 0, 0], [0, 4, 0], [0, 4, 3], [0, 0, 3]])):
+        scene.add_acoustic_object(AcousticObject(Mesh.from_vertices_and_faces(corners, [[0, 1, 2, 3]]), WALL, name=name, role="obstacle"))
+    scene.add_source(Source("s", 1, 1, 1.5))
+    scene.add_receiver(Receiver("r", 3, 2, 1.5))
+    with pytest.warns(UserWarning, match="no boundary surfaces"):
+        rirs = scene.simulate(Pyroomacoustics(image_source_order=2))
+    assert len(rirs) == 1
 
 
 def test_too_few_walls_for_pyroomacoustics_is_a_clear_error():
@@ -131,18 +162,3 @@ def test_too_few_walls_for_pyroomacoustics_is_a_clear_error():
         g = RoomGeometry.from_scene(scene)
     with pytest.raises(ValueError, match="at least four walls"):
         g.to_pra(48000, 1)
-
-
-def test_every_library_material_builds_a_pyroomacoustics_room():
-    from compas_acoustics import AcousticObjectsLibrary
-    from compas_acoustics import MaterialsLibrary
-    from compas_acoustics import RoomGeometry
-    from compas_acoustics import Scene
-
-    library = MaterialsLibrary()
-    assert len(library.material_names) >= 90
-    for name in library.material_names:
-        scene = Scene("library")
-        scene.add_acoustic_object(AcousticObjectsLibrary.shoebox_room(5, 4, 3, materials=library.material_from_name(name)))
-        room = RoomGeometry.from_scene(scene).to_pra(48000, max_order=0)
-        assert len(room.walls) == 6, name

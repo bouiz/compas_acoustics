@@ -114,10 +114,9 @@ class AcousticMaterial(Data):
     
     @absorption_coefficients.setter
     def absorption_coefficients(self, coefficients):
-        if coefficients:
-            self._absorption_coefficients = self._sanitize_coefficients(coefficients, "Absorption")
-        else:
+        if coefficients is None or (isinstance(coefficients, (list, tuple)) and len(coefficients) == 0):
             raise ValueError("You need to provide absorption coefficients.")
+        self._absorption_coefficients = self._sanitize_coefficients(coefficients, "Absorption")
         
     
     @property
@@ -127,10 +126,10 @@ class AcousticMaterial(Data):
     
     @scattering_coefficients.setter
     def scattering_coefficients(self, coefficients):
-        if coefficients:
-            self._scattering_coefficients = self._sanitize_coefficients(coefficients, "Scattering")
-        else:
+        if coefficients is None or (isinstance(coefficients, (list, tuple)) and len(coefficients) == 0):
             self._scattering_coefficients = None
+        else:
+            self._scattering_coefficients = self._sanitize_coefficients(coefficients, "Scattering")
     
     
     @property
@@ -140,10 +139,10 @@ class AcousticMaterial(Data):
     
     @transmission_coefficients.setter
     def transmission_coefficients(self, coefficients):
-        if coefficients:
-            self._transmission_coefficients = self._sanitize_coefficients(coefficients, "Transmission")
-        else:
+        if coefficients is None or (isinstance(coefficients, (list, tuple)) and len(coefficients) == 0):
             self._transmission_coefficients = None
+        else:
+            self._transmission_coefficients = self._sanitize_coefficients(coefficients, "Transmission")
             
     
     @property
@@ -153,10 +152,13 @@ class AcousticMaterial(Data):
     
     @frequency_bands.setter
     def frequency_bands(self, frequency_bands):
-        if frequency_bands:
-            self._frequency_bands = frequency_bands
-        else:
-            self._frequency_bands = Defaults().DEFAULT_FREQUENCY_BANDS
+        # Coefficients are validated against these bands (_sanitize_coefficients),
+        # and the JSON form does not store them, so any other grid would be silently
+        # misread.
+        bands = Defaults().DEFAULT_FREQUENCY_BANDS
+        if frequency_bands and [float(f) for f in frequency_bands] != [float(f) for f in bands]:
+            raise ValueError(f"Material frequency bands must be {bands} Hz, got {list(frequency_bands)}.")
+        self._frequency_bands = bands
             
     
     @property

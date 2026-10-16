@@ -8,8 +8,6 @@ spawns many rays spread toward the surface normal.
 
 import compas_acoustics as ca
 
-########### create a shoebox room
-room = ca.AcousticObjectsLibrary.shoebox_room(length=5, width=4, height=3)
 
 
 ########### create a source and a receiver
@@ -19,7 +17,6 @@ receiver_1 = ca.Receiver(x=2.0, y=2.0, z=1.6, name="receiver_1")
 
 ########### create a scene
 scene = ca.Scene(name="Scattered Ray Demo", description="Scattered ray visualisation.")
-scene.add_acoustic_object(room)
 scene.add_source(source_1)
 scene.add_receiver(receiver_1)
 
@@ -35,19 +32,20 @@ diffusing = ca.AcousticMaterial(
     absorption_coefficients=[0.1, 0.1, 0.15, 0.2, 0.25, 0.3, 0.3],
     scattering_coefficients=[0.4, 0.5, 0.6, 0.7, 0.7, 0.8, 0.8],
 )
-scene.acoustic_materials = {
+room = ca.AcousticObjectsLibrary.shoebox_room(length=5, width=4, height=3, materials={
     "floor": concrete,
     "left_wall": diffusing,
     "front_wall": concrete,
     "right_wall": diffusing,
     "back_wall": diffusing,
     "ceiling": concrete,
-}
+})
+scene.add_acoustic_object(room)
 
 
 ########### trace the rays including scattering
-simulator = ca.Simulator(scene, simulation_platform="pyroomacoustics")
-rays = simulator.trace_rays(
+rays = ca.RayField.from_scene(
+    scene,
     n_rays=5,
     max_reflection_order=4,
     include_scattering=True,

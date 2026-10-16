@@ -910,8 +910,8 @@ def test_impulse_response_objects_use_their_source_sound_file(tmp_path):
     sound = write_sound(tmp_path / "s.wav", np.array([1.0, 0.0, 0.0]))
     receiver = Receiver("r", 0, 0, 0)
     irs = [
-        ImpulseResponse("ir_a", Source("a", 1, 0, 0, sound_file=sound), receiver, np.array([1.0, 0.5]), sample_rate_default, "test"),
-        ImpulseResponse("ir_b", Source("b", 2, 0, 0, sound_file=sound), receiver, np.array([0.0, 0.5]), sample_rate_default, "test"),
+        ImpulseResponse("ir_a", Source("a", 1, 0, 0, sound_file=sound), receiver, np.array([1.0, 0.5]), sample_rate_default),
+        ImpulseResponse("ir_b", Source("b", 2, 0, 0, sound_file=sound), receiver, np.array([0.0, 0.5]), sample_rate_default),
     ]
     a = Auraliser("room1", irs, output_format="mono")
     assert list(a.impulse_responses) == ["ir_a", "ir_b"]
@@ -924,7 +924,7 @@ def test_impulse_response_objects_with_a_list_of_sounds(tmp_path):
     from compas_acoustics.source import Source
 
     sound = write_sound(tmp_path / "s.wav", np.array([2.0]))
-    ir = ImpulseResponse("ir_a", Source("a", 1, 0, 0), Receiver("r", 0, 0, 0), np.array([1.0, 0.5]), sample_rate_default, "test")
+    ir = ImpulseResponse("ir_a", Source("a", 1, 0, 0), Receiver("r", 0, 0, 0), np.array([1.0, 0.5]), sample_rate_default)
     a = Auraliser("room1", [ir], [sound], output_format="mono")
     np.testing.assert_allclose(a.convolve()[:, 0], [2.0, 1.0])
 
@@ -934,7 +934,7 @@ def test_impulse_response_objects_without_sound_raise():
     from compas_acoustics.receiver import Receiver
     from compas_acoustics.source import Source
 
-    ir = ImpulseResponse("ir_a", Source("a", 1, 0, 0), Receiver("r", 0, 0, 0), np.ones(4), sample_rate_default, "test")
+    ir = ImpulseResponse("ir_a", Source("a", 1, 0, 0), Receiver("r", 0, 0, 0), np.ones(4), sample_rate_default)
     with pytest.raises(ValueError, match="sound_file"):
         Auraliser("room1", [ir], output_format="mono")
 
@@ -1122,13 +1122,28 @@ def test_impulse_response_objects_are_auralised_at_their_raw_level(tmp_path):
 
     sound = write_sound(tmp_path / "s.wav", np.array([1.0]))
     source = Source("a", 1, 0, 0, sound_file=sound)
-    near = ImpulseResponse("near", source, Receiver("r1", 0, 0, 0), np.array([0.5, 0.1]), sample_rate_default, "test")
-    far = ImpulseResponse("far", source, Receiver("r2", 0, 0, 0), np.array([0.05, 0.01]), sample_rate_default, "test")
+    near = ImpulseResponse("near", source, Receiver("r1", 0, 0, 0), np.array([0.5, 0.1]), sample_rate_default)
+    far = ImpulseResponse("far", source, Receiver("r2", 0, 0, 0), np.array([0.05, 0.01]), sample_rate_default)
     assert np.max(np.abs(far.ir)) == pytest.approx(1.0)  # normalised by default
 
     renders = [Auraliser(ir.name, [ir], output_format="mono").convolve() for ir in (near, far)]
     np.testing.assert_allclose(renders[0][:, 0], [0.5, 0.1])
     np.testing.assert_allclose(renders[1][:, 0], [0.05, 0.01])
+
+
+def test_an_n3d_impulse_response_is_decoded_as_n3d(tmp_path):
+    from compas_acoustics.ir import ImpulseResponse
+    from compas_acoustics.receiver import Receiver
+    from compas_acoustics.source import Source
+
+    sound = write_sound(tmp_path / "s.wav", np.array([1.0]))
+    n3d = plane_wave(1, 0, 1, 0) * np.sqrt([1.0, 3.0, 3.0, 3.0])  # a left source in N3D
+    n3d = np.vstack([n3d, np.zeros((7, 4))])  # (samples, channels); one sample would read as transposed
+    ir = ImpulseResponse("a", Source("s", 1, 0, 0, sound_file=sound), Receiver("r", 0, 0, 0), n3d, 48000,
+                         ambisonic_order=1, normalisation="n3d", channel_order="acn")
+    with pytest.warns(UserWarning, match="n3d to sn3d"):
+        out = Auraliser("room1", [ir], output_format="stereo").convolve()
+    np.testing.assert_allclose(out[0], [1.0, 0.0], atol=1e-12)
 
 
 def test_n3d_to_sn3d_matches_spharpy():

@@ -13,7 +13,7 @@ from .room_geometry import RoomGeometry
 from .ray import Ray, ScatteredRay, RayField
 from .scene import Scene
 from .analyser import AcousticAnalyser
-from .simulator import Simulator
+from .methods import SimulationMethod, Pyroomacoustics
 from .auraliser import Auraliser
 from .audio_player import AudioPlayer
 from .numerical.fitness import regularized_fitness
@@ -42,7 +42,8 @@ __all__ = [
     'RayField',
     'Scene',
     'AcousticAnalyser',
-    'Simulator',
+    'SimulationMethod',
+    'Pyroomacoustics',
     'Auraliser',
     'AudioPlayer',
     # 'Tools',

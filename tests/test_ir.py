@@ -11,7 +11,7 @@ sample_rate_default = 48000
 
 
 def make_ir(data, name="ir", normalized=True, **kwargs):
-    return ImpulseResponse(name, Source("s", 1, 2, 3), Receiver("r", 4, 5, 6), np.asarray(data, dtype=float), sample_rate_default, "test",
+    return ImpulseResponse(name, Source("s", 1, 2, 3), Receiver("r", 4, 5, 6), np.asarray(data, dtype=float), sample_rate_default,
                            normalized=normalized, **kwargs)
 
 
@@ -84,6 +84,8 @@ def test_wav_and_json_round_trip(tmp_path):
     np.testing.assert_allclose(loaded.denormalized(), raw, atol=1e-7)
     assert loaded.name == "seat_1"
     assert loaded.receiver.position == [4.0, 5.0, 6.0]
+    assert loaded.receiver.up == ir.receiver.up
+    np.testing.assert_allclose(loaded.receiver.rotation, ir.receiver.rotation)
     assert loaded.generation == ir.generation
 
 
@@ -97,51 +99,88 @@ def test_from_wav_without_metadata_uses_the_wav_as_raw(tmp_path):
 
 
 @pytest.mark.parametrize("normalize", [True, False])
-def test_simulator_normalises_and_records_generation(normalize):
+def test_simulate_normalises_and_records_generation(normalize):
     from compas_acoustics import AcousticObjectsLibrary
     from compas_acoustics import Scene
-    from compas_acoustics import Simulator
+    from compas_acoustics.methods import Pyroomacoustics
 
     scene = Scene("room")
     scene.add_acoustic_object(AcousticObjectsLibrary.shoebox_room(10, 8, 4))
     scene.add_source(Source("s", 2, 4, 1.5))
     scene.add_receiver(Receiver("near", 3, 4, 1.5))
     scene.add_receiver(Receiver("mid", 5, 4, 1.5))
-    rirs = Simulator(scene).rir_from_image_source_method(image_source_order=2, normalize=normalize)
+    rirs = scene.simulate(Pyroomacoustics(image_source_order=2, normalize=normalize))
 
     by_receiver = {ir.receiver.name: ir for ir in rirs.values()}
     for ir in by_receiver.values():
         assert ir.normalized is normalize
-        assert ir.generation == {"method": "image_source", "image_source_order": 2, "air_absorption": True, "scene": "room"}
+        expected = {"method": "pyroomacoustics", "scale": "package", "ray_tracing": False, "image_source_order": 2, "scene": "room"}
+        assert expected.items() <= ir.generation.items()
         assert np.max(np.abs(ir.ir)) == pytest.approx(1.0 if normalize else ir.normalization_factor)
     # The raw level keeps the distance: the nearer receiver is louder
     assert by_receiver["near"].normalization_factor > by_receiver["mid"].normalization_factor
 
 
 @pytest.mark.parametrize("sample_rate", [16000, 48000])
-def test_simulated_impulse_responses_use_the_simulator_sample_rate(sample_rate):
+def test_simulated_impulse_responses_use_the_requested_sample_rate(sample_rate):
     from compas_acoustics import AcousticObjectsLibrary
     from compas_acoustics import Scene
-    from compas_acoustics import Simulator
+    from compas_acoustics.methods import Pyroomacoustics
 
     scene = Scene("room")
     scene.add_acoustic_object(AcousticObjectsLibrary.shoebox_room(10, 8, 4))
     scene.add_source(Source("s", 2, 4, 1.5))
     scene.add_receiver(Receiver("r", 5, 4, 1.5))
-    simulator = Simulator(scene)
-    simulator.sampling_rate = sample_rate
     # Air absorption above 16 kHz used to fail on a 7- vs 8-band mismatch
-    rirs = simulator.rir_from_image_source_method(image_source_order=2, air_absorption=True)
+    rirs = scene.simulate(Pyroomacoustics(image_source_order=2, air_absorption=True), sampling_rate=sample_rate)
     assert all(ir.sample_rate == sample_rate for ir in rirs.values())
 
 
-def test_material_coefficients_hold_the_highest_band_above_its_range():
-    from compas_acoustics import AcousticMaterial
-    from compas_acoustics.pra_converter import material_to_pra
-    from compas_acoustics.pra_converter import room_octave_bands
+def test_a_mono_response_has_one_channel_and_no_ambisonic_fields():
+    ir = make_ir(np.zeros(100) + 0.1)
+    assert ir.n_channels == 1
+    assert (ir.ambisonic_order, ir.normalisation, ir.channel_order) == (None, None, None)
 
-    material = AcousticMaterial("absorber", absorption_coefficients=[0.5, 0.7, 0.9, 0.95, 0.97, 0.98, 0.99])
-    converted = material_to_pra(material, room_octave_bands(48000))
-    assert len(converted.absorption_coeffs) == 8
-    assert converted.absorption_coeffs[-1] == pytest.approx(0.99)
-    assert np.all(np.asarray(converted.absorption_coeffs) <= 1.0)
+
+def test_an_ambisonic_response_keeps_one_factor_and_its_convention():
+    raw = np.full((100, 4), 0.1)
+    raw[10, 2] = 0.5
+    ir = make_ir(raw, ambisonic_order=1, normalisation="sn3d", channel_order="acn")
+    assert ir.n_channels == 4
+    assert ir.normalization_factor == pytest.approx(0.5)
+    assert (ir.ambisonic_order, ir.normalisation, ir.channel_order) == (1, "sn3d", "acn")
+
+
+def test_a_three_dimensional_array_raises():
+    with pytest.raises(ValueError):
+        make_ir(np.zeros((2, 2, 2)))
+
+
+@pytest.mark.parametrize("method", ["poly", "fft"])
+def test_resampling_keeps_the_channels(method):
+    x = np.random.default_rng(0).standard_normal((480, 4))
+    out = make_ir(x).resampled(16000, method)
+    assert out.shape == (160, 4)
+
+
+def test_ambisonic_fields_survive_the_wav_and_json_round_trip(tmp_path):
+    ir = make_ir(np.random.default_rng(1).standard_normal((64, 9)), ambisonic_order=2, normalisation="n3d", channel_order="acn")
+    loaded = ImpulseResponse.from_wav(ir.to_wav(tmp_path / "a.wav")[0])
+    assert (loaded.ambisonic_order, loaded.normalisation, loaded.channel_order) == (2, "n3d", "acn")
+
+
+def test_on_the_package_scale_the_onset_is_the_geometric_arrival():
+    data = np.zeros(2000)
+    data[480] = 1.0
+    data[10] = 5.0  # an early ray-traced bin louder than the direct sound
+    ir = ImpulseResponse("k", Source("s", 0, 0, 0), Receiver("r", 3.43, 0, 0), data, 48000,
+                         generation={"scale": "package"})
+    assert ir.direct_sound_index() == 480
+    ir.generation = {}
+    assert ir.direct_sound_index() == 10
+
+
+def test_a_source_at_the_receiver_has_onset_zero():
+    ir = ImpulseResponse("k", Source("s", 0, 0, 0), Receiver("r", 0, 0, 0), np.ones(10), 48000,
+                         generation={"scale": "package"})
+    assert ir.direct_sound_index() == 0

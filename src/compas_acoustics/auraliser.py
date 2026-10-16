@@ -66,7 +66,8 @@ class Auraliser(Data):
         (samples,) or (samples, channels)), ``'sample_rate'``, ``'ambisonic_order'``,
         ``'channel_order'`` (``'acn'``) and ``'normalisation'`` (``'sn3d'`` or
         ``'n3d'``), or a list of
-        :class:`ImpulseResponse` objects, which are treated as ACN/SN3D.
+        :class:`ImpulseResponse` objects, whose ``channel_order`` and ``normalisation``
+        are used (ACN/SN3D when they state none).
     anechoic_sounds : dict or list, optional
         Either a dict mapping an id to a dict with the key ``'filepath'``, or a list of
         file paths. Paired with the impulse responses by id when both are dicts with the
@@ -99,7 +100,7 @@ class Auraliser(Data):
         if anechoic_sounds is None:
             anechoic_sounds = self._sounds_from_impulse_response_sources(self._impulse_responses_input)
         self.anechoic_sounds = anechoic_sounds
-        self._hrtf_path = Path(Defaults().HRTF_LIBRARY_PATH) / "mit_kemar_normal_pinna.sofa"
+        self._hrtf_path = Path(Defaults().HRTF_LIBRARY_PATH) / "KEMAR_Knowl_EarSim_SmallEars_FreeFieldComp_48kHz.sofa"
         self.output_format = output_format
         self.check_number_of_impulse_responses_vs_anechoic_sounds()
 
@@ -291,12 +292,14 @@ class Auraliser(Data):
             # Use the raw level so level differences between impulse responses are kept
             ir_array = np.asarray(ir.denormalized() if hasattr(ir, 'denormalized') else ir.ir, dtype=float)
             channels = 1 if ir_array.ndim == 1 else ir_array.shape[1]
+            order = getattr(ir, 'ambisonic_order', None)
             converted[names[i] if use_names else f"ir_{i}"] = {
                 'ir': ir_array,
                 'sample_rate': ir.sample_rate,
-                'ambisonic_order': int(round(np.sqrt(channels))) - 1,
-                'channel_order': 'acn',
-                'normalisation': 'sn3d',
+                'ambisonic_order': int(round(np.sqrt(channels))) - 1 if order is None else int(order),
+                # The response's own convention, e.g. a hybrid response in N3D; ACN/SN3D when it states none
+                'channel_order': getattr(ir, 'channel_order', None) or 'acn',
+                'normalisation': getattr(ir, 'normalisation', None) or 'sn3d',
             }
         return converted
 

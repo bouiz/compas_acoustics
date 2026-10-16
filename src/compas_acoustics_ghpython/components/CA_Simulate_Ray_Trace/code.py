@@ -1,11 +1,18 @@
 # flake8: noqa
+import warnings
+
 import Grasshopper
 
-from compas_acoustics.simulator import Simulator
+from compas_acoustics import Defaults
+from compas_acoustics.methods import Pyroomacoustics
+
+# Inputs that only apply with ray tracing
+RAY_TRACING_ONLY = ("n_rays", "energy_thres", "duration", "seed")
+
 
 class SimulateRayTracing(Grasshopper.Kernel.GH_ScriptInstance):
 
-    def RunScript(self, scene, sample_rate, max_order, n_rays, absorb_air, energy_thres, time_thres, seed, normalize):
+    def RunScript(self, scene, sample_rate, max_order, ray_tracing, n_rays, absorb_air, energy_thres, time_thres, seed, normalize):
 
         if scene is None:
             ghenv.Component.AddRuntimeMessage(
@@ -13,37 +20,51 @@ class SimulateRayTracing(Grasshopper.Kernel.GH_ScriptInstance):
             )
             return
 
-        if max_order is None:
-            max_order = 2
-        if n_rays is None:
-            n_rays = 1000
-        if absorb_air is None:
-            absorb_air = True
-        if energy_thres is None:
-            energy_thres = 1e-7
-        if time_thres is None:
-            time_thres = 10.0
-        if normalize is None:
-            normalize = True
+        fs = sample_rate if sample_rate is not None else Defaults().SAMPLING_RATE
+        if ray_tracing is None:
+            ray_tracing = True
 
-        sim = Simulator(scene)
-        if sample_rate is not None:
-            sim.sampling_rate = sample_rate
+        # Unset inputs are left out so that the method's own defaults apply
+        # (image source order 6, 20000 rays, an Eyring-sized buffer).
+        given = {
+            "image_source_order": max_order,
+            "n_rays": n_rays,
+            "air_absorption": absorb_air,
+            "energy_thres": energy_thres,
+            "duration": time_thres,
+            "seed": seed,
+            "normalize": normalize,
+        }
+        given = {key: value for key, value in given.items() if value is not None}
+        if not ray_tracing:
+            ignored = [key for key in RAY_TRACING_ONLY if key in given]
+            if ignored:
+                ghenv.Component.AddRuntimeMessage(
+                    Grasshopper.Kernel.GH_RuntimeMessageLevel.Remark,
+                    "Ray tracing is off, so {} are not used.".format(", ".join(ignored)),
+                )
+            given = {key: value for key, value in given.items() if key not in RAY_TRACING_ONLY}
 
-        rirs = sim.rir_from_ray_tracing(
-            image_source_order=max_order,
-            n_rays=n_rays,
-            air_absorption=absorb_air,
-            energy_thres=energy_thres,
-            time_thres=time_thres,
-            random_seed=seed,
-            normalize=normalize,
-        )
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            try:
+                rirs = scene.simulate(Pyroomacoustics(ray_tracing=ray_tracing, **given), sampling_rate=fs)
+            except ValueError as e:
+                ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Error, str(e))
+                return
+        # Points outside the room, open rooms, mergeable faces, a slow image source search
+        for warning in caught:
+            if issubclass(warning.category, UserWarning):
+                ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning, str(warning.message))
 
-        ghenv.Component.Message = "{}Hz, order={}, rays={}, air={}, seed={}, energy_thres={}, time_thres={}, normalized={}".format(
+        ghenv.Component.Message = "{:g}Hz, {}, order={}, rays={}, air={}, seed={}".format(
             # Report the sample rate of the generated impulse responses
-            next(iter(rirs.values())).sample_rate if rirs else sim.sampling_rate,
-            max_order, n_rays, absorb_air, seed if seed is not None else "random", energy_thres, time_thres, normalize
+            next(iter(rirs.values())).sample_rate if rirs else fs,
+            "ISM + ray tracing" if ray_tracing else "ISM",
+            given.get("image_source_order", "default"),
+            given.get("n_rays", "default") if ray_tracing else "-",
+            given.get("air_absorption", "default"),
+            ("random" if seed is None else seed) if ray_tracing else "-",
         )
 
-        return sim.scene.ir_graph
+        return scene.ir_graph

@@ -1,7 +1,5 @@
 import compas_acoustics as ca
 
-########### create a shoebox room
-room = ca.AcousticObjectsLibrary.shoebox_room(length=5, width=4, height=3)
 
 
 ########### create a source and a receiver
@@ -15,8 +13,7 @@ receiver_2 = ca.Receiver(x=1.0, y=1.0, z=1.1, name="receiver_2")
 scene = ca.Scene(name="Demo Scene", description="This is a demo scene.")
 
 
-########### add the room, source, and receiver to the scene
-scene.add_acoustic_object(room)
+########### add the sources and receivers to the scene
 scene.add_source(source_1)
 scene.add_source(source_2)
 scene.add_receiver(receiver_1)
@@ -28,28 +25,26 @@ brickwall = ca.AcousticMaterial(name='brickwall', absorption_coefficients=[0.01,
 carpet = ca.AcousticMaterial(name='carpet', absorption_coefficients=[0.07, 0.31, 0.49, 0.81, 0.66, 0.54, 0.48], scattering_coefficients=0.2)
 acoustic_plaster = ca.AcousticMaterial(name='acoustic_plaster', absorption_coefficients=[0.17, 0.36, 0.66, 0.65, 0.62, 0.68, 0.80], scattering_coefficients=0.2)
 
-########### create a dictionary mapping surface groups to acoustic materials
-scene_materials = {
+########### create a shoebox room, one material per surface, and add it to the scene
+room = ca.AcousticObjectsLibrary.shoebox_room(length=5, width=4, height=3, materials={
     'floor': carpet,
     'left_wall': brickwall,
     'front_wall': acoustic_plaster,
     'right_wall': acoustic_plaster,
     'back_wall': brickwall,
     'ceiling': concrete,
-}
-scene.acoustic_materials = scene_materials
-
-
-########### initialize the simulation
-simulator = ca.Simulator(scene, simulation_platform='pyroomacoustics')
+})
+scene.add_acoustic_object(room)
 
 
 ########### run a ray tracing simulation
-rirs = simulator.rir_from_ray_tracing(n_rays=10000, air_absorption=True)
+# Image sources plus ray tracing
+rirs = scene.simulate(ca.Pyroomacoustics(ray_tracing=True, n_rays=10000, air_absorption=True))
 
 
-########### analyze the RIR
-analyser = ca.AcousticAnalyser(rirs[1][1])
+########### analyze one RIR (they are keyed '<receiver guid>_<source guid>')
+ir = next(ir for ir in rirs.values() if ir.receiver.name == "receiver_2" and ir.source.name == "source_2")
+analyser = ca.AcousticAnalyser(ir)
 results = analyser.analyse()
 
 

@@ -87,6 +87,9 @@ doctest_optionflags = [
     "ALLOW_BYTES",
     "NUMBER",
 ]
+markers = [
+    "slow: long-running numerical checks (deselect with -m 'not slow')",
+]
 
 # ============================================================================
 # replace bumpversion.cfg

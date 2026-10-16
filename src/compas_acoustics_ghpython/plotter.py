@@ -104,17 +104,20 @@ class AcousticParameter:
         'Early Decay Time (EDT)', 'Reverberation Time (T20)', 'Reverberation Time (T30)',
         'Clarity (C50)', 'Clarity (C80)', 'Definition (D50)',
         'Direct-to-Reverberant Ratio (DRR)', 'Center Time (Ts)', 'Speech Transmission Index (STI)',
+        'Strength (G)',
     ]
     _X_UNITS = [
         'Frequency (Hz)', 'Frequency (Hz)', 'Frequency (Hz)',
         'Frequency (Hz)', 'Frequency (Hz)', 'Frequency (Hz)',
         'Frequency (Hz)', 'Frequency (Hz)', 'Frequency (Hz)',
+        'Frequency (Hz)',
     ]
 
     _Y_UNITS = [
         'Time (s)', 'Time (s)', 'Time (s)',
         'dB', 'dB', 'Value (%)',
         'dB', 'Time (s)', 'Index (0-1)',
+        'dB',
     ]
 
     def __init__(

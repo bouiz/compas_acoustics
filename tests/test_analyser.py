@@ -6,6 +6,7 @@ import pytest
 from compas_acoustics import AcousticAnalyser
 from compas_acoustics.analyser import _PYRATO_PARAMETERS
 from compas_acoustics.analyser import _STI_SUPPORTED
+from compas_acoustics.analyser import _PARAM_NAMES
 from compas_acoustics.defaults import Defaults
 
 needs_sti = pytest.mark.skipif(not _STI_SUPPORTED, reason="STI needs pyrato >= 1.0")
@@ -157,8 +158,8 @@ def test_strength_matches_inverse_distance_law():
     near[100] = 1.0
     reference[1500] = 0.1
     # Normalised ImpulseResponse objects are evaluated at their raw level
-    near_ir = ImpulseResponse("near", source, Receiver("r", 1, 0, 0), near, fs, "test")
-    reference_ir = ImpulseResponse("ref", source, Receiver("f", 10, 0, 0), reference, fs, "test")
+    near_ir = ImpulseResponse("near", source, Receiver("r", 1, 0, 0), near, fs)
+    reference_ir = ImpulseResponse("ref", source, Receiver("f", 10, 0, 0), reference, fs)
 
     result = AcousticAnalyser(near_ir).sound_strength(reference_ir)
     np.testing.assert_allclose(result["G"], 20.0, atol=0.01)
@@ -170,7 +171,7 @@ def test_strength_rejects_mismatched_sample_rates():
     from compas_acoustics import Receiver
     from compas_acoustics import Source
 
-    reference = ImpulseResponse("ref", Source("s", 0, 0, 0), Receiver("f", 10, 0, 0), np.ones(10), 44100, "test")
+    reference = ImpulseResponse("ref", Source("s", 0, 0, 0), Receiver("f", 10, 0, 0), np.ones(10), 44100)
     with pytest.raises(ValueError, match="sample rate"):
         AcousticAnalyser(make_ir()).sound_strength(reference)
 
@@ -181,7 +182,7 @@ def test_impulse_response_object_sets_sampling_rate_and_raw_level():
     from compas_acoustics import Source
 
     raw = make_ir() * 0.3
-    ir = ImpulseResponse("ir", Source("s", 0, 0, 0), Receiver("r", 1, 0, 0), raw, 44100, "test")
+    ir = ImpulseResponse("ir", Source("s", 0, 0, 0), Receiver("r", 1, 0, 0), raw, 44100)
     analyser = AcousticAnalyser(ir)
     assert analyser.sampling_rate == 44100
     np.testing.assert_allclose(analyser.ir, raw)
@@ -263,6 +264,59 @@ def test_energy_parameters_are_exact_for_discrete_reflections():
     np.testing.assert_allclose(support["ST_late"], -20.0, atol=0.1)
 
 
+def test_a_package_scale_response_is_analysed_from_its_geometric_onset():
+    from compas_acoustics import ImpulseResponse, Receiver, Source
+
+    fs = 48000
+    ir = make_stage_ir(-12.0, -15.0)  # direct sound at 5 ms
+    ir = np.concatenate([np.zeros(4560), ir])  # direct sound now at 4800 samples = 34.3 m
+    clean = ir.copy()
+    ir[100] = 50.0  # an early bin louder than the direct sound
+    package = ImpulseResponse("k", Source("s", 0, 0, 0), Receiver("r", 34.3, 0, 0), ir, fs,
+                              generation={"scale": "package"})
+    support = AcousticAnalyser(package).stage_support()
+    reference = AcousticAnalyser(clean).stage_support()
+    assert support["ST_early_overall"] == pytest.approx(reference["ST_early_overall"], abs=0.1)
+
+
+def test_the_stored_onset_follows_the_response():
+    from compas_acoustics import ImpulseResponse, Receiver, Source
+
+    data = np.zeros(2000)
+    data[480] = 1.0
+    data[10] = 5.0
+    package = ImpulseResponse("k", Source("s", 0, 0, 0), Receiver("r", 3.43, 0, 0), data, 48000, generation={"scale": "package"})
+    analyser = AcousticAnalyser(package)
+    assert analyser.onset == 480
+    analyser.ir = data
+    assert analyser.onset is None
+
+
+@pytest.mark.skipif(not _PYRATO_PARAMETERS, reason="G needs pyrato >= 1.0")
+def test_g_is_a_main_parameter_and_needs_no_reference_on_the_package_scale():
+    from compas_acoustics import ImpulseResponse
+    from compas_acoustics import Receiver
+    from compas_acoustics import Source
+
+    fs = 48000
+    source = Source("s", 0, 0, 0)
+    direct = np.zeros(fs)
+    direct[int(round(1.0 / 343.0 * fs))] = 1.0 / (4.0 * np.pi * 1.0)
+    ir = ImpulseResponse("near", source, Receiver("r", 1, 0, 0), direct, fs,
+                         generation={"scale": "package"})
+    result = AcousticAnalyser(ir).analyse()
+    assert "G" in _PARAM_NAMES
+    np.testing.assert_allclose(result["G"], 20.0, atol=0.01)
+    assert result["G_overall"] == pytest.approx(20.0, abs=0.01)
+
+
+def test_g_is_nan_without_the_package_scale():
+    result = AcousticAnalyser(make_ir()).analyse()
+    assert np.all(np.isnan(result["G"])) and np.isnan(result["G_overall"])
+    with pytest.raises(ValueError, match="package-scale"):
+        AcousticAnalyser(make_ir()).sound_strength()
+
+
 @pytest.mark.skipif(not _PYRATO_PARAMETERS, reason="compares with pyrato >= 1.0")
 def test_center_time_without_pyrato_parameters_matches_pyrato(monkeypatch):
     import compas_acoustics.analyser as analyser_module
@@ -281,4 +335,22 @@ def test_strength_is_nan_with_a_warning_without_pyrato_parameters(monkeypatch):
     ir = make_ir()
     with pytest.warns(UserWarning, match="Sound strength G needs pyrato"):
         result = AcousticAnalyser(ir).sound_strength(ir)
+    assert np.isnan(result["G_overall"])
+
+
+@pytest.mark.skipif(_PYRATO_PARAMETERS, reason="the fallback is for pyrato < 1.0")
+def test_analyse_gives_nan_g_without_a_second_warning_on_pyrato_below_1():
+    import warnings
+
+    from compas_acoustics import ImpulseResponse
+    from compas_acoustics import Receiver
+    from compas_acoustics import Source
+
+    data = np.zeros(48000)
+    data[140] = 1.0 / (4.0 * np.pi)
+    package = ImpulseResponse("ir", Source("s", 0, 0, 0), Receiver("r", 1, 0, 0), data, 48000, generation={"scale": "package"})
+    with warnings.catch_warnings(record=True) as record:
+        warnings.simplefilter("always")
+        result = AcousticAnalyser(package).analyse()
+    assert not any("Sound strength G" in str(w.message) for w in record)
     assert np.isnan(result["G_overall"])

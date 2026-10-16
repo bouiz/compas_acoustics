@@ -67,12 +67,8 @@ scene.add_receiver(receiver_2)
 # scene.display_materials_in_viewer()
 
 
-########### initialize the simulation
-simulator = ca.Simulator(scene, simulation_platform='pyroomacoustics')
-
-
 ########### run a ray tracing simulation
-simulator.rir_from_ray_tracing(n_rays=10000, air_absorption=True)
+scene.simulate(ca.Pyroomacoustics(ray_tracing=True, n_rays=10000, air_absorption=True))
 
 
 ########### analyze the RIR for source_2 and receiver_2

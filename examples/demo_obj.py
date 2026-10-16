@@ -2,14 +2,6 @@ import os
 import compas_acoustics as ca
 
 
-########### create a room from an OBJ file
-room_obj_path = os.path.join(os.path.dirname(__file__), 'sample_room.obj')
-room = ca.AcousticObject.acoustic_object_from_obj(room_obj_path, name="sample_room")
-
-table_obj_path = os.path.join(os.path.dirname(__file__), 'sample_table.obj')
-table = ca.AcousticObject.acoustic_object_from_obj(table_obj_path, name="sample_table")
-
-
 ########### create a source and receivers
 source = ca.Source(x=1.5, y=3.0, z=1.5, name="source_1")
 receiver_1 = ca.Receiver(x=2.0, y=2.0, z=1.0, name="receiver_1")
@@ -20,16 +12,14 @@ receiver_1 = ca.Receiver(x=2.0, y=2.0, z=1.0, name="receiver_1")
 scene = ca.Scene(name="Demo Scene", description="This is a demo scene.")
 
 
-########### add the room, source, receiver, and materials to the scene
-scene.add_acoustic_object(room)
-scene.add_acoustic_object(table)
+########### add the source and receiver to the scene
 scene.add_source(source)
 scene.add_receiver(receiver_1)
 # scene.add_receiver(receiver_2)
 
 
 ########### what are the scene's surface groups?
-# scene.print_scene_surface_groups()
+# scene.print_scene_materials()
 
 
 ########### create acoustic materials
@@ -40,27 +30,29 @@ glass = ca.AcousticMaterial(name='glass', absorption_coefficients=[0.1, 0.07, 0.
 plywood = ca.AcousticMaterial(name='plywood', absorption_coefficients=[0.18, 0.12, 0.1, 0.09, 0.08, 0.07, 0.07], scattering_coefficients=[0.05, 0.3, 0.03, 0.5, 0.6, 0.7, 0.7])
 
 
-########### create a dictionary mapping surface groups to acoustic materials
-scene_materials = {
+########### read the room and the table from OBJ files, one acoustic object per OBJ group (Rhino layer)
+room_obj_path = os.path.join(os.path.dirname(__file__), 'sample_room.obj')
+room = ca.AcousticObjectsLibrary.from_obj(room_obj_path, materials={
     'floor': concrete,
     'plasterboard': plasterboard,
     'glass': glass,
     'ceiling': concrete,
-    'wood': plywood
-}
-scene.acoustic_materials = scene_materials
+}, name="sample_room")
 
+# The table stands free in the room: an obstacle, reflecting from both sides
+table_obj_path = os.path.join(os.path.dirname(__file__), 'sample_table.obj')
+table = ca.AcousticObjectsLibrary.from_obj(table_obj_path, materials=plywood, roles="obstacle", name="sample_table")
 
-########### initialize the simulation
-simulator = ca.Simulator(scene, simulation_platform='pyroomacoustics')
+scene.add_acoustic_object(room)
+scene.add_acoustic_object(table)
 
 
 ########### run a ray tracing simulation
-rirs = simulator.rir_from_ray_tracing(n_rays=10000, air_absorption=True)
+rirs = scene.simulate(ca.Pyroomacoustics(ray_tracing=True, n_rays=10000, air_absorption=True))
 
 
 ########### analyze the RIR
-analyser = ca.AcousticAnalyser(rirs[0][0])
+analyser = ca.AcousticAnalyser(next(iter(rirs.values())))
 results = analyser.analyse()
 
 

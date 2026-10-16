@@ -68,6 +68,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `role` on `AcousticObject` and `AcousticObjectsGroup` (`'boundary'` or `'obstacle'`, inherited through groups) and `Scene.iter_acoustic_objects_with_roles()`: obstacles are free-standing objects inside the room, boundaries close it
 - `compas_acoustics.diffuse` — Sabine and Eyring reverberation times through pyrato (`predicted_rt`, `mean_absorption`, `DiffuseFieldWarning`), in closed form on pyrato < 1.0 (Python 3.9)
 - Receiver orientation: `Receiver.up`, `Receiver.rotation` (columns facing, left, up), `Receiver.frame` and `Receiver.from_frame()`; the orientation sets the axes of ambisonic responses (x facing, y left, z up), and `transform()` turns it with the receiver
+- `Pyroomacoustics(image_source_order=3, ray_tracing=False, ...)` — the pyroomacoustics method: image sources by default, plus hybrid-rir's ray tracer with `ray_tracing=True` (`n_rays`, `energy_thres`, `duration`, `receiver_radius`, `seed`, `n_jobs`)
+- `ImpulseResponse` carries `ambisonic_order`, `normalisation`, `channel_order` (also in its JSON metadata), `n_channels` and `direct_sound_index()`; `resampled()` keeps channels
+- `Scene.impulse_responses(attribute)`, `Scene.simulation_methods()`; `attribute=` on `Scene.add_impulse_response`, `populate_ir_graph` and `get_impulse_response`
+- A `UserWarning` before an image source search that will take long (`methods.image_source_search_seconds()`: it grows about `faces / 2.2` times per order on a mesh room)
+- `AcousticObjectsLibrary.from_obj(path, materials, roles=None)` — one `AcousticObject` per OBJ group (Rhino layer), with a material per group and an optional role (`roles="obstacle"` for furniture); replaces the removed `AcousticObject.acoustic_object_from_obj`
+- `Scene.simulate(method, sampling_rate=48000)` — runs a simulation method on the scene and stores its responses on the IR graph; the one way to simulate. Methods implement `compute(context)`, and `SimulationContext.from_scene(scene, sampling_rate)` builds the context
+- `RayField.from_scene(scene, ...)` — traced rays for visualisation, replacing `Simulator.trace_rays`
+- Sound strength `G` is a main analyser parameter (`AcousticAnalyser.G`, `G_overall`, in `analyse()`, tables, plots, CSV and the Grasshopper outputs); without a `reference_ir` it uses the package-scale free field at 10 m, and is NaN for responses without the package scale
+- Grasshopper: Deconstruct IR Graph `method` input; the ray-tracing component (now "Simulate Pyroomacoustics") gets a `ray_tracing` input and shows the library's warnings (points outside, open rooms, mergeable faces, a slow search) as component messages
+- `Pyroomacoustics` and `SimulationMethod` exported from `compas_acoustics`
+- `compas_acoustics.methods` package: `base` (`SimulationContext`, `SimulationMethod`) and `pra` (`Pyroomacoustics`)
+- Demonstration notebook: `examples/notebooks/01_pyroomacoustics_simulation.ipynb`
 
 ### Changed
 
@@ -103,6 +115,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** `Auraliser` no longer accepts FuMa channel order; impulse responses must use ACN channel order with N3D or SN3D normalisation
 - **Breaking:** simulated impulse responses are at 48000 Hz by default (were always 16000 Hz); set `Simulator.sampling_rate` for another rate
 - `Auraliser` auralises `ImpulseResponse` objects at their raw level, and exports peak at -1 dBFS (was 0 dBFS); with the default `level='relative'` a single render is scaled as before
+- Assigning `Scene.acoustic_materials` raises an `AttributeError` that says how materials are assigned now (it used to store the dict and do nothing); reading it returns the scene's materials
+- Surfaces with `role='obstacle'` reflect from both sides; closed rooms are wound outward automatically; boundary surfaces that do not close a volume raise a `UserWarning`
+- A material without scattering coefficients scatters 0.05 in every band in every pyroomacoustics simulation (`room_geometry.DEFAULT_SCATTERING`), ray tracing included; given coefficients are used as they are. Image source rooms used 0 before, and ray tracing refused such materials
+- Omnidirectional sources are passed to pyroomacoustics without a directivity object
+- `AcousticMaterial`: a coefficient of 0 is a value, not an absence; only `None` or `[]` means "not given"; `frequency_bands` refuses grids other than the package bands
+- Sources or receivers outside the room raise a `UserWarning` instead of printing; simulation settings are logged
+- `Scene.number_of_sources` counts sources attached to acoustic objects
+- `AcousticAnalyser` takes the geometric direct-sound sample of package-scale responses as the onset (the ISO 3382-1 rule picked early ray-traced bins louder than the direct sound)
+- `Auraliser` and the Grasshopper Auralise component use an `ImpulseResponse`'s own `channel_order` and `normalisation` (an N3D response was decoded as SN3D)
+- Grasshopper Simulate Ray Tracing leaves unset inputs to the method's defaults
+- `Auraliser` decodes binaurally with the bundled `KEMAR_Knowl_EarSim_SmallEars_FreeFieldComp_48kHz.sofa` HRTF (free-field compensated, 48 kHz) instead of `mit_kemar_normal_pinna.sofa`
+- The example scripts `demo.py`, `demo_obj.py`, `demo_rays.py` and `demo_scattered_rays.py` use the current API again; the README has a getting-started section
+- **Breaking:** `Scene.simulate(method)` is the one way to simulate; every method returns responses on the package scale (free-field direct sound `1 / (4 pi r)`) and records how they were made in `ImpulseResponse.generation`
+- `pyroomacoustics` is pinned below 0.11: the parallel ray tracer writes private `Room` state (`rt_histograms`, `simulator_state`)
 
 ### Fixed
 
@@ -123,6 +149,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `pra_converter.receivers_to_pra_mic_array()` read `Defaults.SAMPLING_RATE` from the class, which returned the property object instead of the sample rate
 - Grasshopper Simulate Ray Tracing component reports the sample rate of the generated impulse responses
 - `Receiver` and `Source` serialise their name, orientation or directivity, and settings (`__data__`), so JSON and `copy()` keep them (they kept only the position and failed to load)
+- Ray displays in the viewer failed on scenes with a group of acoustic objects (a shoebox room)
+- A source at a receiver's position gave NaN responses; it now raises a `ValueError`
+- A source or receiver inside a closed obstacle crashed pyroomacoustics with an unrelated error; scenes of obstacles only simulated nothing; too few walls for pyroomacoustics gave opaque errors (now a `ValueError` saying so)
 
 ### Removed
 
@@ -131,4 +160,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `AcousticObject.surface_groups`, `.acoustic_materials`, `.surface_group_colors`, `.face_colors`, `.acoustic_object_from_obj()`, `.display_surface_groups_in_viewer()`, and `.print_surface_groups()` — replaced by the single-material `AcousticObject` + `AcousticObjectsGroup` model
 - `Scene.scene_surface_groups`, `.print_scene_surface_groups()`, and `.display_surface_groups_in_viewer()` — replaced by `.scene_materials`, `.print_scene_materials()`, and `.display_materials_in_viewer()`
 - `compas_acoustics.stage_acoustics` module (ISO 3382-1 Annex A stage parameters `compute_ST1`, `compute_ST2`, `compute_G_stage`, `compute_ITDG`, `stage_support_parameters`), replaced by `AcousticAnalyser.stage_support()`: its `ST2` was ST_late under another name, its values were broadband only, and its ITDG found the floor reflection
+- `pra_converter.room_octave_bands`, `material_to_pra`, `mesh_to_pra_wall` and `acoustic_object_to_pra_walls` (replaced by `RoomGeometry.to_pra`); `scene_to_pra_room` delegates to `RoomGeometry`
+- The unused `tools.Tools` module
+- **Breaking:** `Simulator` removed; use `scene.simulate(method)`. With it go `rir_from_ray_tracing`, `rir_from_image_source_method`, `trace_rays` (now `RayField.from_scene`), `spls_from_image_source_method`, and the `results` and `rirs` attributes (the IR graph holds the responses)
+- **Breaking:** `simulation_platform` removed from `Scene` and `ImpulseResponse` (the generation record names the method); old exported metadata that still carries it loads unchanged
 

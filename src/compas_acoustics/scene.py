@@ -1,26 +1,29 @@
+import logging
 from typing import Iterable
 from typing import Union
 
 from compas.data import Data
 from compas.datastructures import Graph
 
+from compas_acoustics.defaults import Defaults
 from compas_acoustics.ir import ImpulseResponse
 from compas_acoustics.receiver import Receiver
 from compas_acoustics.source import Source
 
 __all__ = ['Scene']
 
+_log = logging.getLogger(__name__)
+
 
 class Scene(Data):
     
-    def __init__(self, name:str, description:str="", simulation_platform:str='pyroomacoustics'):
+    def __init__(self, name:str, description:str=""):
         super().__init__()
         self.name = name
         self.description = description
         self._acoustic_objects = []
         self._sources = []
         self._receivers = []
-        self.acoustic_materials = {}
         self.ir_graph = Graph()
         
         
@@ -60,7 +63,7 @@ class Scene(Data):
     
     @property
     def number_of_sources(self):
-        return len(self._sources)
+        return len(self.sources)
     
     
     @property
@@ -90,14 +93,7 @@ class Scene(Data):
         return self._name
     
     
-    @property
-    def acoustic_materials(self):
-        return self._acoustic_materials
-    
-    
-    @acoustic_materials.setter
-    def acoustic_materials(self, acoustic_materials:dict):
-        self._acoustic_materials = acoustic_materials          
+          
     
     
     def iter_acoustic_objects(self):
@@ -110,6 +106,22 @@ class Scene(Data):
         """Yield ``(leaf, role)`` for every leaf :class:`AcousticObject`, roles resolved through groups."""
         for acoustic_object in self.acoustic_objects:
             yield from acoustic_object.iter_acoustic_objects_with_roles()
+    
+    
+    @property
+    def acoustic_materials(self):
+        """The unique acoustic materials of the scene, keyed by name (as :attr:`scene_materials`)."""
+        return self.scene_materials
+
+
+    @acoustic_materials.setter
+    def acoustic_materials(self, materials):
+        # Assigning materials by surface name was removed; an attribute set here would do nothing
+        raise AttributeError(
+            "Scene materials are no longer assigned by surface name. Give each AcousticObject its material, e.g. "
+            "AcousticObjectsLibrary.shoebox_room(..., materials={'floor': carpet, ...}) or "
+            "AcousticObjectsLibrary.from_obj(path, materials={'<group>': material})."
+        )
 
 
     @property
@@ -212,7 +224,13 @@ class Scene(Data):
             self.ir_graph.delete_edge(edge)
 
     
-    def add_impulse_response(self, source: Source, receiver: Receiver, ir: ImpulseResponse) -> None:
+    def add_impulse_response(self, source: Source, receiver: Receiver, ir: ImpulseResponse, attribute: str = 'data') -> None:
+        """Store ``ir`` on the source-receiver edge under ``attribute``.
+
+        Each simulation method stores its responses under its own name
+        (``'pyroomacoustics'``, ``'hybrid'``); ``'data'`` holds the most recent
+        mono response. An edge carries any number of them.
+        """
         source_key = self._ir_node_key(source)
         receiver_key = self._ir_node_key(receiver)
 
@@ -228,14 +246,19 @@ class Scene(Data):
         if receiver_attrs.get('type') != 'receiver':
             raise ValueError(f"Node '{receiver.name}' is not a receiver.")
 
-        if self.ir_graph.has_edge((source_key, receiver_key)):
-            self.ir_graph.delete_edge((source_key, receiver_key))
-
-        self.ir_graph.add_edge(source_key, receiver_key, attr_dict={'data': ir})
+        edge = (source_key, receiver_key)
+        if self.ir_graph.has_edge(edge):
+            self.ir_graph.edge_attribute(edge, attribute, ir)
+        else:
+            self.ir_graph.add_edge(source_key, receiver_key, attr_dict={attribute: ir})
 
     
-    def populate_ir_graph(self, impulse_responses: Union[dict, Iterable[ImpulseResponse]]) -> None:
-        self.clear_ir_edges()
+    def populate_ir_graph(self, impulse_responses: Union[dict, Iterable[ImpulseResponse]], attribute: str = 'data') -> None:
+        """Replace every response stored under ``attribute``; other attributes are kept."""
+        for edge in list(self.ir_graph.edges()):
+            self.ir_graph.unset_edge_attribute(edge, attribute)
+            if not self.ir_graph.edge_attributes(edge):
+                self.ir_graph.delete_edge(edge)
 
         if isinstance(impulse_responses, dict):
             responses = impulse_responses.values()
@@ -243,10 +266,10 @@ class Scene(Data):
             responses = impulse_responses
 
         for ir in responses:
-            self.add_impulse_response(ir.source, ir.receiver, ir)
+            self.add_impulse_response(ir.source, ir.receiver, ir, attribute=attribute)
 
     
-    def get_impulse_response(self, source: Source, receiver: Receiver) -> ImpulseResponse:
+    def get_impulse_response(self, source: Source, receiver: Receiver, attribute: str = 'data') -> ImpulseResponse:
         source_key = self._ir_node_key(source)
         receiver_key = self._ir_node_key(receiver)
 
@@ -256,5 +279,59 @@ class Scene(Data):
             raise KeyError(f"Receiver '{receiver.name}' is not registered in the IR graph.")
         if not self.ir_graph.has_edge((source_key, receiver_key)):
             raise KeyError(f"No impulse response found for source '{source.name}' and receiver '{receiver.name}'.")
+        ir = self.ir_graph.edge_attribute((source_key, receiver_key), attribute)
+        if ir is None:
+            raise KeyError(f"No '{attribute}' impulse response for source '{source.name}' and receiver '{receiver.name}'.")
+        return ir
 
-        return self.ir_graph.edge_attributes((source_key, receiver_key))['data']
+
+    def impulse_responses(self, attribute: str = 'data') -> dict:
+        """Every response stored under ``attribute``, keyed ``'<receiver guid>_<source guid>'``."""
+        out = {}
+        for edge in self.ir_graph.edges():
+            ir = self.ir_graph.edge_attribute(edge, attribute)
+            if ir is not None:
+                out[f"{ir.receiver.guid}_{ir.source.guid}"] = ir
+        return out
+
+
+    def simulation_methods(self) -> list:
+        """The names of the simulation methods whose responses are on the IR graph, ``'data'`` aside."""
+        names = {}
+        for edge in self.ir_graph.edges():
+            for name in self.ir_graph.edge_attributes(edge):
+                if name != 'data':
+                    names.setdefault(name, None)
+        return list(names)
+
+
+    def simulate(self, method, sampling_rate: int = Defaults().SAMPLING_RATE) -> dict:
+        """Run a simulation method on the scene and store its responses on the IR graph.
+
+        The responses go on the graph under ``method.name``; a mono method's also
+        under ``'data'``, which the analysis and auralisation components read by
+        default. Coplanar faces of the room are merged.
+
+        Parameters
+        ----------
+        method : :class:`~compas_acoustics.methods.SimulationMethod`
+            For example ``Pyroomacoustics(ray_tracing=True)`` or ``Hybrid()``.
+        sampling_rate : int, default=48000
+            Sample rate in hertz; a positive whole number.
+
+        Returns
+        -------
+        Dict[str, ImpulseResponse]
+            One response per source-receiver pair inside the room, keyed
+            ``'<receiver guid>_<source guid>'``.
+        """
+        from compas_acoustics.methods import SimulationContext
+
+        context = SimulationContext.from_scene(self, sampling_rate)
+        _log.info("Running %s at %s Hz on %d sources and %d receivers",
+                  method.name, context.sampling_rate, len(context.sources), len(context.receivers))
+        rirs = method.compute(context)
+        self.populate_ir_graph(rirs, attribute=method.name)
+        if method.output == "mono":
+            self.populate_ir_graph(rirs, attribute="data")
+        return rirs

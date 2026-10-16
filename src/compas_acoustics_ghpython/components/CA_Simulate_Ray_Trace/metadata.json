@@ -1,9 +1,9 @@
 {
-    "name": "Simulate Ray Tracing",
+    "name": "Simulate Pyroomacoustics",
     "nickname": "SimRT",
     "category": "COMPAS Acoustics",
     "subcategory": "02 Simulation",
-    "description": "Simulate room acoustics using Image Source Method (ISM) and Ray Tracing (RT) to generate impulse response graph structure.",
+    "description": "Simulate room acoustics with pyroomacoustics: the image source method (ISM), plus ray tracing (RT) by default. Writes the responses to the impulse response graph under 'pyroomacoustics' and 'data'.",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,
@@ -25,14 +25,21 @@
             },
             {
                 "name": "max_order",
-                "description": "Maximum order of image sources.",
+                "description": "Maximum order of image sources (default 6).",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "int"
             },
             {
+                "name": "ray_tracing",
+                "description": "Add ray tracing after the image sources (default True). Off: image sources only. Materials without scattering coefficients scatter 0.05.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "bool"
+            },
+            {
                 "name": "n_rays",
-                "description": "Number of rays for ray tracing.",
+                "description": "Number of rays per source (default 20000). Ray tracing only.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "int"
@@ -46,21 +53,21 @@
             },
             {
                 "name": "energy_thres",
-                "description": "Energy threshold for ray tracing.",
+                "description": "Energy at which a ray is stopped (default 1e-8). Ray tracing only.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "float"
             },
             {
                 "name": "time_thres",
-                "description": "Time threshold for ray tracing.",
+                "description": "Length of the responses in seconds (default: from the Eyring prediction). Ray tracing only.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "float"
             },
             {
                 "name": "seed",
-                "description": "Random seed for reproducibility.",
+                "description": "Random seed for reproducible ray tracing (default: random). Ray tracing only.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "int"

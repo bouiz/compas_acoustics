@@ -142,3 +142,5 @@ scripts/
 .ruff_cache
 # Grasshopper components are built with `invoke build-cpython-ghuser-components`
 src/**/components/ghuser/
+# Files the demonstration notebooks write
+examples/notebooks/output/

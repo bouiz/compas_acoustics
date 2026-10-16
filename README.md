@@ -36,6 +36,25 @@ Installer options:
 
 Rhino 8 uses Python 3.9. With Python older than 3.12, the Speech Transmission Index (STI) is not available.
 
+## Getting started
+
+Every simulation method runs through `scene.simulate`:
+
+```python
+import compas_acoustics as ca
+
+scene = ca.Scene("room")
+scene.add_acoustic_object(ca.AcousticObjectsLibrary.shoebox_room(8, 6, 3, materials=ca.AcousticMaterial("wall", 0.2, 0.1)))
+scene.add_source(ca.Source("talker", 2, 2, 1.6))
+scene.add_receiver(ca.Receiver("listener", 6, 4, 1.2, direction=[-1, -0.5, 0]))
+
+irs = scene.simulate(ca.Pyroomacoustics(ray_tracing=True))   # image sources + ray tracing
+```
+
+The notebook [`examples/notebooks/01_pyroomacoustics_simulation.ipynb`](examples/notebooks/01_pyroomacoustics_simulation.ipynb)
+walks through simulation, analysis, export and auralisation. The Grasshopper components are in
+`src/compas_acoustics_ghpython/components`; rebuild their user objects with `invoke build-cpython-ghuser-components`.
+
 ## Materials library
 
 Materials are grouped in categories (`MaterialCategory`). To update the materials that come from pyroomacoustics, run:

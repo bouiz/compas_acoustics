@@ -233,6 +233,22 @@ def test_from_scene_merges_coplanar_faces_by_default():
     assert geometry.mergeable_faces == 0
 
 
+def test_a_triangulated_scene_simulates_merged_and_without_the_warning():
+    import warnings
+
+    from compas_acoustics import Receiver
+    from compas_acoustics import Source
+    from compas_acoustics.methods import Pyroomacoustics
+
+    s = scene_of(*[triangulated(o) for o in shoebox_leaves()])
+    s.add_source(Source("s", 1.5, 1.5, 1.6))
+    s.add_receiver(Receiver("r", 4.0, 2.0, 1.5))
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        rirs = s.simulate(Pyroomacoustics(image_source_order=2))
+    assert len(rirs) == 1
+
+
 def test_merge_coplanar_keeps_objects_apart():
     walls = [o for o in shoebox_leaves() if not o.name.endswith("floor")]
     floor_a = quad("floor_a", [[0, 0, 0], [0, 5, 0], [3.5, 5, 0], [3.5, 0, 0]])
@@ -253,3 +269,28 @@ def test_mergeable_faces_are_counted_and_warned_about():
         merged = RoomGeometry.from_scene(scene_of(*leaves), merge_coplanar=True)
         assert RoomGeometry.from_scene(scene_of(*shoebox_leaves())).mergeable_faces == 0
     assert merged.mergeable_faces == 0
+
+
+def test_an_obj_file_reads_one_object_per_group(tmp_path):
+    from compas_acoustics import AcousticObjectsLibrary
+
+    obj = tmp_path / "box.obj"
+    lines = ["v 0 0 0", "v 4 0 0", "v 4 3 0", "v 0 3 0", "v 0 0 2.5", "v 4 0 2.5", "v 4 3 2.5", "v 0 3 2.5",
+             "g floor", "f 1 4 3 2", "g ceiling", "f 5 6 7 8", "g walls", "f 1 2 6 5", "f 2 3 7 6", "f 3 4 8 7", "f 4 1 5 8"]
+    obj.write_text("\n".join(lines) + "\n")
+    carpet = AcousticMaterial("carpet", 0.3, 0.1)
+    room = AcousticObjectsLibrary.from_obj(str(obj), {"floor": carpet, "ceiling": WALL, "walls": WALL})
+    assert [o.name for o in room.iter_acoustic_objects()] == ["box_floor", "box_ceiling", "box_walls"]
+    g = RoomGeometry.from_scene(scene_of(room))
+    assert g.is_closed and g.volume == pytest.approx(30.0)
+    with pytest.raises(ValueError, match="walls"):
+        AcousticObjectsLibrary.from_obj(str(obj), {"floor": carpet, "ceiling": WALL})
+    furniture = AcousticObjectsLibrary.from_obj(str(obj), WALL, roles="obstacle")
+    assert {role for _, role in furniture.iter_acoustic_objects_with_roles()} == {"obstacle"}
+
+
+def test_assigning_scene_materials_by_surface_name_raises():
+    scene = scene_of(*shoebox_leaves())
+    assert list(scene.acoustic_materials) == ["wall"]
+    with pytest.raises(AttributeError, match="shoebox_room"):
+        scene.acoustic_materials = {"floor": WALL}
