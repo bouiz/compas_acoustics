@@ -36,6 +36,13 @@
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "int"
+            },
+            {
+                "name": "normalize",
+                "description": "Whether to scale a numpy array sound to full level before playing (default True). Disable it to hear auralised signals at their rendered level.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "bool"
             }
         ],
         "outputParameters": []

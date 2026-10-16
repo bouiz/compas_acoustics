@@ -9,6 +9,8 @@ from compas.datastructures import Mesh
 from compas.geometry import Point
 from compas.geometry import Polyline
 from compas.geometry import Vector
+from pyroomacoustics.acoustics import AntoniOctaveFilterBank
+from pyroomacoustics.parameters import constants as pra_constants
 
 from compas_acoustics import Defaults
 from compas_acoustics.acoustic_material import AcousticMaterial
@@ -88,7 +90,7 @@ def receivers_to_pra_mic_array(
     which is a (3, N) 2D numpy array.
     """
     if sample_rate is None:
-        sample_rate = Defaults.SAMPLING_RATE
+        sample_rate = Defaults().SAMPLING_RATE
 
     if isinstance(receivers, Receiver):
         receivers = [receivers]
@@ -100,20 +102,48 @@ def receivers_to_pra_mic_array(
         directivity=None  # TODO: Implement this
     )
 
-def material_to_pra(mat: AcousticMaterial) -> pra.Material:
-    """Convert a compas_acoustics Material to a pyroomacoustics Material."""
-    return pra.Material(
+def room_octave_bands(fs: int) -> AntoniOctaveFilterBank:
+    """The octave bands a pyroomacoustics Room uses at sample rate ``fs`` (7 bands at 16 kHz, 8 above)."""
+    return AntoniOctaveFilterBank(
+        fs=fs,
+        n_fft=pra_constants.get("octave_bands_n_fft"),
+        base_frequency=pra_constants.get("octave_bands_base_freq"),
+        slope=0,
+    )
+
+def material_to_pra(mat: AcousticMaterial, octave_bands: Optional[AntoniOctaveFilterBank] = None) -> pra.Material:
+    """Convert a compas_acoustics Material to a pyroomacoustics Material.
+
+    With ``octave_bands``, the coefficients are resampled to those bands. Bands above the
+    material's highest frequency (e.g. 16 kHz at sample rates above 32 kHz) keep the
+    value of the highest band rather than being extrapolated.
+    """
+    freqs = list(mat.frequency_bands)
+    absorption = list(mat.absorption_coefficients)
+    # No scattering coefficients means no scattering, as in pyroomacoustics
+    scattering = list(mat.scattering_coefficients) if mat.scattering_coefficients is not None else [0.0] * len(freqs)
+    if octave_bands is not None:
+        for center in octave_bands.centers:
+            if center > freqs[-1]:
+                freqs.append(float(center))
+                absorption.append(absorption[-1])
+                scattering.append(scattering[-1])
+
+    material = pra.Material(
         energy_absorption={
             "description": mat.description,
-            "coeffs": mat.absorption_coefficients,
-            "center_freqs": mat.frequency_bands
+            "coeffs": absorption,
+            "center_freqs": freqs
         },
         scattering={
             "description": mat.description,
-            "coeffs": mat.scattering_coefficients,
-            "center_freqs": mat.frequency_bands
+            "coeffs": scattering,
+            "center_freqs": freqs
         },
     )
+    if octave_bands is not None:
+        material.resample(octave_bands)
+    return material
 
 def mesh_to_pra_wall(mesh: Mesh) -> pra.Wall:
     """Convert a triangular compas Mesh to a pyroomacoustics Wall."""
@@ -130,10 +160,14 @@ def mesh_to_pra_wall(mesh: Mesh) -> pra.Wall:
         name = mesh.name
     )
 
-def acoustic_object_to_pra_walls(acoustic_object: AcousticObject) -> list[pra.Wall]:
-    """Convert a compas_acoustics AcousticObject to a list of pyroomacoustics Walls."""
+def acoustic_object_to_pra_walls(acoustic_object: AcousticObject, octave_bands: Optional[AntoniOctaveFilterBank] = None) -> list[pra.Wall]:
+    """Convert a compas_acoustics AcousticObject to a list of pyroomacoustics Walls.
+
+    Pass the room's ``octave_bands`` (see :func:`room_octave_bands`) so the wall
+    coefficients match the room's sample rate.
+    """
     geo = acoustic_object.acoustic_geometry
-    mat = material_to_pra(acoustic_object.material)
+    mat = material_to_pra(acoustic_object.material, octave_bands)
 
     walls = []
     if isinstance(geo, Mesh):
@@ -175,11 +209,13 @@ def acoustic_object_to_pra_walls(acoustic_object: AcousticObject) -> list[pra.Wa
     
 def scene_to_pra_room(scene: Scene, fs: int, max_order: int, ray_tracing: bool, air_absorption: bool) -> pra.Room:
     """Convert a compas_acoustics Scene to a pyroomacoustics Room."""
-    # create walls (recurse into groups to reach leaf acoustic objects)
+    # create walls (recurse into groups to reach leaf acoustic objects), with
+    # coefficients in the room's octave bands for this sample rate
+    octave_bands = room_octave_bands(fs)
     walls = []
     for obj in scene.acoustic_objects:
         for leaf in obj.iter_acoustic_objects():
-            walls.extend(acoustic_object_to_pra_walls(leaf))
+            walls.extend(acoustic_object_to_pra_walls(leaf, octave_bands))
 
     # create the room
     room = pra.Room(

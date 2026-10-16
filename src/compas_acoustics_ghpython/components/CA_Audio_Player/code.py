@@ -40,7 +40,7 @@ class PlayAudio(Grasshopper.Kernel.GH_ScriptInstance):
 
         doc.ScheduleSolution(1, deferred)
 
-    def RunScript(self, sound, play, stop, sample_rate):
+    def RunScript(self, sound, play, stop, sample_rate, normalize):
         self.offer_buttons()
 
         if sound is None:
@@ -77,6 +77,6 @@ class PlayAudio(Grasshopper.Kernel.GH_ScriptInstance):
         player = sc.sticky[player_key]
 
         if play:
-            player.play(sound, sample_rate)
+            player.play(sound, sample_rate, normalize is not False)
         if stop:
             player.stop()

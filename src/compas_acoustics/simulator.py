@@ -77,7 +77,7 @@ class Simulator:
         """
         room = scene_to_pra_room(
             self.scene,
-            fs=16000,  #TODO Figure out how to set this to something more than 16000. Currently, anything above 16000 will cause an error when air absorption is enabled.
+            fs=self.sampling_rate,
             max_order=image_source_order,
             ray_tracing=ray_tracing,
             air_absorption=air_absorption,
@@ -110,7 +110,7 @@ class Simulator:
 
         for receiver in self.scene.receivers:
             if room.is_inside(receiver.position):
-                room.add_microphone_array(receivers_to_pra_mic_array(receiver, sample_rate=self.sampling_rate))
+                room.add_microphone_array(receivers_to_pra_mic_array(receiver, sample_rate=room.fs))
                 sim_receivers.append(receiver)
             else:
                 print(f"Warning: Receiver '{receiver.name}' is outside the room and will not be added to the simulation.")
@@ -128,7 +128,7 @@ class Simulator:
         self.scene.populate_ir_graph(rirs)
     
 
-    def rir_from_image_source_method(self, image_source_order:int=6, air_absorption:bool=True):
+    def rir_from_image_source_method(self, image_source_order:int=6, air_absorption:bool=True, normalize:bool=True):
         """
         Compute the room impulse response (RIR) using the image source method.
         
@@ -138,6 +138,9 @@ class Simulator:
             The maximum order of image sources to consider in the simulation.
         air_absorption : bool, default=True
             Whether to include air absorption in the simulation.
+        normalize : bool, default=True
+            Whether the returned impulse responses are peak-normalised. The raw level is
+            always kept, see :meth:`ImpulseResponse.denormalized`.
         Returns
         -------
         Dict[str, ImpulseResponse]
@@ -158,6 +161,12 @@ class Simulator:
                 sample_rate=simulation.fs,
                 sim_sources=sim_sources,
                 sim_receivers=sim_receivers,
+                normalize=normalize,
+                generation={
+                    'method': 'image_source',
+                    'image_source_order': image_source_order,
+                    'air_absorption': air_absorption,
+                },
             )
             self._update_scene_ir_graph(self.rirs)
         else:
@@ -174,6 +183,7 @@ class Simulator:
         energy_thres: Optional[float] = 1e-7,
         time_thres: Optional[float] = 10.0,
         random_seed: Optional[int] = None,
+        normalize: bool = True,
     ):
         """
         Compute the room impulse response (RIR) using ray tracing.
@@ -191,6 +201,9 @@ class Simulator:
             When ``None``, both generators are re-seeded with fresh entropy before
             each simulation so results vary across runs. Pass an integer for
             reproducible ray-tracing results.
+        normalize : bool, default=True
+            Whether the returned impulse responses are peak-normalised. The raw level is
+            always kept, see :meth:`ImpulseResponse.denormalized`.
         Returns
         -------
         Dict[str, ImpulseResponse]
@@ -218,6 +231,16 @@ class Simulator:
                 sample_rate=simulation.fs,
                 sim_sources=sim_sources,
                 sim_receivers=sim_receivers,
+                normalize=normalize,
+                generation={
+                    'method': 'ray_tracing',
+                    'image_source_order': image_source_order,
+                    'n_rays': n_rays,
+                    'air_absorption': air_absorption,
+                    'energy_thres': energy_thres,
+                    'time_thres': time_thres,
+                    'random_seed': random_seed,
+                },
             )
             self._update_scene_ir_graph(self.rirs)
         else:
@@ -571,6 +594,8 @@ class Simulator:
         sample_rate: int,
         sim_sources: List[Source],
         sim_receivers: List[Receiver],
+        normalize: bool = True,
+        generation: Optional[dict] = None,
     ) -> dict:
         """
         Store the room impulse responses (RIRs) from a pyroomacoustics simulation in a structured format.
@@ -582,12 +607,17 @@ class Simulator:
             Each impulse response is a 1D numpy array.
         sample_rate : int
             The sampling rate of the impulse responses.
+        normalize : bool, default=True
+            Whether the impulse responses are peak-normalised.
+        generation : dict, optional
+            How the impulse responses were generated; the scene name is added.
         Returns
         -------
         Dict[str, ImpulseResponse]
             A dictionary of ImpulseResponse objects, where each object contains the source index, receiver index, impulse response,
             and sample rate for a single source-receiver pair.
         """
+        generation = dict(generation or {}, scene=getattr(self.scene, 'name', None))
         rirs = {}
         for mic_idx, mic_rirs in enumerate(room_rir):
             for source_idx, ir in enumerate(mic_rirs):
@@ -600,7 +630,9 @@ class Simulator:
                     receiver=receiver,
                     ir=ir,
                     sample_rate=sample_rate,
-                    simulation_platform=self.simulation_platform
+                    simulation_platform=self.simulation_platform,
+                    normalized=normalize,
+                    generation=generation,
                 )
                 rirs[key] = response
         return rirs

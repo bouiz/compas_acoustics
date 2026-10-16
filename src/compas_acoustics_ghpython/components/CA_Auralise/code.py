@@ -11,6 +11,8 @@ from compas_acoustics.auraliser import Auraliser
 
 # First item is the default
 OUTPUT_FORMATS = ["stereo", "binaural", "mono", "ambisonics"]
+LEVELS = ["relative", "individual", "none"]
+HEADROOM_DB = -1.0
 HRTFS = {
     "kemar_normal_pinna": "mit_kemar_normal_pinna.sofa",
     "kemar_large_pinna": "mit_kemar_large_pinna.sofa",
@@ -30,7 +32,7 @@ class Auralise(Grasshopper.Kernel.GH_ScriptInstance):
         if doc is None:
             return
 
-        value_lists = {"output_format": OUTPUT_FORMATS, "hrtf": list(HRTFS)}
+        value_lists = {"output_format": OUTPUT_FORMATS, "hrtf": list(HRTFS), "level": LEVELS}
         targets = [
             (index, param.Name, value_lists[param.Name])
             for index, param in enumerate(component.Params.Input)
@@ -59,7 +61,7 @@ class Auralise(Grasshopper.Kernel.GH_ScriptInstance):
 
         doc.ScheduleSolution(1, deferred)
 
-    def RunScript(self, irs, signals, multiconvolve, save_file_path, save_file_name, save, output_format, hrtf):
+    def RunScript(self, irs, signals, multiconvolve, save_file_path, save_file_name, save, output_format, hrtf, level):
         self.offer_value_lists()
 
         if irs is None:
@@ -69,6 +71,12 @@ class Auralise(Grasshopper.Kernel.GH_ScriptInstance):
             return None, None
 
         output_format = output_format or OUTPUT_FORMATS[0]
+        level = level or LEVELS[0]
+        if level not in LEVELS:
+            ghenv.Component.AddRuntimeMessage(
+                Grasshopper.Kernel.GH_RuntimeMessageLevel.Error, f"Input parameter 'level' must be one of {LEVELS}."
+            )
+            return None, None
         hrtf_path = self.resolve_hrtf_path(hrtf)
         if hrtf_path is None:
             return None, None
@@ -80,8 +88,8 @@ class Auralise(Grasshopper.Kernel.GH_ScriptInstance):
             if any(len(irs.Branch(i)) != len(signals.Branch(i)) for i in range(irs.BranchCount)):
                 raise ValueError("DataTree branch length mismatch.")
 
-        signals_out = DataTree[object]()
-        sample_rates_out = DataTree[object]()
+        # Renders of this run: (path, auraliser, signal, suffix). Their output level is set together.
+        renders = []
         # 1. Data conversions
         for i in range(irs.BranchCount):
             path = irs.Paths[i]
@@ -100,7 +108,9 @@ class Auralise(Grasshopper.Kernel.GH_ScriptInstance):
 
                 sub_key = f"source_{idx}"
 
-                ir_data = IR.ir[:, np.newaxis] if IR.ir.ndim == 1 else IR.ir
+                # Auralise at the raw level so level differences between impulse responses are kept
+                raw_ir = IR.denormalized()
+                ir_data = raw_ir[:, np.newaxis] if raw_ir.ndim == 1 else raw_ir
 
                 ir_groups[receiver_id][sub_key] = {
                     'ir': ir_data,
@@ -143,14 +153,30 @@ class Auralise(Grasshopper.Kernel.GH_ScriptInstance):
                         return None, None
                     auraliser.hrtf_path = hrtf_path
 
-                    convolved = auraliser.convolve()
+                    renders.append((path, auraliser, auraliser.convolve(), suffix))
 
-                    signals_out.Add(convolved, path)
-                    sample_rates_out.Add(auraliser.sample_rate, path)
+        # 3. Output level: 'relative' applies one gain to all renders of this run
+        gains = Auraliser.render_gains([signal for _, _, signal, _ in renders], level, HEADROOM_DB)
 
-                    if save:
-                        filepath = self.set_save_file_path(save_file_path, save_file_name, suffix)
-                        auraliser.export_convolved_sound(filepath, convolved)
+        signals_out = DataTree[object]()
+        sample_rates_out = DataTree[object]()
+        peak_dbfs = -np.inf
+        for (path, auraliser, signal, suffix), gain in zip(renders, gains):
+            leveled = signal * gain
+            peak_dbfs = max(peak_dbfs, Auraliser.peak_dbfs(leveled))
+            signals_out.Add(leveled, path)
+            sample_rates_out.Add(auraliser.sample_rate, path)
+
+            if save:
+                filepath = self.set_save_file_path(save_file_path, save_file_name, suffix)
+                auraliser.export_convolved_sound(filepath, signal, gain=gain)
+
+        ghenv.Component.Message = "{}, {}, peak {:.1f} dBFS".format(output_format, level, peak_dbfs)
+        if peak_dbfs > 0:
+            ghenv.Component.AddRuntimeMessage(
+                Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning,
+                "Output peaks at {:+.1f} dBFS and will clip on playback. Use level 'relative' or 'individual'.".format(peak_dbfs)
+            )
 
         if output_format == "ambisonics":
             ghenv.Component.AddRuntimeMessage(

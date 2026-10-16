@@ -64,6 +64,13 @@
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "str"
+            },
+            {
+                "name": "level",
+                "description": "Output level: 'relative' (default) applies one gain to all signals of this run so the loudest peaks at -1 dBFS, keeping distance and level differences; 'individual' brings each signal to -1 dBFS; 'none' keeps the raw level and may clip.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "str"
             }
         ],
         "outputParameters": [

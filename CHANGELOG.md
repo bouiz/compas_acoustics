@@ -51,11 +51,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `tests/test_python39.py`: the package imports on Python 3.9 without the optional dependencies
 - `AcousticAnalyser.stage_support()` — early and late stage support (`ST_early` 20-100 ms, `ST_late` 100-1000 ms relative to the first 10 ms; ISO 3382-1:2009 Annex C, Gade) per octave band, with single-number values averaged over 250-2000 Hz; each time window is cut before octave filtering so low-band filter delay does not leak direct sound into the reflection windows
 - `AcousticAnalyser.sound_strength(reference_ir)` — sound strength G per octave band via `pyrato.parameters.sound_strength`, relative to a 10 m free-field reference, with the single-number value averaged over 500 and 1000 Hz
-- `AcousticAnalyser` accepts an `ImpulseResponse` and takes its sample rate
+- `AcousticAnalyser` accepts an `ImpulseResponse`, analysed at its raw level, and takes its sample rate
 - `Auraliser.decode()` with `decode_mono()` (W channel), `decode_stereo()` (virtual cardioids pointing left and right; mono signals play on both channels) and `decode_binaural()`, which renders ambisonics (order 1 or higher) to binaural via MagLS decoding filters (`Auraliser.binaural_filters()`) computed from the HRTF SOFA file, following `spaudiopy.decoder.magls_bin`/`sh2bin` (Hold et al., 2023)
 - Grasshopper Auralise component: `output_format` input (`stereo` default, `binaural`, `mono`, `ambisonics`) and `hrtf` input (`kemar_normal_pinna`, `kemar_large_pinna` or a `.sofa` path), each with a Value List placed automatically when unconnected, and a `sample_rate` output
 - Grasshopper Audio Player component: optional `sample_rate` input for numpy array sounds; signals with more than two channels are rejected with an error
 - `Auraliser` now accepts a list of `ImpulseResponse` objects as well as the dict format, and a list of sound file paths as well as the dict format; when `anechoic_sounds` is omitted, each source's `sound_file` is used. Impulse responses and sounds are paired by id when the ids match, otherwise by position
+- `ImpulseResponse` peak normalisation: the raw impulse response is kept with its `normalization_factor` (peak over all channels) and `level_db`; `normalized=True` (default) makes `ir` return the peak-normalised response; `denormalized()` returns the raw response and `ImpulseResponse.denormalize_group()` scales a group relative to its loudest impulse response
+- `ImpulseResponse.to_wav()` / `ImpulseResponse.from_wav()` — peak-normalised 32-bit float WAV plus a JSON metadata file (normalisation factor, generation method and settings, source, receiver, sample rate); `ImpulseResponse.generation` and `ImpulseResponse.metadata`
+- `Simulator.rir_from_image_source_method()` / `rir_from_ray_tracing()` `normalize=True` option; impulse responses record how they were generated
+- `Auraliser` output level: `level='relative'` (default; one gain for a group of renders so the loudest peaks at `headroom_db`, keeping level differences), `'individual'` or `'none'`, `headroom_db=-1`; `Auraliser.render_gains()` and `Auraliser.peak_dbfs()`; `export_convolved_sound(..., gain=None)`
+- `AudioPlayer.play(..., normalize=True)` option to play arrays at their rendered level
+- Grasshopper: Auralise `level` input (Value List) applying one gain across all signals of a run and showing the output peak in dBFS; Audio Player `normalize` input; Simulate Ray Tracing `normalize` input
 
 ### Changed
 
@@ -88,6 +94,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** `Auraliser.resample_signal()` removed; resampling uses `pyfar.dsp.resample` directly
 - **Breaking:** `Auraliser.multiconvolution()` and `Auraliser.convolve(impulse_response, anechoic_sound)` replaced by `Auraliser.convolve()`, which returns the signal decoded to `output_format`
 - **Breaking:** `Auraliser` no longer accepts FuMa channel order; impulse responses must use ACN channel order with N3D or SN3D normalisation
+- **Breaking:** simulated impulse responses are at 48000 Hz by default (were always 16000 Hz); set `Simulator.sampling_rate` for another rate
+- `Auraliser` auralises `ImpulseResponse` objects at their raw level, and exports peak at -1 dBFS (was 0 dBFS); with the default `level='relative'` a single render is scaled as before
 
 ### Fixed
 
@@ -103,6 +111,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Auraliser` mono export used the mean of all ambisonic channels instead of the omnidirectional W channel, stereo export used the front-back (X) dipole instead of the left-right (Y) dipole, and binaural export silently fell back to that stereo; binaural output now raises for mono (order 0) impulse responses
 - `Auraliser.export_convolved_sound()` now normalises after decoding, so the exported peak is 1 for every output format
 - Grasshopper Auralise component output the undecoded convolution matrix (only saved files were decoded), used a hard-coded 48000 Hz sample rate, and always declared ambisonic order 0
+- `Simulator` always simulated at 16000 Hz regardless of `Simulator.sampling_rate`, while its microphone arrays used `sampling_rate`; it now simulates at `sampling_rate` (default 48000 Hz) and the impulse responses carry that rate
+- Simulations above 16 kHz with air absorption failed because wall materials kept 7 octave bands while pyroomacoustics uses 8; `pra_converter.material_to_pra()` now resamples materials to the room's octave bands (`room_octave_bands()`), holding the 8 kHz value for the 16 kHz band, and treats missing scattering coefficients as zero
+- `pra_converter.receivers_to_pra_mic_array()` read `Defaults.SAMPLING_RATE` from the class, which returned the property object instead of the sample rate
+- Grasshopper Simulate Ray Tracing component reports the sample rate of the generated impulse responses
 
 ### Removed
 

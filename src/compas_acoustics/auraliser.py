@@ -11,6 +11,7 @@ from compas_acoustics.defaults import Defaults
 __all__ = ['Auraliser']
 
 _OUTPUT_FORMATS = {"mono", "stereo", "ambisonics", "binaural"}
+_LEVELS = {"relative", "individual", "none"}
 _AUDIO_EXTENSIONS = {".wav", ".mp3", ".flac", ".ogg", ".aiff", ".aif"}
 
 # Supported ambisonic conventions: ACN channel order with N3D or SN3D normalisation
@@ -46,6 +47,16 @@ class Auraliser(Data):
       headphone playback. Requires ambisonic impulse responses (order 1 or higher).
     * ``'ambisonics'``: the undecoded ACN/SN3D signal, to save as a multichannel file.
 
+    Impulse responses are auralised at their raw level, so distance and level
+    differences between them are kept. The output level is set on export by
+    :attr:`level`:
+
+    * ``'relative'``: one gain for a group of renders so the loudest peaks at
+      :attr:`headroom_db`; level differences between the renders are kept. For a single
+      render this is the same as ``'individual'``.
+    * ``'individual'``: each render peaks at :attr:`headroom_db`.
+    * ``'none'``: no gain; warns when the output exceeds 0 dBFS.
+
     Parameters
     ----------
     name : str
@@ -68,12 +79,19 @@ class Auraliser(Data):
     sample_rate : int, optional
         The sample rate of the auralisation. Impulse responses and anechoic sounds are
         resampled to it. Default is the sample rate of the first impulse response.
+    level : str, optional
+        One of ``'relative'``, ``'individual'`` or ``'none'``. Default is ``'relative'``.
+    headroom_db : float, optional
+        Target output peak in dBFS for ``'relative'`` and ``'individual'``. Default is -1.
     """
 
-    def __init__(self, name: str, impulse_responses, anechoic_sounds=None, output_format: str = "stereo", description: str = None, sample_rate: int = None):
+    def __init__(self, name: str, impulse_responses, anechoic_sounds=None, output_format: str = "stereo", description: str = None, sample_rate: int = None,
+                 level: str = "relative", headroom_db: float = -1.0):
         super().__init__()
         self.name = name
         self.description = description
+        self.level = level
+        self.headroom_db = headroom_db
         if not isinstance(impulse_responses, dict):
             impulse_responses = list(impulse_responses)
         self.sample_rate = sample_rate if sample_rate is not None else self._default_sample_rate(impulse_responses)
@@ -153,6 +171,30 @@ class Auraliser(Data):
         if output_format == "binaural" and getattr(self, '_impulse_responses', None) and self.maximum_ambisonics_order == 0:
             raise ValueError("Binaural output requires ambisonic impulse responses of order 1 or higher. Use mono or stereo output for mono impulse responses.")
         self._output_format = output_format
+
+
+    @property
+    def level(self):
+        return self._level
+
+
+    @level.setter
+    def level(self, level):
+        if level not in _LEVELS:
+            raise ValueError(f"Auraliser level must be one of {sorted(_LEVELS)}.")
+        self._level = level
+
+
+    @property
+    def headroom_db(self):
+        return self._headroom_db
+
+
+    @headroom_db.setter
+    def headroom_db(self, headroom_db):
+        if headroom_db > 0:
+            raise ValueError("Auraliser headroom_db must be 0 dBFS or lower.")
+        self._headroom_db = float(headroom_db)
 
 
     @property
@@ -239,14 +281,15 @@ class Auraliser(Data):
 
     @staticmethod
     def _impulse_responses_from_objects(impulse_responses):
-        """Convert a list of ImpulseResponse objects to the dict format, keyed by name."""
+        """Convert a list of ImpulseResponse objects to the dict format, keyed by name, at their raw level."""
         impulse_responses = list(impulse_responses)
         names = [getattr(ir, 'name', None) for ir in impulse_responses]
         use_names = all(names) and len(set(names)) == len(names)
 
         converted = {}
         for i, ir in enumerate(impulse_responses):
-            ir_array = np.asarray(ir.ir, dtype=float)
+            # Use the raw level so level differences between impulse responses are kept
+            ir_array = np.asarray(ir.denormalized() if hasattr(ir, 'denormalized') else ir.ir, dtype=float)
             channels = 1 if ir_array.ndim == 1 else ir_array.shape[1]
             converted[names[i] if use_names else f"ir_{i}"] = {
                 'ir': ir_array,
@@ -551,8 +594,48 @@ class Auraliser(Data):
         return _BINAURAL_FILTERS_CACHE[key]
 
 
-    def export_convolved_sound(self, filepath, convolved_sound=None):
-        """Normalise an auralised signal to a peak of 1 and write it as a 32-bit float audio file.
+    @staticmethod
+    def peak_dbfs(signal):
+        """Peak absolute value of a signal in dBFS (-inf for silence)."""
+        peak = float(np.max(np.abs(signal))) if np.size(signal) else 0.0
+        return 20.0 * np.log10(peak) if peak > 0 else -np.inf
+
+
+    @staticmethod
+    def render_gains(signals, level="relative", headroom_db=-1.0):
+        """Gains that set the output level of a group of auralised signals.
+
+        Parameters
+        ----------
+        signals : list of np.ndarray
+            Signals returned by :meth:`convolve`, e.g. one per receiver or per source.
+        level : str, optional
+            ``'relative'`` applies one gain to all signals so the loudest peaks at
+            ``headroom_db``, keeping their level differences. ``'individual'`` gives each
+            signal its own gain to peak at ``headroom_db``. ``'none'`` returns gains of 1.
+        headroom_db : float, optional
+            Target peak in dBFS. Default is -1.
+
+        Returns
+        -------
+        list of float
+            One gain per signal.
+        """
+        if level not in _LEVELS:
+            raise ValueError(f"Auraliser level must be one of {sorted(_LEVELS)}.")
+        target = 10.0 ** (headroom_db / 20.0)
+        peaks = [float(np.max(np.abs(signal))) if np.size(signal) else 0.0 for signal in signals]
+
+        if level == "none":
+            return [1.0] * len(peaks)
+        if level == "individual":
+            return [target / peak if peak > 0 else 1.0 for peak in peaks]
+        loudest = max(peaks, default=0.0)
+        return [target / loudest if loudest > 0 else 1.0] * len(peaks)
+
+
+    def export_convolved_sound(self, filepath, convolved_sound=None, gain=None):
+        """Apply the output level to an auralised signal and write it as a 32-bit float audio file.
 
         Parameters
         ----------
@@ -560,6 +643,10 @@ class Auraliser(Data):
             The path of the audio file to write.
         convolved_sound : np.ndarray, optional
             A signal returned by :meth:`convolve`. If None, :meth:`convolve` is called.
+        gain : float, optional
+            The gain to apply, e.g. from :meth:`render_gains` for a group of renders.
+            If None, it is set by :attr:`level` and :attr:`headroom_db` for this signal
+            alone.
 
         Returns
         -------
@@ -567,13 +654,14 @@ class Auraliser(Data):
             The written signal, shaped (samples, channels), as float32.
         """
         exported_sound = self.convolve() if convolved_sound is None else convolved_sound
+        if gain is None:
+            gain = self.render_gains([exported_sound], self.level, self.headroom_db)[0]
 
-        # Normalise to a peak of 1 across all channels
-        max_val = np.max(np.abs(exported_sound))
-        if max_val > 0:
-            exported_sound = exported_sound / max_val
+        exported_sound = (exported_sound * gain).astype(np.float32)
 
-        exported_sound = exported_sound.astype(np.float32)
+        peak_dbfs = self.peak_dbfs(exported_sound)
+        if peak_dbfs > 0:
+            warnings.warn(f"Auralised signal peaks at {peak_dbfs:+.1f} dBFS and will clip on playback. Use level 'relative' or 'individual', or a lower gain.")
 
         pf.io.write_audio(pf.Signal(exported_sound.T, self.sample_rate), filepath, subtype='FLOAT')
 

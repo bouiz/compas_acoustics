@@ -1017,12 +1017,13 @@ def test_binaural_magls_matches_hrtf_magnitudes():
     assert np.mean(errors) < 4
 
 
-def test_export_normalises_after_decoding(tmp_path):
+def test_export_sets_level_after_decoding(tmp_path):
     import soundfile as sf
 
     a = decoder("stereo")
     exported = a.export_convolved_sound(tmp_path / "out.wav", np.vstack([plane_wave(1, 0, 1, 0), 0.5 * plane_wave(1, 1, 0, 0)]))
-    assert np.max(np.abs(exported)) == pytest.approx(1.0)
+    # Default level 'relative' on a single render peaks at the -1 dBFS headroom
+    assert np.max(np.abs(exported)) == pytest.approx(10 ** (-1 / 20))
     written, fs = sf.read(tmp_path / "out.wav")
     assert fs == sample_rate_default
     np.testing.assert_allclose(written, exported, atol=1e-7)
@@ -1068,6 +1069,66 @@ def test_convolve_decodes_impulse_responses_before_convolving(tmp_path, output_f
     expected = a.decode(ambisonic)
     np.testing.assert_allclose(decoded, expected[: decoded.shape[0]], atol=1e-10)
     np.testing.assert_allclose(expected[decoded.shape[0]:], 0, atol=1e-10)
+
+
+# Output level
+
+def test_render_gains_relative_keeps_level_differences():
+    loud, quiet = np.full((10, 2), 0.5), np.full((10, 2), 0.05)
+    gains = Auraliser.render_gains([loud, quiet], "relative", headroom_db=-1)
+    assert gains[0] == gains[1]
+    assert np.max(np.abs(loud * gains[0])) == pytest.approx(10 ** (-1 / 20))
+    assert np.max(np.abs(quiet * gains[1])) == pytest.approx(10 ** (-1 / 20) / 10)
+
+
+def test_render_gains_individual_and_none():
+    loud, quiet = np.full((10, 1), 0.5), np.full((10, 1), 0.05)
+    individual = Auraliser.render_gains([loud, quiet], "individual", headroom_db=-3)
+    assert np.max(np.abs(quiet * individual[1])) == pytest.approx(10 ** (-3 / 20))
+    assert np.max(np.abs(loud * individual[0])) == pytest.approx(10 ** (-3 / 20))
+    assert Auraliser.render_gains([loud, quiet], "none") == [1.0, 1.0]
+
+
+def test_relative_equals_individual_for_one_render():
+    signal = [np.full((10, 1), 0.3)]
+    assert Auraliser.render_gains(signal, "relative") == Auraliser.render_gains(signal, "individual")
+
+
+def test_invalid_level_and_headroom_raise():
+    with pytest.raises(ValueError, match="level"):
+        decoder("mono").level = "loud"
+    with pytest.raises(ValueError, match="headroom"):
+        decoder("mono").headroom_db = 3
+
+
+def test_export_without_level_warns_when_clipping(tmp_path):
+    a = decoder("mono")
+    a.level = "none"
+    with pytest.warns(UserWarning, match="dBFS"):
+        exported = a.export_convolved_sound(tmp_path / "out.wav", np.full((10, 1), 2.0))
+    np.testing.assert_allclose(exported, 2.0)
+
+
+def test_export_uses_a_given_group_gain(tmp_path):
+    a = decoder("mono")
+    exported = a.export_convolved_sound(tmp_path / "out.wav", np.full((10, 1), 0.5), gain=0.5)
+    np.testing.assert_allclose(exported, 0.25)
+
+
+def test_impulse_response_objects_are_auralised_at_their_raw_level(tmp_path):
+    from compas_acoustics.ir import ImpulseResponse
+    from compas_acoustics.receiver import Receiver
+    from compas_acoustics.source import Source
+
+    sound = write_sound(tmp_path / "s.wav", np.array([1.0]))
+    source = Source("a", 1, 0, 0, sound_file=sound)
+    near = ImpulseResponse("near", source, Receiver("r1", 0, 0, 0), np.array([0.5, 0.1]), sample_rate_default, "test")
+    far = ImpulseResponse("far", source, Receiver("r2", 0, 0, 0), np.array([0.05, 0.01]), sample_rate_default, "test")
+    assert np.max(np.abs(far.ir)) == pytest.approx(1.0)  # normalised by default
+
+    renders = [Auraliser(ir.name, [ir], output_format="mono").convolve() for ir in (near, far)]
+    np.testing.assert_allclose(renders[0][:, 0], [0.5, 0.1])
+    np.testing.assert_allclose(renders[1][:, 0], [0.05, 0.01])
 
 
 def test_n3d_to_sn3d_matches_spharpy():
