@@ -354,3 +354,138 @@ def test_analyse_gives_nan_g_without_a_second_warning_on_pyrato_below_1():
         result = AcousticAnalyser(package).analyse()
     assert not any("Sound strength G" in str(w.message) for w in record)
     assert np.isnan(result["G_overall"])
+
+
+def test_drr_counts_the_first_5_ms_after_the_direct_sound_as_direct():
+    # Haapaniemi and Lokki (2018), eq. 1: a reflection 3 ms after the direct sound is direct, one 6 ms after is not.
+    # Their band-pass is applied before the window, so a reflection right before 5 ms would leave part of its
+    # filtered response after it: 3 ms keeps it whole.
+    fs = 48000
+    ir = np.zeros(fs)
+    n0 = 4800
+    ir[n0] = 1.0
+    ir[n0 + int(0.003 * fs)] = 0.5
+    ir[n0 + int(0.006 * fs)] = 0.25
+    ir[n0 + int(0.04 * fs)] = 0.25
+    # (1 + 0.25) / (0.0625 + 0.0625) is 10 dB; a window of +-2.5 ms around the direct sound gave 4.3 dB
+    assert AcousticAnalyser(ir).direct_to_reverberant_ratio()["DRR_overall"] == pytest.approx(10.0, abs=0.1)
+
+
+def test_drr_holds_a_band_limited_direct_sound_whole():
+    # A direct sound between two samples spreads over both; the geometric onset rounds to the later one.
+    # Truth: the direct sound and the reflections, each filtered on its own at full length.
+    from scipy.signal import butter
+    from scipy.signal import sosfilt
+
+    from compas_acoustics import ImpulseResponse
+    from compas_acoustics import Receiver
+    from compas_acoustics import Source
+
+    fs = 48000
+    arrival = 4800.6
+    n = np.arange(fs)
+    direct = np.sinc(n - arrival) * np.exp(-0.5 * ((n - arrival) / 2000.0) ** 2)
+    late = np.zeros(fs)
+    late[[4800 + 288, 4800 + 1000, 4800 + 5000]] = [0.3, -0.2, 0.1]
+    receiver = Receiver("r", arrival / fs * Defaults().DEFAULT_SPEED_OF_SOUND, 0, 0)
+    ir = ImpulseResponse("ir", Source("s", 0, 0, 0), receiver, direct + late, fs, generation={"scale": "package"})
+    assert ir.direct_sound_index() == 4801
+    analyser = AcousticAnalyser(ir)
+    drr = analyser.direct_to_reverberant_ratio()
+
+    def band_energy(x, f):
+        return np.sum(analyser._filter_impulse_response(np.concatenate([x, np.zeros(fs // 2)]), f) ** 2)
+
+    truth = [10 * np.log10(band_energy(direct, f) / band_energy(late, f)) for f in analyser.frequency_bands]
+    np.testing.assert_allclose(drr["DRR"], truth, atol=0.05)
+    sos = butter(2, [700, 4000], "bandpass", fs=fs, output="sos")
+    overall = 10 * np.log10(np.sum(sosfilt(sos, direct) ** 2) / np.sum(sosfilt(sos, late) ** 2))
+    assert drr["DRR_overall"] == pytest.approx(overall, abs=0.05)
+
+
+def test_the_single_number_drr_is_the_700_to_4000_hz_band():
+    analyser = AcousticAnalyser(make_ir())
+    result = analyser.analyse()
+    assert result["DRR_overall"] == analyser.direct_to_reverberant_ratio()["DRR_overall"]
+    assert analyser.DRR_overall == result["DRR_overall"]
+
+
+def onset_of(ir):
+    return AcousticAnalyser(np.asarray(ir, dtype=float))._direct_sound_onset(np.asarray(ir, dtype=float))
+
+
+def test_the_start_is_the_last_sample_below_20_db_before_the_rise():
+    # ita_start_IR (ITA Toolbox, ISO 3382-1): the sample at -26 dB is the start, not the one at -14 dB after it
+    ir = np.zeros(4800)
+    ir[[1000, 1001, 1002]] = [0.05, 0.2, 1.0]
+    assert onset_of(ir) == 1000
+
+
+def test_an_earlier_arrival_within_14_db_moves_the_start_back():
+    ir = np.zeros(4800)
+    ir[[500, 1000]] = [0.3, 1.0]  # -10.5 dB, before the peak
+    assert onset_of(ir) == 499
+
+
+def test_an_earlier_arrival_between_20_and_14_db_does_not():
+    ir = np.zeros(4800)
+    ir[[500, 1000]] = [0.15, 1.0]  # -16.5 dB
+    assert onset_of(ir) == 999
+
+
+def test_a_response_less_than_20_db_above_its_noise_has_no_start():
+    ir = np.random.default_rng(0).standard_normal(4800) * 0.2
+    ir[1000] = 1.0
+    assert onset_of(ir) == 0
+
+
+def test_a_blocked_direct_sound_is_found_as_ita_finds_it():
+    # Package scale, direct path blocked: nothing arrives at the geometric sample (4800). Like ita_start_IR,
+    # the analysis starts at the first arrival; the geometric window held nothing and gave a DRR of about -110 dB.
+    from compas_acoustics import ImpulseResponse
+    from compas_acoustics import Receiver
+    from compas_acoustics import Source
+
+    fs = 48000
+    rng = np.random.default_rng(3)
+    ir = np.zeros(2 * fs)
+    ir[[8000, 9000]] = [0.5, 1.0]
+    tail = np.arange(9500, ir.size)
+    ir[tail] = rng.standard_normal(tail.size) * 0.05 * np.exp(-(tail - 9500) / fs / 0.15)
+    package = ImpulseResponse("k", Source("s", 0, 0, 0), Receiver("r", 34.3, 0, 0), ir, fs, generation={"scale": "package"})
+    assert package.direct_sound_index() == 4800
+    blocked, plain = AcousticAnalyser(package), AcousticAnalyser(ir)
+    assert blocked._direct_sound_onset(blocked.ir) == plain._direct_sound_onset(plain.ir) == 7999
+    assert blocked.direct_to_reverberant_ratio() == plain.direct_to_reverberant_ratio()
+
+
+def test_a_ray_traced_tail_that_dies_into_zeros_is_evaluated_in_every_band():
+    # pyroomacoustics stops each ray at energy_thres: past about -60 dB the decay steepens, falls to around
+    # -150 dB and ends in exact zeros. Schroeder's integral is exact for a response without noise. (On the
+    # 408-face office of examples/notebooks/03_whats_new, whose ray-traced tail is also sparse, pyrato's
+    # Lundeby search found no intersection and left six of seven bands NaN; this smooth tail does not trip it.)
+    fs = 48000
+    t = np.arange(int(2.0 * fs)) / fs
+    results = []
+    for seed in range(3):
+        decay = exponential_decay(1.2, 2.0, seed) * 10 ** (-np.clip(t - 0.8, 0, None) ** 2 * 60)
+        analyser = AcousticAnalyser(np.concatenate([decay, np.zeros(fs)]))
+        analyser.sampling_rate = fs
+        results.append(analyser.reverberation_times())
+    for key in ("EDT", "T20", "T30"):
+        values = np.array([r[key] for r in results])
+        assert np.all(np.isfinite(values)), key
+        np.testing.assert_allclose(values.mean(axis=0), 1.2, rtol=0.08, err_msg=key)
+
+
+def test_trailing_zeros_do_not_hide_the_decay():
+    # A response padded with exact zeros: the octave filters' ringing decays into them without a noise floor,
+    # and pyrato's Lundeby search found none. The ITA Toolbox cuts trailing zeros before its noise detection.
+    results = []
+    for seed in range(3):
+        padded = np.concatenate([exponential_decay(1.2, 2.0, seed), np.zeros(48000)])
+        analyser = AcousticAnalyser(padded)
+        analyser.sampling_rate = 48000
+        results.append(analyser.reverberation_times())
+    for key in ("EDT", "T20", "T30"):
+        np.testing.assert_allclose(np.mean([r[key] for r in results], axis=0), 1.2, rtol=0.08, err_msg=key)

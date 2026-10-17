@@ -5,6 +5,8 @@ import numpy as np
 import pyfar as pf
 import pyrato
 from compas.data import Data
+from scipy.signal import butter
+from scipy.signal import sosfilt
 
 from compas_acoustics.defaults import Defaults
 
@@ -29,6 +31,13 @@ _STAGE_DIRECT_WINDOW = (0.0, 0.010)
 _STAGE_SUPPORT_WINDOWS = {'ST_early': (0.020, 0.100), 'ST_late': (0.100, 1.000)}
 _STAGE_SUPPORT_BANDS = [250, 500, 1000, 2000]
 
+# Direct-to-reverberant ratio (Haapaniemi and Lokki 2018, eq. 1): the direct sound is the first 5 ms
+# from its arrival, in seconds; the window opens 1 ms early so that a band-limited arrival is held
+# whole. Their single-number value is taken in 700-4000 Hz with a second-order Butterworth band-pass.
+_DRR_DIRECT_WINDOW = (-0.001, 0.005)
+_DRR_BAND = (700.0, 4000.0)
+_DRR_BAND_ORDER = 2
+
 # Single-number strength G averages the 500 and 1000 Hz octaves (ISO 3382-1:2009 Table A.1)
 _STRENGTH_BANDS = [500, 1000]
 
@@ -41,6 +50,39 @@ _FILTER_TAIL = 0.5
 # Zero-phase band filtering rings symmetrically around the direct sound; band energies are
 # integrated from this long before the direct sound, in seconds
 _ZERO_PHASE_LEAD = 0.1
+
+# pyrato's ISO 3382-1 regression: in pyrato.parameters, at the top level before pyrato 1.0 (Python 3.9)
+_REVERBERATION_TIME = getattr(pyrato, 'parameters', pyrato).reverberation_time_linear_regression
+
+# The direct sound is found as ita_start_IR (ITA Toolbox, ISO 3382-1) finds it, this far below the
+# maximum in dB. On the package scale the search starts this long before the geometric arrival, in seconds.
+_START_THRESHOLD_DB = 20.0
+_GEOMETRIC_SEARCH_LEAD = 0.001
+
+
+def _iso3382_start(ir_array, threshold_db=_START_THRESHOLD_DB):
+    """Start sample of an impulse response as ``ita_start_IR`` (ITA Toolbox) finds it, after ISO 3382-1.
+
+    The last sample more than ``threshold_db`` below the maximum before the maximum. If an earlier
+    sample comes within ``threshold_db - 6`` dB of the maximum, the last sample below the threshold
+    before that one. 0 when the maximum is less than 20 dB above the noise (the mean energy of the
+    last 10 per cent) or lies in it.
+    """
+    energy = np.asarray(ir_array, dtype=float) ** 2
+    n = energy.size
+    peak = int(np.argmax(energy))
+    tail = int(round(0.9 * n))
+    if peak == 0 or energy[peak] < 100.0 * np.mean(energy[max(tail - 1, 0):]) or peak + 1 > tail:
+        return 0
+    with np.errstate(divide='ignore'):
+        level = 10.0 * np.log10(energy[:peak + 1] / energy[peak])
+    below = np.flatnonzero(level < -threshold_db)
+    start = int(below[-1]) if below.size else 0
+    earlier = np.flatnonzero(level[:start + 1] > -threshold_db + 6.0)
+    if earlier.size:
+        before = np.flatnonzero(level[:earlier[0] + 1] < -threshold_db)
+        start = int(before[-1]) if before.size else 0
+    return start
 
 
 class AcousticAnalyser(Data):
@@ -68,7 +110,7 @@ class AcousticAnalyser(Data):
     @ir.setter
     def ir(self, ir):
         # Geometric direct-sound sample of a package-scale response (see ImpulseResponse.direct_sound_index):
-        # the ISO 3382-1 rule would pick an early ray-traced bin louder than the direct sound.
+        # the start search begins there, so that an early ray-traced bin is not taken for the direct sound.
         generation = getattr(ir, 'generation', None) or {}
         self._package_scale = generation.get('scale') == 'package'
         self.onset = ir.direct_sound_index() if self._package_scale else None
@@ -222,36 +264,48 @@ class AcousticAnalyser(Data):
     def reverberation_times(self, impulse_response=None) -> dict:
         """Compute reverberation times (EDT, T20, T30) per frequency band.
 
-        Uses pyrato's plain Schroeder backward integration (no noise truncation;
-        assumes noise-free RIRs) and manual ISO 3382-1 linear regression. pyrato's
-        own regression is bypassed because it does not guard against log10(0) on
-        zero-tail EDCs.
+        Schroeder's backward integration (pyrato ``schroeder_integration``), normalised to
+        0 dB at the direct sound, and the ISO 3382-1 linear regression of pyrato's
+        ``reverberation_time_linear_regression``. There is no noise compensation: a
+        simulated response has no noise floor, and pyrato's Lundeby search
+        (``energy_decay_curve_chu_lundeby``) finds no intersection in a ray-traced
+        response that decays into numerical zero, which left most bands NaN. A measured
+        response with a noise floor should be truncated before it is analysed.
 
-        The energy decay curve starts at the direct sound of a zero-phase octave-band IR
-        (see :meth:`_band_from_onset`): with the causal filter, its slow build-up at low
-        frequencies flattened the first 10 dB and lengthened EDT.
+        The decay starts at the direct sound of a zero-phase octave-band IR (see
+        :meth:`_band_from_onset`): with the causal filter, its slow build-up at low
+        frequencies flattened the first 10 dB and lengthened EDT. It ends at the response's
+        last non-zero sample, without the zero padding the filters ring into.
         """
         if impulse_response is None:
             impulse_response = self.ir
 
         ir_array = np.asarray(impulse_response, dtype=float)
+        onset = self._direct_sound_onset(ir_array)
+        # Trailing zeros are cut: the filters' ringing into them would steepen the end of the integral
+        end = int(np.flatnonzero(ir_array)[-1]) + 1 if np.any(ir_array) else len(ir_array)
+        keys = ('EDT', 'T20', 'T30')
 
-        results = {'EDT': [], 'T20': [], 'T30': []}
+        results = {key: [] for key in keys}
+        failed = {}
         for center_freq in self.frequency_bands:
             band, direct = self._band_from_onset(ir_array, center_freq)
-            sig = pf.Signal(band[direct:], self.sampling_rate)
-            edc_obj = pyrato.edc.schroeder_integration(sig)
-            edc_lin = edc_obj.time.squeeze()
-            t = edc_obj.times
-            edc_db = 10.0 * np.log10(np.abs(edc_lin) / (np.max(np.abs(edc_lin)) + 1e-30) + 1e-30)
-
-            for key, (low, high) in zip(['EDT', 'T20', 'T30'], [(0, -10), (-5, -25), (-5, -35)]):
-                mask = (edc_db <= low) & (edc_db >= high)
-                if np.sum(mask) > 1:
-                    p = np.polyfit(t[mask], edc_db[mask], 1)
-                    results[key].append(round(-60.0 / p[0], 2))
-                else:
-                    results[key].append(np.nan)
+            # the band already starts at the direct sound
+            sig = pf.Signal(band[direct:direct + end - onset], self.sampling_rate)
+            edc = pyrato.edc.schroeder_integration(sig)
+            with np.errstate(divide='ignore', invalid='ignore'):
+                edc = pf.TimeData(edc.time / edc.time[..., :1], edc.times)
+                try:
+                    values = [round(float(np.squeeze(_REVERBERATION_TIME(edc, key))), 2) for key in keys]
+                except (ValueError, IndexError, np.linalg.LinAlgError) as error:
+                    # a band without energy, or too short to hold the regression range
+                    failed[center_freq] = error
+                    values = [np.nan] * len(keys)
+            for key, value in zip(keys, values):
+                results[key].append(value)
+        if failed:
+            warnings.warn(f"pyrato could not evaluate the decay in the {', '.join(f'{f:g}' for f in failed)} Hz band(s) "
+                          f"({next(iter(failed.values()))}); EDT, T20 and T30 are NaN there.")
         return results
 
     def _band_from_onset(self, ir_array, center_frequency):
@@ -306,36 +360,49 @@ class AcousticAnalyser(Data):
         return results
 
     def direct_to_reverberant_ratio(self, impulse_response=None) -> dict:
-        """Compute the direct-to-reverberant ratio (DRR) per frequency band.
+        """Compute the direct-to-reverberant ratio (DRR) per octave band and in the 700-4000 Hz band.
 
-        The direct sound is the broadband impulse response within 2.5 ms of the direct
-        sound arrival; everything after it is reverberant. Both parts are cut before octave
-        filtering, so filter delay and ringing at low frequencies stay with the part they
-        belong to.
+        After Haapaniemi and Lokki (2018), eq. 1: the energy of the first 5 ms from the direct
+        sound over the energy after it, in dB. The window opens 1 ms before the direct sound,
+        so that a band-limited arrival (a fractional delay spreads over neighbouring samples)
+        is held whole; nothing is reflected before the direct sound arrives.
+
+        The single-number value, ``'DRR_overall'``, is theirs: the impulse response filtered
+        with a second-order Butterworth band-pass of 700-4000 Hz, the band of LOC (Griesinger)
+        and of their localisation threshold in concert halls (-2.7 to 1.7 dB). A 5 ms window
+        does not resolve the low octaves, which is why they use this band.
+
+        Per octave band the two parts are cut before filtering, as for C50: the octave filters
+        ring for tens of milliseconds at low frequencies and, applied first, would move the
+        direct sound past 5 ms. The low octaves therefore see only what arrives in the window;
+        a source's own response longer than 5 ms (a high-pass below the band) counts as
+        reverberant there, as it does in their definition.
+
+        Returns
+        -------
+        dict
+            ``'DRR'`` per band in :attr:`frequency_bands`, and ``'DRR_overall'`` in 700-4000 Hz.
         """
         if impulse_response is None:
             impulse_response = self.ir
 
         ir_array = np.asarray(impulse_response, dtype=float)
-        d_half = int(0.0025 * self.sampling_rate)
-        if self.onset is not None and ir_array is self.ir:
-            peak_idx = self.onset
-        else:
-            peak_idx = int(np.argmax(ir_array ** 2))
-        i_dir_start = max(0, peak_idx - d_half)
-        i_dir_end = min(len(ir_array), peak_idx + d_half)
+        onset = self._direct_sound_onset(ir_array)
+        start, end = (max(0, onset + int(round(t * self.sampling_rate))) for t in _DRR_DIRECT_WINDOW)
+
+        def ratio(direct, reverberant):
+            if direct > 0 and reverberant > 0:
+                return round(float(10.0 * np.log10(direct / reverberant)), 2)
+            return np.nan
 
         bands = list(self.frequency_bands)
-        direct = self._band_energies(ir_array[i_dir_start:i_dir_end], bands)
-        reverberant = self._band_energies(ir_array[i_dir_end:], bands)
-
-        results = {'DRR': []}
-        for freq in bands:
-            if direct[freq] > 0 and reverberant[freq] > 0:
-                results['DRR'].append(round(float(10.0 * np.log10(direct[freq] / reverberant[freq])), 2))
-            else:
-                results['DRR'].append(np.nan)
-        return results
+        direct = self._band_energies(ir_array[start:end], bands)
+        reverberant = self._band_energies(ir_array[end:], bands)
+        filtered = sosfilt(butter(_DRR_BAND_ORDER, _DRR_BAND, 'bandpass', fs=self.sampling_rate, output='sos'), ir_array)
+        return {
+            'DRR': [ratio(direct[freq], reverberant[freq]) for freq in bands],
+            'DRR_overall': ratio(np.sum(filtered[start:end] ** 2), np.sum(filtered[end:] ** 2)),
+        }
 
     def center_time(self, impulse_response=None) -> dict:
         """Compute the center time Ts per frequency band with pyrato, in seconds.
@@ -404,12 +471,18 @@ class AcousticAnalyser(Data):
         return {'mti': mti, 'sti': sti_val}
 
     def _direct_sound_onset(self, ir_array) -> int:
-        """Index of the direct sound: the first sample within 20 dB of the maximum (ISO 3382-1)."""
-        # The stored onset belongs to the analyser's own response only
+        """Index of the direct sound: where ``ita_start_IR`` (ITA Toolbox) puts t = 0, after ISO 3382-1.
+
+        On the package scale the search starts 1 ms before the geometric arrival: nothing arrives
+        earlier, and an early ray-traced bin could otherwise be taken for the direct sound. A blocked
+        direct path is treated as the ITA Toolbox treats any response: the start is the first
+        arrival the search finds.
+        """
+        lower = 0
+        # The stored geometric onset belongs to the analyser's own response only
         if self.onset is not None and ir_array is self.ir:
-            return self.onset
-        energy = ir_array ** 2
-        return int(np.argmax(energy >= np.max(energy) * 0.01))
+            lower = max(0, self.onset - int(round(_GEOMETRIC_SEARCH_LEAD * self.sampling_rate)))
+        return lower + _iso3382_start(ir_array[lower:])
 
     def _band_energies(self, segment, bands) -> dict:
         """Octave-band energies of a time segment, filtered after windowing so filter delay and ringing stay with the segment."""
@@ -559,6 +632,8 @@ class AcousticAnalyser(Data):
                 overall = round(float(sti_data['sti']), 4)
             elif param == 'G':
                 overall = g_overall
+            elif param == 'DRR':
+                overall = drr['DRR_overall']
             else:
                 idx = [freqs.index(500), freqs.index(1000)] if param in _RT_PARAMS else [freqs.index(500), freqs.index(1000), freqs.index(2000)]
                 overall = round(float(np.nanmean(vals[idx])), 2)
