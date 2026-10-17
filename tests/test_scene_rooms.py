@@ -15,7 +15,7 @@ from compas_acoustics.pra_converter import source_to_pra
 
 def shoebox_scene():
     scene = Scene("test")
-    scene.add_acoustic_object(AcousticObjectsLibrary.shoebox_room(7, 5, 3, materials=AcousticMaterial("wall", 0.2, 0.1)))
+    scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(7, 5, 3, materials=AcousticMaterial("wall", 0.2, 0.1)))
     scene.add_source(Source("src", 1.5, 1.5, 1.6))
     scene.add_receiver(Receiver("rec", 5, 3, 1.5))
     return scene
@@ -79,6 +79,6 @@ def test_an_edge_without_responses_is_removed():
 
 def test_number_of_sources_counts_attached_sources():
     scene = Scene("t")
-    scene.add_acoustic_object(AcousticObjectsLibrary.shoebox_room(7, 5, 3, sources=[Source("on_floor", 1, 1, 0.5)]))
+    scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(7, 5, 3, sources=[Source("on_floor", 1, 1, 0.5)]))
     scene.add_source(Source("free", 2, 2, 1.5))
     assert scene.number_of_sources == len(scene.sources) == 2

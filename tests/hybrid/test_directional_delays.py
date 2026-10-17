@@ -17,7 +17,7 @@ DIMS = np.array([7.0, 5.0, 3.0])
 
 def spec(direction=(1, 0, 0)):
     scene = Scene("test")
-    scene.add_acoustic_object(AcousticObjectsLibrary.shoebox_room(*DIMS, materials=AcousticMaterial("wall", 0.2, 0.1)))
+    scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(*DIMS, materials=AcousticMaterial("wall", 0.2, 0.1)))
     receiver = Receiver("r", 5, 3, 1.5, direction=list(direction))
     return Pair(RoomGeometry.from_scene(scene), [1.5, 1.5, 1.6], receiver.position, receiver.rotation, FS)
 

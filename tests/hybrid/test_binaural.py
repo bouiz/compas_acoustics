@@ -19,7 +19,7 @@ FAST = dict(tail="eyring", image_source_order=2, duration=0.3)
 
 def scene(receiver=None, panel=False):
     s = Scene("binaural")
-    s.add_acoustic_object(AcousticObjectsLibrary.shoebox_room(10, 8, 4, materials=WALL))
+    s.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(10, 8, 4, materials=WALL))
     if panel:
         mesh = Mesh.from_vertices_and_faces([[5, 3, 0.5], [5, 5, 0.5], [5, 5, 2.5], [5, 3, 2.5]], [[0, 1, 2, 3]])
         s.add_acoustic_object(AcousticObject(mesh, WALL, name="panel", role="obstacle"))

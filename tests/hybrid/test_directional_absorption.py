@@ -17,7 +17,7 @@ FS = 48000.0
 def spec(direction=(1, 0, 0)):
     scene = Scene("test")
     wall, floor = AcousticMaterial("wall", 0.1, 0.1), AcousticMaterial("carpet", 0.6, 0.1)
-    scene.add_acoustic_object(AcousticObjectsLibrary.shoebox_room(7, 5, 3, materials={
+    scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(7, 5, 3, materials={
         "floor": floor, "ceiling": wall, "left_wall": wall, "right_wall": wall, "front_wall": wall, "back_wall": wall,
     }))
     receiver = Receiver("r", 3.5, 2.5, 1.5, direction=list(direction))

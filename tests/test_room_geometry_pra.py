@@ -14,7 +14,7 @@ WALL = AcousticMaterial("wall", 0.2, 0.1)
 
 def geometry(materials=WALL, extra=()):
     scene = Scene("test")
-    scene.add_acoustic_object(AcousticObjectsLibrary.shoebox_room(7, 5, 3, materials=materials))
+    scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(7, 5, 3, materials=materials))
     for obj in extra:
         scene.add_acoustic_object(obj)
     return RoomGeometry.from_scene(scene)
@@ -123,7 +123,7 @@ def test_a_receiver_in_a_pillar_is_left_out_with_a_warning():
     from compas_acoustics.methods import Pyroomacoustics
 
     scene = Scene("pillar")
-    scene.add_acoustic_object(AcousticObjectsLibrary.shoebox_room(7, 5, 3, materials=WALL))
+    scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(7, 5, 3, materials=WALL))
     scene.add_acoustic_object(pillar())
     scene.add_source(Source("s", 1, 1, 1.5))
     scene.add_receiver(Receiver("in_pillar", 3.5, 2.5, 1.5))

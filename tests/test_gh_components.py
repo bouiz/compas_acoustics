@@ -77,7 +77,7 @@ def load_component(name, monkeypatch, levels=False):
 
 def scene():
     s = Scene("gh")
-    s.add_acoustic_object(AcousticObjectsLibrary.shoebox_room(7, 5, 3, materials=AcousticMaterial("wall", 0.2, 0.1)))
+    s.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(7, 5, 3, materials=AcousticMaterial("wall", 0.2, 0.1)))
     s.add_source(Source("src", 1.5, 1.5, 1.6))
     s.add_receiver(Receiver("rec", 5, 3, 1.5))
     return s

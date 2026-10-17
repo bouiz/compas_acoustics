@@ -27,7 +27,7 @@ WALL = AcousticMaterial("wall", [0.1, 0.12, 0.15, 0.18, 0.2, 0.22, 0.25], 0.1)
 
 def setup(panel=False):
     scene = Scene("test")
-    scene.add_acoustic_object(AcousticObjectsLibrary.shoebox_room(10, 8, 4, materials=WALL))
+    scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(10, 8, 4, materials=WALL))
     if panel:
         mesh = Mesh.from_vertices_and_faces([[5, 3, 0.5], [5, 5, 0.5], [5, 5, 2.5], [5, 3, 2.5]], [[0, 1, 2, 3]])
         scene.add_acoustic_object(AcousticObject(mesh, WALL, name="panel", role="obstacle"))

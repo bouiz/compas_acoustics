@@ -134,10 +134,7 @@ def _object_polygons(acoustic_object) -> List[np.ndarray]:
     """The faces of one acoustic object as (k, 3) arrays, as the converter reads them."""
     geometry = acoustic_object.acoustic_geometry
     if isinstance(geometry, Mesh):
-        return [
-            np.array([geometry.vertex_coordinates(v) for v in geometry.face_vertices(f)], dtype=float)
-            for f in geometry.faces()
-        ]
+        return [np.array(geometry.face_coordinates(f), dtype=float) for f in geometry.faces()]
     if isinstance(geometry, Polyline):
         return [np.array([list(p) for p in geometry.points[:-1]], dtype=float)]
     if isinstance(geometry, list) and geometry and isinstance(geometry[0], Point):
@@ -305,7 +302,7 @@ class RoomGeometry:
         polygons: List[np.ndarray] = []
         groups: List[Tuple[str, str, str]] = []  # (role, object name, material name)
         materials: Dict[str, SurfaceMaterial] = {}
-        for acoustic_object, role in scene.iter_acoustic_objects_with_roles():
+        for acoustic_object in scene.acoustic_objects:
             if acoustic_object.material is None:
                 raise ValueError(f"Acoustic object '{acoustic_object.name}' has no material.")
             material = SurfaceMaterial.from_acoustic_material(acoustic_object.material)
@@ -316,7 +313,7 @@ class RoomGeometry:
                 )
             for polygon in _object_polygons(acoustic_object):
                 polygons.append(polygon)
-                groups.append((role, str(acoustic_object.name), material.name))
+                groups.append((acoustic_object.role, str(acoustic_object.name), material.name))
         return cls._from_polygons(polygons, groups, materials, merge_coplanar, weld_tolerance)
 
     @classmethod

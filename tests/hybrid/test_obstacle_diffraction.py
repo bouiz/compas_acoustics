@@ -20,7 +20,7 @@ TOP = 2.5
 
 def room(*obstacles):
     scene = Scene("test")
-    scene.add_acoustic_object(AcousticObjectsLibrary.shoebox_room(10, 8, 4, materials=WALL))
+    scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(10, 8, 4, materials=WALL))
     for obstacle in obstacles:
         scene.add_acoustic_object(obstacle)
     return RoomGeometry.from_scene(scene)

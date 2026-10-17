@@ -24,8 +24,7 @@ SMOOTH = AcousticMaterial("smooth", 0.2, [0.0] * 7)
 def scene_of(materials=WALL, leaves=6):
     scene = Scene("test")
     room = AcousticObjectsLibrary.shoebox_room(7, 5, 3, materials=materials)
-    for leaf in list(room.iter_acoustic_objects())[:leaves]:
-        scene.add_acoustic_object(leaf)
+    scene.add_acoustic_objects(room[:leaves])
     return scene
 
 
@@ -84,7 +83,7 @@ def uniform(scattering=0.15):
     """Upstream's uniform_spec: 5 x 4 x 3 m, alpha 0.15, no air absorption."""
     material = AcousticMaterial("uniform", 0.15, [scattering] * 7)
     scene = Scene("uniform")
-    scene.add_acoustic_object(AcousticObjectsLibrary.shoebox_room(5, 4, 3, materials=material))
+    scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(5, 4, 3, materials=material))
     return RoomGeometry.from_scene(scene)
 
 

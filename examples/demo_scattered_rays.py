@@ -40,7 +40,7 @@ room = ca.AcousticObjectsLibrary.shoebox_room(length=5, width=4, height=3, mater
     "back_wall": diffusing,
     "ceiling": concrete,
 })
-scene.add_acoustic_object(room)
+scene.add_acoustic_objects(room)
 
 
 ########### trace the rays including scattering

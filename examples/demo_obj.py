@@ -32,7 +32,7 @@ plywood = ca.AcousticMaterial(name='plywood', absorption_coefficients=[0.18, 0.1
 
 ########### read the room and the table from OBJ files, one acoustic object per OBJ group (Rhino layer)
 room_obj_path = os.path.join(os.path.dirname(__file__), 'sample_room.obj')
-room = ca.AcousticObjectsLibrary.from_obj(room_obj_path, materials={
+room = ca.AcousticObject.from_obj(room_obj_path, materials={
     'floor': concrete,
     'plasterboard': plasterboard,
     'glass': glass,
@@ -41,10 +41,10 @@ room = ca.AcousticObjectsLibrary.from_obj(room_obj_path, materials={
 
 # The table stands free in the room: an obstacle, reflecting from both sides
 table_obj_path = os.path.join(os.path.dirname(__file__), 'sample_table.obj')
-table = ca.AcousticObjectsLibrary.from_obj(table_obj_path, materials=plywood, roles="obstacle", name="sample_table")
+table = ca.AcousticObject.from_obj(table_obj_path, materials=plywood, roles="obstacle", name="sample_table")
 
-scene.add_acoustic_object(room)
-scene.add_acoustic_object(table)
+scene.add_acoustic_objects(room)
+scene.add_acoustic_objects(table)
 
 
 ########### run a ray tracing simulation

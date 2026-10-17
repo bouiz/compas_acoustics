@@ -15,8 +15,7 @@ from compas_acoustics.room_geometry import RoomGeometry
 def shoebox(leaves=6):
     scene = Scene("test")
     room = AcousticObjectsLibrary.shoebox_room(7, 5, 3, materials=AcousticMaterial("wall", 0.2, 0.1))
-    for leaf in list(room.iter_acoustic_objects())[:leaves]:
-        scene.add_acoustic_object(leaf)
+    scene.add_acoustic_objects(room[:leaves])
     return RoomGeometry.from_scene(scene)
 
 

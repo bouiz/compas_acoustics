@@ -105,7 +105,7 @@ def test_predicted_rt_follows_the_medium():
     from compas_acoustics.room_geometry import RoomGeometry
 
     scene = Scene("rt")
-    scene.add_acoustic_object(AcousticObjectsLibrary.shoebox_room(20, 15, 8, materials=AcousticMaterial("w", 0.05, 0.1)))
+    scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(20, 15, 8, materials=AcousticMaterial("w", 0.05, 0.1)))
     geometry = RoomGeometry.from_scene(scene)
     default = predicted_rt(geometry, warn=False)
     np.testing.assert_array_equal(predicted_rt(geometry, warn=False, air=AirConditions()), default)
@@ -118,7 +118,7 @@ def _scene():
     from compas_acoustics import AcousticMaterial, AcousticObjectsLibrary, Receiver, Scene, Source
 
     scene = Scene("air")
-    scene.add_acoustic_object(AcousticObjectsLibrary.shoebox_room(7, 5, 3, materials=AcousticMaterial("wall", 0.3, 0.1)))
+    scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(7, 5, 3, materials=AcousticMaterial("wall", 0.3, 0.1)))
     scene.add_source(Source("src", 1.5, 1.5, 1.6))
     scene.add_receiver(Receiver("rec", 5.0, 3.0, 1.5))
     return scene

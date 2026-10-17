@@ -55,7 +55,7 @@ scene = ca.Scene(name="Demo Scene", description="This is a demo scene.")
 
 
 ########### add the room, sources, and receivers to the scene
-scene.add_acoustic_object(room)
+scene.add_acoustic_objects(room)
 scene.add_source(source_1)
 scene.add_source(source_2)
 scene.add_receiver(receiver_1)

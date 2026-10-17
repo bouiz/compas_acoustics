@@ -96,18 +96,6 @@ class Scene(Data):
           
     
     
-    def iter_acoustic_objects(self):
-        """Yield every leaf :class:`AcousticObject` in the scene, recursing into groups."""
-        for acoustic_object in self.acoustic_objects:
-            yield from acoustic_object.iter_acoustic_objects()
-
-
-    def iter_acoustic_objects_with_roles(self):
-        """Yield ``(leaf, role)`` for every leaf :class:`AcousticObject`, roles resolved through groups."""
-        for acoustic_object in self.acoustic_objects:
-            yield from acoustic_object.iter_acoustic_objects_with_roles()
-    
-    
     @property
     def acoustic_materials(self):
         """The unique acoustic materials of the scene, keyed by name (as :attr:`scene_materials`)."""
@@ -120,7 +108,7 @@ class Scene(Data):
         raise AttributeError(
             "Scene materials are no longer assigned by surface name. Give each AcousticObject its material, e.g. "
             "AcousticObjectsLibrary.shoebox_room(..., materials={'floor': carpet, ...}) or "
-            "AcousticObjectsLibrary.from_obj(path, materials={'<group>': material})."
+            "AcousticObject.from_obj(path, materials={'<group>': material})."
         )
 
 
@@ -128,16 +116,16 @@ class Scene(Data):
     def scene_materials(self):
         """The unique acoustic materials used in the scene, keyed by material name."""
         materials = {}
-        for acoustic_object in self.iter_acoustic_objects():
+        for acoustic_object in self.acoustic_objects:
             material = acoustic_object.material
             if material is not None:
                 materials[material.name] = material
         return materials
-    
-    
+
+
     def print_scene_materials(self):
         print(f"Scene '{self.name}' materials:")
-        for acoustic_object in self.iter_acoustic_objects():
+        for acoustic_object in self.acoustic_objects:
             material_name = acoustic_object.material.name if acoustic_object.material else "none"
             print(f"  {acoustic_object.name}: {material_name}")
                 
@@ -157,7 +145,7 @@ class Scene(Data):
 
         viewer = Viewer()
 
-        for acoustic_object in self.iter_acoustic_objects():
+        for acoustic_object in self.acoustic_objects:
             material = acoustic_object.material
             material_name = material.name if material else "none"
             color = material_colors.get(material_name, default_color)

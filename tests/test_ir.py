@@ -105,7 +105,7 @@ def test_simulate_normalises_and_records_generation(normalize):
     from compas_acoustics.methods import Pyroomacoustics
 
     scene = Scene("room")
-    scene.add_acoustic_object(AcousticObjectsLibrary.shoebox_room(10, 8, 4))
+    scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(10, 8, 4))
     scene.add_source(Source("s", 2, 4, 1.5))
     scene.add_receiver(Receiver("near", 3, 4, 1.5))
     scene.add_receiver(Receiver("mid", 5, 4, 1.5))
@@ -128,7 +128,7 @@ def test_simulated_impulse_responses_use_the_requested_sample_rate(sample_rate):
     from compas_acoustics.methods import Pyroomacoustics
 
     scene = Scene("room")
-    scene.add_acoustic_object(AcousticObjectsLibrary.shoebox_room(10, 8, 4))
+    scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(10, 8, 4))
     scene.add_source(Source("s", 2, 4, 1.5))
     scene.add_receiver(Receiver("r", 5, 4, 1.5))
     # Air absorption above 16 kHz used to fail on a 7- vs 8-band mismatch

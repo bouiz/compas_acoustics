@@ -31,8 +31,7 @@ FAST_RT = dict(image_source_order=3, n_rays=2000, duration=1.0, seed=1)
 def make(receivers=None, materials=WALL, leaves=6, panel=False):
     scene = Scene("test")
     room = AcousticObjectsLibrary.shoebox_room(10, 8, 4, materials=materials)
-    for leaf in list(room.iter_acoustic_objects())[:leaves]:
-        scene.add_acoustic_object(leaf)
+    scene.add_acoustic_objects(room[:leaves])
     if panel:
         mesh = Mesh.from_vertices_and_faces([[5, 3, 0.5], [5, 5, 0.5], [5, 5, 2.5], [5, 3, 2.5]], [[0, 1, 2, 3]])
         scene.add_acoustic_object(AcousticObject(mesh, WALL, name="panel", role="obstacle"))
@@ -160,7 +159,7 @@ def test_diffraction_at_the_room_boundary_needs_no_obstacles():
 
 def pillar_scene():
     scene = Scene("pillar")
-    scene.add_acoustic_object(AcousticObjectsLibrary.shoebox_room(10, 8, 3, materials=WALL))
+    scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(10, 8, 3, materials=WALL))
     pillar = Mesh.from_shape(Box.from_corner_corner_height([4, 3, 0], [5, 4, 0], 3))
     scene.add_acoustic_object(AcousticObject(pillar, WALL, name="pillar"))
     return scene
@@ -441,7 +440,7 @@ def test_the_late_level_matches_an_exact_specular_room(dims, alpha, src, rec):
     exact = room.rir[0][0][pra.constants.get("frac_delay_length") // 2:] / (4 * np.pi)
 
     scene = Scene("exact")
-    scene.add_acoustic_object(AcousticObjectsLibrary.shoebox_room(*dims, materials=AcousticMaterial("m", alpha, 0.0)))
+    scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(*dims, materials=AcousticMaterial("m", alpha, 0.0)))
     source, receiver = Source("s", *src), Receiver("r", *rec)
     scene.add_source(source)
     scene.add_receiver(receiver)

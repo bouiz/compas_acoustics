@@ -33,7 +33,7 @@ PANEL = AcousticMaterial("panel", [0.05, 0.06, 0.08, 0.1, 0.12, 0.16, 0.16], [0.
 
 def geometry(panel=False):
     scene = Scene("parity")
-    scene.add_acoustic_object(AcousticObjectsLibrary.shoebox_room(10, 8, 4, materials=WALL))
+    scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(10, 8, 4, materials=WALL))
     if panel:
         mesh = Mesh.from_vertices_and_faces([[5, 3, 0.5], [5, 5, 0.5], [5, 5, 2.5], [5, 3, 2.5]], [[0, 1, 2, 3]])
         scene.add_acoustic_object(AcousticObject(mesh, PANEL, name="panel", role="obstacle"))
@@ -111,7 +111,7 @@ def test_the_eyring_tail_matches_upstreams_default_target():
     from compas_acoustics.methods import Hybrid
 
     scene = Scene("parity")
-    scene.add_acoustic_object(AcousticObjectsLibrary.shoebox_room(10, 8, 4, materials=WALL))
+    scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(10, 8, 4, materials=WALL))
     scene.add_source(Source("s", *SOURCE))
     scene.add_receiver(Receiver("r", *RECEIVER))
     hybrid = Hybrid(tail="eyring", duration=0.4, normalize=False)
@@ -233,7 +233,7 @@ def test_pillar_corners_diffract_as_upstream():
     Upstream's room is tiled and wound by hand, so neither the winding nor the face order is taken from compas.
     """
     scene = Scene("pillar")
-    scene.add_acoustic_object(AcousticObjectsLibrary.shoebox_room(10, 8, H, materials=WALL))
+    scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(10, 8, H, materials=WALL))
     pillar = Mesh.from_shape(Box.from_corner_corner_height([4, 3, 0], [5, 4, 0], H))
     scene.add_acoustic_object(AcousticObject(pillar, PANEL, name="pillar"))
     g = RoomGeometry.from_scene(scene)

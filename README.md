@@ -57,7 +57,7 @@ Every simulation method runs through `scene.simulate`:
 import compas_acoustics as ca
 
 scene = ca.Scene("room")
-scene.add_acoustic_object(ca.AcousticObjectsLibrary.shoebox_room(8, 6, 3, materials=ca.AcousticMaterial("wall", 0.2, 0.1)))
+scene.add_acoustic_objects(ca.AcousticObjectsLibrary.shoebox_room(8, 6, 3, materials=ca.AcousticMaterial("wall", 0.2, 0.1)))
 scene.add_source(ca.Source("talker", 2, 2, 1.6))
 scene.add_receiver(ca.Receiver("listener", 6, 4, 1.2, direction=[-1, -0.5, 0]))
 

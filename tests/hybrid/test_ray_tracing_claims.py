@@ -26,7 +26,7 @@ def uneven():
     materials = {"floor": AcousticMaterial("floor", FLOOR, s), "ceiling": AcousticMaterial("ceiling", CEILING, s),
                  "left_wall": wall, "right_wall": wall, "front_wall": wall, "back_wall": wall}
     scene = Scene("uneven")
-    scene.add_acoustic_object(AcousticObjectsLibrary.shoebox_room(6, 4, 3, materials=materials))
+    scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(6, 4, 3, materials=materials))
     return RoomGeometry.from_scene(scene)
 
 

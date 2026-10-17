@@ -15,7 +15,7 @@ FS = 48000
 
 def scene():
     s = Scene("methods")
-    s.add_acoustic_object(AcousticObjectsLibrary.shoebox_room(7, 5, 3, materials=AcousticMaterial("wall", 0.2, 0.1)))
+    s.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(7, 5, 3, materials=AcousticMaterial("wall", 0.2, 0.1)))
     s.add_source(Source("src", 1.5, 1.5, 1.6))
     s.add_receiver(Receiver("near", 3, 2, 1.5))
     s.add_receiver(Receiver("far", 6, 4, 1.5))
@@ -147,7 +147,7 @@ def test_a_rate_that_is_not_a_positive_whole_number_raises(rate):
 
 def test_a_scene_without_receivers_returns_nothing():
     s = Scene("empty")
-    s.add_acoustic_object(AcousticObjectsLibrary.shoebox_room(5, 4, 3, materials=AcousticMaterial("wall", 0.2, 0.1)))
+    s.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(5, 4, 3, materials=AcousticMaterial("wall", 0.2, 0.1)))
     s.add_source(Source("s", 1, 1, 1.5))
     assert s.simulate(Delta()) == {}
 

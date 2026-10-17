@@ -657,8 +657,7 @@ class RayField(Data):
     def _add_scene_to_viewer(viewer, scene) -> None:
         from compas.colors import Color
 
-        # Leaf objects: a group (a shoebox room) has no geometry of its own
-        for acoustic_object in scene.iter_acoustic_objects():
+        for acoustic_object in scene.acoustic_objects:
             viewer.scene.add(acoustic_object.acoustic_geometry, name=acoustic_object.name, opacity=0.5)
 
         for source in scene.sources:

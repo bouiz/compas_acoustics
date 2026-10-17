@@ -8,7 +8,7 @@ from .acoustic_material import MaterialCategory
 from .materials_library import MaterialsLibrary
 from .source import Source
 from .receiver import Receiver
-from .geometry import AcousticObject, AcousticObjectsGroup, AcousticObjectsLibrary
+from .geometry import AcousticObject, AcousticObjectsLibrary
 from .ir import ImpulseResponse
 from .room_geometry import RoomGeometry
 from .ray import Ray, ScatteredRay, RayField
@@ -37,7 +37,6 @@ __all__ = [
     'Source',
     'Receiver',
     'AcousticObject',
-    'AcousticObjectsGroup',
     'AcousticObjectsLibrary',
     'Ray',
     'ScatteredRay',

@@ -22,7 +22,7 @@ WALL = AcousticMaterial("wall", 0.2, 0.1)
 
 def computed(sources, receivers, obstacles=(), order=2):
     scene = Scene("test")
-    scene.add_acoustic_object(AcousticObjectsLibrary.shoebox_room(7, 5, 3, materials=WALL))
+    scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(7, 5, 3, materials=WALL))
     for obstacle in obstacles:
         scene.add_acoustic_object(obstacle)
     geometry = RoomGeometry.from_scene(scene)
