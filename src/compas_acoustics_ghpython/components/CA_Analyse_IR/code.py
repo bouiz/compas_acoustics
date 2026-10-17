@@ -1,6 +1,6 @@
 # flake8: noqa
 import Grasshopper
-from compas_acoustics.analyser import AcousticAnalyser
+from compas_acoustics import worker
 from compas_acoustics_ghpython import AcousticParameter
 from compas_acoustics import Defaults
 
@@ -12,7 +12,7 @@ class AnalyseIR(Grasshopper.Kernel.GH_ScriptInstance):
             return None
 
         # Pass the ImpulseResponse so its sample rate is used
-        analyser = AcousticAnalyser(ir)
-        analyser.analyse()
+        # STI and G come from the worker where Rhino's Python cannot compute them
+        analyser = worker.analyse(ir)
 
         return [AcousticParameter().from_analyser(analyser, name) for name in Defaults().PARAM_NAMES]

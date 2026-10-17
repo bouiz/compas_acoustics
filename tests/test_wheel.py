@@ -19,4 +19,5 @@ def test_the_wheel_ships_the_new_modules(tmp_path):
     assert "compas_acoustics/hrtfs_library/KEMAR_Knowl_EarSim_SmallEars_FreeFieldComp_48kHz.sofa" in names
     assert "compas_acoustics/hybrid/diffraction.py" in names
     assert "compas_acoustics/methods/pra.py" in names
+    assert "compas_acoustics/worker/service.py" in names
     assert not [n for n in names if n.startswith("compas_acoustics_ghpython/components/") and n.endswith("code.py")]

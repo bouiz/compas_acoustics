@@ -19,12 +19,14 @@ than ``default``, add the venv directive as first line of each copied
 component, so it runs in that environment. The files in the package are
 not changed.
 4. Unload previously imported ``compas_acoustics`` modules.
+5. With ``worker`` 'analysis' or 'hybrid', create a Python 3.12 environment for the
+features Rhino's Python 3.9 cannot run (``compas_acoustics.worker.install``).
 
 Rhino must be restarted afterwards: reloading Grasshopper's component libraries
 at runtime (``ComponentServer.LoadExternalFiles``) re-registers every plugin
 and makes Grasshopper show "Component ID conflict" dialogs.
 
-Inputs: source (str), venv (str), install (bool, connect a button).
+Inputs: source (str), venv (str), install (bool, connect a button), worker (str: empty, 'analysis' or 'hybrid').
 Outputs: log (str), ok (bool).
 
 Rhino quirks to keep in mind when editing this file: Rhino pre-processes the
@@ -108,11 +110,13 @@ def download(url, log):
     return target
 
 
-def run(cmd, log):
+def run(cmd, log, env=None):
     log("> " + " ".join('"{}"'.format(c) if " " in c else c for c in cmd))
     kwargs = {}
     if os.name == "nt":
         kwargs["creationflags"] = 0x08000000  # CREATE_NO_WINDOW
+    if env is not None:
+        kwargs["env"] = env
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, **kwargs)
     for line in process.stdout:
         line = line.rstrip()
@@ -242,7 +246,7 @@ def unload_modules():
     return len(names)
 
 
-def run_install(state, source, venv, gh_file):
+def run_install(state, source, venv, gh_file, worker):
     def log(message):
         state["log"].append(message)
 
@@ -271,6 +275,18 @@ def run_install(state, source, venv, gh_file):
         log("{} {} installed.".format(PACKAGE, version))
 
         install_userobjects(python, log, venv, target)
+
+        worker = (worker or "").strip().lower()
+        if worker in ("analysis", "hybrid"):
+            log("")
+            log("Setting up the Python 3.12 worker for {}, this can take a while{}...".format(
+                "the hybrid method, STI, G and binaural" if worker == "hybrid" else "STI, G and binaural",
+                " (the hybrid extra downloads PyTorch, several GB)" if worker == "hybrid" else ""))
+            cmd = [python, "-m", "compas_acoustics.worker.install", "--wheel", wheel] + (["--hybrid"] if worker == "hybrid" else [])
+            run(cmd, log, env=dict(os.environ, PYTHONPATH=target))
+        elif worker:
+            raise RuntimeError("worker must be empty, 'analysis' or 'hybrid', got '{}'.".format(worker))
+
         unloaded = unload_modules()
         if unloaded:
             log("Unloaded {} previously imported compas_acoustics modules.".format(unloaded))
@@ -288,14 +304,14 @@ def run_install(state, source, venv, gh_file):
 
 
 class Script_Instance(Grasshopper.Kernel.GH_ScriptInstance):
-    def RunScript(self, source, venv, install):
+    def RunScript(self, source, venv, install, worker):
         component = ghenv.Component  # noqa: F821
         state = sc.sticky.setdefault(STATE_KEY, {"running": False, "log": [], "ok": None})
 
         if install and not state["running"]:
             gh_doc = component.OnPingDocument()
             state.update(running=True, log=[], ok=None)
-            thread = threading.Thread(target=run_install, args=(state, source, venv, gh_doc.FilePath if gh_doc else None))
+            thread = threading.Thread(target=run_install, args=(state, source, venv, gh_doc.FilePath if gh_doc else None, worker))
             thread.daemon = True
             thread.start()
 

@@ -16,6 +16,15 @@ from compas_acoustics import Source
 
 needs_hybrid = pytest.mark.skipif(importlib.util.find_spec("pyFDN") is None, reason="needs the hybrid extra (Python >= 3.11)")
 
+@pytest.fixture(autouse=True)
+def no_configured_worker(monkeypatch, tmp_path):
+    from compas_acoustics import worker
+
+    monkeypatch.delenv("COMPAS_ACOUSTICS_WORKER_PYTHON", raising=False)
+    monkeypatch.setattr(worker, "CONFIG", tmp_path / "worker.json")
+    monkeypatch.setattr(worker, "_PROXY", None)
+
+
 COMPONENTS = Path(__file__).parents[1] / "src" / "compas_acoustics_ghpython" / "components"
 
 
@@ -240,6 +249,25 @@ def test_a_missing_hybrid_extra_is_an_error_not_a_traceback(monkeypatch):
     monkeypatch.setitem(sys.modules, "compas_acoustics.methods.hybrid", None)
     assert run_hybrid(module, scene()) is None
     assert messages and messages[0][0] == "error" and "hybrid" in messages[0][1]
+
+
+def test_simulate_hybrid_without_the_extra_runs_in_a_configured_worker(monkeypatch):
+    from compas_acoustics import worker
+
+    module, messages = load_component("CA_Simulate_Hybrid", monkeypatch, levels=True)
+    monkeypatch.setitem(sys.modules, "compas_acoustics.methods.hybrid", None)
+    monkeypatch.setattr(worker, "worker_python", lambda: "/a/worker/python")
+    calls = []
+
+    def simulate(scene, method, settings, fs, references):
+        calls.append((method, settings, fs, references))
+        return {}, ["a warning from the worker"]
+
+    monkeypatch.setattr(worker, "simulate", simulate)
+    s = scene()
+    assert run_hybrid(module, s, tail="eyring") is s.ir_graph
+    assert calls == [("hybrid", {"tail": "eyring"}, 48000, None)]
+    assert ("warning", "a warning from the worker") in messages
 
 
 @needs_hybrid

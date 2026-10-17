@@ -7,6 +7,7 @@ import os
 import scriptcontext as sc
 
 from compas_acoustics import Defaults
+from compas_acoustics import worker
 from compas_acoustics.auraliser import Auraliser
 
 # First item is the default
@@ -155,7 +156,7 @@ class Auralise(Grasshopper.Kernel.GH_ScriptInstance):
                         return None, None
                     auraliser.hrtf_path = hrtf_path
 
-                    renders.append((path, auraliser, auraliser.convolve(), suffix))
+                    renders.append((path, auraliser, worker.convolve(auraliser), suffix))
 
         # 3. Output level: 'relative' applies one gain to all renders of this run
         gains = Auraliser.render_gains([signal for _, _, signal, _ in renders], level, HEADROOM_DB)

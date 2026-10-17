@@ -6,6 +6,7 @@ import System
 import scriptcontext as sc
 
 from compas_acoustics import Defaults
+from compas_acoustics import worker
 
 # First item is the default
 TAILS = ["auto", "reference", "ray_tracing", "eyring", "sabine"]
@@ -56,6 +57,19 @@ class SimulateHybrid(Grasshopper.Kernel.GH_ScriptInstance):
     def error(self, text):
         ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Error, text)
 
+    def run_in_worker(self, scene, given, references, fs):
+        settings = {key: value for key, value in given.items() if key != "reference"}
+        fs = fs or Defaults().SAMPLING_RATE
+        try:
+            _, messages = worker.simulate(scene, "hybrid", settings, fs, references)
+        except Exception as e:
+            self.error("The worker failed: {}".format(e))
+            return
+        for message in messages:
+            ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning, message)
+        ghenv.Component.Message = "{:g}Hz, hybrid (worker), tail: {}".format(fs, settings.get("tail", "auto"))
+        return scene.ir_graph
+
     def RunScript(self, scene, tail, reference, sample_rate, sh_order, image_source_order, diffraction, late_envelope, seed, normalize):
         self.offer_value_lists()
 
@@ -68,12 +82,18 @@ class SimulateHybrid(Grasshopper.Kernel.GH_ScriptInstance):
         try:
             from compas_acoustics.methods import Hybrid
         except ImportError as e:
-            self.error("The hybrid method needs Python >= 3.11 (Rhino 8 runs 3.9) and the 'hybrid' extra (pip install compas_acoustics[hybrid]): {}".format(e))
-            return
+            if worker.worker_python() is None:
+                self.error(
+                    "The hybrid method needs Python >= 3.11 (Rhino 8 runs 3.9) and the 'hybrid' extra (pip install compas_acoustics[hybrid]), "
+                    "or a worker: run the installer with worker 'hybrid'. {}".format(e)
+                )
+                return
+            Hybrid = None
 
         tail = None if tail in (None, "", "auto") else tail
         diffraction = None if diffraction in (None, "", "none") else diffraction
         fs = None
+        references = None
         if reference is not None and hasattr(reference, "edges"):
             # The ir_graph output of Simulate Pyroomacoustics: the wire also orders and refreshes this component
             graph = reference
@@ -113,6 +133,8 @@ class SimulateHybrid(Grasshopper.Kernel.GH_ScriptInstance):
             "normalize": normalize,
         }
         given = {key: value for key, value in given.items() if value is not None}
+        if Hybrid is None:
+            return self.run_in_worker(scene, given, references, fs)
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             try:

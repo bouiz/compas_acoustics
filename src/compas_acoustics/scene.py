@@ -28,6 +28,29 @@ class Scene(Data):
         
         
     @property
+    def __data__(self):
+        # The IR graph is not serialised: responses travel as WAV files (ImpulseResponse.to_wav)
+        return {
+            "name": self.name,
+            "description": self.description,
+            "acoustic_objects": self.acoustic_objects,
+            "sources": self._sources,
+            "receivers": self._receivers,
+        }
+
+
+    @classmethod
+    def __from_data__(cls, data):
+        scene = cls(data["name"], data["description"])
+        scene.add_acoustic_objects(data["acoustic_objects"])
+        for source in data["sources"]:
+            scene.add_source(source)
+        for receiver in data["receivers"]:
+            scene.add_receiver(receiver)
+        return scene
+
+
+    @property
     def id(self):
         return self.guid
     

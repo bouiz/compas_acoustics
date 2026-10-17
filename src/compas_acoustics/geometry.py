@@ -165,6 +165,24 @@ class AcousticObject(Data):
 
 
     @property
+    def __data__(self):
+        return {
+            "acoustic_geometry": self.acoustic_geometry,
+            "material": self.material,
+            "position": self.position,
+            "role": self.role,
+            "sources": self.sources,
+        }
+
+
+    @classmethod
+    def __from_data__(cls, data):
+        acoustic_object = cls(data["acoustic_geometry"], data["material"], *data["position"], role=data["role"])
+        acoustic_object.sources = data["sources"]
+        return acoustic_object
+
+
+    @property
     def visualisation_geometry(self):
         return self._visualisation_geometry
 

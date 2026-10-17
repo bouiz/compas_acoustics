@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `Scene` and `AcousticObject` serialise to COMPAS JSON (`compas.data.json_dumps`), with their guids; the IR graph is not serialised
+- `compas_acoustics.worker`: runs the hybrid method, STI, sound strength G and binaural decoding in a second Python >= 3.11 on Rhino 8 (Python 3.9), through a `compas.rpc` server that listens on 127.0.0.1:17531 only and serves only `compas_acoustics.worker.api`. Scenes travel as COMPAS JSON, audio as WAV files. `python -m compas_acoustics.worker.install` creates the environment with `uv`; the Grasshopper installer has a `worker` input (`analysis` or `hybrid`) for it, and `COMPAS_ACOUSTICS_WORKER_PYTHON` names another interpreter. Simulate Hybrid, Analyse IR and Auralise use the worker when Rhino's Python cannot do the work; without a worker nothing changes
 - Grasshopper installer for Rhino 8: `installer/compas_acoustics_installer.gh`. It installs a `.whl` file (local file or download link) into a Rhino script environment, and adds the Grasshopper components.
 - `invoke installer-bundle`: builds the Grasshopper components and the wheel, and zips them with the installer.
 - GitHub Actions use the new `compas-dev/compas-actions` (v1). The build workflow makes the installer bundle (artifact). Releases are made with a pull request (`prepare release` workflow). After the merge, the release workflow builds the Grasshopper components into the wheel, and adds the wheel and the installer bundle to the GitHub release. Tests also run on Python 3.9.
