@@ -238,7 +238,7 @@ def test_a_triangulated_scene_simulates_merged_and_without_the_warning():
 
     from compas_acoustics import Receiver
     from compas_acoustics import Source
-    from compas_acoustics.methods import Pyroomacoustics
+    from compas_acoustics.simulation_methods import Pyroomacoustics
 
     s = scene_of(*[triangulated(o) for o in shoebox_leaves()])
     s.add_source(Source("s", 1.5, 1.5, 1.6))

@@ -16,9 +16,9 @@ from compas_acoustics.diffuse import DiffuseFieldWarning
 from compas_acoustics.hybrid.diffraction import ShellEdgeWarning
 from compas_acoustics.hybrid.diffraction import diffraction_edges
 from compas_acoustics.hybrid.diffraction import enclosure_edges
-from compas_acoustics.methods import Hybrid
-from compas_acoustics.methods import Pyroomacoustics
-from compas_acoustics.methods import SimulationContext
+from compas_acoustics.simulation_methods import Hybrid
+from compas_acoustics.simulation_methods import Pyroomacoustics
+from compas_acoustics.simulation_methods import SimulationContext
 from compas_acoustics.room_geometry import RoomGeometry
 from compas_acoustics.room_geometry import SurfaceMaterial
 

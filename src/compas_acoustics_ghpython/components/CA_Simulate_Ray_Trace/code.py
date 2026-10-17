@@ -4,7 +4,7 @@ import warnings
 import Grasshopper
 
 from compas_acoustics import Defaults
-from compas_acoustics.methods import Pyroomacoustics
+from compas_acoustics.simulation_methods import Pyroomacoustics
 
 # Inputs that only apply with ray tracing
 RAY_TRACING_ONLY = ("n_rays", "energy_thres", "duration", "seed")

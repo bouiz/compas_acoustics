@@ -5,7 +5,7 @@ import pytest
 
 
 def _assert_meets_contract(rirs, context, method, direct_sound=True):
-    """Check a method's responses against the output contract in :mod:`compas_acoustics.methods`.
+    """Check a method's responses against the output contract in :mod:`compas_acoustics.simulation_methods`.
 
     ``direct_sound=False`` skips the free-field amplitude check, for scenes where
     an obstacle blocks the direct path.

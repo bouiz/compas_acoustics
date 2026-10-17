@@ -1,6 +1,6 @@
 """The hybrid simulation method: image sources, optional edge diffraction, a directional FDN tail.
 
-A :class:`~compas_acoustics.methods.SimulationMethod` on the ported hybrid-rir
+A :class:`~compas_acoustics.simulation_methods.SimulationMethod` on the ported hybrid-rir
 modules of :mod:`compas_acoustics.hybrid`. The image source search runs once
 for every source and receiver of the scene; each pair is then synthesised by
 :func:`compas_acoustics.hybrid.synthesis.synthesize`.
@@ -64,7 +64,7 @@ class Hybrid(SimulationMethod):
         (and, with ``late_envelope``, the late-envelope reference): the name of
         a method on the scene's IR graph (``"pyroomacoustics"``, ``"data"``), a
         dict of responses as :meth:`Scene.simulate` returns, or a
-        :class:`~compas_acoustics.methods.Pyroomacoustics` method to run first.
+        :class:`~compas_acoustics.simulation_methods.Pyroomacoustics` method to run first.
     tail : {None, "reference", "ray_tracing", "eyring", "sabine"}
         Where the decay target comes from. ``"reference"``: fitted to
         ``reference``. ``"ray_tracing"``: fitted to a reference the hybrid runs

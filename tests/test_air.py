@@ -125,7 +125,7 @@ def _scene():
 
 
 def test_the_direct_sound_arrives_at_the_mediums_speed():
-    from compas_acoustics.methods import Pyroomacoustics
+    from compas_acoustics.simulation_methods import Pyroomacoustics
 
     air = AirConditions(temperature=0.0)
     (ir,) = _scene().simulate(Pyroomacoustics(air=air)).values()
@@ -138,7 +138,7 @@ def test_the_direct_sound_arrives_at_the_mediums_speed():
 
 
 def test_without_a_medium_the_generation_records_the_default():
-    from compas_acoustics.methods import Pyroomacoustics
+    from compas_acoustics.simulation_methods import Pyroomacoustics
 
     (ir,) = _scene().simulate(Pyroomacoustics()).values()
     assert ir.generation["air"] == AirConditions().to_dict()
@@ -147,7 +147,7 @@ def test_without_a_medium_the_generation_records_the_default():
 
 def test_the_medium_survives_export(tmp_path):
     from compas_acoustics import ImpulseResponse
-    from compas_acoustics.methods import Pyroomacoustics
+    from compas_acoustics.simulation_methods import Pyroomacoustics
 
     air = AirConditions(temperature=0.0)
     (ir,) = _scene().simulate(Pyroomacoustics(air=air)).values()

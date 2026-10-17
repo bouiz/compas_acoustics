@@ -1,6 +1,6 @@
 """Simulation methods: interchangeable ways to compute a scene's impulse responses.
 
-See :mod:`compas_acoustics.methods.base` for the contract every method meets.
+See :mod:`compas_acoustics.simulation_methods.base` for the contract every method meets.
 :class:`Pyroomacoustics` is always available; :class:`Hybrid` needs the
 ``hybrid`` extra (pyFDN, torch), so it is imported on first use.
 """

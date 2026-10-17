@@ -28,7 +28,7 @@ def test_importing_the_package_does_not_import_the_hybrid_method():
     code = (
         "import sys\n"
         "import compas_acoustics\n"
-        "import compas_acoustics.methods\n"
-        "assert 'compas_acoustics.methods.hybrid' not in sys.modules\n"
+        "import compas_acoustics.simulation_methods\n"
+        "assert 'compas_acoustics.simulation_methods.hybrid' not in sys.modules\n"
     )
     subprocess.run([sys.executable, "-c", code], check=True)

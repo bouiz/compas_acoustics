@@ -23,7 +23,7 @@ from compas_acoustics.hybrid.late import fdn_directions
 from compas_acoustics.hybrid.pair import Pair
 from compas_acoustics.hybrid.synthesis import synthesize
 from compas_acoustics.hybrid.target import RoomTarget
-from compas_acoustics.methods import Hybrid
+from compas_acoustics.simulation_methods import Hybrid
 from compas_acoustics.room_geometry import RoomGeometry
 
 FS = 48000

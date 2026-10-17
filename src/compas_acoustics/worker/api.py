@@ -18,11 +18,11 @@ def info():
 
 def simulate(scene, method, settings, sampling_rate, references, folder):
     from compas_acoustics import ImpulseResponse
-    from compas_acoustics.methods import Pyroomacoustics
-    from compas_acoustics.methods import SimulationContext
+    from compas_acoustics.simulation_methods import Pyroomacoustics
+    from compas_acoustics.simulation_methods import SimulationContext
 
     if method == "hybrid":
-        from compas_acoustics.methods import Hybrid as method_class
+        from compas_acoustics.simulation_methods import Hybrid as method_class
     elif method == "pyroomacoustics":
         method_class = Pyroomacoustics
     else:

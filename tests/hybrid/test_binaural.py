@@ -10,7 +10,7 @@ from compas_acoustics import AcousticObjectsLibrary
 from compas_acoustics import Receiver
 from compas_acoustics import Scene
 from compas_acoustics import Source
-from compas_acoustics.methods import Hybrid
+from compas_acoustics.simulation_methods import Hybrid
 
 FS = 48000
 WALL = AcousticMaterial("wall", [0.1, 0.12, 0.15, 0.2, 0.25, 0.3, 0.35], 0.1)

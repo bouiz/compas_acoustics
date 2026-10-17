@@ -120,7 +120,7 @@ def test_a_point_inside_a_closed_obstacle_is_outside_the_room():
 def test_a_receiver_in_a_pillar_is_left_out_with_a_warning():
     from compas_acoustics import Receiver
     from compas_acoustics import Source
-    from compas_acoustics.methods import Pyroomacoustics
+    from compas_acoustics.simulation_methods import Pyroomacoustics
 
     scene = Scene("pillar")
     scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(7, 5, 3, materials=WALL))
@@ -141,7 +141,7 @@ def test_an_open_panel_does_not_make_points_outside():
 def test_a_scene_of_obstacles_only_is_an_open_field():
     from compas_acoustics import Receiver
     from compas_acoustics import Source
-    from compas_acoustics.methods import Pyroomacoustics
+    from compas_acoustics.simulation_methods import Pyroomacoustics
 
     scene = Scene("field")
     for name, corners in (("a", [[0, 0, 0], [4, 0, 0], [4, 0, 3], [0, 0, 3]]), ("b", [[0, 0, 0], [0, 4, 0], [0, 4, 3], [0, 0, 3]])):

@@ -7,8 +7,8 @@ from compas_acoustics import ImpulseResponse
 from compas_acoustics import Receiver
 from compas_acoustics import Scene
 from compas_acoustics import Source
-from compas_acoustics.methods import SimulationContext
-from compas_acoustics.methods import SimulationMethod
+from compas_acoustics.simulation_methods import SimulationContext
+from compas_acoustics.simulation_methods import SimulationMethod
 
 FS = 48000
 
@@ -158,7 +158,7 @@ def test_a_source_outside_the_room_warns_at_the_caller_and_the_rest_simulates():
     with pytest.warns(UserWarning, match="outside") as caught:
         rirs = s.simulate(Delta())
     assert len(rirs) == 2
-    assert caught[0].filename.endswith("test_methods.py")
+    assert caught[0].filename.endswith("test_simulation_methods.py")
 
 
 def test_simulate_raises_for_a_source_at_a_receiver():

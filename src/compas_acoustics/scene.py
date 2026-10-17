@@ -325,7 +325,7 @@ class Scene(Data):
 
         Parameters
         ----------
-        method : :class:`~compas_acoustics.methods.SimulationMethod`
+        method : :class:`~compas_acoustics.simulation_methods.SimulationMethod`
             For example ``Pyroomacoustics(ray_tracing=True)`` or ``Hybrid()``.
         sampling_rate : int, default=48000
             Sample rate in hertz; a positive whole number.
@@ -336,7 +336,7 @@ class Scene(Data):
             One response per source-receiver pair inside the room, keyed
             ``'<receiver guid>_<source guid>'``.
         """
-        from compas_acoustics.methods import SimulationContext
+        from compas_acoustics.simulation_methods import SimulationContext
 
         context = SimulationContext.from_scene(self, sampling_rate)
         _log.info("Running %s at %s Hz on %d sources and %d receivers",

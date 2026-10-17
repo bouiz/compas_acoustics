@@ -134,7 +134,7 @@ def capture(monkeypatch):
 
 
 def method_defaults(**changes):
-    from compas_acoustics.methods import Pyroomacoustics
+    from compas_acoustics.simulation_methods import Pyroomacoustics
 
     return dict(vars(Pyroomacoustics(**changes)))
 
@@ -213,7 +213,7 @@ def test_deconstruct_reads_a_named_method(monkeypatch):
 
 # ---------------------------------------------------------- Simulate Hybrid --
 def fake_hybrid(monkeypatch, warn=None):
-    """Stand-in for compas_acoustics.methods.Hybrid, so the component is tested without pyFDN."""
+    """Stand-in for compas_acoustics.simulation_methods.Hybrid, so the component is tested without pyFDN."""
     import warnings
 
     calls = []
@@ -233,8 +233,8 @@ def fake_hybrid(monkeypatch, warn=None):
             warnings.warn(warn, UserWarning)
         return {}
 
-    import compas_acoustics.methods
-    monkeypatch.setattr(compas_acoustics.methods, "Hybrid", Hybrid, raising=False)
+    import compas_acoustics.simulation_methods
+    monkeypatch.setattr(compas_acoustics.simulation_methods, "Hybrid", Hybrid, raising=False)
     monkeypatch.setattr(Scene, "simulate", simulate)
     return calls
 
@@ -246,7 +246,7 @@ def run_hybrid(module, s, **inputs):
 
 def test_a_missing_hybrid_extra_is_an_error_not_a_traceback(monkeypatch):
     module, messages = load_component("CA_Simulate_Hybrid", monkeypatch, levels=True)
-    monkeypatch.setitem(sys.modules, "compas_acoustics.methods.hybrid", None)
+    monkeypatch.setitem(sys.modules, "compas_acoustics.simulation_methods.hybrid", None)
     assert run_hybrid(module, scene()) is None
     assert messages and messages[0][0] == "error" and "hybrid" in messages[0][1]
 
@@ -255,7 +255,7 @@ def test_simulate_hybrid_without_the_extra_runs_in_a_configured_worker(monkeypat
     from compas_acoustics import worker
 
     module, messages = load_component("CA_Simulate_Hybrid", monkeypatch, levels=True)
-    monkeypatch.setitem(sys.modules, "compas_acoustics.methods.hybrid", None)
+    monkeypatch.setitem(sys.modules, "compas_acoustics.simulation_methods.hybrid", None)
     monkeypatch.setattr(worker, "worker_python", lambda: "/a/worker/python")
     calls = []
 

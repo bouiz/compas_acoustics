@@ -16,7 +16,7 @@ from .room_geometry import RoomGeometry
 from .ray import Ray, ScatteredRay, RayField
 from .scene import Scene
 from .analyser import AcousticAnalyser
-from .methods import SimulationMethod, Pyroomacoustics
+from .simulation_methods import SimulationMethod, Pyroomacoustics
 from .auraliser import Auraliser
 from .audio_player import AudioPlayer
 from .numerical.fitness import regularized_fitness
@@ -26,7 +26,7 @@ from . import orchestra_layouts
 
 if TYPE_CHECKING:
     # for editors and type checkers; at runtime Hybrid is imported on first use (see __getattr__)
-    from .methods.hybrid import Hybrid  # noqa: F401
+    from .simulation_methods.hybrid import Hybrid  # noqa: F401
 
 __author__ = ["Achilleas Xydis"]
 __copyright__ = "Gramazio Kohler Research"
@@ -66,7 +66,7 @@ def __getattr__(name):
     # The hybrid method needs the optional 'hybrid' extra (pyFDN, torch; Python >= 3.11), so it is imported on first use
     if name == "Hybrid":
         try:
-            from .methods import Hybrid
+            from .simulation_methods import Hybrid
         except ImportError as error:
             raise ImportError("compas_acoustics.Hybrid needs Python >= 3.11 and the 'hybrid' extra: pip install compas_acoustics[hybrid]") from error
         return Hybrid

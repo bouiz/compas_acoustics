@@ -91,7 +91,7 @@ def simulate(scene, method, settings, sampling_rate, references=None):
         The responses by key, and the messages of the UserWarnings raised in the worker.
     """
     from compas_acoustics import ImpulseResponse
-    from compas_acoustics.methods import SimulationContext
+    from compas_acoustics.simulation_methods import SimulationContext
 
     folder = _folder()
     reference_paths = None

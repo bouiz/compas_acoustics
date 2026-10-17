@@ -102,7 +102,7 @@ def test_from_wav_without_metadata_uses_the_wav_as_raw(tmp_path):
 def test_simulate_normalises_and_records_generation(normalize):
     from compas_acoustics import AcousticObjectsLibrary
     from compas_acoustics import Scene
-    from compas_acoustics.methods import Pyroomacoustics
+    from compas_acoustics.simulation_methods import Pyroomacoustics
 
     scene = Scene("room")
     scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(10, 8, 4))
@@ -125,7 +125,7 @@ def test_simulate_normalises_and_records_generation(normalize):
 def test_simulated_impulse_responses_use_the_requested_sample_rate(sample_rate):
     from compas_acoustics import AcousticObjectsLibrary
     from compas_acoustics import Scene
-    from compas_acoustics.methods import Pyroomacoustics
+    from compas_acoustics.simulation_methods import Pyroomacoustics
 
     scene = Scene("room")
     scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(10, 8, 4))

@@ -2,8 +2,8 @@
 
 Ported from hybrid-rir (gpapadimitri/hybrid-rir); every generated module names
 the upstream revision, :data:`UPSTREAM_REVISION`. Needs the ``hybrid`` extra
-(pyFDN, spharpy). Used through :class:`compas_acoustics.methods.Hybrid`, a
-simulation method (:mod:`compas_acoustics.methods`) for :meth:`compas_acoustics.Scene.simulate`;
+(pyFDN, spharpy). Used through :class:`compas_acoustics.simulation_methods.Hybrid`, a
+simulation method (:mod:`compas_acoustics.simulation_methods`) for :meth:`compas_acoustics.Scene.simulate`;
 this package holds the DSP it is built on.
 """
 

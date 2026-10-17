@@ -8,7 +8,7 @@ from compas_acoustics import Pyroomacoustics
 from compas_acoustics import Receiver
 from compas_acoustics import Scene
 from compas_acoustics import Source
-from compas_acoustics.methods import SimulationContext
+from compas_acoustics.simulation_methods import SimulationContext
 
 
 def scene():

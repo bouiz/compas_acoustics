@@ -2,7 +2,7 @@
 
 :func:`magls_filters` are the decoding filters of :meth:`Auraliser.decode_binaural`.
 
-The ambisonic early part of :class:`~compas_acoustics.methods.Hybrid` is limited
+The ambisonic early part of :class:`~compas_acoustics.simulation_methods.Hybrid` is limited
 to its ``sh_order``: MagLS decodes it with the right magnitudes but a spatially
 smoothed image. Here every image source and diffracted path is filtered with
 the head-related transfer function measured nearest its direction of arrival,

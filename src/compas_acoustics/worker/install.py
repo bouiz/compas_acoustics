@@ -41,7 +41,7 @@ def install_worker(wheel, hybrid=False, home=WORKER_HOME, config=CONFIG, python_
         # flamo (via pyFDN) installs the abandoned PySoundFile over soundfile
         subprocess.run([uv, "pip", "install", "--python", str(python), "--reinstall", "--no-deps", "soundfile"], check=True)
     # The first import of the scientific stack takes about 30 s; do it here, not on the first Grasshopper call
-    subprocess.run([str(python), "-c", "import compas_acoustics.methods as m; m.Hybrid" if hybrid else "import compas_acoustics.worker.api"], check=True)
+    subprocess.run([str(python), "-c", "import compas_acoustics.simulation_methods as m; m.Hybrid" if hybrid else "import compas_acoustics.worker.api"], check=True)
     config.parent.mkdir(parents=True, exist_ok=True)
     config.write_text(json.dumps({"python": str(python), "hybrid": hybrid}))
     return python

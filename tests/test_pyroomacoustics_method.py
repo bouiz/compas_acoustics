@@ -7,8 +7,8 @@ from compas_acoustics import AcousticObjectsLibrary
 from compas_acoustics import Receiver
 from compas_acoustics import Scene
 from compas_acoustics import Source
-from compas_acoustics.methods import Pyroomacoustics
-from compas_acoustics.methods import SimulationContext
+from compas_acoustics.simulation_methods import Pyroomacoustics
+from compas_acoustics.simulation_methods import SimulationContext
 from compas_acoustics.raytracing import OPEN_ROOM_DURATION
 from compas_acoustics.raytracing import default_duration
 from compas_acoustics.raytracing import ray_traced_rirs
@@ -234,7 +234,7 @@ def test_a_source_outside_the_room_warns_and_prints_nothing(capsys):
 
 
 def test_the_search_time_estimate_follows_the_measurements():
-    from compas_acoustics.methods import image_source_search_seconds
+    from compas_acoustics.simulation_methods import image_source_search_seconds
 
     assert image_source_search_seconds(6, 6) < 0.1
     assert 0.1 < image_source_search_seconds(18, 6) < 3.0
@@ -247,7 +247,7 @@ def test_a_slow_image_source_search_warns_before_it_starts(monkeypatch):
     from compas.geometry import Frame
 
     from compas_acoustics import AcousticObject
-    from compas_acoustics.methods import Pyroomacoustics as Method
+    from compas_acoustics.simulation_methods import Pyroomacoustics as Method
 
     scene = simulator()
     for i in range(3):

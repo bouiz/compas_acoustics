@@ -108,7 +108,7 @@ def test_the_eyring_tail_matches_upstreams_default_target():
     """Without a target, upstream's synthesize uses RoomTarget.from_room: Hybrid(tail="eyring")."""
     from compas_acoustics import Receiver
     from compas_acoustics import Source
-    from compas_acoustics.methods import Hybrid
+    from compas_acoustics.simulation_methods import Hybrid
 
     scene = Scene("parity")
     scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(10, 8, 4, materials=WALL))

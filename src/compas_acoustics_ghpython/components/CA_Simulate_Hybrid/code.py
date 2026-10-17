@@ -80,7 +80,7 @@ class SimulateHybrid(Grasshopper.Kernel.GH_ScriptInstance):
             return
 
         try:
-            from compas_acoustics.methods import Hybrid
+            from compas_acoustics.simulation_methods import Hybrid
         except ImportError as e:
             if worker.worker_python() is None:
                 self.error(
