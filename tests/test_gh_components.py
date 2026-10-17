@@ -6,12 +6,15 @@ import types
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from compas_acoustics import AcousticMaterial
 from compas_acoustics import AcousticObjectsLibrary
 from compas_acoustics import Receiver
 from compas_acoustics import Scene
 from compas_acoustics import Source
+
+needs_hybrid = pytest.mark.skipif(importlib.util.find_spec("pyFDN") is None, reason="needs the hybrid extra (Python >= 3.11)")
 
 COMPONENTS = Path(__file__).parents[1] / "src" / "compas_acoustics_ghpython" / "components"
 
@@ -199,6 +202,98 @@ def test_deconstruct_reads_a_named_method(monkeypatch):
     assert irs.branches == {(0,): [ambisonic]}
 
 
+# ---------------------------------------------------------- Simulate Hybrid --
+def fake_hybrid(monkeypatch, warn=None):
+    """Stand-in for compas_acoustics.methods.Hybrid, so the component is tested without pyFDN."""
+    import warnings
+
+    calls = []
+
+    class Hybrid:
+        name, output = "hybrid", "ambisonic"
+
+        def __init__(self, **kwargs):
+            if kwargs.get("tail") in ("eyring", "sabine") and kwargs.get("reference"):
+                raise ValueError("tail='eyring' takes no reference")
+            calls.append(kwargs)
+            self.tail = kwargs.get("tail") or ("reference" if kwargs.get("reference") else "ray_tracing")
+            self.sh_order = kwargs.get("sh_order", 1)
+
+    def simulate(self, method, sampling_rate=48000):
+        if warn:
+            warnings.warn(warn, UserWarning)
+        return {}
+
+    import compas_acoustics.methods
+    monkeypatch.setattr(compas_acoustics.methods, "Hybrid", Hybrid, raising=False)
+    monkeypatch.setattr(Scene, "simulate", simulate)
+    return calls
+
+
+def run_hybrid(module, s, **inputs):
+    names = ("tail", "reference", "sample_rate", "sh_order", "image_source_order", "diffraction", "late_envelope", "seed", "normalize")
+    return module.SimulateHybrid().RunScript(s, *(inputs.get(n) for n in names))
+
+
+def test_a_missing_hybrid_extra_is_an_error_not_a_traceback(monkeypatch):
+    module, messages = load_component("CA_Simulate_Hybrid", monkeypatch, levels=True)
+    monkeypatch.setitem(sys.modules, "compas_acoustics.methods.hybrid", None)
+    assert run_hybrid(module, scene()) is None
+    assert messages and messages[0][0] == "error" and "hybrid" in messages[0][1]
+
+
+@needs_hybrid
+def test_the_hybrid_component_passes_only_given_inputs(monkeypatch):
+    module, _ = load_component("CA_Simulate_Hybrid", monkeypatch)
+    calls = fake_hybrid(monkeypatch)
+    run_hybrid(module, scene())
+    run_hybrid(module, scene(), tail="eyring", diffraction="btms", sh_order=2)
+    assert calls == [{}, {"tail": "eyring", "diffraction": "btms", "sh_order": 2}]
+    assert "tail: eyring" in module.ghenv.Component.Message
+
+
+@needs_hybrid
+def test_auto_and_none_are_the_defaults(monkeypatch):
+    module, _ = load_component("CA_Simulate_Hybrid", monkeypatch)
+    calls = fake_hybrid(monkeypatch)
+    run_hybrid(module, scene(), tail="auto", diffraction="none")
+    assert calls == [{}]
+
+
+@needs_hybrid
+def test_eyring_with_a_reference_is_an_error(monkeypatch):
+    module, messages = load_component("CA_Simulate_Hybrid", monkeypatch, levels=True)
+    fake_hybrid(monkeypatch)
+    s, _, _ = graph_with_methods()
+    assert run_hybrid(module, s, tail="eyring", reference="pyroomacoustics") is None
+    assert messages and messages[0][0] == "error"
+
+
+@needs_hybrid
+def test_a_missing_reference_method_is_an_error(monkeypatch):
+    module, messages = load_component("CA_Simulate_Hybrid", monkeypatch, levels=True)
+    fake_hybrid(monkeypatch)
+    assert run_hybrid(module, scene(), reference="pyroomacoustics") is None
+    assert messages and messages[0][0] == "error" and "pyroomacoustics" in messages[0][1]
+
+
+@needs_hybrid
+def test_the_sample_rate_follows_the_reference(monkeypatch):
+    module, messages = load_component("CA_Simulate_Hybrid", monkeypatch, levels=True)
+    fake_hybrid(monkeypatch)
+    s, _, _ = graph_with_methods()
+    assert run_hybrid(module, s, reference="pyroomacoustics", sample_rate=44100) is None
+    assert messages and messages[0][0] == "error" and "48000" in messages[0][1]
+
+
+@needs_hybrid
+def test_a_diffuse_field_warning_becomes_a_warning(monkeypatch):
+    module, messages = load_component("CA_Simulate_Hybrid", monkeypatch, levels=True)
+    fake_hybrid(monkeypatch, warn="Eyring assumes a diffuse field")
+    run_hybrid(module, scene(), tail="eyring")
+    assert ("warning", "Eyring assumes a diffuse field") in messages
+
+
 def test_deconstruct_defaults_to_the_only_method_when_there_is_no_data(monkeypatch):
     module, messages = load_component("CA_Deconstruct_IR_Graph", monkeypatch)
     s, _, ambisonic = graph_with_methods()
@@ -208,6 +303,16 @@ def test_deconstruct_defaults_to_the_only_method_when_there_is_no_data(monkeypat
     irs, *_ = module.DeconstructIRGraph().RunScript(s.ir_graph, None, None)
     assert irs.branches == {(0,): [ambisonic]}
     assert module.ghenv.Component.Message == "hybrid" and not messages
+
+
+@needs_hybrid
+def test_the_hybrid_reference_can_be_the_ray_tracing_graph_wire(monkeypatch):
+    module, _ = load_component("CA_Simulate_Hybrid", monkeypatch)
+    calls = fake_hybrid(monkeypatch)
+    s, mono, _ = graph_with_methods()
+    run_hybrid(module, s, reference=s.ir_graph)
+    (call,) = calls
+    assert call["reference"] == {f"{mono.receiver.guid}_{mono.source.guid}": mono}
 
 
 def test_the_ray_tracing_component_shows_warnings(monkeypatch):

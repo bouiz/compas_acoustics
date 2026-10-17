@@ -78,8 +78,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sound strength `G` is a main analyser parameter (`AcousticAnalyser.G`, `G_overall`, in `analyse()`, tables, plots, CSV and the Grasshopper outputs); without a `reference_ir` it uses the package-scale free field at 10 m, and is NaN for responses without the package scale
 - Grasshopper: Deconstruct IR Graph `method` input; the ray-tracing component (now "Simulate Pyroomacoustics") gets a `ray_tracing` input and shows the library's warnings (points outside, open rooms, mergeable faces, a slow search) as component messages
 - `Pyroomacoustics` and `SimulationMethod` exported from `compas_acoustics`
-- `compas_acoustics.methods` package: `base` (`SimulationContext`, `SimulationMethod`) and `pra` (`Pyroomacoustics`)
+- `compas_acoustics.methods` package: `base` (`SimulationContext`, `SimulationMethod`), `pra` (`Pyroomacoustics`) and `hybrid` (`Hybrid`, loaded on first use because it needs the `hybrid` extra)
 - Demonstration notebook: `examples/notebooks/01_pyroomacoustics_simulation.ipynb`
+- `compas_acoustics.Hybrid` (`compas_acoustics.methods.Hybrid`) — hybrid ambisonic room impulse responses (ACN, SN3D or N3D): image sources and, optionally, edge diffraction around obstacles (`diffraction="udfa"`, or `"btms"`: BTMS kernels ported from EDtoolbox, BSD licence, Peter Svensson) for the early field; the next image source order drives a directional feedback delay network with direction-dependent boundary absorption. `tail` sets its decay target: a reference response (`reference=` a method name, a dict or a `Pyroomacoustics` method), the hybrid's own image-source plus ray-traced reference (default without a reference), or an Eyring or Sabine prediction that needs no reference (`tail="eyring"`, warning where the room is not diffuse). Ported from hybrid-rir (revision in `tests/hybrid/UPSTREAM_REVISION`); needs the new `hybrid` extra (`pip install compas_acoustics[hybrid]`, Python >= 3.11)
+- Grasshopper: Simulate Hybrid component (`tail` and `diffraction` Value Lists, optional `reference` method); on Python 3.9 (Rhino 8) it reports that the hybrid method needs Python >= 3.11 and the `hybrid` extra
+- `hybrid` extra (`pyFDN>=0.5,<0.6`, `spharpy`, `multislope`; Python >= 3.11 only) and a CI job for `tests/hybrid`; `tests/test_wheel.py` pins the wheel's contents
+- `compas_acoustics.Hybrid` is loaded on first use (it needs the `hybrid` extra)
+- Demonstration notebook: `examples/notebooks/02_hybrid_method.ipynb`
+- A test pins the hybrid's late level to the exact answer of a specular shoebox (image sources to order 100), within 1 dB. The network's drive gain stays as it is: the hybrid is within about 1 dB of that answer and of Barron's revised theory, while pyroomacoustics' ray tracer drifts with the scattering coefficient (2.6 dB low to 3.6 dB high), so the ray tracer is not used to calibrate it
 
 ### Changed
 
@@ -129,6 +135,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The example scripts `demo.py`, `demo_obj.py`, `demo_rays.py` and `demo_scattered_rays.py` use the current API again; the README has a getting-started section
 - **Breaking:** `Scene.simulate(method)` is the one way to simulate; every method returns responses on the package scale (free-field direct sound `1 / (4 pi r)`) and records how they were made in `ImpulseResponse.generation`
 - `pyroomacoustics` is pinned below 0.11: the parallel ray tracer writes private `Room` state (`rt_histograms`, `simulator_state`)
+- **Breaking:** `Hybrid` without a reference runs `Pyroomacoustics(ray_tracing=True)` with its default settings (unseeded) and fits the decay to it; `late_envelope` defaults to on for a reference or ray-tracing tail and off for an Eyring or Sabine tail
 
 ### Fixed
 
@@ -152,6 +159,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Ray displays in the viewer failed on scenes with a group of acoustic objects (a shoebox room)
 - A source at a receiver's position gave NaN responses; it now raises a `ValueError`
 - A source or receiver inside a closed obstacle crashed pyroomacoustics with an unrelated error; scenes of obstacles only simulated nothing; too few walls for pyroomacoustics gave opaque errors (now a `ValueError` saying so)
+- The hybrid method failed on a fully absorbing surface (alpha = 1) seen by a whole delay line
 
 ### Removed
 

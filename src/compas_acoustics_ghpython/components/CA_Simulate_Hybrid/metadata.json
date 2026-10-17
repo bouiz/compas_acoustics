@@ -1,0 +1,90 @@
+{
+    "name": "Simulate Hybrid",
+    "nickname": "SimHybrid",
+    "category": "COMPAS Acoustics",
+    "subcategory": "02 Simulation",
+    "description": "Simulate hybrid ambisonic impulse responses: image sources, optional edge diffraction around obstacles, and a directional feedback delay network tail. Needs the 'hybrid' extra and a closed room. Writes the responses to the impulse response graph under 'hybrid'.",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "scene",
+                "description": "Room scene object.",
+                "optional": false,
+                "scriptParamAccess": 0,
+                "typeHintID": "ghdoc"
+            },
+            {
+                "name": "tail",
+                "description": "Decay target of the tail: auto (reference if given, else ray_tracing), reference, ray_tracing (its own ray-traced reference), eyring or sabine (predicted, no simulation).",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "str"
+            },
+            {
+                "name": "reference",
+                "description": "Optional reference for the tail: connect the ir_graph output of Simulate Pyroomacoustics (recommended: the wire makes Grasshopper run the ray tracing first), or give a method name on the scene, e.g. 'pyroomacoustics'.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "ghdoc"
+            },
+            {
+                "name": "sample_rate",
+                "description": "Sample rate (default 48000; with a reference, the reference's). At least 22628 Hz.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "int"
+            },
+            {
+                "name": "sh_order",
+                "description": "Ambisonic order (default 1).",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "int"
+            },
+            {
+                "name": "image_source_order",
+                "description": "Highest image source order in the early field (default 3).",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "int"
+            },
+            {
+                "name": "diffraction",
+                "description": "Edge diffraction around surfaces with role 'obstacle': none (default), udfa, or btms (slow).",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "str"
+            },
+            {
+                "name": "late_envelope",
+                "description": "Shape the late field to the reference's late energy (default True; off for an Eyring or Sabine tail).",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "bool"
+            },
+            {
+                "name": "seed",
+                "description": "Seed of the feedback matrices and delay jitter (default 0).",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "int"
+            },
+            {
+                "name": "normalize",
+                "description": "Whether the impulse responses are peak-normalised (default True). The raw level is always kept.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "bool"
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "ir_graph",
+                "description": "Impulse response graph structure."
+            }
+        ]
+    }
+}

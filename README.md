@@ -20,6 +20,19 @@ conda activate your_env_name
 pip install -e ".[dev]"
 ```
 
+### Hybrid ambisonic method (optional, Python >= 3.11)
+
+The `Hybrid` simulation method (image sources, edge diffraction and a directional
+feedback delay network, ported from [hybrid-rir](https://github.com/gpapadimitri/hybrid-rir))
+needs the `hybrid` extra, which pulls in pyFDN and with it PyTorch. The extra installs on
+Python 3.11 and newer only:
+
+```bash
+pip install -e ".[hybrid]"
+# flamo (via pyFDN) replaces soundfile with the abandoned PySoundFile; restore it:
+pip install --force-reinstall --no-deps soundfile
+```
+
 ## Install in Rhino 8 / Grasshopper
 
 `compas_acoustics` is not on PyPI yet. To install it in Rhino 8, use the Grasshopper installer:
@@ -48,11 +61,13 @@ scene.add_acoustic_object(ca.AcousticObjectsLibrary.shoebox_room(8, 6, 3, materi
 scene.add_source(ca.Source("talker", 2, 2, 1.6))
 scene.add_receiver(ca.Receiver("listener", 6, 4, 1.2, direction=[-1, -0.5, 0]))
 
-irs = scene.simulate(ca.Pyroomacoustics(ray_tracing=True))   # image sources + ray tracing
+mono = scene.simulate(ca.Pyroomacoustics(ray_tracing=True))   # image sources + ray tracing
+ambisonic = scene.simulate(ca.Hybrid())                        # first-order ambisonics; needs the hybrid extra
 ```
 
-The notebook [`examples/notebooks/01_pyroomacoustics_simulation.ipynb`](examples/notebooks/01_pyroomacoustics_simulation.ipynb)
-walks through simulation, analysis, export and auralisation. The Grasshopper components are in
+The notebooks in [`examples/notebooks`](examples/notebooks) walk through both methods:
+simulation, analysis, export and auralisation (`01_pyroomacoustics_simulation.ipynb`), and the
+hybrid method's tails, receiver orientation, diffraction and binaural rendering (`02_hybrid_method.ipynb`). The Grasshopper components are in
 `src/compas_acoustics_ghpython/components`; rebuild their user objects with `invoke build-cpython-ghuser-components`.
 
 ## Materials library

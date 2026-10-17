@@ -50,7 +50,7 @@ zip-safe = false
 [tool.setuptools.dynamic]
 version = { attr = "compas_acoustics.__version__" }
 dependencies = { file = "requirements.txt" }
-optional-dependencies = { dev = { file = "requirements-dev.txt" } }
+optional-dependencies = { dev = { file = "requirements-dev.txt" }, hybrid = { file = "requirements-hybrid.txt" } }
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -136,6 +136,9 @@ select = ["E", "F", "I"]
 "__init__.py" = ["I001"]
 "tests/*" = ["I001"]
 "tasks.py" = ["I001"]
+# Ported from hybrid-rir by tests/hybrid/regenerate.py: upstream's style is kept so a resync diffs cleanly
+"src/compas_acoustics/hybrid/*" = ["I001", "E741"]
+"tests/hybrid/test_*.py" = ["I001", "E731", "E741"]
 
 [tool.ruff.lint.isort]
 force-single-line = true

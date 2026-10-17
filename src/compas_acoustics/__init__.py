@@ -53,3 +53,14 @@ __all__ = [
     'pra_converter',
     'orchestra_layouts',
     ]
+
+
+def __getattr__(name):
+    # The hybrid method needs the optional 'hybrid' extra (pyFDN, torch; Python >= 3.11), so it is imported on first use
+    if name == "Hybrid":
+        try:
+            from .methods import Hybrid
+        except ImportError as error:
+            raise ImportError("compas_acoustics.Hybrid needs Python >= 3.11 and the 'hybrid' extra: pip install compas_acoustics[hybrid]") from error
+        return Hybrid
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

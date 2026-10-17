@@ -126,6 +126,7 @@ temp/**
 src/.build/**
 
 data/
+!tests/hybrid/data/
 
 *.tar.gz
 
