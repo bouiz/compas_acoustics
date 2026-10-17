@@ -56,6 +56,10 @@ def _band_damping(source) -> np.ndarray:
             f"{damping.shape}: pyroomacoustics did not return a per-band "
             "reflection product"
         )
+    if damping.shape[0] == 1 and np.all(np.asarray(source.orders) == 0):
+        # Searched to order 0 in a room with obstacles, pyroomacoustics keeps one band: the direct sound
+        # has reflected off nothing, so its damping is 1 in every band
+        damping = np.repeat(damping, N_BANDS, axis=0)
     if damping.shape[0] < N_BANDS:
         raise RuntimeError(
             f"pyroomacoustics returned {damping.shape[0]} bands, fewer than the "
@@ -369,11 +373,17 @@ def render_signals(
     return _finish(spectrum, freq, nfft, n_samples)
 
 
-def route_to_directions(iss: ImageSourceSet, directions: pf.Coordinates) -> np.ndarray:
+def route_to_directions(iss: ImageSourceSet, directions: pf.Coordinates, opposite: bool = False) -> np.ndarray:
     """One-hot routing of images onto directions, shape (M, n_directions).
 
     Each image is assigned to the direction closest to its own direction of
-    arrival, by cosine similarity. This generalises the mapping of delay lines
+    arrival, by cosine similarity, or with ``opposite`` to the direction closest
+    to the reverse of it. The images that drive the network use the latter: the
+    network is heard from them one traversal of the room later, off the far
+    side (Ewert et al. 2025, Sec. 3.1.2: the channels "representing the
+    spatially opposite hemisphere (including the FDN delays, thus mimicking
+    sound having travelled once through the room and being reflected on the
+    opposite side)"). This generalises the mapping of delay lines
     to the six faces of a cube in Wendt et al. (2014, Sec. 1.2) to the
     resolution this package's network already has, since every delay line is
     given a direction anyway to build the ambisonic output matrix.
@@ -390,7 +400,7 @@ def route_to_directions(iss: ImageSourceSet, directions: pf.Coordinates) -> np.n
     doa = iss.doa.cartesian
     doa = doa / np.linalg.norm(doa, axis=1, keepdims=True)
 
-    nearest = np.argmax(doa @ unit_dir.T, axis=1)
+    nearest = np.argmax((-doa if opposite else doa) @ unit_dir.T, axis=1)
     weights = np.zeros((doa.shape[0], unit_dir.shape[0]), dtype=float)
     weights[np.arange(doa.shape[0]), nearest] = 1.0
     return weights

@@ -52,9 +52,10 @@ class Hybrid(SimulationMethod):
     Image sources up to ``image_source_order`` (plus, with ``diffraction``, edge
     diffraction around obstacles and at the edges of the room's boundary that
     open wider than 180 deg) form the early field.
-    Those of the next order drive a feedback delay network with one delay line
-    per direction, whose decay follows a target. Ported from hybrid-rir
-    (gpapadimitri/hybrid-rir). Needs the ``hybrid`` extra and a closed room.
+    The last of those orders also drives a feedback delay network with one
+    delay line per direction, whose decay follows a target (Wendt et al. 2014;
+    RAZR). Ported from hybrid-rir (gpapadimitri/hybrid-rir). Needs the
+    ``hybrid`` extra and a closed room.
 
     Parameters
     ----------
@@ -204,12 +205,11 @@ class Hybrid(SimulationMethod):
         if not context.sources or not context.receivers:
             return {}
 
-        # The hybrid searches one order beyond the early field, for the images that drive the network
-        _warn_if_the_search_is_slow(geometry, self.image_source_order + 1)
+        _warn_if_the_search_is_slow(geometry, self.image_source_order)
         references, air_absorption, air, description = self._references(context)
         self.reference_rirs = references
 
-        room = geometry.to_pra(fs, self.image_source_order + 1, air_absorption=False, air=air)
+        room = geometry.to_pra(fs, self.image_source_order, air_absorption=False, air=air)
         with pra_octave_grid():
             for source in context.sources:
                 room.add_soundsource(source_to_pra(source))

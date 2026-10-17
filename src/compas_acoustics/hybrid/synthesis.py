@@ -3,13 +3,19 @@
 Ported by hand from hybrid-rir (gpapadimitri/hybrid-rir, src/synthesis.py, at
 4b42bfd: the btms branch included). The image
 source search moved to the caller, which runs one search for every source and
-receiver of a scene: ``iss`` holds the pair's images up to ``max_order + 1``.
+receiver of a scene: ``iss`` holds the pair's images up to ``max_order``.
 Upstream's scattering and obstacle-free drive are not ported. ``HybridResult`` also
 keeps the early paths (images, UDFA paths, BTMS contributions), which upstream does not.
+
+Deliberately different from upstream: the network is driven by the last
+rendered order into the opposite line (see :func:`synthesize`, step 3), after
+Wendt et al. (2014), RAZR and Ewert et al. (2025). Checked against the measured
+responses of BRAS CR2 (Aspoeck et al.) and against RAZR on exact shoeboxes.
 """
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
 from dataclasses import replace
 from typing import Literal
@@ -81,13 +87,21 @@ def synthesize(
     with ambisonic output:
 
     1. Images up to ``max_order``, encoded at their directions of arrival, are
-       the early field.
+       the early field. Images of higher orders in ``iss`` are ignored.
     2. An FDN with one delay line per direction of an equal-area grid; its
        output matrix holds the spherical harmonics of those directions, its
        attenuation filters follow ``target.rt``, and each line is the room's
        free path along its direction (:func:`directional_delays`).
-    3. Images of order ``max_order + 1`` enter the delay line nearest their
-       direction of arrival.
+    3. The images of order ``max_order``, the last order rendered, also enter
+       the network, each into the delay line opposite its direction of
+       arrival, so the network's first output is the next order, one free path
+       later. Wendt et al. (2014, Sec. 1.3): the network input "must equal the
+       total energy of the Nth-order reflections"; RAZR 0.96.3 feeds that
+       order (``image_source_model.m``), as do Kirsch et al. (2023) and Ewert
+       et al. (2025, Sec. 3.1.2), whose mapping to the opposite hemisphere this
+       follows. hybrid-rir @ a272da7 fed order ``max_order + 1`` without
+       rendering it, which has no reference and costs one more order of
+       image source search.
     4. Each line's output is weighted with the reflection of the boundary in its
        direction (``directional_absorption``), and early field and network
        output are summed.
@@ -133,10 +147,17 @@ def synthesize(
     if drive_gain is None:
         drive_gain = float(np.sqrt(num_delays))
 
-    driving = iss.order == max_order + 1
-    early_set = _select(iss, ~driving)
+    early_set = _select(iss, iss.order <= max_order)
     early = encode(early_set, sh_order, n_samples)
-    driving_set = _select(iss, driving)
+    driving_set = _select(iss, iss.order == max_order)
+    if driving_set.delay.size == 0:
+        warnings.warn(
+            f"no image source of order {max_order} reaches the receiver, so nothing drives the late field and "
+            "the response has no tail; raise image_source_order, or move the source or receiver out of the "
+            "shadow of an obstacle",
+            UserWarning,
+            stacklevel=2,
+        )
     paths, contributions = (), ()
     if model == "udfa":
         paths = tuple(diffraction_paths(spec, max_order=min(max_order, 1)))
@@ -145,7 +166,7 @@ def synthesize(
         contributions = tuple(btms_paths(spec, max_order=min(max_order, 1)))
         early = early + encode_btms(list(contributions), sh_order, n_samples, spec.fs)
     drive = render_images(
-        driving_set, route_to_directions(driving_set, directions), n_samples
+        driving_set, route_to_directions(driving_set, directions, opposite=True), n_samples
     )
     line_eq = (
         directional_absorption_filters(spec, directions)
@@ -185,6 +206,8 @@ def _from_n3d(x: np.ndarray, normalization: str) -> np.ndarray:
 
 def _select(iss: ImageSourceSet, mask: np.ndarray) -> ImageSourceSet:
     """The subset of an image source set selected by a boolean mask."""
+    if np.asarray(iss.delay).size == 0:
+        return iss  # pyfar cannot read the coordinates of an empty set
     xyz = iss.doa.cartesian[mask]
     return replace(
         iss,

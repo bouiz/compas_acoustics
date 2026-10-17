@@ -33,7 +33,7 @@ def setup(panel=False):
         scene.add_acoustic_object(AcousticObject(mesh, WALL, name="panel", role="obstacle"))
     geometry = RoomGeometry.from_scene(scene)
     source, receiver = Source("s", 2.0, 4.0, 1.5), Receiver("r", 8.0, 4.0, 1.5)
-    room = geometry.to_pra(FS, MAX_ORDER + 1)
+    room = geometry.to_pra(FS, MAX_ORDER)
     room.add_soundsource(source_to_pra(source))
     room.add_microphone_array(receivers_to_pra_mic_array(receiver, sample_rate=FS))
     room.image_source_model()
@@ -47,7 +47,7 @@ def test_the_response_is_early_plus_late():
     assert result.rir.shape == (24000, 4)
     np.testing.assert_allclose(result.rir, result.early + result.late)
     np.testing.assert_allclose(result.early, encode(_select(iss, iss.order <= MAX_ORDER), 1, 24000))
-    assert result.driving_images == int(np.sum(iss.order == MAX_ORDER + 1))
+    assert result.driving_images == int(np.sum(iss.order == MAX_ORDER))
     assert result.drive_gain == pytest.approx(4.0)
     assert result.normalization == "N3D"
     assert np.sum(result.late ** 2) > 0.0
