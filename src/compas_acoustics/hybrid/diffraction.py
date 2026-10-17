@@ -472,13 +472,15 @@ def obstacle_edges(geometry: RoomGeometry) -> list[Edge]:
     Closed convex components (shelves, cabinets) give wedges whose exterior
     angle follows from the dihedral angle; planar components (panels,
     tabletops drawn as one surface) give knife edges along their outline.
-    Anything else is skipped with :class:`ObstacleEdgeWarning`. Edges on an
+    Anything else is skipped, with one :class:`ObstacleEdgeWarning` that counts
+    the skipped components by material. Edges on an
     enclosure face or on another obstacle (a box on a tabletop) are dropped,
     and a rim lying there (a bottomless box on the floor) still counts as
     closed. ``Edge.component`` indexes :func:`obstacle_components`.
     """
     occ = Occluders.from_geometry(geometry)
     edges: list[Edge] = []
+    skipped: dict[str, int] = {}
     for c, faces in enumerate(obstacle_components(geometry)):
         own = set(faces)
         support = [i for i in range(len(occ.polygons)) if i not in own]
@@ -506,10 +508,8 @@ def obstacle_edges(geometry: RoomGeometry) -> list[Edge]:
             convex = closed and all(
                 bool(np.all((points - info[i][2]) @ normal[i] < 1e-6)) for i in faces)
             if not convex:
-                warnings.warn(
-                    f"obstacle component {c} ({geometry.obstacle_face_materials[faces[0]]}, "
-                    f"{len(faces)} faces) is neither closed-convex nor planar: no diffraction",
-                    ObstacleEdgeWarning, stacklevel=2)
+                material = geometry.obstacle_face_materials[faces[0]]
+                skipped[material] = skipped.get(material, 0) + 1
                 continue
             for p, q, (i, j) in free:
                 cos_ij = float(np.clip(normal[i] @ normal[j], -1.0, 1.0))
@@ -528,6 +528,12 @@ def obstacle_edges(geometry: RoomGeometry) -> list[Edge]:
             _, _, _, ua, ub, theta_w = pieces[0]
             for p, q, owners in _merge_collinear([(p, q, o) for p, q, o, *_ in pieces]):
                 edges.append(Edge(p, q, ua, ub, theta_w, owners, c))
+    if skipped:
+        total = sum(skipped.values())
+        warnings.warn(
+            f"{total} obstacle component{'s' if total > 1 else ''} ({', '.join(f'{m}: {n}' for m, n in skipped.items())}) "
+            f"{'are' if total > 1 else 'is'} neither closed-convex nor planar: no diffraction",
+            ObstacleEdgeWarning, stacklevel=2)
     return edges
 
 

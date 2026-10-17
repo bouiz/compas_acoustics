@@ -173,6 +173,22 @@ def test_a_non_convex_component_is_skipped_with_a_warning():
     assert edges == []
 
 
+def test_skipped_components_are_one_warning_that_counts_them():
+    def two_boxes(shift):
+        a_v, a_f = box(np.array([2.0, 2.0, 0.5]) + shift, np.array([3.0, 3.0, 1.0]) + shift)
+        b_v, b_f = box(np.array([3.0, 2.0, 0.5]) + shift, np.array([3.5, 2.5, 1.5]) + shift)
+        return np.vstack([a_v, b_v]), a_f + [tuple(8 + i for i in q) for q in b_f]
+
+    (v1, f1), (v2, f2) = two_boxes(np.zeros(3)), two_boxes(np.array([0.0, 3.0, 0.0]))
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        edges = obstacle_edges(room_with(np.vstack([v1, v2]), f1 + [tuple(16 + i for i in q) for q in f2], "chair"))
+    assert edges == []
+    skipped = [w for w in caught if issubclass(w.category, ObstacleEdgeWarning)]
+    assert len(skipped) == 1
+    assert "2 obstacle components (chair: 2)" in str(skipped[0].message)
+
+
 def test_occluders_block_through_the_shelf_and_not_over_it():
     occ = Occluders.from_geometry(shelf_room())
     assert occ.blocked(np.array([6.0, 4.0, 1.5]), np.array([2.0, 4.0, 1.5]))
