@@ -34,21 +34,24 @@ FURNITURE = ["chairs", "tables", "bookshelves"]
 objects = ca.AcousticObject.from_obj(HERE / "cut_without.obj", MATERIALS, roles={group: "obstacle" for group in FURNITURE})
 
 ########### the scene: one source, one receiver facing -x
+speaker = ca.Source("speaker", 12.0, 9.5, 1.5)
+listener = ca.Receiver("listener", 17.0, 14.0, 1.5, direction=[-1, 0, 0])
 scene = ca.Scene("office")
 scene.add_acoustic_objects(objects)
-scene.add_source(ca.Source("speaker", 12.0, 9.5, 1.5))
-scene.add_receiver(ca.Receiver("listener", 17.0, 14.0, 1.5, direction=[-1, 0, 0]))
+scene.add_source(speaker)
+scene.add_receiver(listener)
 
-########### the reference: image sources to order 2, then ray tracing
-reference = scene.simulate(ca.Pyroomacoustics(image_source_order=3, ray_tracing=True, n_rays=100_000, duration=3.0, seed=42))
+########### the reference: image sources to order 3, then ray tracing
+scene.simulate(ca.Pyroomacoustics(image_source_order=3, ray_tracing=True, n_rays=100_000, duration=3.0, seed=42))
 
 ########### the hybrid: image sources early, a feedback delay network late, fitted to the reference
-hybrid = scene.simulate(ca.Hybrid("pyroomacoustics", sh_order=1, image_source_order=2, diffraction=True, seed=42))
+scene.simulate(ca.Hybrid("pyroomacoustics", sh_order=1, image_source_order=2, diffraction=True, seed=42))
 
 ########### reverberation times of both; the analyser takes the hybrid's W channel (omnidirectional) of its four
 warnings.filterwarnings("ignore", message="Impulse response has 4 channels")
-(ir_pra,) = reference.values()  # simulate returns {key: ImpulseResponse}, one per source-receiver pair
-(ir_hybrid,) = hybrid.values()
+# every method stores its responses on the scene under its own name
+ir_pra = scene.get_impulse_response(speaker, listener, attribute="pyroomacoustics")
+ir_hybrid = scene.get_impulse_response(speaker, listener, attribute="hybrid")
 results = {"pyroomacoustics": ca.AcousticAnalyser(ir_pra).analyse(), "hybrid": ca.AcousticAnalyser(ir_hybrid).analyse()}
 
 fig, axes = plt.subplots(1, 2, figsize=(10, 3.8), sharey=True)
