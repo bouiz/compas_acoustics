@@ -456,3 +456,53 @@ def test_the_late_level_matches_an_exact_specular_room(dims, alpha, src, rec):
         return np.sum(sosfiltfilt(sos, np.concatenate([x, np.zeros(FS // 2)]))[start:] ** 2)
 
     assert 10 * np.log10(late_energy(ir.denormalized()[:, 0]) / late_energy(exact)) == pytest.approx(0.0, abs=1.0)
+
+
+def test_the_medium_sets_the_hybrids_speed_and_air():
+    from compas_acoustics import AirConditions
+
+    air = AirConditions(temperature=0.0, humidity=20.0)
+    scene = make()
+    (ir,) = scene.simulate(Hybrid(tail="eyring", air=air, **FAST)).values()
+    assert ir.generation["air"] == air.to_dict()
+    assert ir.generation["speed_of_sound"] == pytest.approx(air.speed_of_sound)
+    distance = float(np.linalg.norm(np.subtract(ir.receiver.position, ir.source.position)))
+    expected = round(distance / air.speed_of_sound * FS)
+    # Up to 1 ms past the arrival: later, the network's tail has larger samples than the direct sound in this room
+    w = ir.denormalized()[: expected + 48, 0]
+    assert abs(int(np.argmax(np.abs(w))) - expected) <= 1
+
+
+def test_the_medium_comes_from_the_references():
+    from compas_acoustics import AirConditions
+
+    air = AirConditions(temperature=0.0)
+    scene = make()
+    refs = references(scene, air=air)
+    (ir,) = scene.simulate(Hybrid(refs, **FAST)).values()
+    assert ir.generation["air"] == air.to_dict()
+    with pytest.raises(ValueError, match="air"):
+        scene.simulate(Hybrid(refs, air=AirConditions(temperature=25.0), **FAST))
+    with pytest.raises(ValueError, match="air"):
+        scene.simulate(Hybrid(references(scene), air=air, **FAST))
+
+
+def test_a_ray_tracing_tail_runs_its_reference_in_the_medium():
+    from compas_acoustics import AirConditions
+
+    air = AirConditions(temperature=0.0)
+    scene = make()
+    hybrid = Hybrid(tail="ray_tracing", air=air, **FAST)
+    scene.simulate(hybrid)
+    assert all(r.generation["air"] == air.to_dict() for r in hybrid.reference_rirs.values())
+
+
+def test_without_a_medium_the_hybrid_and_its_reference_share_the_default():
+    from compas_acoustics import AirConditions
+
+    scene = make()
+    (ir,) = scene.simulate(Hybrid(tail="eyring", **FAST)).values()
+    assert ir.generation["air"] == AirConditions().to_dict()
+    assert ir.generation["speed_of_sound"] == pytest.approx(AirConditions().speed_of_sound)
+    (ir,) = scene.simulate(Hybrid(references(scene), **FAST)).values()
+    assert ir.generation["air"] == AirConditions().to_dict()

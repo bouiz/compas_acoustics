@@ -12,13 +12,17 @@ Ported from hybrid-rir (gpapadimitri/hybrid-rir @ 8a70661, src/room.py). Two war
 from __future__ import annotations
 
 import warnings
+from typing import Optional
 
 import numpy as np
 import pyrato
 
+from compas_acoustics.air import AirConditions
+from compas_acoustics.air import air_or_default
+from compas_acoustics.air import speed_of_sound as _speed_of_sound
 from compas_acoustics.room_geometry import SYNTHESIS_BANDS
 
-__all__ = ["DiffuseFieldWarning", "mean_absorption", "predicted_rt"]
+__all__ = ["DiffuseFieldWarning", "air_attenuation", "mean_absorption", "predicted_rt"]
 
 BANDS = np.array(SYNTHESIS_BANDS)
 Geometry = object  # upstream's union of room types; here a RoomGeometry
@@ -141,15 +145,21 @@ def _warn_if_not_diffuse(geometry: Geometry, model: str) -> None:
 
 
 def _air_absorption_coefficient() -> np.ndarray:
-    """Energy attenuation coefficient m per metre, from dB/km.
+    """Energy attenuation coefficient m per metre on ``SYNTHESIS_BANDS``, of the default air.
 
-    ``m = alpha_dB_per_metre / (10 log10 e)``.
+    Upstream's name for the air when none is given. It was a fixed table, ISO 9613-1
+    at 10 C and 70 % rounded, documented as 20 C and 50 %; it is now ISO 9613-1 at
+    20 C and 50 % (:class:`~compas_acoustics.air.AirConditions`), as every method uses.
     """
-    # ISO 9613-1 atmospheric attenuation at 20 C and 50 % relative humidity,
-    # dB/km, on the package band grid (62.5 Hz to 8 kHz).
-    AIR_ABSORPTION_DB_PER_KM = np.array([0.1, 0.4, 1.0, 1.9, 3.7, 9.7, 32.8, 117.0])
+    return air_attenuation(None)
 
-    return AIR_ABSORPTION_DB_PER_KM / 1000.0 / (10.0 * np.log10(np.e))
+
+def air_attenuation(air: Optional[AirConditions] = None) -> np.ndarray:
+    """Energy attenuation coefficient of the air per metre on ``SYNTHESIS_BANDS``, shape (8,).
+
+    ISO 9613-1 at the air's conditions, ``AirConditions()`` (20 C, 50 %) without one.
+    """
+    return air_or_default(air).air_attenuation(BANDS)
 
 
 def _infinite_without_absorption(reverberation_time, mean_absorption):
@@ -180,7 +190,8 @@ def predicted_rt(
     model: str = "eyring",
     weighting: str = "area",
     air_absorption: bool = True,
-    speed_of_sound: float = 343.0,
+    speed_of_sound: Optional[float] = None,
+    air: Optional[AirConditions] = None,
     warn: bool = True,
 ) -> np.ndarray:
     """Reverberation time per band on ``SYNTHESIS_BANDS``, shape (8,), from Sabine or Eyring.
@@ -189,6 +200,8 @@ def predicted_rt(
     absorption (:func:`mean_absorption`), and, with ``air_absorption``, the
     ``4 m V`` term applied in closed form. Warns with :class:`DiffuseFieldWarning`
     where the room breaks the diffuse-field assumption, unless ``warn`` is False.
+    ``air`` sets the air's attenuation (see :func:`air_attenuation`) and, unless
+    ``speed_of_sound`` is given, the speed of sound.
     The mean absorption is held below 1 so that a fully absorbing room gives a
     finite (zero) time rather than a division error.
     """
@@ -204,6 +217,8 @@ def predicted_rt(
     if not geometry.is_closed:
         raise ValueError("A diffuse-field prediction needs a closed room; the boundary surfaces do not close a volume.")
     alpha = mean_absorption(geometry, weighting=weighting)
+    if speed_of_sound is None:
+        speed_of_sound = _speed_of_sound(air)
     if warn:
         _warn_if_not_diffuse(geometry, model)
     rt = np.asarray(
@@ -220,5 +235,5 @@ def predicted_rt(
         # 1/RT_total = 1/RT_surfaces + 4 m / K.
         k = 24.0 * np.log(10.0) / speed_of_sound
         with np.errstate(divide="ignore"):
-            rt = 1.0 / (1.0 / rt + 4.0 * _air_absorption_coefficient() / k)
+            rt = 1.0 / (1.0 / rt + 4.0 * air_attenuation(air) / k)
     return rt

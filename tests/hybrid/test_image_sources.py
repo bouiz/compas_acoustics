@@ -117,3 +117,27 @@ def test_air_absorption_darkens_by_the_path_length():
     np.testing.assert_allclose(
         wet.gain / dry.gain, np.exp(-np.outer(d, _air_absorption_coefficient()) / 2.0), rtol=1e-12
     )
+
+
+def test_a_medium_sets_the_air_the_images_cross():
+    from compas_acoustics import AirConditions
+    from compas_acoustics.room_geometry import SYNTHESIS_BANDS
+
+    source, receiver = Source("s", 1.5, 1.5, 1.6), Receiver("r", 5, 3, 1.5)
+    geometry, room = computed([source], [receiver])
+    air = AirConditions(temperature=20.0, humidity=10.0)
+    dry = image_sources(room, 0, 0, pair(geometry, source, receiver))
+    wet = image_sources(room, 0, 0, Pair(geometry, source.position, receiver.position, receiver.rotation,
+                                         float(FS), 343.0, True, air))
+    d = dry.delay * 343.0
+    expected = np.exp(-np.outer(d, air.air_attenuation(SYNTHESIS_BANDS)) / 2.0)
+    np.testing.assert_allclose(wet.gain / dry.gain, expected, rtol=1e-12)
+
+
+def test_a_medium_without_air_absorption_takes_nothing():
+    from compas_acoustics import AirConditions
+
+    source, receiver = Source("s", 1.5, 1.5, 1.6), Receiver("r", 5, 3, 1.5)
+    geometry, _ = computed([source], [receiver])
+    spec = Pair(geometry, source.position, receiver.position, receiver.rotation, float(FS), 343.0, False, AirConditions())
+    np.testing.assert_array_equal(spec.air_attenuation(), np.zeros(8))

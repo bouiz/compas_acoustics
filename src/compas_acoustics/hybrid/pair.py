@@ -8,10 +8,15 @@ upstream's.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Optional
 
 import numpy as np
 
+from compas_acoustics.diffuse import air_attenuation
+from compas_acoustics.air import AirConditions
 from compas_acoustics.room_geometry import RoomGeometry
+
+from .bands import N_BANDS
 
 
 @dataclass(frozen=True, eq=False)
@@ -23,6 +28,7 @@ class Pair:
     fs: float
     speed_of_sound: float = 343.0
     air_absorption: bool = True
+    air: Optional[AirConditions] = None
 
     def __post_init__(self) -> None:
         for name in ("source", "receiver"):
@@ -40,3 +46,12 @@ class Pair:
         object.__setattr__(self, "receiver_rotation", rot)
         if not self.geometry.is_closed:
             raise ValueError("a hybrid response needs a closed room")
+
+    def air_attenuation(self) -> np.ndarray:
+        """Energy attenuation coefficient of the air per metre on the band grid, zero without air absorption.
+
+        As upstream ``RoomSpec.air_attenuation``, in the pair's air conditions: ``AirConditions()`` without them.
+        """
+        if not self.air_absorption:
+            return np.zeros(N_BANDS)
+        return air_attenuation(self.air)

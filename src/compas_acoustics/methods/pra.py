@@ -7,6 +7,8 @@ from typing import Optional
 import numpy as np
 import pyroomacoustics as pra
 
+from compas_acoustics.air import AirConditions
+from compas_acoustics.air import air_or_default
 from compas_acoustics.ir import ImpulseResponse
 from compas_acoustics.pra_converter import source_to_pra
 from compas_acoustics.raytracing import _on_package_scale
@@ -57,6 +59,9 @@ class Pyroomacoustics(SimulationMethod):
         Processes per source for the ray tracer; keep 1 inside Rhino.
     normalize : bool, default=True
         Whether the returned responses are peak-normalised views.
+    air : AirConditions, optional
+        The air: its speed of sound and, with ``air_absorption``, its ISO 9613-1
+        absorption. Without one, ``AirConditions()``: 20 C, 50 %, 101325 Pa.
 
     The ray-tracing settings (``n_rays`` to ``n_jobs``) given away from their
     defaults with ``ray_tracing=False`` raise a ``ValueError`` rather than
@@ -77,7 +82,8 @@ class Pyroomacoustics(SimulationMethod):
 
     def __init__(self, image_source_order: int = 3, ray_tracing: bool = False, air_absorption: bool = True,
                  n_rays: Optional[int] = 20_000, energy_thres: float = 1e-8, duration: Optional[float] = None,
-                 receiver_radius: float = 0.5, seed: Optional[int] = None, n_jobs: int = 1, normalize: bool = True):
+                 receiver_radius: float = 0.5, seed: Optional[int] = None, n_jobs: int = 1, normalize: bool = True,
+                 air: Optional[AirConditions] = None):
         given = {"n_rays": n_rays, "energy_thres": energy_thres, "duration": duration,
                  "receiver_radius": receiver_radius, "seed": seed, "n_jobs": n_jobs}
         if not ray_tracing:
@@ -96,6 +102,7 @@ class Pyroomacoustics(SimulationMethod):
         self.seed = seed
         self.n_jobs = n_jobs
         self.normalize = normalize
+        self.air = air
 
     @property
     def generation(self) -> dict:
@@ -106,6 +113,8 @@ class Pyroomacoustics(SimulationMethod):
             "image_source_order": self.image_source_order,
             "air_absorption": self.air_absorption,
             "valid_range_hz": None,
+            "air": air_or_default(self.air).to_dict(),
+            "speed_of_sound": air_or_default(self.air).speed_of_sound,
         }
         if self.ray_tracing:
             generation.update(n_rays=self.n_rays, energy_thres=self.energy_thres, duration=self.duration,
@@ -132,6 +141,7 @@ class Pyroomacoustics(SimulationMethod):
                 air_absorption=self.air_absorption,
                 seed=self.seed,
                 n_jobs=self.n_jobs,
+                air=self.air,
             )
         else:
             responses = self._image_sources(context.geometry, sources, mic_positions, fs)
@@ -151,7 +161,7 @@ class Pyroomacoustics(SimulationMethod):
     def _image_sources(self, geometry, sources, mic_positions, fs) -> list:
         """Image-source responses ``[mic][source]`` on the package scale, at their natural length."""
         with pra_octave_grid():
-            room = geometry.to_pra(fs, self.image_source_order, air_absorption=self.air_absorption)
+            room = geometry.to_pra(fs, self.image_source_order, air_absorption=self.air_absorption, air=self.air)
             for source in sources:
                 room.add_soundsource(source)
             room.add_microphone_array(pra.MicrophoneArray(mic_positions, fs))

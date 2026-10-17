@@ -257,3 +257,27 @@ def test_a_slow_image_source_search_warns_before_it_starts(monkeypatch):
     monkeypatch.setattr(Method, "_image_sources", lambda *a, **k: pytest.fail("searched"))
     with pytest.warns(UserWarning, match="image source search over 42 faces"), pytest.raises(pytest.fail.Exception):
         scene.simulate(Method(image_source_order=6))
+
+
+def test_parallel_slices_trace_in_the_medium():
+    from compas_acoustics import AirConditions
+
+    # The worker processes must build their rooms in the air, not at 343 m/s. Seeded as
+    # test_parallel_slices_are_the_same_rays_without_scattering: compute_rir draws the tail's noise.
+    g = geometry(SMOOTH)
+    air = AirConditions(temperature=0.0)
+    (one,), = traced(g, air=air, n_jobs=1, seed=42)
+    (two,), = traced(g, air=air, n_jobs=2, seed=42)
+    np.testing.assert_allclose(two, one, rtol=0.0, atol=1e-5 * np.abs(one).max())
+    (legacy,), = traced(g, n_jobs=1, seed=42)
+    assert not np.allclose(one, legacy)
+
+
+def test_the_default_duration_follows_the_medium():
+    from compas_acoustics import AirConditions
+
+    g = geometry()
+    assert default_duration(g, air_absorption=True, air=None) == default_duration(g, air_absorption=True)
+    dry = default_duration(g, air_absorption=True, speed_of_sound=AirConditions(humidity=10.0).speed_of_sound,
+                           air=AirConditions(humidity=10.0))
+    assert dry != default_duration(g, air_absorption=True)

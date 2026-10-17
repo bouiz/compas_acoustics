@@ -167,6 +167,7 @@ class RoomTarget:
             weighting=weighting,
             air_absorption=air_absorption,
             speed_of_sound=spec.speed_of_sound,
+            air=spec.air,
         )
 
         # Diffuse-field energy density is proportional to 1 / A, but ``level``

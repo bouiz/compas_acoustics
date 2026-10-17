@@ -18,7 +18,6 @@ from scipy.signal import butter, freqs_zpk
 
 from .bands import BANDS, N_BANDS, check_bands
 from .pair import Pair
-from .target import _air_absorption_coefficient
 
 
 @dataclass(frozen=True)
@@ -90,12 +89,9 @@ def image_sources(room, source_index: int, mic_index: int, spec: Pair, directivi
     delay = distance / spec.speed_of_sound
     spreading = 1.0 / (4.0 * np.pi * distance)
 
-    if spec.air_absorption:
-        # m is an energy attenuation coefficient, so pressure loses exp(-m d/2)
-        # over the image's own path length.
-        wall_gain = wall_gain * np.exp(
-            -np.outer(distance, _air_absorption_coefficient()) / 2.0
-        )
+    # m is an energy attenuation coefficient, so pressure loses exp(-m d/2)
+    # over the image's own path length; zero without air absorption.
+    wall_gain = wall_gain * np.exp(-np.outer(distance, spec.air_attenuation()) / 2.0)
 
     gain = wall_gain * spreading[:, np.newaxis]
 

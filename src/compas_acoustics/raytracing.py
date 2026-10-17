@@ -40,7 +40,7 @@ OPEN_ROOM_DURATION = 10.0
 _HIST_BIN = 0.004
 
 
-def default_duration(geometry: RoomGeometry, air_absorption: bool, speed_of_sound: float = 343.0) -> float:
+def default_duration(geometry: RoomGeometry, air_absorption: bool, speed_of_sound: Optional[float] = None, air=None) -> float:
     """How long to simulate this room, from the Eyring prediction (upstream ``_default_simulation_duration``).
 
     Eyring is not accurate enough to be a decay target, but it sizes a buffer:
@@ -54,7 +54,8 @@ def default_duration(geometry: RoomGeometry, air_absorption: bool, speed_of_soun
         return OPEN_ROOM_DURATION
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DiffuseFieldWarning)
-        rt = float(np.max(predicted_rt(geometry, air_absorption=air_absorption, speed_of_sound=speed_of_sound)))
+        rt = float(np.max(predicted_rt(geometry, air_absorption=air_absorption, speed_of_sound=speed_of_sound,
+                                        air=air)))
     return float(np.clip(2.5 * rt, 0.5, 12.0))
 
 
@@ -64,7 +65,7 @@ def _on_package_scale(rir, latency: int, n_samples: int) -> np.ndarray:
 
 
 def _trace_slice(geometry, fs, max_order, air_absorption, options, n_rays, mic_positions,
-                 position, directions, energies, seed):
+                 position, directions, energies, seed, air=None):
     """Receiver histograms of one slice of one source's rays, ``[mic][direction]``.
 
     ``Room.ray_tracing`` with its loop over sources taken out; the engine
@@ -73,7 +74,7 @@ def _trace_slice(geometry, fs, max_order, air_absorption, options, n_rays, mic_p
     if seed is not None:
         pra.random.seed(seed)
     with pra_octave_grid():
-        room = geometry.to_pra(fs, max_order, ray_tracing=True, air_absorption=air_absorption)
+        room = geometry.to_pra(fs, max_order, ray_tracing=True, air_absorption=air_absorption, air=air)
         room.add_microphone_array(pra.MicrophoneArray(mic_positions, fs))
         room.set_ray_tracing(n_rays=n_rays, **options)
     for mic in room.room_engine.microphones:
@@ -94,7 +95,7 @@ def _merged(parts, slices, n_rays):
 
 
 def _traced_in_parallel(room, geometry, fs, max_order, air_absorption, options, mic_positions,
-                        n_jobs, seed, executor):
+                        n_jobs, seed, executor, air=None):
     """``rt_histograms`` of every source, ``[mic][source][direction]``, in ``n_jobs`` slices.
 
     Each source's rays are the directions and energies ``Room.ray_tracing``
@@ -118,7 +119,7 @@ def _traced_in_parallel(room, geometry, fs, max_order, air_absorption, options, 
             jobs = [
                 (geometry, fs, max_order, air_absorption, options, n_rays, mic_positions, position,
                  np.ascontiguousarray(directions[a:b]), np.ascontiguousarray(energies[a:b]),
-                 None if seed is None else seed + k)
+                 None if seed is None else seed + k, air)
                 for k, (a, b) in enumerate(slices)
             ]
             parts = list(pool.map(_trace_slice, *zip(*jobs)))
@@ -145,6 +146,7 @@ def ray_traced_rirs(
     seed: Optional[int] = None,
     n_jobs: int = 1,
     executor: Optional[Executor] = None,
+    air=None,
 ) -> List[List[np.ndarray]]:
     """Monaural responses of every source at every microphone, ``[mic][source]``.
 
@@ -160,11 +162,12 @@ def ray_traced_rirs(
     workers are spawned and re-import it. Without scattering the result equals
     the single-process one to about 1e-8 of the peak; with scattering slice
     ``k`` draws from ``seed + k``, an equivalent draw, not the same one.
+    ``air`` (:class:`AirConditions`) sets the speed of sound and the air absorption (see :meth:`RoomGeometry.to_pra`).
     """
     if n_jobs < 1:
         raise ValueError(f"n_jobs must be at least 1, got {n_jobs!r}")
     if duration is None:
-        duration = default_duration(geometry, air_absorption)
+        duration = default_duration(geometry, air_absorption, air=air)
     if duration <= 0.0:
         raise ValueError(f"duration must be positive, got {duration!r}")
     mic_positions = np.asarray(mic_positions, dtype=float).reshape(3, -1)
@@ -180,7 +183,7 @@ def ray_traced_rirs(
         # which breaks sample parity with upstream. Repeatable either way.
         pra.random.seed(seed)
     with pra_octave_grid():
-        room = geometry.to_pra(fs, max_order, ray_tracing=True, air_absorption=air_absorption)
+        room = geometry.to_pra(fs, max_order, ray_tracing=True, air_absorption=air_absorption, air=air)
         for source in sources:
             room.add_soundsource(source)
         room.add_microphone_array(pra.MicrophoneArray(mic_positions, fs))
@@ -189,7 +192,7 @@ def ray_traced_rirs(
             room.set_ray_tracing(n_rays=MIN_RAYS, **options)
         if n_jobs > 1:
             room.rt_histograms = _traced_in_parallel(
-                room, geometry, fs, max_order, air_absorption, options, mic_positions, n_jobs, seed, executor
+                room, geometry, fs, max_order, air_absorption, options, mic_positions, n_jobs, seed, executor, air
             )
             room.rt_directional_responses = [
                 {"response": np.ones(1), "is_impulse_response": False} for _ in range(mic_positions.shape[1])

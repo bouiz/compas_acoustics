@@ -92,6 +92,7 @@ def target():
             weighting=weighting,
             air_absorption=air_absorption,
             speed_of_sound=spec.speed_of_sound,
+            air=spec.air,
         )
 ''',
     )
@@ -172,12 +173,9 @@ IMAGE_SOURCES = '''def image_sources(room, source_index: int, mic_index: int, sp
     delay = distance / spec.speed_of_sound
     spreading = 1.0 / (4.0 * np.pi * distance)
 
-    if spec.air_absorption:
-        # m is an energy attenuation coefficient, so pressure loses exp(-m d/2)
-        # over the image's own path length.
-        wall_gain = wall_gain * np.exp(
-            -np.outer(distance, _air_absorption_coefficient()) / 2.0
-        )
+    # m is an energy attenuation coefficient, so pressure loses exp(-m d/2)
+    # over the image's own path length; zero without air absorption.
+    wall_gain = wall_gain * np.exp(-np.outer(distance, spec.air_attenuation()) / 2.0)
 
     gain = wall_gain * spreading[:, np.newaxis]
 
@@ -220,7 +218,7 @@ def early():
     )
     text = replace_relative_import(
         text, "room",
-        "from .bands import BANDS, N_BANDS, check_bands\nfrom .pair import Pair\nfrom .target import _air_absorption_coefficient\n",
+        "from .bands import BANDS, N_BANDS, check_bands\nfrom .pair import Pair\n",
     )
     for name in ("_axis_reflection_counts", "_shoebox_reflection_counts", "_shoebox_band_gains", "_damping_band_gains"):
         text = replace_node(text, name, "")
@@ -292,7 +290,7 @@ def diffraction():
     text = replace_relative_import(
         text, "room",
         "from compas_acoustics.room_geometry import _MERGE_TOLERANCE, OBSTACLE_OFFSET, RoomGeometry, _polygon_area_and_centroid\n\n"
-        "from .bands import BANDS\nfrom .pair import Pair\nfrom .target import _air_absorption_coefficient\n",
+        "from .bands import BANDS\nfrom .pair import Pair\n",
     )
     # the global MeshGeometry -> RoomGeometry rename turns this into an isinstance check against RoomGeometry
     check = (
@@ -312,6 +310,13 @@ def diffraction():
         "    occ = Occluders.from_geometry(geometry)\n"
         "    n = len(occ.polygons) - occ.n_obstacle\n"
         "    sides = _enclosure_sides(geometry, n)",
+    )
+    # The air comes from the pair, which carries the air (Pair.air_attenuation)
+    text = once(
+        text,
+        "    air = _air_absorption_coefficient() if spec.air_absorption else np.zeros(BANDS.size)\n",
+        "    air = spec.air_attenuation()\n",
+        count=2,
     )
     text = text.replace("MeshGeometry", "RoomGeometry").replace("RoomSpec", "Pair")
     write(f"{HYBRID}/diffraction.py", text)

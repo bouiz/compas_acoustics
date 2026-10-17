@@ -2,6 +2,7 @@ from __future__ import print_function
 
 from .defaults import Defaults
 # from .tools import Tools
+from .air import AirConditions
 from .acoustic_material import AcousticMaterial
 from .acoustic_material import MaterialCategory
 from .materials_library import MaterialsLibrary
@@ -29,6 +30,7 @@ __version__ = "0.1.0"
 
 __all__ = [
     'Defaults',
+    'AirConditions',
     'AcousticMaterial',
     'MaterialCategory',
     'MaterialsLibrary',

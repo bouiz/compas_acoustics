@@ -162,3 +162,31 @@ def test_too_few_walls_for_pyroomacoustics_is_a_clear_error():
         g = RoomGeometry.from_scene(scene)
     with pytest.raises(ValueError, match="at least four walls"):
         g.to_pra(48000, 1)
+
+
+def test_a_medium_sets_the_speed_of_sound_and_the_air():
+    from compas_acoustics import AirConditions
+
+    air = AirConditions(temperature=0.0, humidity=30.0)
+    room = geometry().to_pra(48000, 1, air_absorption=True, air=air)
+    assert room.c == pytest.approx(air.speed_of_sound)
+    centres = [float(f) for f in room.octave_bands.centers]
+    np.testing.assert_allclose(room.air_absorption, air.air_attenuation(centres), rtol=1e-12)
+
+
+def test_a_medium_without_air_absorption_only_sets_the_speed():
+    from compas_acoustics import AirConditions
+
+    room = geometry().to_pra(48000, 1, air_absorption=False, air=AirConditions(temperature=0.0))
+    assert room.c == pytest.approx(AirConditions(temperature=0.0).speed_of_sound)
+    assert not room.simulator_state["air_abs_needed"]
+
+
+def test_without_a_medium_the_room_is_in_the_default_medium():
+    # Not pyroomacoustics' own air table (19.3 C, 0.3 % from 343 m/s), which the hybrid never used
+    from compas_acoustics import AirConditions
+
+    room = geometry().to_pra(48000, 1, air_absorption=True)
+    assert room.c == pytest.approx(AirConditions().speed_of_sound)
+    centres = [float(f) for f in room.octave_bands.centers]
+    np.testing.assert_allclose(room.air_absorption, AirConditions().air_attenuation(centres), rtol=1e-12)

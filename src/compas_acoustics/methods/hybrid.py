@@ -13,6 +13,8 @@ from dataclasses import replace
 
 import numpy as np
 
+from compas_acoustics.air import AirConditions
+from compas_acoustics.air import air_or_default
 from compas_acoustics.hybrid import UPSTREAM_REVISION
 from compas_acoustics.hybrid.early import image_sources
 from compas_acoustics.hybrid.pair import Pair
@@ -104,6 +106,13 @@ class Hybrid(SimulationMethod):
         Seeds the feedback matrices and delay jitter (0 when omitted).
     normalize : bool, default=True
         Whether the returned responses are peak-normalised views.
+    air : AirConditions, optional
+        The air: speed of sound and ISO 9613-1 absorption, for the image
+        sources, the diffracted paths, the predicted decay and the reference the
+        hybrid runs itself. By default the references' air, else ``AirConditions()``
+        (20 C, 50 %, 101325 Pa); a reference that records none counts as that.
+        It must agree with the references', because the early field and the
+        decay target share it.
 
     Attributes
     ----------
@@ -119,7 +128,7 @@ class Hybrid(SimulationMethod):
     def __init__(self, reference=None, tail=None, sh_order=1, image_source_order=3, normalization="SN3D",
                  n_slopes=1, decay_db=30.0, duration=None, num_delays=None, drive_gain=None,
                  directional_absorption=True, late_envelope=None, diffraction=False,
-                 air_absorption=None, seed=None, normalize=True):
+                 air_absorption=None, seed=None, normalize=True, air=None):
         if tail is not None and tail not in TAILS:
             raise ValueError(f"tail must be None or one of {TAILS}, not {tail!r}")
         if reference is not None and not isinstance(reference, (str, dict, Pyroomacoustics)):
@@ -161,6 +170,7 @@ class Hybrid(SimulationMethod):
         self.air_absorption = air_absorption
         self.seed = seed
         self.normalize = normalize
+        self.air = air
         self.reference_rirs = None
         self.results = {}
 
@@ -192,10 +202,10 @@ class Hybrid(SimulationMethod):
 
         # The hybrid searches one order beyond the early field, for the images that drive the network
         _warn_if_the_search_is_slow(geometry, self.image_source_order + 1)
-        references, air_absorption, description = self._references(context)
+        references, air_absorption, air, description = self._references(context)
         self.reference_rirs = references
 
-        room = geometry.to_pra(fs, self.image_source_order + 1, air_absorption=False)
+        room = geometry.to_pra(fs, self.image_source_order + 1, air_absorption=False, air=air)
         with pra_octave_grid():
             for source in context.sources:
                 room.add_soundsource(source_to_pra(source))
@@ -212,6 +222,8 @@ class Hybrid(SimulationMethod):
             "tail": self.tail,
             "reference": description,
             "air_absorption": air_absorption,
+            "air": air.to_dict(),
+            "speed_of_sound": speed_of_sound,
             "image_source_order": self.image_source_order,
             "sh_order": self.sh_order,
             "n_slopes": self.n_slopes,
@@ -240,6 +252,7 @@ class Hybrid(SimulationMethod):
                     fs=float(fs),
                     speed_of_sound=speed_of_sound,
                     air_absorption=air_absorption,
+                    air=air,
                 )
                 reference = None
                 if references is not None:
@@ -274,13 +287,14 @@ class Hybrid(SimulationMethod):
 
     # ----------------------------------------------------------- references --
     def _references(self, context):
-        """``(references or None, air_absorption, description)`` for :attr:`tail`."""
+        """``(references or None, air_absorption, air, description)`` for :attr:`tail`."""
         if self.tail in ("eyring", "sabine"):
-            air = True if self.air_absorption is None else bool(self.air_absorption)
-            return None, air, None
+            absorption = True if self.air_absorption is None else bool(self.air_absorption)
+            return None, absorption, air_or_default(self.air), None
 
         if self.tail == "ray_tracing":
-            method = Pyroomacoustics(ray_tracing=True, air_absorption=True if self.air_absorption is None else bool(self.air_absorption))
+            method = Pyroomacoustics(ray_tracing=True, air_absorption=True if self.air_absorption is None else bool(self.air_absorption),
+                                     air=self.air)
             references, description = method.compute(context), method.generation
         elif isinstance(self.reference, str):
             references, description = context.scene.impulse_responses(self.reference), self.reference
@@ -317,12 +331,24 @@ class Hybrid(SimulationMethod):
         if self.air_absorption is None:
             if len(used) != 1 or None in used:
                 raise ValueError(f"the references disagree about air_absorption ({used}); pass air_absorption")
-            air = used.pop()
+            absorption = used.pop()
         else:
-            air = bool(self.air_absorption)
-            if used != {air}:
+            absorption = bool(self.air_absorption)
+            if used != {absorption}:
                 raise ValueError(
-                    f"the references were simulated with air_absorption={used}, not {air}; "
+                    f"the references were simulated with air_absorption={used}, not {absorption}; "
                     "the early field and the decay target must agree"
                 )
-        return references, air, description
+        conditions = {air_or_default(AirConditions.from_dict(r.generation.get("air"))) for r in pairs}
+        if self.air is None:
+            if len(conditions) != 1:
+                raise ValueError(f"the references disagree about the air ({conditions}); pass air")
+            air = conditions.pop()
+        else:
+            air = self.air
+            if conditions != {air}:
+                raise ValueError(
+                    f"the references were simulated in the air {conditions}, not {air}; "
+                    "the early field and the decay target must share it"
+                )
+        return references, absorption, air, description

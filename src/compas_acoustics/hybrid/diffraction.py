@@ -43,7 +43,6 @@ from compas_acoustics.room_geometry import _MERGE_TOLERANCE, OBSTACLE_OFFSET, Ro
 
 from .bands import BANDS
 from .pair import Pair
-from .target import _air_absorption_coefficient
 from .udfa import WedgePath, udfa_transfer
 
 TWO_PI = 2.0 * np.pi
@@ -796,7 +795,7 @@ def diffraction_paths(spec: Pair, *, max_order: int = 1) -> list[DiffractionPath
     receiver = np.asarray(spec.receiver, dtype=float)
     occ = Occluders.from_geometry(geometry)
     edges = diffraction_edges(geometry)
-    air = _air_absorption_coefficient() if spec.air_absorption else np.zeros(BANDS.size)
+    air = spec.air_attenuation()
 
     def reflection(face):
         material = geometry.materials[geometry.face_materials[face - occ.n_obstacle]]
@@ -895,7 +894,7 @@ def btms_paths(spec: Pair, *, max_order: int = 1, second_order: bool = True) -> 
     receiver = np.asarray(spec.receiver, dtype=float)
     occ = Occluders.from_geometry(geometry)
     edges = diffraction_edges(geometry)
-    air = _air_absorption_coefficient() if spec.air_absorption else np.zeros(BANDS.size)
+    air = spec.air_attenuation()
 
     def reflection(face):
         material = geometry.materials[geometry.face_materials[face - occ.n_obstacle]]

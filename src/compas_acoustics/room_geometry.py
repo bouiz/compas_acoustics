@@ -32,6 +32,9 @@ from compas.geometry import Point
 from compas.geometry import Polyline
 from scipy.spatial import cKDTree
 
+from compas_acoustics.air import AirConditions
+from compas_acoustics.air import air_or_default
+
 __all__ = ['RoomGeometry', 'SurfaceMaterial', 'SYNTHESIS_BANDS', 'OBSTACLE_OFFSET', 'DEFAULT_SCATTERING', 'pra_octave_grid']
 
 # pyFDN's octave grid, on which the hybrid synthesis works. Public materials
@@ -505,6 +508,7 @@ class RoomGeometry:
         ray_tracing: bool = False,
         air_absorption: bool = False,
         enclosure_only: bool = False,
+        air: Optional[AirConditions] = None,
     ) -> pra.Room:
         """The pyroomacoustics room, one wall per face, on ``SYNTHESIS_BANDS``.
 
@@ -514,7 +518,10 @@ class RoomGeometry:
         A material without scattering coefficients scatters ``DEFAULT_SCATTERING``
         (0.05) in every band; given coefficients are used as they are.
         ``enclosure_only`` leaves the obstacles out. The room answers
-        ``is_inside`` with :meth:`is_inside`.
+        ``is_inside`` with :meth:`is_inside`. ``air`` sets the room's speed of
+        sound and, with ``air_absorption``, its air absorption on the room's own
+        octave grid (ISO 9613-1); without one, ``AirConditions()`` (20 C, 50 %), never
+        pyroomacoustics' own 343 m/s and air table.
         """
         with pra_octave_grid():
             octave_bands = pra.acoustics.AntoniOctaveFilterBank(
@@ -570,6 +577,11 @@ class RoomGeometry:
                     f"pyroomacoustics cannot build a room from these {len(walls)} walls (obstacles count twice): it "
                     f"needs at least four walls that span three dimensions. ({type(error).__name__}: {error})"
                 ) from error
+            air = air_or_default(air)
+            room.set_sound_speed(air.speed_of_sound)
+            if air_absorption:
+                centres = [float(f) for f in room.octave_bands.centers]
+                room.set_air_absorption(coefficients=air.air_attenuation(centres).tolist(), center_freqs=centres)
         # pyroomacoustics counts wall crossings, which the two obstacle copies and an open
         # boundary confuse; it refuses sources and hides microphones it calls outside.
         crossings = room.is_inside
