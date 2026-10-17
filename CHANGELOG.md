@@ -145,6 +145,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `Hybrid`: an image source reached through an edge was counted twice. Where the path to an image passes exactly through an edge, pyroomacoustics' general-room search accepts it from both wall orderings (+6 dB on that path); its `ShoeBox` counts it once. Source and receiver at one height or width, as on a seating grid, hit such edges routinely: 18 to 51 of 99 receivers on a 0.5 m grid in a 6 x 5 x 3 m room, up to 598 extra images and +0.85 dB of image energy at order 4. `hybrid.early.image_sources` now keeps one image per position, and its image set equals `ShoeBox`'s, positions and per-band gains. Deliberately different from hybrid-rir @ a272da7, which keeps the duplicates
 - Wheels were missing the materials library, the HRTFs, the sound files and the Grasshopper components.
 - `Simulator._pyroomacoustics_simulation` now passes surface scattering coefficients to `pyroomacoustics.Material` correctly; previously the whole material dict was passed as the positional `energy_absorption` argument and scattering was silently dropped (always zero)
 - `AcousticObject.display_surface_groups_in_viewer`, `Scene.display_surface_groups_in_viewer`, and `RayField.display_in_viewer` now call `compas.is_rhino()` instead of treating it as a boolean attribute, so the Rhino guard actually raises when appropriate

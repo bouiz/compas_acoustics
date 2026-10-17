@@ -4,7 +4,8 @@ Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, src/early.py).
 The image source search moved to the caller: ``image_sources`` reads one pair
 out of a pyroomacoustics room computed for every source and receiver of a
 scene, so per-band gains always come from pyroomacoustics' damping (the
-shoebox closed form is not ported).
+shoebox closed form is not ported). Unlike upstream, an image found twice is
+kept once (see :func:`image_sources`).
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ import numpy as np
 import pyfar as pf
 import spharpy
 from scipy.signal import butter, freqs_zpk
+from scipy.spatial import cKDTree
 
 from .bands import BANDS, N_BANDS, check_bands
 from .pair import Pair
@@ -64,6 +66,22 @@ def _band_damping(source) -> np.ndarray:
     return damping[:N_BANDS].T
 
 
+def _first_of_each_position(images: np.ndarray, spec: Pair) -> np.ndarray:
+    """Mask over ``images`` (3, M) keeping the first of every group at one position.
+
+    The tolerance, 1e-5 of the room's extent, sits well above pyroomacoustics'
+    float32 rounding of the same image reached twice and far below the distance
+    between two distinct images.
+    """
+    keep = np.ones(images.shape[1], dtype=bool)
+    if images.shape[1] < 2:
+        return keep
+    tolerance = 1e-5 * max(float(np.ptp(spec.geometry.vertices, axis=0).max()), 1.0)
+    for i, j in cKDTree(images.T).query_pairs(tolerance):
+        keep[max(i, j)] = False
+    return keep
+
+
 def image_sources(room, source_index: int, mic_index: int, spec: Pair, directivity=None) -> ImageSourceSet:
     """The image sources of one source at one microphone of a computed room.
 
@@ -77,9 +95,16 @@ def image_sources(room, source_index: int, mic_index: int, spec: Pair, directivi
     ``directivity`` is the source's pyroomacoustics directivity. It is
     evaluated along each image's emission direction from the real source,
     ``source.directions``, which is what pyroomacoustics itself uses.
+
+    An image found more than once is kept once. Where the path to an image
+    passes exactly through an edge, pyroomacoustics' general-room search
+    accepts it from both wall orderings; its ``ShoeBox``, the analytic image
+    lattice, counts it once. Grid layouts, with source and receiver at one
+    height or one width, hit such edges routinely.
     """
     source = room.sources[source_index]
-    visible = np.asarray(room.visibility[source_index][mic_index], dtype=bool)
+    visible = np.array(room.visibility[source_index][mic_index], dtype=bool)
+    visible[visible] = _first_of_each_position(np.asarray(source.images, dtype=float)[:, visible], spec)
     images = np.asarray(source.images, dtype=float)[:, visible]  # (3, M)
     order = np.asarray(source.orders, dtype=int).ravel()[visible]
     wall_gain = _band_damping(source)[visible]
