@@ -86,6 +86,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `compas_acoustics.Hybrid` is loaded on first use (it needs the `hybrid` extra)
 - Demonstration notebook: `examples/notebooks/02_hybrid_method.ipynb`
 - A test pins the hybrid's late level to the exact answer of a specular shoebox (image sources to order 100), within 1 dB. The network's drive gain stays as it is: the hybrid is within about 1 dB of that answer and of Barron's revised theory, while pyroomacoustics' ray tracer drifts with the scattering coefficient (2.6 dB low to 3.6 dB high), so the ray tracer is not used to calibrate it
+- Hybrid diffraction at the edges of the room's own boundary (re-entrant corners, the corners of closed volumes inside the room), ported from hybrid-rir `4b42bfd`: every boundary edge whose air side opens wider than 180 deg diffracts with the obstacle edges, in UDFA and BTMS; an open boundary is not searched (a `ShellEdgeWarning`, `enclosure_edges` returns no edges)
 
 ### Changed
 
@@ -136,6 +137,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** `Scene.simulate(method)` is the one way to simulate; every method returns responses on the package scale (free-field direct sound `1 / (4 pi r)`) and records how they were made in `ImpulseResponse.generation`
 - `pyroomacoustics` is pinned below 0.11: the parallel ray tracer writes private `Room` state (`rt_histograms`, `simulator_state`)
 - **Breaking:** `Hybrid` without a reference runs `Pyroomacoustics(ray_tracing=True)` with its default settings (unseeded) and fits the decay to it; `late_envelope` defaults to on for a reference or ray-tracing tail and off for an Eyring or Sabine tail
+- `Hybrid` accepts `diffraction` without obstacles (it used to raise `ValueError`): a room without re-entrant edges gives the same response as without diffraction
+- Hybrid: the 35 Hz high-pass that keeps DC out of the early field is causal (ported from hybrid-rir a272da7). Applied as a zero-phase magnitude it rang before every arrival, back to the start of the response: around the corner of an L-shaped room the diffracted part held -18 dB (UDFA) and -17 dB (BTMS) of its energy before the direct sound could arrive, now below -60 dB. The magnitude is the same, so spectra, total energy, EDT, T20, T30, Ts and G do not change; values over short windows at the arrival do, most at 125 Hz (DRR over +-2.5 ms, D50)
 
 ### Fixed
 
@@ -160,6 +163,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A source at a receiver's position gave NaN responses; it now raises a `ValueError`
 - A source or receiver inside a closed obstacle crashed pyroomacoustics with an unrelated error; scenes of obstacles only simulated nothing; too few walls for pyroomacoustics gave opaque errors (now a `ValueError` saying so)
 - The hybrid method failed on a fully absorbing surface (alpha = 1) seen by a whole delay line
+- A wall hit on a diffraction apex is no reflection (ported from hybrid-rir 4b42bfd): tilted obstacle rooms lose duplicate zero-length reflections; level rooms are unchanged (checked bit-identical)
 
 ### Removed
 

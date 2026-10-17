@@ -1,6 +1,6 @@
 """Ray casts against the faces of a room.
 
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ 8a70661, src/scattering.py).
+Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, src/scattering.py).
 Only ``_unit_normal`` and ``_first_hit``, which :mod:`directional` uses; the
 scattered image sources of that module are not ported.
 """

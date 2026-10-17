@@ -1,6 +1,6 @@
 """BTMS kernels: properties the toolbox comparison does not pin.
 
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ 8a70661, tests/test_btms.py).
+Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, tests/test_btms.py).
 """
 
 import numpy as np

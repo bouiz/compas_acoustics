@@ -4,6 +4,7 @@ import numpy as np
 import pyFDN
 import pytest
 from compas.datastructures import Mesh
+from compas.geometry import Box
 
 from compas_acoustics import AcousticMaterial
 from compas_acoustics import AcousticObject
@@ -12,9 +13,14 @@ from compas_acoustics import Receiver
 from compas_acoustics import Scene
 from compas_acoustics import Source
 from compas_acoustics.diffuse import DiffuseFieldWarning
+from compas_acoustics.hybrid.diffraction import ShellEdgeWarning
+from compas_acoustics.hybrid.diffraction import diffraction_edges
+from compas_acoustics.hybrid.diffraction import enclosure_edges
 from compas_acoustics.methods import Hybrid
 from compas_acoustics.methods import Pyroomacoustics
 from compas_acoustics.methods import SimulationContext
+from compas_acoustics.room_geometry import RoomGeometry
+from compas_acoustics.room_geometry import SurfaceMaterial
 
 FS = 48000
 WALL = AcousticMaterial("wall", 0.2, 0.1)
@@ -123,10 +129,89 @@ def test_a_fully_absorbing_surface_runs():
     assert np.all(np.isfinite(ir.ir))
 
 
-def test_diffraction_needs_obstacles():
+def l_room():
+    outline = [(0, 0), (8, 0), (8, 3), (5, 3), (5, 6), (0, 6)]
+    n = len(outline)
+    vertices = [[x, y, 0.0] for x, y in outline] + [[x, y, 3.0] for x, y in outline]
+    faces = [list(range(n))[::-1], list(range(n, 2 * n))]
+    faces += [[k, (k + 1) % n, (k + 1) % n + n, k + n] for k in range(n)]
+    scene = Scene("l_room")
+    scene.add_acoustic_object(AcousticObject(Mesh.from_vertices_and_faces(vertices, faces), WALL, name="l_room"))
+    scene.add_source(Source("src", 7.0, 1.0, 1.5))
+    scene.add_receiver(Receiver("rec", 4.0, 5.5, 1.5))
+    return scene
+
+
+def test_diffraction_at_the_room_boundary_needs_no_obstacles():
+    scene = l_room()
+    assert RoomGeometry.from_scene(scene).is_closed
+    refs = references(scene)
+    (off,) = scene.simulate(Hybrid(refs, diffraction=False, normalize=False, **FAST)).values()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", ShellEdgeWarning)
+        (on,) = scene.simulate(Hybrid(refs, diffraction=True, normalize=False, **FAST)).values()
+    # the wall hides the direct sound, so the window starts at its geometric arrival
+    start = int(np.linalg.norm(np.subtract(off.source.position, off.receiver.position)) / 343.0 * FS)
+    window = slice(start, start + int(0.02 * FS))
+    e_off, e_on = np.sum(off.ir[window] ** 2), np.sum(on.ir[window] ** 2)
+    # raw level, seeded reference: the window energy rises by 21 % (1.98e-4 -> 2.41e-4); 10 % leaves half of that as margin
+    assert e_on > 1.10 * e_off
+
+
+def pillar_scene():
+    scene = Scene("pillar")
+    scene.add_acoustic_object(AcousticObjectsLibrary.shoebox_room(10, 8, 3, materials=WALL))
+    pillar = Mesh.from_shape(Box.from_corner_corner_height([4, 3, 0], [5, 4, 0], 3))
+    scene.add_acoustic_object(AcousticObject(pillar, WALL, name="pillar"))
+    return scene
+
+
+def test_a_boundary_pillar_has_four_270_degree_corners():
+    g = RoomGeometry.from_scene(pillar_scene())
+    assert g.is_closed
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", ShellEdgeWarning)
+        edges = diffraction_edges(g)
+    assert len(edges) == 4
+    for e in edges:
+        assert e.theta_w == 1.5 * np.pi
+        assert e.start[2] == 0.0 and e.end[2] == 3.0
+        np.testing.assert_array_equal(e.start[:2], e.end[:2])
+    assert {tuple(e.start[:2]) for e in edges} == {(4.0, 3.0), (4.0, 4.0), (5.0, 3.0), (5.0, 4.0)}
+
+
+def l_prism(ceiling):
+    outline = [(0, 0), (8, 0), (8, 3), (5, 3), (5, 6), (0, 6)]
+    n = len(outline)
+    vertices = [[x, y, 0.0] for x, y in outline] + [[x, y, 3.0] for x, y in outline]
+    faces = [list(range(n))[::-1]]
+    names = ["floor"]
+    if ceiling:
+        faces.append(list(range(n, 2 * n)))
+        names.append("ceiling")
+    faces += [[k, (k + 1) % n, (k + 1) % n + n, k + n] for k in range(n)]
+    names += ["wall"] * n
+    materials = {name: SurfaceMaterial.from_acoustic_material(WALL) for name in set(names)}
+    return RoomGeometry.from_mesh(vertices, faces, names, materials)
+
+
+def test_room_edges_are_not_searched_in_a_boundary_that_does_not_close():
+    g = l_prism(ceiling=True)
+    assert g.is_closed
+    assert len(enclosure_edges(g)) == 1
+    with pytest.warns(UserWarning, match="do not close a volume"):
+        g = l_prism(ceiling=False)
+    assert not g.is_closed
+    with pytest.warns(ShellEdgeWarning, match="does not close a volume"):
+        assert enclosure_edges(g) == []
+
+
+def test_diffraction_in_a_rectangular_room_changes_nothing():
     scene = make()
-    with pytest.raises(ValueError, match="obstacle"):
-        scene.simulate(Hybrid({}, diffraction=True, **FAST))
+    refs = references(scene)
+    (off,) = scene.simulate(Hybrid(refs, diffraction=False, **FAST)).values()
+    (on,) = scene.simulate(Hybrid(refs, diffraction=True, **FAST)).values()
+    np.testing.assert_allclose(on.ir[: int(0.1 * FS)], off.ir[: int(0.1 * FS)], atol=1e-12)
 
 
 def test_references_not_from_a_package_scale_method_raise():

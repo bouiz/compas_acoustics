@@ -1,6 +1,6 @@
 """The ambisonic feedback delay network: one delay line per direction.
 
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ 8a70661, src/late.py).
+Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, src/late.py).
 The free paths read the faces of a RoomGeometry.
 """
 

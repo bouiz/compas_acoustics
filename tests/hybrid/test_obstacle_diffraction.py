@@ -73,6 +73,5 @@ def test_the_doa_is_in_the_receiver_frame():
     np.testing.assert_allclose([turned.T @ p.doa for p in plain], [p.doa for p in rotated], atol=1e-12)
 
 
-def test_diffraction_needs_obstacles():
-    with pytest.raises(ValueError, match="obstacle"):
-        diffraction_paths(Pair(room(), SOURCE, RECEIVER, np.eye(3), 48000.0), max_order=0)
+def test_a_rectangular_room_without_obstacles_has_no_diffraction_paths():
+    assert diffraction_paths(Pair(room(), SOURCE, RECEIVER, np.eye(3), 48000.0), max_order=0) == []

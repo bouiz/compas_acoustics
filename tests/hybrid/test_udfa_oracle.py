@@ -49,7 +49,7 @@ getDoubleEdge on those 6 cases after its receiver angle was changed to
 theta_w2 - theta_r2; double_edge_oracle.m now passes that angle, so one run
 gives both columns.
 
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ 8a70661, tests/test_udfa_oracle.py).
+Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, tests/test_udfa_oracle.py).
 """
 
 from pathlib import Path

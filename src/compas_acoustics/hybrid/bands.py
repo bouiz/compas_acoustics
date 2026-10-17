@@ -1,6 +1,6 @@
 """The octave band grid of the hybrid synthesis.
 
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ 8a70661, src/room.py).
+Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, src/room.py).
 """
 
 from __future__ import annotations

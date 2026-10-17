@@ -1,6 +1,6 @@
 """Obstacle edges, diffraction paths and their visibility, rendering, and
 
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ 8a70661, tests/test_diffraction.py).
+Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, tests/test_diffraction.py).
 diffraction in synthesize."""
 
 import warnings

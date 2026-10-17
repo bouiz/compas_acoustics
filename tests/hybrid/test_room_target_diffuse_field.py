@@ -15,7 +15,7 @@ nothing in the return value to show it:
 Neither is a defect this package can fix -- the models are pyrato's and they
 are being used correctly. What it can do is refuse to be silent.
 
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ 8a70661, tests/test_room_target_diffuse_field.py).
+Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, tests/test_room_target_diffuse_field.py).
 """
 
 import warnings

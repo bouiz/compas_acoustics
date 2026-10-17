@@ -6,7 +6,7 @@ is neither an energy nor a spectral density, and ``from_room`` predicted it
 from diffuse-field theory as though it were both. These tests pin the two
 conversions that were missing.
 
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ 8a70661, tests/test_room_target_level.py).
+Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, tests/test_room_target_level.py).
 """
 
 import numpy as np

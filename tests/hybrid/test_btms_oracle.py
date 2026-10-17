@@ -18,7 +18,7 @@ MATLAB scripts kept outside the repository (validation/btms in a local
 working copy): make_cases.py N1=240 N2=80 seed 20261006, then btms_oracle.m
 with EDtoolbox v0.504 and MATLAB R2025b.
 
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ 8a70661, tests/test_btms_oracle.py).
+Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, tests/test_btms_oracle.py).
 """
 
 from pathlib import Path

@@ -13,7 +13,7 @@ behaviour -- invents content in two places that matter:
   wall roll-off nor air absorption, while the FDN's own ``nyquist_factor``
   shortens its decay there.
 
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ 8a70661, tests/test_early_encode_extrapolation.py).
+Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, tests/test_early_encode_extrapolation.py).
 """
 
 import numpy as np

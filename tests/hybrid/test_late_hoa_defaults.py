@@ -10,7 +10,7 @@ when asked for 16 at ``n_max=3``.
 The set of counts that satisfies both is irregular (20, 23, 24, 27 ... for
 second order), so the default is searched for rather than computed.
 
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ 8a70661, tests/test_late_hoa_defaults.py).
+Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, tests/test_late_hoa_defaults.py).
 """
 
 import numpy as np

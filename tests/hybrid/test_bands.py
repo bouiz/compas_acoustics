@@ -1,4 +1,4 @@
-"""Ported from hybrid-rir (gpapadimitri/hybrid-rir @ 8a70661, tests/test_bands.py)."""
+"""Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, tests/test_bands.py)."""
 
 import numpy as np
 import pyFDN

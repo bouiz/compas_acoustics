@@ -37,7 +37,7 @@ _coordtrans1 from EDcoordtrans1.m of the Edge Diffraction Toolbox v0.504:
 betaoverml and _quadstep are written from the paper and the adaptive Simpson
 rule, not from the toolbox.
 
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ 8a70661, src/btms.py).
+Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, src/btms.py).
 No changes.
 """
 

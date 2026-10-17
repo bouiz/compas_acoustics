@@ -1,6 +1,6 @@
 """The ray-traced late envelope imposed on the network output.
 
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ 8a70661, tests/test_envelope.py).
+Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, tests/test_envelope.py).
 """
 
 import numpy as np

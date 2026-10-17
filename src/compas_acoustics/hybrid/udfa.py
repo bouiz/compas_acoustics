@@ -22,7 +22,7 @@ tends to +1/2, on the lit side to -1/2, and the direct sound's unit step is
 made up exactly. Diffraction is therefore rendered on both sides of every
 boundary, and the geometric sound must be switched by the same geometry.
 
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ 8a70661, src/udfa.py).
+Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, src/udfa.py).
 No changes.
 """
 

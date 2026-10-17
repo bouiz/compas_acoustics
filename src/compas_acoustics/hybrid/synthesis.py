@@ -1,7 +1,7 @@
 """The hybrid ambisonic room impulse response of one source-receiver pair.
 
 Ported by hand from hybrid-rir (gpapadimitri/hybrid-rir, src/synthesis.py, at
-8a70661: the btms branch included). The image
+4b42bfd: the btms branch included). The image
 source search moved to the caller, which runs one search for every source and
 receiver of a scene: ``iss`` holds the pair's images up to ``max_order + 1``.
 Upstream's scattering and obstacle-free drive are not ported.
@@ -89,14 +89,16 @@ def synthesize(
     omnidirectional reference on the package scale, normally the pair's
     ray-traced response; the network output is attenuated per band to follow
     its late energy (Vorlaender 2020, Sec. 11.9). ``diffraction=True`` adds
-    edge diffraction around the obstacles to the early field (Kirsch and Ewert
-    2023), for the direct sound and, when ``max_order >= 1``, one enclosure
-    reflection before or after the edge; the late field is not affected.
+    edge diffraction to the early field (Kirsch and Ewert 2023) around the
+    obstacles and at the edges of the room's boundary that open wider than
+    pi (see :func:`compas_acoustics.hybrid.diffraction.diffraction_edges`), for
+    the direct sound and, when ``max_order >= 1``, one enclosure reflection
+    before or after the edge; the late field is not affected.
     ``diffraction="btms"`` renders first- and second-order diffraction with the
     BTMS model (Svensson et al. 1999, kernels ported from EDtoolbox v0.504):
     first order with at most one wall reflection, second order between any two
-    visible obstacle edges, direct paths only; slow, minutes per source-receiver
-    pair. ``True`` is ``"udfa"``.
+    visible edges (obstacle or room boundary), direct paths only; slow, minutes
+    per source-receiver pair. ``True`` is ``"udfa"``.
     Everything is computed in N3D; ``normalization`` sets the output, SN3D
     (AmbiX) or N3D, both with W = 1 for a unit plane wave.
     """

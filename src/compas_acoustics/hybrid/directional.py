@@ -43,7 +43,7 @@ Two consequences worth stating plainly, both inherited from the paper:
 The anisotropy it creates has not been validated against a directional
 reference; every reference in this repository is monaural.
 
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ 8a70661, src/directional.py).
+Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, src/directional.py).
 """
 
 from __future__ import annotations

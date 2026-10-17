@@ -1,6 +1,6 @@
 """Image sources and their encoding to ambisonics.
 
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ 8a70661, src/early.py).
+Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, src/early.py).
 The image source search moved to the caller: ``image_sources`` reads one pair
 out of a pyroomacoustics room computed for every source and receiver of a
 scene, so per-band gains always come from pyroomacoustics' damping (the
@@ -14,6 +14,7 @@ from dataclasses import dataclass
 import numpy as np
 import pyfar as pf
 import spharpy
+from scipy.signal import butter, freqs_zpk
 
 from .bands import BANDS, N_BANDS, check_bands
 from .pair import Pair
@@ -135,7 +136,7 @@ _RADIATION_HIGHPASS_ORDER = 4
 
 
 def _radiation_taper(freq: np.ndarray) -> np.ndarray:
-    """Butterworth high-pass magnitude, exactly zero at DC.
+    """Causal Butterworth high-pass, exactly zero at DC.
 
     Band gains are only defined from 62.5 Hz up, and ``np.interp`` holds the
     lowest band's value flat all the way down to f = 0. There every image's
@@ -145,14 +146,19 @@ def _radiation_taper(freq: np.ndarray) -> np.ndarray:
     radiate DC, and that content biases the FDN drive, ``drr``
     and anything the response is convolved with. With the taper the same room
     keeps 0.03 per cent below 20 Hz.
+
+    It is the analog filter's complex response, not only its magnitude. A real,
+    zero-phase magnitude times a path's phase ramp rings symmetrically about
+    the arrival, and the low-frequency half before it reached back to the start
+    of the response: around the corner of an L-shaped room the diffracted part
+    held 18 dB below its energy before the direct sound could arrive. The
+    minimum-phase filter has the same magnitude and rings only after the
+    arrival, as a real source's would.
     """
-    with np.errstate(divide="ignore", invalid="ignore"):
-        ratio = np.where(
-            freq > 0.0,
-            (freq / _RADIATION_HIGHPASS_HZ) ** _RADIATION_HIGHPASS_ORDER,
-            0.0,
-        )
-    return ratio / np.sqrt(1.0 + ratio**2)
+    zeros, poles, gain = butter(
+        _RADIATION_HIGHPASS_ORDER, 2.0 * np.pi * _RADIATION_HIGHPASS_HZ, "high", analog=True, output="zpk"
+    )
+    return freqs_zpk(zeros, poles, gain, worN=2.0 * np.pi * np.asarray(freq, dtype=float))[1]
 
 
 def _extrapolated_top_db(gain_db: np.ndarray, octaves: float) -> float:
@@ -251,8 +257,10 @@ def render_images(
 
 
 def _fft_grid(n_samples: int, fs: float) -> tuple[int, np.ndarray]:
-    # Headroom so that a kernel centred near t = 0 loses its pre-ringing off
-    # the discarded tail instead of aliasing into the response.
+    # Headroom so that ringing past the end of the buffer (the taper's, after
+    # late arrivals) and the pre-ringing of the zero-phase band magnitude of a
+    # kernel near t = 0 fall into the discarded tail instead of aliasing into
+    # the response.
     nfft = 1 << (int(np.ceil(np.log2(max(n_samples, 2)))) + 1)
     return nfft, np.fft.rfftfreq(nfft, 1.0 / fs)
 

@@ -233,6 +233,7 @@ def early():
 def early_tests():
     port("test_early_encode.py")
     port("test_early_encode_extrapolation.py")
+    port("test_early_causality.py")
 
 
 # ------------------------------------------------------------- Task 13 --
@@ -285,21 +286,32 @@ def diffraction():
 
     text = with_provenance(
         upstream("src/diffraction.py"), "src/diffraction.py",
-        "Reads a RoomGeometry, which carries upstream MeshGeometry's attribute names.",
+        "Reads a RoomGeometry, which carries upstream MeshGeometry's attribute names; room edges are searched only\n"
+        "on a closed boundary (RoomGeometry.is_closed).",
     )
     text = replace_relative_import(
         text, "room",
-        "from compas_acoustics.room_geometry import OBSTACLE_OFFSET, RoomGeometry, _polygon_area_and_centroid\n\n"
+        "from compas_acoustics.room_geometry import _MERGE_TOLERANCE, OBSTACLE_OFFSET, RoomGeometry, _polygon_area_and_centroid\n\n"
         "from .bands import BANDS\nfrom .pair import Pair\nfrom .target import _air_absorption_coefficient\n",
     )
-    # upstream checks for obstacles once per model (diffraction_paths, btms_paths)
+    # the global MeshGeometry -> RoomGeometry rename turns this into an isinstance check against RoomGeometry
+    check = (
+        "if not isinstance(geometry, MeshGeometry):\n"
+        '        raise ValueError("diffraction needs a MeshGeometry")  # noqa: TRY004'
+    )
+    text = once(text, check, check, count=2)
     text = once(
         text,
-        'if not isinstance(geometry, MeshGeometry) or not geometry.obstacle_faces:\n'
-        '        raise ValueError("diffraction needs a MeshGeometry with obstacles")',
-        'if not geometry.obstacle_faces:\n'
-        '        raise ValueError("diffraction needs surfaces with role=\'obstacle\'")',
-        count=2,
+        "    occ = Occluders.from_geometry(geometry)\n"
+        "    n = len(occ.polygons) - occ.n_obstacle\n"
+        "    sides = _enclosure_sides(geometry, n)",
+        '    if not getattr(geometry, "is_closed", True):\n'
+        '        warnings.warn("the boundary does not close a volume: room-boundary edges are not searched",\n'
+        "                      ShellEdgeWarning, stacklevel=2)\n"
+        "        return []\n"
+        "    occ = Occluders.from_geometry(geometry)\n"
+        "    n = len(occ.polygons) - occ.n_obstacle\n"
+        "    sides = _enclosure_sides(geometry, n)",
     )
     text = text.replace("MeshGeometry", "RoomGeometry").replace("RoomSpec", "Pair")
     write(f"{HYBRID}/diffraction.py", text)
@@ -314,6 +326,7 @@ def diffraction_tests():
     port("test_btms.py")
     port("test_btms_oracle.py")
     port("test_diffraction.py")
+    port("test_shell_edges.py")
 
 
 # ------------------------------------------------------------- Task 16 --

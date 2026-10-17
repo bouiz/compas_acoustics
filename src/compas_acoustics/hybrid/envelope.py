@@ -53,7 +53,7 @@ in six furnished offices against Odeon, not taken from a reference:
   8 kHz top band that mismatch read as a 15 dB boost. The 16 kHz band takes the
   8 kHz gain.
 
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ 8a70661, src/envelope.py).
+Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, src/envelope.py).
 No changes.
 """
 

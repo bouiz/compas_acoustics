@@ -47,7 +47,8 @@ class Hybrid(SimulationMethod):
     """Image sources, optional edge diffraction and a directional FDN tail, in ambisonics.
 
     Image sources up to ``image_source_order`` (plus, with ``diffraction``, edge
-    diffraction around surfaces with ``role='obstacle'``) form the early field.
+    diffraction around obstacles and at the edges of the room's boundary that
+    open wider than 180 deg) form the early field.
     Those of the next order drive a feedback delay network with one delay line
     per direction, whose decay follows a target. Ported from hybrid-rir
     (gpapadimitri/hybrid-rir). Needs the ``hybrid`` extra and a closed room.
@@ -92,7 +93,8 @@ class Hybrid(SimulationMethod):
         default on for a reference or ray-tracing tail; an Eyring or Sabine tail
         has no reference, so there it is off and ``True`` raises.
     diffraction : {False, True, "udfa", "btms"}, default=False
-        Edge diffraction around obstacles; ``True`` is ``"udfa"``. ``"btms"`` is
+        Edge diffraction around obstacles and at the edges of the room's boundary that
+        open wider than 180 deg; ``True`` is ``"udfa"``. ``"btms"`` is
         slow, minutes per pair.
     air_absorption : bool, optional
         Air absorption on the image sources and diffracted paths. By default the
@@ -177,8 +179,6 @@ class Hybrid(SimulationMethod):
         if context.outside:
             # As upstream RoomSpec: in a closed room a point outside is a modelling error.
             raise ValueError(f"the hybrid method: {context.outside} lie outside the room")
-        if self.diffraction and not geometry.obstacle_faces:
-            raise ValueError("diffraction needs surfaces with role='obstacle'")
         # Before any work: a receiver facing along its up vector has no orientation
         rotations = {id(receiver): receiver.rotation for receiver in context.receivers}
         # A fully absorbing surface (an open window, alpha = 1) has no reflection, which the directional

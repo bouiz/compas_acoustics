@@ -18,6 +18,6 @@ if tuple(int(part) for part in _soundfile.__version__.split(".")[:2]) < (0, 12):
     )
 
 #: The hybrid-rir revision the modules of this package were ported from (tests/hybrid/UPSTREAM_REVISION).
-UPSTREAM_REVISION = "8a70661"
+UPSTREAM_REVISION = "a272da7"
 
 __all__ = ["UPSTREAM_REVISION"]

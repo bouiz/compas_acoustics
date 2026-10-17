@@ -101,10 +101,12 @@ def test_diffraction_changes_only_the_early_field():
     assert not np.allclose(bent.early, plain.early)
 
 
-def test_diffraction_needs_obstacles():
+def test_diffraction_in_a_rectangular_room_without_obstacles_changes_nothing():
     spec, iss = setup()
-    with pytest.raises(ValueError, match="obstacle"):
-        synthesize(spec, iss, TARGET, max_order=MAX_ORDER, duration_s=0.5, diffraction=True)
+    plain = synthesize(spec, iss, TARGET, max_order=MAX_ORDER, duration_s=0.5)
+    bent = synthesize(spec, iss, TARGET, max_order=MAX_ORDER, duration_s=0.5, diffraction=True)
+    np.testing.assert_allclose(bent.early, plain.early)
+    np.testing.assert_allclose(bent.late, plain.late)
 
 
 def test_btms_changes_only_the_early_field():
