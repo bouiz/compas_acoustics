@@ -145,3 +145,4 @@ scripts/
 src/**/components/ghuser/
 # Files the demonstration notebooks write
 examples/notebooks/output/
+examples/output/
