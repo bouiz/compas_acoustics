@@ -6,11 +6,17 @@ See :mod:`compas_acoustics.methods.base` for the contract every method meets.
 """
 
 from importlib import import_module
+from typing import TYPE_CHECKING
 
 from .base import SimulationContext
 from .base import SimulationMethod
 from .base import image_source_search_seconds
 from .pra import Pyroomacoustics
+
+if TYPE_CHECKING:
+    # for editors and type checkers; at runtime Hybrid is imported on first use (see __getattr__)
+    from .hybrid import TAILS  # noqa: F401
+    from .hybrid import Hybrid  # noqa: F401
 
 __all__ = ["SimulationContext", "SimulationMethod", "Pyroomacoustics", "Hybrid", "image_source_search_seconds"]
 

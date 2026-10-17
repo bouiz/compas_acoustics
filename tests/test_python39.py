@@ -22,3 +22,13 @@ def test_binaural_without_spharpy_names_the_requirement():
         "except ImportError as e:\n    assert '3.11' in str(e), e\nelse:\n    raise AssertionError('no ImportError')\n"
     )
     subprocess.run([sys.executable, "-c", code], check=True)
+
+
+def test_importing_the_package_does_not_import_the_hybrid_method():
+    code = (
+        "import sys\n"
+        "import compas_acoustics\n"
+        "import compas_acoustics.methods\n"
+        "assert 'compas_acoustics.methods.hybrid' not in sys.modules\n"
+    )
+    subprocess.run([sys.executable, "-c", code], check=True)

@@ -1,5 +1,7 @@
 from __future__ import print_function
 
+from typing import TYPE_CHECKING
+
 from .defaults import Defaults
 # from .tools import Tools
 from .air import AirConditions
@@ -21,6 +23,10 @@ from .numerical.fitness import regularized_fitness
 from . import pra_converter
 from . import orchestra_layouts
 
+
+if TYPE_CHECKING:
+    # for editors and type checkers; at runtime Hybrid is imported on first use (see __getattr__)
+    from .methods.hybrid import Hybrid  # noqa: F401
 
 __author__ = ["Achilleas Xydis"]
 __copyright__ = "Gramazio Kohler Research"
