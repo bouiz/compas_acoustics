@@ -1161,3 +1161,54 @@ def test_binaural_without_spharpy_names_the_python_it_needs(monkeypatch):
     auraliser = decoder("ambisonics", order=1)
     with pytest.raises(ImportError, match="Python >= 3.11"):
         auraliser.binaural_filters(1)
+
+
+def test_a_binaural_impulse_response_is_convolved_without_decoding(tmp_path):
+    rng = np.random.default_rng(1)
+    sound = write_sound(tmp_path / "s.wav", rng.standard_normal(100))
+    ir = rng.standard_normal((40, 2))
+    a = Auraliser("room1", {"b": ir_entry(ir, binaural=True)}, {"b": {"filepath": sound}}, "binaural")
+    signal = a.import_anechoic_sound(sound, sample_rate_default)
+    expected = np.stack([np.convolve(ir[:, e], signal) for e in range(2)], axis=1)
+    np.testing.assert_allclose(a.convolve(), expected, atol=1e-10)
+
+
+@needs_spharpy
+def test_binaural_and_ambisonic_responses_are_summed_after_decoding(tmp_path):
+    rng = np.random.default_rng(2)
+    sound = write_sound(tmp_path / "s.wav", rng.standard_normal(100))
+    binaural, ambisonic = rng.standard_normal((40, 2)), rng.standard_normal((40, 4))
+    both = Auraliser("room1", {"b": ir_entry(binaural, binaural=True), "a": ir_entry(ambisonic)},
+                     {"b": {"filepath": sound}, "a": {"filepath": sound}}, "binaural").convolve()
+    only_b = Auraliser("room1", {"b": ir_entry(binaural, binaural=True)}, {"b": {"filepath": sound}}, "binaural").convolve()
+    only_a = Auraliser("room1", {"a": ir_entry(ambisonic)}, {"a": {"filepath": sound}}, "binaural").convolve()
+    length = max(only_b.shape[0], only_a.shape[0])
+    expected = np.zeros((length, 2))
+    expected[: only_b.shape[0]] += only_b
+    expected[: only_a.shape[0]] += only_a
+    np.testing.assert_allclose(both, expected, atol=1e-10)
+
+
+@pytest.mark.parametrize("output_format", ["mono", "stereo", "ambisonics"])
+def test_a_binaural_impulse_response_only_plays_binaurally(tmp_path, output_format):
+    sound = write_sound(tmp_path / "s.wav", np.ones(10))
+    a = Auraliser("room1", {"b": ir_entry(np.ones((8, 2)), binaural=True)}, {"b": {"filepath": sound}}, output_format)
+    with pytest.raises(ValueError, match="binaural"):
+        a.convolve()
+
+
+def test_a_binaural_impulse_response_needs_two_channels():
+    with pytest.raises(ValueError, match="2 channels"):
+        Auraliser("room1", {"b": ir_entry(np.ones((8, 4)), binaural=True)}, {"b": {"filepath": "a.wav"}}, "binaural")
+
+
+def test_binaural_impulse_response_objects_are_recognised(tmp_path):
+    from compas_acoustics.ir import ImpulseResponse
+    from compas_acoustics.receiver import Receiver
+    from compas_acoustics.source import Source
+
+    sound = write_sound(tmp_path / "s.wav", np.array([1.0, 0.0]))
+    ir = ImpulseResponse("ir_b", Source("a", 1, 0, 0, sound_file=sound), Receiver("r", 0, 0, 0),
+                         np.ones((8, 2)), sample_rate_default, generation={"output": "binaural"})
+    a = Auraliser("room1", [ir], output_format="binaural")
+    assert a.impulse_responses["ir_b"]["binaural"] is True

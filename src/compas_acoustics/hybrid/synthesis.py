@@ -4,7 +4,8 @@ Ported by hand from hybrid-rir (gpapadimitri/hybrid-rir, src/synthesis.py, at
 4b42bfd: the btms branch included). The image
 source search moved to the caller, which runs one search for every source and
 receiver of a scene: ``iss`` holds the pair's images up to ``max_order + 1``.
-Upstream's scattering and obstacle-free drive are not ported.
+Upstream's scattering and obstacle-free drive are not ported. ``HybridResult`` also
+keeps the early paths (images, UDFA paths, BTMS contributions), which upstream does not.
 """
 
 from __future__ import annotations
@@ -17,6 +18,8 @@ import numpy as np
 import pyfar as pf
 import pyFDN
 
+from .diffraction import BtmsContribution
+from .diffraction import DiffractionPath
 from .diffraction import btms_paths
 from .diffraction import diffraction_paths
 from .diffraction import encode_btms
@@ -50,6 +53,10 @@ class HybridResult:
     drive_gain: float
     fs: float
     normalization: str  # "SN3D" or "N3D", audio convention (W = 1 for a unit plane wave)
+    # The early paths, for renderers that need each path rather than its encoding (compas_acoustics.binaural)
+    images: ImageSourceSet | None = None  # orders 0 .. max_order
+    diffraction_paths: tuple[DiffractionPath, ...] = ()
+    btms_contributions: tuple[BtmsContribution, ...] = ()
 
 
 def synthesize(
@@ -127,14 +134,16 @@ def synthesize(
         drive_gain = float(np.sqrt(num_delays))
 
     driving = iss.order == max_order + 1
-    early = encode(_select(iss, ~driving), sh_order, n_samples)
+    early_set = _select(iss, ~driving)
+    early = encode(early_set, sh_order, n_samples)
     driving_set = _select(iss, driving)
+    paths, contributions = (), ()
     if model == "udfa":
-        paths = diffraction_paths(spec, max_order=min(max_order, 1))
-        early = early + encode_diffraction(paths, sh_order, n_samples, spec.fs)
+        paths = tuple(diffraction_paths(spec, max_order=min(max_order, 1)))
+        early = early + encode_diffraction(list(paths), sh_order, n_samples, spec.fs)
     elif model == "btms":
-        contributions = btms_paths(spec, max_order=min(max_order, 1))
-        early = early + encode_btms(contributions, sh_order, n_samples, spec.fs)
+        contributions = tuple(btms_paths(spec, max_order=min(max_order, 1)))
+        early = early + encode_btms(list(contributions), sh_order, n_samples, spec.fs)
     drive = render_images(
         driving_set, route_to_directions(driving_set, directions), n_samples
     )
@@ -159,6 +168,9 @@ def synthesize(
         drive_gain=float(drive_gain),
         fs=spec.fs,
         normalization=normalization,
+        images=early_set,
+        diffraction_paths=paths,
+        btms_contributions=contributions,
     )
 
 

@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Material Library component: a remark when the chosen material has no scattering coefficients, and the component message shows the material name and `data_origin`.
 - Deconstruct Material component: `data_origin` output.
 - `AirConditions(temperature=20, humidity=50, pressure=101325)`: the air of a simulation, with the speed of sound after Cramer (1993) and the air absorption after ISO 9613-1:1993, both from `pyfar.constants`; for `Pyroomacoustics(air=...)`, the ray tracer and `Hybrid(air=...)`, and recorded in `generation['air']` and `generation['speed_of_sound']`. A `Hybrid` takes its references' air and refuses a different one
+- `Hybrid.binaural(hrtf_path=None)`: binaural responses whose early part (image sources, UDFA and BTMS paths) is filtered path by path with the HRTF measured nearest each direction of arrival, as RAVEN renders image sources; the late field is MagLS-decoded as before. `compas_acoustics.binaural` (`HrtfSet`, `render_early_binaural`, `binaural_rir`, and `magls_filters`, moved there from the `Auraliser`), and binaural impulse responses in the `Auraliser`
 - `ImpulseResponse` data class wrapping a source–receiver pair, raw IR array, sample rate, and simulation platform; includes `resampled()` for poly/FFT resampling
 - Export `ImpulseResponse` from the public package API
 - `Scene.ir_graph` — a compas `Graph` linking sources and receivers, with `ImpulseResponse` stored on edges

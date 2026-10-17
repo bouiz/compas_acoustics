@@ -12,3 +12,13 @@ def test_the_package_imports_without_optional_dependencies():
         "import compas_acoustics\n"
     )
     subprocess.run([sys.executable, "-c", code], check=True)
+
+
+def test_binaural_without_spharpy_names_the_requirement():
+    code = (
+        "import sys\nsys.modules['spharpy'] = None\n"
+        "import compas_acoustics.binaural as b\n"
+        "try:\n    b.magls_filters(b.DEFAULT_HRTF, 48000, 1)\n"
+        "except ImportError as e:\n    assert '3.11' in str(e), e\nelse:\n    raise AssertionError('no ImportError')\n"
+    )
+    subprocess.run([sys.executable, "-c", code], check=True)

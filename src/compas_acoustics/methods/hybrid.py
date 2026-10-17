@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import replace
+from pathlib import Path
 
 import numpy as np
 
@@ -120,6 +121,7 @@ class Hybrid(SimulationMethod):
         After :meth:`compute`, the references used: given, read from the graph, or run.
     results : dict
         After :meth:`compute`, the :class:`~compas_acoustics.hybrid.synthesis.HybridResult` per pair.
+        :meth:`binaural` returns the same pairs as two-channel binaural responses.
     """
 
     name = "hybrid"
@@ -173,6 +175,8 @@ class Hybrid(SimulationMethod):
         self.air = air
         self.reference_rirs = None
         self.results = {}
+        self._pairs = {}
+        self._generation = None
 
     # ------------------------------------------------------------------ run --
     def compute(self, context: SimulationContext) -> dict:
@@ -235,6 +239,7 @@ class Hybrid(SimulationMethod):
             "scene": getattr(context.scene, "name", None),
             "upstream": f"hybrid-rir @ {UPSTREAM_REVISION}",
         }
+        self._pairs, self._generation = {}, generation
 
         rirs, self.results = {}, {}
         for s, source in enumerate(context.sources):
@@ -244,6 +249,7 @@ class Hybrid(SimulationMethod):
             )
             for m, receiver in enumerate(context.receivers):
                 key = context.key(source, receiver)
+                self._pairs[key] = (source, receiver)
                 spec = Pair(
                     geometry=geometry,
                     source=np.asarray(source.position, dtype=float),
@@ -283,6 +289,38 @@ class Hybrid(SimulationMethod):
                     generation=generation, ambisonic_order=self.sh_order,
                     normalisation=self.normalization.lower(), channel_order="acn",
                 )
+        return rirs
+
+    def binaural(self, hrtf_path=None) -> dict:
+        """Binaural responses of the last run, one per pair, keyed as :meth:`compute`'s.
+
+        The early part (image sources and diffracted paths) is filtered path by
+        path with the HRTF measured nearest each direction of arrival
+        (:func:`compas_acoustics.binaural.render_early_binaural`); the late field
+        is MagLS-decoded at ``sh_order``, as :meth:`Auraliser.decode_binaural`
+        decodes it. ``hrtf_path`` is a SOFA file, by default the Auraliser's KEMAR set.
+        """
+        from compas_acoustics.binaural import DEFAULT_HRTF
+        from compas_acoustics.binaural import HrtfSet
+        from compas_acoustics.binaural import binaural_rir
+        from compas_acoustics.binaural import magls_filters
+
+        if not self.results:
+            raise ValueError("run the hybrid first: Scene.simulate(hybrid), then hybrid.binaural()")
+        if self.sh_order < 1:
+            raise ValueError("a binaural response needs sh_order >= 1: at order 0 the late field is the same at both ears")
+        path = Path(hrtf_path) if hrtf_path is not None else DEFAULT_HRTF
+        sets, rirs = {}, {}
+        for key, result in self.results.items():
+            fs = int(result.fs)
+            if fs not in sets:
+                sets[fs] = (HrtfSet.from_sofa(path, fs), magls_filters(path, fs, self.sh_order))
+            hrtf, filters = sets[fs]
+            source, receiver = self._pairs[key]
+            rirs[key] = ImpulseResponse(
+                name=key, source=source, receiver=receiver, ir=binaural_rir(result, hrtf, filters), sample_rate=fs,
+                normalized=self.normalize, generation=dict(self._generation, output="binaural", hrtf=path.name),
+            )
         return rirs
 
     # ----------------------------------------------------------- references --

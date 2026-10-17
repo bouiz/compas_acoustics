@@ -6,6 +6,8 @@ import pyfar as pf
 from compas.data import Data
 from scipy.signal import fftconvolve
 
+from compas_acoustics.binaural import DEFAULT_HRTF
+from compas_acoustics.binaural import magls_filters
 from compas_acoustics.defaults import Defaults
 
 __all__ = ['Auraliser']
@@ -23,12 +25,6 @@ def _n3d_to_sn3d(ir):
     degree = np.floor(np.sqrt(np.arange(ir.shape[1]))).astype(int)
     return ir / np.sqrt(2 * degree + 1)
 
-# MagLS binaural decoding transition frequency per ambisonic order, in Hz
-_MAGLS_TRANSITION_PER_ORDER = 600
-
-# Binaural decoding filters keyed by (HRTF path, sample rate, order), shared across instances
-_BINAURAL_FILTERS_CACHE = {}
-
 
 class Auraliser(Data):
     """
@@ -45,6 +41,8 @@ class Auraliser(Data):
       Mono impulse responses play identically on both channels.
     * ``'binaural'``: MagLS binaural decoding with the HRTF at :attr:`hrtf_path`, for
       headphone playback. Requires ambisonic impulse responses (order 1 or higher).
+      Binaural impulse responses (``Hybrid.binaural()``, or a dict entry with
+      ``'binaural': True`` and two channels) are convolved as they are.
     * ``'ambisonics'``: the undecoded ACN/SN3D signal, to save as a multichannel file.
 
     Impulse responses are auralised at their raw level, so distance and level
@@ -100,7 +98,7 @@ class Auraliser(Data):
         if anechoic_sounds is None:
             anechoic_sounds = self._sounds_from_impulse_response_sources(self._impulse_responses_input)
         self.anechoic_sounds = anechoic_sounds
-        self._hrtf_path = Path(Defaults().HRTF_LIBRARY_PATH) / "KEMAR_Knowl_EarSim_SmallEars_FreeFieldComp_48kHz.sofa"
+        self._hrtf_path = DEFAULT_HRTF
         self.output_format = output_format
         self.check_number_of_impulse_responses_vs_anechoic_sounds()
 
@@ -169,7 +167,8 @@ class Auraliser(Data):
             raise ValueError("Auraliser output_format must be lowercase.")
         if output_format not in _OUTPUT_FORMATS:
             raise ValueError(f"Auraliser output_format must be one of {sorted(_OUTPUT_FORMATS)}.")
-        if output_format == "binaural" and getattr(self, '_impulse_responses', None) and self.maximum_ambisonics_order == 0:
+        decoded = [data for data in (getattr(self, '_impulse_responses', None) or {}).values() if not data.get('binaural')]
+        if output_format == "binaural" and decoded and self.maximum_ambisonics_order == 0:
             raise ValueError("Binaural output requires ambisonic impulse responses of order 1 or higher. Use mono or stereo output for mono impulse responses.")
         self._output_format = output_format
 
@@ -235,7 +234,7 @@ class Auraliser(Data):
 
     @property
     def maximum_ambisonics_order(self):
-        return max((data['ambisonic_order'] for data in self.impulse_responses.values()), default=0)
+        return max((data['ambisonic_order'] for data in self.impulse_responses.values() if not data.get('binaural')), default=0)
 
 
     @property
@@ -300,6 +299,7 @@ class Auraliser(Data):
                 # The response's own convention, e.g. a hybrid response in N3D; ACN/SN3D when it states none
                 'channel_order': getattr(ir, 'channel_order', None) or 'acn',
                 'normalisation': getattr(ir, 'normalisation', None) or 'sn3d',
+                'binaural': (getattr(ir, 'generation', None) or {}).get('output') == 'binaural',
             }
         return converted
 
@@ -334,6 +334,16 @@ class Auraliser(Data):
 
         if data['sample_rate'] <= 0:
             raise ValueError(f"Impulse response {ir_id} has invalid sample rate {data['sample_rate']}. Must be positive.")
+
+        if data.get('binaural'):
+            # Ears, not spherical harmonics: convolved as they are, only for binaural output
+            if ir.shape[1] != 2:
+                raise ValueError(f"Binaural impulse response {ir_id} must have 2 channels, got {ir.shape[1]}.")
+            data['binaural'] = True
+            data['ambisonic_order'] = None
+            data['ir'] = self._at_sample_rate(ir_id, ir, data)
+            return data
+        data['binaural'] = False
 
         # Ambisonic impulse responses have (order + 1)**2 channels
         order = int(round(np.sqrt(ir.shape[1]))) - 1
@@ -371,15 +381,19 @@ class Auraliser(Data):
         data['channel_order'] = 'acn'
         data['normalisation'] = 'sn3d'
 
+        data['ir'] = self._at_sample_rate(ir_id, ir, data)
+        return data
+
+
+    def _at_sample_rate(self, ir_id, ir, data):
+        """The impulse response at :attr:`sample_rate`, resampled with its frequency response kept."""
         if data['sample_rate'] != self.sample_rate:
             warnings.warn(f"Mismatch detected between {ir_id} sample rate of {data['sample_rate']} Hz, and default sample rate of {self.sample_rate} Hz. " +
                           f"Impulse response will be resampled to {self.sample_rate} Hz.")
             # Matching the frequency response keeps the impulse response's gain at the new rate
             ir = pf.dsp.resample(pf.Signal(ir.T, data['sample_rate']), self.sample_rate, match_amplitude='freq').time.T
             data['sample_rate'] = self.sample_rate
-
-        data['ir'] = ir
-        return data
+        return ir
 
 
     def _pairs(self):
@@ -441,8 +455,11 @@ class Auraliser(Data):
         # Sum the impulse responses per anechoic sound, padded to the common channel count
         summed_impulse_responses = {}
         for ir_id, ir_data, filepath in self._pairs():
-            ir = self.ambisonics_upmix_downmix(ir_data['ir'], order)
-            key = str(Path(filepath).resolve())
+            binaural = bool(ir_data.get('binaural'))
+            if binaural and self.output_format != 'binaural':
+                raise ValueError(f"Impulse response {ir_id} is binaural; it plays only with output_format='binaural'.")
+            ir = ir_data['ir'] if binaural else self.ambisonics_upmix_downmix(ir_data['ir'], order)
+            key = (str(Path(filepath).resolve()), binaural)
             current = summed_impulse_responses.get(key)
             if current is None:
                 summed_impulse_responses[key] = ir
@@ -453,8 +470,8 @@ class Auraliser(Data):
                 summed_impulse_responses[key] = current
 
         convolved = []
-        for filepath, ir in summed_impulse_responses.items():
-            decoded_ir = self.decode(ir)
+        for (filepath, binaural), ir in summed_impulse_responses.items():
+            decoded_ir = ir if binaural else self.decode(ir)
             anechoic_sound = self.import_anechoic_sound(filepath, self.sample_rate)
             convolved.append(fftconvolve(decoded_ir, anechoic_sound[:, np.newaxis], axes=0))
 
@@ -528,73 +545,8 @@ class Auraliser(Data):
 
 
     def binaural_filters(self, order):
-        """Magnitude least-squares (MagLS) binaural decoding filters up to ``order``, in ACN/SN3D.
-
-        Below a transition frequency of ``order * 600`` Hz the filters are the least-squares
-        spherical harmonic fit of the HRTFs. Above it only the HRTF magnitudes are fitted,
-        with the phase continued from the frequency below using the spherically averaged
-        group delay. This avoids the high-frequency loss of a plain least-squares fit at
-        low orders. Follows ``spaudiopy.decoder.magls_bin`` (``hf_cont='avg'``).
-
-        References
-        ----------
-        Hold, C., Meyer-Kahlen, N., & Pulkki, V. (2023). Magnitude-Least-Squares Binaural
-        Ambisonic Rendering with Phase Continuation. Fortschritte der Akustik - DAGA.
-
-        Zotter, F., & Frank, M. (2019). Ambisonics. Springer Topics in Signal Processing.
-
-        Returns
-        -------
-        np.ndarray
-            Filters shaped (samples, (order + 1)**2, 2), with ears ordered left, right.
-        """
-        try:
-            import spharpy
-        except ImportError as error:
-            raise ImportError(
-                "Binaural decoding needs spharpy, which needs Python >= 3.11 (Rhino 8 runs 3.9); "
-                "use output_format='stereo' or 'mono' there."
-            ) from error
-
-        key = (str(Path(self.hrtf_path).resolve()), self.sample_rate, order)
-        if key in _BINAURAL_FILTERS_CACHE:
-            return _BINAURAL_FILTERS_CACHE[key]
-
-        hrirs, directions, _ = pf.io.read_sofa(str(self.hrtf_path), verbose=False)
-        if hrirs.sampling_rate != self.sample_rate:
-            hrirs = pf.dsp.resample(hrirs, self.sample_rate, match_amplitude='freq')
-        n_samples = hrirs.n_samples
-        n_fft = max(1024, n_samples)
-        hrtfs = np.fft.rfft(hrirs.time, n=n_fft)  # (directions, 2, bins)
-        freqs = np.fft.rfftfreq(n_fft, 1 / self.sample_rate)
-
-        # spharpy's SN3D includes 1/sqrt(4 pi); scale to the ambisonic SN3D convention (W = 1)
-        Y = np.sqrt(4 * np.pi) * spharpy.spherical.spherical_harmonic_basis_real(
-            order, directions, normalization='SN3D', channel_convention='ACN', condon_shortley=False)
-        Y_pinv = np.linalg.pinv(Y)
-
-        # Least-squares fit below the transition frequency
-        k_trans = int(np.argmin(np.abs(freqs - _MAGLS_TRANSITION_PER_ORDER * order)))
-        hrtfs_nm = np.zeros((Y.shape[1], 2, len(freqs)), dtype=complex)
-        hrtfs_nm[..., :k_trans] = np.einsum('qd,dek->qek', Y_pinv, hrtfs[..., :k_trans])
-
-        # Phase step per bin from the spherical average (W channel) just below the transition
-        n_delta = 5
-        phase_w = np.unwrap(np.angle(hrtfs_nm[0, :, :k_trans]), axis=-1)
-        delta_phase = np.mean(np.diff(phase_w, axis=-1)[:, k_trans - n_delta - 1:k_trans - 1], axis=-1)
-
-        # Magnitude-only fit above, continuing the phase of the previous bin
-        for k in range(k_trans, len(freqs)):
-            phase = np.angle(Y @ hrtfs_nm[:, :, k - 1]) + delta_phase
-            hrtfs_nm[:, :, k] = Y_pinv @ (np.abs(hrtfs[:, :, k]) * np.exp(1j * phase))
-
-        filters = np.fft.irfft(hrtfs_nm, n=n_fft)[..., :n_samples]
-        # Taper the start and end against truncation
-        filters[..., -32:] *= np.hanning(64)[32:]
-        filters[..., :4] *= np.hanning(8)[:4]
-
-        _BINAURAL_FILTERS_CACHE[key] = filters.transpose(2, 0, 1)
-        return _BINAURAL_FILTERS_CACHE[key]
+        """MagLS binaural decoding filters up to ``order`` for :attr:`hrtf_path` (see :func:`magls_filters`)."""
+        return magls_filters(self.hrtf_path, self.sample_rate, order)
 
 
     @staticmethod
