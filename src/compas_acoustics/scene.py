@@ -16,6 +16,30 @@ _log = logging.getLogger(__name__)
 
 
 class Scene(Data):
+    """The acoustic model of a room: its surfaces with materials, sources, receivers, and the impulse responses simulated for them.
+
+    Parameters
+    ----------
+    name : str
+        The name of the scene.
+    description : str, optional
+        A description of the scene.
+    sampling_rate : int, optional
+        The sample rate in Hz at which every simulation method runs. Default is 48000.
+
+    Examples
+    --------
+    >>> import compas_acoustics as ca
+    >>> scene = ca.Scene("office")
+    >>> scene.add_acoustic_objects(ca.AcousticObjectsLibrary.shoebox_room(6, 5, 3, materials=ca.AcousticMaterial("wall", 0.2, 0.1)))
+    >>> scene.add_source(ca.Source("talker", 1.5, 1.5, 1.6))
+    >>> scene.add_receiver(ca.Receiver("listener", 4.0, 3.0, 1.2))
+    >>> len(scene.acoustic_objects), len(scene.sources), len(scene.receivers)
+    (6, 1, 1)
+    >>> scene.sampling_rate
+    48000
+    """
+
     
     def __init__(self, name:str, description:str="", sampling_rate:int=None):
         super().__init__()

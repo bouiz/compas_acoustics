@@ -65,6 +65,25 @@ class Pyroomacoustics(SimulationMethod):
     The ray-tracing settings (``n_rays`` to ``seed``) given away from their
     defaults with ``ray_tracing=False`` raise a ``ValueError`` rather than
     being ignored.
+
+    Examples
+    --------
+    >>> import compas_acoustics as ca
+    >>> scene = ca.Scene("office")
+    >>> scene.add_acoustic_objects(ca.AcousticObjectsLibrary.shoebox_room(6, 5, 3, materials=ca.AcousticMaterial("wall", 0.2, 0.1)))
+    >>> scene.add_source(ca.Source("talker", 1.5, 1.5, 1.6))
+    >>> scene.add_receiver(ca.Receiver("listener", 4.0, 3.0, 1.2))
+    >>> responses = scene.simulate(ca.Pyroomacoustics(image_source_order=2))
+    >>> ir = next(iter(responses.values()))
+    >>> ir.sampling_rate, ir.n_channels, ir.generation["method"]
+    (48000, 1, 'pyroomacoustics')
+
+    Ray tracing adds the late reflections; the seed makes a run repeatable.
+
+    >>> responses = scene.simulate(ca.Pyroomacoustics(ray_tracing=True, n_rays=2000, duration=0.5))
+    >>> ir = next(iter(responses.values()))
+    >>> ir.ir.shape, ir.generation["seed"]
+    ((24000,), 42)
     """
 
     name = "pyroomacoustics"

@@ -81,6 +81,20 @@ class Auraliser:
         One of ``'relative'``, ``'individual'`` or ``'none'``. Default is ``'relative'``.
     headroom_db : float, optional
         Target output peak in dBFS for ``'relative'`` and ``'individual'``. Default is -1.
+
+    Examples
+    --------
+    >>> import compas_acoustics as ca
+    >>> sound = ca.Defaults().ANECHOIC_SOUNDFILES_LIBRARY_PATH + "/female_speech.wav"
+    >>> scene = ca.Scene("office")
+    >>> scene.add_acoustic_objects(ca.AcousticObjectsLibrary.shoebox_room(6, 5, 3, materials=ca.AcousticMaterial("wall", 0.2, 0.1)))
+    >>> scene.add_source(ca.Source("talker", 1.5, 1.5, 1.6, sound_file=sound))
+    >>> scene.add_receiver(ca.Receiver("listener", 4.0, 3.0, 1.2))
+    >>> responses = scene.simulate(ca.Pyroomacoustics(ray_tracing=True, n_rays=2000, duration=0.5))
+    >>> auraliser = ca.Auraliser("office", list(responses.values()), output_format="stereo")
+    >>> signal = auraliser.convolve()
+    >>> signal.shape[1]
+    2
     """
 
     def __init__(self, name: str, impulse_responses, anechoic_sounds=None, output_format: str = "stereo", description: str = None, sampling_rate: int = None,

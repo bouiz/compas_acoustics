@@ -93,6 +93,21 @@ class AcousticAnalyser:
         Multi-channel input is reduced to channel 0, which is the omnidirectional
         component of an ambisonic impulse response. An :class:`ImpulseResponse` is
         analysed at its raw (denormalized) level and sets :attr:`sampling_rate`.
+
+    Examples
+    --------
+    >>> import compas_acoustics as ca
+    >>> scene = ca.Scene("office")
+    >>> scene.add_acoustic_objects(ca.AcousticObjectsLibrary.shoebox_room(6, 5, 3, materials=ca.AcousticMaterial("wall", 0.2, 0.1)))
+    >>> scene.add_source(ca.Source("talker", 1.5, 1.5, 1.6))
+    >>> scene.add_receiver(ca.Receiver("listener", 4.0, 3.0, 1.2))
+    >>> responses = scene.simulate(ca.Pyroomacoustics(ray_tracing=True, n_rays=2000, duration=0.5))
+    >>> analyser = ca.AcousticAnalyser(next(iter(responses.values())))
+    >>> results = analyser.analyse()
+    >>> results["freqs"]
+    [125, 250, 500, 1000, 2000, 4000, 8000]
+    >>> results["T30_overall"] > 0
+    True
     """
 
     def __init__(self, ir):

@@ -123,6 +123,23 @@ class Hybrid(SimulationMethod):
     results : dict
         After :meth:`compute`, the :class:`~compas_acoustics.hybrid.synthesis.HybridResult` per pair.
         :meth:`binaural` returns the same pairs as two-channel binaural responses.
+
+    Examples
+    --------
+    >>> import compas_acoustics as ca
+    >>> scene = ca.Scene("office")
+    >>> scene.add_acoustic_objects(ca.AcousticObjectsLibrary.shoebox_room(6, 5, 3, materials=ca.AcousticMaterial("wall", 0.2, 0.1)))
+    >>> scene.add_source(ca.Source("talker", 1.5, 1.5, 1.6))
+    >>> scene.add_receiver(ca.Receiver("listener", 4.0, 3.0, 1.2))
+    >>> responses = scene.simulate(ca.Hybrid(tail="eyring"))  # doctest: +SKIP
+    >>> ir = next(iter(responses.values()))  # doctest: +SKIP
+    >>> ir.n_channels, ir.ambisonic_order, ir.generation["method"]  # doctest: +SKIP
+    (4, 1, 'hybrid')
+
+    With a ray-traced reference the decay is fitted to a response you already have.
+
+    >>> reference = scene.simulate(ca.Pyroomacoustics(ray_tracing=True))  # doctest: +SKIP
+    >>> responses = scene.simulate(ca.Hybrid(reference="pyroomacoustics"))  # doctest: +SKIP
     """
 
     name = "hybrid"
