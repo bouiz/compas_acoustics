@@ -1,10 +1,18 @@
+import pickle
+
 import numpy as np
+import pytest
+from compas.data import Data
 from compas.data import json_dumps
 from compas.data import json_loads
 
+from compas_acoustics import AcousticAnalyser
 from compas_acoustics import AcousticMaterial
 from compas_acoustics import AcousticObjectsLibrary
+from compas_acoustics import Auraliser
+from compas_acoustics import MaterialsLibrary
 from compas_acoustics import Pyroomacoustics
+from compas_acoustics import RayField
 from compas_acoustics import Receiver
 from compas_acoustics import Scene
 from compas_acoustics import Source
@@ -49,3 +57,65 @@ def test_a_round_tripped_scene_simulates_the_same():
 def test_the_sampling_rate_survives_the_round_trip():
     original = Scene("rate", sampling_rate=44100)
     assert json_loads(json_dumps(original)).sampling_rate == 44100
+
+
+def traced_response():
+    s = scene()
+    return next(iter(s.simulate(Pyroomacoustics(ray_tracing=True, n_rays=1000, duration=0.5)).values()))
+
+
+def test_an_impulse_response_survives_json():
+    original = traced_response()
+    copy = json_loads(json_dumps(original))
+    np.testing.assert_array_equal(copy.denormalized(), original.denormalized())
+    np.testing.assert_array_equal(copy.ir, original.ir)
+    assert (copy.name, copy.sampling_rate, copy.normalized) == (original.name, original.sampling_rate, original.normalized)
+    assert (copy.source.name, copy.receiver.name) == (original.source.name, original.receiver.name)
+    assert copy.generation["method"] == "pyroomacoustics" and copy.generation["seed"] == 42
+
+
+def test_an_ambisonic_impulse_response_keeps_its_convention():
+    from compas_acoustics import ImpulseResponse
+
+    ir = ImpulseResponse("a", Source("s", 1, 1, 1), Receiver("r", 2, 2, 1), np.random.default_rng(0).normal(size=(64, 4)), 48000,
+                         ambisonic_order=1, normalisation="n3d", channel_order="acn")
+    copy = json_loads(json_dumps(ir))
+    assert (copy.ambisonic_order, copy.normalisation, copy.channel_order, copy.n_channels) == (1, "n3d", "acn", 4)
+    np.testing.assert_array_equal(copy.denormalized(), ir.denormalized())
+
+
+def scattering_scene():
+    s = Scene("scattering")
+    s.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(6, 5, 3, materials=AcousticMaterial("wall", 0.2, 0.5)))
+    s.add_source(Source("src", 1.5, 1.5, 1.5))
+    s.add_receiver(Receiver("rec", 4, 3, 1.4))
+    return s
+
+
+def test_a_ray_field_survives_json_with_its_scattered_rays_and_sources():
+    original = RayField.from_scene(scattering_scene(), n_rays=5, max_reflection_order=3, include_scattering=True,
+                                   scatter_density=10, scatter_max_bounces=1, random_seed=42)
+    assert original.scattered_rays
+    copy = json_loads(json_dumps(original))
+    assert len(copy) == len(original) and len(copy.scattered_rays) == len(original.scattered_rays)
+    for a, b in zip(original.rays, copy.rays):
+        np.testing.assert_allclose(np.array(b.points), np.array(a.points))
+        assert (b.ray_index, b.source_index, b.source.name) == (a.ray_index, a.source_index, a.source.name)
+        np.testing.assert_allclose(b.direction, a.direction)
+    first, again = original.scattered_rays[0], copy.scattered_rays[0]
+    assert type(again).__name__ == "ScatteredRay"
+    assert (again.parent_ray_index, again.reflection_order) == (first.parent_ray_index, first.reflection_order)
+    assert again.energy == pytest.approx(first.energy) and again.distance_offset == pytest.approx(first.distance_offset)
+    assert len({id(ray.source) for ray in copy.rays}) == 1
+
+
+def test_the_services_are_plain_classes_that_pickle():
+    ir = traced_response()
+    analyser = AcousticAnalyser(ir)
+    analyser.analyse()
+    auraliser = Auraliser("a", {"s": {"ir": np.ones((10, 1)), "sampling_rate": 48000}}, {"s": {"filepath": "x.wav"}}, "mono")
+    for service in (analyser, auraliser, MaterialsLibrary()):
+        assert not isinstance(service, Data)
+    assert pickle.loads(pickle.dumps(analyser)).analysis_data.keys() == analyser.analysis_data.keys()
+    assert pickle.loads(pickle.dumps(auraliser)).name == "a"
+    assert pickle.loads(pickle.dumps(MaterialsLibrary())).index == MaterialsLibrary().index

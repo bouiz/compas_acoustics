@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pyfar as pf
 import pyrato
-from compas.data import Data
 from scipy.signal import butter
 from scipy.signal import sosfilt
 
@@ -85,7 +84,7 @@ def _iso3382_start(ir_array, threshold_db=_START_THRESHOLD_DB):
     return start
 
 
-class AcousticAnalyser(Data):
+class AcousticAnalyser:
     """Class for analyzing acoustic parameters from an impulse response (IR).
     
     Parameters

@@ -71,6 +71,23 @@ class ImpulseResponse(Data):
 
 
     @property
+    def __data__(self):
+        # The raw response, as a list in JSON: for long or many responses use :meth:`to_wav`, which also keeps the metadata
+        return {
+            "name": self.name,
+            "source": self.source,
+            "receiver": self.receiver,
+            "ir": self._raw_ir,
+            "sampling_rate": self.sampling_rate,
+            "normalized": self.normalized,
+            "generation": self.generation,
+            "ambisonic_order": self.ambisonic_order,
+            "normalisation": self.normalisation,
+            "channel_order": self.channel_order,
+        }
+
+
+    @property
     def ir(self):
         """np.ndarray : The impulse response, peak-normalised when :attr:`normalized` is True.
 

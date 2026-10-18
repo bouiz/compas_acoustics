@@ -3,7 +3,6 @@ from pathlib import Path
 
 import numpy as np
 import pyfar as pf
-from compas.data import Data
 from scipy.signal import fftconvolve
 
 from compas_acoustics.binaural import DEFAULT_HRTF
@@ -26,7 +25,7 @@ def _n3d_to_sn3d(ir):
     return ir / np.sqrt(2 * degree + 1)
 
 
-class Auraliser(Data):
+class Auraliser:
     """
     A class for handling auralisation.
 
@@ -86,7 +85,6 @@ class Auraliser(Data):
 
     def __init__(self, name: str, impulse_responses, anechoic_sounds=None, output_format: str = "stereo", description: str = None, sampling_rate: int = None,
                  level: str = "relative", headroom_db: float = -1.0):
-        super().__init__()
         self.name = name
         self.description = description
         self.level = level

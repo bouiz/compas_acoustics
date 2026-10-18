@@ -1,6 +1,5 @@
 import os
 
-from compas.data import Data
 from compas.data import json_load
 
 from compas_acoustics.acoustic_material import AcousticMaterial
@@ -10,7 +9,7 @@ from compas_acoustics.defaults import Defaults
 __all__ = ['MaterialsLibrary']
 
 
-class MaterialsLibrary(Data):
+class MaterialsLibrary:
     """
     A class for handling acoustic materials.
 

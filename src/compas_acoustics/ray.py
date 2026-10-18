@@ -69,6 +69,31 @@ class Ray(Polyline):
             self.direction = Vector(1, 0, 0)
 
     @property
+    def __data__(self):
+        # The source is not stored: a RayField keeps each source once, a lone ray keeps source_index
+        data = super().__data__
+        data.update(
+            source_index=self.source_index,
+            ray_index=self.ray_index,
+            direction=list(self.direction),
+            sound_speed=self.sound_speed,
+            distance_offset=self.distance_offset,
+        )
+        scattered = getattr(self, 'scattered_reflections', None)
+        if scattered:
+            data["scattered_reflections"] = scattered
+        return data
+
+    @classmethod
+    def __from_data__(cls, data):
+        data = dict(data)
+        scattered = data.pop("scattered_reflections", None)
+        ray = cls(**data)
+        if scattered:
+            ray.scattered_reflections = list(scattered)
+        return ray
+
+    @property
     def direction(self) -> Vector:
         return self._direction
 
@@ -260,6 +285,12 @@ class ScatteredRay(Ray):
         self._origin_reflection_order = origin_reflection_order
 
     @property
+    def __data__(self):
+        data = super().__data__
+        data.update(parent_ray_index=self.parent_ray_index, energy=self.energy, origin_reflection_order=self._origin_reflection_order)
+        return data
+
+    @property
     def reflection_order(self) -> int:
         """The specular reflection order of the originating hit point."""
         return self._origin_reflection_order
@@ -298,6 +329,21 @@ class RayField(Data):
         super().__init__(name=name)
         self.rays = list(rays) if rays else []
         self.sound_speed = sound_speed
+
+    @property
+    def __data__(self):
+        # Each source once, by its index, instead of once per ray
+        sources = {ray.source_index: ray.source for ray in self.rays if ray.source is not None and ray.source_index is not None}
+        return {"rays": self.rays, "sound_speed": self.sound_speed, "sources": [[index, source] for index, source in sorted(sources.items())]}
+
+    @classmethod
+    def __from_data__(cls, data):
+        sources = {int(index): source for index, source in data.get("sources", [])}
+        field = cls(data["rays"], sound_speed=data["sound_speed"])
+        for ray in field.rays:
+            for traced in [ray, *getattr(ray, 'scattered_reflections', [])]:
+                traced.source = sources.get(traced.source_index)
+        return field
 
     def __len__(self) -> int:
         return len(self.rays)
