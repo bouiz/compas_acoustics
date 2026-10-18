@@ -79,9 +79,7 @@ mono = scene.simulate(ca.Pyroomacoustics(ray_tracing=True))   # image sources + 
 ambisonic = scene.simulate(ca.Hybrid())                        # first-order ambisonics; needs the hybrid extra
 ```
 
-The notebooks in [`examples/notebooks`](examples/notebooks) walk through both methods:
-simulation, analysis, export and auralisation (`01_pyroomacoustics_simulation.ipynb`), and the
-hybrid method's tails, receiver orientation, diffraction and binaural rendering (`02_hybrid_method.ipynb`). The Grasshopper components are in
+`examples/office_hybrid.py` runs both methods on an office, with reverberation times and an auralisation. The Grasshopper components are in
 `src/compas_acoustics_ghpython/components`; rebuild their user objects with `invoke build-cpython-ghuser-components`.
 
 ## Materials library

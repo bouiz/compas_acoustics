@@ -69,7 +69,7 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 * Added the package `compas_acoustics_ghpython` with the Grasshopper components, `AcousticParameter`, `Plotter2D`, `Plotter2DSettings` and `ensure_inputs`, which gives unconnected inputs a value list or a button.
 * Added the components Simulate Hybrid (with a `run` button), Simulate Pyroomacoustics (was Simulate Ray Tracing), Material Library categories, and the inputs `output_format`, `hrtf`, `level` (Auralise), `normalize` (Audio Player, Simulate), `method` (Deconstruct IR Graph), `direction`, `up` and `plane` (Receiver).
 * Added the Grasshopper installer for Rhino 8 (`installer/compas_acoustics_installer.gh`), `invoke installer-bundle`, and `compas-dev/compas-actions` v1 workflows (build, release, `prepare release`), with tests on Python 3.9.
-* Added the example notebooks `01_pyroomacoustics_simulation.ipynb` and `02_hybrid_method.ipynb`, and `examples/office_hybrid.py`.
+* Added `examples/office_hybrid.py`, which runs both methods on an office.
 * Added a getting-started section to the README, and `Examples` sections that `invoke testdocs` can run in the docstrings of `Scene`, `Pyroomacoustics`, `Hybrid`, `AcousticAnalyser` and `Auraliser`.
 
 ### Changed
