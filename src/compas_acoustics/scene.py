@@ -17,7 +17,7 @@ _log = logging.getLogger(__name__)
 
 class Scene(Data):
     
-    def __init__(self, name:str, description:str=""):
+    def __init__(self, name:str, description:str="", sampling_rate:int=None):
         super().__init__()
         self.name = name
         self.description = description
@@ -25,14 +25,29 @@ class Scene(Data):
         self._sources = []
         self._receivers = []
         self.ir_graph = Graph()
-        
-        
+        self.sampling_rate = Defaults().SAMPLING_RATE if sampling_rate is None else sampling_rate
+
+
+    @property
+    def sampling_rate(self) -> int:
+        """Sample rate in hertz at which :meth:`simulate` runs every method; 48000 unless given."""
+        return self._sampling_rate
+
+
+    @sampling_rate.setter
+    def sampling_rate(self, sampling_rate:int):
+        if sampling_rate <= 0 or int(sampling_rate) != sampling_rate:
+            raise ValueError(f"sampling_rate must be a positive whole number of hertz, got {sampling_rate!r}")
+        self._sampling_rate = int(sampling_rate)
+
+
     @property
     def __data__(self):
         # The IR graph is not serialised: responses travel as WAV files (ImpulseResponse.to_wav)
         return {
             "name": self.name,
             "description": self.description,
+            "sampling_rate": self.sampling_rate,
             "acoustic_objects": self.acoustic_objects,
             "sources": self._sources,
             "receivers": self._receivers,
@@ -41,7 +56,7 @@ class Scene(Data):
 
     @classmethod
     def __from_data__(cls, data):
-        scene = cls(data["name"], data["description"])
+        scene = cls(data["name"], data["description"], data.get("sampling_rate"))
         scene.add_acoustic_objects(data["acoustic_objects"])
         for source in data["sources"]:
             scene.add_source(source)
@@ -316,19 +331,18 @@ class Scene(Data):
         return list(names)
 
 
-    def simulate(self, method, sampling_rate: int = Defaults().SAMPLING_RATE) -> dict:
+    def simulate(self, method) -> dict:
         """Run a simulation method on the scene and store its responses on the IR graph.
 
         The responses go on the graph under ``method.name``; a mono method's also
         under ``'data'``, which the analysis and auralisation components read by
-        default. Coplanar faces of the room are merged.
+        default. Coplanar faces of the room are merged. The method runs at the
+        scene's :attr:`sampling_rate`.
 
         Parameters
         ----------
         method : :class:`~compas_acoustics.simulation_methods.SimulationMethod`
             For example ``Pyroomacoustics(ray_tracing=True)`` or ``Hybrid()``.
-        sampling_rate : int, default=48000
-            Sample rate in hertz; a positive whole number.
 
         Returns
         -------
@@ -338,7 +352,7 @@ class Scene(Data):
         """
         from compas_acoustics.simulation_methods import SimulationContext
 
-        context = SimulationContext.from_scene(self, sampling_rate)
+        context = SimulationContext.from_scene(self)
         _log.info("Running %s at %s Hz on %d sources and %d receivers",
                   method.name, context.sampling_rate, len(context.sources), len(context.receivers))
         rirs = method.compute(context)

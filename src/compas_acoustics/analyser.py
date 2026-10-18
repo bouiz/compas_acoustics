@@ -100,8 +100,8 @@ class AcousticAnalyser(Data):
     def __init__(self, ir):
         self.ir = ir
         self.analysis_data = None
-        sample_rate = getattr(ir, 'sample_rate', None)
-        self.sampling_rate = int(sample_rate) if sample_rate is not None else Defaults().SAMPLING_RATE
+        sampling_rate = getattr(ir, 'sampling_rate', None)
+        self.sampling_rate = int(sampling_rate) if sampling_rate is not None else Defaults().SAMPLING_RATE
 
     @property
     def ir(self):
@@ -126,7 +126,7 @@ class AcousticAnalyser(Data):
         """A 1D array of an impulse response, at the raw level for an ImpulseResponse."""
         if hasattr(ir, 'denormalized'):
             ir = ir.denormalized()
-        elif hasattr(ir, 'ir') and hasattr(ir, 'sample_rate'):
+        elif hasattr(ir, 'ir') and hasattr(ir, 'sampling_rate'):
             ir = ir.ir
         if not isinstance(ir, (list, np.ndarray)):
             raise TypeError("Impulse response must be a list, numpy array or ImpulseResponse.")
@@ -444,7 +444,7 @@ class AcousticAnalyser(Data):
         """
         if not _STI_SUPPORTED:
             warnings.warn(
-                "STI is not available with pyrato {} (requires pyrato >= 1.0 and Python >= 3.12). "
+                "STI is not available with pyrato {} (requires pyrato >= 1.0 and Python >= 3.11). "
                 "STI and MTI values are set to NaN.".format(pyrato.__version__)
             )
             return {'mti': np.full(7, np.nan), 'sti': np.nan}
@@ -563,7 +563,7 @@ class AcousticAnalyser(Data):
             reference = np.zeros(self.sampling_rate)
             reference[int(_ZERO_PHASE_LEAD * self.sampling_rate)] = 1.0 / (4.0 * np.pi * _STRENGTH_DISTANCE)
         else:
-            reference_rate = getattr(reference_ir, 'sample_rate', None)
+            reference_rate = getattr(reference_ir, 'sampling_rate', None)
             if reference_rate is not None and int(reference_rate) != self.sampling_rate:
                 raise ValueError(f"Reference impulse response sample rate {reference_rate} Hz differs from {self.sampling_rate} Hz.")
             reference = self._as_mono_array(reference_ir)

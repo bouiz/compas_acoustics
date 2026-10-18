@@ -44,3 +44,8 @@ def test_a_round_tripped_scene_simulates_the_same():
     assert sorted(a) == sorted(b)
     for key in a:
         np.testing.assert_allclose(b[key].denormalized(), a[key].denormalized())
+
+
+def test_the_sampling_rate_survives_the_round_trip():
+    original = Scene("rate", sampling_rate=44100)
+    assert json_loads(json_dumps(original)).sampling_rate == 44100

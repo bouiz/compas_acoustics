@@ -7,11 +7,11 @@ from compas_acoustics.ir import ImpulseResponse
 from compas_acoustics.receiver import Receiver
 from compas_acoustics.source import Source
 
-sample_rate_default = 48000
+sampling_rate_default = 48000
 
 
 def make_ir(data, name="ir", normalized=True, **kwargs):
-    return ImpulseResponse(name, Source("s", 1, 2, 3), Receiver("r", 4, 5, 6), np.asarray(data, dtype=float), sample_rate_default,
+    return ImpulseResponse(name, Source("s", 1, 2, 3), Receiver("r", 4, 5, 6), np.asarray(data, dtype=float), sampling_rate_default,
                            normalized=normalized, **kwargs)
 
 
@@ -70,7 +70,7 @@ def test_wav_and_json_round_trip(tmp_path):
 
     # The WAV is peak-normalised; the JSON holds the factor and how it was generated
     written, fs = sf.read(wav_path)
-    assert fs == sample_rate_default
+    assert fs == sampling_rate_default
     assert np.max(np.abs(written)) == pytest.approx(1.0)
     metadata = json.loads(json_path.read_text())
     assert metadata["normalization"]["factor"] == pytest.approx(0.3)
@@ -92,7 +92,7 @@ def test_wav_and_json_round_trip(tmp_path):
 def test_from_wav_without_metadata_uses_the_wav_as_raw(tmp_path):
     import soundfile as sf
 
-    sf.write(str(tmp_path / "plain.wav"), np.array([0.5, -0.25]), sample_rate_default, subtype="FLOAT")
+    sf.write(str(tmp_path / "plain.wav"), np.array([0.5, -0.25]), sampling_rate_default, subtype="FLOAT")
     loaded = ImpulseResponse.from_wav(tmp_path / "plain.wav")
     np.testing.assert_allclose(loaded.denormalized(), [0.5, -0.25])
     assert loaded.name == "plain"
@@ -121,19 +121,19 @@ def test_simulate_normalises_and_records_generation(normalize):
     assert by_receiver["near"].normalization_factor > by_receiver["mid"].normalization_factor
 
 
-@pytest.mark.parametrize("sample_rate", [16000, 48000])
-def test_simulated_impulse_responses_use_the_requested_sample_rate(sample_rate):
+@pytest.mark.parametrize("sampling_rate", [16000, 48000])
+def test_simulated_impulse_responses_use_the_requested_sampling_rate(sampling_rate):
     from compas_acoustics import AcousticObjectsLibrary
     from compas_acoustics import Scene
     from compas_acoustics.simulation_methods import Pyroomacoustics
 
-    scene = Scene("room")
+    scene = Scene("room", sampling_rate=sampling_rate)
     scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(10, 8, 4))
     scene.add_source(Source("s", 2, 4, 1.5))
     scene.add_receiver(Receiver("r", 5, 4, 1.5))
     # Air absorption above 16 kHz used to fail on a 7- vs 8-band mismatch
-    rirs = scene.simulate(Pyroomacoustics(image_source_order=2, air_absorption=True), sampling_rate=sample_rate)
-    assert all(ir.sample_rate == sample_rate for ir in rirs.values())
+    rirs = scene.simulate(Pyroomacoustics(image_source_order=2, air_absorption=True))
+    assert all(ir.sampling_rate == sampling_rate for ir in rirs.values())
 
 
 def test_a_mono_response_has_one_channel_and_no_ambisonic_fields():

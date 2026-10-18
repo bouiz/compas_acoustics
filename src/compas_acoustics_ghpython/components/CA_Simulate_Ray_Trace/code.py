@@ -3,7 +3,6 @@ import warnings
 
 import Grasshopper
 
-from compas_acoustics import Defaults
 from compas_acoustics.simulation_methods import Pyroomacoustics
 
 # Inputs that only apply with ray tracing
@@ -12,7 +11,7 @@ RAY_TRACING_ONLY = ("n_rays", "energy_thres", "duration", "seed")
 
 class SimulateRayTracing(Grasshopper.Kernel.GH_ScriptInstance):
 
-    def RunScript(self, scene, sample_rate, max_order, ray_tracing, n_rays, absorb_air, energy_thres, time_thres, seed, normalize):
+    def RunScript(self, scene, max_order, ray_tracing, n_rays, absorb_air, energy_thres, time_thres, seed, normalize):
 
         if scene is None:
             ghenv.Component.AddRuntimeMessage(
@@ -20,7 +19,6 @@ class SimulateRayTracing(Grasshopper.Kernel.GH_ScriptInstance):
             )
             return
 
-        fs = sample_rate if sample_rate is not None else Defaults().SAMPLING_RATE
         if ray_tracing is None:
             ray_tracing = True
 
@@ -48,7 +46,7 @@ class SimulateRayTracing(Grasshopper.Kernel.GH_ScriptInstance):
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             try:
-                rirs = scene.simulate(Pyroomacoustics(ray_tracing=ray_tracing, **given), sampling_rate=fs)
+                rirs = scene.simulate(Pyroomacoustics(ray_tracing=ray_tracing, **given))
             except ValueError as e:
                 ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Error, str(e))
                 return
@@ -58,8 +56,7 @@ class SimulateRayTracing(Grasshopper.Kernel.GH_ScriptInstance):
                 ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning, str(warning.message))
 
         ghenv.Component.Message = "{:g}Hz, {}, order={}, rays={}, air={}, seed={}".format(
-            # Report the sample rate of the generated impulse responses
-            next(iter(rirs.values())).sample_rate if rirs else fs,
+            scene.sampling_rate,
             "ISM + ray tracing" if ray_tracing else "ISM",
             given.get("image_source_order", "default"),
             given.get("n_rays", "default") if ray_tracing else "-",

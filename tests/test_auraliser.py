@@ -5,7 +5,7 @@ import numpy as np
 from pathlib import Path
 from compas_acoustics.auraliser import Auraliser
 
-sample_rate_default = 48000
+sampling_rate_default = 48000
 
 needs_spharpy = pytest.mark.skipif(importlib.util.find_spec("spharpy") is None,
                                    reason="binaural needs spharpy (Python >= 3.11)")
@@ -78,7 +78,7 @@ def test_ir_empty():
             impulse_responses={
                 "ir1": {
                     "info": "invalid_ir_hoa_order",
-                    "sample_rate": sample_rate_default,
+                    "sampling_rate": sampling_rate_default,
                     "ambisonic_order": 2,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": [],
@@ -103,7 +103,7 @@ def test_ir_sampling_rate_negative():
             impulse_responses={
                 "ir1": {
                     "info": "invalid_ir_hoa_order",
-                    "sample_rate": -sample_rate_default,
+                    "sampling_rate": -sampling_rate_default,
                     "ambisonic_order": 2,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([48000,9]),
@@ -128,7 +128,7 @@ def test_sampling_rate_negative():
             impulse_responses={
                 "ir1": {
                     "info": "invalid_ir_hoa_order",
-                    "sample_rate": sample_rate_default,
+                    "sampling_rate": sampling_rate_default,
                     "ambisonic_order": 2,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([48000,9]),
@@ -144,7 +144,7 @@ def test_sampling_rate_negative():
             },
             output_format="mono",
         )
-        a.sample_rate = -sample_rate_default
+        a.sampling_rate = -sampling_rate_default
 
 
 def test_ir_warning_resample():
@@ -154,7 +154,7 @@ def test_ir_warning_resample():
             impulse_responses={
                 "ir1": {
                     "info": "invalid_ir_hoa_order",
-                    "sample_rate": sample_rate_default,
+                    "sampling_rate": sampling_rate_default,
                     "ambisonic_order": 2,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([96000,9]),
@@ -163,7 +163,7 @@ def test_ir_warning_resample():
                 },
                 "ir2": {
                     "info": "invalid_ir_hoa_order",
-                    "sample_rate": sample_rate_default*2,
+                    "sampling_rate": sampling_rate_default*2,
                     "ambisonic_order": 2,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([96000,9]),
@@ -183,7 +183,7 @@ def test_ir_warning_resample():
             },
             output_format="mono"
         )
-        assert a.impulse_responses["ir2"]["sample_rate"] == sample_rate_default
+        assert a.impulse_responses["ir2"]["sampling_rate"] == sampling_rate_default
 
 
 def test_ir_warning_ambisonics_order_mismatch():
@@ -193,7 +193,7 @@ def test_ir_warning_ambisonics_order_mismatch():
             impulse_responses={
                 "ir1": {
                     "info": "ambisonics_order_mismatch",
-                    "sample_rate": sample_rate_default,
+                    "sampling_rate": sampling_rate_default,
                     "ambisonic_order": 3,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([48000,9]),
@@ -218,7 +218,7 @@ def test_ir_transposed():
             impulse_responses={
                 "ir1": {
                     "info": "ambisonics_order_mismatch",
-                    "sample_rate": sample_rate_default,
+                    "sampling_rate": sampling_rate_default,
                     "ambisonic_order": 2,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([9,48000]),
@@ -243,7 +243,7 @@ def test_ir_warning_ambisonics_order_empty():
             impulse_responses={
                 "ir1": {
                     "info": "ambisonics_order_empty",
-                    "sample_rate": sample_rate_default,
+                    "sampling_rate": sampling_rate_default,
                     "ambisonic_order": [],
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([48000,9]),
@@ -268,7 +268,7 @@ def test_ir_warning_normalisation_empty():
             impulse_responses={
                 "ir1": {
                     "info": "ambisonics_order_empty",
-                    "sample_rate": sample_rate_default,
+                    "sampling_rate": sampling_rate_default,
                     "ambisonic_order": [],
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([48000,9]),
@@ -292,7 +292,7 @@ def test_ir_warning_channel_order_empty():
             impulse_responses={
                 "ir1": {
                     "info": "ambisonics_order_empty",
-                    "sample_rate": sample_rate_default,
+                    "sampling_rate": sampling_rate_default,
                     "ambisonic_order": [],
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([48000,9]),
@@ -316,7 +316,7 @@ def test_ir_invalid_ambisonics_order():
             impulse_responses={
                 "ir1": {
                     "info": "invalid_ir_hoa_order",
-                    "sample_rate": sample_rate_default,
+                    "sampling_rate": sampling_rate_default,
                     "ambisonic_order": 2,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([48000,8]),
@@ -341,7 +341,7 @@ def test_ir_fuma_channel_ordering_raises():
             impulse_responses={
                 "ir1": {
                     "info": "fuma_not_supported",
-                    "sample_rate": sample_rate_default,
+                    "sampling_rate": sampling_rate_default,
                     "ambisonic_order": 1,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([48000,4]),
@@ -366,7 +366,7 @@ def test_warning_ir_n3d_normalisation():
             impulse_responses={
                 "ir1": {
                     "info": "invalid_ir_hoa_order",
-                    "sample_rate": sample_rate_default,
+                    "sampling_rate": sampling_rate_default,
                     "ambisonic_order": 2,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([48000,9]),
@@ -390,7 +390,7 @@ def test_ir_maximum_length():
         impulse_responses={
             "ir1": {
                     "info": "maximum_ambisonic_order",
-                    "sample_rate": sample_rate_default,
+                    "sampling_rate": sampling_rate_default,
                     "ambisonic_order": 2,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([100000,9]),
@@ -399,7 +399,7 @@ def test_ir_maximum_length():
                 },
             "ir2": {
                     "info": "maximum_ambisonic_order",
-                    "sample_rate": sample_rate_default,
+                    "sampling_rate": sampling_rate_default,
                     "ambisonic_order": 4,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([48000,25]),
@@ -429,7 +429,7 @@ def test_anechoioc_sounds_allowed_extensions():
             impulse_responses={
                 "ir1": {
                     "info": "ambisonics_order_mismatch",
-                    "sample_rate": sample_rate_default,
+                    "sampling_rate": sampling_rate_default,
                     "ambisonic_order": 2,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([48000,9]),
@@ -468,7 +468,7 @@ def test_maximum_ambisonic_order():
         impulse_responses={
             "ir1": {
                     "info": "maximum_ambisonic_order",
-                    "sample_rate": sample_rate_default,
+                    "sampling_rate": sampling_rate_default,
                     "ambisonic_order": 2,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([48000,9]),
@@ -477,7 +477,7 @@ def test_maximum_ambisonic_order():
                 },
             "ir2": {
                     "info": "maximum_ambisonic_order",
-                    "sample_rate": sample_rate_default,
+                    "sampling_rate": sampling_rate_default,
                     "ambisonic_order": 4,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([48000,25]),
@@ -506,7 +506,7 @@ def test_impulse_response_and_anechoic_sounds_count():
         impulse_responses={
             "ir1": {
                     "info": "ir_count",
-                    "sample_rate": sample_rate_default,
+                    "sampling_rate": sampling_rate_default,
                     "ambisonic_order": 2,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([48000,9]),
@@ -515,7 +515,7 @@ def test_impulse_response_and_anechoic_sounds_count():
                 },
             "ir2": {
                     "info": "ir_count",
-                    "sample_rate": sample_rate_default,
+                    "sampling_rate": sampling_rate_default,
                     "ambisonic_order": 4,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([48000,25]),
@@ -545,7 +545,7 @@ def test_import_anechoic_sound():
             impulse_responses={
                 "ir1": {
                     "info": "invalid_ir_hoa_order",
-                    "sample_rate": sample_rate_default,
+                    "sampling_rate": sampling_rate_default,
                     "ambisonic_order": 2,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([48000,9]),
@@ -563,7 +563,7 @@ def test_import_anechoic_sound():
         )
 
     filepath = Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"
-    audio = a.import_anechoic_sound(filepath, sample_rate_default)
+    audio = a.import_anechoic_sound(filepath, sampling_rate_default)
 
     # Assertions
     assert isinstance(audio, np.ndarray), "Audio should be a numpy array"
@@ -577,7 +577,7 @@ def test_ambisonics_upmix_downmix():
             impulse_responses={
                 "ir1": {
                     "info": "invalid_ir_hoa_order",
-                    "sample_rate": sample_rate_default,
+                    "sampling_rate": sampling_rate_default,
                     "ambisonic_order": 2,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([48000,9]),
@@ -624,7 +624,7 @@ def test_convolve_matches_numpy_convolution():
             impulse_responses={
                 "ir1": {
                     "info": "convolve",
-                    "sample_rate": sample_rate_default,
+                    "sampling_rate": sampling_rate_default,
                     "ambisonic_order": 0,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.array([[1.0], [0.5], [0.0], [0.25]]),
@@ -643,7 +643,7 @@ def test_convolve_matches_numpy_convolution():
 
     output = a.convolve()
 
-    sound = a.import_anechoic_sound(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav", sample_rate_default)
+    sound = a.import_anechoic_sound(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav", sampling_rate_default)
     expected = np.convolve([1.0, 0.5, 0.0, 0.25], sound)
     assert output.shape == (expected.size, 1)
     np.testing.assert_allclose(output[:, 0], expected, atol=1e-10)
@@ -655,7 +655,7 @@ def test_convolve_ambisonics():
         impulse_responses={
             "ir1": {
                 "info": "multi1",
-                "sample_rate": sample_rate_default,
+                "sampling_rate": sampling_rate_default,
                 "ambisonic_order": 2,
                 "mic_position": [0.0, 0.0, 1.5],
                 "ir": np.zeros([48000, 9]),
@@ -664,7 +664,7 @@ def test_convolve_ambisonics():
             },
             "ir2": {
                 "info": "multi2",
-                "sample_rate": sample_rate_default,
+                "sampling_rate": sampling_rate_default,
                 "ambisonic_order": 4,
                 "mic_position": [0.0, 0.0, 1.5],
                 "ir": np.zeros([48000, 25]),
@@ -705,7 +705,7 @@ def test_export_convolved_sound(tmp_path):
         impulse_responses={
             "ir1": {
                 "info": "multi1",
-                "sample_rate": sample_rate_default,
+                "sampling_rate": sampling_rate_default,
                 "ambisonic_order": 2,
                 "mic_position": [0.0, 0.0, 1.5],
                 "ir": np.zeros([48000, 9]),
@@ -714,7 +714,7 @@ def test_export_convolved_sound(tmp_path):
             },
             "ir2": {
                 "info": "multi2",
-                "sample_rate": sample_rate_default,
+                "sampling_rate": sampling_rate_default,
                 "ambisonic_order": 4,
                 "mic_position": [0.0, 0.0, 1.5],
                 "ir": np.zeros([48000, 25]),
@@ -769,9 +769,9 @@ def test_export_convolved_sound(tmp_path):
 
 # Helpers for the behaviour tests below
 
-def ir_entry(ir, sample_rate=sample_rate_default, **kwargs):
+def ir_entry(ir, sampling_rate=sampling_rate_default, **kwargs):
     entry = {
-        "sample_rate": sample_rate,
+        "sampling_rate": sampling_rate,
         "ambisonic_order": int(np.sqrt(ir.shape[1] if ir.ndim == 2 else 1)) - 1,
         "ir": ir,
         "normalisation": "sn3d",
@@ -781,10 +781,10 @@ def ir_entry(ir, sample_rate=sample_rate_default, **kwargs):
     return entry
 
 
-def write_sound(path, data, sample_rate=sample_rate_default):
+def write_sound(path, data, sampling_rate=sampling_rate_default):
     import soundfile as sf
 
-    sf.write(str(path), data, sample_rate, subtype="FLOAT")
+    sf.write(str(path), data, sampling_rate, subtype="FLOAT")
     return str(path)
 
 
@@ -804,12 +804,12 @@ def test_order_mismatch_is_corrected_to_an_int_and_convolves(tmp_path):
 
 def test_caller_impulse_responses_are_not_modified():
     ir = np.ones((100, 1))
-    data = {"ir1": ir_entry(ir, sample_rate=44100)}
+    data = {"ir1": ir_entry(ir, sampling_rate=44100)}
     with pytest.warns(UserWarning, match="resampled"):
-        a = Auraliser("room1", data, {"ac1": {"filepath": "a.wav"}}, "mono", sample_rate=sample_rate_default)
+        a = Auraliser("room1", data, {"ac1": {"filepath": "a.wav"}}, "mono", sampling_rate=sampling_rate_default)
     assert data["ir1"]["ir"] is ir
-    assert data["ir1"]["sample_rate"] == 44100
-    assert a.impulse_responses["ir1"]["sample_rate"] == sample_rate_default
+    assert data["ir1"]["sampling_rate"] == 44100
+    assert a.impulse_responses["ir1"]["sampling_rate"] == sampling_rate_default
 
 
 def test_unknown_normalisation_raises():
@@ -834,21 +834,21 @@ def test_resampled_impulse_response_has_no_wraparound_and_keeps_its_gain():
     ir = np.zeros((44100, 1))
     ir[100] = 1.0
     with pytest.warns(UserWarning, match="resampled"):
-        a = Auraliser("room1", {"ir1": ir_entry(ir, sample_rate=44100)}, {"ac1": {"filepath": "a.wav"}}, "mono", sample_rate=sample_rate_default)
+        a = Auraliser("room1", {"ir1": ir_entry(ir, sampling_rate=44100)}, {"ac1": {"filepath": "a.wav"}}, "mono", sampling_rate=sampling_rate_default)
     resampled = a.impulse_responses["ir1"]["ir"][:, 0]
     assert np.max(np.abs(resampled[-4800:])) < 1e-6
     # Matching the frequency response keeps the DC gain of the impulse response
     np.testing.assert_allclose(np.sum(resampled), 1.0, rtol=1e-3)
 
 
-def test_changing_sample_rate_resamples_from_the_original_input():
+def test_changing_sampling_rate_resamples_from_the_original_input():
     ir = np.zeros((48000, 1))
     ir[0] = 1.0
     a = Auraliser("room1", {"ir1": ir_entry(ir)}, {"ac1": {"filepath": "a.wav"}}, "mono")
     with pytest.warns(UserWarning, match="resampled"):
-        a.sample_rate = 24000
+        a.sampling_rate = 24000
     assert a.impulse_responses["ir1"]["ir"].shape == (24000, 1)
-    assert a.impulse_responses["ir1"]["sample_rate"] == 24000
+    assert a.impulse_responses["ir1"]["sampling_rate"] == 24000
 
 
 def test_multichannel_anechoic_sound_is_mixed_down(tmp_path):
@@ -856,15 +856,15 @@ def test_multichannel_anechoic_sound_is_mixed_down(tmp_path):
     path = write_sound(tmp_path / "stereo.wav", stereo)
     a = Auraliser("room1", {"ir1": ir_entry(np.ones((4, 1)))}, {"ac1": {"filepath": path}}, "mono")
     with pytest.warns(UserWarning, match="mixing down"):
-        audio = a.import_anechoic_sound(path, sample_rate_default)
+        audio = a.import_anechoic_sound(path, sampling_rate_default)
     assert audio.ndim == 1
     np.testing.assert_allclose(audio, 0.25)
 
 
 def test_anechoic_sound_is_resampled_with_time_amplitude(tmp_path):
-    path = write_sound(tmp_path / "s.wav", np.full(44100, 0.5), sample_rate=44100)
+    path = write_sound(tmp_path / "s.wav", np.full(44100, 0.5), sampling_rate=44100)
     a = Auraliser("room1", {"ir1": ir_entry(np.ones((4, 1)))}, {"ac1": {"filepath": path}}, "mono")
-    audio = a.import_anechoic_sound(path, sample_rate_default)
+    audio = a.import_anechoic_sound(path, sampling_rate_default)
     assert audio.shape == (48000,)
     np.testing.assert_allclose(audio[1000:-1000], 0.5, atol=1e-3)
 
@@ -884,7 +884,7 @@ def test_convolve_matches_per_source_convolution(tmp_path):
 
     singles = []
     for key, data in irs.items():
-        sound = a.import_anechoic_sound(sounds[key]["filepath"], sample_rate_default)
+        sound = a.import_anechoic_sound(sounds[key]["filepath"], sampling_rate_default)
         singles.append(np.stack([np.convolve(ch, sound) for ch in data["ir"].T], axis=1))
     expected = np.zeros((max(s.shape[0] for s in singles), 9))
     for single in singles:
@@ -910,8 +910,8 @@ def test_impulse_response_objects_use_their_source_sound_file(tmp_path):
     sound = write_sound(tmp_path / "s.wav", np.array([1.0, 0.0, 0.0]))
     receiver = Receiver("r", 0, 0, 0)
     irs = [
-        ImpulseResponse("ir_a", Source("a", 1, 0, 0, sound_file=sound), receiver, np.array([1.0, 0.5]), sample_rate_default),
-        ImpulseResponse("ir_b", Source("b", 2, 0, 0, sound_file=sound), receiver, np.array([0.0, 0.5]), sample_rate_default),
+        ImpulseResponse("ir_a", Source("a", 1, 0, 0, sound_file=sound), receiver, np.array([1.0, 0.5]), sampling_rate_default),
+        ImpulseResponse("ir_b", Source("b", 2, 0, 0, sound_file=sound), receiver, np.array([0.0, 0.5]), sampling_rate_default),
     ]
     a = Auraliser("room1", irs, output_format="mono")
     assert list(a.impulse_responses) == ["ir_a", "ir_b"]
@@ -924,7 +924,7 @@ def test_impulse_response_objects_with_a_list_of_sounds(tmp_path):
     from compas_acoustics.source import Source
 
     sound = write_sound(tmp_path / "s.wav", np.array([2.0]))
-    ir = ImpulseResponse("ir_a", Source("a", 1, 0, 0), Receiver("r", 0, 0, 0), np.array([1.0, 0.5]), sample_rate_default)
+    ir = ImpulseResponse("ir_a", Source("a", 1, 0, 0), Receiver("r", 0, 0, 0), np.array([1.0, 0.5]), sampling_rate_default)
     a = Auraliser("room1", [ir], [sound], output_format="mono")
     np.testing.assert_allclose(a.convolve()[:, 0], [2.0, 1.0])
 
@@ -934,7 +934,7 @@ def test_impulse_response_objects_without_sound_raise():
     from compas_acoustics.receiver import Receiver
     from compas_acoustics.source import Source
 
-    ir = ImpulseResponse("ir_a", Source("a", 1, 0, 0), Receiver("r", 0, 0, 0), np.ones(4), sample_rate_default)
+    ir = ImpulseResponse("ir_a", Source("a", 1, 0, 0), Receiver("r", 0, 0, 0), np.ones(4), sampling_rate_default)
     with pytest.raises(ValueError, match="sound_file"):
         Auraliser("room1", [ir], output_format="mono")
 
@@ -1003,8 +1003,8 @@ def test_binaural_magls_matches_hrtf_magnitudes():
 
     a = decoder("binaural", order=3)
     hrirs, directions, _ = pf.io.read_sofa(str(a.hrtf_path), verbose=False)
-    hrirs = pf.dsp.resample(hrirs, sample_rate_default, match_amplitude="freq")
-    freqs = np.fft.rfftfreq(4096, 1 / sample_rate_default)
+    hrirs = pf.dsp.resample(hrirs, sampling_rate_default, match_amplitude="freq")
+    freqs = np.fft.rfftfreq(4096, 1 / sampling_rate_default)
     band = (freqs > 1000) & (freqs < 16000)
     errors = []
     for i in range(0, directions.csize, 25):
@@ -1025,26 +1025,26 @@ def test_export_sets_level_after_decoding(tmp_path):
     # Default level 'relative' on a single render peaks at the -1 dBFS headroom
     assert np.max(np.abs(exported)) == pytest.approx(10 ** (-1 / 20))
     written, fs = sf.read(tmp_path / "out.wav")
-    assert fs == sample_rate_default
+    assert fs == sampling_rate_default
     np.testing.assert_allclose(written, exported, atol=1e-7)
 
 
-def test_defaults_to_stereo_and_the_first_impulse_response_sample_rate():
+def test_defaults_to_stereo_and_the_first_impulse_response_sampling_rate():
     with pytest.warns(UserWarning, match="resampled"):
         a = Auraliser(
             "room1",
-            {"ir1": ir_entry(np.ones((10, 1)), sample_rate=44100), "ir2": ir_entry(np.ones((10, 1)), sample_rate=48000)},
+            {"ir1": ir_entry(np.ones((10, 1)), sampling_rate=44100), "ir2": ir_entry(np.ones((10, 1)), sampling_rate=48000)},
             {"ir1": {"filepath": "a.wav"}, "ir2": {"filepath": "b.wav"}},
         )
     assert a.output_format == "stereo"
-    assert a.sample_rate == 44100
-    assert a.impulse_responses["ir2"]["sample_rate"] == 44100
+    assert a.sampling_rate == 44100
+    assert a.impulse_responses["ir2"]["sampling_rate"] == 44100
 
 
-def test_sample_rate_defaults_to_project_rate_without_impulse_responses():
+def test_sampling_rate_defaults_to_project_rate_without_impulse_responses():
     from compas_acoustics.defaults import Defaults
 
-    assert Auraliser("room1", {}, {}).sample_rate == Defaults().SAMPLING_RATE
+    assert Auraliser("room1", {}, {}).sampling_rate == Defaults().SAMPLING_RATE
 
 
 @pytest.mark.parametrize("output_format, channels", [("mono", 1), ("stereo", 2), ("binaural", 2), ("ambisonics", 9)])
@@ -1122,8 +1122,8 @@ def test_impulse_response_objects_are_auralised_at_their_raw_level(tmp_path):
 
     sound = write_sound(tmp_path / "s.wav", np.array([1.0]))
     source = Source("a", 1, 0, 0, sound_file=sound)
-    near = ImpulseResponse("near", source, Receiver("r1", 0, 0, 0), np.array([0.5, 0.1]), sample_rate_default)
-    far = ImpulseResponse("far", source, Receiver("r2", 0, 0, 0), np.array([0.05, 0.01]), sample_rate_default)
+    near = ImpulseResponse("near", source, Receiver("r1", 0, 0, 0), np.array([0.5, 0.1]), sampling_rate_default)
+    far = ImpulseResponse("far", source, Receiver("r2", 0, 0, 0), np.array([0.05, 0.01]), sampling_rate_default)
     assert np.max(np.abs(far.ir)) == pytest.approx(1.0)  # normalised by default
 
     renders = [Auraliser(ir.name, [ir], output_format="mono").convolve() for ir in (near, far)]
@@ -1168,7 +1168,7 @@ def test_a_binaural_impulse_response_is_convolved_without_decoding(tmp_path):
     sound = write_sound(tmp_path / "s.wav", rng.standard_normal(100))
     ir = rng.standard_normal((40, 2))
     a = Auraliser("room1", {"b": ir_entry(ir, binaural=True)}, {"b": {"filepath": sound}}, "binaural")
-    signal = a.import_anechoic_sound(sound, sample_rate_default)
+    signal = a.import_anechoic_sound(sound, sampling_rate_default)
     expected = np.stack([np.convolve(ir[:, e], signal) for e in range(2)], axis=1)
     np.testing.assert_allclose(a.convolve(), expected, atol=1e-10)
 
@@ -1209,6 +1209,6 @@ def test_binaural_impulse_response_objects_are_recognised(tmp_path):
 
     sound = write_sound(tmp_path / "s.wav", np.array([1.0, 0.0]))
     ir = ImpulseResponse("ir_b", Source("a", 1, 0, 0, sound_file=sound), Receiver("r", 0, 0, 0),
-                         np.ones((8, 2)), sample_rate_default, generation={"output": "binaural"})
+                         np.ones((8, 2)), sampling_rate_default, generation={"output": "binaural"})
     a = Auraliser("room1", [ir], output_format="binaural")
     assert a.impulse_responses["ir_b"]["binaural"] is True

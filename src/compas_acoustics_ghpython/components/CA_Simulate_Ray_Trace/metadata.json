@@ -17,13 +17,6 @@
                 "typeHintID": "ghdoc"
             },
             {
-                "name": "sample_rate",
-                "description": "Sample rate for the simulation.",
-                "optional": true,
-                "scriptParamAccess": 0,
-                "typeHintID": "int"
-            },
-            {
                 "name": "max_order",
                 "description": "Maximum order of image sources (default 6).",
                 "optional": true,

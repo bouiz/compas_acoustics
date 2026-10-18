@@ -116,7 +116,7 @@ class Auralise(Grasshopper.Kernel.GH_ScriptInstance):
                 order = getattr(IR, 'ambisonic_order', None)
                 ir_groups[receiver_id][sub_key] = {
                     'ir': ir_data,
-                    'sample_rate': IR.sample_rate,
+                    'sampling_rate': IR.sampling_rate,
                     'ambisonic_order': int(round(np.sqrt(ir_data.shape[1]))) - 1 if order is None else int(order),
                     # The response's own convention, e.g. a hybrid response in N3D
                     'channel_order': getattr(IR, 'channel_order', None) or 'acn',
@@ -162,13 +162,13 @@ class Auralise(Grasshopper.Kernel.GH_ScriptInstance):
         gains = Auraliser.render_gains([signal for _, _, signal, _ in renders], level, HEADROOM_DB)
 
         signals_out = DataTree[object]()
-        sample_rates_out = DataTree[object]()
+        sampling_rates_out = DataTree[object]()
         peak_dbfs = -np.inf
         for (path, auraliser, signal, suffix), gain in zip(renders, gains):
             leveled = signal * gain
             peak_dbfs = max(peak_dbfs, Auraliser.peak_dbfs(leveled))
             signals_out.Add(leveled, path)
-            sample_rates_out.Add(auraliser.sample_rate, path)
+            sampling_rates_out.Add(auraliser.sampling_rate, path)
 
             if save:
                 filepath = self.set_save_file_path(save_file_path, save_file_name, suffix)
@@ -187,7 +187,7 @@ class Auralise(Grasshopper.Kernel.GH_ScriptInstance):
                 "Ambisonic signals cannot be played by the Audio Player. Save them as a multichannel file, or use binaural for headphone playback."
             )
 
-        return signals_out, sample_rates_out
+        return signals_out, sampling_rates_out
 
     @staticmethod
     def resolve_hrtf_path(hrtf):

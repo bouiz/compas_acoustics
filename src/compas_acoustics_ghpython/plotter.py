@@ -3,7 +3,6 @@ from typing import Optional
 
 import Rhino.Geometry as rg  # type: ignore
 
-from compas_acoustics.analyser import _PARAM_NAMES
 from compas_acoustics.analyser import AcousticAnalyser
 from compas_acoustics.ir import ImpulseResponse
 
@@ -100,25 +99,18 @@ def calculate_ticks(values, max_value=None):
 class AcousticParameter:
     """Class representing an acoustic parameter with its values and overall metric."""
 
-    _TITLE_NAMES = [
-        'Early Decay Time (EDT)', 'Reverberation Time (T20)', 'Reverberation Time (T30)',
-        'Clarity (C50)', 'Clarity (C80)', 'Definition (D50)',
-        'Direct-to-Reverberant Ratio (DRR)', 'Center Time (Ts)', 'Speech Transmission Index (STI)',
-        'Strength (G)',
-    ]
-    _X_UNITS = [
-        'Frequency (Hz)', 'Frequency (Hz)', 'Frequency (Hz)',
-        'Frequency (Hz)', 'Frequency (Hz)', 'Frequency (Hz)',
-        'Frequency (Hz)', 'Frequency (Hz)', 'Frequency (Hz)',
-        'Frequency (Hz)',
-    ]
-
-    _Y_UNITS = [
-        'Time (s)', 'Time (s)', 'Time (s)',
-        'dB', 'dB', 'Value (%)',
-        'dB', 'Time (s)', 'Index (0-1)',
-        'dB',
-    ]
+    # name: (title, x unit, y unit). STI and G are left out: they need pyrato >= 1.0, which Rhino 8's Python 3.9 cannot install.
+    _PARAMETERS = {
+        'EDT': ('Early Decay Time (EDT)', 'Frequency (Hz)', 'Time (s)'),
+        'T20': ('Reverberation Time (T20)', 'Frequency (Hz)', 'Time (s)'),
+        'T30': ('Reverberation Time (T30)', 'Frequency (Hz)', 'Time (s)'),
+        'C50': ('Clarity (C50)', 'Frequency (Hz)', 'dB'),
+        'C80': ('Clarity (C80)', 'Frequency (Hz)', 'dB'),
+        'D50': ('Definition (D50)', 'Frequency (Hz)', 'Value (%)'),
+        'DRR': ('Direct-to-Reverberant Ratio (DRR)', 'Frequency (Hz)', 'dB'),
+        'Ts': ('Center Time (Ts)', 'Frequency (Hz)', 'Time (s)'),
+    }
+    NAMES = tuple(_PARAMETERS)
 
     def __init__(
         self,
@@ -149,15 +141,13 @@ class AcousticParameter:
     
     @classmethod
     def from_analyser(cls, analyser: AcousticAnalyser, name: str):
-        if name not in _PARAM_NAMES:
-            raise ValueError(f"Parameter '{name}' not found in analyser results. Available parameters: {_PARAM_NAMES}")
+        if name not in cls._PARAMETERS:
+            raise ValueError(f"Parameter '{name}' is not available in Grasshopper. Available parameters: {list(cls.NAMES)}")
 
         frequencies = analyser.frequency_bands
         values = analyser.analysis_data[name]
         overall = analyser.analysis_data[f"{name}_overall"]
-        title = cls._TITLE_NAMES[_PARAM_NAMES.index(name)]
-        x_unit = cls._X_UNITS[_PARAM_NAMES.index(name)]
-        y_unit = cls._Y_UNITS[_PARAM_NAMES.index(name)]
+        title, x_unit, y_unit = cls._PARAMETERS[name]
         # TODO: Add source and receiver names, but it needs to modify the AcousticAnalyser class
         return cls(name, frequencies, values, overall, title, x_unit, y_unit)
 

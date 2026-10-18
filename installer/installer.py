@@ -19,14 +19,14 @@ than ``default``, add the venv directive as first line of each copied
 component, so it runs in that environment. The files in the package are
 not changed.
 4. Unload previously imported ``compas_acoustics`` modules.
-5. With ``worker`` 'analysis' or 'hybrid', create a Python 3.12 environment for the
+5. With ``worker`` 'binaural' or 'hybrid', create a Python 3.12 environment for the
 features Rhino's Python 3.9 cannot run (``compas_acoustics.worker.install``).
 
 Rhino must be restarted afterwards: reloading Grasshopper's component libraries
 at runtime (``ComponentServer.LoadExternalFiles``) re-registers every plugin
 and makes Grasshopper show "Component ID conflict" dialogs.
 
-Inputs: source (str), venv (str), install (bool, connect a button), worker (str: empty, 'analysis' or 'hybrid').
+Inputs: source (str), venv (str), install (bool, connect a button), worker (str: empty, 'binaural' or 'hybrid').
 Outputs: log (str), ok (bool).
 
 Rhino quirks to keep in mind when editing this file: Rhino pre-processes the
@@ -277,15 +277,15 @@ def run_install(state, source, venv, gh_file, worker):
         install_userobjects(python, log, venv, target)
 
         worker = (worker or "").strip().lower()
-        if worker in ("analysis", "hybrid"):
+        if worker in ("binaural", "hybrid"):
             log("")
             log("Setting up the Python 3.12 worker for {}, this can take a while{}...".format(
-                "the hybrid method, STI, G and binaural" if worker == "hybrid" else "STI, G and binaural",
+                "the hybrid method and binaural" if worker == "hybrid" else "binaural",
                 " (the hybrid extra downloads PyTorch, several GB)" if worker == "hybrid" else ""))
             cmd = [python, "-m", "compas_acoustics.worker.install", "--wheel", wheel] + (["--hybrid"] if worker == "hybrid" else [])
             run(cmd, log, env=dict(os.environ, PYTHONPATH=target))
         elif worker:
-            raise RuntimeError("worker must be empty, 'analysis' or 'hybrid', got '{}'.".format(worker))
+            raise RuntimeError("worker must be empty, 'binaural' or 'hybrid', got '{}'.".format(worker))
 
         unloaded = unload_modules()
         if unloaded:

@@ -20,7 +20,7 @@
         "outputParameters": [
             {
                 "name": "params",
-                "description": "List of acoustic parameters ('EDT', 'T20', 'T30', 'C50', 'C80', 'D50', 'DRR', 'Ts', 'STI')."
+                "description": "List of acoustic parameters ('EDT', 'T20', 'T30', 'C50', 'C80', 'D50', 'DRR', 'Ts')."
             }
         ]
     }

@@ -9,7 +9,7 @@ from compas_acoustics.receiver import Receiver
 
 class CreateModelScene(Grasshopper.Kernel.GH_ScriptInstance):
 
-    def RunScript(self, objects, sources, receivers, name):
+    def RunScript(self, objects, sources, receivers, name, sampling_rate):
 
         if objects is None:
             ghenv.Component.AddRuntimeMessage(
@@ -27,7 +27,11 @@ class CreateModelScene(Grasshopper.Kernel.GH_ScriptInstance):
             )
             return
 
-        scene = Scene(name=name)
+        try:
+            scene = Scene(name=name, sampling_rate=sampling_rate)
+        except ValueError as e:
+            ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Error, str(e))
+            return
         scene.add_acoustic_objects(objects)
         for src in sources:
             if isinstance(src, Source):

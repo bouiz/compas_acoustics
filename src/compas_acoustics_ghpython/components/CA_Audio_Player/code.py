@@ -40,7 +40,7 @@ class PlayAudio(Grasshopper.Kernel.GH_ScriptInstance):
 
         doc.ScheduleSolution(1, deferred)
 
-    def RunScript(self, sound, play, stop, sample_rate, normalize):
+    def RunScript(self, sound, play, stop, sampling_rate, normalize):
         self.offer_buttons()
 
         if sound is None:
@@ -48,13 +48,13 @@ class PlayAudio(Grasshopper.Kernel.GH_ScriptInstance):
 
         if isinstance(sound, str):  # file path
             try:
-                sample_rate = sf.info(sound).samplerate
+                sampling_rate = sf.info(sound).samplerate
             except:
                 pass
         elif hasattr(sound, "sound_file"):  # Source object
             sound = sound.sound_file
             try:
-                sample_rate = sf.info(sound).samplerate
+                sampling_rate = sf.info(sound).samplerate
             except:
                 pass
         elif hasattr(sound, "shape") and hasattr(sound, "ndim"):  # numpy array
@@ -77,6 +77,6 @@ class PlayAudio(Grasshopper.Kernel.GH_ScriptInstance):
         player = sc.sticky[player_key]
 
         if play:
-            player.play(sound, sample_rate, normalize is not False)
+            player.play(sound, sampling_rate, normalize is not False)
         if stop:
             player.stop()

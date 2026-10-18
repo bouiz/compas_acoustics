@@ -17,6 +17,13 @@
                 "typeHintID": "ghdoc"
             },
             {
+                "name": "run",
+                "description": "Press to simulate. The hybrid takes seconds to minutes and Grasshopper recomputes on every upstream change, so it runs only when this is true; a button is added when it is not connected. Without it, the responses already on the scene's graph are passed on.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "bool"
+            },
+            {
                 "name": "tail",
                 "description": "Decay target of the tail: auto (reference if given, else ray_tracing), reference, ray_tracing (its own ray-traced reference), eyring or sabine (predicted, no simulation).",
                 "optional": true,
@@ -29,13 +36,6 @@
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "ghdoc"
-            },
-            {
-                "name": "sample_rate",
-                "description": "Sample rate (default 48000; with a reference, the reference's). At least 22628 Hz.",
-                "optional": true,
-                "scriptParamAccess": 0,
-                "typeHintID": "int"
             },
             {
                 "name": "sh_order",

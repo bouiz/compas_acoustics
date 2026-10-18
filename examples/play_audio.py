@@ -21,12 +21,12 @@ import scipy.io.wavfile as wav
 import numpy as np
 
 player = AudioPlayer()
-sample_rate, data_array = wav.read(path)
+sampling_rate, data_array = wav.read(path)
 
 if data_array.dtype == np.int16:
     data_array = data_array.astype(np.float32) / 32768.0
 
-player.play(data_array, sample_rate)
+player.play(data_array, sampling_rate)
 
 time.sleep(3)
 player.stop()

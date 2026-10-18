@@ -51,7 +51,7 @@ def test_magls_filters_are_the_auralisers():
     from compas_acoustics.auraliser import Auraliser
     from compas_acoustics.binaural import DEFAULT_HRTF, magls_filters
 
-    a = Auraliser("room1", {"ir1": {"ir": np.ones((32, 4)), "sample_rate": FS, "ambisonic_order": 1,
+    a = Auraliser("room1", {"ir1": {"ir": np.ones((32, 4)), "sampling_rate": FS, "ambisonic_order": 1,
                                      "channel_order": "acn", "normalisation": "sn3d"}},
                   {"ac1": {"filepath": "a.wav"}}, "binaural")
     np.testing.assert_array_equal(a.binaural_filters(1), magls_filters(DEFAULT_HRTF, FS, 1))
@@ -72,7 +72,7 @@ def test_a_set_at_another_rate_is_resampled():
     from compas_acoustics.binaural import HrtfSet
 
     native, resampled = HrtfSet.from_sofa(DEFAULT_HRTF, FS), HrtfSet.from_sofa(DEFAULT_HRTF, 44100)
-    assert resampled.sample_rate == 44100
+    assert resampled.sampling_rate == 44100
     assert resampled.hrirs.shape[2] == int(np.ceil(native.hrirs.shape[2] * 44100 / FS))  # pyfar rounds up
 
 

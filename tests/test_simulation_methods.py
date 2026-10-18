@@ -129,20 +129,33 @@ def test_simulating_twice_replaces_the_responses():
     assert len(s.impulse_responses("delta")) == len(second) == 2
 
 
-def test_the_sampling_rate_reaches_the_method():
-    (first, *_) = scene().simulate(Delta(), sampling_rate=44100).values()
-    assert first.sample_rate == 44100
+def test_a_scene_simulates_at_48000_hz_unless_told_otherwise():
+    assert scene().sampling_rate == 48000
+    (first, *_) = scene().simulate(Delta()).values()
+    assert first.sampling_rate == 48000
+
+
+def test_the_scenes_sampling_rate_reaches_the_method():
+    s = scene()
+    s.sampling_rate = 44100
+    (first, *_) = s.simulate(Delta()).values()
+    assert first.sampling_rate == 44100
+    assert SimulationContext.from_scene(s).sampling_rate == 44100
 
 
 def test_a_whole_number_float_rate_is_accepted_and_stored_as_int():
-    context = SimulationContext.from_scene(scene(), 44100.0)
-    assert context.sampling_rate == 44100 and isinstance(context.sampling_rate, int)
+    s = Scene("rate", sampling_rate=44100.0)
+    assert s.sampling_rate == 44100 and isinstance(s.sampling_rate, int)
 
 
 @pytest.mark.parametrize("rate", [44100.5, 0, -48000])
 def test_a_rate_that_is_not_a_positive_whole_number_raises(rate):
     with pytest.raises(ValueError, match="whole number"):
-        scene().simulate(Delta(), sampling_rate=rate)
+        Scene("rate", sampling_rate=rate)
+    s = scene()
+    with pytest.raises(ValueError, match="whole number"):
+        s.sampling_rate = rate
+    assert s.sampling_rate == 48000
 
 
 def test_a_scene_without_receivers_returns_nothing():

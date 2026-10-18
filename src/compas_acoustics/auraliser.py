@@ -61,7 +61,7 @@ class Auraliser(Data):
         The name of the auralisation. Lowercase and no spaces.
     impulse_responses : dict or list
         Either a dict mapping an id to a dict with the keys ``'ir'`` (array shaped
-        (samples,) or (samples, channels)), ``'sample_rate'``, ``'ambisonic_order'``,
+        (samples,) or (samples, channels)), ``'sampling_rate'``, ``'ambisonic_order'``,
         ``'channel_order'`` (``'acn'``) and ``'normalisation'`` (``'sn3d'`` or
         ``'n3d'``), or a list of
         :class:`ImpulseResponse` objects, whose ``channel_order`` and ``normalisation``
@@ -75,7 +75,7 @@ class Auraliser(Data):
         One of ``'mono'``, ``'stereo'``, ``'binaural'`` or ``'ambisonics'``. Default is ``'stereo'``.
     description : str, optional
         A text describing the auralisation.
-    sample_rate : int, optional
+    sampling_rate : int, optional
         The sample rate of the auralisation. Impulse responses and anechoic sounds are
         resampled to it. Default is the sample rate of the first impulse response.
     level : str, optional
@@ -84,7 +84,7 @@ class Auraliser(Data):
         Target output peak in dBFS for ``'relative'`` and ``'individual'``. Default is -1.
     """
 
-    def __init__(self, name: str, impulse_responses, anechoic_sounds=None, output_format: str = "stereo", description: str = None, sample_rate: int = None,
+    def __init__(self, name: str, impulse_responses, anechoic_sounds=None, output_format: str = "stereo", description: str = None, sampling_rate: int = None,
                  level: str = "relative", headroom_db: float = -1.0):
         super().__init__()
         self.name = name
@@ -93,7 +93,7 @@ class Auraliser(Data):
         self.headroom_db = headroom_db
         if not isinstance(impulse_responses, dict):
             impulse_responses = list(impulse_responses)
-        self.sample_rate = sample_rate if sample_rate is not None else self._default_sample_rate(impulse_responses)
+        self.sampling_rate = sampling_rate if sampling_rate is not None else self._default_sampling_rate(impulse_responses)
         self.impulse_responses = impulse_responses
         if anechoic_sounds is None:
             anechoic_sounds = self._sounds_from_impulse_response_sources(self._impulse_responses_input)
@@ -128,15 +128,15 @@ class Auraliser(Data):
 
 
     @property
-    def sample_rate(self):
-        return self._sample_rate
+    def sampling_rate(self):
+        return self._sampling_rate
 
 
-    @sample_rate.setter
-    def sample_rate(self, value: int):
+    @sampling_rate.setter
+    def sampling_rate(self, value: int):
         if value <= 0:
             raise ValueError("Sample rate must be a positive integer.")
-        self._sample_rate = int(value)
+        self._sampling_rate = int(value)
         # Re-derive the impulse responses at the new rate from the original input
         if hasattr(self, "_impulse_responses_input"):
             self.impulse_responses = self._impulse_responses_input
@@ -199,7 +199,7 @@ class Auraliser(Data):
 
     @property
     def impulse_responses(self):
-        """dict : Impulse responses as (samples, channels) arrays in ACN/SN3D at :attr:`sample_rate`."""
+        """dict : Impulse responses as (samples, channels) arrays in ACN/SN3D at :attr:`sampling_rate`."""
         return self._impulse_responses
 
 
@@ -270,12 +270,12 @@ class Auraliser(Data):
     # Input preparation
 
     @staticmethod
-    def _default_sample_rate(impulse_responses):
+    def _default_sampling_rate(impulse_responses):
         """The sample rate of the first impulse response, or the project default if there are none."""
         if isinstance(impulse_responses, dict):
-            impulse_responses = [data['sample_rate'] for data in impulse_responses.values()]
+            impulse_responses = [data['sampling_rate'] for data in impulse_responses.values()]
         else:
-            impulse_responses = [ir.sample_rate for ir in impulse_responses]
+            impulse_responses = [ir.sampling_rate for ir in impulse_responses]
         return impulse_responses[0] if impulse_responses else Defaults().SAMPLING_RATE
 
 
@@ -294,7 +294,7 @@ class Auraliser(Data):
             order = getattr(ir, 'ambisonic_order', None)
             converted[names[i] if use_names else f"ir_{i}"] = {
                 'ir': ir_array,
-                'sample_rate': ir.sample_rate,
+                'sampling_rate': ir.sampling_rate,
                 'ambisonic_order': int(round(np.sqrt(channels))) - 1 if order is None else int(order),
                 # The response's own convention, e.g. a hybrid response in N3D; ACN/SN3D when it states none
                 'channel_order': getattr(ir, 'channel_order', None) or 'acn',
@@ -332,8 +332,8 @@ class Auraliser(Data):
             warnings.warn(f"Impulse response {ir_id} is transposed. Impulse response will be transposed to the correct format")
             ir = ir.T
 
-        if data['sample_rate'] <= 0:
-            raise ValueError(f"Impulse response {ir_id} has invalid sample rate {data['sample_rate']}. Must be positive.")
+        if data['sampling_rate'] <= 0:
+            raise ValueError(f"Impulse response {ir_id} has invalid sample rate {data['sampling_rate']}. Must be positive.")
 
         if data.get('binaural'):
             # Ears, not spherical harmonics: convolved as they are, only for binaural output
@@ -341,7 +341,7 @@ class Auraliser(Data):
                 raise ValueError(f"Binaural impulse response {ir_id} must have 2 channels, got {ir.shape[1]}.")
             data['binaural'] = True
             data['ambisonic_order'] = None
-            data['ir'] = self._at_sample_rate(ir_id, ir, data)
+            data['ir'] = self._at_sampling_rate(ir_id, ir, data)
             return data
         data['binaural'] = False
 
@@ -381,18 +381,18 @@ class Auraliser(Data):
         data['channel_order'] = 'acn'
         data['normalisation'] = 'sn3d'
 
-        data['ir'] = self._at_sample_rate(ir_id, ir, data)
+        data['ir'] = self._at_sampling_rate(ir_id, ir, data)
         return data
 
 
-    def _at_sample_rate(self, ir_id, ir, data):
-        """The impulse response at :attr:`sample_rate`, resampled with its frequency response kept."""
-        if data['sample_rate'] != self.sample_rate:
-            warnings.warn(f"Mismatch detected between {ir_id} sample rate of {data['sample_rate']} Hz, and default sample rate of {self.sample_rate} Hz. " +
-                          f"Impulse response will be resampled to {self.sample_rate} Hz.")
+    def _at_sampling_rate(self, ir_id, ir, data):
+        """The impulse response at :attr:`sampling_rate`, resampled with its frequency response kept."""
+        if data['sampling_rate'] != self.sampling_rate:
+            warnings.warn(f"Mismatch detected between {ir_id} sample rate of {data['sampling_rate']} Hz, and default sample rate of {self.sampling_rate} Hz. " +
+                          f"Impulse response will be resampled to {self.sampling_rate} Hz.")
             # Matching the frequency response keeps the impulse response's gain at the new rate
-            ir = pf.dsp.resample(pf.Signal(ir.T, data['sample_rate']), self.sample_rate, match_amplitude='freq').time.T
-            data['sample_rate'] = self.sample_rate
+            ir = pf.dsp.resample(pf.Signal(ir.T, data['sampling_rate']), self.sampling_rate, match_amplitude='freq').time.T
+            data['sampling_rate'] = self.sampling_rate
         return ir
 
 
@@ -407,8 +407,8 @@ class Auraliser(Data):
 
     # Signal processing
 
-    def import_anechoic_sound(self, filepath, sample_rate):
-        """Read an audio file as a mono (samples,) array at ``sample_rate``.
+    def import_anechoic_sound(self, filepath, sampling_rate):
+        """Read an audio file as a mono (samples,) array at ``sampling_rate``.
 
         Multichannel files are mixed down to mono.
         """
@@ -417,8 +417,8 @@ class Auraliser(Data):
             warnings.warn(f"Anechoic sound {filepath} has {sound.cshape} channels; mixing down to mono.")
             sound = pf.dsp.average(sound)
 
-        if sound.sampling_rate != sample_rate:
-            sound = pf.dsp.resample(sound, sample_rate, match_amplitude='time')
+        if sound.sampling_rate != sampling_rate:
+            sound = pf.dsp.resample(sound, sampling_rate, match_amplitude='time')
 
         return sound.time.reshape(-1)
 
@@ -472,7 +472,7 @@ class Auraliser(Data):
         convolved = []
         for (filepath, binaural), ir in summed_impulse_responses.items():
             decoded_ir = ir if binaural else self.decode(ir)
-            anechoic_sound = self.import_anechoic_sound(filepath, self.sample_rate)
+            anechoic_sound = self.import_anechoic_sound(filepath, self.sampling_rate)
             convolved.append(fftconvolve(decoded_ir, anechoic_sound[:, np.newaxis], axes=0))
 
         convolved_sound_summed = np.zeros((max((c.shape[0] for c in convolved), default=0), self.output_channels))
@@ -546,7 +546,7 @@ class Auraliser(Data):
 
     def binaural_filters(self, order):
         """MagLS binaural decoding filters up to ``order`` for :attr:`hrtf_path` (see :func:`magls_filters`)."""
-        return magls_filters(self.hrtf_path, self.sample_rate, order)
+        return magls_filters(self.hrtf_path, self.sampling_rate, order)
 
 
     @staticmethod
@@ -618,6 +618,6 @@ class Auraliser(Data):
         if peak_dbfs > 0:
             warnings.warn(f"Auralised signal peaks at {peak_dbfs:+.1f} dBFS and will clip on playback. Use level 'relative' or 'individual', or a lower gain.")
 
-        pf.io.write_audio(pf.Signal(exported_sound.T, self.sample_rate), filepath, subtype='FLOAT')
+        pf.io.write_audio(pf.Signal(exported_sound.T, self.sampling_rate), filepath, subtype='FLOAT')
 
         return exported_sound

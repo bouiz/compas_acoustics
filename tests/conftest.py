@@ -24,7 +24,7 @@ def _assert_meets_contract(rirs, context, method, direct_sound=True):
             free_field = 1.0 / (4.0 * np.pi * distance)
             assert 0.5 * free_field < peak < 1.2 * free_field, f"{key}: direct sound {peak:.4g}, free field {free_field:.4g}"
         # 2. the context's sample rate
-        assert ir.sample_rate == context.sampling_rate, f"{key}: sample rate {ir.sample_rate}"
+        assert ir.sampling_rate == context.sampling_rate, f"{key}: sample rate {ir.sampling_rate}"
         # 3. how it was made
         assert ir.generation.get("method") == method.name, f"{key}: generation['method'] is not {method.name!r}"
         assert "valid_range_hz" in ir.generation, f"{key}: no valid_range_hz"

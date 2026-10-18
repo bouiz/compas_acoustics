@@ -102,38 +102,6 @@ def test_ray_tracing_is_stochastic_across_seeds():
     assert np.isclose(np.sum(a ** 2), np.sum(b ** 2), rtol=0.25)
 
 
-def test_parallel_slices_are_the_same_rays_without_scattering():
-    """Upstream tolerance; 3.9e-9 of the peak was measured at planning time."""
-    g = uniform(scattering=0.0)
-    # Seeded as upstream (seed=42 by default there): compute_rir draws the tail's noise
-    one = traced_uniform(g, max_order=2, n_jobs=1, seed=42)
-    three = traced_uniform(g, max_order=2, n_jobs=3, seed=42)
-    np.testing.assert_allclose(three, one, rtol=0.0, atol=1e-5 * np.abs(one).max())
-
-
-def test_parallel_slices_are_an_equivalent_draw_with_scattering():
-    g = uniform()
-    one = traced_uniform(g, max_order=2, n_rays=8000, n_jobs=1)
-    three = traced_uniform(g, max_order=2, n_rays=8000, n_jobs=3)
-    assert not np.array_equal(one, three)
-    assert np.isclose(np.sum(three ** 2), np.sum(one ** 2), rtol=0.1)
-
-
-def test_a_caller_pool_traces_the_same_rays_as_an_own_pool():
-    from concurrent.futures import ProcessPoolExecutor
-
-    g = uniform()
-    own = traced_uniform(g, max_order=2, n_jobs=2, seed=4)
-    with ProcessPoolExecutor(2) as pool:
-        shared = traced_uniform(g, max_order=2, n_jobs=2, seed=4, executor=pool)
-    np.testing.assert_array_equal(shared, own)
-
-
-def test_n_jobs_must_be_positive():
-    with pytest.raises(ValueError, match="n_jobs"):
-        traced_uniform(uniform(), n_jobs=0)
-
-
 def test_the_duration_must_be_positive():
     with pytest.raises(ValueError, match="duration"):
         traced_uniform(uniform(), duration=0.0)
@@ -164,7 +132,7 @@ def test_ray_tracing_returns_mono_responses_at_48_khz():
     assert ir.ir.shape == (24000,)
     expected = {"method": "pyroomacoustics", "scale": "package", "ray_tracing": True, "air_absorption": True, "image_source_order": 2}
     assert expected.items() <= ir.generation.items()
-    assert ir.sample_rate == FS
+    assert ir.sampling_rate == FS
     assert scene.impulse_responses("data") == rirs
     assert scene.get_impulse_response(ir.source, ir.receiver) is ir
 
@@ -258,18 +226,13 @@ def test_a_slow_image_source_search_warns_before_it_starts(monkeypatch):
         scene.simulate(Method(image_source_order=6))
 
 
-def test_parallel_slices_trace_in_the_medium():
+def test_ray_tracing_runs_in_the_medium():
     from compas_acoustics import AirConditions
 
-    # The worker processes must build their rooms in the air, not at 343 m/s. Seeded as
-    # test_parallel_slices_are_the_same_rays_without_scattering: compute_rir draws the tail's noise.
     g = geometry(SMOOTH)
-    air = AirConditions(temperature=0.0)
-    (one,), = traced(g, air=air, n_jobs=1, seed=42)
-    (two,), = traced(g, air=air, n_jobs=2, seed=42)
-    np.testing.assert_allclose(two, one, rtol=0.0, atol=1e-5 * np.abs(one).max())
-    (legacy,), = traced(g, n_jobs=1, seed=42)
-    assert not np.allclose(one, legacy)
+    (cold,), = traced(g, air=AirConditions(temperature=0.0), seed=42)
+    (legacy,), = traced(g, seed=42)
+    assert not np.allclose(cold, legacy)
 
 
 def test_the_default_duration_follows_the_medium():

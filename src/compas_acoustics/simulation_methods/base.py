@@ -70,10 +70,8 @@ class SimulationContext:
     outside: list = field(default_factory=list)  # names of sources and receivers outside the room
 
     @classmethod
-    def from_scene(cls, scene, sampling_rate: int = 48000) -> "SimulationContext":
-        """The scene as every method sees it: its room, and the sources and receivers inside it."""
-        if sampling_rate <= 0 or int(sampling_rate) != sampling_rate:
-            raise ValueError(f"sampling_rate must be a positive whole number of hertz, got {sampling_rate!r}")
+    def from_scene(cls, scene) -> "SimulationContext":
+        """The scene as every method sees it: its room, at its sampling rate, and the sources and receivers inside it."""
         geometry = RoomGeometry.from_scene(scene)
         sources, receivers, outside = [], [], []
         for kind, items, inside in (("Source", scene.sources, sources), ("Receiver", scene.receivers, receivers)):
@@ -89,7 +87,7 @@ class SimulationContext:
                 if np.linalg.norm(np.subtract(source.position, receiver.position)) < 1e-3:
                     raise ValueError(f"Source '{source.name}' and receiver '{receiver.name}' are at the same position; move one of them.")
         return cls(scene=scene, geometry=geometry, sources=sources, receivers=receivers,
-                   sampling_rate=int(sampling_rate), outside=outside)
+                   sampling_rate=scene.sampling_rate, outside=outside)
 
     @staticmethod
     def key(source, receiver) -> str:

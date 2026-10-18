@@ -37,7 +37,7 @@ __all__ = ["Hybrid", "TAILS"]
 TAILS = ("reference", "ray_tracing", "eyring", "sabine")
 
 # The 8 kHz octave's upper edge must lie below Nyquist for pyFDN's band estimator.
-_MIN_SAMPLE_RATE = 2.0 * 8000.0 * np.sqrt(2.0)
+_MIN_SAMPLING_RATE = 2.0 * 8000.0 * np.sqrt(2.0)
 
 
 def _self_reference(air_absorption: bool) -> Pyroomacoustics:
@@ -183,7 +183,7 @@ class Hybrid(SimulationMethod):
     def compute(self, context: SimulationContext) -> dict:
         fs = context.sampling_rate
         geometry = context.geometry
-        if fs <= _MIN_SAMPLE_RATE:
+        if fs <= _MIN_SAMPLING_RATE:
             raise ValueError(
                 f"the hybrid method needs a sample rate above 22627 Hz, got {fs}: the 8 kHz octave's "
                 "upper edge must lie below Nyquist for the decay estimator"
@@ -284,7 +284,7 @@ class Hybrid(SimulationMethod):
                 )
                 self.results[key] = result
                 rirs[key] = ImpulseResponse(
-                    name=key, source=source, receiver=receiver, ir=result.rir, sample_rate=fs,
+                    name=key, source=source, receiver=receiver, ir=result.rir, sampling_rate=fs,
                     normalized=self.normalize,
                     generation=generation, ambisonic_order=self.sh_order,
                     normalisation=self.normalization.lower(), channel_order="acn",
@@ -318,7 +318,7 @@ class Hybrid(SimulationMethod):
             hrtf, filters = sets[fs]
             source, receiver = self._pairs[key]
             rirs[key] = ImpulseResponse(
-                name=key, source=source, receiver=receiver, ir=binaural_rir(result, hrtf, filters), sample_rate=fs,
+                name=key, source=source, receiver=receiver, ir=binaural_rir(result, hrtf, filters), sampling_rate=fs,
                 normalized=self.normalize, generation=dict(self._generation, output="binaural", hrtf=path.name),
             )
         return rirs
@@ -350,8 +350,8 @@ class Hybrid(SimulationMethod):
                             else "; references are matched by source and receiver, so they must come from this scene")
                     raise ValueError(f"the reference has no response for '{receiver.name}' and '{source.name}'{hint}")
                 response = references[key]
-                if response.sample_rate != fs:
-                    raise ValueError(f"reference '{key}' has sample rate {response.sample_rate}; the simulation runs at {fs}")
+                if response.sampling_rate != fs:
+                    raise ValueError(f"reference '{key}' has sample rate {response.sampling_rate}; the simulation runs at {fs}")
                 if response.n_channels != 1:
                     raise ValueError(f"reference '{key}' is not a mono response; pass a Pyroomacoustics result")
                 if response.generation.get("scale") != "package":

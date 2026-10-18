@@ -80,14 +80,14 @@ def source_to_pra(src : Source) -> pra.SoundSource:
 
 def receivers_to_pra_mic_array(
     receivers: Union[Receiver, list[Receiver]],
-    sample_rate: Optional[int] = None,
+    sampling_rate: Optional[int] = None,
 ) -> pra.MicrophoneArray:
     """
     Convert compas_acoustics Receiver(s) to a pyroomacoustics MicrophoneArray,
     which is a (3, N) 2D numpy array.
     """
-    if sample_rate is None:
-        sample_rate = Defaults().SAMPLING_RATE
+    if sampling_rate is None:
+        sampling_rate = Defaults().SAMPLING_RATE
 
     if isinstance(receivers, Receiver):
         receivers = [receivers]
@@ -95,7 +95,7 @@ def receivers_to_pra_mic_array(
 
     return pra.MicrophoneArray(
         R=points_to_array(positions),
-        fs=sample_rate,
+        fs=sampling_rate,
         directivity=None  # TODO: Implement this
     )
 

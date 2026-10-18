@@ -55,15 +55,13 @@ class Pyroomacoustics(SimulationMethod):
         Radius of the ray-tracing receivers in metres.
     seed : int, optional
         Seeds pyroomacoustics' generator; ``None`` re-seeds with fresh entropy.
-    n_jobs : int, default=1
-        Processes per source for the ray tracer; keep 1 inside Rhino.
     normalize : bool, default=True
         Whether the returned responses are peak-normalised views.
     air : AirConditions, optional
         The air: its speed of sound and, with ``air_absorption``, its ISO 9613-1
         absorption. Without one, ``AirConditions()``: 20 C, 50 %, 101325 Pa.
 
-    The ray-tracing settings (``n_rays`` to ``n_jobs``) given away from their
+    The ray-tracing settings (``n_rays`` to ``seed``) given away from their
     defaults with ``ray_tracing=False`` raise a ``ValueError`` rather than
     being ignored.
     """
@@ -77,15 +75,14 @@ class Pyroomacoustics(SimulationMethod):
         "duration": None,
         "receiver_radius": 0.5,
         "seed": None,
-        "n_jobs": 1,
     }
 
     def __init__(self, image_source_order: int = 3, ray_tracing: bool = False, air_absorption: bool = True,
                  n_rays: Optional[int] = 20_000, energy_thres: float = 1e-8, duration: Optional[float] = None,
-                 receiver_radius: float = 0.5, seed: Optional[int] = None, n_jobs: int = 1, normalize: bool = True,
+                 receiver_radius: float = 0.5, seed: Optional[int] = None, normalize: bool = True,
                  air: Optional[AirConditions] = None):
         given = {"n_rays": n_rays, "energy_thres": energy_thres, "duration": duration,
-                 "receiver_radius": receiver_radius, "seed": seed, "n_jobs": n_jobs}
+                 "receiver_radius": receiver_radius, "seed": seed}
         if not ray_tracing:
             changed = sorted(k for k, v in given.items() if v != self._RAY_TRACING_DEFAULTS[k])
             if changed:
@@ -100,7 +97,6 @@ class Pyroomacoustics(SimulationMethod):
         self.duration = duration
         self.receiver_radius = receiver_radius
         self.seed = seed
-        self.n_jobs = n_jobs
         self.normalize = normalize
         self.air = air
 
@@ -140,7 +136,6 @@ class Pyroomacoustics(SimulationMethod):
                 energy_threshold=self.energy_thres,
                 air_absorption=self.air_absorption,
                 seed=self.seed,
-                n_jobs=self.n_jobs,
                 air=self.air,
             )
         else:
@@ -152,7 +147,7 @@ class Pyroomacoustics(SimulationMethod):
             for s, source in enumerate(context.sources):
                 key = context.key(source, receiver)
                 rirs[key] = ImpulseResponse(
-                    name=key, source=source, receiver=receiver, ir=responses[m][s], sample_rate=fs,
+                    name=key, source=source, receiver=receiver, ir=responses[m][s], sampling_rate=fs,
                     normalized=self.normalize,
                     generation=generation,
                 )

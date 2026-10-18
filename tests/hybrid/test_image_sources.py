@@ -29,7 +29,7 @@ def computed(sources, receivers, obstacles=(), order=2):
     room = geometry.to_pra(FS, order)
     for source in sources:
         room.add_soundsource(source_to_pra(source))
-    room.add_microphone_array(receivers_to_pra_mic_array(receivers, sample_rate=FS))
+    room.add_microphone_array(receivers_to_pra_mic_array(receivers, sampling_rate=FS))
     room.image_source_model()
     return geometry, room
 

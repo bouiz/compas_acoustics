@@ -35,7 +35,7 @@ def setup(panel=False):
     source, receiver = Source("s", 2.0, 4.0, 1.5), Receiver("r", 8.0, 4.0, 1.5)
     room = geometry.to_pra(FS, MAX_ORDER)
     room.add_soundsource(source_to_pra(source))
-    room.add_microphone_array(receivers_to_pra_mic_array(receiver, sample_rate=FS))
+    room.add_microphone_array(receivers_to_pra_mic_array(receiver, sampling_rate=FS))
     room.image_source_model()
     spec = Pair(geometry, source.position, receiver.position, receiver.rotation, float(FS))
     return spec, image_sources(room, 0, 0, spec)

@@ -166,7 +166,7 @@ def test_strength_matches_inverse_distance_law():
     assert result["G_overall"] == pytest.approx(20.0, abs=0.01)
 
 
-def test_strength_rejects_mismatched_sample_rates():
+def test_strength_rejects_mismatched_sampling_rates():
     from compas_acoustics import ImpulseResponse
     from compas_acoustics import Receiver
     from compas_acoustics import Source

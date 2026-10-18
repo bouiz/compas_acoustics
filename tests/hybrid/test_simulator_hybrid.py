@@ -59,7 +59,7 @@ def test_one_ambisonic_response_per_pair():
     for key, ir in rirs.items():
         assert ir.ir.shape == (int(0.5 * FS), 4)
         assert (ir.ambisonic_order, ir.normalisation, ir.channel_order) == (1, "sn3d", "acn")
-        assert ir.sample_rate == FS
+        assert ir.sampling_rate == FS
         assert scene.get_impulse_response(ir.source, ir.receiver, attribute="hybrid") is ir
         assert hybrid.results[key].normalization == "SN3D"
     assert scene.impulse_responses("hybrid") == rirs
@@ -86,7 +86,7 @@ def test_references_at_another_rate_raise():
     scene = make()
     refs = references(scene)
     for ir in refs.values():
-        ir.sample_rate = 16000
+        ir.sampling_rate = 16000
     with pytest.raises(ValueError, match="sample rate"):
         scene.simulate(Hybrid(refs, **FAST))
 
@@ -240,10 +240,11 @@ def test_a_receiver_outside_the_room_raises():
         scene.simulate(Hybrid(refs, **FAST))
 
 
-def test_a_sample_rate_too_low_for_the_8_khz_octave_raises():
+def test_a_sampling_rate_too_low_for_the_8_khz_octave_raises():
     scene = make()
+    scene.sampling_rate = 16000
     with pytest.raises(ValueError, match="22627"):
-        scene.simulate(Hybrid({}, **FAST), sampling_rate=16000)
+        scene.simulate(Hybrid({}, **FAST))
 
 
 def test_decay_db_reaches_the_target():

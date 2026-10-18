@@ -10,6 +10,7 @@ import pytest
 
 from compas_acoustics import AcousticMaterial
 from compas_acoustics import AcousticObjectsLibrary
+from compas_acoustics import Pyroomacoustics
 from compas_acoustics import Receiver
 from compas_acoustics import Scene
 from compas_acoustics import Source
@@ -125,7 +126,7 @@ def test_a_receiver_facing_up_is_an_error_not_a_traceback(monkeypatch):
 def capture(monkeypatch):
     calls = []
 
-    def simulate(self, method, sampling_rate=48000):
+    def simulate(self, method):
         calls.append(vars(method).copy())
         return {}
 
@@ -142,14 +143,14 @@ def method_defaults(**changes):
 def test_empty_inputs_leave_the_method_defaults(monkeypatch):
     module, _ = load_component("CA_Simulate_Ray_Trace", monkeypatch)
     calls = capture(monkeypatch)
-    module.SimulateRayTracing().RunScript(scene(), None, None, None, None, None, None, None, None, None)
+    module.SimulateRayTracing().RunScript(scene(), None, None, None, None, None, None, None, None)
     assert calls == [method_defaults(ray_tracing=True)]
 
 
 def test_given_inputs_are_passed_through(monkeypatch):
     module, _ = load_component("CA_Simulate_Ray_Trace", monkeypatch)
     calls = capture(monkeypatch)
-    module.SimulateRayTracing().RunScript(scene(), None, 4, True, 5000, False, 1e-7, 2.0, 3, False)
+    module.SimulateRayTracing().RunScript(scene(), 4, True, 5000, False, 1e-7, 2.0, 3, False)
     assert calls == [method_defaults(image_source_order=4, ray_tracing=True, n_rays=5000, air_absorption=False,
                                      energy_thres=1e-7, duration=2.0, seed=3, normalize=False)]
 
@@ -157,21 +158,23 @@ def test_given_inputs_are_passed_through(monkeypatch):
 def test_without_ray_tracing_the_ray_inputs_are_dropped_with_a_remark(monkeypatch):
     module, messages = load_component("CA_Simulate_Ray_Trace", monkeypatch)
     calls = capture(monkeypatch)
-    module.SimulateRayTracing().RunScript(scene(), None, 3, False, 5000, None, None, None, 3, None)
+    module.SimulateRayTracing().RunScript(scene(), 3, False, 5000, None, None, None, 3, None)
     assert calls == [method_defaults(image_source_order=3, ray_tracing=False)]
     assert messages and "n_rays" in messages[0]
 
 
-def test_a_float_sample_rate_is_accepted(monkeypatch):
+def test_the_message_shows_the_scenes_sampling_rate(monkeypatch):
     module, _ = load_component("CA_Simulate_Ray_Trace", monkeypatch)
     capture(monkeypatch)
-    module.SimulateRayTracing().RunScript(scene(), 44100.0, None, None, None, None, None, None, None, None)
+    s = scene()
+    s.sampling_rate = 44100
+    module.SimulateRayTracing().RunScript(s, None, None, None, None, None, None, None, None)
     assert module.ghenv.Component.Message.startswith("44100Hz")
 
 
 def test_a_missing_scene_warns(monkeypatch):
     module, messages = load_component("CA_Simulate_Ray_Trace", monkeypatch)
-    assert module.SimulateRayTracing().RunScript(None, None, None, None, None, None, None, None, None, None) is None
+    assert module.SimulateRayTracing().RunScript(None, None, None, None, None, None, None, None, None) is None
     assert messages and "scene" in messages[0]
 
 
@@ -211,6 +214,45 @@ def test_deconstruct_reads_a_named_method(monkeypatch):
     assert irs.branches == {(0,): [ambisonic]}
 
 
+# -------------------------------------------------------------- Analyse IR --
+def test_analyse_ir_leaves_out_sti_and_g(monkeypatch):
+    class AcousticParameter:
+        NAMES = ("EDT", "T20", "T30", "C50", "C80", "D50", "DRR", "Ts")
+
+        def from_analyser(self, analyser, name):
+            return name
+
+    monkeypatch.setitem(sys.modules, "compas_acoustics_ghpython", types.SimpleNamespace(AcousticParameter=AcousticParameter))
+    module, messages = load_component("CA_Analyse_IR", monkeypatch)
+    ir = next(iter(scene().simulate(Pyroomacoustics(image_source_order=2)).values()))
+    assert module.AnalyseIR().RunScript(ir) == ["EDT", "T20", "T30", "C50", "C80", "D50", "DRR", "Ts"]
+
+
+def test_the_plotter_offers_only_the_parameters_grasshopper_can_compute(monkeypatch):
+    from compas_acoustics import AcousticAnalyser
+
+    from unittest.mock import MagicMock
+
+    rhino = MagicMock()
+    monkeypatch.setitem(sys.modules, "Rhino", rhino)
+    monkeypatch.setitem(sys.modules, "Rhino.Geometry", rhino.Geometry)
+    try:
+        from compas_acoustics_ghpython import AcousticParameter
+
+        ir = next(iter(scene().simulate(Pyroomacoustics(image_source_order=2)).values()))
+        analyser = AcousticAnalyser(ir)
+        analyser.analyse()
+        assert AcousticParameter.NAMES == ("EDT", "T20", "T30", "C50", "C80", "D50", "DRR", "Ts")
+        parameter = AcousticParameter.from_analyser(analyser, "D50")
+        assert (parameter.title, parameter.x_unit, parameter.y_unit) == ("Definition (D50)", "Frequency (Hz)", "Value (%)")
+        for name in ("STI", "G"):
+            with pytest.raises(ValueError, match="not available in Grasshopper"):
+                AcousticParameter.from_analyser(analyser, name)
+    finally:
+        for name in [m for m in sys.modules if m.startswith("compas_acoustics_ghpython")]:
+            del sys.modules[name]
+
+
 # ---------------------------------------------------------- Simulate Hybrid --
 def fake_hybrid(monkeypatch, warn=None):
     """Stand-in for compas_acoustics.simulation_methods.Hybrid, so the component is tested without pyFDN."""
@@ -228,7 +270,7 @@ def fake_hybrid(monkeypatch, warn=None):
             self.tail = kwargs.get("tail") or ("reference" if kwargs.get("reference") else "ray_tracing")
             self.sh_order = kwargs.get("sh_order", 1)
 
-    def simulate(self, method, sampling_rate=48000):
+    def simulate(self, method):
         if warn:
             warnings.warn(warn, UserWarning)
         return {}
@@ -240,7 +282,8 @@ def fake_hybrid(monkeypatch, warn=None):
 
 
 def run_hybrid(module, s, **inputs):
-    names = ("tail", "reference", "sample_rate", "sh_order", "image_source_order", "diffraction", "late_envelope", "seed", "normalize")
+    inputs.setdefault("run", True)
+    names = ("run", "tail", "reference", "sh_order", "image_source_order", "diffraction", "late_envelope", "seed", "normalize")
     return module.SimulateHybrid().RunScript(s, *(inputs.get(n) for n in names))
 
 
@@ -259,15 +302,36 @@ def test_simulate_hybrid_without_the_extra_runs_in_a_configured_worker(monkeypat
     monkeypatch.setattr(worker, "worker_python", lambda: "/a/worker/python")
     calls = []
 
-    def simulate(scene, method, settings, fs, references):
-        calls.append((method, settings, fs, references))
+    def simulate(scene, method, settings, references):
+        calls.append((method, settings, references))
         return {}, ["a warning from the worker"]
 
     monkeypatch.setattr(worker, "simulate", simulate)
     s = scene()
     assert run_hybrid(module, s, tail="eyring") is s.ir_graph
-    assert calls == [("hybrid", {"tail": "eyring"}, 48000, None)]
+    assert calls == [("hybrid", {"tail": "eyring"}, None)]
     assert ("warning", "a warning from the worker") in messages
+
+
+@needs_hybrid
+def test_the_hybrid_runs_only_when_run_is_pressed(monkeypatch):
+    module, messages = load_component("CA_Simulate_Hybrid", monkeypatch, levels=True)
+    calls = fake_hybrid(monkeypatch)
+    s = scene()
+    for run in (None, False):
+        assert run_hybrid(module, s, run=run) is s.ir_graph
+    assert calls == [] and module.ghenv.Component.Message == "press Run"
+    assert not messages
+    run_hybrid(module, s, run=True)
+    assert calls == [{}]
+
+
+def test_not_running_does_not_need_the_hybrid_extra(monkeypatch):
+    module, messages = load_component("CA_Simulate_Hybrid", monkeypatch, levels=True)
+    monkeypatch.setitem(sys.modules, "compas_acoustics.simulation_methods.hybrid", None)
+    s = scene()
+    assert run_hybrid(module, s, run=False) is s.ir_graph
+    assert not messages
 
 
 @needs_hybrid
@@ -306,12 +370,13 @@ def test_a_missing_reference_method_is_an_error(monkeypatch):
 
 
 @needs_hybrid
-def test_the_sample_rate_follows_the_reference(monkeypatch):
+def test_a_reference_at_another_rate_than_the_scene_is_an_error(monkeypatch):
     module, messages = load_component("CA_Simulate_Hybrid", monkeypatch, levels=True)
     fake_hybrid(monkeypatch)
     s, _, _ = graph_with_methods()
-    assert run_hybrid(module, s, reference="pyroomacoustics", sample_rate=44100) is None
-    assert messages and messages[0][0] == "error" and "48000" in messages[0][1]
+    s.sampling_rate = 44100
+    assert run_hybrid(module, s, reference="pyroomacoustics") is None
+    assert messages and messages[0][0] == "error" and "48000" in messages[0][1] and "44100" in messages[0][1]
 
 
 @needs_hybrid
@@ -348,10 +413,10 @@ def test_the_ray_tracing_component_shows_warnings(monkeypatch):
 
     module, messages = load_component("CA_Simulate_Ray_Trace", monkeypatch, levels=True)
 
-    def simulate(self, method, sampling_rate=48000):
+    def simulate(self, method):
         warnings.warn("Receiver 'x' is outside the room and will not be simulated.", UserWarning)
         return {}
 
     monkeypatch.setattr(Scene, "simulate", simulate)
-    module.SimulateRayTracing().RunScript(scene(), None, None, None, None, None, None, None, None, None)
+    module.SimulateRayTracing().RunScript(scene(), None, None, None, None, None, None, None, None)
     assert ("warning", "Receiver 'x' is outside the room and will not be simulated.") in messages

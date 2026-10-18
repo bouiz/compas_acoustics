@@ -130,7 +130,7 @@ def test_the_direct_sound_arrives_at_the_mediums_speed():
     air = AirConditions(temperature=0.0)
     (ir,) = _scene().simulate(Pyroomacoustics(air=air)).values()
     distance = float(np.linalg.norm(np.subtract(ir.receiver.position, ir.source.position)))
-    expected = round(distance / air.speed_of_sound * ir.sample_rate)
+    expected = round(distance / air.speed_of_sound * ir.sampling_rate)
     assert ir.direct_sound_index() == expected
     assert abs(int(np.argmax(np.abs(ir.denormalized()))) - expected) <= 1
     assert ir.generation["air"] == air.to_dict()

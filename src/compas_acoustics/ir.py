@@ -38,7 +38,7 @@ class ImpulseResponse(Data):
         The receiver.
     ir : np.ndarray
         The raw impulse response, shaped (samples,) or (samples, channels).
-    sample_rate : int
+    sampling_rate : int
         The sample rate in Hz.
     normalized : bool, optional
         Whether :attr:`ir` returns the peak-normalised response. Default is True.
@@ -54,7 +54,7 @@ class ImpulseResponse(Data):
         The ambisonic channel order, ``'acn'``.
     """
 
-    def __init__(self, name: str, source: Source, receiver: Receiver, ir: np.ndarray, sample_rate: int,
+    def __init__(self, name: str, source: Source, receiver: Receiver, ir: np.ndarray, sampling_rate: int,
                  normalized: bool = True, generation: dict = None, ambisonic_order: int = None, normalisation: str = None,
                  channel_order: str = None):
         super().__init__(name=name)
@@ -62,7 +62,7 @@ class ImpulseResponse(Data):
         self.receiver = receiver
         self.description = f"{receiver.name} - {source.name}"
         self.ir = ir
-        self.sample_rate = sample_rate
+        self.sampling_rate = sampling_rate
         self.normalized = normalized
         self.generation = dict(generation) if generation else {}
         self.ambisonic_order = ambisonic_order
@@ -148,12 +148,12 @@ class ImpulseResponse(Data):
         return dict(zip(impulse_responses.keys(), scaled)) if is_dict else scaled
 
 
-    def resampled(self, target_sample_rate: int, method: str = "poly") -> NDArray[np.float64]:
-        """Return :attr:`ir` resampled to ``target_sample_rate``, every channel along axis 0.
+    def resampled(self, target_sampling_rate: int, method: str = "poly") -> NDArray[np.float64]:
+        """Return :attr:`ir` resampled to ``target_sampling_rate``, every channel along axis 0.
 
         Parameters
         ----------
-        target_sample_rate : int
+        target_sampling_rate : int
             Target sample rate in Hz.
         method : str, default="poly"
             Resampling method: "poly" or "fft".
@@ -165,17 +165,17 @@ class ImpulseResponse(Data):
         """
         ir_array = np.asarray(self.ir, dtype=np.float64)
 
-        if self.sample_rate == target_sample_rate:
+        if self.sampling_rate == target_sampling_rate:
             return ir_array.copy()
 
         if method == "poly":
-            g = gcd(int(self.sample_rate), int(target_sample_rate))
-            up = int(target_sample_rate) // g
-            down = int(self.sample_rate) // g
+            g = gcd(int(self.sampling_rate), int(target_sampling_rate))
+            up = int(target_sampling_rate) // g
+            down = int(self.sampling_rate) // g
             return signal.resample_poly(ir_array, up, down, axis=0)
 
         if method == "fft":
-            new_len = int(round(len(ir_array) * target_sample_rate / self.sample_rate))
+            new_len = int(round(len(ir_array) * target_sampling_rate / self.sampling_rate))
             return signal.resample(ir_array, new_len, axis=0)
 
         raise ValueError("method must be 'poly' or 'fft'")
@@ -192,7 +192,7 @@ class ImpulseResponse(Data):
         if self.generation.get("scale") == "package":
             c = speed_of_sound or self.generation.get("speed_of_sound") or Defaults().DEFAULT_SPEED_OF_SOUND
             distance = float(np.linalg.norm(np.subtract(self.receiver.position, self.source.position)))
-            return int(round(distance / c * self.sample_rate))
+            return int(round(distance / c * self.sampling_rate))
         omni = self._raw_ir if self._raw_ir.ndim == 1 else self._raw_ir[:, 0]
         return int(np.argmax(omni ** 2))
 
@@ -210,7 +210,7 @@ class ImpulseResponse(Data):
             'created': datetime.now(timezone.utc).isoformat(timespec='seconds'),
             'name': self.name,
             'description': self.description,
-            'sample_rate': self.sample_rate,
+            'sampling_rate': self.sampling_rate,
             'samples': int(self._raw_ir.shape[0]),
             'channels': self.n_channels,
             'generation': self.generation,
@@ -262,7 +262,7 @@ class ImpulseResponse(Data):
 
         wav_path = Path(filepath)
         json_path = wav_path.with_suffix('.json')
-        sf.write(str(wav_path), self._raw_ir / self.normalization_factor, int(self.sample_rate), subtype='FLOAT')
+        sf.write(str(wav_path), self._raw_ir / self.normalization_factor, int(self.sampling_rate), subtype='FLOAT')
         json_path.write_text(json.dumps(self.metadata, indent=4))
         return wav_path, json_path
 
@@ -291,7 +291,7 @@ class ImpulseResponse(Data):
 
         wav_path = Path(filepath)
         json_path = wav_path.with_suffix('.json')
-        data, sample_rate = sf.read(str(wav_path), dtype='float64')
+        data, sampling_rate = sf.read(str(wav_path), dtype='float64')
         metadata = json.loads(json_path.read_text()) if json_path.exists() else {}
 
         normalization = metadata.get('normalization', {})
@@ -313,7 +313,7 @@ class ImpulseResponse(Data):
             source=source,
             receiver=receiver,
             ir=data,
-            sample_rate=sample_rate,
+            sampling_rate=sampling_rate,
             normalized=normalized,
             generation=metadata.get('generation'),
             ambisonic_order=ambisonics.get('order'),

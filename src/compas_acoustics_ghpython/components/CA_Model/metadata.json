@@ -39,6 +39,13 @@
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "str"
+            },
+            {
+                "name": "sampling_rate",
+                "description": "Sample rate in Hz at which the scene is simulated, by every simulation component (default 48000). A hybrid's reference must have been simulated at the same rate.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "int"
             }
         ],
         "outputParameters": [

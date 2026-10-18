@@ -107,36 +107,19 @@ def test_the_worker_starts_without_the_clients_python_path(tmp_path, monkeypatch
 def test_simulate_in_the_worker_matches_simulating_here(running_worker):
     s = scene()
     here = s.simulate(Pyroomacoustics(image_source_order=2))
-    there, messages = worker.simulate(s, "pyroomacoustics", {"image_source_order": 2}, 48000)
+    there, messages = worker.simulate(s, "pyroomacoustics", {"image_source_order": 2})
     assert sorted(there) == sorted(here)
     for key in here:
         expected = here[key].denormalized()
         np.testing.assert_allclose(there[key].denormalized(), expected, atol=1e-6 * np.max(np.abs(expected)))
-        assert there[key].sample_rate == here[key].sample_rate
+        assert there[key].sampling_rate == here[key].sampling_rate
     assert isinstance(messages, list)
-
-
-@needs_worker
-def test_analyse_without_sti_support_asks_the_worker(running_worker, monkeypatch):
-    import compas_acoustics.analyser as analyser_module
-
-    ir = next(iter(scene().simulate(Pyroomacoustics(image_source_order=2)).values()))
-    monkeypatch.setattr(analyser_module, "_STI_SUPPORTED", False)
-    analyser = worker.analyse(ir)
-    assert np.isfinite(analyser.analysis_data["STI_overall"])
-    assert np.isfinite(analyser.analysis_data["G_overall"])
-
-
-def test_analyse_without_a_worker_is_the_local_analysis():
-    ir = next(iter(scene().simulate(Pyroomacoustics(image_source_order=2)).values()))
-    analyser = worker.analyse(ir)
-    assert analyser.analysis_data.keys() == compas_acoustics.AcousticAnalyser(ir).analyse().keys()
 
 
 def first_order_auraliser():
     ir = np.zeros((4800, 4))
     ir[100, :] = [1.0, 0.5, 0.0, 0.0]
-    data = {"ir": ir, "sample_rate": 48000, "ambisonic_order": 1, "channel_order": "acn", "normalisation": "sn3d"}
+    data = {"ir": ir, "sampling_rate": 48000, "ambisonic_order": 1, "channel_order": "acn", "normalisation": "sn3d"}
     return Auraliser("a", {"s": data}, {"s": {"filepath": VIOLA}}, output_format="binaural")
 
 
@@ -156,7 +139,7 @@ def test_the_hybrid_runs_in_the_worker(running_worker):
     if not running_worker.info()["hybrid"]:
         pytest.skip("the worker has no hybrid extra")
     s = scene()
-    rirs, _ = worker.simulate(s, "hybrid", {"tail": "eyring"}, 48000)
+    rirs, _ = worker.simulate(s, "hybrid", {"tail": "eyring"})
     ir = next(iter(rirs.values()))
     assert ir.ambisonic_order == 1 and ir.n_channels == 4
     assert ir.normalisation is not None and ir.channel_order is not None

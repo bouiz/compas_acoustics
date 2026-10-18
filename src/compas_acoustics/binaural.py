@@ -33,7 +33,7 @@ _BINAURAL_FILTERS_CACHE = {}
 DEFAULT_HRTF = Path(Defaults().HRTF_LIBRARY_PATH) / "KEMAR_Knowl_EarSim_SmallEars_FreeFieldComp_48kHz.sofa"
 
 
-def magls_filters(hrtf_path, sample_rate, order):
+def magls_filters(hrtf_path, sampling_rate, order):
     """Magnitude least-squares (MagLS) binaural decoding filters up to ``order``, in ACN/SN3D.
 
     Below a transition frequency of ``order * 600`` Hz the filters are the least-squares
@@ -62,17 +62,17 @@ def magls_filters(hrtf_path, sample_rate, order):
             "use output_format='stereo' or 'mono' there."
         ) from error
 
-    key = (str(Path(hrtf_path).resolve()), sample_rate, order)
+    key = (str(Path(hrtf_path).resolve()), sampling_rate, order)
     if key in _BINAURAL_FILTERS_CACHE:
         return _BINAURAL_FILTERS_CACHE[key]
 
     hrirs, directions, _ = pf.io.read_sofa(str(hrtf_path), verbose=False)
-    if hrirs.sampling_rate != sample_rate:
-        hrirs = pf.dsp.resample(hrirs, sample_rate, match_amplitude='freq')
+    if hrirs.sampling_rate != sampling_rate:
+        hrirs = pf.dsp.resample(hrirs, sampling_rate, match_amplitude='freq')
     n_samples = hrirs.n_samples
     n_fft = max(1024, n_samples)
     hrtfs = np.fft.rfft(hrirs.time, n=n_fft)  # (directions, 2, bins)
-    freqs = np.fft.rfftfreq(n_fft, 1 / sample_rate)
+    freqs = np.fft.rfftfreq(n_fft, 1 / sampling_rate)
 
     # spharpy's SN3D includes 1/sqrt(4 pi); scale to the ambisonic SN3D convention (W = 1)
     Y = np.sqrt(4 * np.pi) * spharpy.spherical.spherical_harmonic_basis_real(
@@ -113,16 +113,16 @@ class HrtfSet:
 
     hrirs: np.ndarray
     directions: np.ndarray
-    sample_rate: int
+    sampling_rate: int
 
     @classmethod
-    def from_sofa(cls, path, sample_rate: int) -> HrtfSet:
-        """Read a SOFA HRIR set, resampled to ``sample_rate`` as :func:`magls_filters` resamples it."""
+    def from_sofa(cls, path, sampling_rate: int) -> HrtfSet:
+        """Read a SOFA HRIR set, resampled to ``sampling_rate`` as :func:`magls_filters` resamples it."""
         hrirs, directions, _ = pf.io.read_sofa(str(path), verbose=False)
-        if hrirs.sampling_rate != sample_rate:
-            hrirs = pf.dsp.resample(hrirs, sample_rate, match_amplitude="freq")
+        if hrirs.sampling_rate != sampling_rate:
+            hrirs = pf.dsp.resample(hrirs, sampling_rate, match_amplitude="freq")
         xyz = np.asarray(directions.cartesian, dtype=float)
-        return cls(np.asarray(hrirs.time, dtype=float), xyz / np.linalg.norm(xyz, axis=1, keepdims=True), int(sample_rate))
+        return cls(np.asarray(hrirs.time, dtype=float), xyz / np.linalg.norm(xyz, axis=1, keepdims=True), int(sampling_rate))
 
     def nearest(self, doa) -> np.ndarray:
         """Index of the measured direction nearest each direction of arrival, by angle."""
@@ -179,8 +179,8 @@ def render_early_binaural(result, hrtf: HrtfSet, n_samples: int | None = None) -
 
     if result.images is None:
         raise ValueError("this HybridResult does not hold its early paths; synthesise it again")
-    if hrtf.sample_rate != int(result.fs):
-        raise ValueError(f"the HRTF set has sample rate {hrtf.sample_rate}; the response has {result.fs}")
+    if hrtf.sampling_rate != int(result.fs):
+        raise ValueError(f"the HRTF set has sample rate {hrtf.sampling_rate}; the response has {result.fs}")
     n = result.early.shape[0] if n_samples is None else int(n_samples)
     nfft, freq = _fft_grid(n, result.fs)
     out = np.zeros((n, 2))

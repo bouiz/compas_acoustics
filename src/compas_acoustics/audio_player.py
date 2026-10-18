@@ -20,7 +20,7 @@ class AudioPlayer:
         The type of sound being played. It can be 'file' for audio files or 'array' for audio signals represented as numpy arrays.
     """
 
-    DEFAULT_SAMPLE_RATE = Defaults().SAMPLING_RATE
+    DEFAULT_SAMPLING_RATE = Defaults().SAMPLING_RATE
 
     def __init__(self):
         self.system = platform.system()
@@ -62,7 +62,7 @@ class AudioPlayer:
         else:
             raise NotImplementedError(f"Sound playback is not implemented for system {self.system}.")
 
-    def play_array(self, array, sample_rate, normalize=True):
+    def play_array(self, array, sampling_rate, normalize=True):
         """
         Play an audio signal represented as a numpy array.
 
@@ -70,7 +70,7 @@ class AudioPlayer:
         ----------
         array : numpy.ndarray
             The audio signal to play.
-        sample_rate : int
+        sampling_rate : int
             The sample rate of the audio signal.
         normalize : bool, optional
             Whether to scale the signal to a peak of 0.99. Disable it to play auralised
@@ -81,10 +81,10 @@ class AudioPlayer:
         self.stop()
 
         try:
-            if sample_rate is None:
-                sample_rate = self.DEFAULT_SAMPLE_RATE
+            if sampling_rate is None:
+                sampling_rate = self.DEFAULT_SAMPLING_RATE
 
-            sample_rate = int(sample_rate)
+            sampling_rate = int(sampling_rate)
             audio_data = np.asarray(array, dtype=np.float32)
 
             max_val = np.max(np.abs(audio_data))
@@ -93,15 +93,15 @@ class AudioPlayer:
             elif max_val > 1:
                 print(f"Warning: sound array peaks at {20 * np.log10(max_val):+.1f} dBFS and will clip.")
 
-            sd.check_output_settings(samplerate=sample_rate)
+            sd.check_output_settings(samplerate=sampling_rate)
 
-            sd.play(audio_data, sample_rate)
+            sd.play(audio_data, sampling_rate)
             self._active_player = sd
             self.sound_type = 'array'
         except Exception as e:
             print (f"Error playing sound array: {e}")
     
-    def play(self, sound, sample_rate=None, normalize=True):
+    def play(self, sound, sampling_rate=None, normalize=True):
         """
         Play sound based on its type.
         
@@ -109,7 +109,7 @@ class AudioPlayer:
         ----------
         sound : str or numpy.ndarray
             The sound to play. It can be a file path (str) or an audio signal (numpy.ndarray).
-        sample_rate : int, optional
+        sampling_rate : int, optional
             The sample rate of the audio signal. Required if sound is a numpy.ndarray.
         normalize : bool, optional
             Whether to scale a numpy.ndarray sound to a peak of 0.99. Default is True.
@@ -121,7 +121,7 @@ class AudioPlayer:
                 print(f"Error playing sound by type: {e}")
         elif hasattr(sound, "shape") and hasattr(sound, "ndim"):
             try:
-                self.play_array(sound, sample_rate, normalize)
+                self.play_array(sound, sampling_rate, normalize)
             except Exception as e:
                 print(f"Error playing sound by type: {e}")
 

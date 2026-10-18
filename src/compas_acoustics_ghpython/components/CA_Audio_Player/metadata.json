@@ -31,7 +31,7 @@
                 "typeHintID": "bool"
             },
             {
-                "name": "sample_rate",
+                "name": "sampling_rate",
                 "description": "Sample rate of a numpy array sound, in Hz, e.g. from the Auralise component. Default is the project sample rate.",
                 "optional": true,
                 "scriptParamAccess": 0,

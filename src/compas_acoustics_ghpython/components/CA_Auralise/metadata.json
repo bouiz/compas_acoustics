@@ -79,7 +79,7 @@
                 "description": "Auralised signal(s) in the output format, shaped (samples, channels)."
             },
             {
-                "name": "sample_rate",
+                "name": "sampling_rate",
                 "description": "Sample rate of each auralised signal, in Hz."
             }
         ]
