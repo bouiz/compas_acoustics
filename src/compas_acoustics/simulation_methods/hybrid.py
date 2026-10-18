@@ -104,8 +104,8 @@ class Hybrid(SimulationMethod):
         Air absorption on the image sources and diffracted paths. By default the
         reference's setting, or True without one. It must agree with the
         reference's, because the early field and the decay target share it.
-    seed : int, optional
-        Seeds the feedback matrices and delay jitter (0 when omitted).
+    seed : int, default=42
+        Seeds the feedback matrices and delay jitter, so that the same scene gives the same responses (``None`` is 42 too).
     normalize : bool, default=True
         Whether the returned responses are peak-normalised views.
     air : AirConditions, optional
@@ -131,7 +131,7 @@ class Hybrid(SimulationMethod):
     def __init__(self, reference=None, tail=None, sh_order=1, image_source_order=3, normalization="SN3D",
                  n_slopes=1, decay_db=30.0, duration=None, num_delays=None, drive_gain=None,
                  directional_absorption=True, late_envelope=None, diffraction=False,
-                 air_absorption=None, seed=None, normalize=True, air=None):
+                 air_absorption=None, seed=42, normalize=True, air=None):
         if tail is not None and tail not in TAILS:
             raise ValueError(f"tail must be None or one of {TAILS}, not {tail!r}")
         if reference is not None and not isinstance(reference, (str, dict, Pyroomacoustics)):
@@ -171,7 +171,7 @@ class Hybrid(SimulationMethod):
         self.late_envelope = self.tail not in ("eyring", "sabine") if late_envelope is None else bool(late_envelope)
         self.diffraction = model
         self.air_absorption = air_absorption
-        self.seed = seed
+        self.seed = 42 if seed is None else int(seed)
         self.normalize = normalize
         self.air = air
         self.reference_rirs = None
@@ -218,7 +218,7 @@ class Hybrid(SimulationMethod):
             )
             room.image_source_model()
         speed_of_sound = float(getattr(room, "c", 343.0))
-        rng = 0 if self.seed is None else int(self.seed)
+        rng = self.seed
         generation = {
             "method": self.name,
             "scale": "package",

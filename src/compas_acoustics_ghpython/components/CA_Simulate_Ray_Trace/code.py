@@ -61,7 +61,7 @@ class SimulateRayTracing(Grasshopper.Kernel.GH_ScriptInstance):
             given.get("image_source_order", "default"),
             given.get("n_rays", "default") if ray_tracing else "-",
             given.get("air_absorption", "default"),
-            ("random" if seed is None else seed) if ray_tracing else "-",
+            given.get("seed", "default") if ray_tracing else "-",
         )
 
         return scene.ir_graph

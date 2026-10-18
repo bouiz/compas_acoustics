@@ -320,7 +320,7 @@ class RayField(Data):
         scatter_density: int = 10,
         scatter_max_bounces: int = 1,
         scatter_band: Optional[int] = None,
-        random_seed: Optional[int] = None,
+        random_seed: int = 42,
     ):
         """Trace acoustic rays through the scene for visualisation.
 
@@ -364,8 +364,8 @@ class RayField(Data):
         scatter_band : int, optional
             Index of the frequency band whose scattering coefficient to use. Defaults
             to the mean across all bands.
-        random_seed : int, optional
-            Seed for the scattered-direction sampler, for reproducible results.
+        random_seed : int, default=42
+            Seed for the scattered-direction sampler, so that the same scene gives the same rays (``None`` is 42 too).
 
         Returns
         -------
@@ -396,7 +396,7 @@ class RayField(Data):
             else:
                 warnings.warn(f"Source '{source.name}' is outside the room and no rays will be traced from it.", UserWarning, stacklevel=2)
 
-        rng = np.random.default_rng(random_seed)
+        rng = np.random.default_rng(42 if random_seed is None else random_seed)
         if direction is None:
             directions = np.asarray(pra.fibonacci_spherical_sampling(n_rays)).T
         else:

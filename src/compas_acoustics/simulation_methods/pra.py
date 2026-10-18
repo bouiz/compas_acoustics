@@ -53,8 +53,9 @@ class Pyroomacoustics(SimulationMethod):
         their natural length.
     receiver_radius : float, default=0.5
         Radius of the ray-tracing receivers in metres.
-    seed : int, optional
-        Seeds pyroomacoustics' generator; ``None`` re-seeds with fresh entropy.
+    seed : int, default=42
+        Seeds pyroomacoustics' generator, so that the same scene gives the same responses (``None`` is 42 too).
+        The T30 spread between seeds is the ray tracer's own variance: change the seed to see it.
     normalize : bool, default=True
         Whether the returned responses are peak-normalised views.
     air : AirConditions, optional
@@ -74,13 +75,14 @@ class Pyroomacoustics(SimulationMethod):
         "energy_thres": 1e-8,
         "duration": None,
         "receiver_radius": 0.5,
-        "seed": None,
+        "seed": 42,
     }
 
     def __init__(self, image_source_order: int = 3, ray_tracing: bool = False, air_absorption: bool = True,
                  n_rays: Optional[int] = 20_000, energy_thres: float = 1e-8, duration: Optional[float] = None,
-                 receiver_radius: float = 0.5, seed: Optional[int] = None, normalize: bool = True,
+                 receiver_radius: float = 0.5, seed: int = 42, normalize: bool = True,
                  air: Optional[AirConditions] = None):
+        seed = 42 if seed is None else int(seed)
         given = {"n_rays": n_rays, "energy_thres": energy_thres, "duration": duration,
                  "receiver_radius": receiver_radius, "seed": seed}
         if not ray_tracing:
@@ -125,8 +127,6 @@ class Pyroomacoustics(SimulationMethod):
         sources = [source_to_pra(source) for source in context.sources]
         mic_positions = np.array([receiver.position for receiver in context.receivers], dtype=float).T
         if self.ray_tracing:
-            if self.seed is None:
-                pra.random.seed()
             responses = ray_traced_rirs(
                 context.geometry, sources, mic_positions, fs,
                 max_order=self.image_source_order,

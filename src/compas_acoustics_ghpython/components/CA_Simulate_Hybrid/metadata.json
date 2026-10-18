@@ -67,7 +67,7 @@
             },
             {
                 "name": "seed",
-                "description": "Seed of the feedback matrices and delay jitter (default 0).",
+                "description": "Seed of the feedback matrices and delay jitter (default 42): the same scene gives the same responses.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "int"

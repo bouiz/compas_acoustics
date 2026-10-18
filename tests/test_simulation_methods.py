@@ -4,6 +4,7 @@ import pytest
 from compas_acoustics import AcousticMaterial
 from compas_acoustics import AcousticObjectsLibrary
 from compas_acoustics import ImpulseResponse
+from compas_acoustics import Pyroomacoustics
 from compas_acoustics import Receiver
 from compas_acoustics import Scene
 from compas_acoustics import Source
@@ -156,6 +157,20 @@ def test_a_rate_that_is_not_a_positive_whole_number_raises(rate):
     with pytest.raises(ValueError, match="whole number"):
         s.sampling_rate = rate
     assert s.sampling_rate == 48000
+
+
+def traced_responses(**kwargs):
+    method = Pyroomacoustics(ray_tracing=True, n_rays=2000, duration=0.5, **kwargs)
+    return {ir.receiver.name: ir.denormalized() for ir in scene().simulate(method).values()}
+
+
+def test_the_seed_defaults_to_42_so_that_a_scene_gives_the_same_responses():
+    assert Pyroomacoustics().seed == 42 and Pyroomacoustics(seed=None).seed == 42
+    default, again, none, other = traced_responses(), traced_responses(), traced_responses(seed=None), traced_responses(seed=7)
+    for name in default:
+        np.testing.assert_array_equal(again[name], default[name])
+        np.testing.assert_array_equal(none[name], default[name])
+        assert not np.array_equal(other[name], default[name])
 
 
 def test_a_scene_without_receivers_returns_nothing():

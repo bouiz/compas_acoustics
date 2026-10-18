@@ -60,7 +60,7 @@
             },
             {
                 "name": "seed",
-                "description": "Random seed for reproducible ray tracing (default: random). Ray tracing only.",
+                "description": "Random seed of the ray tracing (default 42): the same scene gives the same responses, another seed another draw. Ray tracing only.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "int"
