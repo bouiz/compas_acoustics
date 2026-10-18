@@ -52,7 +52,7 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 * Added `compas_acoustics.diffuse` (`predicted_rt`, `mean_absorption`, `DiffuseFieldWarning`): Sabine and Eyring reverberation times.
 * Added JSON serialisation (`compas.json_dumps`) for `Scene`, `AcousticObject`, `Source`, `Receiver`, `ImpulseResponse`, `Ray`, `ScatteredRay` and `RayField`; the IR graph is not serialised.
 * Added `Scene.impulse_responses(attribute)`, `Scene.simulation_methods()` and `attribute=` on the IR graph methods: each method stores its responses under its own name.
-* Added `ImpulseResponse` with peak normalisation (`denormalized()`, `normalization_factor`, `level_db`), `to_wav()`, `from_wav()`, `generation`, `resampled()`, `ambisonic_order`, `normalisation`, `channel_order` and `direct_sound_index()`.
+* Added `ImpulseResponse` with peak normalization (`denormalized()`, `normalization_factor`, `level_db`), `to_wav()`, `from_wav()`, `generation`, `resampled()`, `ambisonic_order`, `normalization`, `channel_order` and `direct_sound_index()`.
 * Added `AcousticAnalyser.stage_support()` (ST_early and ST_late, ISO 3382-1 Annex C) and `sound_strength()` (G, needs pyrato >= 1.0), and `G` in the analysis tables.
 * Added `AcousticAnalyser` accepting an `ImpulseResponse`, analysed at its raw level and sampling rate.
 * Added `Auraliser` output formats (`stereo`, `binaural`, `mono`, `ambisonics`), `level` (`relative`, `individual`, `none`), `headroom_db`, and lists of impulse responses and sound files as input.
@@ -70,10 +70,12 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 * Added the components Simulate Hybrid (with a `run` button), Simulate Pyroomacoustics (was Simulate Ray Tracing), Material Library categories, and the inputs `output_format`, `hrtf`, `level` (Auralise), `normalize` (Audio Player, Simulate), `method` (Deconstruct IR Graph), `direction`, `up` and `plane` (Receiver).
 * Added the Grasshopper installer for Rhino 8 (`installer/compas_acoustics_installer.gh`), `invoke installer-bundle`, and `compas-dev/compas-actions` v1 workflows (build, release, `prepare release`), with tests on Python 3.9.
 * Added the example notebooks `01_pyroomacoustics_simulation.ipynb` and `02_hybrid_method.ipynb`, and `examples/office_hybrid.py`.
-* Added a getting-started section to the README.
+* Added a getting-started section to the README, and `Examples` sections that `invoke testdocs` can run in the docstrings of `Scene`, `Pyroomacoustics`, `Hybrid`, `AcousticAnalyser` and `Auraliser`.
 
 ### Changed
 
+* Changed the spelling of identifiers to `normalization` and `normalized` everywhere, including `ImpulseResponse.normalization` (the ambisonic convention) and its JSON metadata key.
+* Changed `AudioPlayer` to raise errors and `warnings.warn` instead of printing them; the Audio Player component shows them as messages. An unsupported sound type raises a `TypeError`.
 * Changed the seed to default to 42 in `Pyroomacoustics`, `Hybrid` (was 0) and `RayField.from_scene`; `None` also means 42.
 * Changed `Hybrid` to drive the network with the last rendered image source order, as Wendt et al. (2014), RAZR and Ewert et al. (2025) do; hybrid-rir used the next, unrendered order. The search stops at `image_source_order` (29 minutes became 14 seconds on BRAS CR2).
 * Changed `Hybrid` without a reference to run `Pyroomacoustics(ray_tracing=True, image_source_order=3, n_rays=100000, seed=42)` and fit the decay to it.
@@ -89,7 +91,7 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 * Changed `reverberation_times` to Schroeder integration without noise compensation; truncate a measured response with a noise floor before analysing it.
 * Changed the direct sound detection to the ITA Toolbox's `ita_start_IR` (ISO 3382-1).
 * Changed `Auraliser.convolve()` to return the signal decoded to `output_format`, summing the impulse responses of one sound first (136 s became 1 s for 10 third-order sources).
-* Changed `Auraliser` to auralise at the raw level, export peak at -1 dBFS, and use an impulse response's own `channel_order` and `normalisation`.
+* Changed `Auraliser` to auralise at the raw level, export peak at -1 dBFS, and use an impulse response's own `channel_order` and `normalization`.
 * Changed `Auraliser` to read and resample with pyfar (polyphase) and to default to `output_format="stereo"` and the rate of the first impulse response.
 * Changed `AcousticAnalyser`, `Auraliser` and `MaterialsLibrary` to plain classes; they are services, not data.
 * Changed the default HRTF to `KEMAR_FreeFieldComp_48kHz.sofa`; the `hrtf` input of the Auralise component is `kemar` or a `.sofa` path.
