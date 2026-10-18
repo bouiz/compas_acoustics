@@ -1,4 +1,3 @@
-# flake8: noqa
 import Grasshopper
 import System
 from compas_acoustics.acoustic_material import AcousticMaterial

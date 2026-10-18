@@ -4,6 +4,7 @@ import numpy as np
 from compas.geometry import Frame
 from compas.geometry import Point
 from compas.geometry import Vector
+from compas.tolerance import TOL
 
 __all__ = ['Receiver']
 
@@ -115,12 +116,12 @@ class Receiver(Point):
         """
         facing = np.asarray(list(self.direction), dtype=float)
         length = np.linalg.norm(facing)
-        if length < 1e-12:
+        if TOL.is_zero(length):
             raise ValueError("Receiver direction must be a non-zero vector.")
         facing = facing / length
         up = np.asarray(list(self.up), dtype=float)
         up = up - (up @ facing) * facing
-        if np.linalg.norm(up) < 1e-9:
+        if TOL.is_zero(np.linalg.norm(up)):
             raise ValueError("Receiver direction is parallel to its up vector; the orientation is undefined.")
         up = up / np.linalg.norm(up)
         return np.column_stack([facing, np.cross(up, facing), up])
@@ -194,6 +195,6 @@ def _vector(value, label):
         vector = Vector(*value)
     else:
         raise ValueError(f"{label} must be a compas.geometry.Vector object or a list/tuple of three float values.")
-    if vector.length < 1e-12:
+    if TOL.is_zero(vector.length):
         raise ValueError(f"{label} must be a non-zero vector.")
     return vector

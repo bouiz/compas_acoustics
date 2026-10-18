@@ -1,4 +1,3 @@
-# flake8: noqa
 import Grasshopper
 from System.Windows.Forms import ToolStripSeparator
 

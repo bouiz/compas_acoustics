@@ -8,6 +8,7 @@ from compas.data import Data
 from compas.geometry import Point
 from compas.geometry import Polyline
 from compas.geometry import Vector
+from compas.tolerance import TOL
 
 __all__ = ['Ray', 'ScatteredRay', 'RayField']
 
@@ -736,7 +737,7 @@ def _cone_sampling(direction, angle: float, n_rays: int):
     """
     axis = np.asarray(direction, dtype=float)
     norm = np.linalg.norm(axis)
-    if norm < 1e-12:
+    if TOL.is_zero(norm):
         raise ValueError("Cone 'direction' must be a non-zero vector.")
     axis = axis / norm
 
@@ -802,7 +803,7 @@ def _make_scattered_rays(
 
     axis = (1.0 - scatter) * specular + scatter * normal
     axis_norm = np.linalg.norm(axis)
-    axis = normal if axis_norm < 1e-9 else axis / axis_norm
+    axis = normal if TOL.is_zero(axis_norm) else axis / axis_norm
 
     theta_max = np.radians(scatter * 90.0)
     directions = _sample_cone_directions(axis, normal, n_scatter, theta_max, rng)

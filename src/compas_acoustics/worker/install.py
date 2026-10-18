@@ -17,6 +17,8 @@ from pathlib import Path
 from compas_acoustics.worker import CONFIG
 from compas_acoustics.worker import stop_running_workers
 
+__all__ = ["WORKER_HOME", "install_worker"]
+
 WORKER_HOME = Path.home() / ".compas_acoustics" / "worker"
 
 

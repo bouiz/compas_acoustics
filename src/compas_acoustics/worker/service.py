@@ -25,6 +25,8 @@ from compas_acoustics.worker import PARENT_VARIABLE
 from compas_acoustics.worker import TOKEN_VARIABLE
 from compas_acoustics.worker import WORKERS
 
+__all__ = ["WorkerService", "process_is_alive", "start_service"]
+
 API = "compas_acoustics.worker.api."
 PARENT_CHECK_SECONDS = 2.0
 

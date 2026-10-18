@@ -1,4 +1,3 @@
-# flake8: noqa
 import Grasshopper
 from Grasshopper import DataTree
 from Grasshopper.Kernel.Data import GH_Path

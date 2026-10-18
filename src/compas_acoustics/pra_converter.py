@@ -7,6 +7,7 @@ import pyroomacoustics as pra
 import scipy.io.wavfile as wav
 from compas.geometry import Point
 from compas.geometry import Vector
+from compas.tolerance import TOL
 
 from compas_acoustics import Defaults
 from compas_acoustics.receiver import Receiver
@@ -14,13 +15,15 @@ from compas_acoustics.room_geometry import RoomGeometry
 from compas_acoustics.scene import Scene
 from compas_acoustics.source import Source
 
+__all__ = ["vector_to_pra", "directivity_to_pra", "points_to_array", "source_to_pra", "receivers_to_pra_mic_array", "scene_to_pra_room"]
 
-def vector_to_pra(vec: Vector, tol=1e-9) -> pra.DirectionVector:
+
+def vector_to_pra(vec: Vector, tol=None) -> pra.DirectionVector:
     """
     Convert a COMPAS Vector to a pyroomacoustics DirectionVector 
     using spherical coordinates (radians).
     """
-    if vec.length <= tol:
+    if vec.length <= (TOL.absolute if tol is None else tol):
         raise ValueError("Vector length cannot be zero.")
     
     x, y, z = vec.unitized()

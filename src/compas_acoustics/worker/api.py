@@ -13,6 +13,8 @@ from pathlib import Path
 
 from compas_acoustics.worker import FOLDER_PREFIX
 
+__all__ = ["info", "simulate", "convolve"]
+
 
 def _worker_folder(path):
     """``path`` resolved, if it is one of the temporary folders :func:`compas_acoustics.worker.simulate` and ``convolve`` make."""

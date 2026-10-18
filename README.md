@@ -6,9 +6,9 @@
 
 ## Installation
 
-Create a virtual environment with `python >= 3.10`
+Create a virtual environment with `python >= 3.9` (Rhino 8 runs 3.9; the hybrid method needs 3.11 or newer)
 ```bash
-conda create -n your_env_name python=3.10
+conda create -n your_env_name python=3.12
 ```
 
 To install the latest version for development, do:

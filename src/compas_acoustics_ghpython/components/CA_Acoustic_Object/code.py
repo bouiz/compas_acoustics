@@ -1,4 +1,3 @@
-# flake8: noqa
 import Grasshopper
 import Rhino
 from compas_acoustics.geometry import AcousticObject

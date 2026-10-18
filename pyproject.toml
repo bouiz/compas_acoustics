@@ -25,6 +25,7 @@ classifiers = [
     "Operating System :: Microsoft :: Windows",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -137,6 +138,8 @@ select = ["E", "F", "I"]
 "__init__.py" = ["I001"]
 "tests/*" = ["I001"]
 "tasks.py" = ["I001"]
+# Grasshopper components run inside Rhino: ghenv and the CAD modules are provided there
+"src/compas_acoustics_ghpython/components/*/code.py" = ["F821", "F401", "I001"]
 # Ported from hybrid-rir by tests/hybrid/regenerate.py: upstream's style is kept so a resync diffs cleanly
 "src/compas_acoustics/hybrid/*" = ["I001", "E741"]
 "tests/hybrid/test_*.py" = ["I001", "E731", "E741"]

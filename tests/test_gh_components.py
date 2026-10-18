@@ -4,6 +4,7 @@ import importlib.util
 import sys
 import types
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -27,6 +28,53 @@ def no_configured_worker(monkeypatch, tmp_path):
 
 
 COMPONENTS = Path(__file__).parents[1] / "src" / "compas_acoustics_ghpython" / "components"
+
+
+class Geometry(types.SimpleNamespace):
+    def __getattr__(self, name):
+        return MagicMock()
+
+
+class FakeAttributes:
+    Pivot = None
+
+
+class FakeButton:
+    def __init__(self):
+        self.Attributes, self.NickName, self.expired = FakeAttributes(), None, False
+
+    def CreateAttributes(self):
+        self.Attributes = FakeAttributes()
+
+    def ExpireSolution(self, recompute):
+        self.expired = True
+
+
+class FakeValueListItem:
+    def __init__(self, name, expression):
+        self.name, self.expression = name, expression
+
+
+class FakeValueList(FakeButton):
+    def __init__(self):
+        super().__init__()
+        self.ListItems = FakeItems()
+
+
+class FakeItems(list):
+    def Clear(self):
+        self.clear()
+
+    def Add(self, item):
+        self.append(item)
+
+
+@pytest.fixture(autouse=True)
+def fresh_ghpython_package():
+    # compas_acoustics_ghpython imports Rhino when it is imported; each test gets its own import against its own stubs
+    yield
+    for name in [m for m in sys.modules if m.startswith("compas_acoustics_ghpython")]:
+        del sys.modules[name]
 
 
 class Tree:
@@ -62,16 +110,22 @@ def load_component(name, monkeypatch, levels=False):
         GH_RuntimeMessageLevel=types.SimpleNamespace(Warning="warning", Error="error", Remark="remark"),
     )
     grasshopper.DataTree = Tree
+    system = types.ModuleType("System")
+    system.Drawing = types.SimpleNamespace(PointF=lambda x, y: (x, y))
+    special = types.ModuleType("Grasshopper.Kernel.Special")
+    special.GH_ButtonObject, special.GH_ValueList, special.GH_ValueListItem = FakeButton, FakeValueList, FakeValueListItem
     kernel_data = types.ModuleType("Grasshopper.Kernel.Data")
     kernel_data.GH_Path = lambda *indices: indices
     rhino = types.ModuleType("Rhino")
-    rhino.Geometry = types.SimpleNamespace(Point3d=lambda x, y, z: (x, y, z), Vector3d=lambda x, y, z: (x, y, z),
-                                           Line=lambda *coordinates: coordinates, Plane=plane)
+    rhino.Geometry = Geometry(Point3d=lambda x, y, z: (x, y, z), Vector3d=lambda x, y, z: (x, y, z),
+                              Line=lambda *coordinates: coordinates, Plane=plane)
     rhino_geometry = types.ModuleType("Rhino.Geometry")
     rhino_geometry.Line = rhino.Geometry.Line
+    # The package compas_acoustics_ghpython, which the components import, reads more of Rhino.Geometry when it is imported
+    rhino_geometry.__getattr__ = lambda name: MagicMock()
     for module_name, module in (("Grasshopper", grasshopper), ("Grasshopper.Kernel", types.ModuleType("Grasshopper.Kernel")),
                                 ("Grasshopper.Kernel.Data", kernel_data), ("Rhino", rhino), ("Rhino.Geometry", rhino_geometry),
-                                ("System", types.ModuleType("System")), ("scriptcontext", types.SimpleNamespace(sticky={}))):
+                                ("Grasshopper.Kernel.Special", special), ("System", system), ("scriptcontext", types.SimpleNamespace(sticky={}))):
         monkeypatch.setitem(sys.modules, module_name, module)
     spec = importlib.util.spec_from_file_location(f"gh_{name}", COMPONENTS / name / "code.py")
     module = importlib.util.module_from_spec(spec)
@@ -231,11 +285,7 @@ def test_analyse_ir_leaves_out_sti_and_g(monkeypatch):
 def test_the_plotter_offers_only_the_parameters_grasshopper_can_compute(monkeypatch):
     from compas_acoustics import AcousticAnalyser
 
-    from unittest.mock import MagicMock
-
-    rhino = MagicMock()
-    monkeypatch.setitem(sys.modules, "Rhino", rhino)
-    monkeypatch.setitem(sys.modules, "Rhino.Geometry", rhino.Geometry)
+    load_component("CA_Source", monkeypatch)
     try:
         from compas_acoustics_ghpython import AcousticParameter
 
@@ -251,6 +301,84 @@ def test_the_plotter_offers_only_the_parameters_grasshopper_can_compute(monkeypa
     finally:
         for name in [m for m in sys.modules if m.startswith("compas_acoustics_ghpython")]:
             del sys.modules[name]
+
+
+# --------------------------------------------------------------- Value lists --
+class FakeParam:
+    def __init__(self, name, sources=0):
+        self.Name, self.SourceCount = name, sources
+        self.Attributes = types.SimpleNamespace(Pivot=types.SimpleNamespace(Y=100.0))
+        self.added = []
+
+    def AddSource(self, source):
+        self.added.append(source)
+        self.SourceCount += 1
+
+
+class FakeDocument:
+    def __init__(self):
+        self.objects, self.scheduled = [], []
+
+    def ScheduleSolution(self, delay, callback):
+        self.scheduled.append(callback)
+
+    def AddObject(self, obj, update):
+        self.objects.append(obj)
+
+    def solve(self):
+        for callback in self.scheduled:
+            callback(self)
+
+
+def fake_component(document, *params, guid="guid-1"):
+    return types.SimpleNamespace(InstanceGuid=guid, OnPingDocument=lambda: document, Attributes=types.SimpleNamespace(Pivot=types.SimpleNamespace(X=500.0)),
+                                 Params=types.SimpleNamespace(Input=list(params)))
+
+
+def value_list_helper(monkeypatch):
+    load_component("CA_Source", monkeypatch)
+    from compas_acoustics_ghpython import ensure_inputs
+
+    return ensure_inputs
+
+
+def test_ensure_inputs_adds_a_list_or_a_button_to_each_unconnected_input_it_is_asked_for(monkeypatch):
+    ensure_inputs = value_list_helper(monkeypatch)
+    document = FakeDocument()
+    tail, run, order, diffraction = FakeParam("tail"), FakeParam("run"), FakeParam("sh_order"), FakeParam("diffraction", sources=1)
+    ensure_inputs(fake_component(document, tail, run, order, diffraction), {"tail": ["auto", "eyring"], "run": None, "diffraction": ["none", "udfa"]})
+    assert document.objects == []
+    document.solve()
+    assert len(document.objects) == 2
+    (value_list,), (button,) = tail.added, run.added
+    assert [(item.name, item.expression) for item in value_list.ListItems] == [("auto", '"auto"'), ("eyring", '"eyring"')]
+    assert value_list.NickName == "tail" and button.NickName == "Run"
+    assert value_list.Attributes.Pivot == (280.0, 90.0) and value_list.expired and button.expired
+    assert order.added == [] and diffraction.added == []
+
+
+def test_ensure_inputs_acts_once_per_component_and_session(monkeypatch):
+    ensure_inputs = value_list_helper(monkeypatch)
+    document = FakeDocument()
+    component = fake_component(document, FakeParam("run"))
+    ensure_inputs(component, {"run": None})
+    ensure_inputs(component, {"run": None})
+    assert len(document.scheduled) == 1
+    other = FakeDocument()
+    ensure_inputs(fake_component(other, FakeParam("run"), guid="guid-2"), {"run": None})
+    assert len(other.scheduled) == 1
+
+
+def test_ensure_inputs_skips_what_got_connected_meanwhile_and_needs_no_document(monkeypatch):
+    ensure_inputs = value_list_helper(monkeypatch)
+    document, run = FakeDocument(), FakeParam("run")
+    ensure_inputs(fake_component(document, run), {"run": None})
+    run.SourceCount = 1
+    document.solve()
+    assert document.objects == [] and run.added == []
+    ensure_inputs(fake_component(None, FakeParam("run"), guid="guid-3"), {"run": None})
+    ensure_inputs(fake_component(document, FakeParam("sh_order"), guid="guid-4"), {"run": None})
+    assert len(document.scheduled) == 1
 
 
 # ---------------------------------------------------------- Simulate Hybrid --

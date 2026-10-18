@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 from typing import TYPE_CHECKING
 
 from .defaults import Defaults

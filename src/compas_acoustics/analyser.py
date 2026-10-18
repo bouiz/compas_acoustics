@@ -1,6 +1,5 @@
 import warnings
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pyfar as pf
 import pyrato
@@ -674,6 +673,7 @@ class AcousticAnalyser:
 
 
     def plot(self, parameters=None):
+        import matplotlib.pyplot as plt
 
         if parameters is not None:
             if isinstance(parameters, str):
@@ -788,6 +788,7 @@ class AcousticAnalyser:
 
     def plot_rir(self):
         """Plot the impulse response in the time domain."""
+        import matplotlib.pyplot as plt
 
         t = np.arange(len(self.ir)) / self.sampling_rate
         plt.figure(figsize=(8, 4), num="Impulse Response")
@@ -802,6 +803,7 @@ class AcousticAnalyser:
 
     def plot_frequency_response(self, smooth=3, raw_alpha=0.3):
         """Plot the frequency response of a signal with optional octave smoothing."""
+        import matplotlib.pyplot as plt
 
         sig = pf.Signal(self.ir, self.sampling_rate)
         ref = np.max(np.abs(sig.freq))

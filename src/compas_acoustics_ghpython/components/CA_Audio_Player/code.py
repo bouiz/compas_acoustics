@@ -1,47 +1,14 @@
-# flake8: noqa
 import Grasshopper
-import System
 from compas_acoustics import AudioPlayer
+from compas_acoustics_ghpython import ensure_inputs
 import scriptcontext as sc
 import soundfile as sf
 
 
 class PlayAudio(Grasshopper.Kernel.GH_ScriptInstance):
 
-    def offer_buttons(self):
-        component = ghenv.Component
-        offered_key = "audio_player_buttons_offered_{}".format(component.InstanceGuid)
-        if sc.sticky.get(offered_key):
-            return
-        sc.sticky[offered_key] = True
-
-        doc = component.OnPingDocument()
-        if doc is None:
-            return
-
-        targets = [(index, nickname) for index, nickname in ((1, "Play"), (2, "Stop")) if component.Params.Input[index].SourceCount == 0]
-        if not targets:
-            return
-
-        def deferred(gh_doc):
-            base = component.Attributes.Pivot
-            for row, (index, nickname) in enumerate(targets):
-                input_param = component.Params.Input[index]
-                if input_param.SourceCount > 0:
-                    continue
-
-                button = Grasshopper.Kernel.Special.GH_ButtonObject()
-                button.CreateAttributes()
-                button.NickName = nickname
-                button.Attributes.Pivot = System.Drawing.PointF(base.X - 180, base.Y - 15 + row * 30)
-                gh_doc.AddObject(button, False)
-                input_param.AddSource(button)
-                button.ExpireSolution(True)
-
-        doc.ScheduleSolution(1, deferred)
-
     def RunScript(self, sound, play, stop, sampling_rate, normalize):
-        self.offer_buttons()
+        ensure_inputs(ghenv.Component, {"play": None, "stop": None})
 
         if sound is None:
             return
@@ -49,13 +16,13 @@ class PlayAudio(Grasshopper.Kernel.GH_ScriptInstance):
         if isinstance(sound, str):  # file path
             try:
                 sampling_rate = sf.info(sound).samplerate
-            except:
+            except Exception:
                 pass
         elif hasattr(sound, "sound_file"):  # Source object
             sound = sound.sound_file
             try:
                 sampling_rate = sf.info(sound).samplerate
-            except:
+            except Exception:
                 pass
         elif hasattr(sound, "shape") and hasattr(sound, "ndim"):  # numpy array
             if sound.ndim == 2 and sound.shape[1] > 2:

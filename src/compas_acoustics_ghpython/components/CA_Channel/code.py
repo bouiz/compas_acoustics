@@ -1,4 +1,3 @@
-# flake8: noqa
 import Grasshopper
 import soundfile as sf
 

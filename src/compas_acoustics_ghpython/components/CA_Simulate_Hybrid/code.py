@@ -1,11 +1,9 @@
-# flake8: noqa
 import warnings
 
 import Grasshopper
-import System
-import scriptcontext as sc
 
 from compas_acoustics import worker
+from compas_acoustics_ghpython import ensure_inputs
 
 # First item is the default
 TAILS = ["auto", "reference", "ray_tracing", "eyring", "sabine"]
@@ -13,55 +11,6 @@ DIFFRACTION = ["none", "udfa", "btms"]
 
 
 class SimulateHybrid(Grasshopper.Kernel.GH_ScriptInstance):
-
-    def offer_value_lists(self):
-        component = ghenv.Component
-        offered_key = "hybrid_value_lists_offered_{}".format(component.InstanceGuid)
-        if sc.sticky.get(offered_key):
-            return
-        sc.sticky[offered_key] = True
-
-        doc = component.OnPingDocument()
-        if doc is None:
-            return
-
-        # A value list per choice input, and a button for 'run'
-        value_lists = {"run": None, "tail": TAILS, "diffraction": DIFFRACTION}
-        targets = [
-            (index, param.Name, value_lists[param.Name])
-            for index, param in enumerate(component.Params.Input)
-            if param.Name in value_lists and param.SourceCount == 0
-        ]
-        if not targets:
-            return
-
-        def deferred(gh_doc):
-            base = component.Attributes.Pivot
-            for index, name, items in targets:
-                input_param = component.Params.Input[index]
-                if input_param.SourceCount > 0:
-                    continue
-                if items is None:
-                    button = Grasshopper.Kernel.Special.GH_ButtonObject()
-                    button.CreateAttributes()
-                    button.NickName = "Run"
-                    button.Attributes.Pivot = System.Drawing.PointF(base.X - 220, input_param.Attributes.Pivot.Y - 10)
-                    gh_doc.AddObject(button, False)
-                    input_param.AddSource(button)
-                    button.ExpireSolution(True)
-                    continue
-                value_list = Grasshopper.Kernel.Special.GH_ValueList()
-                value_list.CreateAttributes()
-                value_list.NickName = name
-                value_list.ListItems.Clear()
-                for item in items:
-                    value_list.ListItems.Add(Grasshopper.Kernel.Special.GH_ValueListItem(item, '"{}"'.format(item)))
-                value_list.Attributes.Pivot = System.Drawing.PointF(base.X - 220, input_param.Attributes.Pivot.Y - 10)
-                gh_doc.AddObject(value_list, False)
-                input_param.AddSource(value_list)
-                value_list.ExpireSolution(True)
-
-        doc.ScheduleSolution(1, deferred)
 
     def error(self, text):
         ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Error, text)
@@ -79,7 +28,7 @@ class SimulateHybrid(Grasshopper.Kernel.GH_ScriptInstance):
         return scene.ir_graph
 
     def RunScript(self, scene, run, tail, reference, sh_order, image_source_order, diffraction, late_envelope, seed, normalize):
-        self.offer_value_lists()
+        ensure_inputs(ghenv.Component, {"run": None, "tail": TAILS, "diffraction": DIFFRACTION})
 
         if scene is None:
             ghenv.Component.AddRuntimeMessage(
@@ -149,7 +98,7 @@ class SimulateHybrid(Grasshopper.Kernel.GH_ScriptInstance):
             warnings.simplefilter("always")
             try:
                 method = Hybrid(**given)
-                rirs = scene.simulate(method)
+                scene.simulate(method)
             except ValueError as e:
                 self.error(str(e))
                 return

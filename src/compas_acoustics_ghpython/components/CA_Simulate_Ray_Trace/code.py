@@ -1,4 +1,3 @@
-# flake8: noqa
 import warnings
 
 import Grasshopper
@@ -46,7 +45,7 @@ class SimulateRayTracing(Grasshopper.Kernel.GH_ScriptInstance):
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             try:
-                rirs = scene.simulate(Pyroomacoustics(ray_tracing=ray_tracing, **given))
+                scene.simulate(Pyroomacoustics(ray_tracing=ray_tracing, **given))
             except ValueError as e:
                 ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Error, str(e))
                 return
