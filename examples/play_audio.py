@@ -2,11 +2,11 @@
 import os
 import time
 from compas_acoustics import AudioPlayer
+from compas_acoustics import Defaults
 
 # A. Play a .wav file
 play = True
-dire = os.path.dirname(os.path.abspath(__file__))
-path = os.path.join(dire, "adult_female_speech.wav")
+path = os.path.join(Defaults().ANECHOIC_SOUNDFILES_LIBRARY_PATH, "female_speech.wav")
 
 if play and path:
     player = AudioPlayer()
