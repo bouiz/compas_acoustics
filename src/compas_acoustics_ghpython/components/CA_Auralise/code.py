@@ -77,7 +77,7 @@ class Auralise(Grasshopper.Kernel.GH_ScriptInstance):
                     'ambisonic_order': int(round(np.sqrt(ir_data.shape[1]))) - 1 if order is None else int(order),
                     # The response's own convention, e.g. a hybrid response in N3D
                     'channel_order': getattr(IR, 'channel_order', None) or 'acn',
-                    'normalisation': getattr(IR, 'normalisation', None) or 'sn3d',
+                    'normalization': getattr(IR, 'normalization', None) or 'sn3d',
                 }
 
                 sound_groups[receiver_id][sub_key] = {

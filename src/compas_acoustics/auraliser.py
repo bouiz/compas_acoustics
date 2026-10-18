@@ -15,9 +15,9 @@ _OUTPUT_FORMATS = {"mono", "stereo", "ambisonics", "binaural"}
 _LEVELS = {"relative", "individual", "none"}
 _AUDIO_EXTENSIONS = {".wav", ".mp3", ".flac", ".ogg", ".aiff", ".aif"}
 
-# Supported ambisonic conventions: ACN channel order with N3D or SN3D normalisation
+# Supported ambisonic conventions: ACN channel order with N3D or SN3D normalization
 _CHANNEL_ORDERS = {"acn"}
-_NORMALISATIONS = {"sn3d", "n3d"}
+_NORMALIZATIONS = {"sn3d", "n3d"}
 
 
 def _n3d_to_sn3d(ir):
@@ -61,9 +61,9 @@ class Auraliser:
     impulse_responses : dict or list
         Either a dict mapping an id to a dict with the keys ``'ir'`` (array shaped
         (samples,) or (samples, channels)), ``'sampling_rate'``, ``'ambisonic_order'``,
-        ``'channel_order'`` (``'acn'``) and ``'normalisation'`` (``'sn3d'`` or
+        ``'channel_order'`` (``'acn'``) and ``'normalization'`` (``'sn3d'`` or
         ``'n3d'``), or a list of
-        :class:`ImpulseResponse` objects, whose ``channel_order`` and ``normalisation``
+        :class:`ImpulseResponse` objects, whose ``channel_order`` and ``normalization``
         are used (ACN/SN3D when they state none).
     anechoic_sounds : dict or list, optional
         Either a dict mapping an id to a dict with the key ``'filepath'``, or a list of
@@ -296,7 +296,7 @@ class Auraliser:
                 'ambisonic_order': int(round(np.sqrt(channels))) - 1 if order is None else int(order),
                 # The response's own convention, e.g. a hybrid response in N3D; ACN/SN3D when it states none
                 'channel_order': getattr(ir, 'channel_order', None) or 'acn',
-                'normalisation': getattr(ir, 'normalisation', None) or 'sn3d',
+                'normalization': getattr(ir, 'normalization', None) or 'sn3d',
                 'binaural': (getattr(ir, 'generation', None) or {}).get('output') == 'binaural',
             }
         return converted
@@ -365,19 +365,19 @@ class Auraliser:
         if channel_order not in _CHANNEL_ORDERS:
             raise ValueError(f"Impulse response {ir_id} has unknown channel order '{channel_order}'. Must be one of {sorted(_CHANNEL_ORDERS)}.")
 
-        normalisation = data.get('normalisation')
-        if not normalisation:
-            normalisation = 'sn3d'
-            warnings.warn(f"No normalisation noted for {ir_id}. {normalisation} assumed.")
-        normalisation = normalisation.lower()
-        if normalisation not in _NORMALISATIONS:
-            raise ValueError(f"Impulse response {ir_id} has unknown normalisation '{normalisation}'. Must be one of {sorted(_NORMALISATIONS)}.")
+        normalization = data.get('normalization')
+        if not normalization:
+            normalization = 'sn3d'
+            warnings.warn(f"No normalization noted for {ir_id}. {normalization} assumed.")
+        normalization = normalization.lower()
+        if normalization not in _NORMALIZATIONS:
+            raise ValueError(f"Impulse response {ir_id} has unknown normalization '{normalization}'. Must be one of {sorted(_NORMALIZATIONS)}.")
 
-        if normalisation == 'n3d':
-            warnings.warn(f"Converting {ir_id} from n3d to sn3d normalisation.")
+        if normalization == 'n3d':
+            warnings.warn(f"Converting {ir_id} from n3d to sn3d normalization.")
             ir = _n3d_to_sn3d(ir)
         data['channel_order'] = 'acn'
-        data['normalisation'] = 'sn3d'
+        data['normalization'] = 'sn3d'
 
         data['ir'] = self._at_sampling_rate(ir_id, ir, data)
         return data

@@ -15,8 +15,8 @@ mixed, analysed and auralised alike:
    ``generation['valid_range_hz']``: ``(low, high)`` in Hz where the method is
    trustworthy, or ``None`` for the full band;
 4. a stated channel convention: mono, or ``ambisonic_order``,
-   ``normalisation`` and ``channel_order``;
-5. peak-normalised views by default, the raw level through ``denormalized()``.
+   ``normalization`` and ``channel_order``;
+5. peak-normalized views by default, the raw level through ``denormalized()``.
 """
 
 from __future__ import annotations

@@ -58,7 +58,7 @@ def test_one_ambisonic_response_per_pair():
     assert len(rirs) == 2
     for key, ir in rirs.items():
         assert ir.ir.shape == (int(0.5 * FS), 4)
-        assert (ir.ambisonic_order, ir.normalisation, ir.channel_order) == (1, "sn3d", "acn")
+        assert (ir.ambisonic_order, ir.normalization, ir.channel_order) == (1, "sn3d", "acn")
         assert ir.sampling_rate == FS
         assert scene.get_impulse_response(ir.source, ir.receiver, attribute="hybrid") is ir
         assert hybrid.results[key].normalization == "SN3D"
@@ -79,7 +79,7 @@ def test_second_order_n3d_has_nine_channels():
     scene = make()
     (ir,) = scene.simulate(Hybrid(references(scene), sh_order=2, normalization="N3D", **FAST)).values()
     assert ir.ir.shape[1] == 9
-    assert ir.normalisation == "n3d"
+    assert ir.normalization == "n3d"
 
 
 def test_references_at_another_rate_raise():
@@ -375,15 +375,15 @@ def test_an_image_source_only_reference_warns():
         scene.simulate(Hybrid(reference="pyroomacoustics", **FAST))
 
 
-def test_normalised_references_give_the_raw_level_result():
+def test_normalized_references_give_the_raw_level_result():
     scene = make()
     refs = references(scene)
-    normalised = scene.simulate(Hybrid(reference=refs, late_envelope=True, seed=0, **FAST))
+    normalized = scene.simulate(Hybrid(reference=refs, late_envelope=True, seed=0, **FAST))
     for ir in refs.values():
         ir.normalized = False
     raw = scene.simulate(Hybrid(reference=refs, late_envelope=True, seed=0, **FAST))
-    for key in normalised:
-        np.testing.assert_allclose(normalised[key].denormalized(), raw[key].denormalized())
+    for key in normalized:
+        np.testing.assert_allclose(normalized[key].denormalized(), raw[key].denormalized())
 
 
 def test_btms_runs_in_the_simulator():
@@ -417,7 +417,7 @@ def test_the_orientation_is_in_the_responses_metadata(tmp_path):
     (ir,) = scene.simulate(Hybrid(tail="eyring", **FAST)).values()
     loaded = ImpulseResponse.from_wav(ir.to_wav(tmp_path / "h.wav")[0])
     np.testing.assert_allclose(loaded.receiver.rotation, ir.receiver.rotation, atol=1e-12)
-    assert (loaded.ambisonic_order, loaded.normalisation) == (1, "sn3d")
+    assert (loaded.ambisonic_order, loaded.normalization) == (1, "sn3d")
 
 
 def test_a_receiver_next_to_a_fully_absorbing_ceiling_runs():

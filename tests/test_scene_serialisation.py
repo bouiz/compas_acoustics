@@ -78,9 +78,9 @@ def test_an_ambisonic_impulse_response_keeps_its_convention():
     from compas_acoustics import ImpulseResponse
 
     ir = ImpulseResponse("a", Source("s", 1, 1, 1), Receiver("r", 2, 2, 1), np.random.default_rng(0).normal(size=(64, 4)), 48000,
-                         ambisonic_order=1, normalisation="n3d", channel_order="acn")
+                         ambisonic_order=1, normalization="n3d", channel_order="acn")
     copy = json_loads(json_dumps(ir))
-    assert (copy.ambisonic_order, copy.normalisation, copy.channel_order, copy.n_channels) == (1, "n3d", "acn", 4)
+    assert (copy.ambisonic_order, copy.normalization, copy.channel_order, copy.n_channels) == (1, "n3d", "acn", 4)
     np.testing.assert_array_equal(copy.denormalized(), ir.denormalized())
 
 

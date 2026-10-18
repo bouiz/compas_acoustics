@@ -52,7 +52,7 @@ def test_magls_filters_are_the_auralisers():
     from compas_acoustics.binaural import DEFAULT_HRTF, magls_filters
 
     a = Auraliser("room1", {"ir1": {"ir": np.ones((32, 4)), "sampling_rate": FS, "ambisonic_order": 1,
-                                     "channel_order": "acn", "normalisation": "sn3d"}},
+                                     "channel_order": "acn", "normalization": "sn3d"}},
                   {"ac1": {"filepath": "a.wav"}}, "binaural")
     np.testing.assert_array_equal(a.binaural_filters(1), magls_filters(DEFAULT_HRTF, FS, 1))
 

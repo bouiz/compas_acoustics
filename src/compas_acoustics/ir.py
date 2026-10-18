@@ -23,8 +23,8 @@ class ImpulseResponse(Data):
     """An impulse response between a source and a receiver.
 
     The impulse response is stored at its raw (physical) level together with its
-    normalisation factor, the peak absolute value across all channels. By default
-    :attr:`ir` returns the peak-normalised response; the raw level, which carries
+    normalization factor, the peak absolute value across all channels. By default
+    :attr:`ir` returns the peak-normalized response; the raw level, which carries
     distance and level differences between impulse responses, is kept and can be
     recovered with :meth:`denormalized` or :meth:`denormalize_group`.
 
@@ -41,21 +41,21 @@ class ImpulseResponse(Data):
     sampling_rate : int
         The sample rate in Hz.
     normalized : bool, optional
-        Whether :attr:`ir` returns the peak-normalised response. Default is True.
+        Whether :attr:`ir` returns the peak-normalized response. Default is True.
     generation : dict, optional
         How the impulse response was generated, e.g. the method and its settings.
         Written to the JSON metadata on export.
     ambisonic_order : int, optional
         The ambisonic order of a multichannel response, or None for a mono or
         non-ambisonic one.
-    normalisation : str, optional
-        The ambisonic normalisation, ``'sn3d'`` or ``'n3d'``.
+    normalization : str, optional
+        The ambisonic normalization, ``'sn3d'`` or ``'n3d'``.
     channel_order : str, optional
         The ambisonic channel order, ``'acn'``.
     """
 
     def __init__(self, name: str, source: Source, receiver: Receiver, ir: np.ndarray, sampling_rate: int,
-                 normalized: bool = True, generation: dict = None, ambisonic_order: int = None, normalisation: str = None,
+                 normalized: bool = True, generation: dict = None, ambisonic_order: int = None, normalization: str = None,
                  channel_order: str = None):
         super().__init__(name=name)
         self.source = source
@@ -66,7 +66,7 @@ class ImpulseResponse(Data):
         self.normalized = normalized
         self.generation = dict(generation) if generation else {}
         self.ambisonic_order = ambisonic_order
-        self.normalisation = normalisation
+        self.normalization = normalization
         self.channel_order = channel_order
 
 
@@ -82,14 +82,14 @@ class ImpulseResponse(Data):
             "normalized": self.normalized,
             "generation": self.generation,
             "ambisonic_order": self.ambisonic_order,
-            "normalisation": self.normalisation,
+            "normalization": self.normalization,
             "channel_order": self.channel_order,
         }
 
 
     @property
     def ir(self):
-        """np.ndarray : The impulse response, peak-normalised when :attr:`normalized` is True.
+        """np.ndarray : The impulse response, peak-normalized when :attr:`normalized` is True.
 
         Setting it sets the raw impulse response.
         """
@@ -123,7 +123,7 @@ class ImpulseResponse(Data):
 
     @property
     def level_db(self):
-        """float : The normalisation factor in dB (20 log10 of the raw peak)."""
+        """float : The normalization factor in dB (20 log10 of the raw peak)."""
         return 20.0 * np.log10(self.normalization_factor)
 
 
@@ -142,7 +142,7 @@ class ImpulseResponse(Data):
     def denormalize_group(impulse_responses):
         """Return impulse responses at their relative levels, scaled to the loudest one.
 
-        Each impulse response is scaled by its normalisation factor relative to the
+        Each impulse response is scaled by its normalization factor relative to the
         largest factor in the group, so the loudest has a peak of 1 and the others keep
         their level differences below it.
 
@@ -239,7 +239,7 @@ class ImpulseResponse(Data):
             },
             'ambisonics': None if self.ambisonic_order is None else {
                 'order': int(self.ambisonic_order),
-                'normalisation': self.normalisation,
+                'normalization': self.normalization,
                 'channel_order': self.channel_order,
             },
             'source': {
@@ -259,10 +259,10 @@ class ImpulseResponse(Data):
 
 
     def to_wav(self, filepath):
-        """Write the peak-normalised impulse response as a 32-bit float WAV and its metadata as JSON.
+        """Write the peak-normalized impulse response as a 32-bit float WAV and its metadata as JSON.
 
         The JSON file has the same name with a ``.json`` extension and holds the
-        normalisation factor, so the raw level can be restored with :meth:`from_wav`
+        normalization factor, so the raw level can be restored with :meth:`from_wav`
         or any other tool.
 
         Parameters
@@ -288,7 +288,7 @@ class ImpulseResponse(Data):
     def from_wav(cls, filepath, source: Source = None, receiver: Receiver = None, normalized: bool = True):
         """Read an impulse response WAV and, if present, its JSON metadata.
 
-        The raw level is restored from the normalisation factor in the metadata.
+        The raw level is restored from the normalization factor in the metadata.
         Without metadata the WAV is taken as the raw impulse response.
 
         Parameters
@@ -298,7 +298,7 @@ class ImpulseResponse(Data):
         source, receiver : Source, Receiver, optional
             Used instead of the ones described in the metadata.
         normalized : bool, optional
-            Whether :attr:`ir` returns the peak-normalised response. Default is True.
+            Whether :attr:`ir` returns the peak-normalized response. Default is True.
 
         Returns
         -------
@@ -334,6 +334,6 @@ class ImpulseResponse(Data):
             normalized=normalized,
             generation=metadata.get('generation'),
             ambisonic_order=ambisonics.get('order'),
-            normalisation=ambisonics.get('normalisation'),
+            normalization=ambisonics.get('normalization'),
             channel_order=ambisonics.get('channel_order'),
         )

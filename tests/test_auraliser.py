@@ -82,7 +82,7 @@ def test_ir_empty():
                     "ambisonic_order": 2,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": [],
-                    "normalisation": "sn3d",
+                    "normalization": "sn3d",
                     "channel_order": "acn",
                 },
             },
@@ -107,7 +107,7 @@ def test_ir_sampling_rate_negative():
                     "ambisonic_order": 2,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([48000,9]),
-                    "normalisation": "sn3d",
+                    "normalization": "sn3d",
                     "channel_order": "acn",
                 },
             },
@@ -132,7 +132,7 @@ def test_sampling_rate_negative():
                     "ambisonic_order": 2,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([48000,9]),
-                    "normalisation": "sn3d",
+                    "normalization": "sn3d",
                     "channel_order": "acn",
                 },
             },
@@ -158,7 +158,7 @@ def test_ir_warning_resample():
                     "ambisonic_order": 2,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([96000,9]),
-                    "normalisation": "sn3d",
+                    "normalization": "sn3d",
                     "channel_order": "acn",
                 },
                 "ir2": {
@@ -167,7 +167,7 @@ def test_ir_warning_resample():
                     "ambisonic_order": 2,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([96000,9]),
-                    "normalisation": "sn3d",
+                    "normalization": "sn3d",
                     "channel_order": "acn",
                 },
             },
@@ -197,7 +197,7 @@ def test_ir_warning_ambisonics_order_mismatch():
                     "ambisonic_order": 3,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([48000,9]),
-                    "normalisation": "sn3d",
+                    "normalization": "sn3d",
                     "channel_order": "acn",
                 },
             },
@@ -222,7 +222,7 @@ def test_ir_transposed():
                     "ambisonic_order": 2,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([9,48000]),
-                    "normalisation": "sn3d",
+                    "normalization": "sn3d",
                     "channel_order": "acn",
                 },
             },
@@ -247,7 +247,7 @@ def test_ir_warning_ambisonics_order_empty():
                     "ambisonic_order": [],
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([48000,9]),
-                    "normalisation": "sn3d",
+                    "normalization": "sn3d",
                     "channel_order": "acn",
                 },
             },
@@ -261,7 +261,7 @@ def test_ir_warning_ambisonics_order_empty():
         )
 
 
-def test_ir_warning_normalisation_empty():
+def test_ir_warning_normalization_empty():
     with pytest.warns(UserWarning):
         Auraliser(
             name="room1",
@@ -296,7 +296,7 @@ def test_ir_warning_channel_order_empty():
                     "ambisonic_order": [],
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([48000,9]),
-                    "normalisation": "sn3d",
+                    "normalization": "sn3d",
                 },
             },
             anechoic_sounds={
@@ -320,7 +320,7 @@ def test_ir_invalid_ambisonics_order():
                     "ambisonic_order": 2,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([48000,8]),
-                    "normalisation": "sn3d",
+                    "normalization": "sn3d",
                     "channel_order": "acn",
                 },
             },
@@ -345,7 +345,7 @@ def test_ir_fuma_channel_ordering_raises():
                     "ambisonic_order": 1,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([48000,4]),
-                    "normalisation": "sn3d",
+                    "normalization": "sn3d",
                     "channel_order": "fuma",
                 },
             },
@@ -359,7 +359,7 @@ def test_ir_fuma_channel_ordering_raises():
         )
 
 
-def test_warning_ir_n3d_normalisation():
+def test_warning_ir_n3d_normalization():
     with pytest.warns(UserWarning):
         Auraliser(
             name="room1",
@@ -370,7 +370,7 @@ def test_warning_ir_n3d_normalisation():
                     "ambisonic_order": 2,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([48000,9]),
-                    "normalisation": "n3d",
+                    "normalization": "n3d",
                     "channel_order": "acn",
                 },
             },
@@ -394,7 +394,7 @@ def test_ir_maximum_length():
                     "ambisonic_order": 2,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([100000,9]),
-                    "normalisation": "sn3d",
+                    "normalization": "sn3d",
                     "channel_order": "acn",
                 },
             "ir2": {
@@ -403,7 +403,7 @@ def test_ir_maximum_length():
                     "ambisonic_order": 4,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([48000,25]),
-                    "normalisation": "sn3d",
+                    "normalization": "sn3d",
                     "channel_order": "acn",
                 },
         },
@@ -433,7 +433,7 @@ def test_anechoioc_sounds_allowed_extensions():
                     "ambisonic_order": 2,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([48000,9]),
-                    "normalisation": "sn3d",
+                    "normalization": "sn3d",
                     "channel_order": "acn",
                 },
             },
@@ -472,7 +472,7 @@ def test_maximum_ambisonic_order():
                     "ambisonic_order": 2,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([48000,9]),
-                    "normalisation": "sn3d",
+                    "normalization": "sn3d",
                     "channel_order": "acn",
                 },
             "ir2": {
@@ -481,7 +481,7 @@ def test_maximum_ambisonic_order():
                     "ambisonic_order": 4,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([48000,25]),
-                    "normalisation": "sn3d",
+                    "normalization": "sn3d",
                     "channel_order": "acn",
                 },
         },
@@ -510,7 +510,7 @@ def test_impulse_response_and_anechoic_sounds_count():
                     "ambisonic_order": 2,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([48000,9]),
-                    "normalisation": "sn3d",
+                    "normalization": "sn3d",
                     "channel_order": "acn",
                 },
             "ir2": {
@@ -519,7 +519,7 @@ def test_impulse_response_and_anechoic_sounds_count():
                     "ambisonic_order": 4,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([48000,25]),
-                    "normalisation": "sn3d",
+                    "normalization": "sn3d",
                     "channel_order": "acn",
                 },
         },
@@ -549,7 +549,7 @@ def test_import_anechoic_sound():
                     "ambisonic_order": 2,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([48000,9]),
-                    "normalisation": "sn3d",
+                    "normalization": "sn3d",
                     "channel_order": "acn",
                 },
             },
@@ -581,7 +581,7 @@ def test_ambisonics_upmix_downmix():
                     "ambisonic_order": 2,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.zeros([48000,9]),
-                    "normalisation": "sn3d",
+                    "normalization": "sn3d",
                     "channel_order": "acn",
                 },
             },
@@ -628,7 +628,7 @@ def test_convolve_matches_numpy_convolution():
                     "ambisonic_order": 0,
                     "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
                     "ir": np.array([[1.0], [0.5], [0.0], [0.25]]),
-                    "normalisation": "sn3d",
+                    "normalization": "sn3d",
                     "channel_order": "acn",
                 },
             },
@@ -659,7 +659,7 @@ def test_convolve_ambisonics():
                 "ambisonic_order": 2,
                 "mic_position": [0.0, 0.0, 1.5],
                 "ir": np.zeros([48000, 9]),
-                "normalisation": "sn3d",
+                "normalization": "sn3d",
                 "channel_order": "acn",
             },
             "ir2": {
@@ -668,7 +668,7 @@ def test_convolve_ambisonics():
                 "ambisonic_order": 4,
                 "mic_position": [0.0, 0.0, 1.5],
                 "ir": np.zeros([48000, 25]),
-                "normalisation": "sn3d",
+                "normalization": "sn3d",
                 "channel_order": "acn",
             },
         },
@@ -709,7 +709,7 @@ def test_export_convolved_sound(tmp_path):
                 "ambisonic_order": 2,
                 "mic_position": [0.0, 0.0, 1.5],
                 "ir": np.zeros([48000, 9]),
-                "normalisation": "sn3d",
+                "normalization": "sn3d",
                 "channel_order": "acn",
             },
             "ir2": {
@@ -718,7 +718,7 @@ def test_export_convolved_sound(tmp_path):
                 "ambisonic_order": 4,
                 "mic_position": [0.0, 0.0, 1.5],
                 "ir": np.zeros([48000, 25]),
-                "normalisation": "sn3d",
+                "normalization": "sn3d",
                 "channel_order": "acn",
             },
         },
@@ -774,7 +774,7 @@ def ir_entry(ir, sampling_rate=sampling_rate_default, **kwargs):
         "sampling_rate": sampling_rate,
         "ambisonic_order": int(np.sqrt(ir.shape[1] if ir.ndim == 2 else 1)) - 1,
         "ir": ir,
-        "normalisation": "sn3d",
+        "normalization": "sn3d",
         "channel_order": "acn",
     }
     entry.update(kwargs)
@@ -812,20 +812,20 @@ def test_caller_impulse_responses_are_not_modified():
     assert a.impulse_responses["ir1"]["sampling_rate"] == sampling_rate_default
 
 
-def test_unknown_normalisation_raises():
-    with pytest.raises(ValueError, match="normalisation"):
-        Auraliser("room1", {"ir1": ir_entry(np.ones((10, 4)), normalisation="foo")}, {"ac1": {"filepath": "a.wav"}}, "mono")
+def test_unknown_normalization_raises():
+    with pytest.raises(ValueError, match="normalization"):
+        Auraliser("room1", {"ir1": ir_entry(np.ones((10, 4)), normalization="foo")}, {"ac1": {"filepath": "a.wav"}}, "mono")
 
 
-@pytest.mark.parametrize("normalisation", ["fuma", "maxn"])
-def test_fuma_and_maxn_normalisation_raise(normalisation):
-    with pytest.raises(ValueError, match="normalisation"):
-        Auraliser("room1", {"ir1": ir_entry(np.ones((10, 4)), normalisation=normalisation)}, {"ac1": {"filepath": "a.wav"}}, "mono")
+@pytest.mark.parametrize("normalization", ["fuma", "maxn"])
+def test_fuma_and_maxn_normalization_raise(normalization):
+    with pytest.raises(ValueError, match="normalization"):
+        Auraliser("room1", {"ir1": ir_entry(np.ones((10, 4)), normalization=normalization)}, {"ac1": {"filepath": "a.wav"}}, "mono")
 
 
 def test_n3d_is_converted_to_sn3d():
     with pytest.warns(UserWarning, match="n3d to sn3d"):
-        a = Auraliser("room1", {"ir1": ir_entry(np.ones((10, 9)), normalisation="n3d")}, {"ac1": {"filepath": "a.wav"}}, "mono")
+        a = Auraliser("room1", {"ir1": ir_entry(np.ones((10, 9)), normalization="n3d")}, {"ac1": {"filepath": "a.wav"}}, "mono")
     # SN3D = N3D / sqrt(2n + 1) for order n
     np.testing.assert_allclose(a.impulse_responses["ir1"]["ir"][0], [1.0] + [1 / np.sqrt(3)] * 3 + [1 / np.sqrt(5)] * 5)
 
@@ -1124,7 +1124,7 @@ def test_impulse_response_objects_are_auralised_at_their_raw_level(tmp_path):
     source = Source("a", 1, 0, 0, sound_file=sound)
     near = ImpulseResponse("near", source, Receiver("r1", 0, 0, 0), np.array([0.5, 0.1]), sampling_rate_default)
     far = ImpulseResponse("far", source, Receiver("r2", 0, 0, 0), np.array([0.05, 0.01]), sampling_rate_default)
-    assert np.max(np.abs(far.ir)) == pytest.approx(1.0)  # normalised by default
+    assert np.max(np.abs(far.ir)) == pytest.approx(1.0)  # normalized by default
 
     renders = [Auraliser(ir.name, [ir], output_format="mono").convolve() for ir in (near, far)]
     np.testing.assert_allclose(renders[0][:, 0], [0.5, 0.1])
@@ -1140,7 +1140,7 @@ def test_an_n3d_impulse_response_is_decoded_as_n3d(tmp_path):
     n3d = plane_wave(1, 0, 1, 0) * np.sqrt([1.0, 3.0, 3.0, 3.0])  # a left source in N3D
     n3d = np.vstack([n3d, np.zeros((7, 4))])  # (samples, channels); one sample would read as transposed
     ir = ImpulseResponse("a", Source("s", 1, 0, 0, sound_file=sound), Receiver("r", 0, 0, 0), n3d, 48000,
-                         ambisonic_order=1, normalisation="n3d", channel_order="acn")
+                         ambisonic_order=1, normalization="n3d", channel_order="acn")
     with pytest.warns(UserWarning, match="n3d to sn3d"):
         out = Auraliser("room1", [ir], output_format="stereo").convolve()
     np.testing.assert_allclose(out[0], [1.0, 0.0], atol=1e-12)

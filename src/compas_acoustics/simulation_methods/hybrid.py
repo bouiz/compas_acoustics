@@ -78,7 +78,7 @@ class Hybrid(SimulationMethod):
     image_source_order : int, default=3
         Highest image source order rendered as early field.
     normalization : {"SN3D", "N3D"}, default="SN3D"
-        Output normalisation, ACN channel order, W = 1 for a unit plane wave.
+        Output normalization, ACN channel order, W = 1 for a unit plane wave.
     n_slopes : int, default=1
         Decay slopes fitted to the reference; 0 lets DecayFitNet decide (needs
         ``multislope``). An Eyring or Sabine tail has one.
@@ -107,7 +107,7 @@ class Hybrid(SimulationMethod):
     seed : int, default=42
         Seeds the feedback matrices and delay jitter, so that the same scene gives the same responses (``None`` is 42 too).
     normalize : bool, default=True
-        Whether the returned responses are peak-normalised views.
+        Whether the returned responses are peak-normalized views.
     air : AirConditions, optional
         The air: speed of sound and ISO 9613-1 absorption, for the image
         sources, the diffracted paths, the predicted decay and the reference the
@@ -287,7 +287,7 @@ class Hybrid(SimulationMethod):
                     name=key, source=source, receiver=receiver, ir=result.rir, sampling_rate=fs,
                     normalized=self.normalize,
                     generation=generation, ambisonic_order=self.sh_order,
-                    normalisation=self.normalization.lower(), channel_order="acn",
+                    normalization=self.normalization.lower(), channel_order="acn",
                 )
         return rirs
 

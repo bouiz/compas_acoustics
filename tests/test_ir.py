@@ -15,7 +15,7 @@ def make_ir(data, name="ir", normalized=True, **kwargs):
                            normalized=normalized, **kwargs)
 
 
-def test_ir_is_peak_normalised_by_default():
+def test_ir_is_peak_normalized_by_default():
     ir = make_ir([0.0, -0.4, 0.2])
     np.testing.assert_allclose(ir.ir, [0.0, -1.0, 0.5])
     assert ir.normalization_factor == pytest.approx(0.4)
@@ -30,7 +30,7 @@ def test_denormalized_returns_the_raw_ir():
     np.testing.assert_allclose(ir.denormalized(), [0.0, -0.4, 0.2])
 
 
-def test_unnormalised_ir_returns_the_raw_ir():
+def test_unnormalized_ir_returns_the_raw_ir():
     ir = make_ir([0.0, -0.4, 0.2], normalized=False)
     np.testing.assert_allclose(ir.ir, [0.0, -0.4, 0.2])
     ir.normalized = True
@@ -68,7 +68,7 @@ def test_wav_and_json_round_trip(tmp_path):
     ir = make_ir(raw, "seat_1", generation={"method": "image_source", "image_source_order": 3})
     wav_path, json_path = ir.to_wav(tmp_path / "seat_1.wav")
 
-    # The WAV is peak-normalised; the JSON holds the factor and how it was generated
+    # The WAV is peak-normalized; the JSON holds the factor and how it was generated
     written, fs = sf.read(wav_path)
     assert fs == sampling_rate_default
     assert np.max(np.abs(written)) == pytest.approx(1.0)
@@ -99,7 +99,7 @@ def test_from_wav_without_metadata_uses_the_wav_as_raw(tmp_path):
 
 
 @pytest.mark.parametrize("normalize", [True, False])
-def test_simulate_normalises_and_records_generation(normalize):
+def test_simulate_normalizes_and_records_generation(normalize):
     from compas_acoustics import AcousticObjectsLibrary
     from compas_acoustics import Scene
     from compas_acoustics.simulation_methods import Pyroomacoustics
@@ -139,16 +139,16 @@ def test_simulated_impulse_responses_use_the_requested_sampling_rate(sampling_ra
 def test_a_mono_response_has_one_channel_and_no_ambisonic_fields():
     ir = make_ir(np.zeros(100) + 0.1)
     assert ir.n_channels == 1
-    assert (ir.ambisonic_order, ir.normalisation, ir.channel_order) == (None, None, None)
+    assert (ir.ambisonic_order, ir.normalization, ir.channel_order) == (None, None, None)
 
 
 def test_an_ambisonic_response_keeps_one_factor_and_its_convention():
     raw = np.full((100, 4), 0.1)
     raw[10, 2] = 0.5
-    ir = make_ir(raw, ambisonic_order=1, normalisation="sn3d", channel_order="acn")
+    ir = make_ir(raw, ambisonic_order=1, normalization="sn3d", channel_order="acn")
     assert ir.n_channels == 4
     assert ir.normalization_factor == pytest.approx(0.5)
-    assert (ir.ambisonic_order, ir.normalisation, ir.channel_order) == (1, "sn3d", "acn")
+    assert (ir.ambisonic_order, ir.normalization, ir.channel_order) == (1, "sn3d", "acn")
 
 
 def test_a_three_dimensional_array_raises():
@@ -164,9 +164,9 @@ def test_resampling_keeps_the_channels(method):
 
 
 def test_ambisonic_fields_survive_the_wav_and_json_round_trip(tmp_path):
-    ir = make_ir(np.random.default_rng(1).standard_normal((64, 9)), ambisonic_order=2, normalisation="n3d", channel_order="acn")
+    ir = make_ir(np.random.default_rng(1).standard_normal((64, 9)), ambisonic_order=2, normalization="n3d", channel_order="acn")
     loaded = ImpulseResponse.from_wav(ir.to_wav(tmp_path / "a.wav")[0])
-    assert (loaded.ambisonic_order, loaded.normalisation, loaded.channel_order) == (2, "n3d", "acn")
+    assert (loaded.ambisonic_order, loaded.normalization, loaded.channel_order) == (2, "n3d", "acn")
 
 
 def test_on_the_package_scale_the_onset_is_the_geometric_arrival():

@@ -111,7 +111,7 @@ def test_matches_the_authors_toolbox():
     # reference for infinite edges and for an apex on the edge. For an apex off
     # the edge its implementation departs from Sec. III-C/D of the paper: it
     # takes the fade cutoff from the lowest underlying term instead of the
-    # highest, normalises by the distance via the unconstrained apex, and uses
+    # highest, normalizes by the distance via the unconstrained apex, and uses
     # a corner-equivalent time. There the paper is the reference, and those
     # cases are gated against BTMS below.
     worst = 0.0

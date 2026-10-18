@@ -14,7 +14,7 @@ The remedy here is the hybrid approach Vorlaender describes for such
 ray tracing estimates the late impulse response envelope M^2(dt, f), and a
 synthetic fine structure is shaped to it ("noise shaping", Heinz 1993;
 Schroeder 2011), with M^2(dt) = H_j^2 n_j (his Eq. 11.52). Here the fine
-structure is the network's own output, which is dense (normalised echo
+structure is the network's own output, which is dense (normalized echo
 density about 1) and carries the directions, and only its per-band energy
 over time is changed. Using the network as the carrier is this package's
 choice; no precedent for it was found.
@@ -169,7 +169,7 @@ def shape_late(
     ``late`` and ``early`` are the hybrid's parts, (n, C) with W first;
     ``reference`` is (n,) on the same scale. Warns if the two disagree by more
     than ``SCALE_WARN_DB`` over the first 50 ms, which means the reference is
-    on another scale (normalised, or with a different source level).
+    on another scale (normalized, or with a different source level).
     """
     late = np.asarray(late, dtype=float)
     early = np.asarray(early, dtype=float)

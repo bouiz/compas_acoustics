@@ -57,7 +57,7 @@ class Pyroomacoustics(SimulationMethod):
         Seeds pyroomacoustics' generator, so that the same scene gives the same responses (``None`` is 42 too).
         The T30 spread between seeds is the ray tracer's own variance: change the seed to see it.
     normalize : bool, default=True
-        Whether the returned responses are peak-normalised views.
+        Whether the returned responses are peak-normalized views.
     air : AirConditions, optional
         The air: its speed of sound and, with ``air_absorption``, its ISO 9613-1
         absorption. Without one, ``AirConditions()``: 20 C, 50 %, 101325 Pa.

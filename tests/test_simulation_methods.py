@@ -49,7 +49,7 @@ class Delta(SimulationMethod):
                     generation.pop("method")
                 key = context.key(source, receiver)
                 rirs[key] = ImpulseResponse(key, source, receiver, data, fs,
-                                            normalized=self.broken != "normalised", generation=generation)
+                                            normalized=self.broken != "normalized", generation=generation)
         if self.broken == "missing":
             rirs.popitem()
         return rirs
@@ -62,7 +62,7 @@ class AmbisonicDelta(Delta):
     def compute(self, context):
         rirs = Delta(channels=4).compute(context)
         for ir in rirs.values():
-            ir.ambisonic_order, ir.normalisation, ir.channel_order = 1, "sn3d", "acn"
+            ir.ambisonic_order, ir.normalization, ir.channel_order = 1, "sn3d", "acn"
             ir.generation["method"] = self.name
         return rirs
 
@@ -83,7 +83,7 @@ def test_the_fake_methods_meet_the_contract(assert_meets_contract):
         assert_meets_contract(s.simulate(method), context, method)
 
 
-@pytest.mark.parametrize("broken", ["scale", "rate", "generation", "normalised", "missing"])
+@pytest.mark.parametrize("broken", ["scale", "rate", "generation", "normalized", "missing"])
 def test_each_broken_contract_point_fails(assert_meets_contract, broken):
     s = scene()
     method = Delta(broken=broken)

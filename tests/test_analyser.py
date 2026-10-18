@@ -157,7 +157,7 @@ def test_strength_matches_inverse_distance_law():
     near, reference = np.zeros(fs), np.zeros(fs)
     near[100] = 1.0
     reference[1500] = 0.1
-    # Normalised ImpulseResponse objects are evaluated at their raw level
+    # Normalized ImpulseResponse objects are evaluated at their raw level
     near_ir = ImpulseResponse("near", source, Receiver("r", 1, 0, 0), near, fs)
     reference_ir = ImpulseResponse("ref", source, Receiver("f", 10, 0, 0), reference, fs)
 

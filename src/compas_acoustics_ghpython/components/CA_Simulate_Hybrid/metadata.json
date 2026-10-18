@@ -74,7 +74,7 @@
             },
             {
                 "name": "normalize",
-                "description": "Whether the impulse responses are peak-normalised (default True). The raw level is always kept.",
+                "description": "Whether the impulse responses are peak-normalized (default True). The raw level is always kept.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "bool"

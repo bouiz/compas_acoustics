@@ -239,7 +239,7 @@ def graph_with_methods():
     s = scene()
     source, receiver = s.sources[0], s.receivers[0]
     mono = ImpulseResponse("m", source, receiver, np.ones(4), 48000)
-    ambisonic = ImpulseResponse("a", source, receiver, np.ones((4, 4)), 48000, ambisonic_order=1, normalisation="sn3d", channel_order="acn")
+    ambisonic = ImpulseResponse("a", source, receiver, np.ones((4, 4)), 48000, ambisonic_order=1, normalization="sn3d", channel_order="acn")
     s.populate_ir_graph([mono], attribute="pyroomacoustics")
     s.populate_ir_graph([mono], attribute="data")
     return s, mono, ambisonic

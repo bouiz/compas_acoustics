@@ -34,10 +34,10 @@ def _assert_meets_contract(rirs, context, method, direct_sound=True):
         else:
             assert ir.ambisonic_order is not None, f"{key}: no ambisonic order"
             assert ir.n_channels == (ir.ambisonic_order + 1) ** 2, f"{key}: channel count"
-            assert ir.normalisation in ("sn3d", "n3d") and ir.channel_order == "acn", f"{key}: convention"
-        # 5. normalised view by default, raw level kept
+            assert ir.normalization in ("sn3d", "n3d") and ir.channel_order == "acn", f"{key}: convention"
+        # 5. normalized view by default, raw level kept
         if getattr(method, "normalize", True):
-            assert ir.normalized and np.max(np.abs(ir.ir)) == pytest.approx(1.0), f"{key}: not normalised"
+            assert ir.normalized and np.max(np.abs(ir.ir)) == pytest.approx(1.0), f"{key}: not normalized"
         assert np.max(np.abs(ir.denormalized())) == pytest.approx(ir.normalization_factor)
 
 

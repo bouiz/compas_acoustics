@@ -724,7 +724,7 @@ def _cone_sampling(direction, angle: float, n_rays: int):
     Parameters
     ----------
     direction : :class:`compas.geometry.Vector` or list
-        The cone axis. Does not need to be normalised.
+        The cone axis. Does not need to be normalized.
     angle : float
         The half angle of the cone in degrees.
     n_rays : int

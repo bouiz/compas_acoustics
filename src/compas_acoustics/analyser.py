@@ -92,7 +92,7 @@ class AcousticAnalyser:
         The impulse response to analyze, shaped (samples,) or (samples, channels).
         Multi-channel input is reduced to channel 0, which is the omnidirectional
         component of an ambisonic impulse response. An :class:`ImpulseResponse` is
-        analysed at its raw (denormalised) level and sets :attr:`sampling_rate`.
+        analysed at its raw (denormalized) level and sets :attr:`sampling_rate`.
     """
 
     def __init__(self, ir):
@@ -262,7 +262,7 @@ class AcousticAnalyser:
     def reverberation_times(self, impulse_response=None) -> dict:
         """Compute reverberation times (EDT, T20, T30) per frequency band.
 
-        Schroeder's backward integration (pyrato ``schroeder_integration``), normalised to
+        Schroeder's backward integration (pyrato ``schroeder_integration``), normalized to
         0 dB at the direct sound, and the ISO 3382-1 linear regression of pyrato's
         ``reverberation_time_linear_regression``. There is no noise compensation: a
         simulated response has no noise floor, and pyrato's Lundeby search
@@ -537,7 +537,7 @@ class AcousticAnalyser:
         G is the total energy of the impulse response relative to the energy of a
         free-field impulse response of the same source at 10 m (ISO 3382-1). Both must be
         at their raw level: pass :class:`ImpulseResponse` objects, which are used
-        denormalised, or raw arrays. The single-number value averages the 500 and
+        denormalized, or raw arrays. The single-number value averages the 500 and
         1000 Hz octaves.
 
         Parameters
@@ -598,7 +598,7 @@ class AcousticAnalyser:
         drr = self.direct_to_reverberant_ratio(ir)
         ct = self.center_time(ir)
         sti_data = self.speech_transmission_index(ir)
-        # G needs the absolute level; an array or a normalised-only response has none
+        # G needs the absolute level; an array or a normalized-only response has none
         own = None if ir is self.ir else ir
         if _PYRATO_PARAMETERS and self._on_package_scale(own):
             strength = self.sound_strength(impulse_response=own)
