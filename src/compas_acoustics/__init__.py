@@ -21,7 +21,6 @@ from .auraliser import Auraliser
 from .audio_player import AudioPlayer
 from .numerical.fitness import regularized_fitness
 from . import pra_converter
-from . import orchestra_layouts
 
 
 if TYPE_CHECKING:
@@ -58,7 +57,6 @@ __all__ = [
     'RoomGeometry',
     'regularized_fitness',
     'pra_converter',
-    'orchestra_layouts',
     ]
 
 
