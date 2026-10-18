@@ -61,6 +61,7 @@ exclude = ["compas_acoustics_ghpython.components*"]
 compas_acoustics = [
     "materials_library/*.json",
     "hrtfs_library/*.sofa",
+    "hrtfs_library/README.md",
     "anechoic_soundfiles_library/*",
 ]
 compas_acoustics_ghpython = ["components/ghuser/*.ghuser"]
