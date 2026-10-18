@@ -37,6 +37,20 @@ def no_configured_worker(monkeypatch, tmp_path):
     monkeypatch.setattr(worker, "_PROXY", None)
 
 
+@pytest.fixture(autouse=True)
+def private_home(monkeypatch, tmp_path):
+    # The records of the workers a test starts go to a folder of its own, not to the user's home
+    import matplotlib
+
+    home = tmp_path / "home"
+    home.mkdir()
+    # A new home would make matplotlib rebuild its font cache in every worker, which takes half a minute
+    monkeypatch.setenv("MPLCONFIGDIR", matplotlib.get_configdir())
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    monkeypatch.setattr(worker, "WORKERS", home / ".compas_acoustics" / "workers")
+
+
 @pytest.fixture
 def running_worker(monkeypatch):
     monkeypatch.setenv("COMPAS_ACOUSTICS_WORKER_PYTHON", WORKER_PYTHON)
@@ -55,15 +69,82 @@ def test_the_config_file_names_the_worker(tmp_path):
     assert worker.worker_python() == (WORKER_PYTHON or __file__)
 
 
+def call(service, name, token, *args):
+    return json.loads(service._dispatch(name, [json.dumps({"args": [token, *args], "kwargs": {}})]))
+
+
 def test_the_service_only_dispatches_the_worker_api():
     from compas_acoustics.worker.service import WorkerService
 
-    refused = json.loads(WorkerService()._dispatch("json.dumps", ['{"args": [1], "kwargs": {}}']))
+    service = WorkerService("secret")
+    refused = call(service, "json.dumps", "secret", 1)
     assert refused["data"] is None and "not part of the compas_acoustics worker API" in refused["error"]
-    nested = json.loads(WorkerService()._dispatch("compas_acoustics.worker.api.json.dumps", ['{"args": [1], "kwargs": {}}']))
+    nested = call(service, "compas_acoustics.worker.api.json.dumps", "secret", 1)
     assert nested["data"] is None and "not part of the compas_acoustics worker API" in nested["error"]
-    allowed = json.loads(WorkerService()._dispatch("compas_acoustics.worker.api.info", ['{"args": [], "kwargs": {}}']))
+    allowed = call(service, "compas_acoustics.worker.api.info", "secret")
     assert allowed["error"] is None and allowed["data"]["compas_acoustics"] == compas_acoustics.__version__
+    assert allowed["data"]["fingerprint"] == worker.fingerprint()
+
+
+@pytest.mark.parametrize("token", ["wrong", "", None, 1])
+def test_the_service_refuses_calls_without_the_token(token):
+    from compas_acoustics.worker.service import WorkerService
+
+    refused = call(WorkerService("secret"), "compas_acoustics.worker.api.info", token)
+    assert refused["data"] is None and refused["error"] == "Unauthorised."
+    bare = json.loads(WorkerService("secret")._dispatch("compas_acoustics.worker.api.info", ['{"args": [], "kwargs": {}}']))
+    assert bare["data"] is None and bare["error"] == "Unauthorised."
+
+
+def test_the_fingerprint_follows_the_sources(tmp_path):
+    assert worker.fingerprint() == worker.fingerprint()
+    assert len(worker.fingerprint()) == 64
+
+
+def test_the_api_reads_and_writes_only_in_worker_folders(tmp_path):
+    from compas_acoustics.worker import api
+
+    inside = worker._folder()
+    assert api._worker_folder(inside) == inside.resolve()
+    assert api._worker_file(inside / "a.wav") == inside.resolve() / "a.wav"
+    for outside in (tmp_path, tmp_path / "compas_acoustics_worker_x", Path.home(), inside / "nested", inside.parent):
+        with pytest.raises(ValueError, match="not a compas_acoustics worker folder"):
+            api._worker_folder(outside)
+    with pytest.raises(ValueError, match="not a compas_acoustics worker folder"):
+        api._worker_file(tmp_path / "a.wav")
+    with pytest.raises(ValueError, match="not a compas_acoustics worker folder"):
+        api.simulate(scene(), "pyroomacoustics", {}, None, str(tmp_path))
+    with pytest.raises(ValueError, match="not a compas_acoustics worker folder"):
+        api.convolve("a", {}, {}, "mono", "h.sofa", 48000, str(tmp_path / "out.wav"))
+
+
+def test_a_process_is_alive_until_it_exits():
+    import subprocess
+    import sys
+
+    from compas_acoustics.worker.service import process_is_alive
+
+    assert process_is_alive(os.getpid())
+    child = subprocess.Popen([sys.executable, "-c", "pass"])
+    child.wait()
+    assert not process_is_alive(child.pid)
+
+
+def test_stopping_the_running_workers_shuts_them_down_and_forgets_them(tmp_path):
+    import threading
+
+    from compas.rpc import Server
+
+    server = Server(("127.0.0.1", 0))
+    thread = threading.Thread(target=server.serve_forever)
+    thread.start()
+    (tmp_path / "1.json").write_text(json.dumps({"pid": 1, "port": server.server_address[1]}))
+    (tmp_path / "2.json").write_text(json.dumps({"pid": 2, "port": 1}))
+    worker.stop_running_workers(tmp_path)
+    thread.join(timeout=5)
+    assert not thread.is_alive()
+    server.server_close()
+    assert list(tmp_path.glob("*.json")) == []
 
 
 def lan_address():
@@ -83,9 +164,35 @@ def test_the_service_listens_on_localhost_only(running_worker):
     lan = lan_address()
     if lan is None or lan.startswith("127."):
         pytest.skip("this machine has no non-loopback address")
-    socket.create_connection(("127.0.0.1", worker.PORT), timeout=1).close()
+    socket.create_connection(("127.0.0.1", running_worker.port), timeout=1).close()
     with pytest.raises(OSError):
-        socket.create_connection((lan, worker.PORT), timeout=1).close()
+        socket.create_connection((lan, running_worker.port), timeout=1).close()
+
+
+@needs_worker
+def test_the_running_worker_refuses_a_caller_without_the_token(running_worker):
+    from xmlrpc.client import ServerProxy
+
+    server = ServerProxy(f"http://127.0.0.1:{running_worker.port}")
+    answer = json.loads(server.compas_acoustics.worker.api.info('{"args": [], "kwargs": {}}'))
+    assert answer["data"] is None and answer["error"] == "Unauthorised."
+    assert running_worker.info()["compas_acoustics"] == compas_acoustics.__version__
+
+
+@needs_worker
+def test_the_worker_records_itself_and_is_forgotten_when_stopped(running_worker):
+    import time
+
+    records = list(worker.WORKERS.glob("*.json"))
+    mine = [json.loads(r.read_text()) for r in records]
+    assert any(m["port"] == running_worker.port for m in mine)
+    running_worker.stop_server()
+    for _ in range(50):
+        if not any(json.loads(r.read_text())["port"] == running_worker.port for r in worker.WORKERS.glob("*.json")):
+            break
+        time.sleep(0.1)
+    else:
+        pytest.fail("the worker's record is still there")
 
 
 @needs_worker
@@ -146,20 +253,62 @@ def test_the_hybrid_runs_in_the_worker(running_worker):
     assert s.impulse_responses("hybrid")
 
 
-def test_a_cold_worker_gets_time_to_start(monkeypatch):
-    # The first start of a fresh environment imports the scientific stack uncached: 30 s measured, past compas.rpc's 10 s
-    import compas.rpc
-
+class FakeProxy:
     seen = {}
+    fingerprint = None
 
-    class FakeProxy:
-        def __init__(self, **kwargs):
-            seen.update(kwargs)
+    def __init__(self, **kwargs):
+        type(self).seen = dict(kwargs, token=os.environ.get(worker.TOKEN_VARIABLE), parent=os.environ.get(worker.PARENT_VARIABLE),
+                               pythonpath=os.environ.get("PYTHONPATH"))
+        self.stopped = False
 
-        def info(self):
-            return {"compas_acoustics": compas_acoustics.__version__}
+    def info(self, token):
+        return {"compas_acoustics": compas_acoustics.__version__, "fingerprint": self.fingerprint or worker.fingerprint()}
+
+    def stop_server(self):
+        self.stopped = True
+
+
+@pytest.fixture
+def fake_proxy(monkeypatch):
+    import compas.rpc
 
     monkeypatch.setattr(compas.rpc, "Proxy", FakeProxy)
     monkeypatch.setenv("COMPAS_ACOUSTICS_WORKER_PYTHON", __file__)
+    monkeypatch.setattr(worker.atexit, "register", lambda *a, **k: None)
+    FakeProxy.fingerprint = None
+    return FakeProxy
+
+
+def test_a_cold_worker_gets_time_to_start(fake_proxy):
+    # The first start of a fresh environment imports the scientific stack uncached: 30 s measured, past compas.rpc's 10 s
     assert worker.proxy() is not None
-    assert seen["max_conn_attempts"] * 0.1 >= 60
+    assert fake_proxy.seen["max_conn_attempts"] * 0.1 >= 60
+
+
+def test_each_session_starts_its_own_worker_on_a_free_port_with_a_token(fake_proxy, monkeypatch):
+    monkeypatch.setenv("PYTHONPATH", "/rhino/site-packages")
+    first = worker.proxy()
+    seen = dict(fake_proxy.seen)
+    assert seen["port"] == first.port and 0 < seen["port"] < 65536 and seen["port"] != 1753
+    assert len(seen["token"]) == 32 and seen["parent"] == str(os.getpid())
+    assert seen["pythonpath"] is None
+    assert os.environ["PYTHONPATH"] == "/rhino/site-packages"
+    assert worker.TOKEN_VARIABLE not in os.environ and worker.PARENT_VARIABLE not in os.environ
+    worker._PROXY = None
+    worker.proxy()
+    assert fake_proxy.seen["token"] != seen["token"]
+
+
+def test_a_worker_with_other_sources_is_refused_and_stopped(fake_proxy):
+    fake_proxy.fingerprint = "0" * 64
+    with pytest.raises(RuntimeError, match="run the installer again"):
+        worker.proxy()
+    assert worker._PROXY is None
+
+
+def test_stop_stops_this_sessions_worker_once(fake_proxy):
+    started = worker.proxy()
+    worker.stop()
+    assert started._proxy.stopped and worker._PROXY is None
+    worker.stop()

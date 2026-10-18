@@ -15,6 +15,7 @@ import tempfile
 from pathlib import Path
 
 from compas_acoustics.worker import CONFIG
+from compas_acoustics.worker import stop_running_workers
 
 WORKER_HOME = Path.home() / ".compas_acoustics" / "worker"
 
@@ -32,6 +33,8 @@ def install_worker(wheel, hybrid=False, home=WORKER_HOME, config=CONFIG, python_
     """Create the worker environment in ``home`` and record its interpreter in ``config``; returns the interpreter."""
     uv = _uv()
     home, config = Path(home), Path(config)
+    # A running worker holds the files of the environment open, which Windows does not let go of
+    stop_running_workers()
     shutil.rmtree(home, ignore_errors=True)
     subprocess.run([uv, "venv", "--python", python_version, str(home)], check=True)
     python = home / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")

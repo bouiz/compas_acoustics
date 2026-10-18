@@ -58,8 +58,10 @@ the installer creates a second Python 3.12 environment with `uv` and records it 
 `COMPAS_ACOUSTICS_WORKER_PYTHON` to use another interpreter that has `compas_acoustics`.
 
 Simulate Hybrid and Auralise then run those parts in the worker, a local [`compas.rpc`](https://compas.dev) server that
-starts on first use (a few seconds) and exchanges scenes as COMPAS JSON and audio as WAV files. It listens on `127.0.0.1:17531` only and serves only
-`compas_acoustics.worker.api`. Without a worker nothing changes: the components run in Rhino's Python and report what is missing.
+starts on first use (a few seconds) and exchanges scenes as COMPAS JSON and audio as WAV files. Every Rhino session starts its own worker, on a free
+port of `127.0.0.1`, and shares a random token with it; the worker serves only `compas_acoustics.worker.api`, refuses calls without the token, reads and
+writes only in temporary folders made for the call, and exits when the session ends or dies. It checks that it runs the same code as Rhino's Python, and tells you
+to run the installer again if not. Without a worker nothing changes: the components run in Rhino's Python and report what is missing.
 
 ## Getting started
 

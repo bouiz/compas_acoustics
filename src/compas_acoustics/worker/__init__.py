@@ -4,25 +4,36 @@ Rhino 8 runs CPython 3.9, where the hybrid method and binaural decoding are not 
 server in another Python with compas_acoustics installed (see
 :mod:`compas_acoustics.worker.install`); :func:`proxy` starts it on first use.
 Scenes travel as COMPAS JSON, audio as WAV files in a temporary folder.
+
+Every Python session starts its own worker, on a free port of 127.0.0.1, and shares a random token with it: calls
+without the token are refused. The worker stops when the session ends, and when the session dies without saying so.
 """
 
+import atexit
 import contextlib
+import hashlib
 import importlib.util
 import json
 import os
+import secrets
+import socket
 import tempfile
 import uuid
 from pathlib import Path
 
-PORT = 17531
 SERVICE = "compas_acoustics.worker.service"
 # Pings, 0.1 s apart, before giving up on a starting worker; the first start of a fresh environment imports uncached
 CONNECTION_ATTEMPTS = 1200
 CONFIG = Path.home() / ".compas_acoustics" / "worker.json"
+# One file per running worker, {"pid": ..., "port": ...}, so that the installer can stop them before replacing the environment
+WORKERS = Path.home() / ".compas_acoustics" / "workers"
+TOKEN_VARIABLE = "COMPAS_ACOUSTICS_WORKER_TOKEN"
+PARENT_VARIABLE = "COMPAS_ACOUSTICS_WORKER_PARENT"
+FOLDER_PREFIX = "compas_acoustics_worker_"
 
 _PROXY = None
 
-__all__ = ["PORT", "CONFIG", "worker_python", "proxy", "simulate", "convolve"]
+__all__ = ["CONFIG", "WORKERS", "worker_python", "fingerprint", "proxy", "stop", "stop_running_workers", "simulate", "convolve"]
 
 
 def worker_python():
@@ -33,14 +44,65 @@ def worker_python():
     return python if python and os.path.exists(python) else None
 
 
+def fingerprint():
+    """A hash of the package's Python sources, which tells whether two installations run the same code.
+
+    The version number does not: it stays the same between reinstalls of a development version.
+    """
+    root = Path(__file__).resolve().parents[1]
+    digest = hashlib.sha256()
+    for path in sorted(root.rglob("*.py")):
+        digest.update(path.relative_to(root).as_posix().encode())
+        digest.update(path.read_bytes())
+    return digest.hexdigest()
+
+
+def _free_port():
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        return probe.getsockname()[1]
+
+
 @contextlib.contextmanager
-def _without_python_path():
-    # Inherited by the worker, these would load this (Rhino's 3.9) Python's packages into the 3.12 worker
+def _worker_environment(token):
+    # PYTHONHOME and PYTHONPATH, inherited by the worker, would load this (Rhino's 3.9) Python's packages into the 3.12 worker
     saved = {name: os.environ.pop(name) for name in ("PYTHONHOME", "PYTHONPATH") if name in os.environ}
+    os.environ[TOKEN_VARIABLE] = token
+    os.environ[PARENT_VARIABLE] = str(os.getpid())
     try:
         yield
     finally:
+        os.environ.pop(TOKEN_VARIABLE, None)
+        os.environ.pop(PARENT_VARIABLE, None)
         os.environ.update(saved)
+
+
+class _Worker:
+    """A :class:`compas.rpc.Proxy` that sends the token with every call."""
+
+    def __init__(self, proxy, token, port):
+        self._proxy = proxy
+        self._token = token
+        self.port = port
+
+    def __getattr__(self, name):
+        if name.startswith("_"):
+            raise AttributeError(name)
+
+        def call(*args):
+            return getattr(self._proxy, name)(self._token, *args)
+
+        return call
+
+    def stop_server(self):
+        self._proxy.stop_server()
+        # The process is terminated, so it may not get to remove its own record
+        for record in WORKERS.glob("*.json") if WORKERS.is_dir() else []:
+            try:
+                if json.loads(record.read_text())["port"] == self.port:
+                    record.unlink(missing_ok=True)
+            except (KeyError, OSError, ValueError):
+                pass
 
 
 def proxy():
@@ -54,19 +116,55 @@ def proxy():
 
         from compas_acoustics import __version__
 
-        with _without_python_path():
-            candidate = Proxy(package="compas_acoustics.worker.api", python=python, port=PORT, service=SERVICE, autoreload=False,
-                              max_conn_attempts=CONNECTION_ATTEMPTS)
-        version = candidate.info()["compas_acoustics"]
-        if version != __version__:
+        token = secrets.token_hex(16)
+        port = _free_port()
+        with _worker_environment(token):
+            candidate = _Worker(
+                Proxy(package="compas_acoustics.worker.api", python=python, port=port, service=SERVICE, autoreload=False,
+                      max_conn_attempts=CONNECTION_ATTEMPTS),
+                token, port)
+        info = candidate.info()
+        if (info["compas_acoustics"], info["fingerprint"]) != (__version__, fingerprint()):
             candidate.stop_server()
-            raise RuntimeError(f"The worker at {python} has compas_acoustics {version}, this Python has {__version__}: run the installer again.")
+            raise RuntimeError(f"The worker at {python} runs a different compas_acoustics ({info['compas_acoustics']}) than this Python "
+                               f"({__version__}): run the installer again.")
+        atexit.register(stop)
         _PROXY = candidate
     return _PROXY
 
 
+def stop():
+    """Stop this session's worker, if it has one."""
+    global _PROXY
+    if _PROXY is not None:
+        worker, _PROXY = _PROXY, None
+        worker.stop_server()
+
+
+def stop_running_workers(workers=None):
+    """Ask every worker recorded in :data:`WORKERS` to shut down, and forget those that are gone.
+
+    The installer calls this before it replaces the worker environment, whose files a running worker holds open on Windows.
+    """
+    import time
+    from xmlrpc.client import ServerProxy
+
+    folder = Path(WORKERS if workers is None else workers)
+    for record in sorted(folder.glob("*.json")) if folder.is_dir() else []:
+        try:
+            port = json.loads(record.read_text())["port"]
+            ServerProxy(f"http://127.0.0.1:{port}").remote_shutdown()
+        except Exception:
+            pass
+        for _ in range(100):
+            if not record.exists():
+                break
+            time.sleep(0.1)
+        record.unlink(missing_ok=True)
+
+
 def _folder():
-    return Path(tempfile.mkdtemp(prefix="compas_acoustics_worker_"))
+    return Path(tempfile.mkdtemp(prefix=FOLDER_PREFIX))
 
 
 def _has_spharpy():
