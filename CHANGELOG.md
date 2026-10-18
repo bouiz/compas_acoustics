@@ -28,6 +28,8 @@ Nothing is kept under its old name. What replaces what:
 | `sample_rate` (`ImpulseResponse`, `Auraliser`, `AudioPlayer.play`, `receivers_to_pra_mic_array`) | `sampling_rate` |
 | `pra_converter.material_to_pra`, `mesh_to_pra_wall`, `acoustic_object_to_pra_walls` | `RoomGeometry.to_pra`, `pra_converter.scene_to_pra_room` |
 | `Tools` | removed |
+| `compas_acoustics.orchestra_layouts`; the Orchestra Layout component | `examples/orchestra_layouts.py`; no component |
+| `Auraliser`, `AcousticAnalyser`, `MaterialsLibrary` as `Data` | plain classes: no `guid`, `copy()` or `compas.json_dumps` |
 | Grasshopper: Simulate Ray Tracing, with a `sample_rate` input | Simulate Pyroomacoustics; the rate is the `sampling_rate` input of Room Scene |
 | Grasshopper: Analyse IR output STI | no longer an output, with G: they need pyrato >= 1.0 |
 
@@ -36,172 +38,96 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 
 ### Added
 
-- `Scene` and `AcousticObject` serialise to COMPAS JSON (`compas.data.json_dumps`), with their guids; the IR graph is not serialised
-- `compas_acoustics.worker`: runs the hybrid method and binaural decoding in a second Python >= 3.11 on Rhino 8 (Python 3.9), through a `compas.rpc` server that each session starts for itself on a free port of 127.0.0.1, with a random token that every call must carry; it serves only `compas_acoustics.worker.api`, reads and writes only in temporary folders made for the call, exits when the session ends or dies, and is refused if its code differs from the session's (a hash of the sources, not the version number). The installer stops running workers before it replaces the environment. Scenes travel as COMPAS JSON, audio as WAV files. `python -m compas_acoustics.worker.install` creates the environment with `uv`; the Grasshopper installer has a `worker` input (`binaural` or `hybrid`) for it, and `COMPAS_ACOUSTICS_WORKER_PYTHON` names another interpreter. Simulate Hybrid and Auralise use the worker when Rhino's Python cannot do the work; without a worker nothing changes
-- Grasshopper installer for Rhino 8: `installer/compas_acoustics_installer.gh`. It installs a `.whl` file (local file or download link) into a Rhino script environment, and adds the Grasshopper components.
-- `invoke installer-bundle`: builds the Grasshopper components and the wheel, and zips them with the installer.
-- GitHub Actions use the new `compas-dev/compas-actions` (v1). The build workflow makes the installer bundle (artifact). Releases are made with a pull request (`prepare release` workflow). After the merge, the release workflow builds the Grasshopper components into the wheel, and adds the wheel and the installer bundle to the GitHub release. Tests also run on Python 3.9.
-- `invoke pre-build` and `invoke build-cpython-ghuser-components` build the Grasshopper components with `ghpython_componentizer`.
-- `MaterialCategory` and `AcousticMaterial.category`. `MaterialsLibrary.materials_by_category`.
-- `tools/import_backend_materials.py`: imports the materials of pyroomacoustics into the materials library, with a category, the key as the name, and `data_origin` set to the backend.
-- Material Library component: materials are grouped by category. Construct and Deconstruct Material components: new `category` input and output.
-- `AcousticMaterial.data_origin`: where the coefficients come from. Defaults to `"custom"`; materials imported from pyroomacoustics store `"pyroomacoustics"`. Included in serialization and in `AcousticMaterial.__str__`.
-- Material Library component: a remark when the chosen material has no scattering coefficients, and the component message shows the material name and `data_origin`.
-- Deconstruct Material component: `data_origin` output.
-- `AirConditions(temperature=20, humidity=50, pressure=101325)`: the air of a simulation, with the speed of sound after Cramer (1993) and the air absorption after ISO 9613-1:1993, both from `pyfar.constants`; for `Pyroomacoustics(air=...)`, the ray tracer and `Hybrid(air=...)`, and recorded in `generation['air']` and `generation['speed_of_sound']`. A `Hybrid` takes its references' air and refuses a different one
-- `Hybrid.binaural(hrtf_path=None)`: binaural responses whose early part (image sources, UDFA and BTMS paths) is filtered path by path with the HRTF measured nearest each direction of arrival, as RAVEN renders image sources; the late field is MagLS-decoded as before. `compas_acoustics.binaural` (`HrtfSet`, `render_early_binaural`, `binaural_rir`, and `magls_filters`, moved there from the `Auraliser`), and binaural impulse responses in the `Auraliser`
-- `ImpulseResponse` data class wrapping a source–receiver pair, raw IR array, sample rate, and simulation platform; includes `resampled()` for poly/FFT resampling
-- Export `ImpulseResponse` from the public package API
-- `Scene.ir_graph` — a compas `Graph` linking sources and receivers, with `ImpulseResponse` stored on edges
-- Scene IR graph API: `add_node_to_ir_graph`, `add_impulse_response`, `populate_ir_graph`, `get_impulse_response`, `clear_ir_edges`
-- Automatic IR graph node registration when sources/receivers are added via `add_source`, `add_receiver`, or `add_acoustic_object`
-- `Ray` — a `compas.geometry.Polyline` subclass representing a traced acoustic ray, with metadata (source, ray index, initial direction, sound speed), travel distance/time, spotlight-cone membership (`is_in_cone`), and truncation by reflection order/distance/time (`up_to_reflection_order`, `up_to_distance`, `up_to_time`)
-- `ScatteredRay` — a `Ray` subclass for coefficient-driven scattered rays born at a reflection point, carrying parent ray index, scattered energy, and a distance offset
-- `RayField` — a container for traced rays with `filter` (by source and/or ray index), `truncated` (by reflection order or travel time), and `display_in_viewer` (specular and/or scattered rays over the scene)
-- Export `Ray`, `ScatteredRay`, and `RayField` from the public package API
-- `Scene.scene_materials`, `Scene.print_scene_materials()`, `Scene.display_materials_in_viewer()` — per-object material introspection and visualisation, replacing the removed surface-group equivalents
-- `Source.directivity` (`"omnidirectional"`, `"cardioid"`, `"supercardioid"`, `"hypercardioid"`, `"bidirectional"`) and `Source.sound_file` — assigning a sound file automatically downmixes stereo/multi-channel audio to mono (writing a sibling `mono_<name>` file) so it can be convolved without errors
-- `Receiver.direction`, `Receiver.radius`, `Receiver.received_spls`, and `Receiver.total_spl` — energy-summed SPL (dB) across all contributions collected on the receiver
-- `compas_acoustics.pra_converter` module — conversion helpers between compas_acoustics and pyroomacoustics objects: `vector_to_pra`, `directivity_to_pra`, `points_to_array`, `source_to_pra`, `receivers_to_pra_mic_array`, `material_to_pra`, `mesh_to_pra_wall`, `acoustic_object_to_pra_walls`, `scene_to_pra_room`
-- `compas_acoustics.orchestra_layouts` module — named string-section seating layouts: `string_quartet`, `chamber_strings`, `medium_chamber_strings`, `symphonic_strings`
-- `compas_acoustics.numerical.fitness.regularized_fitness` — a MAE + weighted-STD loss function for scoring a list of values against a target, for use in optimisation objectives
-- `AudioPlayer` — cross-platform (Windows/macOS) playback of `.wav` files or raw numpy arrays (`play`, `play_file`, `play_array`, `stop`)
-- `anechoic_soundfiles_library` — bundled anechoic recordings (bassoon, female and male speech, trumpet, viola) for auralisation demos; the README gives their sources
-- `hrtfs_library` — the bundled KEMAR HRTF set (`KEMAR_FreeFieldComp_48kHz.sofa`, free-field compensated, 48 kHz) used by `Auraliser` and `Hybrid.binaural`
-- Preset acoustic materials in `MaterialsLibrary`: `acoustic_plaster`, `brickwall`, `concrete`, `carpet` (renamed from `test_material`), `wall_absorber_50mm`
-- `Defaults.HRTF_LIBRARY_PATH`, `Defaults.ANECHOIC_SOUNDFILES_LIBRARY_PATH`, `Defaults.PARAM_NAMES`
-- `compas_acoustics_ghpython` — a new package for Rhino and Grasshopper, with 18 Grasshopper components covering the full workflow (Acoustic Object, Source, Receiver, Directivity, Channel, Model, Orchestra Layout, Material Library, Construct/Deconstruct Material, Simulate Ray Trace, Analyse IR, Deconstruct IR, Deconstruct IR Graph, Auralise, Audio Player, Regularized Fitness, Plot 2D, Plot 2D Settings). Build the `.ghuser` files with `invoke build-cpython-ghuser-components`
-- `compas_acoustics_ghpython.plotter` — `AcousticParameter`, `Plotter2D`, `Plotter2DSettings` for plotting acoustic parameters in Rhino/Grasshopper
-- `sounddevice` added as a runtime dependency (used by `AudioPlayer.play_array`); `ghpython_componentizer` added as a dev dependency
-- `tests/test_python39.py`: the package imports on Python 3.9 without the optional dependencies
-- `AcousticAnalyser.stage_support()` — early and late stage support (`ST_early` 20-100 ms, `ST_late` 100-1000 ms relative to the first 10 ms; ISO 3382-1:2009 Annex C, Gade) per octave band, with single-number values averaged over 250-2000 Hz; each time window is cut before octave filtering so low-band filter delay does not leak direct sound into the reflection windows
-- `AcousticAnalyser.sound_strength(reference_ir)` — sound strength G per octave band via `pyrato.parameters.sound_strength`, relative to a 10 m free-field reference, with the single-number value averaged over 500 and 1000 Hz
-- `AcousticAnalyser` accepts an `ImpulseResponse`, analysed at its raw level, and takes its sample rate
-- `Auraliser.decode()` with `decode_mono()` (W channel), `decode_stereo()` (virtual cardioids pointing left and right; mono signals play on both channels) and `decode_binaural()`, which renders ambisonics (order 1 or higher) to binaural via MagLS decoding filters (`Auraliser.binaural_filters()`) computed from the HRTF SOFA file, following `spaudiopy.decoder.magls_bin`/`sh2bin` (Hold et al., 2023)
-- Grasshopper Auralise component: `output_format` input (`stereo` default, `binaural`, `mono`, `ambisonics`) and `hrtf` input (`kemar` or a `.sofa` path), each with a Value List placed automatically when unconnected, and a `sampling_rate` output
-- Grasshopper Audio Player component: optional `sampling_rate` input for numpy array sounds; signals with more than two channels are rejected with an error
-- `Auraliser` now accepts a list of `ImpulseResponse` objects as well as the dict format, and a list of sound file paths as well as the dict format; when `anechoic_sounds` is omitted, each source's `sound_file` is used. Impulse responses and sounds are paired by id when the ids match, otherwise by position
-- `ImpulseResponse` peak normalisation: the raw impulse response is kept with its `normalization_factor` (peak over all channels) and `level_db`; `normalized=True` (default) makes `ir` return the peak-normalised response; `denormalized()` returns the raw response and `ImpulseResponse.denormalize_group()` scales a group relative to its loudest impulse response
-- `ImpulseResponse.to_wav()` / `ImpulseResponse.from_wav()` — peak-normalised 32-bit float WAV plus a JSON metadata file (normalisation factor, generation method and settings, source, receiver, sample rate); `ImpulseResponse.generation` and `ImpulseResponse.metadata`
-- `Auraliser` output level: `level='relative'` (default; one gain for a group of renders so the loudest peaks at `headroom_db`, keeping level differences), `'individual'` or `'none'`, `headroom_db=-1`; `Auraliser.render_gains()` and `Auraliser.peak_dbfs()`; `export_convolved_sound(..., gain=None)`
-- `AudioPlayer.play(..., normalize=True)` option to play arrays at their rendered level
-- Grasshopper: Auralise `level` input (Value List) applying one gain across all signals of a run and showing the output peak in dBFS; Audio Player `normalize` input; Simulate Ray Tracing `normalize` input
-- `RoomGeometry` — a scene's surfaces as one validated room: vertices welded transitively across objects, surfaces oriented consistently and outward, closedness checked, obstacles stored two-sided while the drawn obstacles stay available (`obstacle_faces`), materials extended to a 62.5 Hz band; `RoomGeometry.from_mesh()` for shared vertices and faces; coplanar faces merged by default in `from_scene`; `to_pra()` builds the pyroomacoustics room at any sample rate, holding the 8 kHz coefficients above 8 kHz, and gives a material without scattering coefficients a scattering of 0.05 in every band (`room_geometry.DEFAULT_SCATTERING`)
-- `RoomGeometry.is_inside()` — generalised winding numbers over the drawn faces: a point inside a closed obstacle (a pillar, a cabinet) is outside the room, and a scene without a closed boundary (an open field) has no outside; every pyroomacoustics room built by `to_pra` answers `is_inside` with it
-- `RoomGeometry.mergeable_faces` and a `UserWarning` when coplanar neighbours of one object and material could be merged (triangulated Rhino surfaces lose image sources at their seams)
-- `role` on `AcousticObject`: `'boundary'` (default) or `'obstacle'`, and `Scene.iter_acoustic_objects_with_roles()`: obstacles are free-standing objects inside the room, boundaries close it
-- `compas_acoustics.diffuse` — Sabine and Eyring reverberation times through pyrato (`predicted_rt`, `mean_absorption`, `DiffuseFieldWarning`), in closed form on pyrato < 1.0 (Python 3.9)
-- Receiver orientation: `Receiver.up`, `Receiver.rotation` (columns facing, left, up), `Receiver.frame` and `Receiver.from_frame()`; the orientation sets the axes of ambisonic responses (x facing, y left, z up), and `transform()` turns it with the receiver
-- `Pyroomacoustics(image_source_order=3, ray_tracing=False, ...)` — the pyroomacoustics method: image sources by default, plus hybrid-rir's ray tracer with `ray_tracing=True` (`n_rays`, `energy_thres`, `duration`, `receiver_radius`, `seed`)
-- `ImpulseResponse` carries `ambisonic_order`, `normalisation`, `channel_order` (also in its JSON metadata), `n_channels` and `direct_sound_index()`; `resampled()` keeps channels
-- `Scene.impulse_responses(attribute)`, `Scene.simulation_methods()`; `attribute=` on `Scene.add_impulse_response`, `populate_ir_graph` and `get_impulse_response`
-- A `UserWarning` before an image source search that will take long (`simulation_methods.image_source_search_seconds()`: it grows about `faces / 2.2` times per order on a mesh room)
-- `AcousticObject.from_obj(path, materials, roles='boundary')` — a list of `AcousticObject`s, one per OBJ group (Rhino layer), with a material and a role per group (`roles={'chairs': 'obstacle'}` for furniture); replaces `AcousticObject.acoustic_object_from_obj`. `compas.files.OBJ` reads and welds the geometry; the groups are read from the file itself, as `OBJ.groups` keeps only the last run of a group name that recurs, as Rhino writes them
-- `pyrato >= 1.0` is required from Python 3.11 (was 3.12), as pyrato 1.x itself supports 3.11; STI and G now work there
-- Grasshopper Analyse IR component no longer outputs STI and G: both need pyrato >= 1.0, which Rhino 8's Python 3.9 cannot install. They stay in `AcousticAnalyser` on Python versions with a recent pyrato
-- **Breaking:** the seed defaults to 42: `Pyroomacoustics(seed=42)` (was fresh entropy on every run), `Hybrid(seed=42)` (was 0) and `RayField.from_scene(random_seed=42)` (was fresh entropy); `None` also means 42. The same scene gives the same responses; change the seed to see the ray tracer's spread
-- `Scene.sampling_rate` (`Scene(name, sampling_rate=44100)`, serialised with the scene): the sample rate at which every simulation method runs, 48000 Hz (`Defaults().SAMPLING_RATE`) unless given. It is a positive whole number of hertz. The Room Scene component has a `sampling_rate` input; the Simulate components no longer have a `sampling_rate` input, and a hybrid's reference must have been simulated at the scene's rate
-- `Scene.simulate(method)` — runs a simulation method on the scene and stores its responses on the IR graph; the one way to simulate. Methods implement `compute(context)`, and `SimulationContext.from_scene(scene)` builds the context
-- `RayField.from_scene(scene, ...)` — traced rays for visualisation, replacing `Simulator.trace_rays`
-- Sound strength `G` is a main analyser parameter (`AcousticAnalyser.G`, `G_overall`, in `analyse()`, tables, plots, CSV and the Grasshopper outputs); without a `reference_ir` it uses the package-scale free field at 10 m, and is NaN for responses without the package scale
-- Grasshopper: Deconstruct IR Graph `method` input; the ray-tracing component (now "Simulate Pyroomacoustics") gets a `ray_tracing` input and shows the library's warnings (points outside, open rooms, mergeable faces, a slow search) as component messages
-- `Pyroomacoustics` and `SimulationMethod` exported from `compas_acoustics`
-- `compas_acoustics.simulation_methods` package: `base` (`SimulationContext`, `SimulationMethod`), `pra` (`Pyroomacoustics`) and `hybrid` (`Hybrid`, loaded on first use because it needs the `hybrid` extra)
-- Demonstration notebook: `examples/notebooks/01_pyroomacoustics_simulation.ipynb`
-- `compas_acoustics.Hybrid` (`compas_acoustics.simulation_methods.Hybrid`) — hybrid ambisonic room impulse responses (ACN, SN3D or N3D): image sources and, optionally, edge diffraction around obstacles (`diffraction="udfa"`, or `"btms"`: BTMS kernels ported from EDtoolbox, BSD licence, Peter Svensson) for the early field; the next image source order drives a directional feedback delay network with direction-dependent boundary absorption. `tail` sets its decay target: a reference response (`reference=` a method name, a dict or a `Pyroomacoustics` method), the hybrid's own image-source plus ray-traced reference (default without a reference), or an Eyring or Sabine prediction that needs no reference (`tail="eyring"`, warning where the room is not diffuse). Ported from hybrid-rir (revision in `tests/hybrid/UPSTREAM_REVISION`); needs the new `hybrid` extra (`pip install compas_acoustics[hybrid]`, Python >= 3.11)
-- Grasshopper: Simulate Hybrid component (`tail` and `diffraction` Value Lists, optional `reference` method); on Python 3.9 (Rhino 8) it reports that the hybrid method needs Python >= 3.11 and the `hybrid` extra
-- `src/compas_acoustics/hrtfs_library/README.md` (shipped in the wheel) credits the three HRTF sets and their licences, among them the Imperial College AXD set under CC BY-SA 3.0 that is the default for binaural output; `tests/hybrid/data/README.md` says how the MATLAB oracle files were made, and that their licence is still to be confirmed
-- `hybrid` extra (`pyFDN>=0.5`, `spharpy`, `multislope`; Python >= 3.11 only) and a CI job for `tests/hybrid`; `tests/test_wheel.py` pins the wheel's contents
-- `compas_acoustics.Hybrid` is loaded on first use (it needs the `hybrid` extra)
-- Demonstration notebook: `examples/notebooks/02_hybrid_method.ipynb`
-- A test pins the hybrid's late level (after 80 ms, 1 kHz band, mean of four seeds) to the exact answer of a specular shoebox (image sources to order 100), within 2 dB. The network is driven by the last rendered image source order, so it sits 0.5 dB (10 x 8 x 4 m, alpha 0.15) to 1.6 dB (6 x 5 x 3 m, alpha 0.1) below that answer; RAZR 0.96.3 is 3.7 dB below it in the smaller room. pyroomacoustics' ray tracer drifts with the scattering coefficient (1 to 2.6 dB below the exact answer without scattering, 1.5 to 3.6 dB above Barron's revised theory with scattering 0.5), so the ray tracer is not used to calibrate it
-- Hybrid diffraction at the edges of the room's own boundary (re-entrant corners, the corners of closed volumes inside the room), ported from hybrid-rir `4b42bfd`: every boundary edge whose air side opens wider than 180 deg diffracts with the obstacle edges, in UDFA and BTMS; an open boundary is not searched (a `ShellEdgeWarning`, `enclosure_edges` returns no edges)
+* Added `Scene.simulate(method)` as the one way to simulate, with the methods `Pyroomacoustics(image_source_order=3, ray_tracing=False, ...)` and `Hybrid(...)` in `compas_acoustics.simulation_methods`.
+* Added `Scene.sampling_rate` (default 48000, serialised with the scene), the rate at which every method runs; the Room Scene component has the input.
+* Added `Hybrid`, ambisonic room impulse responses from image sources, optional edge diffraction (`diffraction="udfa"` or `"btms"`) and a directional feedback delay network tail, ported from hybrid-rir; needs the `hybrid` extra and Python >= 3.11.
+* Added `Hybrid(tail=...)` with a reference response, the hybrid's own ray-traced reference, or an Eyring or Sabine prediction as decay target.
+* Added edge diffraction at the edges of the room's own boundary (re-entrant corners) to `Hybrid`.
+* Added `Hybrid.binaural(hrtf_path=None)`, which filters the early part path by path with the nearest HRTF, and `compas_acoustics.binaural` (`HrtfSet`, `render_early_binaural`, `binaural_rir`, `magls_filters`).
+* Added `Pyroomacoustics(ray_tracing=True)`, hybrid-rir's ray tracer on top of the image sources (`n_rays`, `energy_thres`, `duration`, `receiver_radius`, `seed`).
+* Added `AirConditions(temperature=20, humidity=50, pressure=101325)`: speed of sound after Cramer (1993) and air absorption after ISO 9613-1, for every method, recorded in `ImpulseResponse.generation`.
+* Added `RoomGeometry`, the scene's surfaces as one validated room (welded, outward oriented, closedness checked, coplanar faces merged), with `to_pra()` and `is_inside()`.
+* Added `AcousticObject(role="boundary" | "obstacle")` and `AcousticObject.from_obj(path, materials, roles)`, a list with one object per OBJ group.
+* Added `Receiver.up`, `rotation`, `frame` and `Receiver.from_frame()`: the orientation sets the axes of ambisonic responses (x facing, y left, z up).
+* Added `compas_acoustics.diffuse` (`predicted_rt`, `mean_absorption`, `DiffuseFieldWarning`): Sabine and Eyring reverberation times.
+* Added JSON serialisation (`compas.json_dumps`) for `Scene`, `AcousticObject`, `Source`, `Receiver`, `ImpulseResponse`, `Ray`, `ScatteredRay` and `RayField`; the IR graph is not serialised.
+* Added `Scene.impulse_responses(attribute)`, `Scene.simulation_methods()` and `attribute=` on the IR graph methods: each method stores its responses under its own name.
+* Added `ImpulseResponse` with peak normalisation (`denormalized()`, `normalization_factor`, `level_db`), `to_wav()`, `from_wav()`, `generation`, `resampled()`, `ambisonic_order`, `normalisation`, `channel_order` and `direct_sound_index()`.
+* Added `AcousticAnalyser.stage_support()` (ST_early and ST_late, ISO 3382-1 Annex C) and `sound_strength()` (G, needs pyrato >= 1.0), and `G` in the analysis tables.
+* Added `AcousticAnalyser` accepting an `ImpulseResponse`, analysed at its raw level and sampling rate.
+* Added `Auraliser` output formats (`stereo`, `binaural`, `mono`, `ambisonics`), `level` (`relative`, `individual`, `none`), `headroom_db`, and lists of impulse responses and sound files as input.
+* Added `RayField`, `Ray` and `ScatteredRay` for traced rays (`RayField.from_scene`), with filtering, truncation and viewer display.
+* Added `Source.directivity`, `Source.sound_file` (stereo files are downmixed to a sibling `mono_<name>` file), `Receiver.direction`, `radius` and `received_spls`.
+* Added `AcousticMaterial.category` and `data_origin`, `MaterialsLibrary.materials_by_category`, preset materials, and `tools/import_backend_materials.py`.
+* Added `AudioPlayer` for `.wav` files and numpy arrays, with `normalize=True`.
+* Added `compas_acoustics.pra_converter` and `compas_acoustics.numerical.fitness.regularized_fitness`.
+* Added a warning before an image source search that will take long (`simulation_methods.image_source_search_seconds()`).
+* Added `compas_acoustics.worker`: runs the hybrid method and binaural decoding in a second Python >= 3.11 for Rhino 8 (Python 3.9), through a `compas.rpc` server on a free local port with a token per session.
+* Added `anechoic_soundfiles_library` (bassoon, female and male speech, trumpet, viola) and `hrtfs_library` (KEMAR, free-field compensated, 48 kHz), with READMEs that credit the sources and licences.
+* Added `Defaults.HRTF_LIBRARY_PATH`, `ANECHOIC_SOUNDFILES_LIBRARY_PATH` and `PARAM_NAMES`.
+* Added the `hybrid` extra (`pyFDN`, `spharpy`, `multislope`; Python >= 3.11) and a CI job for it.
+* Added the package `compas_acoustics_ghpython` with the Grasshopper components, `AcousticParameter`, `Plotter2D`, `Plotter2DSettings` and `ensure_inputs`, which gives unconnected inputs a value list or a button.
+* Added the components Simulate Hybrid (with a `run` button), Simulate Pyroomacoustics (was Simulate Ray Tracing), Material Library categories, and the inputs `output_format`, `hrtf`, `level` (Auralise), `normalize` (Audio Player, Simulate), `method` (Deconstruct IR Graph), `direction`, `up` and `plane` (Receiver).
+* Added the Grasshopper installer for Rhino 8 (`installer/compas_acoustics_installer.gh`), `invoke installer-bundle`, and `compas-dev/compas-actions` v1 workflows (build, release, `prepare release`), with tests on Python 3.9.
+* Added the example notebooks `01_pyroomacoustics_simulation.ipynb` and `02_hybrid_method.ipynb`, and `examples/office_hybrid.py`.
+* Added a getting-started section to the README.
 
 ### Changed
 
-- `Hybrid` with diffraction: obstacle components that are neither closed-convex nor planar (chairs drawn as open surfaces) raise one `ObstacleEdgeWarning` per call that counts them by material, instead of one per component
-- `Hybrid`: the feedback delay network is driven by the last rendered image source order, each image entering the delay line opposite its direction of arrival, instead of by the next order without rendering it. This is how Wendt et al. (2014, Sec. 1.3), RAZR 0.96.3 (`image_source_model.m`), Kirsch et al. (2023) and Ewert et al. (2025, Sec. 3.1.2) feed it; hybrid-rir @ a272da7 and this package fed order `image_source_order + 1`, which has no reference. The image source search stops at `image_source_order` (on BRAS CR2, 214 faces: 29 minutes at order 4 became 14 seconds at order 3). Against the measured BRAS CR2 responses the energy parameters are equal (EDT, T20, C80, D50, decay curve) and the echo density at 30 ms rises from 0.37 to 0.55 (measured 0.97); against exact specular shoeboxes (image sources to order 100) its late level deviates by +0.1 to -1.6 dB (mean over four rooms and eight seeds: -0.5 dB), RAZR's by -0.15 to -3.7 dB. At `image_source_order=0` the direct sound drives the network, and `Hybrid` warns when no image of the last order reaches the receiver (the direct sound blocked by an obstacle at order 0): the response then has no tail
-- `AcousticAnalyser.direct_to_reverberant_ratio` follows Haapaniemi and Lokki (2018, eq. 1): the direct sound is the first 5 ms from its arrival, with the window opened 1 ms early to hold a band-limited arrival. It was +-2.5 ms around the arrival (or the peak), which counted the 2.5 ms before the arrival as direct and reflections from 2.5 ms on as reverberant. `DRR_overall` is their single-number value: the impulse response filtered with a second-order Butterworth band-pass of 700-4000 Hz, the band of their localisation threshold (-2.7 to 1.7 dB in concert halls); it was the mean of the 500, 1000 and 2000 Hz octaves. Per octave band the windows are cut before filtering, as before; validated against responses whose direct and reverberant parts are filtered separately (within 0.02 dB in every octave)
-- `AcousticAnalyser.reverberation_times` uses Schroeder's backward integration (pyrato `schroeder_integration`, normalised at the direct sound) and pyrato's `reverberation_time_linear_regression`, on the response up to its last non-zero sample (trailing zeros are cut). There is no noise compensation: pyrato's `energy_decay_curve_chu_lundeby` found no Lundeby intersection in a ray-traced response that decays into numerical zero (a 408-face office: six of seven bands NaN). A measured response with a noise floor should be truncated before it is analysed
-- Without `AirConditions`, every simulation now runs in `AirConditions()`, 20 C, 50 % and 101325 Pa: 343.98 m/s instead of 343 m/s, and ISO 9613-1 air absorption at 20 C and 50 % for every method. Before, `Pyroomacoustics` and the ray tracer used pyroomacoustics' own air table (19.3 C and 0.3 % humidity, derived from 343 m/s) while the hybrid's image sources, diffraction and Eyring/Sabine targets used a fixed ISO 9613-1 table at 10 C and 70 %, documented as 20 C and 50 %. In a 20 x 15 x 6 m room the predicted reverberation changes by -0.4 % below 250 Hz, -2 % at 500-1000 Hz and +3 to +7 % at 4-8 kHz. Responses loaded from older files keep 343 m/s for their direct-sound sample
-- `Receiver.direction` defaults to +x instead of +z
-- **Breaking:** RIRs are returned at the simulation sample rate; automatic resampling to `Defaults.SAMPLING_RATE` was removed — use `ImpulseResponse.resampled()` when a different rate is needed
-- `Scene.add_acoustic_objects()` now calls `add_acoustic_object()` per item so embedded sources are registered in the IR graph
-- `Analyser` now uses numpy and returns a dictionary with parameters and overall values
-- **Breaking:** `AcousticObject.__init__` now takes a single `material: AcousticMaterial` instead of `surface_groups: dict`; per-surface materials take one `AcousticObject` per surface
-- **Breaking:** `AcousticObjectsLibrary.shoebox_room()` now returns a list of six single-material `AcousticObject`s (floor, walls, ceiling; added with `Scene.add_acoustic_objects`) instead of a single `AcousticObject`, and takes a `materials` argument (`None`, one `AcousticMaterial`, or a dict keyed by surface name) instead of materials being assigned after construction
-- **Breaking:** `Source.__init__` parameter `directional: bool` replaced by `directivity: str` (`"omnidirectional"`, `"cardioid"`, `"supercardioid"`, `"hypercardioid"`, `"bidirectional"`); `Source.direction` is now a `compas.geometry.Vector` (was a plain list) and defaults to `(0, 0, 1)` (was `(1, 0, 0)`)
-- **Breaking:** `Receiver.direction` is now a `compas.geometry.Vector` defaulting to `(0, 0, 1)` (was a plain list defaulting to `(1, 0, 0)`)
-- Grasshopper component build task renamed `build.build_ghuser_components` → `build.build_cpython_ghuser_components`
-- The `compas_acoustics` package does not use Rhino, Grasshopper or .NET anymore. This code is now in `compas_acoustics_ghpython`. On Windows, `AudioPlayer` uses `winsound` instead of `System.Media`.
-- The package installs on Python 3.9 (Rhino 8). There, it uses older versions of pyfar and pyrato, and STI is not available: `AcousticAnalyser.speech_transmission_index` shows a warning and returns NaN.
-- **Breaking:** material names can have spaces and capital letters. Library files are named after `AcousticMaterial.slug`.
-- **Breaking:** library material names and filenames no longer include the backend suffix. Example: `carpet_thin_from_pyroomacoustics` is now `carpet_thin`. The backend is stored as `data_origin` instead. `tools/import_backend_materials.py` writes the key as the name and passes the backend as `data_origin`.
-- Material Library component no longer sets the component nickname to the selected material name.
-- `AcousticAnalyser.center_time()` uses `pyrato.parameters.center_time` instead of a manual computation
-- `AcousticAnalyser` methods are named after the quantity they return: `compute_rt` -> `reverberation_times`, `compute_clarity_definition` -> `clarity_definition`, `compute_drr` -> `direct_to_reverberant_ratio`, `compute_sti` -> `speech_transmission_index`, `compute_stage_support` -> `stage_support`, `compute_strength` -> `sound_strength` (`center_time` is unchanged)
-- Analyser results change at low frequencies for the same impulse response: the octave filters are applied zero-phase (EDT, T20, T30, Ts) or after cutting the time windows (C50, C80, D50, DRR), which removes a delay of about 18 ms at 250 Hz and 35 ms at 125 Hz
-- On pyrato < 1.0 (Python 3.9), Ts is computed in closed form and G is NaN with a warning
-- `Auraliser` reads audio and resamples via pyfar (polyphase) and converts N3D to SN3D. `Auraliser.convolve()` sums the impulse responses that share a sound, decodes them to the output format and then convolves once per sound with only the output channels; for 10 third-order sources this takes about 1 s instead of 136 s (stereo) or 26 s (binaural after convolving)
-- `Auraliser` defaults to `output_format='stereo'` and to the sample rate of the first impulse response (was a fixed 48000 Hz); binaural decoding filters are cached across instances
-- `Auraliser.export_convolved_sound()` writes the signal returned by `convolve()` (computed when not given) instead of decoding it again
-- `librosa` is no longer a dependency; `spharpy` is, on Python >= 3.11. Binaural decoding needs it; N3D to SN3D conversion does not
-- **Breaking:** `Auraliser.decode_stereo_simple()` removed; use `Auraliser.decode_stereo()`
-- **Breaking:** `Auraliser.resample_signal()` removed; resampling uses `pyfar.dsp.resample` directly
-- **Breaking:** `Auraliser.multiconvolution()` and `Auraliser.convolve(impulse_response, anechoic_sound)` replaced by `Auraliser.convolve()`, which returns the signal decoded to `output_format`
-- **Breaking:** `Auraliser` no longer accepts FuMa channel order; impulse responses must use ACN channel order with N3D or SN3D normalisation
-- **Breaking:** the bundled libraries changed: `hrtfs_library` holds only `KEMAR_FreeFieldComp_48kHz.sofa` (the former Knowles EarSim set, renamed; the two MIT KEMAR sets are gone), so the Auralise component's `hrtf` choices `kemar_normal_pinna` and `kemar_large_pinna` are now `kemar`; `anechoic_soundfiles_library` has `viola.wav` (now mono) and `trumpet.wav` (both resampled to 48 kHz), `basoon.wav`, `female_speech.wav` and `male_speech.wav` (from the EARS dataset, licensed CC-NC 4.0, non-commercial; `speech.wav` is gone)
-- **Breaking:** `sample_rate` is `sampling_rate` everywhere: `ImpulseResponse.sampling_rate` (also in the exported JSON metadata and the `ImpulseResponse` constructor), `Auraliser(sampling_rate=...)`, its `sampling_rate` property and the `sampling_rate` key of its impulse response dicts, `AudioPlayer.play(sound, sampling_rate)`, `pra_converter.receivers_to_pra_mic_array(sampling_rate=...)`, `HrtfSet.sampling_rate`, `AudioPlayer.DEFAULT_SAMPLING_RATE`, and the Audio Player input and Auralise output of the Grasshopper components
-- **Breaking:** simulated impulse responses are at 48000 Hz by default (were always 16000 Hz); set `Scene.sampling_rate` for another rate
-- `Auraliser` auralises `ImpulseResponse` objects at their raw level, and exports peak at -1 dBFS (was 0 dBFS); with the default `level='relative'` a single render is scaled as before
-- Assigning `Scene.acoustic_materials` raises an `AttributeError` that says how materials are assigned now (it used to store the dict and do nothing); reading it returns the scene's materials
-- Surfaces with `role='obstacle'` reflect from both sides; closed rooms are wound outward automatically; boundary surfaces that do not close a volume raise a `UserWarning`
-- A material without scattering coefficients scatters 0.05 in every band in every pyroomacoustics simulation (`room_geometry.DEFAULT_SCATTERING`), ray tracing included; given coefficients are used as they are. Image source rooms used 0 before, and ray tracing refused such materials
-- Omnidirectional sources are passed to pyroomacoustics without a directivity object
-- `AcousticMaterial`: a coefficient of 0 is a value, not an absence; only `None` or `[]` means "not given"; `frequency_bands` refuses grids other than the package bands
-- Sources or receivers outside the room raise a `UserWarning` instead of printing; simulation settings are logged
-- `Scene.number_of_sources` counts sources attached to acoustic objects
-- `AcousticAnalyser` finds the direct sound as `ita_start_IR` of the ITA Toolbox does (ISO 3382-1): the last sample more than 20 dB below the maximum before it, moved back before an earlier arrival within 14 dB of the maximum, and no start when the maximum is less than 20 dB above the noise. It was the first sample within 20 dB of the maximum, anywhere. On the package scale the search starts 1 ms before the geometric arrival; it used to take the geometric sample itself, so a blocked direct path left the direct-sound windows empty (DRR of about -110 dB on responses behind an obstacle). The start now equals the ITA Toolbox's on 42 existing responses
-- `Auraliser` and the Grasshopper Auralise component use an `ImpulseResponse`'s own `channel_order` and `normalisation` (an N3D response was decoded as SN3D)
-- Grasshopper Simulate Ray Tracing leaves unset inputs to the method's defaults
-- The example scripts `demo.py`, `demo_obj.py`, `demo_rays.py` and `demo_scattered_rays.py` use the current API again; the README has a getting-started section
-- **Breaking:** `Scene.simulate(method)` is the one way to simulate; every method returns responses on the package scale (free-field direct sound `1 / (4 pi r)`) and records how they were made in `ImpulseResponse.generation`
-- `pyroomacoustics >=0.10.1`, no upper bound: the parallel ray tracer writes private `Room` state (`rt_histograms`, `simulator_state`), checked against 0.10.1
-- **Breaking:** `Hybrid` without a reference runs `Pyroomacoustics(ray_tracing=True, image_source_order=3, n_rays=100000, seed=42)` and fits the decay to it; `late_envelope` defaults to on for a reference or ray-tracing tail and off for an Eyring or Sabine tail
-- `Hybrid` accepts `diffraction` without obstacles (it used to raise `ValueError`): a room without re-entrant edges gives the same response as without diffraction
-- Hybrid: the 35 Hz high-pass that keeps DC out of the early field is causal (ported from hybrid-rir a272da7). Applied as a zero-phase magnitude it rang before every arrival, back to the start of the response: around the corner of an L-shaped room the diffracted part held -18 dB (UDFA) and -17 dB (BTMS) of its energy before the direct sound could arrive, now below -60 dB. The magnitude is the same, so spectra, total energy, EDT, T20, T30, Ts and G do not change; values over short windows at the arrival do, most at 125 Hz (DRR over +-2.5 ms, D50)
+* Changed the seed to default to 42 in `Pyroomacoustics`, `Hybrid` (was 0) and `RayField.from_scene`; `None` also means 42.
+* Changed `Hybrid` to drive the network with the last rendered image source order, as Wendt et al. (2014), RAZR and Ewert et al. (2025) do; hybrid-rir used the next, unrendered order. The search stops at `image_source_order` (29 minutes became 14 seconds on BRAS CR2).
+* Changed `Hybrid` without a reference to run `Pyroomacoustics(ray_tracing=True, image_source_order=3, n_rays=100000, seed=42)` and fit the decay to it.
+* Changed the hybrid's 35 Hz high-pass to a causal filter, which removes pre-arrival ringing in the diffracted paths.
+* Changed every simulation to run in `AirConditions()` (20 C, 50 %, 343.98 m/s) unless `air=` is given; before, the methods used different air tables.
+* Changed simulated impulse responses to 48000 Hz (were always 16000 Hz) and to the package scale (free-field direct sound `1 / (4 pi r)`).
+* Changed `AcousticObject.__init__` to take one `material`; `AcousticObjectsLibrary.shoebox_room()` returns a list of six single-material objects and takes `materials`.
+* Changed `Source.directional` to `Source.directivity`, and `Source.direction` and `Receiver.direction` to `compas.geometry.Vector`.
+* Changed `sample_rate` to `sampling_rate` everywhere: `ImpulseResponse`, `Auraliser`, `AudioPlayer.play`, `receivers_to_pra_mic_array`, `HrtfSet` and the Grasshopper components.
+* Changed the `AcousticAnalyser` methods to name the quantity: `reverberation_times`, `clarity_definition`, `direct_to_reverberant_ratio`, `speech_transmission_index`, `stage_support`, `sound_strength`.
+* Changed the analyser to apply octave filters zero-phase or after cutting the time windows, which removes a delay of 18 ms at 250 Hz and 35 ms at 125 Hz from EDT, Ts, C50, C80, D50 and DRR.
+* Changed `direct_to_reverberant_ratio` to Haapaniemi and Lokki (2018): 5 ms of direct sound, `DRR_overall` from a 700-4000 Hz band.
+* Changed `reverberation_times` to Schroeder integration without noise compensation; truncate a measured response with a noise floor before analysing it.
+* Changed the direct sound detection to the ITA Toolbox's `ita_start_IR` (ISO 3382-1).
+* Changed `Auraliser.convolve()` to return the signal decoded to `output_format`, summing the impulse responses of one sound first (136 s became 1 s for 10 third-order sources).
+* Changed `Auraliser` to auralise at the raw level, export peak at -1 dBFS, and use an impulse response's own `channel_order` and `normalisation`.
+* Changed `Auraliser` to read and resample with pyfar (polyphase) and to default to `output_format="stereo"` and the rate of the first impulse response.
+* Changed `AcousticAnalyser`, `Auraliser` and `MaterialsLibrary` to plain classes; they are services, not data.
+* Changed the default HRTF to `KEMAR_FreeFieldComp_48kHz.sofa`; the `hrtf` input of the Auralise component is `kemar` or a `.sofa` path.
+* Changed a material without scattering coefficients to scatter 0.05 in every band in every pyroomacoustics simulation.
+* Changed `AcousticMaterial` so that a coefficient of 0 is a value, and material names may have spaces and capitals; library files are named by `AcousticMaterial.slug` and carry no backend suffix.
+* Changed sources and receivers outside the room to raise a `UserWarning`, and surfaces with `role="obstacle"` to reflect from both sides.
+* Changed `Scene.acoustic_materials` to read-only; assigning it raises an `AttributeError` that says how materials are assigned.
+* Changed `Hybrid` to accept `diffraction` without obstacles, and to report non-closed obstacle components in one warning per call.
+* Changed the package to run on Python 3.9 (Rhino 8) without Rhino, Grasshopper or .NET; Rhino code is in `compas_acoustics_ghpython`.
+* Changed `pyrato >= 1.0` to be required from Python 3.11 (was 3.12), and removed the upper bounds on pyroomacoustics and pyFDN.
+* Changed the Analyse IR component to leave out STI and G, which need pyrato >= 1.0; they stay in `AcousticAnalyser` where pyrato allows.
+* Changed `matplotlib` to be imported by the `AcousticAnalyser` plot methods only when they run.
+* Changed the Grasshopper components to use ruff per-file ignores instead of `# flake8: noqa`, and the installer's `worker` input to `binaural` or `hybrid`.
+* Changed `librosa` out of the dependencies and `sounddevice` into them; `spharpy` is required on Python >= 3.11.
 
 ### Fixed
 
-- `Hybrid`: an image source reached through an edge was counted twice. Where the path to an image passes exactly through an edge, pyroomacoustics' general-room search accepts it from both wall orderings (+6 dB on that path); its `ShoeBox` counts it once. Source and receiver at one height or width, as on a seating grid, hit such edges routinely: 18 to 51 of 99 receivers on a 0.5 m grid in a 6 x 5 x 3 m room, up to 598 extra images and +0.85 dB of image energy at order 4. `hybrid.early.image_sources` now keeps one image per position, and its image set equals `ShoeBox`'s, positions and per-band gains. Deliberately different from hybrid-rir @ a272da7, which keeps the duplicates
-- Wheels were missing the materials library, the HRTFs, the sound files and the Grasshopper components.
-- `AcousticObject.display_surface_groups_in_viewer`, `Scene.display_surface_groups_in_viewer`, and `RayField.display_in_viewer` now call `compas.is_rhino()` instead of treating it as a boolean attribute, so the Rhino guard actually raises when appropriate
-- `Auraliser` resolves its default HRTF file via `Defaults.HRTF_LIBRARY_PATH`; it used to point at a file that was not in the repository
-- `AcousticAnalyser.speech_transmission_index` now zero-pads IRs shorter than the 1.6 s required by IEC 60268-16:2020 instead of silently returning NaN for STI, and warns when the STI computation fails rather than swallowing the error
-- `AcousticAnalyser` EDT, C50, C80, D50, DRR and Ts were biased at low frequencies: the causal order-14 octave filters delay the band-filtered direct sound (about 18 ms at 250 Hz, 35 ms at 125 Hz) past time limits measured from the broadband direct sound (e.g. D50 9 % instead of 34 %, Ts about 50 ms too long, EDT about 15 % too long at 125 Hz). C50, C80, D50 and DRR now cut their time windows from the broadband impulse response before octave filtering; EDT, T20, T30 and Ts use zero-phase (forward-backward) octave filtering with the decay starting at the direct sound, located 20 dB below the peak (ISO 3382-1). Validated against exponential decays, per-band decays, discrete reflections, free-field strength and the analytic STI of an exponential decay
-- Grasshopper Analyse IR component analysed simulated impulse responses at the default 48000 Hz instead of their own sample rate (the simulator's 16000 Hz)
-- `Auraliser` no longer modifies the caller's impulse response dicts, accepts 1D impulse responses and multichannel sound files (mixed down to mono), keeps the ambisonic order an int after a channel-count mismatch (previously crashed `multiconvolution()`), rejects unknown channel orders and normalisations, re-resamples when `sampling_rate` changes, and no longer prints from `maximum_ambisonics_order`
-- `Auraliser` resampling no longer wraps impulse response energy around to the start/end (FFT resampling replaced by polyphase) and preserves the impulse response's frequency response
-- `Auraliser` mono export used the mean of all ambisonic channels instead of the omnidirectional W channel, stereo export used the front-back (X) dipole instead of the left-right (Y) dipole, and binaural export silently fell back to that stereo; binaural output now raises for mono (order 0) impulse responses
-- `Auraliser.export_convolved_sound()` now normalises after decoding, so the exported peak is 1 for every output format
-- Grasshopper Auralise component output the undecoded convolution matrix (only saved files were decoded), used a hard-coded 48000 Hz sample rate, and always declared ambisonic order 0
-- Simulations above 16 kHz with air absorption failed because wall materials kept 7 octave bands while pyroomacoustics uses 8; `pra_converter.material_to_pra()` now resamples materials to the room's octave bands (`room_octave_bands()`), holding the 8 kHz value for the 16 kHz band, and treats missing scattering coefficients as zero
-- `pra_converter.receivers_to_pra_mic_array()` read `Defaults.SAMPLING_RATE` from the class, which returned the property object instead of the sample rate
-- Grasshopper Simulate Ray Tracing component reports the sample rate of the generated impulse responses
-- `Receiver` and `Source` serialise their name, orientation or directivity, and settings (`__data__`), so JSON and `copy()` keep them (they kept only the position and failed to load)
-- A source at a receiver's position gave NaN responses; it now raises a `ValueError`
-- A source or receiver inside a closed obstacle crashed pyroomacoustics with an unrelated error; scenes of obstacles only simulated nothing; too few walls for pyroomacoustics gave opaque errors (now a `ValueError` saying so)
-- The hybrid method failed on a fully absorbing surface (alpha = 1) seen by a whole delay line
-- A wall hit on a diffraction apex is no reflection (ported from hybrid-rir 4b42bfd): tilted obstacle rooms lose duplicate zero-length reflections; level rooms are unchanged (checked bit-identical)
+* Fixed `Hybrid` counting an image source twice when its path passes through an edge (+6 dB on that path); `hybrid.early.image_sources` now keeps one image per position, as `ShoeBox` does.
+* Fixed low-frequency bias in EDT, C50, C80, D50, DRR and Ts caused by the delay of causal octave filters.
+* Fixed `speech_transmission_index` returning NaN for impulse responses shorter than 1.6 s.
+* Fixed wheels that were missing the materials library, the HRTFs, the sound files and the Grasshopper components.
+* Fixed the Auraliser mono export (mean of all channels instead of W), stereo export (X dipole instead of Y) and binaural export (silent fallback to stereo).
+* Fixed `Auraliser` modifying the caller's dicts, ignoring 1D responses and multichannel sounds, and wrapping energy around when resampling.
+* Fixed simulations above 16 kHz with air absorption, which failed on a 7 against 8 octave band mismatch.
+* Fixed `Receiver` and `Source` losing name, orientation, directivity and settings in JSON and `copy()`.
+* Fixed NaN responses for a source at a receiver's position (now a `ValueError`), and unrelated errors for points inside a closed obstacle, scenes of obstacles only, or too few walls.
+* Fixed the hybrid failing on a fully absorbing surface, and counting a wall hit on a diffraction apex as a reflection.
+* Fixed `display_in_viewer` guards that treated `compas.is_rhino()` as a boolean, and the default HRTF path that pointed at a missing file.
+* Fixed the Grasshopper Auralise and Analyse IR components using a fixed sample rate, and the Auralise component returning the undecoded convolution.
 
 ### Removed
 
-- `Tools` removed from the public package exports (module still exists but is no longer re-exported)
-- `AcousticObject.surface_groups`, `.acoustic_materials`, `.surface_group_colors`, `.face_colors`, `.display_surface_groups_in_viewer()`, and `.print_surface_groups()` — replaced by single-material `AcousticObject`s, one per surface, `Scene.print_scene_materials()` and `Scene.display_materials_in_viewer()`
-- `Scene.scene_surface_groups`, `.print_scene_surface_groups()`, and `.display_surface_groups_in_viewer()` — replaced by `.scene_materials`, `.print_scene_materials()`, and `.display_materials_in_viewer()`
-- `compas_acoustics.stage_acoustics` module (ISO 3382-1 Annex A stage parameters `compute_ST1`, `compute_ST2`, `compute_G_stage`, `compute_ITDG`, `stage_support_parameters`), replaced by `AcousticAnalyser.stage_support()`: its `ST2` was ST_late under another name, its values were broadband only, and its ITDG found the floor reflection
-- `pra_converter.room_octave_bands`, `material_to_pra`, `mesh_to_pra_wall` and `acoustic_object_to_pra_walls` (replaced by `RoomGeometry.to_pra`); `scene_to_pra_room` delegates to `RoomGeometry`
-- The unused `tools.Tools` module
-- **Breaking:** `Simulator` removed; use `scene.simulate(method)`. With it go `rir_from_ray_tracing`, `rir_from_image_source_method`, `trace_rays` (now `RayField.from_scene`), `spls_from_image_source_method`, and the `results` and `rirs` attributes (the IR graph holds the responses)
-- **Breaking:** `simulation_platform` removed from `Scene` and `ImpulseResponse` (the generation record names the method); old exported metadata that still carries it loads unchanged
-
+* Removed `Simulator`; use `Scene.simulate(method)` and `RayField.from_scene`.
+* Removed `simulation_platform` from `Scene` and `ImpulseResponse`; `generation` names the method.
+* Removed `Pyroomacoustics(n_jobs=)` and the parallel ray tracer, which wrote private `Room` state.
+* Removed `AcousticObjectsGroup`, `AcousticObject.surface_groups`, `Scene.iter_acoustic_objects`, `Scene.scene_surface_groups` and their display and print methods; see `scene_materials` and `print_scene_materials`.
+* Removed `compas_acoustics.stage_acoustics` and `tools.Tools`; use `AcousticAnalyser.stage_support()`.
+* Removed `pra_converter.material_to_pra`, `mesh_to_pra_wall`, `acoustic_object_to_pra_walls` and `room_octave_bands`; see `RoomGeometry.to_pra`.
+* Removed `Auraliser.multiconvolution()`, `decode_stereo_simple()`, `resample_signal()` and FuMa channel order.
+* Removed `compas_acoustics.orchestra_layouts` and the Orchestra Layout component; the layouts are now `examples/orchestra_layouts.py`.
+* Removed the two MIT KEMAR HRTF sets and `speech.wav`.
