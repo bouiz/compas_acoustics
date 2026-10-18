@@ -60,7 +60,7 @@
             },
             {
                 "name": "hrtf",
-                "description": "HRTF set for binaural output: 'kemar_normal_pinna' (default), 'kemar_large_pinna', or the path to a .sofa file.",
+                "description": "HRTF set for binaural output: 'kemar' (default), or the path to a .sofa file.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "str"

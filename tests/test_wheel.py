@@ -16,7 +16,7 @@ def test_the_wheel_ships_the_new_modules(tmp_path):
         pytest.skip("needs the build package")
     subprocess.run([sys.executable, "-m", "build", "--wheel", "--outdir", str(tmp_path), str(ROOT)], check=True, capture_output=True)
     names = zipfile.ZipFile(next(tmp_path.glob("compas_acoustics-*.whl"))).namelist()
-    assert "compas_acoustics/hrtfs_library/KEMAR_Knowl_EarSim_SmallEars_FreeFieldComp_48kHz.sofa" in names
+    assert "compas_acoustics/hrtfs_library/KEMAR_FreeFieldComp_48kHz.sofa" in names
     assert "compas_acoustics/hrtfs_library/README.md" in names
     assert "compas_acoustics/hybrid/diffraction.py" in names
     assert "compas_acoustics/simulation_methods/pra.py" in names

@@ -194,7 +194,7 @@ def test_hybrid_returns_binaural_responses():
     (ir,) = binaural.values()
     assert ir.n_channels == 2 and ir.ambisonic_order is None
     assert ir.generation["output"] == "binaural"
-    assert ir.generation["hrtf"] == "KEMAR_Knowl_EarSim_SmallEars_FreeFieldComp_48kHz.sofa"
+    assert ir.generation["hrtf"] == "KEMAR_FreeFieldComp_48kHz.sofa"
     assert ir.generation["method"] == "hybrid"
     assert ir.denormalized().shape == (next(iter(ambisonic.values())).denormalized().shape[0], 2)
 

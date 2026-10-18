@@ -15,8 +15,7 @@ OUTPUT_FORMATS = ["stereo", "binaural", "mono", "ambisonics"]
 LEVELS = ["relative", "individual", "none"]
 HEADROOM_DB = -1.0
 HRTFS = {
-    "kemar_normal_pinna": "mit_kemar_normal_pinna.sofa",
-    "kemar_large_pinna": "mit_kemar_large_pinna.sofa",
+    "kemar": "KEMAR_FreeFieldComp_48kHz.sofa",
 }
 
 
@@ -191,7 +190,7 @@ class Auralise(Grasshopper.Kernel.GH_ScriptInstance):
 
     @staticmethod
     def resolve_hrtf_path(hrtf):
-        """Return the SOFA file for a bundled HRTF name or a file path. Default is the KEMAR normal pinna."""
+        """Return the SOFA file for a bundled HRTF name or a file path. Default is the KEMAR set."""
         if not hrtf:
             hrtf = list(HRTFS)[0]
         if hrtf in HRTFS:

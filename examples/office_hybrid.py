@@ -67,7 +67,7 @@ plt.tight_layout()
 plt.savefig(OUTPUT / "office_reverberation_times.png", dpi=150)
 
 ########### auralisation: speech through each response; the hybrid's is first-order ambisonic, decoded to binaural
-speech = Path(ca.Defaults().ANECHOIC_SOUNDFILES_LIBRARY_PATH) / "speech.wav"
+speech = Path(ca.Defaults().ANECHOIC_SOUNDFILES_LIBRARY_PATH) / "female_speech.wav"
 for name, ir, output_format in (("pyroomacoustics", ir_pra, "stereo"), ("hybrid", ir_hybrid, "binaural")):
     auraliser = ca.Auraliser("office", [ir], anechoic_sounds=[str(speech)], output_format=output_format)
     auraliser.export_convolved_sound(str(OUTPUT / f"office_speech_{name}.wav"))

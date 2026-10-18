@@ -30,7 +30,7 @@ _MAGLS_TRANSITION_PER_ORDER = 600
 _BINAURAL_FILTERS_CACHE = {}
 
 # The HRTF set every binaural rendering uses unless given another
-DEFAULT_HRTF = Path(Defaults().HRTF_LIBRARY_PATH) / "KEMAR_Knowl_EarSim_SmallEars_FreeFieldComp_48kHz.sofa"
+DEFAULT_HRTF = Path(Defaults().HRTF_LIBRARY_PATH) / "KEMAR_FreeFieldComp_48kHz.sofa"
 
 
 def magls_filters(hrtf_path, sampling_rate, order):
