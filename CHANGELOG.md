@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Migration from the previous main
+
+Nothing is kept under its old name. What replaces what:
+
+| Before | Now |
+|---|---|
+| `Simulator(scene).rir_from_ray_tracing(image_source_order=, n_rays=, air_absorption=, random_seed=)` | `scene.simulate(Pyroomacoustics(ray_tracing=True, image_source_order=, n_rays=, air_absorption=, seed=))` |
+| `Simulator(scene).rir_from_image_source_method(order)` | `scene.simulate(Pyroomacoustics(image_source_order=order))` |
+| `simulator.sampling_rate = fs` | `Scene(name, sampling_rate=fs)` or `scene.sampling_rate = fs` |
+| `simulator.trace_rays(...)` | `RayField.from_scene(scene, ...)` |
+| `simulator.rirs`, `simulator.results` | the responses returned by `scene.simulate`, or `scene.impulse_responses(method_name)`, `scene.get_impulse_response(source, receiver)` |
+| `Scene(simulation_platform=)`, `ImpulseResponse(simulation_platform=)` | removed; `ir.generation` names the method |
+| `AcousticObjectsGroup`; `scene.iter_acoustic_objects()` | `scene.add_acoustic_objects(shoebox_room(...))` (a list); `scene.acoustic_objects` |
+| `scene.acoustic_materials = {...}` | `shoebox_room(materials=...)`, `AcousticObject.from_obj(path, materials=...)`: a material per object |
+| `AcousticAnalyser.compute_rt`, `compute_clarity_definition`, `compute_drr`, `compute_sti`, `compute_stage_support`, `compute_strength` | `reverberation_times`, `clarity_definition`, `direct_to_reverberant_ratio`, `speech_transmission_index`, `stage_support`, `sound_strength` |
+| `stage_acoustics.compute_ST1`, `compute_ST2`, `compute_G_stage`, `compute_ITDG` | `AcousticAnalyser.stage_support()` |
+| `Auraliser.multiconvolution()`, `Auraliser.convolve(ir, sound)` | `Auraliser(...).convolve()`, decoded to `output_format` |
+| `Auraliser.decode_stereo_simple()`, `Auraliser.resample_signal()` | `decode_stereo()`, `pyfar.dsp.resample` |
+| `sample_rate` (`ImpulseResponse`, `Auraliser`, `AudioPlayer.play`, `receivers_to_pra_mic_array`) | `sampling_rate` |
+| `pra_converter.material_to_pra`, `mesh_to_pra_wall`, `acoustic_object_to_pra_walls` | `RoomGeometry.to_pra`, `pra_converter.scene_to_pra_room` |
+| `Tools` | removed |
+| Grasshopper: Simulate Ray Tracing, with a `sample_rate` input | Simulate Pyroomacoustics; the rate is the `sampling_rate` input of Room Scene |
+| Grasshopper: Analyse IR output STI | no longer an output, with G: they need pyrato >= 1.0 |
+
+A Grasshopper definition saved with the old components keeps their old code inside the file, and fails on the removed names. Delete the components
+in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate components, Deconstruct IR Graph, Analyse IR, Auralise and Audio Player.
+
 ### Added
 
 - `Scene` and `AcousticObject` serialise to COMPAS JSON (`compas.data.json_dumps`), with their guids; the IR graph is not serialised
@@ -31,14 +58,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Ray` — a `compas.geometry.Polyline` subclass representing a traced acoustic ray, with metadata (source, ray index, initial direction, sound speed), travel distance/time, spotlight-cone membership (`is_in_cone`), and truncation by reflection order/distance/time (`up_to_reflection_order`, `up_to_distance`, `up_to_time`)
 - `ScatteredRay` — a `Ray` subclass for coefficient-driven scattered rays born at a reflection point, carrying parent ray index, scattered energy, and a distance offset
 - `RayField` — a container for traced rays with `filter` (by source and/or ray index), `truncated` (by reflection order or travel time), and `display_in_viewer` (specular and/or scattered rays over the scene)
-- `Simulator.trace_rays(..., direction=None, angle=None)` — reconstructs specular ray paths from the pyroomacoustics `libroom` engine, optionally emitting all rays directly into a spotlight cone instead of omnidirectionally, and optionally spawning coefficient-driven scattered rays, returning a `RayField`
 - Export `Ray`, `ScatteredRay`, and `RayField` from the public package API
 - `Scene.scene_materials`, `Scene.print_scene_materials()`, `Scene.display_materials_in_viewer()` — per-object material introspection and visualisation, replacing the removed surface-group equivalents
 - `Source.directivity` (`"omnidirectional"`, `"cardioid"`, `"supercardioid"`, `"hypercardioid"`, `"bidirectional"`) and `Source.sound_file` — assigning a sound file automatically downmixes stereo/multi-channel audio to mono (writing a sibling `mono_<name>` file) so it can be convolved without errors
 - `Receiver.direction`, `Receiver.radius`, `Receiver.received_spls`, and `Receiver.total_spl` — energy-summed SPL (dB) across all contributions collected on the receiver
 - `compas_acoustics.pra_converter` module — conversion helpers between compas_acoustics and pyroomacoustics objects: `vector_to_pra`, `directivity_to_pra`, `points_to_array`, `source_to_pra`, `receivers_to_pra_mic_array`, `material_to_pra`, `mesh_to_pra_wall`, `acoustic_object_to_pra_walls`, `scene_to_pra_room`
-- `Simulator.spls_from_image_source_method(room, sources, receivers, start_db, target_db, time_window=0.125)` — deterministic, image-source-based SPL estimate at each receiver (no ray-count-dependent noise), summing only image sources that arrive within `time_window` of the direct sound
-- `Simulator.rir_from_ray_tracing(..., energy_thres=1e-7, time_thres=10.0)` — configurable ray-tracing stopping thresholds, forwarded to pyroomacoustics' `Room.set_ray_tracing`
 - `compas_acoustics.orchestra_layouts` module — named string-section seating layouts: `string_quartet`, `chamber_strings`, `medium_chamber_strings`, `symphonic_strings`
 - `compas_acoustics.numerical.fitness.regularized_fitness` — a MAE + weighted-STD loss function for scoring a list of values against a target, for use in optimisation objectives
 - `AudioPlayer` — cross-platform (Windows/macOS) playback of `.wav` files or raw numpy arrays (`play`, `play_file`, `play_array`, `stop`)
@@ -59,7 +83,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Auraliser` now accepts a list of `ImpulseResponse` objects as well as the dict format, and a list of sound file paths as well as the dict format; when `anechoic_sounds` is omitted, each source's `sound_file` is used. Impulse responses and sounds are paired by id when the ids match, otherwise by position
 - `ImpulseResponse` peak normalisation: the raw impulse response is kept with its `normalization_factor` (peak over all channels) and `level_db`; `normalized=True` (default) makes `ir` return the peak-normalised response; `denormalized()` returns the raw response and `ImpulseResponse.denormalize_group()` scales a group relative to its loudest impulse response
 - `ImpulseResponse.to_wav()` / `ImpulseResponse.from_wav()` — peak-normalised 32-bit float WAV plus a JSON metadata file (normalisation factor, generation method and settings, source, receiver, sample rate); `ImpulseResponse.generation` and `ImpulseResponse.metadata`
-- `Simulator.rir_from_image_source_method()` / `rir_from_ray_tracing()` `normalize=True` option; impulse responses record how they were generated
 - `Auraliser` output level: `level='relative'` (default; one gain for a group of renders so the loudest peaks at `headroom_db`, keeping level differences), `'individual'` or `'none'`, `headroom_db=-1`; `Auraliser.render_gains()` and `Auraliser.peak_dbfs()`; `export_convolved_sound(..., gain=None)`
 - `AudioPlayer.play(..., normalize=True)` option to play arrays at their rendered level
 - Grasshopper: Auralise `level` input (Value List) applying one gain across all signals of a run and showing the output peak in dBFS; Audio Player `normalize` input; Simulate Ray Tracing `normalize` input
@@ -102,17 +125,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `AcousticAnalyser.reverberation_times` uses Schroeder's backward integration (pyrato `schroeder_integration`, normalised at the direct sound) and pyrato's `reverberation_time_linear_regression`, on the response up to its last non-zero sample (trailing zeros are cut). There is no noise compensation: pyrato's `energy_decay_curve_chu_lundeby` found no Lundeby intersection in a ray-traced response that decays into numerical zero (a 408-face office: six of seven bands NaN). A measured response with a noise floor should be truncated before it is analysed
 - Without `AirConditions`, every simulation now runs in `AirConditions()`, 20 C, 50 % and 101325 Pa: 343.98 m/s instead of 343 m/s, and ISO 9613-1 air absorption at 20 C and 50 % for every method. Before, `Pyroomacoustics` and the ray tracer used pyroomacoustics' own air table (19.3 C and 0.3 % humidity, derived from 343 m/s) while the hybrid's image sources, diffraction and Eyring/Sabine targets used a fixed ISO 9613-1 table at 10 C and 70 %, documented as 20 C and 50 %. In a 20 x 15 x 6 m room the predicted reverberation changes by -0.4 % below 250 Hz, -2 % at 500-1000 Hz and +3 to +7 % at 4-8 kHz. Responses loaded from older files keep 343 m/s for their direct-sound sample
 - `Receiver.direction` defaults to +x instead of +z
-- **Breaking:** `Simulator.rir_from_image_source_method()` and `Simulator.rir_from_ray_tracing()` now return `dict[str, ImpulseResponse]` (keys `{receiver_guid}_{source_guid}`) instead of a nested `list[list[ndarray]]`
 - **Breaking:** RIRs are returned at the simulation sample rate; automatic resampling to `Defaults.SAMPLING_RATE` was removed — use `ImpulseResponse.resampled()` when a different rate is needed
-- `Simulator` now populates `scene.ir_graph` automatically after each successful RIR computation
 - `Scene.add_acoustic_objects()` now calls `add_acoustic_object()` per item so embedded sources are registered in the IR graph
 - `Analyser` now uses numpy and returns a dictionary with parameters and overall values
 - **Breaking:** `AcousticObject.__init__` now takes a single `material: AcousticMaterial` instead of `surface_groups: dict`; per-surface materials take one `AcousticObject` per surface
 - **Breaking:** `AcousticObjectsLibrary.shoebox_room()` now returns a list of six single-material `AcousticObject`s (floor, walls, ceiling; added with `Scene.add_acoustic_objects`) instead of a single `AcousticObject`, and takes a `materials` argument (`None`, one `AcousticMaterial`, or a dict keyed by surface name) instead of materials being assigned after construction
 - **Breaking:** `Source.__init__` parameter `directional: bool` replaced by `directivity: str` (`"omnidirectional"`, `"cardioid"`, `"supercardioid"`, `"hypercardioid"`, `"bidirectional"`); `Source.direction` is now a `compas.geometry.Vector` (was a plain list) and defaults to `(0, 0, 1)` (was `(1, 0, 0)`)
 - **Breaking:** `Receiver.direction` is now a `compas.geometry.Vector` defaulting to `(0, 0, 1)` (was a plain list defaulting to `(1, 0, 0)`)
-- `Simulator._pyroomacoustics_simulation()` now builds walls and materials via `pra_converter.scene_to_pra_room()` instead of inline pyroomacoustics wall construction
-- `Simulator._add_pyroomacoustics_sources_receivers()` now adds sources/receivers via `pra_converter.source_to_pra()` / `receivers_to_pra_mic_array()`, so source directivity and sound files are respected during simulation
 - Grasshopper component build task renamed `build.build_ghuser_components` → `build.build_cpython_ghuser_components`
 - The `compas_acoustics` package does not use Rhino, Grasshopper or .NET anymore. This code is now in `compas_acoustics_ghpython`. On Windows, `AudioPlayer` uses `winsound` instead of `System.Media`.
 - The package installs on Python 3.9 (Rhino 8). There, it uses older versions of pyfar and pyrato, and STI is not available: `AcousticAnalyser.speech_transmission_index` shows a warning and returns NaN.
@@ -156,7 +175,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `Hybrid`: an image source reached through an edge was counted twice. Where the path to an image passes exactly through an edge, pyroomacoustics' general-room search accepts it from both wall orderings (+6 dB on that path); its `ShoeBox` counts it once. Source and receiver at one height or width, as on a seating grid, hit such edges routinely: 18 to 51 of 99 receivers on a 0.5 m grid in a 6 x 5 x 3 m room, up to 598 extra images and +0.85 dB of image energy at order 4. `hybrid.early.image_sources` now keeps one image per position, and its image set equals `ShoeBox`'s, positions and per-band gains. Deliberately different from hybrid-rir @ a272da7, which keeps the duplicates
 - Wheels were missing the materials library, the HRTFs, the sound files and the Grasshopper components.
-- `Simulator._pyroomacoustics_simulation` now passes surface scattering coefficients to `pyroomacoustics.Material` correctly; previously the whole material dict was passed as the positional `energy_absorption` argument and scattering was silently dropped (always zero)
 - `AcousticObject.display_surface_groups_in_viewer`, `Scene.display_surface_groups_in_viewer`, and `RayField.display_in_viewer` now call `compas.is_rhino()` instead of treating it as a boolean attribute, so the Rhino guard actually raises when appropriate
 - `Auraliser` now resolves its default HRTF file via `Defaults.HRTF_LIBRARY_PATH` and ships `mit_kemar_normal_pinna.sofa`; previously it pointed at `KEMAR_Knowl_EarSim_SmallEars_FreeFieldComp_48kHz.sofa`, a file not present anywhere in the repository
 - `AcousticAnalyser.speech_transmission_index` now zero-pads IRs shorter than the 1.6 s required by IEC 60268-16:2020 instead of silently returning NaN for STI, and warns when the STI computation fails rather than swallowing the error
@@ -167,7 +185,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Auraliser` mono export used the mean of all ambisonic channels instead of the omnidirectional W channel, stereo export used the front-back (X) dipole instead of the left-right (Y) dipole, and binaural export silently fell back to that stereo; binaural output now raises for mono (order 0) impulse responses
 - `Auraliser.export_convolved_sound()` now normalises after decoding, so the exported peak is 1 for every output format
 - Grasshopper Auralise component output the undecoded convolution matrix (only saved files were decoded), used a hard-coded 48000 Hz sample rate, and always declared ambisonic order 0
-- `Simulator` always simulated at 16000 Hz regardless of `Simulator.sampling_rate`, while its microphone arrays used `sampling_rate`; it now simulates at `sampling_rate` (default 48000 Hz) and the impulse responses carry that rate
 - Simulations above 16 kHz with air absorption failed because wall materials kept 7 octave bands while pyroomacoustics uses 8; `pra_converter.material_to_pra()` now resamples materials to the room's octave bands (`room_octave_bands()`), holding the 8 kHz value for the 16 kHz band, and treats missing scattering coefficients as zero
 - `pra_converter.receivers_to_pra_mic_array()` read `Defaults.SAMPLING_RATE` from the class, which returned the property object instead of the sample rate
 - Grasshopper Simulate Ray Tracing component reports the sample rate of the generated impulse responses
@@ -180,7 +197,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - `Tools` removed from the public package exports (module still exists but is no longer re-exported)
-- `Simulator.resample_room_rir()` removed (replaced by per-IR resampling on `ImpulseResponse`)
 - `AcousticObject.surface_groups`, `.acoustic_materials`, `.surface_group_colors`, `.face_colors`, `.display_surface_groups_in_viewer()`, and `.print_surface_groups()` — replaced by single-material `AcousticObject`s, one per surface, `Scene.print_scene_materials()` and `Scene.display_materials_in_viewer()`
 - `Scene.scene_surface_groups`, `.print_scene_surface_groups()`, and `.display_surface_groups_in_viewer()` — replaced by `.scene_materials`, `.print_scene_materials()`, and `.display_materials_in_viewer()`
 - `compas_acoustics.stage_acoustics` module (ISO 3382-1 Annex A stage parameters `compute_ST1`, `compute_ST2`, `compute_G_stage`, `compute_ITDG`, `stage_support_parameters`), replaced by `AcousticAnalyser.stage_support()`: its `ST2` was ST_late under another name, its values were broadband only, and its ITDG found the floor reflection
