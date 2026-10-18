@@ -303,6 +303,25 @@ def test_the_plotter_offers_only_the_parameters_grasshopper_can_compute(monkeypa
             del sys.modules[name]
 
 
+# ------------------------------------------------------------- Audio Player --
+def test_the_audio_player_shows_a_failure_as_an_error_and_a_clipping_warning(monkeypatch):
+    from compas_acoustics import AudioPlayer
+
+    module, messages = load_component("CA_Audio_Player", monkeypatch, levels=True)
+    monkeypatch.setattr("platform.system", lambda: "Darwin")
+
+    def play(self, sound, sampling_rate, normalize):
+        import warnings
+
+        warnings.warn("The sound array peaks at +6.0 dBFS and will clip.")
+        raise RuntimeError("no output device")
+
+    monkeypatch.setattr(AudioPlayer, "play", play)
+    module.PlayAudio().RunScript(np.ones(4) * 2.0, True, False, 48000, False)
+    assert ("error", "The sound could not be played: no output device") in messages
+    assert ("warning", "The sound array peaks at +6.0 dBFS and will clip.") in messages
+
+
 # --------------------------------------------------------------- Value lists --
 class FakeParam:
     def __init__(self, name, sources=0):

@@ -1,5 +1,6 @@
 import os
 import platform
+import warnings
 
 from compas_acoustics.defaults import Defaults
 
@@ -46,19 +47,15 @@ class AudioPlayer:
 
         if self.system == "Windows":
             import winsound
-            try:
-                winsound.PlaySound(file_path, winsound.SND_FILENAME | winsound.SND_ASYNC)
-                self._active_player = winsound
-                self.sound_type = 'file'
-            except Exception as e:
-                print (f"Error playing sound on Windows: {e}")
+
+            winsound.PlaySound(file_path, winsound.SND_FILENAME | winsound.SND_ASYNC)
+            self._active_player = winsound
+            self.sound_type = 'file'
         elif self.system == "Darwin":
             import subprocess  # type: ignore
-            try:
-                self._active_player = subprocess.Popen(["afplay", file_path])
-                self.sound_type = 'file'
-            except Exception as e:
-                print (f"Error playing sound on macOS: {e}")
+
+            self._active_player = subprocess.Popen(["afplay", file_path])
+            self.sound_type = 'file'
         else:
             raise NotImplementedError(f"Sound playback is not implemented for system {self.system}.")
 
@@ -80,27 +77,25 @@ class AudioPlayer:
         import sounddevice as sd  # type: ignore
         self.stop()
 
-        try:
-            if sampling_rate is None:
-                sampling_rate = self.DEFAULT_SAMPLING_RATE
+        if sampling_rate is None:
+            sampling_rate = self.DEFAULT_SAMPLING_RATE
 
-            sampling_rate = int(sampling_rate)
-            audio_data = np.asarray(array, dtype=np.float32)
+        sampling_rate = int(sampling_rate)
+        audio_data = np.asarray(array, dtype=np.float32)
 
-            max_val = np.max(np.abs(audio_data))
-            if normalize and max_val > 0:
-                audio_data = (audio_data / max_val) * 0.99 # Normalize to [-1, 1]
-            elif max_val > 1:
-                print(f"Warning: sound array peaks at {20 * np.log10(max_val):+.1f} dBFS and will clip.")
+        max_val = np.max(np.abs(audio_data))
+        if normalize and max_val > 0:
+            audio_data = (audio_data / max_val) * 0.99  # Normalize to [-1, 1]
+        elif max_val > 1:
+            warnings.warn(f"The sound array peaks at {20 * np.log10(max_val):+.1f} dBFS and will clip.")
 
-            sd.check_output_settings(samplerate=sampling_rate)
+        sd.check_output_settings(samplerate=sampling_rate)
 
-            sd.play(audio_data, sampling_rate)
-            self._active_player = sd
-            self.sound_type = 'array'
-        except Exception as e:
-            print (f"Error playing sound array: {e}")
-    
+        sd.play(audio_data, sampling_rate)
+        self._active_player = sd
+        self.sound_type = 'array'
+
+
     def play(self, sound, sampling_rate=None, normalize=True):
         """
         Play sound based on its type.
@@ -113,17 +108,18 @@ class AudioPlayer:
             The sample rate of the audio signal. Required if sound is a numpy.ndarray.
         normalize : bool, optional
             Whether to scale a numpy.ndarray sound to a peak of 0.99. Default is True.
+
+        Raises
+        ------
+        TypeError
+            If ``sound`` is neither a file path nor a numpy array.
         """
         if isinstance(sound, str):
-            try:
-                self.play_file(sound)
-            except Exception as e:
-                print(f"Error playing sound by type: {e}")
+            self.play_file(sound)
         elif hasattr(sound, "shape") and hasattr(sound, "ndim"):
-            try:
-                self.play_array(sound, sampling_rate, normalize)
-            except Exception as e:
-                print(f"Error playing sound by type: {e}")
+            self.play_array(sound, sampling_rate, normalize)
+        else:
+            raise TypeError(f"A sound is a file path or a numpy array, not {type(sound).__name__}.")
 
     def stop(self):
         if self._active_player is None:
@@ -135,7 +131,7 @@ class AudioPlayer:
                     # passing None stops any sound currently played asynchronously
                     self._active_player.PlaySound(None, 0)
                 except Exception as e:
-                    print (f"Error stopping sound on Windows: {e}")
+                    warnings.warn(f"The sound could not be stopped on Windows: {e}")
                 finally:
                     self._active_player = None
             elif self.system == "Darwin":
@@ -144,7 +140,7 @@ class AudioPlayer:
                         self._active_player.terminate()
                         self._active_player.wait()  # Release resources
                 except Exception as e:
-                    print (f"Error stopping sound on macOS: {e}")
+                    warnings.warn(f"The sound could not be stopped on macOS: {e}")
                 finally:
                     self._active_player = None
 
@@ -152,6 +148,6 @@ class AudioPlayer:
             try:
                 self._active_player.stop()
             except Exception as e:
-                print (f"Error stopping sound array: {e}")
+                warnings.warn(f"The sound could not be stopped: {e}")
             finally:
                 self._active_player = None

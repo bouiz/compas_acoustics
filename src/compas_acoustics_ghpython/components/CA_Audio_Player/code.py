@@ -1,3 +1,5 @@
+import warnings
+
 import Grasshopper
 from compas_acoustics import AudioPlayer
 from compas_acoustics_ghpython import ensure_inputs
@@ -43,7 +45,14 @@ class PlayAudio(Grasshopper.Kernel.GH_ScriptInstance):
 
         player = sc.sticky[player_key]
 
-        if play:
-            player.play(sound, sampling_rate, normalize is not False)
-        if stop:
-            player.stop()
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            try:
+                if play:
+                    player.play(sound, sampling_rate, normalize is not False)
+                if stop:
+                    player.stop()
+            except Exception as e:
+                ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Error, "The sound could not be played: {}".format(e))
+        for warning in caught:
+            ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning, str(warning.message))
