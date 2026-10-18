@@ -57,7 +57,7 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 * Added `AcousticAnalyser` accepting an `ImpulseResponse`, analysed at its raw level and sampling rate.
 * Added `Auraliser` output formats (`stereo`, `binaural`, `mono`, `ambisonics`), `level` (`relative`, `individual`, `none`), `headroom_db`, and lists of impulse responses and sound files as input.
 * Added `RayField`, `Ray` and `ScatteredRay` for traced rays (`RayField.from_scene`), with filtering, truncation and viewer display.
-* Added `Source.directivity`, `Source.sound_file` (stereo files are downmixed to a sibling `mono_<name>` file), `Receiver.direction`, `radius` and `received_spls`.
+* Added `Source.directivity`, `Source.sound_file` (the `Auraliser` mixes a multichannel file down to mono when it reads it), `Receiver.direction`, `radius` and `received_spls`.
 * Added `AcousticMaterial.category` and `data_origin`, `MaterialsLibrary.materials_by_category`, preset materials, and `tools/import_backend_materials.py`.
 * Added `AudioPlayer` for `.wav` files and numpy arrays, with `normalize=True`.
 * Added `compas_acoustics.pra_converter` and `compas_acoustics.numerical.fitness.regularized_fitness`.

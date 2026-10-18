@@ -114,8 +114,8 @@ class Source(Point):
     @sound_file.setter
     def sound_file(self, file_path: str):
         """
-        Set the sound file for the source. Automatically checks if the file 
-        is stereo/multi-channel and downmixes it to 1D mono to prevent convolution errors.
+        Set the sound file of the source, which must exist. The file is not changed or copied;
+        the :class:`~compas_acoustics.Auraliser` mixes a multichannel file down to mono when it reads it.
         """
         if file_path is None:
             self._sound_file = None
@@ -123,24 +123,10 @@ class Source(Point):
 
         from pathlib import Path
 
-        import numpy as np
-        import soundfile as sf
-
-        path = Path(file_path)
-        if not path.exists():
+        if not Path(file_path).exists():
             raise ValueError(f"Sound file {file_path} does not exist.")
 
-        data, sr = sf.read(str(path))
-
-        if data.ndim > 1:
-            data = np.mean(data, axis=1)
-
-            mono_filename = f"mono_{path.name}"
-            mono_path = path.parent / mono_filename
-            sf.write(str(mono_path), data, sr)
-            self._sound_file = str(mono_path)
-        else:
-            self._sound_file = str(path)
+        self._sound_file = str(file_path)
     
     @property
     def id(self):
@@ -213,7 +199,7 @@ class Source(Point):
     @classmethod
     def __from_data__(cls, data):
         source = cls(data["name"], *data["point"], directivity=data.get("directivity"), direction=data.get("direction"))
-        # Already mono when it was stored, and it may not exist on this machine
+        # Set directly: the file may not exist on this machine
         source._sound_file = data.get("sound_file")
         if data.get("spl") is not None:
             source.spl = data["spl"]
