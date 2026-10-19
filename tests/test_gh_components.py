@@ -827,7 +827,7 @@ def test_the_plot_leaves_half_a_band_between_the_y_axis_and_the_first_band(monke
     assert [label.PlainText for label in chart.x_tick_labels] == [str(b) for b in bands]
 
 
-def test_the_y_axis_title_faces_the_axis(monkeypatch):
+def test_the_y_axis_title_reads_upwards(monkeypatch):
     load_component("CA_Plot_2D", monkeypatch)
     import compas_acoustics_ghpython.plotter as plotter
 
@@ -836,9 +836,9 @@ def test_the_y_axis_title_faces_the_axis(monkeypatch):
     chart = plotter.Plotter2D(c50)
     chart.plot(plane=FakePlane(Vec(0, 0), Vec(1, 0), Vec(0, 1)), width=10.0, height=5.0)
     title = chart.y_axis_title
-    assert title.PlainText == "dB" and title.Justification == "TopCenter"
-    # the text runs down the y axis and the tops of its letters point to +x, towards the axis
-    assert (title.Plane.XAxis.X, title.Plane.XAxis.Y) == (0.0, -1.0) and (title.Plane.YAxis.X, title.Plane.YAxis.Y) == (1, 0)
+    assert title.PlainText == "dB" and title.Justification == "BottomCenter"
+    # the text runs up the y axis, its letters on the outer side of the anchor
+    assert (title.Plane.XAxis.X, title.Plane.XAxis.Y) == (0, 1) and (title.Plane.YAxis.X, title.Plane.YAxis.Y) == (-1.0, 0.0)
     assert (title.Plane.Origin.X, title.Plane.Origin.Y) == pytest.approx((-1.0, 2.5))
 
 

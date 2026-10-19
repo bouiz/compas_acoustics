@@ -196,7 +196,7 @@ class Plotter2DSettings:
     
         self.title_justification = title_justification if title_justification is not None else rg.TextJustification.BottomCenter
         self.x_axis_title_justification = x_axis_title_justification if x_axis_title_justification is not None else rg.TextJustification.TopCenter
-        self.y_axis_title_justification = y_axis_title_justification if y_axis_title_justification is not None else rg.TextJustification.TopCenter
+        self.y_axis_title_justification = y_axis_title_justification if y_axis_title_justification is not None else rg.TextJustification.BottomCenter
         self.x_label_justification = x_label_justification if x_label_justification is not None else rg.TextJustification.TopCenter
         self.y_label_justification = y_label_justification if y_label_justification is not None else rg.TextJustification.MiddleRight
         self.data_justification = data_justification if data_justification is not None else rg.TextJustification.BottomLeft
@@ -311,9 +311,9 @@ class Plotter2D:
         )
 
         pln_y_title = rg.Plane(plane)
-        # reads downwards, the tops of the letters towards the y axis
-        pln_y_title.XAxis = -plane.YAxis
-        pln_y_title.YAxis = plane.XAxis
+        # reads upwards
+        pln_y_title.XAxis = plane.YAxis
+        pln_y_title.YAxis = -plane.XAxis
         pln_y_title.Origin = plane.Origin + x_dir * (width * -.1) + y_dir * (height * .5)
         self.y_axis_title = self.text_entity(
             self.param.y_unit, pln_y_title, text_height=axis_title_height, justification=self.settings.y_axis_title_justification

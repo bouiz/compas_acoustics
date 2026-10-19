@@ -73,7 +73,7 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 * Added `compas_acoustics_ghpython.MethodGraph`: Simulate Pyroomacoustics and Simulate Hybrid return the scene's IR graph tagged with their method, and Deconstruct IR Graph reads the method its wire comes from (Pyroomacoustics: mono, Hybrid: ambisonic), so it has no `method` input.
 * Added the input `select` (a value list: `all` or one of EDT, T20, T30, C50, C80, D50, DRR, Ts, STI, G) to the Grasshopper Deconstruct Parameter component: a selected parameter comes out as plain lists, `all` as one branch per parameter. Its `param` input takes the list.
 * Added STI and G to the Grasshopper Analyse IR component through the worker (`compas_acoustics.worker.analyse`): they need pyrato >= 1.0, which Rhino 8's Python 3.9 cannot install, so the worker computes them and Analyse IR leaves them out without one.
-* Changed the Grasshopper Plot 2D chart to leave half a band's spacing between the y axis and the first frequency band, and to turn the y axis title so that its letters face the axis.
+* Changed the Grasshopper Plot 2D chart to leave half a band's spacing between the y axis and the first frequency band.
 * Added a status to the Grasshopper Simulate Hybrid component for when it is not running: it says `done` with the tail and order of the last result on the graph, `settings changed, press Run` when its inputs differ from that result, and `press Run` only when there is none.
 * Added the Grasshopper installer for Rhino 8 (`installer/compas_acoustics_installer.gh`), `invoke installer-bundle`, and `compas-dev/compas-actions` v1 workflows (build, release, `prepare release`), with tests on Python 3.9.
 * Added `examples/office_hybrid.py`, which runs both methods on an office.
