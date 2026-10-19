@@ -312,3 +312,19 @@ def test_stop_stops_this_sessions_worker_once(fake_proxy):
     worker.stop()
     assert started._proxy.stopped and worker._PROXY is None
     worker.stop()
+
+
+def test_the_worker_install_runs_its_python_without_the_callers_pythonpath(monkeypatch, tmp_path):
+    from compas_acoustics.worker import install
+
+    calls = []
+    monkeypatch.setenv("PYTHONPATH", "/rhino/site-env")
+    monkeypatch.setenv("PYTHONHOME", "/rhino/home")
+    monkeypatch.setattr(install, "_uv", lambda: "uv")
+    monkeypatch.setattr(install, "stop_running_workers", lambda: None)
+    monkeypatch.setattr(install.subprocess, "run", lambda command, **kwargs: calls.append((command, kwargs.get("env"))))
+    python = install.install_worker(tmp_path / "compas_acoustics.whl", hybrid=True, home=tmp_path / "worker", config=tmp_path / "worker.json")
+    assert len(calls) == 4 and all(env is not None for _, env in calls)
+    assert all("PYTHONPATH" not in env and "PYTHONHOME" not in env for _, env in calls)
+    assert calls[-1][0][0] == str(python)
+    assert json.loads((tmp_path / "worker.json").read_text()) == {"python": str(python), "hybrid": True}

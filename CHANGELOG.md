@@ -110,6 +110,7 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 
 ### Fixed
 
+* Fixed the worker setup from the Grasshopper installer failing at its last check: the worker's Python 3.12 inherited the `PYTHONPATH` of Rhino's 3.9 packages and could not import numpy.
 * Fixed a simulation failing on a Source whose `sound_file` is not a RIFF WAV (an AIFF or FLAC file; the library's `basoon.wav` is an AIFF): the file is read with soundfile.
 * Fixed `Hybrid` counting an image source twice when its path passes through an edge (+6 dB on that path); `hybrid.early.image_sources` now keeps one image per position, as `ShoeBox` does.
 * Fixed low-frequency bias in EDT, C50, C80, D50, DRR and Ts caused by the delay of causal octave filters.

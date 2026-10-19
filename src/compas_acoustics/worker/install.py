@@ -8,6 +8,7 @@ compas_acoustics is installed there; the installer does this when its ``worker``
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -35,18 +36,20 @@ def install_worker(wheel, hybrid=False, home=WORKER_HOME, config=CONFIG, python_
     """Create the worker environment in ``home`` and record its interpreter in ``config``; returns the interpreter."""
     uv = _uv()
     home, config = Path(home), Path(config)
+    # The installer runs this with PYTHONPATH on Rhino's 3.9 packages; the worker's 3.12 must not load them
+    env = {name: value for name, value in os.environ.items() if name not in ("PYTHONHOME", "PYTHONPATH")}
     # A running worker holds the files of the environment open, which Windows does not let go of
     stop_running_workers()
     shutil.rmtree(home, ignore_errors=True)
-    subprocess.run([uv, "venv", "--python", python_version, str(home)], check=True)
+    subprocess.run([uv, "venv", "--python", python_version, str(home)], check=True, env=env)
     python = home / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
     requirement = "compas_acoustics{} @ {}".format("[hybrid]" if hybrid else "", Path(wheel).resolve().as_uri())
-    subprocess.run([uv, "pip", "install", "--python", str(python), requirement], check=True)
+    subprocess.run([uv, "pip", "install", "--python", str(python), requirement], check=True, env=env)
     if hybrid:
         # flamo (via pyFDN) installs the abandoned PySoundFile over soundfile
-        subprocess.run([uv, "pip", "install", "--python", str(python), "--reinstall", "--no-deps", "soundfile"], check=True)
+        subprocess.run([uv, "pip", "install", "--python", str(python), "--reinstall", "--no-deps", "soundfile"], check=True, env=env)
     # The first import of the scientific stack takes about 30 s; do it here, not on the first Grasshopper call
-    subprocess.run([str(python), "-c", "import compas_acoustics.simulation_methods as m; m.Hybrid" if hybrid else "import compas_acoustics.worker.api"], check=True)
+    subprocess.run([str(python), "-c", "import compas_acoustics.simulation_methods as m; m.Hybrid" if hybrid else "import compas_acoustics.worker.api"], check=True, env=env)
     config.parent.mkdir(parents=True, exist_ok=True)
     config.write_text(json.dumps({"python": str(python), "hybrid": hybrid}))
     return python
