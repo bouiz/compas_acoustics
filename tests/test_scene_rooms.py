@@ -47,6 +47,16 @@ def test_omnidirectional_sources_carry_no_pyroomacoustics_directivity():
     assert source_to_pra(Source("c", 1, 1, 1, directivity="cardioid", direction=[1, 0, 0])).directivity is not None
 
 
+@pytest.mark.parametrize("format, subtype, extension", [("WAV", "PCM_16", "wav"), ("WAV", "FLOAT", "wav"), ("AIFF", "PCM_16", "wav"), ("FLAC", "PCM_16", "flac")])
+def test_a_sound_file_of_any_format_is_read_and_peak_normalized(tmp_path, format, subtype, extension):
+    sf = pytest.importorskip("soundfile")
+    path = tmp_path / f"sound.{extension}"
+    sf.write(path, 0.25 * np.sin(np.linspace(0, 20, 4800)), 48000, format=format, subtype=subtype)
+    signal = source_to_pra(Source("s", 1, 1, 1, sound_file=str(path))).signal
+    assert signal.shape == (4800,) and signal.dtype == np.float32
+    assert np.max(np.abs(signal)) == pytest.approx(1.0)
+
+
 def test_mono_and_ambisonic_responses_share_an_edge():
     scene = shoebox_scene()
     mono, ambisonic = response(scene, np.zeros(10)), response(scene, np.zeros((10, 4)))

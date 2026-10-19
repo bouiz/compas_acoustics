@@ -4,7 +4,7 @@ from typing import Union
 
 import numpy as np
 import pyroomacoustics as pra
-import scipy.io.wavfile as wav
+import soundfile as sf
 from compas.geometry import Point
 from compas.geometry import Vector
 from compas.tolerance import TOL
@@ -65,7 +65,7 @@ def source_to_pra(src : Source) -> pra.SoundSource:
     """Convert a compas_acoustics Source to a pyroomacoustics SoundSource."""
     if src.sound_file:
         sound_file = src.sound_file
-        fs, audio_clean = wav.read(sound_file)
+        audio_clean, _ = sf.read(sound_file, dtype="float32")
 
         if len(audio_clean.shape) > 1:
             audio_clean = audio_clean[:, 0]
