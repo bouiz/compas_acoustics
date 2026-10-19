@@ -48,7 +48,7 @@ Installer options:
 - `venv`: name of the Rhino script environment to install into. Empty: `default`. With another name, the installed components use that environment.
 - `worker`: empty, `binaural` or `hybrid`. See below.
 
-Rhino 8 uses Python 3.9. With Python older than 3.11, the Speech Transmission Index (STI) and sound strength (G) are not available, and the Analyse IR component leaves them out.
+Rhino 8 uses Python 3.9. With Python older than 3.11, the Speech Transmission Index (STI) and sound strength (G) are not available there: with a worker (below), the Analyse IR component computes them in the worker; without one, it leaves them out.
 
 ### Python >= 3.11 features in Rhino 8: the worker
 
@@ -57,7 +57,7 @@ Python 3.9. With the installer's `worker` input set to `binaural` or `hybrid` (a
 the installer creates a second Python 3.12 environment with `uv` and records it in `~/.compas_acoustics/worker.json`. Set the environment variable
 `COMPAS_ACOUSTICS_WORKER_PYTHON` to use another interpreter that has `compas_acoustics`.
 
-Simulate Hybrid and Auralise then run those parts in the worker, a local [`compas.rpc`](https://compas.dev) server that
+Simulate Hybrid, Auralise and Analyse IR (for STI and G) then run those parts in the worker, a local [`compas.rpc`](https://compas.dev) server that
 starts on first use (a few seconds) and exchanges scenes as COMPAS JSON and audio as WAV files. Every Rhino session starts its own worker, on a free
 port of `127.0.0.1`, and shares a random token with it; the worker serves only `compas_acoustics.worker.api`, refuses calls without the token, reads and
 writes only in temporary folders made for the call, and exits when the session ends or dies. It checks that it runs the same code as Rhino's Python, and tells you

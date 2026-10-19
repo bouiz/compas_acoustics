@@ -3,7 +3,7 @@
     "nickname": "DeParam",
     "category": "COMPAS Acoustics",
     "subcategory": "03 Analysis",
-    "description": "Deconstruct acoustic parameters. Connect the params of Analyse Impulse Response and pick one in select, to get its name, values, frequencies and overall value as plain lists, or leave it on all. The parameter output passes the selected parameter on, e.g. to Plot 2D.",
+    "description": "Deconstruct acoustic parameters. Connect the params of Analyse Impulse Response and pick one in select, to get its name, values, frequencies and overall value as plain lists, or leave it on all.",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,
@@ -18,7 +18,7 @@
             },
             {
                 "name": "select",
-                "description": "Which parameter to output: all (default), or one of EDT, T20, T30, C50, C80, D50, DRR, Ts, which gives its values and frequencies as plain lists. A value list is added when it is not connected.",
+                "description": "Which parameter to output: all (default), or one of EDT, T20, T30, C50, C80, D50, DRR, Ts, STI, G, which gives its values and frequencies as plain lists. A value list is added when it is not connected.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "str"
@@ -40,10 +40,6 @@
             {
                 "name": "frequencies",
                 "description": "Frequencies of the acoustic parameter."
-            },
-            {
-                "name": "parameter",
-                "description": "The selected parameter (all of them when select is all), for the param input of Plot 2D."
             }
         ]
     }

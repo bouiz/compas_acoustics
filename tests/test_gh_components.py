@@ -278,20 +278,55 @@ def test_deconstruct_reads_the_method_its_wire_comes_from(monkeypatch):
 
 
 # -------------------------------------------------------------- Analyse IR --
-def test_analyse_ir_leaves_out_sti_and_g(monkeypatch):
-    class AcousticParameter:
-        NAMES = ("EDT", "T20", "T30", "C50", "C80", "D50", "DRR", "Ts")
-
-        def from_analyser(self, analyser, name):
-            return name
-
-    monkeypatch.setitem(sys.modules, "compas_acoustics_ghpython", types.SimpleNamespace(AcousticParameter=AcousticParameter))
-    module, messages = load_component("CA_Analyse_IR", monkeypatch)
-    ir = next(iter(scene().simulate(Pyroomacoustics(image_source_order=2, ray_tracing=False)).values()))
-    assert module.AnalyseIR().RunScript(ir) == ["EDT", "T20", "T30", "C50", "C80", "D50", "DRR", "Ts"]
+def analysed_response():
+    return next(iter(scene().simulate(Pyroomacoustics(image_source_order=2, ray_tracing=False)).values()))
 
 
-def test_the_plotter_offers_only_the_parameters_grasshopper_can_compute(monkeypatch):
+def test_analyse_ir_gives_sti_and_g_where_pyrato_can_compute_them(monkeypatch):
+    module, messages = load_component("CA_Analyse_IR", monkeypatch, levels=True)
+    params = module.AnalyseIR().RunScript(analysed_response())
+    assert [p.name for p in params] == ["EDT", "T20", "T30", "C50", "C80", "D50", "DRR", "Ts", "STI", "G"]
+    sti, g = params[-2:]
+    assert 0.0 < sti.overall < 1.0 and len(sti.values) == 7 and np.isfinite(g.overall)
+    assert (sti.y_unit, g.y_unit) == ("Index (0-1)", "dB")
+    assert not [text for level, text in messages if level == "remark"]
+
+
+def test_analyse_ir_leaves_out_sti_and_g_when_they_could_not_be_computed(monkeypatch):
+    from compas_acoustics import AcousticAnalyser
+    from compas_acoustics import worker
+
+    module, messages = load_component("CA_Analyse_IR", monkeypatch, levels=True)
+
+    def without_pyrato_1(ir):
+        analyser = AcousticAnalyser(ir)
+        analyser.analyse()
+        for name in ("STI", "G"):
+            analyser.analysis_data[name] = [float("nan")] * 7
+            analyser.analysis_data[f"{name}_overall"] = float("nan")
+        return analyser, []
+
+    monkeypatch.setattr(worker, "analyse", without_pyrato_1)
+    params = module.AnalyseIR().RunScript(analysed_response())
+    assert [p.name for p in params] == ["EDT", "T20", "T30", "C50", "C80", "D50", "DRR", "Ts"]
+    assert any(level == "remark" and "worker 'binaural' or 'hybrid'" in text for level, text in messages)
+
+
+def test_a_worker_failure_leaves_the_analysis_to_this_python(monkeypatch):
+    from compas_acoustics import worker
+
+    module, messages = load_component("CA_Analyse_IR", monkeypatch, levels=True)
+
+    def failing(ir):
+        raise RuntimeError("run the installer again")
+
+    monkeypatch.setattr(worker, "analyse", failing)
+    params = module.AnalyseIR().RunScript(analysed_response())
+    assert [p.name for p in params][:8] == ["EDT", "T20", "T30", "C50", "C80", "D50", "DRR", "Ts"]
+    assert ("warning", "STI and G could not be computed in the worker: run the installer again") in messages
+
+
+def test_the_plotter_offers_every_parameter_with_its_units(monkeypatch):
     from compas_acoustics import AcousticAnalyser
 
     load_component("CA_Source", monkeypatch)
@@ -301,12 +336,13 @@ def test_the_plotter_offers_only_the_parameters_grasshopper_can_compute(monkeypa
         ir = next(iter(scene().simulate(Pyroomacoustics(image_source_order=2, ray_tracing=False)).values()))
         analyser = AcousticAnalyser(ir)
         analyser.analyse()
-        assert AcousticParameter.NAMES == ("EDT", "T20", "T30", "C50", "C80", "D50", "DRR", "Ts")
+        assert AcousticParameter.NAMES == ("EDT", "T20", "T30", "C50", "C80", "D50", "DRR", "Ts", "STI", "G")
         parameter = AcousticParameter.from_analyser(analyser, "D50")
         assert (parameter.title, parameter.x_unit, parameter.y_unit) == ("Definition (D50)", "Frequency (Hz)", "Value (%)")
-        for name in ("STI", "G"):
-            with pytest.raises(ValueError, match="not available in Grasshopper"):
-                AcousticParameter.from_analyser(analyser, name)
+        sti = AcousticParameter.from_analyser(analyser, "STI")
+        assert (sti.title, sti.values, sti.overall) == ("Speech Transmission Index (STI)", analyser.analysis_data["STI"], analyser.analysis_data["STI_overall"])
+        with pytest.raises(ValueError, match="not available in Grasshopper"):
+            AcousticParameter.from_analyser(analyser, "ST1")
     finally:
         for name in [m for m in sys.modules if m.startswith("compas_acoustics_ghpython")]:
             del sys.modules[name]
@@ -698,8 +734,7 @@ def test_deconstruct_parameter_gives_every_parameter_apart_by_default(monkeypatc
     module, messages = load_component("CA_Deconstruct_IR", monkeypatch)
     t30, c50 = two_parameters(module)
     for select in (None, "all"):
-        name, values, overall, frequencies, parameter = module.DeconstructParam().RunScript([t30, c50], select)
-        assert parameter == [t30, c50]
+        name, values, overall, frequencies = module.DeconstructParam().RunScript([t30, c50], select)
         assert name == ["Reverberation Time (T30)", "Clarity (C50)"] and overall == [1.7, -2.49]
         assert values.branches == {(0,): [0.984, 1.17, 1.94], (1,): [-1.46, 1.94, -2.58]}
         assert list(frequencies) == [125, 250, 1000]
@@ -709,9 +744,8 @@ def test_deconstruct_parameter_gives_every_parameter_apart_by_default(monkeypatc
 def test_deconstruct_parameter_gives_a_selected_parameter_as_plain_lists(monkeypatch):
     module, messages = load_component("CA_Deconstruct_IR", monkeypatch)
     t30, c50 = two_parameters(module)
-    name, values, overall, frequencies, parameter = module.DeconstructParam().RunScript([t30, c50], "C50")
+    name, values, overall, frequencies = module.DeconstructParam().RunScript([t30, c50], "C50")
     assert (name, list(values), overall, list(frequencies)) == ("Clarity (C50)", [-1.46, 1.94, -2.58], -2.49, [125, 250, 1000])
-    assert parameter is c50
     assert not messages
 
 
@@ -719,7 +753,7 @@ def test_deconstruct_parameter_warns_without_data_or_without_the_selection(monke
     module, messages = load_component("CA_Deconstruct_IR", monkeypatch)
     t30, _ = two_parameters(module)
     for call in (([], None), (None, None), ([t30], "EDT")):
-        assert module.DeconstructParam().RunScript(*call) == (None,) * 5
+        assert module.DeconstructParam().RunScript(*call) == (None,) * 4
     assert len(messages) == 3 and "EDT" in messages[2]
 
 
@@ -734,10 +768,10 @@ def test_deconstruct_parameter_offers_the_parameters_in_a_list_and_matches_its_m
     module.DeconstructParam().RunScript([t30], None)
     document.solve()
     (value_list,) = select.added
-    assert [item.name for item in value_list.ListItems] == ["all", "EDT", "T20", "T30", "C50", "C80", "D50", "DRR", "Ts"]
+    assert [item.name for item in value_list.ListItems] == ["all", "EDT", "T20", "T30", "C50", "C80", "D50", "DRR", "Ts", "STI", "G"]
     metadata = json.loads((COMPONENTS / "CA_Deconstruct_IR" / "metadata.json").read_text())["ghpython"]
     assert list(inspect.signature(module.DeconstructParam.RunScript).parameters)[1:] == [p["name"] for p in metadata["inputParameters"]]
-    assert [o["name"] for o in metadata["outputParameters"]] == ["name", "values", "overall", "frequencies", "parameter"]
+    assert [o["name"] for o in metadata["outputParameters"]] == ["name", "values", "overall", "frequencies"]
     assert metadata["inputParameters"][0]["scriptParamAccess"] == 1
 
 

@@ -3,7 +3,7 @@
     "nickname": "AnalyseIR",
     "category": "COMPAS Acoustics",
     "subcategory": "03 Analysis",
-    "description": "Analyse impulse response (IR) and return acoustic parameters such as EDT, T20, C50, etc.",
+    "description": "Analyse impulse response (IR) and return acoustic parameters such as EDT, T20, C50, etc. STI and G need pyrato >= 1.0: on Rhino 8 they are computed in the worker, and left out without one.",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,
@@ -20,7 +20,7 @@
         "outputParameters": [
             {
                 "name": "params",
-                "description": "List of acoustic parameters ('EDT', 'T20', 'T30', 'C50', 'C80', 'D50', 'DRR', 'Ts')."
+                "description": "List of acoustic parameters ('EDT', 'T20', 'T30', 'C50', 'C80', 'D50', 'DRR', 'Ts', and with a worker 'STI', with its modulation transfer index per band, and 'G')."
             }
         ]
     }

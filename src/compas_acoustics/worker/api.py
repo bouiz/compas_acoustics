@@ -13,7 +13,7 @@ from pathlib import Path
 
 from compas_acoustics.worker import FOLDER_PREFIX
 
-__all__ = ["info", "simulate", "convolve"]
+__all__ = ["info", "simulate", "convolve", "analyse"]
 
 
 def _worker_folder(path):
@@ -78,3 +78,15 @@ def convolve(name, impulse_responses, anechoic_sounds, output_format, hrtf_path,
     auraliser.hrtf_path = hrtf_path
     sf.write(str(out_path), auraliser.convolve(), int(sampling_rate), subtype="FLOAT")
     return str(out_path)
+
+
+def analyse(path):
+    from compas_acoustics import AcousticAnalyser
+    from compas_acoustics import ImpulseResponse
+
+    # from_wav restores the raw level and the generation, which G needs
+    ir = ImpulseResponse.from_wav(_worker_file(path))
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        analysis = AcousticAnalyser(ir).analyse()
+    return {"analysis": analysis, "warnings": [str(w.message) for w in caught if issubclass(w.category, UserWarning)]}

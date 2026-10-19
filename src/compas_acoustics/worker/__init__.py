@@ -33,7 +33,7 @@ FOLDER_PREFIX = "compas_acoustics_worker_"
 
 _PROXY = None
 
-__all__ = ["CONFIG", "WORKERS", "worker_python", "fingerprint", "proxy", "stop", "stop_running_workers", "simulate", "convolve"]
+__all__ = ["CONFIG", "WORKERS", "worker_python", "fingerprint", "proxy", "stop", "stop_running_workers", "simulate", "convolve", "analyse"]
 
 
 def worker_python():
@@ -226,3 +226,48 @@ def convolve(auraliser):
                            str(auraliser.hrtf_path), int(auraliser.sampling_rate), str(folder / "convolved.wav"))
     signal, _ = sf.read(out, dtype="float64", always_2d=True)
     return signal
+
+
+#: The parameters that need pyrato >= 1.0, which Rhino 8's Python 3.9 cannot install
+NEEDS_PYRATO_1 = ("STI", "G")
+
+
+def _pyrato_has_parameters():
+    from compas_acoustics import analyser
+
+    return analyser._STI_SUPPORTED
+
+
+def analyse(ir):
+    """Analyse ``ir`` here, with STI and G from the worker when this Python's pyrato cannot compute them.
+
+    STI and G need pyrato >= 1.0, which needs Python >= 3.11. With a worker configured they are computed
+    there; every other parameter is computed here, as without a worker.
+
+    Parameters
+    ----------
+    ir : :class:`compas_acoustics.ImpulseResponse`
+
+    Returns
+    -------
+    tuple of (:class:`compas_acoustics.AcousticAnalyser`, list of str)
+        The analyser, its :attr:`analysis_data` filled, and the messages of the UserWarnings raised in the worker.
+    """
+    import warnings
+
+    from compas_acoustics import AcousticAnalyser
+
+    analyser = AcousticAnalyser(ir)
+    if _pyrato_has_parameters() or worker_python() is None or not hasattr(ir, "to_wav"):
+        analyser.analyse()
+        return analyser, []
+    with warnings.catch_warnings():
+        # this pyrato cannot compute them; the worker replaces the NaNs
+        warnings.filterwarnings("ignore", message="STI is not available")
+        analyser.analyse()
+    path, _ = ir.to_wav(_folder() / f"{uuid.uuid4().hex}.wav")
+    result = proxy().analyse(str(path))
+    for name in NEEDS_PYRATO_1:
+        analyser.analysis_data[name] = result["analysis"][name]
+        analyser.analysis_data[f"{name}_overall"] = result["analysis"][f"{name}_overall"]
+    return analyser, result["warnings"]

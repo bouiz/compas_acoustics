@@ -99,7 +99,8 @@ def calculate_ticks(values, max_value=None):
 class AcousticParameter:
     """Class representing an acoustic parameter with its values and overall metric."""
 
-    # name: (title, x unit, y unit). STI and G are left out: they need pyrato >= 1.0, which Rhino 8's Python 3.9 cannot install.
+    # name: (title, x unit, y unit). STI and G need pyrato >= 1.0, which Rhino 8's Python 3.9 cannot install: Analyse IR
+    # computes them in the worker, and leaves them out without one. The bands of STI are its modulation transfer indices.
     _PARAMETERS = {
         'EDT': ('Early Decay Time (EDT)', 'Frequency (Hz)', 'Time (s)'),
         'T20': ('Reverberation Time (T20)', 'Frequency (Hz)', 'Time (s)'),
@@ -109,6 +110,8 @@ class AcousticParameter:
         'D50': ('Definition (D50)', 'Frequency (Hz)', 'Value (%)'),
         'DRR': ('Direct-to-Reverberant Ratio (DRR)', 'Frequency (Hz)', 'dB'),
         'Ts': ('Center Time (Ts)', 'Frequency (Hz)', 'Time (s)'),
+        'STI': ('Speech Transmission Index (STI)', 'Frequency (Hz)', 'Index (0-1)'),
+        'G': ('Sound Strength (G)', 'Frequency (Hz)', 'dB'),
     }
     NAMES = tuple(_PARAMETERS)
 

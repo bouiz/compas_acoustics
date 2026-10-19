@@ -116,6 +116,8 @@ def test_the_api_reads_and_writes_only_in_worker_folders(tmp_path):
         api.simulate(scene(), "pyroomacoustics", {}, None, str(tmp_path))
     with pytest.raises(ValueError, match="not a compas_acoustics worker folder"):
         api.convolve("a", {}, {}, "mono", "h.sofa", 48000, str(tmp_path / "out.wav"))
+    with pytest.raises(ValueError, match="not a compas_acoustics worker folder"):
+        api.analyse(str(tmp_path / "ir.wav"))
 
 
 def test_a_process_is_alive_until_it_exits():
@@ -328,3 +330,64 @@ def test_the_worker_install_runs_its_python_without_the_callers_pythonpath(monke
     assert all("PYTHONPATH" not in env and "PYTHONHOME" not in env for _, env in calls)
     assert calls[-1][0][0] == str(python)
     assert json.loads((tmp_path / "worker.json").read_text()) == {"python": str(python), "hybrid": True}
+
+
+def response():
+    return next(iter(scene().simulate(Pyroomacoustics(image_source_order=2, ray_tracing=False)).values()))
+
+
+def test_without_a_worker_the_analysis_stays_here(monkeypatch):
+    monkeypatch.setattr(worker, "proxy", lambda: pytest.fail("no worker is configured"))
+    analyser, messages = worker.analyse(response())
+    assert messages == [] and np.isfinite(analyser.analysis_data["STI_overall"]) and np.isfinite(analyser.analysis_data["G_overall"])
+
+
+def test_sti_and_g_come_from_the_worker_where_pyrato_cannot_compute_them(monkeypatch):
+    import types
+    import warnings
+
+    from compas_acoustics import AcousticAnalyser
+    from compas_acoustics import analyser as analysis
+    from compas_acoustics.worker import api
+
+    ir = response()
+    here = AcousticAnalyser(ir)
+    here.analyse()
+    # Rhino 8's Python 3.9: its pyrato < 1.0 has no STI and no G
+    monkeypatch.setattr(worker, "_pyrato_has_parameters", lambda: False)
+    monkeypatch.setattr(analysis, "_STI_SUPPORTED", False)
+    monkeypatch.setattr(worker, "worker_python", lambda: "python3.12")
+    paths = []
+
+    def in_the_worker(path):
+        # the worker's own Python 3.12, with pyrato >= 1.0
+        paths.append(path)
+        with monkeypatch.context() as there:
+            there.setattr(analysis, "_STI_SUPPORTED", True)
+            return api.analyse(path)
+
+    monkeypatch.setattr(worker, "proxy", lambda: types.SimpleNamespace(analyse=in_the_worker))
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        analyser, messages = worker.analyse(ir)
+    assert not [w for w in caught if "STI is not available" in str(w.message)]
+    assert len(paths) == 1 and api._worker_file(paths[0])
+    for name in ("STI", "G"):
+        assert analyser.analysis_data[name] == pytest.approx(here.analysis_data[name], abs=0.01)
+        assert analyser.analysis_data[f"{name}_overall"] == pytest.approx(here.analysis_data[f"{name}_overall"], abs=0.01)
+    assert analyser.analysis_data["T30"] == here.analysis_data["T30"]
+    assert isinstance(messages, list)
+
+
+@needs_worker
+def test_the_analysis_in_the_worker_matches_the_analysis_here(running_worker, monkeypatch):
+    from compas_acoustics import AcousticAnalyser
+
+    ir = response()
+    here = AcousticAnalyser(ir)
+    here.analyse()
+    monkeypatch.setattr(worker, "_pyrato_has_parameters", lambda: False)
+    analyser, _ = worker.analyse(ir)
+    for name in ("STI_overall", "G_overall"):
+        assert analyser.analysis_data[name] == pytest.approx(here.analysis_data[name], abs=0.01)
+
