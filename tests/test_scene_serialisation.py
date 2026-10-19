@@ -47,8 +47,8 @@ def test_a_scene_survives_json():
 def test_a_round_tripped_scene_simulates_the_same():
     original = scene()
     copy = json_loads(json_dumps(original))
-    a = original.simulate(Pyroomacoustics(image_source_order=2))
-    b = copy.simulate(Pyroomacoustics(image_source_order=2))
+    a = original.simulate(Pyroomacoustics(image_source_order=2, ray_tracing=False))
+    b = copy.simulate(Pyroomacoustics(image_source_order=2, ray_tracing=False))
     assert sorted(a) == sorted(b)
     for key in a:
         np.testing.assert_allclose(b[key].denormalized(), a[key].denormalized())

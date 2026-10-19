@@ -370,7 +370,7 @@ def test_an_eyring_tail_takes_no_simulation(monkeypatch):
 
 def test_an_image_source_only_reference_warns():
     scene = make()
-    scene.simulate(Pyroomacoustics(image_source_order=3))
+    scene.simulate(Pyroomacoustics(image_source_order=3, ray_tracing=False))
     with pytest.warns(UserWarning, match="no diffuse decay"):
         scene.simulate(Hybrid(reference="pyroomacoustics", **FAST))
 

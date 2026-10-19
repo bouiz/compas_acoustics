@@ -160,7 +160,7 @@ def test_both_modes_meet_the_contract(assert_meets_contract, ray_tracing):
 
 def test_ism_and_ray_tracing_share_the_direct_sound():
     scene = simulator()
-    (ism,) = scene.simulate(Pyroomacoustics(image_source_order=2, air_absorption=False)).values()
+    (ism,) = scene.simulate(Pyroomacoustics(image_source_order=2, air_absorption=False, ray_tracing=False)).values()
     (traced,) = scene.simulate(Pyroomacoustics(image_source_order=2, air_absorption=False, ray_tracing=True,
                                         n_rays=2000, duration=0.4, seed=1)).values()
     n = ism.direct_sound_index()
@@ -173,15 +173,15 @@ def test_ism_and_ray_tracing_share_the_direct_sound():
 
 def test_ray_tracing_settings_without_ray_tracing_raise():
     with pytest.raises(ValueError, match="n_rays"):
-        Pyroomacoustics(n_rays=1000)
+        Pyroomacoustics(ray_tracing=False, n_rays=1000)
     with pytest.raises(ValueError, match="duration"):
-        Pyroomacoustics(duration=0.5)
-    Pyroomacoustics(n_rays=20000)  # the default, given explicitly, is fine
+        Pyroomacoustics(ray_tracing=False, duration=0.5)
+    Pyroomacoustics(ray_tracing=False, n_rays=20000)  # the default, given explicitly, is fine
 
 
 def test_image_sources_need_no_scattering():
     scene = simulator(materials=AcousticMaterial("bare", 0.2))
-    assert len(scene.simulate(Pyroomacoustics(image_source_order=2))) == 1
+    assert len(scene.simulate(Pyroomacoustics(image_source_order=2, ray_tracing=False))) == 1
 
 
 def test_default_duration_follows_the_predicted_rt():
@@ -223,7 +223,7 @@ def test_a_slow_image_source_search_warns_before_it_starts(monkeypatch):
                                                  name=f"box{i}", role="obstacle"))
     monkeypatch.setattr(Method, "_image_sources", lambda *a, **k: pytest.fail("searched"))
     with pytest.warns(UserWarning, match="image source search over 42 faces"), pytest.raises(pytest.fail.Exception):
-        scene.simulate(Method(image_source_order=6))
+        scene.simulate(Method(image_source_order=6, ray_tracing=False))
 
 
 def test_ray_tracing_runs_in_the_medium():

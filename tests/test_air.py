@@ -128,7 +128,7 @@ def test_the_direct_sound_arrives_at_the_mediums_speed():
     from compas_acoustics.simulation_methods import Pyroomacoustics
 
     air = AirConditions(temperature=0.0)
-    (ir,) = _scene().simulate(Pyroomacoustics(air=air)).values()
+    (ir,) = _scene().simulate(Pyroomacoustics(air=air, ray_tracing=False)).values()
     distance = float(np.linalg.norm(np.subtract(ir.receiver.position, ir.source.position)))
     expected = round(distance / air.speed_of_sound * ir.sampling_rate)
     assert ir.direct_sound_index() == expected
@@ -140,7 +140,7 @@ def test_the_direct_sound_arrives_at_the_mediums_speed():
 def test_without_a_medium_the_generation_records_the_default():
     from compas_acoustics.simulation_methods import Pyroomacoustics
 
-    (ir,) = _scene().simulate(Pyroomacoustics()).values()
+    (ir,) = _scene().simulate(Pyroomacoustics(ray_tracing=False)).values()
     assert ir.generation["air"] == AirConditions().to_dict()
     assert ir.generation["speed_of_sound"] == pytest.approx(AirConditions().speed_of_sound)
 
@@ -150,7 +150,7 @@ def test_the_medium_survives_export(tmp_path):
     from compas_acoustics.simulation_methods import Pyroomacoustics
 
     air = AirConditions(temperature=0.0)
-    (ir,) = _scene().simulate(Pyroomacoustics(air=air)).values()
+    (ir,) = _scene().simulate(Pyroomacoustics(air=air, ray_tracing=False)).values()
     wav_path, _ = ir.to_wav(str(tmp_path / "ir.wav"))
     loaded = ImpulseResponse.from_wav(wav_path)
     assert AirConditions.from_dict(loaded.generation["air"]) == air

@@ -36,8 +36,8 @@ class Pyroomacoustics(SimulationMethod):
         Last specular order. With ray tracing, hybrid-rir measured 6 to 10 as
         the range where the decay of a room with uneven absorption stops
         depending on it.
-    ray_tracing : bool, default=False
-        Add the ray tracer. Materials without scattering coefficients scatter 0.05 in every band.
+    ray_tracing : bool, default=True
+        Add the ray tracer; ``False`` runs the image sources alone. Materials without scattering coefficients scatter 0.05 in every band.
     air_absorption : bool, default=True
         Air absorption in the simulation.
     n_rays : int or None, default=20000
@@ -73,14 +73,14 @@ class Pyroomacoustics(SimulationMethod):
     >>> scene.add_acoustic_objects(ca.AcousticObjectsLibrary.shoebox_room(6, 5, 3, materials=ca.AcousticMaterial("wall", 0.2, 0.1)))
     >>> scene.add_source(ca.Source("talker", 1.5, 1.5, 1.6))
     >>> scene.add_receiver(ca.Receiver("listener", 4.0, 3.0, 1.2))
-    >>> responses = scene.simulate(ca.Pyroomacoustics(image_source_order=2))
+    >>> responses = scene.simulate(ca.Pyroomacoustics(image_source_order=2, ray_tracing=False))
     >>> ir = next(iter(responses.values()))
     >>> ir.sampling_rate, ir.n_channels, ir.generation["method"]
     (48000, 1, 'pyroomacoustics')
 
-    Ray tracing adds the late reflections; the seed makes a run repeatable.
+    Ray tracing, on by default, adds the late reflections; the seed makes a run repeatable.
 
-    >>> responses = scene.simulate(ca.Pyroomacoustics(ray_tracing=True, n_rays=2000, duration=0.5))
+    >>> responses = scene.simulate(ca.Pyroomacoustics(n_rays=2000, duration=0.5))
     >>> ir = next(iter(responses.values()))
     >>> ir.ir.shape, ir.generation["seed"]
     ((24000,), 42)
@@ -97,7 +97,7 @@ class Pyroomacoustics(SimulationMethod):
         "seed": 42,
     }
 
-    def __init__(self, image_source_order: int = 3, ray_tracing: bool = False, air_absorption: bool = True,
+    def __init__(self, image_source_order: int = 3, ray_tracing: bool = True, air_absorption: bool = True,
                  n_rays: Optional[int] = 20_000, energy_thres: float = 1e-8, duration: Optional[float] = None,
                  receiver_radius: float = 0.5, seed: int = 42, normalize: bool = True,
                  air: Optional[AirConditions] = None):

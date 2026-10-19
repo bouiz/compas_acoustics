@@ -278,7 +278,7 @@ def test_analyse_ir_leaves_out_sti_and_g(monkeypatch):
 
     monkeypatch.setitem(sys.modules, "compas_acoustics_ghpython", types.SimpleNamespace(AcousticParameter=AcousticParameter))
     module, messages = load_component("CA_Analyse_IR", monkeypatch)
-    ir = next(iter(scene().simulate(Pyroomacoustics(image_source_order=2)).values()))
+    ir = next(iter(scene().simulate(Pyroomacoustics(image_source_order=2, ray_tracing=False)).values()))
     assert module.AnalyseIR().RunScript(ir) == ["EDT", "T20", "T30", "C50", "C80", "D50", "DRR", "Ts"]
 
 
@@ -289,7 +289,7 @@ def test_the_plotter_offers_only_the_parameters_grasshopper_can_compute(monkeypa
     try:
         from compas_acoustics_ghpython import AcousticParameter
 
-        ir = next(iter(scene().simulate(Pyroomacoustics(image_source_order=2)).values()))
+        ir = next(iter(scene().simulate(Pyroomacoustics(image_source_order=2, ray_tracing=False)).values()))
         analyser = AcousticAnalyser(ir)
         analyser.analyse()
         assert AcousticParameter.NAMES == ("EDT", "T20", "T30", "C50", "C80", "D50", "DRR", "Ts")

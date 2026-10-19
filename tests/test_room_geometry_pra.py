@@ -129,7 +129,7 @@ def test_a_receiver_in_a_pillar_is_left_out_with_a_warning():
     scene.add_receiver(Receiver("in_pillar", 3.5, 2.5, 1.5))
     scene.add_receiver(Receiver("free", 6, 4, 1.5))
     with pytest.warns(UserWarning, match="in_pillar"):
-        rirs = scene.simulate(Pyroomacoustics(image_source_order=2))
+        rirs = scene.simulate(Pyroomacoustics(image_source_order=2, ray_tracing=False))
     assert [ir.receiver.name for ir in rirs.values()] == ["free"]
 
 
@@ -149,7 +149,7 @@ def test_a_scene_of_obstacles_only_is_an_open_field():
     scene.add_source(Source("s", 1, 1, 1.5))
     scene.add_receiver(Receiver("r", 3, 2, 1.5))
     with pytest.warns(UserWarning, match="no boundary surfaces"):
-        rirs = scene.simulate(Pyroomacoustics(image_source_order=2))
+        rirs = scene.simulate(Pyroomacoustics(image_source_order=2, ray_tracing=False))
     assert len(rirs) == 1
 
 

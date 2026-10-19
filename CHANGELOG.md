@@ -14,7 +14,7 @@ Nothing is kept under its old name. What replaces what:
 | Before | Now |
 |---|---|
 | `Simulator(scene).rir_from_ray_tracing(image_source_order=, n_rays=, air_absorption=, random_seed=)` | `scene.simulate(Pyroomacoustics(ray_tracing=True, image_source_order=, n_rays=, air_absorption=, seed=))` |
-| `Simulator(scene).rir_from_image_source_method(order)` | `scene.simulate(Pyroomacoustics(image_source_order=order))` |
+| `Simulator(scene).rir_from_image_source_method(order)` | `scene.simulate(Pyroomacoustics(image_source_order=order, ray_tracing=False))` |
 | `simulator.sampling_rate = fs` | `Scene(name, sampling_rate=fs)` or `scene.sampling_rate = fs` |
 | `simulator.trace_rays(...)` | `RayField.from_scene(scene, ...)` |
 | `simulator.rirs`, `simulator.results` | the responses returned by `scene.simulate`, or `scene.impulse_responses(method_name)`, `scene.get_impulse_response(source, receiver)` |
@@ -38,7 +38,7 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 
 ### Added
 
-* Added `Scene.simulate(method)` as the one way to simulate, with the methods `Pyroomacoustics(image_source_order=3, ray_tracing=False, ...)` and `Hybrid(...)` in `compas_acoustics.simulation_methods`.
+* Added `Scene.simulate(method)` as the one way to simulate, with the methods `Pyroomacoustics(image_source_order=3, ray_tracing=True, ...)` and `Hybrid(...)` in `compas_acoustics.simulation_methods`.
 * Added `Scene.sampling_rate` (default 48000, serialised with the scene), the rate at which every method runs; the Room Scene component has the input.
 * Added `Hybrid`, ambisonic room impulse responses from image sources, optional edge diffraction (`diffraction="udfa"` or `"btms"`) and a directional feedback delay network tail, ported from hybrid-rir; needs the `hybrid` extra and Python >= 3.11.
 * Added `Hybrid(tail=...)` with a reference response, the hybrid's own ray-traced reference, or an Eyring or Sabine prediction as decay target.

@@ -245,7 +245,7 @@ def test_a_triangulated_scene_simulates_merged_and_without_the_warning():
     s.add_receiver(Receiver("r", 4.0, 2.0, 1.5))
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        rirs = s.simulate(Pyroomacoustics(image_source_order=2))
+        rirs = s.simulate(Pyroomacoustics(image_source_order=2, ray_tracing=False))
     assert len(rirs) == 1
 
 

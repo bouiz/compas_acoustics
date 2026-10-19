@@ -109,7 +109,7 @@ def test_simulate_normalizes_and_records_generation(normalize):
     scene.add_source(Source("s", 2, 4, 1.5))
     scene.add_receiver(Receiver("near", 3, 4, 1.5))
     scene.add_receiver(Receiver("mid", 5, 4, 1.5))
-    rirs = scene.simulate(Pyroomacoustics(image_source_order=2, normalize=normalize))
+    rirs = scene.simulate(Pyroomacoustics(image_source_order=2, normalize=normalize, ray_tracing=False))
 
     by_receiver = {ir.receiver.name: ir for ir in rirs.values()}
     for ir in by_receiver.values():
@@ -132,7 +132,7 @@ def test_simulated_impulse_responses_use_the_requested_sampling_rate(sampling_ra
     scene.add_source(Source("s", 2, 4, 1.5))
     scene.add_receiver(Receiver("r", 5, 4, 1.5))
     # Air absorption above 16 kHz used to fail on a 7- vs 8-band mismatch
-    rirs = scene.simulate(Pyroomacoustics(image_source_order=2, air_absorption=True))
+    rirs = scene.simulate(Pyroomacoustics(image_source_order=2, air_absorption=True, ray_tracing=False))
     assert all(ir.sampling_rate == sampling_rate for ir in rirs.values())
 
 
