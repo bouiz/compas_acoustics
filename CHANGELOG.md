@@ -68,7 +68,12 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 * Added `Defaults.HRTF_LIBRARY_PATH`, `ANECHOIC_SOUNDFILES_LIBRARY_PATH` and `PARAM_NAMES`.
 * Added the `hybrid` extra (`pyFDN`, `spharpy`, `multislope`; Python >= 3.11) and a CI job for it.
 * Added the package `compas_acoustics_ghpython` with the Grasshopper components, `AcousticParameter`, `Plotter2D`, `Plotter2DSettings` and `ensure_inputs`, which gives unconnected inputs a value list or a button.
-* Added the components Simulate Hybrid (with a `run` button), Simulate Pyroomacoustics (was Simulate Ray Tracing), Material Library categories, and the inputs `output_format`, `hrtf`, `level` (Auralise), `normalize` (Audio Player, Simulate), `method` (Deconstruct IR Graph), `direction`, `up` and `plane` (Receiver).
+* Added the components Simulate Hybrid (with a `run` button, its last input), Simulate Pyroomacoustics (was Simulate Ray Tracing), Material Library categories, and the inputs `output_format`, `hrtf`, `level` (Auralise), `normalize` (Audio Player, Simulate), `method` (Deconstruct IR Graph), `direction`, `up` and `plane` (Receiver).
+* Added the input `role` (a value list: `boundary` or `obstacle`) to the Grasshopper Acoustic Object component; a wrong role or material is an error on the component instead of a traceback.
+* Added `compas_acoustics_ghpython.MethodGraph`: Simulate Pyroomacoustics and Simulate Hybrid return the scene's IR graph tagged with their method, and Deconstruct IR Graph reads the method its wire comes from (Pyroomacoustics: mono, Hybrid: ambisonic), so it has no `method` input.
+* Added the input `select` (a value list: `all` or one of EDT, T20, T30, C50, C80, D50, DRR, Ts) to the Grasshopper Deconstruct Parameter component: a selected parameter comes out as plain lists, `all` as one branch per parameter, and the output `parameter` passes the selection on to Plot 2D. Its `param` input takes the list.
+* Changed the Grasshopper Plot 2D chart to leave half a band's spacing between the y axis and the first frequency band, and to turn the y axis title so that its letters face the axis.
+* Added a status to the Grasshopper Simulate Hybrid component for when it is not running: it says `done` with the tail and order of the last result on the graph, `settings changed, press Run` when its inputs differ from that result, and `press Run` only when there is none.
 * Added the Grasshopper installer for Rhino 8 (`installer/compas_acoustics_installer.gh`), `invoke installer-bundle`, and `compas-dev/compas-actions` v1 workflows (build, release, `prepare release`), with tests on Python 3.9.
 * Added `examples/office_hybrid.py`, which runs both methods on an office.
 * Added a getting-started section to the README, and `Examples` sections that `invoke testdocs` can run in the docstrings of `Scene`, `Pyroomacoustics`, `Hybrid`, `AcousticAnalyser` and `Auraliser`.
@@ -110,6 +115,8 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 
 ### Fixed
 
+* Fixed the Grasshopper Material Library component forgetting its material when the file is reopened: the choice is kept in the component's nickname, which Grasshopper saves.
+* Fixed the Grasshopper Material Library component failing with `No module named 'compas_acoustics'`: its script pinned an empty Rhino script environment, `compas_acoustics_rhino`, instead of the one the installer fills.
 * Fixed the worker setup from the Grasshopper installer failing at its last check: the worker's Python 3.12 inherited the `PYTHONPATH` of Rhino's 3.9 packages and could not import numpy.
 * Fixed a simulation failing on a Source whose `sound_file` is not a RIFF WAV (an AIFF or FLAC file; the library's `basoon.wav` is an AIFF): the file is read with soundfile.
 * Fixed `Hybrid` counting an image source twice when its path passes through an edge (+6 dB on that path); `hybrid.early.image_sources` now keeps one image per position, as `ShoeBox` does.

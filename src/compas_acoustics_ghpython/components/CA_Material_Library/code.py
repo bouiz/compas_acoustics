@@ -1,4 +1,3 @@
-# venv: compas_acoustics_rhino
 """Preset picker for AcousticMaterial. Right-click to choose a material from the materials library, grouped by category."""
 # flake8: noqa
 import Grasshopper
@@ -57,5 +56,6 @@ class MaterialLibraryPicker(Grasshopper.Kernel.GH_ScriptInstance):
         if name == self.material_name:
             return
         self.material_name = name
-        # ghenv.Component.NickName = name
+        # The nickname is what Grasshopper saves with the file; __init__ reads the choice back from it
+        ghenv.Component.NickName = name
         ghenv.Component.ExpireSolution(True)

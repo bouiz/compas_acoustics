@@ -3,7 +3,7 @@
     "nickname": "Obj",
     "category": "COMPAS Acoustics",
     "subcategory": "00 Elements",
-    "description": "Create an AcousticObject with the specified geometry and material.",
+    "description": "Create an AcousticObject with the specified geometry, material and role. A boundary is part of the closed room; an obstacle (furniture, a screen) stands free inside it and reflects from both sides.",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,
@@ -26,6 +26,13 @@
             {
                 "name": "name",
                 "description": "Name of the AcousticObject.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "str"
+            },
+            {
+                "name": "role",
+                "description": "boundary (default): part of the closed room. obstacle: a free-standing object inside it, reflecting and absorbing from both sides; a value list is added when it is not connected.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "str"

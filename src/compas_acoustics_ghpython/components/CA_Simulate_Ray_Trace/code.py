@@ -3,6 +3,7 @@ import warnings
 import Grasshopper
 
 from compas_acoustics.simulation_methods import Pyroomacoustics
+from compas_acoustics_ghpython import MethodGraph
 
 # Inputs that only apply with ray tracing
 RAY_TRACING_ONLY = ("n_rays", "energy_thres", "duration", "seed")
@@ -22,7 +23,7 @@ class SimulateRayTracing(Grasshopper.Kernel.GH_ScriptInstance):
             ray_tracing = True
 
         # Unset inputs are left out so that the method's own defaults apply
-        # (image source order 6, 20000 rays, an Eyring-sized buffer).
+        # (image source order 3, 20000 rays, an Eyring-sized buffer).
         given = {
             "image_source_order": max_order,
             "n_rays": n_rays,
@@ -63,4 +64,4 @@ class SimulateRayTracing(Grasshopper.Kernel.GH_ScriptInstance):
             given.get("seed", "default") if ray_tracing else "-",
         )
 
-        return scene.ir_graph
+        return MethodGraph(scene.ir_graph, "pyroomacoustics")

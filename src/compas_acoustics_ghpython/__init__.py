@@ -6,6 +6,7 @@ the core ``compas_acoustics`` package stays CAD-agnostic.
 
 import os
 
+from .ir_graph import MethodGraph
 from .plotter import AcousticParameter
 from .plotter import Plotter2D
 from .plotter import Plotter2DSettings
@@ -18,6 +19,7 @@ USEROBJECTS_PATH = os.path.join(HERE, "components", "ghuser")
 
 __all__ = [
     "AcousticParameter",
+    "MethodGraph",
     "Plotter2D",
     "Plotter2DSettings",
     "ensure_inputs",

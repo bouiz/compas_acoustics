@@ -193,7 +193,7 @@ class Plotter2DSettings:
     
         self.title_justification = title_justification if title_justification is not None else rg.TextJustification.BottomCenter
         self.x_axis_title_justification = x_axis_title_justification if x_axis_title_justification is not None else rg.TextJustification.TopCenter
-        self.y_axis_title_justification = y_axis_title_justification if y_axis_title_justification is not None else rg.TextJustification.BottomCenter
+        self.y_axis_title_justification = y_axis_title_justification if y_axis_title_justification is not None else rg.TextJustification.TopCenter
         self.x_label_justification = x_label_justification if x_label_justification is not None else rg.TextJustification.TopCenter
         self.y_label_justification = y_label_justification if y_label_justification is not None else rg.TextJustification.MiddleRight
         self.data_justification = data_justification if data_justification is not None else rg.TextJustification.BottomLeft
@@ -278,13 +278,14 @@ class Plotter2D:
         y_ticks = calculate_ticks(self.values)
         count_y = len(y_ticks)
 
-        step_x = width / (count_x - 1)
+        # half a step between the y axis and the first band, so its point and label are clear of the axis
+        step_x = width / (count_x - 0.5)
         step_y = height / (count_y - 1)
 
         self.x_tick_labels = [str(freq) for freq in self.frequencies]
         self.y_tick_labels = [str(tick) for tick in y_ticks]
 
-        self.x_axis_points = [plane.Origin + (x_dir * step_x * i) for i in range(count_x)]
+        self.x_axis_points = [plane.Origin + (x_dir * step_x * (i + 0.5)) for i in range(count_x)]
         self.y_axis_points = [plane.Origin + (y_dir * step_y * i) for i in range(count_y)]
 
         # 3. Draw data points and polyline
@@ -307,8 +308,9 @@ class Plotter2D:
         )
 
         pln_y_title = rg.Plane(plane)
-        pln_y_title.XAxis = plane.YAxis
-        pln_y_title.YAxis = -plane.XAxis
+        # reads downwards, the tops of the letters towards the y axis
+        pln_y_title.XAxis = -plane.YAxis
+        pln_y_title.YAxis = plane.XAxis
         pln_y_title.Origin = plane.Origin + x_dir * (width * -.1) + y_dir * (height * .5)
         self.y_axis_title = self.text_entity(
             self.param.y_unit, pln_y_title, text_height=axis_title_height, justification=self.settings.y_axis_title_justification

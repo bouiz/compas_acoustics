@@ -3,7 +3,7 @@
     "nickname": "DeIRGraph",
     "category": "COMPAS Acoustics",
     "subcategory": "02 Simulation",
-    "description": "Deconstruct impulse response graph structure into ImpulseResponse(s).",
+    "description": "Deconstruct impulse response graph structure into ImpulseResponse(s). It reads the responses of the simulation method whose component the graph came from: Simulate Pyroomacoustics gives the mono responses, Simulate Hybrid the ambisonic ones.",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,
@@ -22,13 +22,6 @@
                 "optional": true,
                 "scriptParamAccess": 1,
                 "typeHintID": "int"
-            },
-            {
-                "name": "method",
-                "description": "Which simulation method's responses to read: 'data' (default, the latest mono responses), 'pyroomacoustics', 'hybrid', ...",
-                "optional": true,
-                "scriptParamAccess": 0,
-                "typeHintID": "str"
             }
         ],
         "outputParameters": [

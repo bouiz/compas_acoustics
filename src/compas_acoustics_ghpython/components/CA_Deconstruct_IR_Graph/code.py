@@ -6,7 +6,7 @@ import System
 
 class DeconstructIRGraph(Grasshopper.Kernel.GH_ScriptInstance):
 
-    def RunScript(self, ir_graph, receiver_idx, method):
+    def RunScript(self, ir_graph, receiver_idx):
 
         if ir_graph is None:
             ghenv.Component.AddRuntimeMessage(
@@ -14,14 +14,16 @@ class DeconstructIRGraph(Grasshopper.Kernel.GH_ScriptInstance):
             )
             return None, None, None, None
 
-        # Each simulation method stores its responses under its own name; 'data' is the latest mono one
+        # Each simulation method stores its responses under its own name; 'data' is the latest mono one.
+        # The Simulate components tag the graph they return with their method: the wire says which to read.
+        method = getattr(ir_graph, "method", None)
         methods = []
         for edge in ir_graph.edges():
             for name in ir_graph.edge_attributes(edge):
                 if name not in methods:
                     methods.append(name)
         if not method:
-            # 'data' by default; without it (only ambisonic results, e.g. hybrid), the first method on the graph
+            # an untagged graph: 'data'; without it (only ambisonic results, e.g. hybrid), the first method on the graph
             method = "data" if "data" in methods or not methods else methods[0]
         if methods and method not in methods:
             ghenv.Component.AddRuntimeMessage(
