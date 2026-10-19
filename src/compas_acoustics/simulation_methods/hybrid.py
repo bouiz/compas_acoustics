@@ -69,7 +69,7 @@ class Hybrid(SimulationMethod):
         Where the decay target comes from. ``"reference"``: fitted to
         ``reference``. ``"ray_tracing"``: fitted to a reference the hybrid runs
         itself, ``Pyroomacoustics(ray_tracing=True)`` with its default settings
-        (image source order 6, 20000 rays) and the hybrid's ``air_absorption``. ``"eyring"``, ``"sabine"``:
+        (image source order 3, 20000 rays) and the hybrid's ``air_absorption``. ``"eyring"``, ``"sabine"``:
         predicted from volume, area and mean absorption, without any reference;
         warns where the room is not diffuse. ``None`` means ``"reference"`` when
         a reference is given, else ``"ray_tracing"``.
