@@ -41,7 +41,8 @@ room = ca.AcousticObject.from_obj(room_obj_path, materials={
 
 # The table stands free in the room: an obstacle, reflecting from both sides
 table_obj_path = os.path.join(os.path.dirname(__file__), 'sample_table.obj')
-table = ca.AcousticObject.from_obj(table_obj_path, materials=plywood, roles="obstacle", name="sample_table")
+table = ca.AcousticObject.from_obj(table_obj_path, materials=plywood, name="sample_table")
+ca.AcousticObject.assign_roles_by_group(table, {"wood": "obstacle"})
 
 scene.add_acoustic_objects(room)
 scene.add_acoustic_objects(table)

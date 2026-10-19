@@ -22,9 +22,21 @@ def _checked_role(role):
     return role
 
 
+def _objects_by_group(objects, names):
+    """The objects read from each OBJ group in ``names``; a name none of them has raises."""
+    by_group = {}
+    for acoustic_object in objects:
+        by_group.setdefault(acoustic_object.group, []).append(acoustic_object)
+    unknown = sorted(set(names) - set(by_group))
+    if unknown:
+        known = sorted(group for group in by_group if group is not None)
+        raise ValueError(f"No OBJ group {unknown}; groups: {known}")
+    return {name: by_group[name] for name in names}
+
+
 class AcousticObject(Data):
 
-    def __init__(self, acoustic_geometry:Mesh, material:AcousticMaterial, x:float=0, y:float=0, z:float=0, name:str=None, role:str='boundary'):
+    def __init__(self, acoustic_geometry:Mesh, material:AcousticMaterial, x:float=0, y:float=0, z:float=0, name:str=None, role:str='boundary', group:str=None):
         """Initialize Acoustic object
 
         Parameters
@@ -44,6 +56,9 @@ class AcousticObject(Data):
         role : str
             ``'boundary'`` (part of the closed room) or ``'obstacle'`` (a free-standing
             object inside it).
+        group : str
+            The OBJ group the object was read from, which :meth:`assign_roles_by_group` and
+            :meth:`assign_materials_by_group` look it up by. Optional; not serialised.
         """
         super().__init__(name=name)
         self._x = x
@@ -52,12 +67,13 @@ class AcousticObject(Data):
         self.acoustic_geometry = acoustic_geometry
         self.material = material
         self.role = role
+        self.group = group
         self.sources = []
         self.visualisation_geometry = None
 
 
     @classmethod
-    def from_obj(cls, filepath, materials, roles='boundary', name=None):
+    def from_obj(cls, filepath, materials=None, name=None):
         """One acoustic object per ``g`` group of a Wavefront OBJ file.
 
         Rhino writes one group per layer or object; faces before any ``g`` line are in
@@ -65,16 +81,18 @@ class AcousticObject(Data):
         metres. :class:`compas.files.OBJ` welds the vertices to
         :attr:`compas.tolerance.TOL.precision` and faces that collapse are dropped.
 
+        Every object is a boundary of the room; mark furniture as obstacles with
+        :meth:`assign_roles_by_group`.
+
         Parameters
         ----------
         filepath : str
             The OBJ file.
-        materials : :class:`AcousticMaterial` or dict
-            One material for every group, or a dict keyed by group name. A group
-            without a material raises a ``ValueError`` naming it.
-        roles : str or dict, optional
-            ``'boundary'`` or ``'obstacle'`` for the whole file (``'obstacle'`` for
-            furniture), or a dict keyed by group name; groups not in it are boundaries.
+        materials : :class:`AcousticMaterial` or dict, optional
+            One material for every group, or a dict keyed by group name, as
+            :meth:`assign_materials_by_group` takes it. Groups without one have no
+            material until :meth:`assign_materials_by_group` gives them one; a scene
+            with an object that has none cannot be simulated.
         name : str, optional
             The prefix of the objects' names; defaults to the file name.
 
@@ -99,17 +117,71 @@ class AcousticObject(Data):
         if name is None:
             name = os.path.splitext(os.path.basename(filepath))[0]
         objects = []
+        material = None if isinstance(materials, dict) else materials
         for group, faces in groups.items():
-            if isinstance(materials, AcousticMaterial):
-                material = materials
-            elif group in materials:
-                material = materials[group]
-            else:
-                raise ValueError(f"No material for OBJ group '{group}' of {filepath}; groups: {sorted(groups)}")
-            role = roles.get(group, 'boundary') if isinstance(roles, dict) else roles
             mesh = Mesh.from_vertices_and_faces(obj.vertices, faces)
             mesh.remove_unused_vertices()
-            objects.append(cls(mesh, material, name=f"{name}_{group}", role=role))
+            objects.append(cls(mesh, material, name=f"{name}_{group}", group=group))
+        if isinstance(materials, dict):
+            cls.assign_materials_by_group(objects, materials)
+        return objects
+
+
+    @staticmethod
+    def assign_roles_by_group(objects, roles):
+        """Set the role of every object read from the named OBJ groups.
+
+        Parameters
+        ----------
+        objects : list of :class:`AcousticObject`
+            Objects from :meth:`from_obj`, from one or several files.
+        roles : dict
+            ``'boundary'`` or ``'obstacle'`` by OBJ group name. A name that none of the
+            objects was read from raises a ``ValueError`` listing the groups they have.
+
+        Returns
+        -------
+        list of :class:`AcousticObject`
+            ``objects``.
+
+        Examples
+        --------
+        >>> furniture = {'chairs': 'obstacle', 'tables': 'obstacle'}
+        >>> objects = AcousticObject.from_obj('office.obj', materials)  # doctest: +SKIP
+        >>> AcousticObject.assign_roles_by_group(objects, furniture)  # doctest: +SKIP
+        """
+        for group, members in _objects_by_group(objects, roles).items():
+            for acoustic_object in members:
+                acoustic_object.role = roles[group]
+        return objects
+
+
+    @staticmethod
+    def assign_materials_by_group(objects, materials):
+        """Set the material of every object read from the named OBJ groups.
+
+        Parameters
+        ----------
+        objects : list of :class:`AcousticObject`
+            Objects from :meth:`from_obj`, from one or several files.
+        materials : dict
+            :class:`AcousticMaterial` by OBJ group name. A name that none of the objects
+            was read from raises a ``ValueError`` listing the groups they have; groups
+            not in it keep their material.
+
+        Returns
+        -------
+        list of :class:`AcousticObject`
+            ``objects``.
+
+        Examples
+        --------
+        >>> objects = AcousticObject.from_obj('office.obj')  # doctest: +SKIP
+        >>> AcousticObject.assign_materials_by_group(objects, {'chairs': upholstery, 'glass': glass})  # doctest: +SKIP
+        """
+        for group, members in _objects_by_group(objects, materials).items():
+            for acoustic_object in members:
+                acoustic_object.material = materials[group]
         return objects
 
 
@@ -152,6 +224,18 @@ class AcousticObject(Data):
     
     def add_source(self, source:Source):
         self.sources.append(source)
+
+
+    @property
+    def material(self):
+        return self._material
+
+
+    @material.setter
+    def material(self, material):
+        if material is not None and not isinstance(material, AcousticMaterial):
+            raise TypeError(f"material must be an AcousticMaterial or None, got {type(material).__name__}")
+        self._material = material
 
 
     @property

@@ -47,7 +47,8 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 * Added `Pyroomacoustics(ray_tracing=True)`, hybrid-rir's ray tracer on top of the image sources (`n_rays`, `energy_thres`, `duration`, `receiver_radius`, `seed`).
 * Added `AirConditions(temperature=20, humidity=50, pressure=101325)`: speed of sound after Cramer (1993) and air absorption after ISO 9613-1, for every method, recorded in `ImpulseResponse.generation`.
 * Added `RoomGeometry`, the scene's surfaces as one validated room (welded, outward oriented, closedness checked, coplanar faces merged), with `to_pra()` and `is_inside()`.
-* Added `AcousticObject(role="boundary" | "obstacle")` and `AcousticObject.from_obj(path, materials, roles)`, a list with one object per OBJ group.
+* Added `AcousticObject(role="boundary" | "obstacle")` and `AcousticObject.from_obj(path, materials=None)`, a list with one object per OBJ group, every one a boundary; groups `materials` does not cover have none until they are assigned, and `AcousticObject.material` accepts only an `AcousticMaterial` or `None`.
+* Added `AcousticObject.assign_roles_by_group(objects, roles)` and `assign_materials_by_group(objects, materials)` to mark OBJ groups as obstacles and give them materials after reading, and `AcousticObject.group`, the OBJ group an object was read from (not serialised); a group name that none of the objects has raises a `ValueError`.
 * Added `Receiver.up`, `rotation`, `frame` and `Receiver.from_frame()`: the orientation sets the axes of ambisonic responses (x facing, y left, z up).
 * Added `compas_acoustics.diffuse` (`predicted_rt`, `mean_absorption`, `DiffuseFieldWarning`): Sabine and Eyring reverberation times.
 * Added JSON serialisation (`compas.json_dumps`) for `Scene`, `AcousticObject`, `Source`, `Receiver`, `ImpulseResponse`, `Ray`, `ScatteredRay` and `RayField`; the IR graph is not serialised.

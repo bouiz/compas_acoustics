@@ -284,12 +284,54 @@ def test_an_obj_file_reads_one_object_per_group(tmp_path):
     assert room[1].material is carpet
     g = RoomGeometry.from_scene(scene_of(*room))
     assert g.is_closed and g.volume == pytest.approx(30.0)
-    with pytest.raises(ValueError, match="walls"):
-        AcousticObject.from_obj(str(obj), {"floor": carpet, "ceiling": WALL})
-    furniture = AcousticObject.from_obj(str(obj), WALL, roles="obstacle")
-    assert {o.role for o in furniture} == {"obstacle"}
-    mixed = AcousticObject.from_obj(str(obj), WALL, roles={"floor": "obstacle"})
-    assert [o.role for o in mixed] == ["boundary", "obstacle", "boundary"]
+    partial = AcousticObject.from_obj(str(obj), {"floor": carpet, "ceiling": WALL})
+    assert [o.material for o in partial] == [None, carpet, WALL]
+    with pytest.raises(ValueError, match=r"\['flor'\]"):
+        AcousticObject.from_obj(str(obj), {"flor": carpet})
+    with pytest.raises(TypeError, match="AcousticMaterial"):
+        AcousticObject.from_obj(str(obj), "carpet")
+    with pytest.raises(TypeError, match="AcousticMaterial"):
+        AcousticObject.assign_materials_by_group(partial, {"walls": 0.3})
+    assert [o.group for o in room] == ["walls", "floor", "ceiling"]
+
+
+def test_roles_are_assigned_by_group_after_reading(tmp_path):
+    obj = tmp_path / "box.obj"
+    lines = ["v 0 0 0", "v 4 0 0", "v 4 3 0", "v 0 3 0", "v 0 0 2.5", "v 4 0 2.5", "v 4 3 2.5", "v 0 3 2.5",
+             "g walls", "f 1 2 6 5", "f 2 3 7 6", "g floor", "f 1 4 3 2", "g ceiling", "f 5 6 7 8"]
+    obj.write_text("\n".join(lines) + "\n")
+    objects = AcousticObject.from_obj(str(obj), WALL)
+    assert {o.role for o in objects} == {"boundary"}
+    returned = AcousticObject.assign_roles_by_group(objects, {"floor": "obstacle"})
+    assert returned is objects
+    assert [o.role for o in objects] == ["boundary", "obstacle", "boundary"]
+    with pytest.raises(ValueError, match=r"\['flor'\].*\['ceiling', 'floor', 'walls'\]"):
+        AcousticObject.assign_roles_by_group(objects, {"flor": "obstacle"})
+    with pytest.raises(ValueError, match="role"):
+        AcousticObject.assign_roles_by_group(objects, {"floor": "wall"})
+    assert [o.role for o in objects] == ["boundary", "obstacle", "boundary"]
+
+
+def test_materials_are_assigned_by_group_after_reading(tmp_path):
+    obj = tmp_path / "box.obj"
+    lines = ["v 0 0 0", "v 4 0 0", "v 4 3 0", "v 0 3 0", "v 0 0 2.5", "v 4 0 2.5", "v 4 3 2.5", "v 0 3 2.5",
+             "g walls", "f 1 2 6 5", "f 2 3 7 6", "f 3 4 8 7", "f 4 1 5 8", "g floor", "f 1 4 3 2",
+             "g ceiling", "f 5 6 7 8"]
+    obj.write_text("\n".join(lines) + "\n")
+    objects = AcousticObject.from_obj(str(obj))
+    assert [o.material for o in objects] == [None, None, None]
+    with pytest.raises(ValueError, match="no material"):
+        RoomGeometry.from_scene(scene_of(*objects))
+    carpet = AcousticMaterial("carpet", 0.3, 0.1)
+    returned = AcousticObject.assign_materials_by_group(objects, {"walls": WALL, "ceiling": WALL})
+    assert returned is objects
+    assert [o.material for o in objects] == [WALL, None, WALL]
+    with pytest.raises(ValueError, match=r"\['flor'\].*\['ceiling', 'floor', 'walls'\]"):
+        AcousticObject.assign_materials_by_group(objects, {"flor": carpet})
+    assert objects[1].material is None
+    AcousticObject.assign_materials_by_group(objects, {"floor": carpet})
+    assert [o.material for o in objects] == [WALL, carpet, WALL]
+    assert RoomGeometry.from_scene(scene_of(*objects)).is_closed
 
 
 def test_assigning_scene_materials_by_surface_name_raises():

@@ -30,8 +30,12 @@ MATERIALS = {
 }
 FURNITURE = ["chairs", "tables", "bookshelves"]
 
-########### the geometry: one acoustic object per OBJ group; the furniture stands inside the room
-objects = ca.AcousticObject.from_obj(HERE / "cut_without.obj", MATERIALS, roles={group: "obstacle" for group in FURNITURE})
+########### the geometry: one acoustic object per OBJ group, all of them room boundary until told otherwise
+objects = ca.AcousticObject.from_obj(HERE / "cut_without.obj")
+
+########### the furniture stands inside the room: obstacles, reflecting from both sides
+ca.AcousticObject.assign_roles_by_group(objects, {group: "obstacle" for group in FURNITURE})
+ca.AcousticObject.assign_materials_by_group(objects, MATERIALS)
 
 ########### the scene: one source, one receiver facing -x
 speaker = ca.Source("speaker", 12.0, 9.5, 1.5)
