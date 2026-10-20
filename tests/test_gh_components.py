@@ -147,6 +147,20 @@ def scene():
     return s
 
 
+def test_the_source_component_takes_position_name_direction_directivity_sound_file(monkeypatch):
+    import inspect
+    import json
+
+    module, messages = load_component("CA_Source", monkeypatch)
+    metadata = json.loads((COMPONENTS / "CA_Source" / "metadata.json").read_text())["ghpython"]
+    names = [p["name"] for p in metadata["inputParameters"]]
+    assert names == ["position", "name", "direction", "directivity", "sound_file"]
+    assert list(inspect.signature(module.CreateSource.RunScript).parameters)[1:] == names
+    source = module.CreateSource().RunScript((1.0, 2.0, 1.6), "talker", (0.0, 1.0, 0.0), "cardioid", None)
+    assert (source.name, source.position, source.directivity, list(source.direction)) == ("talker", [1.0, 2.0, 1.6], "cardioid", [0.0, 1.0, 0.0])
+    assert not messages
+
+
 def test_the_receiver_component_defaults_to_room_aligned(monkeypatch):
     module, _ = load_component("CA_Receiver", monkeypatch)
     receiver, orientation = module.CreateReceiver().RunScript((1.0, 2.0, 1.5), "r", None, None, None)

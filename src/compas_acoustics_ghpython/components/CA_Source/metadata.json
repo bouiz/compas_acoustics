@@ -17,6 +17,13 @@
                 "typeHintID": "point"
             },
             {
+                "name": "name",
+                "description": "Name of the source.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "str"
+            },
+            {
                 "name": "direction",
                 "description": "Direction of the source.",
                 "optional": true,
@@ -26,13 +33,6 @@
             {
                 "name": "directivity",
                 "description": "Directivity of the source. Default is Omnidirectional.\n\nOptions:\n- Bidirectional\n- Hypercardioid\n- Supercardioid\n- Cardioid\n- Omnidirectional",
-                "optional": true,
-                "scriptParamAccess": 0,
-                "typeHintID": "str"
-            },
-            {
-                "name": "name",
-                "description": "Name of the source.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "str"

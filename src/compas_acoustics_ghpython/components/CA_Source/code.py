@@ -6,7 +6,7 @@ from compas_acoustics import Source
 class CreateSource(Grasshopper.Kernel.GH_ScriptInstance):
     ITEMS = ["bidirectional", "hypercardioid", "supercardioid", "cardioid", "omnidirectional"]
 
-    def RunScript(self, position, direction, directivity, name, sound_file):
+    def RunScript(self, position, name, direction, directivity, sound_file):
         if position is None:
             position = Rhino.Geometry.Point3d(0, 0, 0)
         if direction is None:
