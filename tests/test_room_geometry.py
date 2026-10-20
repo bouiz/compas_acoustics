@@ -405,3 +405,18 @@ def test_a_room_in_metres_does_not_warn():
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         RoomGeometry.from_scene(scene_of(*AcousticObjectsLibrary.shoebox_room(70, 50, 30, materials=WALL)))
+
+
+@pytest.mark.parametrize("seed", range(12))
+def test_a_rotated_closed_obstacle_is_not_air(seed):
+    from compas.geometry import Rotation
+    from compas.geometry import Translation
+
+    rng = np.random.default_rng(seed)
+    mesh = Mesh.from_shape(Box(1.0, 0.7, 0.9))
+    mesh.transform(Translation.from_vector(CENTRE) * Rotation.from_euler_angles(rng.uniform(-np.pi, np.pi, 3)))
+    box = AcousticObject(mesh, WALL, name="box", role="obstacle")
+    g = RoomGeometry.from_scene(scene_of(*shoebox_leaves(), box))
+    assert g.is_closed
+    assert g.is_inside(CENTRE) is False
+    assert g.is_inside(CENTRE + [0.0, 0.0, 0.9]) is True

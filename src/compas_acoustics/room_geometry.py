@@ -537,7 +537,9 @@ class RoomGeometry:
         by_object: Dict[str, List[Tuple[int, ...]]] = {}
         for k, face in enumerate(self.obstacle_faces):
             by_object.setdefault(self.face_names[first + k], []).append(face)
-        closed = [faces for faces in by_object.values() if _orient(self.vertices, faces)[2] is None]
+        # The offset copies sit OBSTACLE_OFFSET from the drawn faces, which is the weld tolerance: judge closedness without them.
+        drawn = self.vertices[:min(self.faces[first])] if by_object else self.vertices
+        closed = [faces for faces in by_object.values() if _orient(drawn, faces)[2] is None]
         return {
             "boundary": _fan_triangles(self.vertices, boundary),
             "obstacles": [_fan_triangles(self.vertices, faces) for faces in closed],
