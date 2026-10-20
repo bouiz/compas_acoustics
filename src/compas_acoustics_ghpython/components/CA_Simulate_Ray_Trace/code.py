@@ -11,7 +11,7 @@ RAY_TRACING_ONLY = ("n_rays", "energy_thres", "duration", "seed")
 
 class SimulateRayTracing(Grasshopper.Kernel.GH_ScriptInstance):
 
-    def RunScript(self, scene, max_order, ray_tracing, n_rays, absorb_air, energy_thres, time_thres, seed, normalize):
+    def RunScript(self, scene, ism_order, ray_tracing, n_rays, absorb_air, energy_thres, time_thres, seed, normalize):
 
         if scene is None:
             ghenv.Component.AddRuntimeMessage(
@@ -25,7 +25,7 @@ class SimulateRayTracing(Grasshopper.Kernel.GH_ScriptInstance):
         # Unset inputs are left out so that the method's own defaults apply
         # (image source order 3, 20000 rays, an Eyring-sized buffer).
         given = {
-            "image_source_order": max_order,
+            "image_source_order": ism_order,
             "n_rays": n_rays,
             "air_absorption": absorb_air,
             "energy_thres": energy_thres,

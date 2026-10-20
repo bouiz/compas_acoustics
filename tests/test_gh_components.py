@@ -219,6 +219,21 @@ def method_defaults(**changes):
     return dict(vars(Pyroomacoustics(**changes)))
 
 
+def test_the_ism_order_input_states_the_methods_default(monkeypatch):
+    import inspect
+    import json
+
+    from compas_acoustics.simulation_methods import Pyroomacoustics
+
+    module, _ = load_component("CA_Simulate_Ray_Trace", monkeypatch)
+    metadata = json.loads((COMPONENTS / "CA_Simulate_Ray_Trace" / "metadata.json").read_text())["ghpython"]
+    assert list(inspect.signature(module.SimulateRayTracing.RunScript).parameters)[1:] == [p["name"] for p in metadata["inputParameters"]]
+    (ism_order,) = [p for p in metadata["inputParameters"] if p["name"] == "ism_order"]
+    assert f"(default {Pyroomacoustics().image_source_order})" in ism_order["description"]
+    hybrid = json.loads((COMPONENTS / "CA_Simulate_Hybrid" / "metadata.json").read_text())["ghpython"]["inputParameters"]
+    assert "ism_order" in [p["name"] for p in hybrid] and "image_source_order" not in [p["name"] for p in hybrid]
+
+
 def test_empty_inputs_leave_the_method_defaults(monkeypatch):
     module, _ = load_component("CA_Simulate_Ray_Trace", monkeypatch)
     calls = capture(monkeypatch)
@@ -500,7 +515,7 @@ def fake_hybrid(monkeypatch, warn=None):
 
 def run_hybrid(module, s, **inputs):
     inputs.setdefault("run", True)
-    names = ("tail", "reference", "sh_order", "image_source_order", "diffraction", "late_envelope", "seed", "normalize", "run")
+    names = ("tail", "reference", "sh_order", "ism_order", "diffraction", "late_envelope", "seed", "normalize", "run")
     return module.SimulateHybrid().RunScript(s, *(inputs.get(n) for n in names))
 
 
@@ -559,7 +574,7 @@ def hybrid_graph(**generation):
 def test_the_hybrid_says_done_when_not_running_after_a_result(monkeypatch):
     module, messages = load_component("CA_Simulate_Hybrid", monkeypatch)
     s = hybrid_graph()
-    for inputs in ({}, {"tail": "auto"}, {"tail": "ray_tracing", "sh_order": 1, "image_source_order": 2, "diffraction": "udfa"}, {"diffraction": True}):
+    for inputs in ({}, {"tail": "auto"}, {"tail": "ray_tracing", "sh_order": 1, "ism_order": 2, "diffraction": "udfa"}, {"diffraction": True}):
         assert run_hybrid(module, s, run=False, **inputs).graph is s.ir_graph
         assert module.ghenv.Component.Message == "done, 1 response, tail: ray_tracing, order 1 (Run to redo)", inputs
     assert not messages
@@ -568,7 +583,7 @@ def test_the_hybrid_says_done_when_not_running_after_a_result(monkeypatch):
 def test_the_hybrid_says_when_the_settings_changed_since_the_last_result(monkeypatch):
     module, _ = load_component("CA_Simulate_Hybrid", monkeypatch)
     s = hybrid_graph()
-    for inputs in ({"tail": "eyring"}, {"sh_order": 2}, {"image_source_order": 3}, {"diffraction": "btms"}, {"diffraction": "none"}):
+    for inputs in ({"tail": "eyring"}, {"sh_order": 2}, {"ism_order": 3}, {"diffraction": "btms"}, {"diffraction": "none"}):
         run_hybrid(module, s, run=False, **inputs)
         assert module.ghenv.Component.Message == "settings changed, press Run (tail: ray_tracing, order 1)", inputs
 

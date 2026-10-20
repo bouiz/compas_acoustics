@@ -17,7 +17,7 @@ class SimulateHybrid(Grasshopper.Kernel.GH_ScriptInstance):
         ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Error, text)
 
     @staticmethod
-    def status(graph, tail, sh_order, image_source_order, diffraction):
+    def status(graph, tail, sh_order, ism_order, diffraction):
         """What the component says while it is not running: the last result on the graph, or that there is none."""
         runs = [ir for edge in graph.edges() for ir in [graph.edge_attribute(edge, "hybrid")] if ir is not None]
         if not runs:
@@ -27,7 +27,7 @@ class SimulateHybrid(Grasshopper.Kernel.GH_ScriptInstance):
         changed = (
             (tail not in (None, "", "auto") and tail != last.get("tail"))
             or (sh_order is not None and sh_order != last.get("sh_order"))
-            or (image_source_order is not None and image_source_order != last.get("image_source_order"))
+            or (ism_order is not None and ism_order != last.get("image_source_order"))
             or (diffraction is not None and models.get(diffraction) != models.get(last.get("diffraction")))
         )
         summary = "tail: {}, order {}".format(last.get("tail"), last.get("sh_order"))
@@ -47,7 +47,7 @@ class SimulateHybrid(Grasshopper.Kernel.GH_ScriptInstance):
         ghenv.Component.Message = "{:g}Hz, hybrid (worker), tail: {}".format(scene.sampling_rate, settings.get("tail", "auto"))
         return MethodGraph(scene.ir_graph, "hybrid")
 
-    def RunScript(self, scene, tail, reference, sh_order, image_source_order, diffraction, late_envelope, seed, normalize, run):
+    def RunScript(self, scene, tail, reference, sh_order, ism_order, diffraction, late_envelope, seed, normalize, run):
         ensure_inputs(ghenv.Component, {"run": None, "tail": TAILS, "diffraction": DIFFRACTION})
 
         if scene is None:
@@ -59,7 +59,7 @@ class SimulateHybrid(Grasshopper.Kernel.GH_ScriptInstance):
         # The simulation can take minutes and Grasshopper recomputes on every upstream change, so it runs only
         # when 'run' is true (a button pulse). Otherwise the responses already on the scene's graph are passed on.
         if not run:
-            ghenv.Component.Message = self.status(scene.ir_graph, tail, sh_order, image_source_order, diffraction)
+            ghenv.Component.Message = self.status(scene.ir_graph, tail, sh_order, ism_order, diffraction)
             return MethodGraph(scene.ir_graph, "hybrid")
 
         try:
@@ -105,7 +105,7 @@ class SimulateHybrid(Grasshopper.Kernel.GH_ScriptInstance):
             "reference": reference or None,
             "tail": tail,
             "sh_order": sh_order,
-            "image_source_order": image_source_order,
+            "image_source_order": ism_order,
             "diffraction": diffraction,
             "late_envelope": late_envelope,
             "seed": seed,

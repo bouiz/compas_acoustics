@@ -17,8 +17,8 @@
                 "typeHintID": "ghdoc"
             },
             {
-                "name": "max_order",
-                "description": "Maximum order of image sources (default 6).",
+                "name": "ism_order",
+                "description": "Highest image source (ISM) order (default 3). With ray tracing, the ray tracer takes over after it.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "int"

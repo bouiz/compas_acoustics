@@ -38,7 +38,7 @@
                 "typeHintID": "int"
             },
             {
-                "name": "image_source_order",
+                "name": "ism_order",
                 "description": "Highest image source order in the early field (default 3).",
                 "optional": true,
                 "scriptParamAccess": 0,
