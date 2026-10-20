@@ -1,6 +1,7 @@
 """Surface scattering in the hybrid (Ewert et al. 2025) against RAZR 0.96.3's method (data/razr_scattering)."""
 
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -35,8 +36,13 @@ from compas_acoustics.room_geometry import RoomGeometry
 from compas_acoustics.room_geometry import pra_octave_grid
 from compas_acoustics.simulation_methods import Hybrid
 
+sys.path.insert(0, str(Path(__file__).parent / "data"))
+from hybrid_reference import reference_rir  # noqa: E402
+from hybrid_reference import reference_scene  # noqa: E402
+
 FS = 48000
-ORACLE = json.loads((Path(__file__).parent / "data" / "razr_scattering" / "razr_scattering_oracle.json").read_text())
+DATA = Path(__file__).parent / "data"
+ORACLE = json.loads((DATA / "razr_scattering" / "razr_scattering_oracle.json").read_text())
 CASES = ORACLE["cases"]
 ORDER = ORACLE["options"]["ism_order"]
 HIGH = 7  # the 8 kHz octave; the oracle's ratios are above 5 kHz
@@ -231,13 +237,19 @@ def test_scattering_moves_energy_from_the_early_to_the_late_field():
 
 
 def test_without_scattering_nothing_changes():
-    default = Hybrid(tail="eyring", image_source_order=2, duration=0.3)
-    off = Hybrid(tail="eyring", image_source_order=2, duration=0.3, scattering=False)
-    before = next(iter(scene(CASES[0], CASES[0]["d"]).simulate(default).values()))
-    after = next(iter(scene(CASES[0], CASES[0]["d"]).simulate(off).values()))
-    assert np.array_equal(np.asarray(after.ir), np.asarray(before.ir))
-    assert after.generation["scattering"] is False
-    (result,) = off.results.values()
+    """``scattering=False`` gives what the code before surface scattering gave (82833d1, data/hybrid_reference.py)."""
+    before = np.load(DATA / "hybrid_reference_82833d1.npz")["rir"]
+    after = reference_rir(scattering=False)
+    assert np.any(after[-200:] != 0.0)  # the late field is inside the window
+    np.testing.assert_allclose(after, before, rtol=0.0, atol=1e-12 * np.abs(before).max())
+    assert np.array_equal(reference_rir(), after)
+
+
+def test_scattering_is_off_by_default():
+    hybrid = Hybrid(tail="eyring", image_source_order=1, duration=0.05)
+    (response,) = reference_scene().simulate(hybrid).values()
+    assert response.generation["scattering"] is False
+    (result,) = hybrid.results.values()
     assert result.images.scattered is None
 
 
