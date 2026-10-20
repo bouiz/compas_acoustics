@@ -524,3 +524,14 @@ def test_the_frequency_response_of_an_impulse_is_flat_within_the_range():
     np.testing.assert_allclose(level, 0.0, atol=1e-6)
     _, both = frequency_response(np.column_stack([ir, 0.5 * ir]), 48000)
     np.testing.assert_allclose(both[1], 20 * np.log10(0.5), atol=1e-6)
+
+
+def test_the_time_response_ends_with_its_decay():
+    from compas_acoustics.analyser import time_response
+
+    fs = 1000
+    ir = np.exp(-np.arange(10 * fs) / fs * 6.9)  # 60 dB per second in level, 10 s long
+    times, _ = time_response(ir, fs, trim_db=60)
+    # the Schroeder curve of an exponential decay falls as its level: 60 dB at 1 s, plus 5 %
+    assert times[-1] == pytest.approx(1.05, abs=0.01)
+    assert len(time_response(ir, fs)[0]) == len(ir)

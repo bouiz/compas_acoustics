@@ -29,8 +29,9 @@ class PlayAudio(Grasshopper.Kernel.GH_ScriptInstance):
         elif hasattr(sound, "shape") and hasattr(sound, "ndim"):  # numpy array
             if sound.ndim == 2 and sound.shape[1] > 2:
                 ghenv.Component.AddRuntimeMessage(
-                    Grasshopper.Kernel.GH_RuntimeMessageLevel.Error,
-                    "Only mono or stereo signals can be played. Save ambisonic signals as a multichannel file, or auralise to binaural for headphone playback."
+                    Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning,
+                    "A {}-channel ambisonic signal cannot be played here. Save it with Auralise as a multichannel file for an ambisonic decoder, "
+                    "or simulate with Simulate Hybrid output binaural for headphone playback.".format(sound.shape[1])
                 )
                 return
             if sampling_rate is None:

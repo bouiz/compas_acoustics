@@ -48,7 +48,7 @@ class SimulateHybrid(Grasshopper.Kernel.GH_ScriptInstance):
 
     @staticmethod
     def graphs(scene, formats):
-        """The outputs ``binaural`` and ``ambisonic``: the scene's graph tagged with the format's attribute, None if it is not requested."""
+        """The outputs ``binaural_ir_graph`` and ``ambisonic_ir_graph``: the scene's graph tagged with the format's attribute, None if it is not requested."""
         return tuple(MethodGraph(scene.ir_graph, ATTRIBUTES[name]) if name in formats else None for name in ("binaural", "ambisonic"))
 
     @staticmethod
@@ -92,7 +92,7 @@ class SimulateHybrid(Grasshopper.Kernel.GH_ScriptInstance):
         if tail == "reference" and reference in (None, ""):
             ghenv.Component.AddRuntimeMessage(
                 Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning,
-                "tail 'reference' needs a reference: connect the ir_graph of Simulate Pyroomacoustics to 'reference', or choose another tail.",
+                "tail 'reference' needs a reference: connect the mono_ir_graph of Simulate Pyroomacoustics to 'reference', or choose another tail.",
             )
             ghenv.Component.Message = "connect a reference"
             return self.graphs(scene, formats)
@@ -118,7 +118,7 @@ class SimulateHybrid(Grasshopper.Kernel.GH_ScriptInstance):
         diffraction = None if diffraction in (None, "", "none") else diffraction
         references = None
         if reference is not None and hasattr(reference, "edges"):
-            # The ir_graph output of Simulate Pyroomacoustics: the wire also orders and refreshes this component
+            # The mono_ir_graph output of Simulate Pyroomacoustics: the wire also orders and refreshes this component
             graph = reference
             reference = {}
             for name in ("pyroomacoustics", "data"):
@@ -129,7 +129,7 @@ class SimulateHybrid(Grasshopper.Kernel.GH_ScriptInstance):
                 if reference:
                     break
             if not reference:
-                self.error("The connected ir_graph holds no mono responses; connect the output of Simulate Pyroomacoustics.")
+                self.error("The connected ir_graph holds no mono responses; connect the mono_ir_graph output of Simulate Pyroomacoustics.")
                 return
         if reference:
             references = reference if isinstance(reference, dict) else scene.impulse_responses(reference)

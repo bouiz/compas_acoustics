@@ -168,7 +168,7 @@ def test_the_auralise_inputs_go_sound_rendering_then_saving(monkeypatch):
     module, _ = load_component("CA_Auralise", monkeypatch)
     metadata = json.loads((COMPONENTS / "CA_Auralise" / "metadata.json").read_text())["ghpython"]
     names = [p["name"] for p in metadata["inputParameters"]]
-    assert names == ["irs", "anechoic_sounds", "output_format", "hrtf", "level", "mix_sources", "save_file_path", "save_file_name", "save"]
+    assert names == ["irs", "anechoic_sounds", "level", "mix_sources", "save_file_path", "save_file_name", "save"]
     assert list(inspect.signature(module.Auralise.RunScript).parameters)[1:] == names
 
 
@@ -228,6 +228,7 @@ def test_the_ism_order_input_states_the_methods_default(monkeypatch):
     module, _ = load_component("CA_Simulate_Ray_Trace", monkeypatch)
     metadata = json.loads((COMPONENTS / "CA_Simulate_Ray_Trace" / "metadata.json").read_text())["ghpython"]
     assert list(inspect.signature(module.SimulateRayTracing.RunScript).parameters)[1:] == [p["name"] for p in metadata["inputParameters"]]
+    assert [p["name"] for p in metadata["outputParameters"]] == ["mono_ir_graph"]
     (ism_order,) = [p for p in metadata["inputParameters"] if p["name"] == "ism_order"]
     assert f"(default {Pyroomacoustics().image_source_order})" in ism_order["description"]
     hybrid = json.loads((COMPONENTS / "CA_Simulate_Hybrid" / "metadata.json").read_text())["ghpython"]["inputParameters"]
@@ -403,11 +404,11 @@ def test_analyse_ir_gives_the_time_and_frequency_responses_of_w_or_both_ears(mon
     mono = analysed_response()
     _, time, frequency = module.AnalyseIR().RunScript(mono, None)
     assert (time.x_scale, time.y_unit, frequency.x_scale) == ("linear", "Level (dB)", "log")
-    assert time.title == "Impulse Response" and np.max(time.values) == 0.0 and time.values.shape == (1, len(mono.denormalized()))
+    assert time.title == "Impulse Response" and np.max(time.values) == 0.0 and time.values.shape[0] == 1 and time.values.shape[1] <= len(mono.denormalized())
     assert 20 <= frequency.frequencies[0] and frequency.frequencies[-1] <= 20000
     assert str(time).startswith("Impulse Response: Time (s) 0 to")
     _, time, _ = module.AnalyseIR().RunScript(mono, "linear")
-    np.testing.assert_allclose(time.values[0], mono.denormalized())
+    np.testing.assert_allclose(time.values[0], mono.denormalized()[:time.values.shape[1]])
 
     ir = np.zeros((4800, 4))
     ir[10] = [1.0, 0.5, 0.2, 0.1]
@@ -513,7 +514,7 @@ def test_auralise_shows_the_warnings_of_building_the_auraliser(monkeypatch, tmp_
     receiver = Receiver("rec", 5, 3, 1.5)
     responses = [ImpulseResponse(f"ir{rate}", Source(f"s{rate}", 1, 1, 1, sound_file=str(path)), receiver, np.r_[1.0, np.zeros(479)], rate)
                  for rate in (48000, 44100)]
-    signals, rates = module.Auralise().RunScript(FakeTree({(0,): responses}), None, "mono", None, "relative", True, None, None, None)
+    signals, rates = module.Auralise().RunScript(FakeTree({(0,): responses}), None, "relative", True, None, None, None)
     assert signals.branches and rates.branches == {(0,): [48000]}
     assert any(level == "warning" and "resampled to 48000 Hz" in text for level, text in messages)
 
@@ -530,68 +531,85 @@ def test_auralise_convolves_a_binaural_response_as_it_is(monkeypatch, tmp_path):
     ir[10] = [1.0, 0.5]
     response = ImpulseResponse("b", Source("s", 1, 1, 1, sound_file=str(path)), Receiver("rec", 5, 3, 1.5), ir, 48000,
                                generation={"method": "hybrid", "output": "binaural"})
-    signals, _ = module.Auralise().RunScript(FakeTree({(0,): [response]}), None, "binaural", None, "relative", True, None, None, None)
+    signals, _ = module.Auralise().RunScript(FakeTree({(0,): [response]}), None, "relative", True, None, None, None)
     (signal,) = signals.branches[(0,)]
     assert signal.shape[1] == 2 and np.all(np.isfinite(signal)) and not any(level == "error" for level, _ in messages)
     np.testing.assert_allclose(signal[10 : 10 + 4800, 1] / signal[10 : 10 + 4800, 0], 0.5, atol=1e-9)
 
 
-@pytest.mark.skipif(importlib.util.find_spec("spharpy") is None, reason="binaural decoding needs spharpy (Python >= 3.11)")
-def test_auralise_decodes_with_a_sofa_file_the_user_connects(monkeypatch, tmp_path):
-    import shutil
-
+def auralise_responses(tmp_path):
+    """A mono, an ambisonic and a binaural response of one source at one receiver."""
     import soundfile as sf
 
     from compas_acoustics import ImpulseResponse
-    from compas_acoustics.binaural import DEFAULT_HRTF
 
-    module, messages = load_component("CA_Auralise", monkeypatch, levels=True)
     path = tmp_path / "speech.wav"
     sf.write(str(path), np.random.default_rng(1).normal(size=4800) * 0.1, 48000)
-    ir = np.zeros((480, 4))
-    ir[10] = [1.0, 0.3, 0.2, 0.1]
-    response = ImpulseResponse("a", Source("s", 1, 1, 1, sound_file=str(path)), Receiver("rec", 5, 3, 1.5), ir, 48000,
-                               ambisonic_order=1, normalization="sn3d", channel_order="acn")
-    own = tmp_path / "my_set.sofa"
-    shutil.copy(DEFAULT_HRTF, own)
-
-    def auralise(hrtf):
-        signals, _ = module.Auralise().RunScript(FakeTree({(0,): [response]}), None, "binaural", hrtf, "none", True, None, None, None)
-        return signals.branches[(0,)][0], module.ghenv.Component.Message
-
-    default, default_message = auralise(None)
-    custom, custom_message = auralise(str(own))
-    assert default_message.startswith("binaural (kemar)") and custom_message.startswith("binaural (my_set.sofa)")
-    np.testing.assert_allclose(custom, default)
-    assert not any(level == "error" for level, _ in messages)
+    source, receiver = Source("s", 1, 1, 1, sound_file=str(path)), Receiver("rec", 5, 3, 1.5)
+    ambisonic = np.zeros((480, 4))
+    ambisonic[10] = [1.0, 0.3, 0.2, 0.1]
+    return {
+        "mono": ImpulseResponse("m", source, receiver, np.r_[np.zeros(10), 1.0, np.zeros(469)], 48000),
+        "ambisonic": ImpulseResponse("a", source, receiver, ambisonic, 48000, ambisonic_order=1, normalization="sn3d", channel_order="acn"),
+        "binaural": ImpulseResponse("b", source, receiver, ambisonic[:, :2], 48000, generation={"method": "hybrid", "output": "binaural"}),
+    }
 
 
-def test_the_hrtf_inputs_get_no_value_list(monkeypatch):
-    for name, cls, run in (("CA_Auralise", "Auralise", lambda c: c.RunScript(*[None] * 9)),
-                           ("CA_Simulate_Hybrid", "SimulateHybrid", lambda c: c.RunScript(*[None] * 12))):
+def test_auralise_keeps_the_format_of_the_impulse_responses(monkeypatch, tmp_path):
+    module, messages = load_component("CA_Auralise", monkeypatch, levels=True)
+    for name, response in auralise_responses(tmp_path).items():
+        messages.clear()
+        signals, _ = module.Auralise().RunScript(FakeTree({(0,): [response]}), None, "none", True, None, None, None)
+        (signal,) = signals.branches[(0,)]
+        assert signal.shape[1] == {"mono": 1, "binaural": 2, "ambisonic": 4}[name]
+        assert module.ghenv.Component.Message.startswith(name + ", none")
+        assert not any(level == "error" for level, _ in messages)
+        assert any(level == "remark" and "ACN/SN3D" in text for level, text in messages) == (name == "ambisonic")
+    # the ambisonic signal is the undecoded ACN/SN3D convolution, its channels in the response's ratios
+    np.testing.assert_allclose(signal[:, 1], 0.3 * signal[:, 0], atol=1e-12)
+
+
+def test_auralise_mixes_only_responses_of_one_format(monkeypatch, tmp_path):
+    module, messages = load_component("CA_Auralise", monkeypatch, levels=True)
+    responses = auralise_responses(tmp_path)
+    tree = FakeTree({(0,): [responses["mono"], responses["binaural"]]})
+    assert module.Auralise().RunScript(tree, None, "relative", True, None, None, None) == (None, None)
+    assert ("error", "The impulse responses at receiver 0 are binaural and mono: mix responses of one format, or turn mix_sources off.") in messages
+    signals, _ = module.Auralise().RunScript(tree, None, "relative", False, None, None, None)
+    assert [s.shape[1] for s in signals.branches[(0,)]] == [1, 2]
+    assert module.ghenv.Component.Message.startswith("binaural + mono, relative")
+
+
+def test_auralise_offers_only_the_level_list_and_hybrid_no_hrtf_list(monkeypatch):
+    for name, cls, run, params in (
+        ("CA_Auralise", "Auralise", lambda c: c.RunScript(*[None] * 7), ("level",)),
+        ("CA_Simulate_Hybrid", "SimulateHybrid", lambda c: c.RunScript(*[None] * 12), ("hrtf", "output")),
+    ):
         module, _ = load_component(name, monkeypatch)
-        document, hrtf, output = FakeDocument(), FakeParam("hrtf"), FakeParam("output_format" if name == "CA_Auralise" else "output")
-        component = fake_component(document, hrtf, output, guid=name)
+        document, inputs = FakeDocument(), [FakeParam(p) for p in params]
+        component = fake_component(document, *inputs, guid=name)
         component.AddRuntimeMessage = lambda level, text: None
         module.ghenv = types.SimpleNamespace(Component=component)
         run(getattr(module, cls)())
         document.solve()
-        assert hrtf.added == [] and len(output.added) == 1
+        assert {p.Name: len(p.added) for p in inputs} == {"level": 1} if name == "CA_Auralise" else {"hrtf": 0, "output": 1}
 
 
-def test_auralise_reports_a_binaural_response_in_a_stereo_format_as_an_error(monkeypatch, tmp_path):
-    import soundfile as sf
+def test_the_audio_player_warns_for_an_ambisonic_signal_and_plays_mono_on_both_channels(monkeypatch):
+    from compas_acoustics import AudioPlayer
 
-    from compas_acoustics import ImpulseResponse
+    module, messages = load_component("CA_Audio_Player", monkeypatch, levels=True)
+    played = []
+    monkeypatch.setattr(AudioPlayer, "play", lambda self, sound, sampling_rate, normalize: played.append(sound))
+    module.PlayAudio().RunScript(np.zeros((480, 4)), True, False, 48000, None)
+    assert played == [] and [level for level, _ in messages] == ["warning"] and "4-channel ambisonic" in messages[0][1]
 
-    module, messages = load_component("CA_Auralise", monkeypatch, levels=True)
-    path = tmp_path / "speech.wav"
-    sf.write(str(path), np.random.default_rng(1).normal(size=4800) * 0.1, 48000)
-    response = ImpulseResponse("b", Source("s", 1, 1, 1, sound_file=str(path)), Receiver("rec", 5, 3, 1.5), np.ones((480, 2)), 48000,
-                               generation={"method": "hybrid", "output": "binaural"})
-    result = module.Auralise().RunScript(FakeTree({(0,): [response]}), None, "stereo", None, "relative", True, None, None, None)
-    assert result == (None, None)
-    assert ("error", "Impulse response source_0 is binaural; it plays only with output_format='binaural'.") in messages
+    fake = types.SimpleNamespace(play=lambda data, rate: played.append(data), check_output_settings=lambda **kwargs: None,
+                                 _terminate=lambda: None, _initialize=lambda: None, stop=lambda: None)
+    monkeypatch.setitem(sys.modules, "sounddevice", fake)
+    AudioPlayer().play_array(np.r_[0.5, -0.25], 48000, normalize=False)
+    np.testing.assert_allclose(played[-1], [[0.5, 0.5], [-0.25, -0.25]])
+
 
 # --------------------------------------------------------------- Value lists --
 class FakeParam:
@@ -842,7 +860,7 @@ def test_the_hybrid_inputs_match_its_script_with_run_last(monkeypatch):
     names = [p["name"] for p in metadata["ghpython"]["inputParameters"]]
     assert list(inspect.signature(module.SimulateHybrid.RunScript).parameters)[1:] == names
     assert names[0] == "scene" and names[-1] == "run" and names[-3:-1] == ["output", "hrtf"]
-    assert [p["name"] for p in metadata["ghpython"]["outputParameters"]] == ["binaural", "ambisonic"]
+    assert [p["name"] for p in metadata["ghpython"]["outputParameters"]] == ["binaural_ir_graph", "ambisonic_ir_graph"]
 
 
 def test_not_running_does_not_need_the_hybrid_extra(monkeypatch):
@@ -1176,6 +1194,28 @@ def test_a_time_response_plots_as_a_curve_per_channel_on_a_time_axis(monkeypatch
     # the decimated curve keeps its peak
     top = max(point.Y for point in chart.data_polyline[0])
     assert top == pytest.approx(plotter.remap_number(9.0, float(chart.y_tick_labels[0].PlainText), float(chart.y_tick_labels[-1].PlainText), 0, 5.0))
+    # an amplitude is symmetric about zero, with the x axis at zero and its labels below the chart
+    y_ticks = [float(label.PlainText) for label in chart.y_tick_labels]
+    assert y_ticks == [-t for t in reversed(y_ticks)]
+    assert chart.x_axis_line[0].Y == pytest.approx(2.5) and chart.x_axis_points[0].Y == pytest.approx(2.5)
+    assert chart.x_tick_labels[0].Plane.Origin.Y == pytest.approx(-0.1)
+
+
+def test_a_level_in_db_runs_from_its_floor_on_the_x_axis_to_its_peak(monkeypatch):
+    load_component("CA_Plot_2D", monkeypatch)
+    import compas_acoustics_ghpython.plotter as plotter
+    from compas_acoustics.analyser import time_response
+
+    monkeypatch.setattr(plotter, "rg", fake_rhino_geometry())
+    ir = np.random.default_rng(0).normal(size=4800) * np.exp(-np.arange(4800) / 500)
+    times, level = time_response(ir, 48000)
+    curve = plotter.AcousticParameter("IR", times, level, None, "Impulse Response", "Time (s)", "Level (dB)", x_scale="linear")
+    chart = plotter.Plotter2D(curve)
+    chart.plot(plane=FakePlane(Vec(0, 0), Vec(1, 0), Vec(0, 1)), width=10.0, height=5.0)
+    assert [label.PlainText for label in chart.y_tick_labels] == ["-100", "-80", "-60", "-40", "-20", "0"]
+    (polyline,) = chart.data_polyline
+    assert min(point.Y for point in polyline) == pytest.approx(0.0) and max(point.Y for point in polyline) == pytest.approx(5.0)
+    assert chart.x_axis_line[0].Y == pytest.approx(0.0)
 
 
 def test_a_frequency_response_plots_on_a_log_axis_with_octave_ticks(monkeypatch):

@@ -75,8 +75,8 @@
         ],
         "outputParameters": [
             {
-                "name": "ir_graph",
-                "description": "Impulse response graph structure."
+                "name": "mono_ir_graph",
+                "description": "IR graph of the mono responses (under 'pyroomacoustics'), for Deconstruct IR Graph or the reference of Simulate Hybrid."
             }
         ]
     }

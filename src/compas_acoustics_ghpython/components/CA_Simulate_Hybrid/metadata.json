@@ -25,7 +25,7 @@
             },
             {
                 "name": "reference",
-                "description": "Optional reference for the tail: connect the ir_graph output of Simulate Pyroomacoustics (recommended: the wire makes Grasshopper run the ray tracing first), or give a method name on the scene, e.g. 'pyroomacoustics'.",
+                "description": "Optional reference for the tail: connect the mono_ir_graph output of Simulate Pyroomacoustics (recommended: the wire makes Grasshopper run the ray tracing first), or give a method name on the scene, e.g. 'pyroomacoustics'.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "ghdoc"
@@ -96,12 +96,12 @@
         ],
         "outputParameters": [
             {
-                "name": "binaural",
-                "description": "Impulse response graph of the binaural responses (under 'hybrid_binaural'); None unless output is binaural or both."
+                "name": "binaural_ir_graph",
+                "description": "IR graph of the binaural responses (under 'hybrid_binaural'), for Deconstruct IR Graph; empty unless output is binaural or both."
             },
             {
-                "name": "ambisonic",
-                "description": "Impulse response graph of the ambisonic responses (under 'hybrid'); None unless output is ambisonic or both."
+                "name": "ambisonic_ir_graph",
+                "description": "IR graph of the ambisonic responses (under 'hybrid'), for Deconstruct IR Graph; empty unless output is ambisonic or both."
             }
         ]
     }

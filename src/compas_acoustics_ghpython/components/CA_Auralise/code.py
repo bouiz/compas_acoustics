@@ -5,25 +5,29 @@ from Grasshopper import DataTree
 import numpy as np
 import os
 
-from compas_acoustics import Defaults
 from compas_acoustics import worker
 from compas_acoustics.auraliser import Auraliser
 from compas_acoustics_ghpython import ensure_inputs
 
 # First item is the default
-OUTPUT_FORMATS = ["stereo", "binaural", "mono", "ambisonics"]
 LEVELS = ["relative", "individual", "none"]
 HEADROOM_DB = -1.0
-HRTFS = {
-    "kemar": "KEMAR_FreeFieldComp_48kHz.sofa",
-}
+# The signal keeps the format of its impulse responses: the Auraliser output format of each
+OUTPUT_FORMATS = {"mono": "mono", "binaural": "binaural", "ambisonic": "ambisonics"}
 
 
 class Auralise(Grasshopper.Kernel.GH_ScriptInstance):
 
-    def RunScript(self, irs, anechoic_sounds, output_format, hrtf, level, mix_sources, save_file_path, save_file_name, save):
-        # No value list on hrtf: empty is KEMAR, and a File Path connected there is the user's own SOFA set
-        ensure_inputs(ghenv.Component, {"output_format": OUTPUT_FORMATS, "level": LEVELS})
+    @staticmethod
+    def ir_format(ir):
+        """'binaural', 'ambisonic' or 'mono', as the impulse response was simulated."""
+        if (ir.generation or {}).get('output') == 'binaural':
+            return 'binaural'
+        raw = ir.denormalized()
+        return 'ambisonic' if raw.ndim == 2 and raw.shape[1] > 1 else 'mono'
+
+    def RunScript(self, irs, anechoic_sounds, level, mix_sources, save_file_path, save_file_name, save):
+        ensure_inputs(ghenv.Component, {"level": LEVELS})
 
         if irs is None:
             ghenv.Component.AddRuntimeMessage(
@@ -31,15 +35,11 @@ class Auralise(Grasshopper.Kernel.GH_ScriptInstance):
             )
             return None, None
 
-        output_format = output_format or OUTPUT_FORMATS[0]
         level = level or LEVELS[0]
         if level not in LEVELS:
             ghenv.Component.AddRuntimeMessage(
                 Grasshopper.Kernel.GH_RuntimeMessageLevel.Error, f"Input parameter 'level' must be one of {LEVELS}."
             )
-            return None, None
-        hrtf_path = self.resolve_hrtf_path(hrtf)
-        if hrtf_path is None:
             return None, None
 
         has_sounds = anechoic_sounds is not None and anechoic_sounds.DataCount > 0
@@ -60,6 +60,7 @@ class Auralise(Grasshopper.Kernel.GH_ScriptInstance):
 
             ir_groups = {}
             sound_groups = {}
+            formats = {}
 
             for idx, (IR, sound_file) in enumerate(zip(br, sound_files)):
                 receiver_id = str(IR.receiver.guid)
@@ -68,6 +69,7 @@ class Auralise(Grasshopper.Kernel.GH_ScriptInstance):
                 sound_groups.setdefault(receiver_id, {})
 
                 sub_key = f"source_{idx}"
+                formats[sub_key] = self.ir_format(IR)
 
                 # Auralise at the raw level so level differences between impulse responses are kept
                 raw_ir = IR.denormalized()
@@ -104,6 +106,16 @@ class Auralise(Grasshopper.Kernel.GH_ScriptInstance):
                     ]
 
                 for name, ir_data, sound_data, suffix in tasks:
+                    task_formats = sorted({formats[sub_key] for sub_key in ir_data})
+                    if len(task_formats) > 1:
+                        ghenv.Component.AddRuntimeMessage(
+                            Grasshopper.Kernel.GH_RuntimeMessageLevel.Error,
+                            "The impulse responses at receiver {} are {}: mix responses of one format, or turn mix_sources off.".format(
+                                r, " and ".join(task_formats)
+                            ),
+                        )
+                        return None, None
+                    (ir_format,) = task_formats
                     # Building the auraliser warns too: impulse responses resampled to a common rate, sounds mixed down to mono
                     with warnings.catch_warnings(record=True) as caught:
                         warnings.simplefilter("always")
@@ -113,12 +125,11 @@ class Auralise(Grasshopper.Kernel.GH_ScriptInstance):
                                 name=name,
                                 impulse_responses=ir_data,
                                 anechoic_sounds=sound_data,
-                                output_format=output_format,
+                                output_format=OUTPUT_FORMATS[ir_format],
                             )
                         except ValueError as e:
                             ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Error, str(e))
                             return None, None
-                        auraliser.hrtf_path = hrtf_path
                         try:
                             signal = worker.convolve(auraliser)
                         except ValueError as e:
@@ -126,15 +137,15 @@ class Auralise(Grasshopper.Kernel.GH_ScriptInstance):
                             return None, None
                     for text in dict.fromkeys(str(w.message) for w in caught if issubclass(w.category, UserWarning)):
                         ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning, text)
-                    renders.append((path, auraliser, signal, suffix))
+                    renders.append((path, auraliser, signal, suffix, ir_format))
 
         # 3. Output level: 'relative' applies one gain to all renders of this run
-        gains = Auraliser.render_gains([signal for _, _, signal, _ in renders], level, HEADROOM_DB)
+        gains = Auraliser.render_gains([render[2] for render in renders], level, HEADROOM_DB)
 
         signals_out = DataTree[object]()
         sampling_rates_out = DataTree[object]()
         peak_dbfs = -np.inf
-        for (path, auraliser, signal, suffix), gain in zip(renders, gains):
+        for (path, auraliser, signal, suffix, _), gain in zip(renders, gains):
             leveled = signal * gain
             peak_dbfs = max(peak_dbfs, Auraliser.peak_dbfs(leveled))
             signals_out.Add(leveled, path)
@@ -144,38 +155,22 @@ class Auralise(Grasshopper.Kernel.GH_ScriptInstance):
                 filepath = self.set_save_file_path(save_file_path, save_file_name, suffix)
                 auraliser.export_convolved_sound(filepath, signal, gain=gain)
 
-        label = output_format
-        if output_format == "binaural":
-            label = "binaural ({})".format(os.path.basename(hrtf_path) if hrtf and hrtf not in HRTFS else hrtf or list(HRTFS)[0])
-        ghenv.Component.Message = "{}, {}, peak {:.1f} dBFS".format(label, level, peak_dbfs)
+        out_formats = sorted({render[4] for render in renders})
+        ghenv.Component.Message = "{}, {}, peak {:.1f} dBFS".format(" + ".join(out_formats), level, peak_dbfs)
         if peak_dbfs > 0:
             ghenv.Component.AddRuntimeMessage(
                 Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning,
                 "Output peaks at {:+.1f} dBFS and will clip on playback. Use level 'relative' or 'individual'.".format(peak_dbfs)
             )
 
-        if output_format == "ambisonics":
+        if "ambisonic" in out_formats:
             ghenv.Component.AddRuntimeMessage(
                 Grasshopper.Kernel.GH_RuntimeMessageLevel.Remark,
-                "Ambisonic signals cannot be played by the Audio Player. Save them as a multichannel file, or use binaural for headphone playback."
+                "Ambisonic signals (ACN/SN3D) cannot be played by the Audio Player. Save them as a multichannel file for an ambisonic decoder, "
+                "or simulate with Simulate Hybrid output binaural for headphone playback."
             )
 
         return signals_out, sampling_rates_out
-
-    @staticmethod
-    def resolve_hrtf_path(hrtf):
-        """Return the SOFA file for a bundled HRTF name or a file path. Default is the KEMAR set."""
-        if not hrtf:
-            hrtf = list(HRTFS)[0]
-        if hrtf in HRTFS:
-            return os.path.join(Defaults().HRTF_LIBRARY_PATH, HRTFS[hrtf])
-        if os.path.isfile(hrtf) and hrtf.lower().endswith(".sofa"):
-            return hrtf
-        ghenv.Component.AddRuntimeMessage(
-            Grasshopper.Kernel.GH_RuntimeMessageLevel.Error,
-            f"Input parameter 'hrtf' must be one of {list(HRTFS)} or the path to a .sofa file."
-        )
-        return None
 
     @staticmethod
     def set_save_file_path(save_file_path=None, save_file_name=None, suffix=0):

@@ -80,7 +80,7 @@ class AudioPlayer:
         Parameters
         ----------
         array : numpy.ndarray
-            The audio signal to play.
+            The audio signal to play, (samples,) or (samples, channels). A mono signal plays on both channels.
         sampling_rate : int
             The sample rate of the audio signal.
         normalize : bool, optional
@@ -96,6 +96,9 @@ class AudioPlayer:
 
         sampling_rate = int(sampling_rate)
         audio_data = np.asarray(array, dtype=np.float32)
+        if audio_data.ndim == 1 or audio_data.shape[1] == 1:
+            # A mono signal plays on both channels; a one-channel stream reaches only the left on many devices
+            audio_data = np.repeat(audio_data.reshape(-1, 1), 2, axis=1)
 
         max_val = np.max(np.abs(audio_data))
         if normalize and max_val > 0:

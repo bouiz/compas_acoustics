@@ -89,7 +89,18 @@ def _channels_first(ir):
     return np.atleast_2d(np.asarray(ir, dtype=float).T)
 
 
-def time_response(ir, sampling_rate, db=True, dynamic_range=100.0):
+def _decay_end(ir, trim_db, margin=0.05):
+    """Samples of ``ir`` (channels, samples) until the Schroeder curve of all channels falls ``trim_db`` below its start, plus ``margin``."""
+    remaining = np.cumsum(np.sum(ir ** 2, axis=0)[::-1])[::-1]
+    if remaining[0] == 0:
+        return ir.shape[1]
+    below = np.flatnonzero(remaining <= remaining[0] * 10 ** (-trim_db / 10))
+    if not len(below):
+        return ir.shape[1]
+    return min(ir.shape[1], int(np.ceil(below[0] * (1 + margin))))
+
+
+def time_response(ir, sampling_rate, db=True, dynamic_range=100.0, trim_db=None):
     """The impulse response against time, per channel.
 
     Parameters
@@ -102,6 +113,10 @@ def time_response(ir, sampling_rate, db=True, dynamic_range=100.0):
         differences between channels are kept, floored ``dynamic_range`` dB below it.
         ``False``: the amplitude.
     dynamic_range : float, optional
+    trim_db : float, optional
+        Ends the response 5 % after its Schroeder curve (the energy of all channels) falls this
+        far below its start, e.g. ``dynamic_range`` for a level plot: the rest lies under its
+        floor. The Schroeder curve, unlike single samples, is not lengthened by a stray late bin.
 
     Returns
     -------
@@ -111,6 +126,8 @@ def time_response(ir, sampling_rate, db=True, dynamic_range=100.0):
         (channels, samples).
     """
     ir = _channels_first(ir)
+    if trim_db is not None:
+        ir = ir[:, :_decay_end(ir, trim_db)]
     times = np.arange(ir.shape[1]) / sampling_rate
     if not db:
         return times, ir

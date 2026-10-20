@@ -214,7 +214,9 @@ def convolve(auraliser):
 
     Returns the signal before any output gain, as :meth:`Auraliser.convolve` does.
     """
-    if auraliser.output_format != "binaural" or _has_spharpy() or worker_python() is None:
+    # Binaural impulse responses are convolved as they are; only ambisonic ones are decoded with spharpy
+    decodes = auraliser.output_format == "binaural" and not all(data.get("binaural") for data in auraliser.impulse_responses.values())
+    if not decodes or _has_spharpy() or worker_python() is None:
         return auraliser.convolve()
     import numpy as np
     import soundfile as sf

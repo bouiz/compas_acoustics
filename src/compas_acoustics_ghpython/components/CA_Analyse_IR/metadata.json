@@ -31,7 +31,7 @@
             },
             {
                 "name": "time",
-                "description": "The impulse response against time, for Plot 2D or a panel: the W channel of an ambisonic response, both ears (left, right) of a binaural one."
+                "description": "The impulse response against time, for Plot 2D or a panel: the W channel of an ambisonic response, both ears (left, right) of a binaural one. It ends with the decay, 5 % after the Schroeder curve falls 100 dB (db) or 60 dB (linear); the parameters and the frequency output use the whole response."
             },
             {
                 "name": "frequency",

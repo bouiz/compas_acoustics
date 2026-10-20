@@ -3,7 +3,7 @@
     "nickname": "Auralise",
     "category": "COMPAS Acoustics",
     "subcategory": "04 Auralisation",
-    "description": "Auralise the room scene by convolving the impulse response with the source signal(s) and decoding to the chosen output format.",
+    "description": "Auralise the room scene by convolving the impulse responses with the source signals. The signals keep the format of their impulse responses: mono (Simulate Pyroomacoustics), binaural or ambisonic (Simulate Hybrid).",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,
@@ -24,20 +24,6 @@
                 "typeHintID": "ghdoc"
             },
             {
-                "name": "output_format",
-                "description": "Output format: 'stereo' (default, loudspeakers), 'binaural' (headphones, needs ambisonic impulse responses), 'mono', or 'ambisonics' (needs ambisonic impulse responses; multichannel file only, cannot be played). Mono impulse responses give mono or stereo (the same on both channels); the others are an error on the component.",
-                "optional": true,
-                "scriptParamAccess": 0,
-                "typeHintID": "str"
-            },
-            {
-                "name": "hrtf",
-                "description": "HRTF set for binaural output. Empty: KEMAR (default). Connect a File Path to a .sofa file to use your own HRTF set; the component's message names the set in use.",
-                "optional": true,
-                "scriptParamAccess": 0,
-                "typeHintID": "str"
-            },
-            {
                 "name": "level",
                 "description": "Output level: 'relative' (default) applies one gain to all signals of this run so the loudest peaks at -1 dBFS, keeping distance and level differences; 'individual' brings each signal to -1 dBFS; 'none' keeps the raw level and may clip.",
                 "optional": true,
@@ -46,7 +32,7 @@
             },
             {
                 "name": "mix_sources",
-                "description": "If True, sum all sources heard at the same receiver into one signal per receiver (the full scene). If False (default), output one signal per source and receiver.",
+                "description": "If True, sum all sources heard at the same receiver into one signal per receiver (the full scene); their impulse responses must share one format. If False (default), output one signal per source and receiver.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "bool"
@@ -67,7 +53,7 @@
             },
             {
                 "name": "save",
-                "description": "Whether to save the convolved signal(s) to a file.",
+                "description": "Whether to save the convolved signal(s) to a file, in their format: 1 channel (mono), 2 (binaural) or (order + 1)^2 (ambisonic, ACN/SN3D).",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "bool"
@@ -76,7 +62,7 @@
         "outputParameters": [
             {
                 "name": "signals",
-                "description": "Auralised signal(s) in the output format, shaped (samples, channels)."
+                "description": "Auralised signal(s) in the format of their impulse responses, shaped (samples, channels). The Audio Player plays mono (on both channels) and binaural; ambisonic signals are for saving."
             },
             {
                 "name": "sampling_rate",

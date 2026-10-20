@@ -243,6 +243,17 @@ def test_binaural_without_spharpy_is_decoded_in_the_worker(running_worker, monke
         np.testing.assert_allclose(there, here, atol=1e-6 * np.max(np.abs(here)))
 
 
+def test_binaural_impulse_responses_are_convolved_here_without_the_worker(monkeypatch):
+    ir = np.zeros((480, 2))
+    ir[10] = [1.0, 0.5]
+    data = {"ir": ir, "sampling_rate": 48000, "ambisonic_order": 0, "channel_order": "acn", "normalization": "sn3d", "binaural": True}
+    auraliser = Auraliser("b", {"s": data}, {"s": {"filepath": VIOLA}}, output_format="binaural")
+    monkeypatch.setattr(worker, "_has_spharpy", lambda: False)
+    monkeypatch.setattr(worker, "worker_python", lambda: "/a/worker/python")
+    monkeypatch.setattr(worker, "proxy", lambda: pytest.fail("binaural responses need no decoding in the worker"))
+    np.testing.assert_allclose(worker.convolve(auraliser), auraliser.convolve())
+
+
 @needs_worker
 def test_the_hybrid_runs_in_the_worker(running_worker):
     if not running_worker.info()["hybrid"]:

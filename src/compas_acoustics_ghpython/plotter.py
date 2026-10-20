@@ -17,6 +17,10 @@ OCTAVE_TICKS = [(31.5, "31.5"), (63, "63"), (125, "125"), (250, "250"), (500, "5
 # A curve is drawn with the minimum and maximum of each of this many bins along the x axis
 CURVE_BINS = 1000
 
+# A time response ends where its Schroeder curve falls this far, in dB: the floor of a level plot, or
+# where an amplitude falls under 0.1 % of the peak. Keyed by whether the plot is in dB.
+TIME_TRIM_DB = {True: 100.0, False: 60.0}
+
 __all__ = ["AcousticParameter", "Plotter2D", "Plotter2DSettings",]
 
 
@@ -50,7 +54,8 @@ def linear_ticks(low, high):
     step = calculate_nice_step(high - low)
     decimal = max(0, -math.floor(math.log10(step)))
     first, last = math.floor(low / step + 1e-9), math.ceil(high / step - 1e-9)
-    return [round(i * step, decimal) for i in range(first, last + 1)]
+    ticks = [round(i * step, decimal) for i in range(first, last + 1)]
+    return [int(t) for t in ticks] if decimal == 0 else ticks
 
 def min_max_indices(positions, values, bins=CURVE_BINS):
     """The indices of the minimum and maximum of ``values`` in each of ``bins`` along ``positions`` (0 to 1), in order.
@@ -229,9 +234,13 @@ class AcousticParameter:
 
     @classmethod
     def from_time_response(cls, ir: ImpulseResponse, db: bool = True):
-        """The impulse response against time, as a curve for Plot 2D: its level in dB re the peak, or its amplitude."""
+        """The impulse response against time, as a curve for Plot 2D: its level in dB re the peak, or its amplitude.
+
+        It ends where its decay leaves the plot: 100 dB down (the floor of the level) or 60 dB down
+        (below which an amplitude is under 0.1 % of the peak).
+        """
         data, channels = cls._plotted_channels(ir)
-        times, values = time_response(data, ir.sampling_rate, db=db)
+        times, values = time_response(data, ir.sampling_rate, db=db, trim_db=TIME_TRIM_DB[db])
         return cls(
             name="IR", frequencies=times, values=values, title=cls._curve_title("Impulse Response", channels),
             x_unit="Time (s)", y_unit="Level (dB)" if db else "Amplitude", x_scale="linear", channels=channels,
@@ -344,10 +353,12 @@ class Plotter2D:
         return txt
 
     def _plot_curve(self, plane, width, height):
-        """The x ticks and the polylines of a curve, one per channel; returns the x labels and the y ticks.
+        """The x axis, its ticks and the polylines of a curve, one per channel; returns the x labels, their points and the y ticks.
 
         The x axis is linear from nice ticks around the data (time), or logarithmic over
-        :data:`FREQUENCY_AXIS` with ticks at the octave centres (frequency).
+        :data:`FREQUENCY_AXIS` with ticks at the octave centres (frequency). A signed curve (an
+        amplitude) gets a y range symmetric about zero and its x axis at zero; a level in dB
+        runs from its floor on the x axis to its peak.
         """
         x = np.asarray(self.frequencies, dtype=float)
         values = np.atleast_2d(np.asarray(self.values, dtype=float))
@@ -367,10 +378,22 @@ class Plotter2D:
 
         positions = position(x)
         kept = [min_max_indices(positions, channel) for channel in values]
-        y_ticks = calculate_ticks([float(v) for channel, keep in zip(values, kept) for v in channel[keep]])
+        shown = [float(v) for channel, keep in zip(values, kept) for v in channel[keep]]
+        if min(shown) < 0 < max(shown):
+            # An amplitude: symmetric about zero, with the x axis at zero
+            bound = max(-min(shown), max(shown))
+            y_ticks = linear_ticks(-bound, bound)
+        else:
+            # A level in dB: from its floor, which lies on the x axis, to its peak
+            y_ticks = linear_ticks(min(shown), max(shown))
         y_low, y_high = min(y_ticks), max(y_ticks)
+        zero = remap_number(0.0, y_low, y_high, 0, height) if y_low < 0 < y_high else 0.0
 
-        self.x_axis_points = [plane.Origin + plane.XAxis * (width * float(position(t))) for t, _ in ticks]
+        axis = plane.Origin + plane.YAxis * zero
+        self.x_axis_line = rg.Line(axis, axis + plane.XAxis * width)
+        self.x_axis_points = [axis + plane.XAxis * (width * float(position(t))) for t, _ in ticks]
+        # The labels stay below the chart, clear of the curve
+        label_points = [plane.Origin + plane.XAxis * (width * float(position(t))) for t, _ in ticks]
         self.data_points = []
         self.data_polyline = []
         for channel, keep in zip(values, kept):
@@ -380,7 +403,7 @@ class Plotter2D:
                 for i in keep
             ])
             self.data_polyline.append(polyline)
-        return [label for _, label in ticks], y_ticks
+        return [label for _, label in ticks], label_points, y_ticks
 
     def plot(self, plane=None, width=None, height=None):
 
@@ -407,7 +430,7 @@ class Plotter2D:
         # 2. Draw x & y axis points, 3. data points and polyline
         curve = getattr(self.param, "x_scale", "bands") != "bands"
         if curve:
-            x_labels, y_ticks = self._plot_curve(plane, width, height)
+            x_labels, label_points, y_ticks = self._plot_curve(plane, width, height)
         else:
             x_labels = [str(freq) for freq in self.frequencies]
             y_ticks = calculate_ticks(self.values)
@@ -415,6 +438,7 @@ class Plotter2D:
             # half a step between the y axis and the first band, so its point and label are clear of the axis
             step_x = width / (count_x - 0.5)
             self.x_axis_points = [plane.Origin + (x_dir * step_x * (i + 0.5)) for i in range(count_x)]
+            label_points = self.x_axis_points
 
             y_values = [remap_number(value, min(y_ticks), max(y_ticks), 0, height) for value in self.values]
             self.data_points = [pt + y_dir * y for pt, y in zip(self.x_axis_points, y_values)]
@@ -455,7 +479,7 @@ class Plotter2D:
                 text_height=label_height,
                 justification=self.settings.x_label_justification
             )
-            for tick, pt in zip(x_labels, self.x_axis_points)
+            for tick, pt in zip(x_labels, label_points)
         ]
 
         self.y_tick_labels = [
