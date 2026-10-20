@@ -259,3 +259,46 @@ def test_scattering_needs_the_scattered_parts():
     iss = image_sources(computed(spec.geometry, s, False), 0, 0, spec)
     with pytest.raises(ValueError, match="scattered"):
         synthesize(spec, iss, RoomTarget.from_room(spec, model="eyring"), max_order=1, duration_s=0.2, scattering=True)
+
+
+def test_synthesize_assembles_the_tap_from_the_scattered_parts_of_orders_one_to_the_last():
+    """The late lines equal the network driven by the specular last order plus the tap built here from the public pieces."""
+    from dataclasses import replace as replace_fields
+
+    from compas_acoustics.hybrid.directional import directional_absorption_filters
+    from compas_acoustics.hybrid.early import render_images
+    from compas_acoustics.hybrid.late import default_num_delays
+
+    case, last, duration, speed, drive_gain = CASES[1], 2, 0.3, 331.0, 1.7
+    spec, _, parts = split(case, 0.3)
+    spec = replace_fields(spec, speed_of_sound=speed)
+    target = RoomTarget.from_room(spec, model="eyring")
+    result = synthesize(spec, parts, target, max_order=last, duration_s=duration, scattering=True, drive_gain=drive_gain)
+
+    def subset(mask):
+        xyz = parts.doa.cartesian[mask]
+        return replace_fields(
+            parts, delay=parts.delay[mask], gain=parts.gain[mask], order=parts.order[mask],
+            doa=pf.Coordinates(xyz[:, 0], xyz[:, 1], xyz[:, 2]), scattered=parts.scattered[mask], wall=parts.wall[mask])
+
+    def lines(tap_orders):
+        n_samples = int(np.ceil(duration * FS))
+        directions = fdn_directions(1, default_num_delays(1))
+        delays = [directional_delays(spec, directions, rng=slope) for slope in range(target.n_slopes)]
+        builds = design_fdn(target, delays, sh_order=1, rng=0)
+        driving = subset(parts.order == last)
+        drive = render_images(driving, route_to_directions(driving, directions, opposite=True), n_samples)
+        reflected = subset(np.isin(parts.order, tap_orders))
+        x, y, z = case["boxsize"]
+        free_path = 4.0 * (x * y * z) / (2.0 * (x * y + y * z + x * z))
+        tap = smear(
+            render_images(replace_fields(reflected, gain=reflected.scattered), scattering_weights(reflected.doa, directions), n_samples),
+            scattering_decay_time(free_path, speed), FS,
+        ) * drive_gain
+        return render(builds, drive * drive_gain, tap=tap, line_eq=directional_absorption_filters(spec, directions))
+
+    expected = lines(range(1, last + 1))
+    assert np.max(np.abs(expected)) > 0.0
+    np.testing.assert_allclose(result.late_lines, expected, rtol=0.0, atol=1e-12 * np.max(np.abs(expected)))
+    without_last = lines(range(1, last))
+    assert np.max(np.abs(without_last - expected)) > 1e-3 * np.max(np.abs(expected))
