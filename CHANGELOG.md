@@ -32,6 +32,7 @@ Nothing is kept under its old name. What replaces what:
 | `Auraliser`, `AcousticAnalyser`, `MaterialsLibrary` as `Data` | plain classes: no `guid`, `copy()` or `compas.json_dumps` |
 | Grasshopper: Simulate Ray Tracing, with a `sample_rate` input | Simulate Pyroomacoustics; the rate is the `sampling_rate` input of Room Scene |
 | Grasshopper: Analyse IR output STI | no longer an output, with G: they need pyrato >= 1.0 |
+| `Source` direction default +z; `shoebox_room(materials={'left_wall': ..., 'right_wall': ...})` with `left_wall` at y = 0 | direction default +x, as the Grasshopper Source component has it; `left_wall` is at y = width and `right_wall` at y = 0, the sides of a receiver at the centre facing +x (swap the two keys to keep a room) |
 
 A Grasshopper definition saved with the old components keeps their old code inside the file, and fails on the removed names. Delete the components
 in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate components, Deconstruct IR Graph, Analyse IR, Auralise and Audio Player.
@@ -125,6 +126,9 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 * Changed `magls_filters` (the binaural decoder of `Auraliser`) to match the HRTF set's diffuse-field covariance (ear energies and interaural coherence) in every bin, after Zaunschirm et al. (2018) as Spatial_Audio_Framework's `applyDiffCovMatching` implements it; `covariance_constraint=False` gives the plain MagLS fit.
 * Changed `RoomGeometry` to weld vertices and close T-junctions at 1 mm (`WELD_TOLERANCE`, was 1 micrometre), as Rhino's tolerance in a metre model: a wall corner 10 micrometres off no longer leaves the room open. Faces with a corner more than 10 micrometres off their plane are triangulated (pyroomacoustics raised a `RuntimeError` on them), faces that collapse in welding are dropped with a warning, a model more than 500 units across warns that coordinates are read as metres, and a wall pyroomacoustics refuses is a `ValueError` naming the face.
 * Changed `AcousticObject.from_obj` to read OBJ files with its own parser: `o` (object) lines are the groups of a file without `g` lines, faces may use `i/j/k` and negative indices, vertices are no longer rounded (`RoomGeometry` welds them), and faces with fewer than three distinct vertices are skipped.
+* Changed the default `Source` direction to +x (was +z), the direction the Grasshopper Source component already defaults to and the receiver's facing direction.
+* Changed `AcousticObjectsLibrary.shoebox_room` so that `left_wall` is the surface at y = width and `right_wall` the one at y = 0, matching the receiver frame (x facing, y left); the two names were swapped. The surfaces come in the order floor, right, front, left and back wall, ceiling.
+* Changed the error of `Receiver` for a name with spaces or capitals to say `Receiver` (it said `Source`).
 
 ### Fixed
 

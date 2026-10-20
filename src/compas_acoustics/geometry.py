@@ -309,9 +309,9 @@ class AcousticObjectsLibrary:
     #: Face index -> surface name for a shoebox room built from :class:`compas.geometry.Box`.
     SHOEBOX_SURFACES = {
         0: 'floor',
-        1: 'left_wall',
+        1: 'right_wall',
         2: 'front_wall',
-        3: 'right_wall',
+        3: 'left_wall',
         4: 'back_wall',
         5: 'ceiling',
     }
@@ -374,7 +374,10 @@ class AcousticObjectsLibrary:
         Returns
         -------
         list of :class:`AcousticObject`
-            One per surface, in the order floor, left, front, right and back wall, ceiling.
+            One per surface, in the order floor, right, front, left and back wall, ceiling.
+            Seen from a receiver at the centre facing +x (y to its left), ``'left_wall'`` is
+            the surface at y = width and ``'right_wall'`` the one at y = 0; ``'front_wall'``
+            is at x = length.
         """
 
         box = Box(length, width, height)

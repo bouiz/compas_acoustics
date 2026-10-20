@@ -52,9 +52,9 @@ class Receiver(Point):
     @name.setter
     def name(self, name):
         if " " in name:
-            raise ValueError("Source name cannot contain spaces.")
+            raise ValueError("Receiver name cannot contain spaces.")
         if any(char.isupper() for char in name):
-            raise ValueError("Source name must be lowercase.")
+            raise ValueError("Receiver name must be lowercase.")
         self._name = name
         
         

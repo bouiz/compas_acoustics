@@ -92,3 +92,10 @@ def test_a_source_survives_json_with_its_direction_and_directivity():
     loaded = compas.json_loads(compas.json_dumps(source))
     assert (loaded.name, loaded.position, loaded.directivity, loaded.spl) == ("s", [1.0, 2.0, 3.0], "cardioid", [70.0] * 7)
     assert list(loaded.direction) == [1.0, 0.0, 0.0]
+
+
+def test_receiver_name_error_names_the_receiver():
+    with pytest.raises(ValueError, match="Receiver name cannot contain spaces"):
+        Receiver("A b", 0, 0, 0)
+    with pytest.raises(ValueError, match="Receiver name must be lowercase"):
+        Receiver("A", 0, 0, 0)

@@ -92,3 +92,14 @@ def test_number_of_sources_counts_attached_sources():
     scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(7, 5, 3, sources=[Source("on_floor", 1, 1, 0.5)]))
     scene.add_source(Source("free", 2, 2, 1.5))
     assert scene.number_of_sources == len(scene.sources) == 2
+
+
+def test_left_wall_is_on_the_receivers_left():
+    # a receiver at the centre facing +x has +y on its left (receiver frame: x facing, y left, z up)
+    width = 5
+    room = AcousticObjectsLibrary.shoebox_room(7, width, 3)
+    centroid_y = {w: next(o for o in room if o.name.endswith(w)).acoustic_geometry.centroid()[1]
+                  for w in ("left_wall", "right_wall", "front_wall")}
+    assert centroid_y["left_wall"] == pytest.approx(width)
+    assert centroid_y["right_wall"] == pytest.approx(0.0)
+    assert centroid_y["front_wall"] == pytest.approx(width / 2)

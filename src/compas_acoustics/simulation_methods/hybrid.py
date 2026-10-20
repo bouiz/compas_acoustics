@@ -41,12 +41,6 @@ TAILS = ("reference", "ray_tracing", "eyring", "sabine")
 _MIN_SAMPLING_RATE = 2.0 * 8000.0 * np.sqrt(2.0)
 
 
-def _self_reference(air_absorption: bool) -> Pyroomacoustics:
-    """The reference the hybrid runs when none is given: upstream ``RoomTarget.from_ray_tracing``'s defaults."""
-    return Pyroomacoustics(image_source_order=3, ray_tracing=True, air_absorption=air_absorption, n_rays=100000,
-                           energy_thres=1e-8, receiver_radius=0.5, seed=42)
-
-
 class Hybrid(SimulationMethod):
     """Image sources, optional edge diffraction and a directional FDN tail, in ambisonics.
 

@@ -45,3 +45,7 @@ def test_a_stereo_sound_is_mixed_down_by_the_auraliser(tmp_path):
 def test_the_sound_file_path_survives_json(tmp_path):
     path = stereo_file(tmp_path)
     assert json_loads(json_dumps(Source("s", 1, 2, 3, sound_file=path))).sound_file == path
+
+
+def test_a_source_faces_x_by_default():
+    assert list(Source("s", 0, 0, 0).direction) == [1.0, 0.0, 0.0]
