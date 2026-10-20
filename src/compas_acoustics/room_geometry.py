@@ -45,6 +45,13 @@ SYNTHESIS_BANDS = (62.5, 125.0, 250.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0)
 # pyroomacoustics' geometric tolerance, so the copies are always resolved apart.
 OBSTACLE_OFFSET = 1e-3
 
+# Vertices closer than this are one vertex, and a vertex this close to an edge lies on it, in metres:
+# Rhino's default absolute tolerance in a metre model, which is what a CAD export is exact to.
+WELD_TOLERANCE = 1e-3
+
+# A bounding box larger than this, in metres, is taken for a model in millimetres.
+UNIT_WARNING_EXTENT = 500.0
+
 # Scattering coefficient, every band, of a material that gives none, in every pyroomacoustics room
 DEFAULT_SCATTERING = 0.05
 
@@ -166,7 +173,7 @@ def _weld(points: np.ndarray, tolerance: float) -> Tuple[np.ndarray, np.ndarray]
     return points[first], inverse.reshape(-1)
 
 
-def _split_at_t_junctions(vertices: np.ndarray, a: int, b: int) -> List[int]:
+def _split_at_t_junctions(vertices: np.ndarray, a: int, b: int, tolerance: float) -> List[int]:
     """The edge ``a -> b`` as the chain of vertices lying on it.
 
     CAD exports subdivide one side of a seam and not the other, so edges are
@@ -177,23 +184,55 @@ def _split_at_t_junctions(vertices: np.ndarray, a: int, b: int) -> List[int]:
     offsets = vertices - start
     t = offsets @ direction / (direction @ direction)
     distance = np.linalg.norm(offsets - np.outer(t, direction), axis=1)
-    tolerance = 1e-6 * float(np.ptp(vertices, axis=0).max())
     inner = np.flatnonzero((t > 0.0) & (t < 1.0) & (distance < tolerance))
     return [a, *inner[np.argsort(t[inner])].tolist(), b]
 
 
-def _segments(vertices: np.ndarray, face) -> List[Tuple[int, int]]:
+def _segments(vertices: np.ndarray, face, tolerance: float) -> List[Tuple[int, int]]:
     face = list(face)
     out: List[Tuple[int, int]] = []
     for a, b in zip(face, face[1:] + face[:1]):
         if a == b:
             raise ValueError("a face repeats a vertex")
-        chain = _split_at_t_junctions(vertices, a, b)
+        chain = _split_at_t_junctions(vertices, a, b, tolerance)
         out.extend(zip(chain[:-1], chain[1:]))
     return out
 
 
-def _orient(vertices: np.ndarray, faces):
+def _without_collapsed(faces, groups):
+    """Faces without consecutive repeated vertices, dropping those left with fewer than three; and how many were dropped."""
+    kept_faces, kept_groups = [], []
+    for face, group in zip(faces, groups):
+        cleaned = [v for k, v in enumerate(face) if v != face[k - 1]]
+        if len(set(cleaned)) >= 3:
+            kept_faces.append(cleaned)
+            kept_groups.append(group)
+    return kept_faces, kept_groups, len(faces) - len(kept_faces)
+
+
+def _triangulated_where_warped(vertices: np.ndarray, faces, groups):
+    """Faces whose corners lie off their own plane, as fans of triangles of the same group and winding.
+
+    pyroomacoustics refuses a wall whose corners are further than
+    ``_MERGE_TOLERANCE`` from a plane, and a CAD quad with one corner a few
+    millimetres out is still a surface.
+    """
+    out_faces, out_groups = [], []
+    for face, group in zip(faces, groups):
+        if len(face) > 3:
+            points = vertices[face]
+            _, normal, centroid = _polygon_area_and_centroid(points)
+            if np.max(np.abs((points - centroid) @ normal)) > _MERGE_TOLERANCE:
+                for k in range(1, len(face) - 1):
+                    out_faces.append([face[0], face[k], face[k + 1]])
+                    out_groups.append(group)
+                continue
+        out_faces.append(face)
+        out_groups.append(group)
+    return out_faces, out_groups
+
+
+def _orient(vertices: np.ndarray, faces, tolerance: float = WELD_TOLERANCE):
     """Flip flags that make every shared segment run opposite ways.
 
     Surfaces drawn as separate objects have no common winding, so each face's
@@ -202,7 +241,7 @@ def _orient(vertices: np.ndarray, faces):
     surface, and ``defect`` is ``None`` when every segment is shared by exactly
     two faces that can be made to agree, else such a segment ``(a, b)``.
     """
-    segments = [_segments(vertices, face) for face in faces]
+    segments = [_segments(vertices, face, tolerance) for face in faces]
     directed = [set(segs) for segs in segments]
     users: Dict[frozenset, List[int]] = {}
     for index, segs in enumerate(segments):
@@ -237,7 +276,7 @@ def _orient(vertices: np.ndarray, faces):
     return flips, component, None
 
 
-def _orient_outward(vertices: np.ndarray, faces):
+def _orient_outward(vertices: np.ndarray, faces, tolerance: float = WELD_TOLERANCE):
     """Boundary faces wound consistently, their largest volume facing out.
 
     pyroomacoustics needs normals pointing out of the air and drops image
@@ -245,7 +284,7 @@ def _orient_outward(vertices: np.ndarray, faces):
     the air from outside, so it is wound into itself. Returns ``(faces,
     defect)``; on a defect the faces come back as drawn.
     """
-    flips, component, defect = _orient(vertices, faces)
+    flips, component, defect = _orient(vertices, faces, tolerance)
     if defect is not None:
         return [list(f) for f in faces], defect
     oriented = [list(f)[::-1] if flip else list(f) for f, flip in zip(faces, flips)]
@@ -286,7 +325,7 @@ class RoomGeometry:
     mergeable_faces: int = 0
 
     @classmethod
-    def from_scene(cls, scene, merge_coplanar: bool = True, weld_tolerance: float = 1e-6) -> RoomGeometry:
+    def from_scene(cls, scene, merge_coplanar: bool = True, weld_tolerance: float = WELD_TOLERANCE) -> RoomGeometry:
         """Collect, weld, orient and validate every surface of ``scene``.
 
         Boundary faces that close a volume are wound outward. Boundary faces
@@ -318,7 +357,7 @@ class RoomGeometry:
 
     @classmethod
     def from_mesh(cls, vertices, faces, face_materials, materials, obstacles=(),
-                  merge_coplanar: bool = False, weld_tolerance: float = 1e-6) -> RoomGeometry:
+                  merge_coplanar: bool = False, weld_tolerance: float = WELD_TOLERANCE) -> RoomGeometry:
         """A room from shared vertices and faces, as upstream ``MeshGeometry``.
 
         ``materials`` maps names to :class:`SurfaceMaterial`; faces whose
@@ -348,6 +387,27 @@ class RoomGeometry:
             faces.append([int(i) for i in inverse[start:start + len(polygon)]])
             start += len(polygon)
 
+        extent = float(np.ptp(vertices, axis=0).max())
+        if extent > UNIT_WARNING_EXTENT:
+            warnings.warn(
+                f"The model is {extent:g} units across. Coordinates are read as metres; a model drawn in millimetres "
+                "needs scaling by 0.001 first.",
+                UserWarning,
+                stacklevel=3,
+            )
+
+        faces, groups, collapsed = _without_collapsed(faces, groups)
+        if collapsed:
+            warnings.warn(
+                f"{collapsed} faces collapsed to a line or a point when vertices within {weld_tolerance:g} m were "
+                "welded, and were dropped.",
+                UserWarning,
+                stacklevel=3,
+            )
+        if not faces:
+            raise ValueError("Every face of the scene collapsed when its vertices were welded; check the model's units.")
+        faces, groups = _triangulated_where_warped(vertices, faces, groups)
+
         mergeable = 0
         if merge_coplanar:
             faces, groups = _merged(vertices, faces, groups)
@@ -366,7 +426,7 @@ class RoomGeometry:
         defect = None
         oriented = [faces[i] for i in boundary]
         if boundary:
-            oriented, defect = _orient_outward(vertices, oriented)
+            oriented, defect = _orient_outward(vertices, oriented, weld_tolerance)
         is_closed = bool(boundary) and defect is None
         open_edge = None
         if not is_closed:
@@ -553,14 +613,19 @@ class RoomGeometry:
                 if enclosure_only and role == 'obstacle':
                     continue
                 absorption, scattering = coefficients[material]
-                walls.append(
-                    pra.wall_factory(
+                try:
+                    wall = pra.wall_factory(
                         self.vertices[list(face)].T,
                         absorption,
                         scattering,
                         name=f"{face_name}_{index}",
                     )
-                )
+                except Exception as error:  # pyroomacoustics raises RuntimeError for corners off a plane
+                    raise ValueError(
+                        f"pyroomacoustics cannot build a wall from face {index} of '{face_name}' "
+                        f"({len(face)} corners): {error}"
+                    ) from error
+                walls.append(wall)
             try:
                 room = pra.Room(
                     walls,

@@ -123,6 +123,7 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 * Changed the Grasshopper components to use ruff per-file ignores instead of `# flake8: noqa`, and the installer's `worker` input to `binaural` or `hybrid`.
 * Changed `librosa` out of the dependencies and `sounddevice` into them; `spharpy` is required on Python >= 3.11.
 * Changed `magls_filters` (the binaural decoder of `Auraliser`) to match the HRTF set's diffuse-field covariance (ear energies and interaural coherence) in every bin, after Zaunschirm et al. (2018) as Spatial_Audio_Framework's `applyDiffCovMatching` implements it; `covariance_constraint=False` gives the plain MagLS fit.
+* Changed `RoomGeometry` to weld vertices and close T-junctions at 1 mm (`WELD_TOLERANCE`, was 1 micrometre), as Rhino's tolerance in a metre model: a wall corner 10 micrometres off no longer leaves the room open. Faces with a corner more than 10 micrometres off their plane are triangulated (pyroomacoustics raised a `RuntimeError` on them), faces that collapse in welding are dropped with a warning, a model more than 500 units across warns that coordinates are read as metres, and a wall pyroomacoustics refuses is a `ValueError` naming the face.
 
 ### Fixed
 

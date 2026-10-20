@@ -339,3 +339,69 @@ def test_assigning_scene_materials_by_surface_name_raises():
     assert list(scene.acoustic_materials) == ["wall"]
     with pytest.raises(AttributeError, match="shoebox_room"):
         scene.acoustic_materials = {"floor": WALL}
+
+
+def moved(leaves, corner, delta):
+    out = []
+    for obj in leaves:
+        points = [np.add(c, delta) if np.allclose(c, corner) else c for c in corners_of(obj)]
+        out.append(quad(obj.name, points, obj.material, obj.role))
+    return out
+
+
+@pytest.mark.parametrize("gap", [1e-5, 1e-4])
+def test_a_gap_below_the_cad_tolerance_closes(gap):
+    leaves = shoebox_leaves()
+    ceiling = leaves[-1]
+    leaves[-1] = quad(ceiling.name, [np.add(c, [gap, 0, 0]) if np.allclose(c, [0, 0, 3]) else c for c in corners_of(ceiling)])
+    g = RoomGeometry.from_scene(scene_of(*leaves))
+    assert g.is_closed
+    assert g.vertices.shape == (8, 3)
+
+
+def test_a_warped_ceiling_is_triangulated_in_its_group():
+    g = RoomGeometry.from_scene(scene_of(*moved(shoebox_leaves(), [0, 0, 3], [0, 0, 2e-3])))
+    assert g.is_closed
+    ceiling = [i for i, name in enumerate(g.face_names) if name.endswith("ceiling")]
+    assert len(ceiling) == 2
+    assert {len(g.faces[i]) for i in ceiling} == {3}
+    assert {g.face_materials[i] for i in ceiling} == {"wall"}
+    assert {g.face_roles[i] for i in ceiling} == {"boundary"}
+    assert len(g.faces) == 7
+    assert_outward(g)
+
+
+def test_a_face_collapsed_by_welding_is_dropped():
+    sliver = quad("sliver", [[0, 0, 0], [4e-4, 0, 0], [4e-4, 4e-4, 0], [0, 4e-4, 0]])
+    with pytest.warns(UserWarning, match="collapsed"):
+        g = RoomGeometry.from_scene(scene_of(*shoebox_leaves(), sliver))
+    assert g.is_closed
+    assert "sliver" not in g.face_names
+    assert g.volume == pytest.approx(105.0)
+
+
+def test_a_thin_closed_obstacle_survives_welding():
+    def box(name, size, centre):
+        return AcousticObject(Mesh.from_shape(Box(*size, Frame(centre))), WALL, name=name, role="obstacle")
+
+    x, y, z = 3.5, 2.5, 0.5
+    legs = [box(f"leg{k}", (0.02, 0.02, 0.5), [x + sx * 0.2, y + sy * 0.1, z / 2]) for k, (sx, sy) in enumerate([(1, 1), (1, -1), (-1, 1), (-1, -1)])]
+    shelf = box("shelf", (0.5, 0.3, 0.005), [x, y, z + 0.0025])
+    g = RoomGeometry.from_scene(scene_of(*shoebox_leaves(), shelf, *legs))
+    assert g.is_closed
+    assert g.is_inside([x, y, z + 0.0025]) is False
+    assert g.is_inside([x, y, z + 0.1]) is True
+
+
+def test_a_model_in_millimetres_warns():
+    scene = scene_of(*AcousticObjectsLibrary.shoebox_room(7000, 5000, 3000, materials=WALL))
+    with pytest.warns(UserWarning, match="metres"):
+        RoomGeometry.from_scene(scene)
+
+
+def test_a_room_in_metres_does_not_warn():
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        RoomGeometry.from_scene(scene_of(*AcousticObjectsLibrary.shoebox_room(70, 50, 30, materials=WALL)))
