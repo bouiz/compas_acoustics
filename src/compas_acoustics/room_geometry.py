@@ -566,6 +566,7 @@ class RoomGeometry:
     def _drawn_vertices(self) -> np.ndarray:
         """The vertices without the obstacle copies, which sit ``OBSTACLE_OFFSET`` from the drawn faces, the weld tolerance."""
         first = sum(1 for role in self.face_roles if role == 'boundary')
+        # obstacle copies are appended after the welded vertices, so they are the tail of self.vertices
         return self.vertices[:min(self.faces[first])] if self.obstacle_faces else self.vertices
 
     @cached_property
@@ -822,7 +823,7 @@ def _lying_on(points: np.ndarray, polygons) -> List[bool]:
         return [False] * len(points)
     normals = np.array([normal for _, normal, _ in polygons])
     centroids = np.array([centroid for _, _, centroid in polygons])
-    near = np.abs((points[:, None, :] - centroids[None]) * normals[None]).sum(axis=2) < 2.0 * OBSTACLE_OFFSET
+    near = np.abs(np.einsum("pfk,fk->pf", points[:, None, :] - centroids[None], normals)) < 2.0 * OBSTACLE_OFFSET
     lying = []
     for p, candidates in zip(points, near):
         found = False

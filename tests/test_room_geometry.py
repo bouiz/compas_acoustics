@@ -489,3 +489,17 @@ def test_a_rotated_closed_obstacle_subtracts_its_volume(seed):
     g = RoomGeometry.from_scene(scene_of(*shoebox_leaves(), AcousticObject(mesh, WALL, name="box", role="obstacle")))
     assert g.volume == pytest.approx(105.0 - 0.63)
     assert g.surface_area == pytest.approx(142.0 + 2 * (0.7 + 0.9 + 0.63))
+
+
+@pytest.mark.parametrize("angles", [(0, 0, 0), (0, 0, 30), (0, 0, 90), (20, 0, 30), (35, -50, 70), (180, 10, 100)])
+def test_a_cabinet_against_a_wall_is_hidden_whichever_way_the_scene_is_turned(angles):
+    from compas.geometry import Rotation
+
+    cabinet = box_obstacle([3.0, 0.5, 0.5])
+    objects = [*shoebox_leaves(), cabinet]
+    rotation = Rotation.from_euler_angles(np.radians(angles), static=True, axes="xyz")
+    for obj in objects:
+        obj.acoustic_geometry.transform(rotation)
+    g = RoomGeometry.from_scene(scene_of(*objects))
+    assert g.volume == pytest.approx(105.0 - 1.0)
+    assert g.surface_area == pytest.approx(142.0 + 4.0)
