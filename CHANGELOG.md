@@ -128,6 +128,7 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 
 ### Fixed
 
+* Fixed the single-number values of C50, C80, D50 and Ts averaging 500, 1000 and 2000 Hz: they average 500 and 1000 Hz, as ISO 3382-1:2009 Table A.1 has it for G, EDT, C80, D50 and Ts (C50 follows D50), like EDT, T20 and T30 already did.
 * Fixed responses simulated in the worker (the hybrid in Rhino) always coming back as peak-normalized views: they keep the method's `normalize`. Their raw level was already kept.
 * Fixed the Grasshopper Material Library component forgetting its material when the file is reopened: the choice is kept in the component's nickname, which Grasshopper saves.
 * Fixed the Grasshopper Material Library component failing with `No module named 'compas_acoustics'`: its script pinned an empty Rhino script environment, `compas_acoustics_rhino`, instead of the one the installer fills.
