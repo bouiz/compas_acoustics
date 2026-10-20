@@ -859,6 +859,42 @@ def test_components_with_list_inputs_import_system():
     assert missing == []
 
 
+# ------------------------------------------------------------ Check Channel --
+def test_check_channel_counts_the_channels_of_any_sound(monkeypatch, tmp_path):
+    import inspect
+    import json
+
+    import soundfile as sf
+
+    module, messages = load_component("CA_Channel", monkeypatch, levels=True)
+    check = module.CheckChannel().RunScript
+    for channels in (1, 2):
+        path = tmp_path / f"{channels}.wav"
+        sf.write(str(path), np.zeros((480, channels)), 48000)
+        assert check(str(path)) == channels and check(path) == channels
+    source, receiver = scene().sources[0], scene().receivers[0]
+    mono = analysed_response()
+    from compas_acoustics import ImpulseResponse
+
+    ambisonic = ImpulseResponse("a", source, receiver, np.ones((4, 4)), 48000, ambisonic_order=1, normalization="sn3d", channel_order="acn")
+    assert (check(mono), check(ambisonic)) == (1, 4)
+    assert (check(np.zeros(100)), check(np.zeros((100, 2))), check(np.zeros((100, 4)).tolist())) == (1, 2, 4)
+    sf.write(str(tmp_path / "s.wav"), np.zeros((480, 2)), 48000)
+    assert check(Source("talker", 0, 0, 0, sound_file=str(tmp_path / "s.wav"))) == 2
+    assert module.ghenv.Component.Message == "channels: 2" and not messages
+
+    metadata = json.loads((COMPONENTS / "CA_Channel" / "metadata.json").read_text())["ghpython"]
+    assert list(inspect.signature(module.CheckChannel.RunScript).parameters)[1:] == [p["name"] for p in metadata["inputParameters"]] == ["sound"]
+
+
+def test_check_channel_reports_what_it_cannot_read_as_an_error(monkeypatch, tmp_path):
+    module, messages = load_component("CA_Channel", monkeypatch, levels=True)
+    check = module.CheckChannel().RunScript
+    assert [check(None), check(""), check(Source("silent", 0, 0, 0)), check(object()), check(str(tmp_path / "missing.wav"))] == [None] * 5
+    assert [level for level, _ in messages] == ["warning", "warning", "error", "error", "error"]
+    assert "no sound file" in messages[2][1]
+
+
 def test_no_component_pins_its_own_script_environment():
     import re
 
