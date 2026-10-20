@@ -129,6 +129,8 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 * Changed the default `Source` direction to +x (was +z), the direction the Grasshopper Source component already defaults to and the receiver's facing direction.
 * Changed `AcousticObjectsLibrary.shoebox_room` so that `left_wall` is the surface at y = width and `right_wall` the one at y = 0, matching the receiver frame (x facing, y left); the two names were swapped. The surfaces come in the order floor, right, front, left and back wall, ceiling.
 * Changed the error of `Receiver` for a name with spaces or capitals to say `Receiver` (it said `Source`).
+* Changed `RoomGeometry.surfaces`, `surface_area`, `area_normals` and `volume` to count the air side only: a closed obstacle counts one side and its volume is subtracted, and obstacle faces lying on the boundary are left out, so Eyring and Sabine times, the default ray-tracing duration and the hybrid's delays and scattering decay time move in scenes with closed obstacles or obstacles on the boundary; a free panel still counts both sides.
+* Changed `AcousticMaterial` to validate coefficients on creation: numpy arrays and scalars become lists of float, and a length other than 7 or a value outside [0, 1] raises `ValueError`.
 
 ### Fixed
 

@@ -147,8 +147,10 @@ def test_two_different_materials_with_one_name_raise():
 
 
 def test_coefficients_outside_0_1_raise():
+    hot = AcousticMaterial("hot", 0.5, 0.1)
+    hot._absorption_coefficients = [1.2] * 7
     with pytest.raises(ValueError, match="outside"):
-        RoomGeometry.from_scene(scene_of(*shoebox_leaves(AcousticMaterial("hot", 1.2, 0.1))))
+        RoomGeometry.from_scene(scene_of(*shoebox_leaves(hot)))
 
 
 def test_obstacle_polygons_are_kept_as_drawn():
@@ -420,3 +422,70 @@ def test_a_rotated_closed_obstacle_is_not_air(seed):
     assert g.is_closed
     assert g.is_inside(CENTRE) is False
     assert g.is_inside(CENTRE + [0.0, 0.0, 0.9]) is True
+
+
+def box_obstacle(centre, size=(1.0, 1.0, 1.0), name="cabinet", material=WALL):
+    return AcousticObject(Mesh.from_shape(Box(*size, Frame(list(centre)))), material, name=name, role="obstacle")
+
+
+def test_a_cabinet_on_the_floor_counts_the_air_side_only():
+    g = RoomGeometry.from_scene(scene_of(*shoebox_leaves(), box_obstacle([3.0, 2.0, 0.5])))
+    assert g.volume == pytest.approx(105.0 - 1.0)
+    assert g.surface_area == pytest.approx(142.0 + 5.0)
+    assert len(g.faces) == 6 + 12
+
+
+def test_a_cabinet_in_the_air_counts_its_six_sides_once():
+    g = RoomGeometry.from_scene(scene_of(*shoebox_leaves(), box_obstacle([3.0, 2.0, 1.5])))
+    assert g.volume == pytest.approx(104.0)
+    assert g.surface_area == pytest.approx(142.0 + 6.0)
+    assert len(g.area_normals()) == 6 + 6
+
+
+def test_a_cabinet_in_a_corner_loses_the_faces_on_the_walls():
+    g = RoomGeometry.from_scene(scene_of(*shoebox_leaves(), box_obstacle([0.5, 0.5, 0.5])))
+    assert g.volume == pytest.approx(104.0)
+    assert g.surface_area == pytest.approx(142.0 + 3.0)
+
+
+def test_exposed_area_is_summed_per_material():
+    felt = AcousticMaterial("felt", 0.6, 0.2)
+    g = RoomGeometry.from_scene(scene_of(*shoebox_leaves(), box_obstacle([3.0, 2.0, 0.5], material=felt)))
+    assert dict((m.name, a) for a, m in g.surfaces) == pytest.approx({"wall": 142.0, "felt": 5.0})
+
+
+def test_a_free_panel_counts_both_sides():
+    panel = quad("panel", [[3, 1, 0.5], [3, 1, 2.5], [3, 3, 2.5], [3, 3, 0.5]], role="obstacle")
+    g = RoomGeometry.from_scene(scene_of(*shoebox_leaves(), panel))
+    assert g.volume == pytest.approx(105.0)
+    assert g.surface_area == pytest.approx(142.0 + 2 * 4.0)
+
+
+def test_a_panel_lying_on_the_floor_adds_no_area():
+    panel = quad("panel", [[2, 1, 0], [4, 1, 0], [4, 3, 0], [2, 3, 0]], role="obstacle")
+    g = RoomGeometry.from_scene(scene_of(*shoebox_leaves(), panel))
+    assert g.surface_area == pytest.approx(142.0)
+
+
+def test_a_panel_in_the_floor_plane_beyond_the_floor_is_exposed():
+    panel = quad("panel", [[8, 1, 0.0], [9, 1, 0.0], [9, 3, 0.0], [8, 3, 0.0]], role="obstacle")
+    g = RoomGeometry.from_scene(scene_of(*shoebox_leaves(), panel))
+    assert g.surface_area == pytest.approx(142.0 + 2 * 2.0)
+
+
+def test_exposed_geometry_leaves_the_pyroomacoustics_walls_alone():
+    g = RoomGeometry.from_scene(scene_of(*shoebox_leaves(), box_obstacle([3.0, 2.0, 0.5])))
+    assert len(g.faces_with_materials()) == 6 + 12
+
+
+@pytest.mark.parametrize("seed", range(4))
+def test_a_rotated_closed_obstacle_subtracts_its_volume(seed):
+    from compas.geometry import Rotation
+    from compas.geometry import Translation
+
+    rng = np.random.default_rng(seed)
+    mesh = Mesh.from_shape(Box(1.0, 0.7, 0.9))
+    mesh.transform(Translation.from_vector(CENTRE) * Rotation.from_euler_angles(rng.uniform(-np.pi, np.pi, 3)))
+    g = RoomGeometry.from_scene(scene_of(*shoebox_leaves(), AcousticObject(mesh, WALL, name="box", role="obstacle")))
+    assert g.volume == pytest.approx(105.0 - 0.63)
+    assert g.surface_area == pytest.approx(142.0 + 2 * (0.7 + 0.9 + 0.63))

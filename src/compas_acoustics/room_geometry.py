@@ -486,29 +486,62 @@ class RoomGeometry:
 
     @property
     def volume(self) -> float:
-        """The air volume, obstacles excluded. Defined only for a closed room."""
+        """The air volume: the boundary's, less the volume each closed obstacle encloses. Defined only for a closed room."""
         if not self.is_closed:
             raise ValueError("The room volume is undefined: the boundary surfaces do not close a volume.")
-        return _signed_volume(
-            self.vertices, [f for f, role in zip(self.faces, self.face_roles) if role == 'boundary']
+        boundary = [f for f, role in zip(self.faces, self.face_roles) if role == 'boundary']
+        drawn = self._drawn_vertices
+        enclosed = 0.0
+        for faces in self._closed_obstacles.values():
+            flips = _orient(drawn, faces)[0]
+            wound = [list(f)[::-1] if flip else list(f) for f, flip in zip(faces, flips)]
+            enclosed += abs(_signed_volume(drawn, wound))
+        return _signed_volume(self.vertices, boundary) - enclosed
+
+    def _exposed_faces(self) -> List[int]:
+        """Indices into ``faces`` of the faces the air touches.
+
+        The boundary faces; of an obstacle that closes a volume (a cabinet) its
+        front copies only, since the back copies face its inside; of any other
+        obstacle (a panel) both copies. An obstacle copy lying on a boundary
+        face (a cabinet's base on the floor) is not exposed, and the boundary
+        under a standing obstacle stays counted.
+        """
+        boundary = [i for i, role in enumerate(self.face_roles) if role == 'boundary']
+        count = len(self.obstacle_faces)
+        first = len(boundary)
+        closed = set(self._closed_obstacles)
+        copies = [first + k for k in range(count)]
+        copies += [first + count + k for k in range(count) if self.face_names[first + k] not in closed]
+        if not copies:
+            return boundary
+        geometry = self._face_geometry()
+        on_boundary = _lying_on(
+            np.array([geometry[i][2] for i in copies]),
+            [(self.vertices[list(self.faces[i])], geometry[i][1], geometry[i][2]) for i in boundary],
         )
+        return boundary + [i for i, lying in zip(copies, on_boundary) if not lying]
 
     @property
     def surfaces(self) -> List[Tuple[float, SurfaceMaterial]]:
-        """``(area, material)`` per material, both sides of an obstacle counted, as upstream ``MeshGeometry``."""
+        """``(area, material)`` per material over the faces exposed to the air (see :meth:`_exposed_faces`)."""
+        geometry = self._face_geometry()
         areas: Dict[str, float] = {}
-        for (area, _, _), name in zip(self._face_geometry(), self.face_materials):
-            areas[name] = areas.get(name, 0.0) + area
+        for i in self._exposed_faces():
+            name = self.face_materials[i]
+            areas[name] = areas.get(name, 0.0) + geometry[i][0]
         return [(areas[name], self.materials[name]) for name in areas]
 
     @property
     def surface_area(self) -> float:
-        """Total area of every face, both sides of an obstacle counted."""
-        return float(sum(area for area, _, _ in self._face_geometry()))
+        """Total area exposed to the air: Sabine's and Eyring's ``S``, and the ``S`` of the mean free path ``4 V / S``."""
+        geometry = self._face_geometry()
+        return float(sum(geometry[i][0] for i in self._exposed_faces()))
 
     def area_normals(self) -> np.ndarray:
-        """Every face's unit normal scaled by its area, shape (n_faces, 3)."""
-        return np.array([area * normal for area, normal, _ in self._face_geometry()])
+        """The unit normal of every exposed face scaled by its area, shape (n_exposed, 3); the boundary faces come first."""
+        geometry = self._face_geometry()
+        return np.array([geometry[i][0] * geometry[i][1] for i in self._exposed_faces()]).reshape(-1, 3)
 
     def faces_with_materials(self) -> List[Tuple[np.ndarray, str]]:
         """Every face as ``(vertices (k, 3), material name)``, obstacle copies included."""
@@ -530,19 +563,27 @@ class RoomGeometry:
         return not any(abs(_winding_number(point, triangles)) > 0.5 for triangles in self._triangles["obstacles"])
 
     @cached_property
-    def _triangles(self) -> Dict[str, object]:
-        """Fan triangles ``(n, 3, 3)`` of the boundary, and of each obstacle object that closes a volume."""
-        boundary = [f for f, role in zip(self.faces, self.face_roles) if role == 'boundary']
-        first = len(boundary)  # the front copies of the obstacle faces follow, in obstacle_faces order
+    def _drawn_vertices(self) -> np.ndarray:
+        """The vertices without the obstacle copies, which sit ``OBSTACLE_OFFSET`` from the drawn faces, the weld tolerance."""
+        first = sum(1 for role in self.face_roles if role == 'boundary')
+        return self.vertices[:min(self.faces[first])] if self.obstacle_faces else self.vertices
+
+    @cached_property
+    def _closed_obstacles(self) -> Dict[str, List[Tuple[int, ...]]]:
+        """The drawn faces of each obstacle object whose faces close a volume, by object name."""
+        first = sum(1 for role in self.face_roles if role == 'boundary')  # the front copies follow, in obstacle_faces order
         by_object: Dict[str, List[Tuple[int, ...]]] = {}
         for k, face in enumerate(self.obstacle_faces):
             by_object.setdefault(self.face_names[first + k], []).append(face)
-        # The offset copies sit OBSTACLE_OFFSET from the drawn faces, which is the weld tolerance: judge closedness without them.
-        drawn = self.vertices[:min(self.faces[first])] if by_object else self.vertices
-        closed = [faces for faces in by_object.values() if _orient(drawn, faces)[2] is None]
+        return {name: faces for name, faces in by_object.items() if _orient(self._drawn_vertices, faces)[2] is None}
+
+    @cached_property
+    def _triangles(self) -> Dict[str, object]:
+        """Fan triangles ``(n, 3, 3)`` of the boundary, and of each obstacle object that closes a volume."""
+        boundary = [f for f, role in zip(self.faces, self.face_roles) if role == 'boundary']
         return {
             "boundary": _fan_triangles(self.vertices, boundary),
-            "obstacles": [_fan_triangles(self.vertices, faces) for faces in closed],
+            "obstacles": [_fan_triangles(self.vertices, faces) for faces in self._closed_obstacles.values()],
         }
 
     def without_obstacles(self) -> RoomGeometry:
@@ -769,6 +810,37 @@ def _merge_coplanar(
 
     keep = [i for i in range(len(faces)) if alive[i]]
     return [faces[i] for i in keep], [names[i] for i in keep]
+
+
+def _lying_on(points: np.ndarray, polygons) -> List[bool]:
+    """Whether each point is within ``2 * OBSTACLE_OFFSET`` of a polygon's plane and inside the polygon.
+
+    ``polygons`` are ``(corners (k, 3), unit normal, centroid)``. The test inside is an even-odd
+    crossing count in the polygon's plane.
+    """
+    if not polygons:
+        return [False] * len(points)
+    normals = np.array([normal for _, normal, _ in polygons])
+    centroids = np.array([centroid for _, _, centroid in polygons])
+    near = np.abs((points[:, None, :] - centroids[None]) * normals[None]).sum(axis=2) < 2.0 * OBSTACLE_OFFSET
+    lying = []
+    for p, candidates in zip(points, near):
+        found = False
+        for j in np.flatnonzero(candidates):
+            corners, normal, _ = polygons[j]
+            u = corners[1] - corners[0]
+            u = (u - (u @ normal) * normal) / np.linalg.norm(u - (u @ normal) * normal)
+            v = np.cross(normal, u)
+            x, y = (corners - p) @ u, (corners - p) @ v
+            x2, y2 = np.roll(x, -1), np.roll(y, -1)
+            straddles = (y > 0.0) != (y2 > 0.0)
+            with np.errstate(divide="ignore", invalid="ignore"):
+                crossing = x + (0.0 - y) * (x2 - x) / (y2 - y)
+            if int(np.count_nonzero(straddles & (crossing > 0.0))) % 2 == 1:
+                found = True
+                break
+        lying.append(found)
+    return lying
 
 
 def _fan_triangles(vertices: np.ndarray, faces) -> np.ndarray:

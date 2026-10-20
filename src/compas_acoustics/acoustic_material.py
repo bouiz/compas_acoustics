@@ -4,6 +4,7 @@ import re
 import warnings
 from enum import Enum
 
+import numpy as np
 from compas.data import Data
 
 from compas_acoustics.defaults import Defaults
@@ -216,16 +217,18 @@ class AcousticMaterial(Data):
             
             
     def _sanitize_coefficients(self, coefficients, coeff_type:str):
-        if isinstance(coefficients, int) or isinstance(coefficients, float):
-                coefficients = [coefficients] * Defaults().NUMBER_OF_FREQUENCY_BANDS
-        elif isinstance(coefficients, (list, tuple)):
-            if len(coefficients) != Defaults().NUMBER_OF_FREQUENCY_BANDS:
-                raise ValueError(f"{coeff_type} coefficients list must have {Defaults().NUMBER_OF_FREQUENCY_BANDS} values corresponding to the frequency bands.")
-            else:
-                coefficients = list(coefficients)
-        return coefficients
-    
-    
+        count = Defaults().NUMBER_OF_FREQUENCY_BANDS
+        if isinstance(coefficients, (list, tuple, np.ndarray)):
+            values = [float(c) for c in np.asarray(coefficients, dtype=float).reshape(-1)]
+            if len(values) != count:
+                raise ValueError(f"{coeff_type} coefficients list must have {count} values corresponding to the frequency bands.")
+        else:
+            values = [float(coefficients)] * count
+        if not all(0.0 <= v <= 1.0 for v in values):
+            raise ValueError(f"{coeff_type} coefficients must lie in [0, 1], got {values}.")
+        return values
+
+
     def add_to_library(self):
         """
         Add the AcousticMaterial to the library.
