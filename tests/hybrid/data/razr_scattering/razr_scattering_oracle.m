@@ -16,6 +16,11 @@
 % coupling  The same room: the FDN input matrix solved for the gains of the
 %           last-order specular signals and the smeared scattered signals,
 %           with fdn_smart_ch_mapping 0 (RAZR's default) and 1.
+% line_filter  The same room: an impulse placed in each FDN channel as the
+%           scattered parts are (skipping the line's delay) and as the specular
+%           drive is, run through RAZR's FDN with the identity feedback matrix
+%           and the reflection filters off; its first output compared with the
+%           unfiltered impulse and with the line's absorption filter.
 %
 % Run from MATLAB:
 %   razr_scattering_oracle('razr_scattering_oracle.json', '/path/to/RAZR/build_0963')
@@ -141,6 +146,48 @@ for smart = [0 1]
     fprintf('coupling, smart mapping %d: residual %.3g (unsmeared %.3g)\n', smart, c.residual, c.residual_unsmeared);
 end
 
+% Line filter: is a scattered part heard through the line's absorption filter?
+op = make_op(fs, ism_order, 1);
+op.fdn_fmatrix = 'eye';
+op.fdn_enableReflFilt = 0;
+[X, ~, ~, ~, fdn_setup] = pipeline(room, op);
+op = complement_options(op);
+P = fdn_setup.num_pre_zeros;
+start = 200;  % sample of the impulse, as a scattered part's arrival time
+n = 400;
+imp = [1; zeros(n - 1, 1)];
+kinds = {'scattered', 'specular'};
+line_filter = struct();
+for kind = 1:2
+    err_impulse = zeros(1, size(X, 2));
+    err_filter = zeros(1, size(X, 2));
+    heard_at = zeros(1, size(X, 2));
+    for ch = 1:size(X, 2)
+        m = fdn_setup.delays(ch);
+        x = zeros(size(X));
+        if kind == 1
+            x(P - m + 1 + start, ch) = 1;
+        else
+            x(P + start, ch) = 1;
+        end
+        [~, outmat] = feedback_delay_network(x, fdn_setup, op);
+        first = find(abs(outmat(:, ch)) > 1e-12, 1);
+        y = outmat(first:first + n - 1, ch);
+        h = imp;
+        for sec = 1:size(fdn_setup.b_abs, 1)
+            h = filter(fdn_setup.b_abs{sec, ch}, fdn_setup.a_abs{sec, ch}, h);
+        end
+        err_impulse(ch) = norm(y - imp) / norm(y);
+        err_filter(ch) = norm(y - h) / norm(y);
+        heard_at(ch) = first - start;  % 1-based: 1 is the arrival sample itself
+    end
+    r = struct('max_error_vs_impulse', max(err_impulse), 'min_error_vs_impulse', min(err_impulse), ...
+        'max_error_vs_absorption_filter', max(err_filter), 'heard_at', heard_at);
+    line_filter.(kinds{kind}) = r;
+    fprintf('line filter, %s: error vs impulse %.3g..%.3g, vs absorption filter %.3g, heard at %s\n', ...
+        kinds{kind}, r.min_error_vs_impulse, r.max_error_vs_impulse, r.max_error_vs_absorption_filter, mat2str(unique(heard_at)));
+end
+
 out = struct();
 out.razr_version = get_razr_version;
 out.razr_build = 'build_0963 (0.96.3)';
@@ -151,6 +198,7 @@ out.options = struct('fs', fs, 'ism_order', ism_order, 'spat_mode', 'diotic', ..
 out.cases = results;
 out.per_wall = per_wall;
 out.coupling = coupling;
+out.line_filter = line_filter;
 fid = fopen(outfile, 'w');
 fprintf(fid, '%s\n', jsonencode(out, 'PrettyPrint', true));
 fclose(fid);

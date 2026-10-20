@@ -67,5 +67,19 @@ The solve for each mapping:
   unit-norm rows, so a scattered part and the specular drive enter with equal weight. The weights follow the image's
   direction, not the normal of the reflecting wall.
 
+## `line_filter`: is a scattered part heard through the line's absorption filter?
+
+The same room, run through RAZR's FDN (`feedback_delay_network`) with `fdn_fmatrix = 'eye'` and `fdn_enableReflFilt = 0`.
+Each channel in turn gets one impulse, placed as a scattered part is placed (`num_pre_zeros - delays(ch) + 1 + 200`) or
+as a specular drive signal is (`num_pre_zeros + 200`). The first `n = 400` samples the channel outputs are compared with
+the unfiltered impulse and with the line's absorption filter (`fdn_setup.b_abs / a_abs`).
+
+- `max_error_vs_absorption_filter`: about 2e-13 for both kinds of input.
+- `error_vs_impulse`: 0.08 to 0.32 for both.
+
+So a scattered part passes the line's absorption filter once before it is heard, exactly as a drive signal does. It
+differs from the drive only in skipping the delay. `heard_at` gives the output sample relative to the input's arrival
+sample: 1 for every scattered input (heard one sample after its arrival), and the channel's delay for the specular input.
+
 Licence: RAZR is licensed CC BY-NC-ND 4.0. No RAZR code is stored here, only the numbers derived from its output and the
 script that calls it.
