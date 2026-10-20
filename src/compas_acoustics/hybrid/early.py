@@ -36,6 +36,9 @@ class ImageSourceSet:
     order: np.ndarray  # (M,) reflection order
     bands: np.ndarray  # (8,)
     fs: float
+    # (M, 8) linear pressure gain of the scattered part; None without scattering
+    scattered: np.ndarray | None = None
+    wall: np.ndarray | None = None  # (M,) the generating face index, -1 for order 0
 
     def __post_init__(self) -> None:
         check_bands(self.bands)
@@ -44,6 +47,8 @@ class ImageSourceSet:
             raise ValueError(f"gain must have shape ({m}, {N_BANDS})")
         if self.doa.cshape != (m,):
             raise ValueError(f"doa must hold {m} directions")
+        if self.scattered is not None and self.scattered.shape != (m, N_BANDS):
+            raise ValueError(f"scattered must have shape ({m}, {N_BANDS})")
 
 
 def _band_damping(source) -> np.ndarray:
@@ -86,7 +91,9 @@ def _first_of_each_position(images: np.ndarray, spec: Pair) -> np.ndarray:
     return keep
 
 
-def image_sources(room, source_index: int, mic_index: int, spec: Pair, directivity=None) -> ImageSourceSet:
+def image_sources(
+    room, source_index: int, mic_index: int, spec: Pair, directivity=None, scattered_room=None
+) -> ImageSourceSet:
     """The image sources of one source at one microphone of a computed room.
 
     ``room`` has had ``image_source_model()`` run with every source and
@@ -105,12 +112,26 @@ def image_sources(room, source_index: int, mic_index: int, spec: Pair, directivi
     accepts it from both wall orderings; its ``ShoeBox``, the analytic image
     lattice, counts it once. Grid layouts, with source and receiver at one
     height or one width, hit such edges routinely.
+
+    ``wall`` is each image's generating face, pyroomacoustics' ``source.walls``.
+
+    Surface scattering (Ewert et al. 2025, Sec. 2.1.3) splits each image into
+    a specular part, ``prod sqrt(1 - s_i)``, and a scattered part,
+    ``prod sqrt(s_i)``, over its reflections, per band: the product of the
+    decomposition filters of every wall it meets, as RAZR 0.96.3 does (oracle,
+    ``per_wall``). For it ``room`` is built with ``ray_tracing=True``, whose
+    damping holds the specular product, and ``scattered_room`` is built and
+    computed the same way from
+    :func:`~compas_acoustics.hybrid.scattering.complementary_scattering`;
+    ``scattered`` is then the gain its images have, matched by position, and
+    zero for the direct sound.
     """
     source = room.sources[source_index]
     visible = np.array(room.visibility[source_index][mic_index], dtype=bool)
     visible[visible] = _first_of_each_position(np.asarray(source.images, dtype=float)[:, visible], spec)
     images = np.asarray(source.images, dtype=float)[:, visible]  # (3, M)
     order = np.asarray(source.orders, dtype=int).ravel()[visible]
+    wall = np.asarray(source.walls, dtype=int).ravel()[visible]
     wall_gain = _band_damping(source)[visible]
 
     offset = images - spec.receiver[:, np.newaxis]  # (3, M)
@@ -140,6 +161,19 @@ def image_sources(room, source_index: int, mic_index: int, spec: Pair, directivi
     # itself would mirror the scene left to right.
     offset = spec.receiver_rotation.T @ offset
 
+    scattered = None
+    if scattered_room is not None:
+        scattered = np.zeros_like(gain)
+        other = image_sources(scattered_room, source_index, mic_index, spec, directivity)
+        if other.delay.size != order.size:
+            raise RuntimeError("the scattered room's image sources are not those of the room")
+        if order.size:
+            tolerance = 1e-5 * max(float(np.ptp(spec.geometry.vertices, axis=0).max()), 1.0)
+            gap, match = cKDTree(other.doa.cartesian).query(offset.T)
+            if np.any(gap > tolerance):
+                raise RuntimeError("the scattered room's image sources are not those of the room")
+            scattered = np.where((order > 0)[:, np.newaxis], other.gain[match], 0.0)
+
     return ImageSourceSet(
         delay=delay,
         gain=gain,
@@ -147,6 +181,8 @@ def image_sources(room, source_index: int, mic_index: int, spec: Pair, directivi
         order=order,
         bands=BANDS.copy(),
         fs=spec.fs,
+        scattered=scattered,
+        wall=wall,
     )
 
 

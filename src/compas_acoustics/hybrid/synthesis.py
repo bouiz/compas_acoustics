@@ -4,7 +4,8 @@ Ported by hand from hybrid-rir (gpapadimitri/hybrid-rir, src/synthesis.py, at
 4b42bfd: the btms branch included). The image
 source search moved to the caller, which runs one search for every source and
 receiver of a scene: ``iss`` holds the pair's images up to ``max_order``.
-Upstream's scattering and obstacle-free drive are not ported. ``HybridResult`` also
+Upstream's obstacle-free drive is not ported; its scattering is replaced by
+surface scattering after Ewert et al. (2025) as RAZR 0.96.3 implements it. ``HybridResult`` also
 keeps the early paths (images, UDFA paths, BTMS contributions), which upstream does not.
 
 Deliberately different from upstream: the network is driven by the last
@@ -35,6 +36,9 @@ from .early import ImageSourceSet
 from .early import encode
 from .early import render_images
 from .early import route_to_directions
+from .scattering import scattering_decay_time
+from .scattering import scattering_weights
+from .scattering import smear
 from .envelope import shape_late
 from .late import default_num_delays
 from .late import design_fdn
@@ -80,6 +84,7 @@ def synthesize(
     diffraction: bool | Literal["udfa", "btms"] = False,
     normalization: Literal["SN3D", "N3D"] = "SN3D",
     rng: int = 0,
+    scattering: bool = False,
 ) -> HybridResult:
     """Synthesise a hybrid ambisonic room impulse response.
 
@@ -120,6 +125,22 @@ def synthesize(
     first order with at most one wall reflection, second order between any two
     visible edges (obstacle or room boundary), direct paths only; slow, minutes
     per source-receiver pair. ``True`` is ``"udfa"``.
+    ``scattering`` adds surface scattering after Ewert et al. (2025), as RAZR
+    0.96.3 implements it (``tests/hybrid/data/razr_scattering``): ``iss`` must
+    carry ``scattered`` (see :func:`~compas_acoustics.hybrid.early.image_sources`),
+    and its gains, which render the early field and drive the network, are
+    then the specular parts. The scattered part of every image of orders 1 to
+    ``max_order``, the last included, enters "those FDN channels on the same
+    hemisphere (initially skipping the FDN delays ...)" (Sec. 3.1.2):
+    smeared by the allpass cascade of Eqs. 12-13, ``R`` the mean free path,
+    and weighted onto the lines by
+    :func:`~compas_acoustics.hybrid.scattering.scattering_weights`, RAZR's
+    ``fdn_smart_ch_mapping`` rule, whose unit l2 norm is that of one driving
+    image, times the same ``drive_gain``. It is ``render``'s ``tap``: heard
+    through each line's attenuation filters and then recirculating, as RAZR's
+    input placed one delay early is. RAZR's smart mapping also spreads the
+    drive softly over the opposite hemisphere; the drive here stays one-hot
+    (hybrid-rir's choice, so that arrival times are not smeared).
     Everything is computed in N3D; ``normalization`` sets the output, SN3D
     (AmbiX) or N3D, both with W = 1 for a unit plane wave.
     """
@@ -173,7 +194,23 @@ def synthesize(
         if directional_absorption
         else None
     )
-    late = render(builds, drive * drive_gain, line_eq=line_eq)
+    tap = None
+    if scattering:
+        if iss.scattered is None:
+            raise ValueError("scattering needs image sources with scattered parts: pass image_sources a scattered_room")
+        reflected = _select(iss, (iss.order >= 1) & (iss.order <= max_order))
+        if reflected.delay.size:
+            free_path = 4.0 * spec.geometry.volume / spec.geometry.surface_area
+            tap = smear(
+                render_images(
+                    replace(reflected, gain=reflected.scattered),
+                    scattering_weights(reflected.doa, directions),
+                    n_samples,
+                ),
+                scattering_decay_time(free_path, spec.speed_of_sound),
+                spec.fs,
+            ) * drive_gain
+    late = render(builds, drive * drive_gain, tap=tap, line_eq=line_eq)
     if late_envelope is not None:
         late = shape_late(late, early, late_envelope, spec.fs)
 
@@ -215,4 +252,6 @@ def _select(iss: ImageSourceSet, mask: np.ndarray) -> ImageSourceSet:
         gain=iss.gain[mask],
         doa=pf.Coordinates(xyz[:, 0], xyz[:, 1], xyz[:, 2]),
         order=iss.order[mask],
+        scattered=None if iss.scattered is None else iss.scattered[mask],
+        wall=None if iss.wall is None else iss.wall[mask],
     )

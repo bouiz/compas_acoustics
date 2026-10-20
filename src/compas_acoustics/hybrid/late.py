@@ -305,12 +305,16 @@ def render(
     and projecting with ``C`` afterwards, because ``pyFDN.process_dss`` filters
     either inside the loop (``post_delay``) or after ``C`` (``post_output``).
 
-    ``tap``, the same shape, is added at the delay line outputs, after the
-    attenuation filters: it is heard at once through ``C`` and then
-    recirculates through ``A``. That is where the scattered reflections of
-    :mod:`hybrid_rir.scattering` enter, "initially skipping the FDN delays"
-    (Ewert et al. 2025, Sec. 3.1.2). With a static ``A`` it is exactly
-    ``C tap`` at the output plus ``A tap`` into the delay lines.
+    ``tap``, the same shape, enters each line skipping its delay: it passes
+    the line's attenuation filters and is then heard at once through ``C``
+    and recirculates through ``A``, exactly as ``drive`` would one delay
+    earlier. That is where the scattered parts of
+    :mod:`compas_acoustics.hybrid.scattering` enter, "initially skipping the
+    FDN delays" (Ewert et al. 2025, Sec. 3.1.2); RAZR 0.96.3 places them one
+    delay early, so they too pass the line's absorption filter before they
+    are heard (``tests/hybrid/data/razr_scattering``, ``line_filter``). With
+    a static ``A`` it is exactly ``C f(tap)`` at the output plus ``A f(tap)``
+    into the delay lines, ``f`` the attenuation filters.
 
     Not ``pyFDN.build_to_impz``: that renders an impulse through ``B``.
     ``pyFDN.process_dss`` takes a multichannel input and replaces ``B``, ``C``
@@ -355,7 +359,10 @@ def render(
         post_output = (
             SOSBank(build.post_output) if build.post_output is not None else None
         )
-        line_input = drive if tap is None else drive + tap @ np.asarray(build.A).T
+        heard = None
+        if tap is not None:
+            heard = SOSBank(build.post_delay).process_signal(tap) if build.post_delay is not None else tap
+        line_input = drive if heard is None else drive + heard @ np.asarray(build.A).T
         out = pyFDN.process_dss(
             line_input,
             build.delays,
@@ -375,8 +382,7 @@ def render(
             if post_output is not None:
                 out = post_output.process_signal(out)
         total += out
-        if tap is not None:
-            heard = tap
+        if heard is not None:
             if line_eq is not None:
                 heard = SOSBank(line_eq).process_signal(heard)
             heard = heard @ build.C.T

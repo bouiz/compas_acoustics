@@ -19,6 +19,7 @@ from compas_acoustics.air import air_or_default
 from compas_acoustics.hybrid import UPSTREAM_REVISION
 from compas_acoustics.hybrid.early import image_sources
 from compas_acoustics.hybrid.pair import Pair
+from compas_acoustics.hybrid.scattering import complementary_scattering
 from compas_acoustics.hybrid.synthesis import synthesize
 from compas_acoustics.hybrid.target import RoomTarget
 from compas_acoustics.ir import ImpulseResponse
@@ -115,6 +116,12 @@ class Hybrid(SimulationMethod):
         (20 C, 50 %, 101325 Pa); a reference that records none counts as that.
         It must agree with the references', because the early field and the
         decay target share it.
+    scattering : bool, default=False
+        Surface scattering after Ewert et al. (2025), as RAZR 0.96.3 implements
+        it: each image keeps its specular part, the product of ``sqrt(1 - s)``
+        over its reflections, in the early field; its scattered part, the
+        product of ``sqrt(s)``, enters the delay lines on its own hemisphere
+        through an allpass cascade. Needs a second image source search.
 
     Attributes
     ----------
@@ -148,7 +155,7 @@ class Hybrid(SimulationMethod):
     def __init__(self, reference=None, tail=None, sh_order=1, image_source_order=3, normalization="SN3D",
                  n_slopes=1, decay_db=30.0, duration=None, num_delays=None, drive_gain=None,
                  directional_absorption=True, late_envelope=None, diffraction=False,
-                 air_absorption=None, seed=42, normalize=True, air=None):
+                 air_absorption=None, seed=42, normalize=True, air=None, scattering=False):
         if tail is not None and tail not in TAILS:
             raise ValueError(f"tail must be None or one of {TAILS}, not {tail!r}")
         if reference is not None and not isinstance(reference, (str, dict, Pyroomacoustics)):
@@ -191,6 +198,7 @@ class Hybrid(SimulationMethod):
         self.seed = 42 if seed is None else int(seed)
         self.normalize = normalize
         self.air = air
+        self.scattering = bool(scattering)
         self.reference_rirs = None
         self.results = {}
         self._pairs = {}
@@ -226,14 +234,22 @@ class Hybrid(SimulationMethod):
         references, air_absorption, air, description = self._references(context)
         self.reference_rirs = references
 
-        room = geometry.to_pra(fs, self.image_source_order, air_absorption=False, air=air)
+        # With ray tracing on, pyroomacoustics' image damping holds prod sqrt(1 - s): the specular parts.
+        # The same search in the room scattering 1 - s gives the scattered parts (complementary_scattering).
+        rooms = [geometry.to_pra(fs, self.image_source_order, ray_tracing=self.scattering, air_absorption=False, air=air)]
+        if self.scattering:
+            rooms.append(complementary_scattering(geometry).to_pra(
+                fs, self.image_source_order, ray_tracing=True, air_absorption=False, air=air))
         with pra_octave_grid():
-            for source in context.sources:
-                room.add_soundsource(source_to_pra(source))
-            room.add_microphone_array(
-                np.array([receiver.position for receiver in context.receivers], dtype=float).T
-            )
-            room.image_source_model()
+            for pra_room in rooms:
+                for source in context.sources:
+                    pra_room.add_soundsource(source_to_pra(source))
+                pra_room.add_microphone_array(
+                    np.array([receiver.position for receiver in context.receivers], dtype=float).T
+                )
+                pra_room.image_source_model()
+        room = rooms[0]
+        scattered_room = rooms[1] if self.scattering else None
         speed_of_sound = float(getattr(room, "c", 343.0))
         rng = self.seed
         generation = {
@@ -252,6 +268,7 @@ class Hybrid(SimulationMethod):
             "diffraction": self.diffraction,
             "late_envelope": self.late_envelope,
             "directional_absorption": self.directional_absorption,
+            "scattering": self.scattering,
             "seed": self.seed,
             "scene": getattr(context.scene, "name", None),
             "upstream": f"hybrid-rir @ {UPSTREAM_REVISION}",
@@ -286,7 +303,7 @@ class Hybrid(SimulationMethod):
                     target = RoomTarget.from_room(spec, model=self.tail)
                 result = synthesize(
                     spec,
-                    image_sources(room, s, m, spec, directivity),
+                    image_sources(room, s, m, spec, directivity, scattered_room),
                     target,
                     max_order=self.image_source_order,
                     sh_order=self.sh_order,
@@ -298,6 +315,7 @@ class Hybrid(SimulationMethod):
                     diffraction=self.diffraction or False,
                     normalization=self.normalization,
                     rng=rng,
+                    scattering=self.scattering,
                 )
                 self.results[key] = result
                 rirs[key] = ImpulseResponse(

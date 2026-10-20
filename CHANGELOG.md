@@ -43,6 +43,7 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 * Added `Hybrid`, ambisonic room impulse responses from image sources, optional edge diffraction (`diffraction="udfa"` or `"btms"`) and a directional feedback delay network tail, ported from hybrid-rir; needs the `hybrid` extra and Python >= 3.11.
 * Added `Hybrid(tail=...)` with a reference response, the hybrid's own ray-traced reference, or an Eyring or Sabine prediction as decay target.
 * Added edge diffraction at the edges of the room's own boundary (re-entrant corners) to `Hybrid`.
+* Added `Hybrid(scattering=False)`, surface scattering after Ewert et al. (2025) as RAZR 0.96.3 implements it: each image's specular part, the product of `sqrt(1 - s)` over its reflections, stays in the early field, and its scattered part, the product of `sqrt(s)`, enters the delay lines on its own hemisphere through an allpass cascade; checked against RAZR in `tests/hybrid/data/razr_scattering`. Off by default.
 * Added `Hybrid.binaural(hrtf_path=None)`, which filters the early part path by path with the nearest HRTF, and `compas_acoustics.binaural` (`HrtfSet`, `render_early_binaural`, `binaural_rir`, `magls_filters`).
 * Added `Pyroomacoustics(ray_tracing=True)`, hybrid-rir's ray tracer on top of the image sources (`n_rays`, `energy_thres`, `duration`, `receiver_radius`, `seed`).
 * Added `AirConditions(temperature=20, humidity=50, pressure=101325)`: speed of sound after Cramer (1993) and air absorption after ISO 9613-1, for every method, recorded in `ImpulseResponse.generation`.
