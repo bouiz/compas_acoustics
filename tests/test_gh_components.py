@@ -837,6 +837,8 @@ def test_the_y_axis_title_reads_upwards(monkeypatch):
     chart.plot(plane=FakePlane(Vec(0, 0), Vec(1, 0), Vec(0, 1)), width=10.0, height=5.0)
     title = chart.y_axis_title
     assert title.PlainText == "dB" and title.Justification == "BottomCenter"
+    # Rhino keeps the plane's direction only without DrawForward; the horizontal texts keep Rhino's default
+    assert title.DrawForward is False and not hasattr(chart.x_axis_title, "DrawForward")
     # the text runs up the y axis, its letters on the outer side of the anchor
     assert (title.Plane.XAxis.X, title.Plane.XAxis.Y) == (0, 1) and (title.Plane.YAxis.X, title.Plane.YAxis.Y) == (-1.0, 0.0)
     assert (title.Plane.Origin.X, title.Plane.Origin.Y) == pytest.approx((-1.0, 2.5))

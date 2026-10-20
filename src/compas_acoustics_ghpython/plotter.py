@@ -244,13 +244,16 @@ class Plotter2D:
         return self.param.frequencies
         
     @staticmethod
-    def text_entity(text, plane, font=None, text_height=None, justification=rg.TextJustification.MiddleCenter):
+    def text_entity(text, plane, font=None, text_height=None, justification=rg.TextJustification.MiddleCenter, draw_forward=True):
         txt = rg.TextEntity()
         txt.Plane = plane
         txt.PlainText = text
         # txt.Font = font
         txt.TextHeight = text_height
         txt.Justification = justification
+        if not draw_forward:
+            # Rhino otherwise turns the text towards the reader, whatever direction its plane gives it
+            txt.DrawForward = False
         
         return txt
 
@@ -316,7 +319,8 @@ class Plotter2D:
         pln_y_title.YAxis = -plane.XAxis
         pln_y_title.Origin = plane.Origin + x_dir * (width * -.1) + y_dir * (height * .5)
         self.y_axis_title = self.text_entity(
-            self.param.y_unit, pln_y_title, text_height=axis_title_height, justification=self.settings.y_axis_title_justification
+            self.param.y_unit, pln_y_title, text_height=axis_title_height, justification=self.settings.y_axis_title_justification,
+            draw_forward=False,
         )
 
         self.x_tick_labels = [
