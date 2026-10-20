@@ -106,7 +106,7 @@ class AcousticObject(Data):
         vertices, faces, face_groups, face_objects = [], [], [], []
         group = obj = None
         has_groups = False
-        with open(filepath) as f:
+        with open(filepath, encoding="utf-8-sig") as f:
             for line in f:
                 tokens = line.split()
                 if not tokens:

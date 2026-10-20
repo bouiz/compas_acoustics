@@ -89,3 +89,11 @@ def test_the_example_office_gives_its_six_groups():
     path = os.path.join(os.path.dirname(__file__), "..", "examples", "cut_without.obj")
     groups = [o.group for o in AcousticObject.from_obj(path)]
     assert groups == ["glass", "concrete", "ceiling", "tables", "chairs", "bookshelves"]
+
+
+def test_a_utf8_bom_and_non_ascii_names_are_read(tmp_path):
+    path = tmp_path / "bom.obj"
+    path.write_bytes("\ufeffv 0 0 0\nv 1 0 0\nv 1 1 0\ng St\u00fchle\nf 1 2 3\n".encode("utf-8"))
+    (obj,) = AcousticObject.from_obj(str(path))
+    assert obj.group == "St\u00fchle"
+    assert np.allclose(obj.acoustic_geometry.face_coordinates(next(iter(obj.acoustic_geometry.faces()))), [[0, 0, 0], [1, 0, 0], [1, 1, 0]])

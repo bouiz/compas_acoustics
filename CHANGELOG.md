@@ -167,6 +167,7 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 * Fixed the hybrid failing on a fully absorbing surface, and counting a wall hit on a diffraction apex as a reflection.
 * Fixed `display_in_viewer` guards that treated `compas.is_rhino()` as a boolean, and the default HRTF path that pointed at a missing file.
 * Fixed the Grasshopper Auralise and Analyse IR components using a fixed sample rate, and the Auralise component returning the undecoded convolution.
+* Fixed `AcousticObject.from_obj` reading OBJ files in the platform's encoding: a UTF-8 byte order mark dropped the first vertex, and non-ASCII group names were garbled on Windows; files are read as UTF-8.
 * Fixed `magls_filters` raising `LinAlgError` for an HRTF set whose diffuse-field covariance is singular in a bin (ears identical at DC): the decoder of those bins is zero, as in Spatial_Audio_Framework, with a `UserWarning` naming the number of bins.
 * Fixed the Grasshopper Auralise component raising an uncaught `ValueError` for a binaural response with an output format other than `binaural`: it is an error message on the component.
 * Fixed obstacle faces lying on a boundary face being counted when the scene is not aligned with the axes: the test used the distance along each axis instead of the distance to the face's plane.
