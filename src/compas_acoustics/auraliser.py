@@ -180,8 +180,9 @@ class Auraliser:
         if output_format not in _OUTPUT_FORMATS:
             raise ValueError(f"Auraliser output_format must be one of {sorted(_OUTPUT_FORMATS)}.")
         decoded = [data for data in (getattr(self, '_impulse_responses', None) or {}).values() if not data.get('binaural')]
-        if output_format == "binaural" and decoded and self.maximum_ambisonics_order == 0:
-            raise ValueError("Binaural output requires ambisonic impulse responses of order 1 or higher. Use mono or stereo output for mono impulse responses.")
+        if output_format in ("binaural", "ambisonics") and decoded and self.maximum_ambisonics_order == 0:
+            raise ValueError(f"{output_format.capitalize()} output requires ambisonic impulse responses of order 1 or higher. "
+                             "Use mono or stereo output for mono impulse responses.")
         self._output_format = output_format
 
 
@@ -450,6 +451,21 @@ class Auraliser:
             return sound
 
 
+    def _warn_about_mono_responses(self):
+        """Warn when mono impulse responses are mixed with ambisonic ones in an output that places sources in space."""
+        if self.output_format not in ("binaural", "ambisonics") or self.maximum_ambisonics_order == 0:
+            return
+        decoded = {ir_id: data for ir_id, data in self.impulse_responses.items() if not data.get('binaural')}
+        mono = [ir_id for ir_id, data in decoded.items() if data['ambisonic_order'] == 0]
+        if mono:
+            warnings.warn(
+                f"{len(mono)} of {len(decoded)} impulse responses are mono and carry no direction: in {self.output_format} output "
+                f"they are not placed in space ({', '.join(str(ir_id) for ir_id in mono)}).",
+                UserWarning,
+                stacklevel=3,
+            )
+
+
     def convolve(self):
         """Convolve each impulse response with its anechoic sound, decode to :attr:`output_format` and sum.
 
@@ -463,6 +479,7 @@ class Auraliser:
             The auralised signal, shaped (samples, :attr:`output_channels`).
         """
         order = self.maximum_ambisonics_order
+        self._warn_about_mono_responses()
 
         # Sum the impulse responses per anechoic sound, padded to the common channel count
         summed_impulse_responses = {}

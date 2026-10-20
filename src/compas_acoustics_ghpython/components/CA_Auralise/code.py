@@ -1,3 +1,5 @@
+import warnings
+
 import Grasshopper
 from Grasshopper import DataTree
 import numpy as np
@@ -113,7 +115,12 @@ class Auralise(Grasshopper.Kernel.GH_ScriptInstance):
                         return None, None
                     auraliser.hrtf_path = hrtf_path
 
-                    renders.append((path, auraliser, worker.convolve(auraliser), suffix))
+                    with warnings.catch_warnings(record=True) as caught:
+                        warnings.simplefilter("always")
+                        signal = worker.convolve(auraliser)
+                    for text in dict.fromkeys(str(w.message) for w in caught if issubclass(w.category, UserWarning)):
+                        ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning, text)
+                    renders.append((path, auraliser, signal, suffix))
 
         # 3. Output level: 'relative' applies one gain to all renders of this run
         gains = Auraliser.render_gains([signal for _, _, signal, _ in renders], level, HEADROOM_DB)

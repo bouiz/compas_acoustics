@@ -53,7 +53,7 @@
             },
             {
                 "name": "output_format",
-                "description": "Output format: 'stereo' (default, loudspeakers), 'binaural' (headphones, needs ambisonic impulse responses), 'mono', or 'ambisonics' (multichannel file only, cannot be played).",
+                "description": "Output format: 'stereo' (default, loudspeakers), 'binaural' (headphones, needs ambisonic impulse responses), 'mono', or 'ambisonics' (needs ambisonic impulse responses; multichannel file only, cannot be played). Mono impulse responses give mono or stereo (the same on both channels); the others are an error on the component.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "str"

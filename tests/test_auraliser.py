@@ -979,6 +979,37 @@ def test_stereo_plays_a_mono_signal_on_both_channels():
     np.testing.assert_allclose(out[:, 0], out[:, 1])
 
 
+def mixed_auraliser(output_format, orders):
+    entries = {f"ir{i}": ir_entry(np.ones((32, (order + 1) ** 2))) for i, order in enumerate(orders)}
+    sounds = {key: {"filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav")} for key in entries}
+    return Auraliser("room1", entries, sounds, output_format)
+
+
+def test_mono_responses_mixed_with_ambisonic_ones_are_warned_about():
+    with pytest.warns(UserWarning, match=r"1 of 2 impulse responses are mono .* ambisonics output .*\(ir0\)"):
+        mixed_auraliser("ambisonics", [0, 1]).convolve()
+
+
+@pytest.mark.parametrize("output_format, orders", [("stereo", [0, 1]), ("mono", [0, 1]), ("ambisonics", [1, 1]), ("stereo", [0, 0])])
+def test_no_warning_where_the_mix_does_not_matter(output_format, orders):
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        mixed_auraliser(output_format, orders).convolve()
+
+
+def test_ambisonics_with_mono_impulse_responses_raises():
+    with pytest.raises(ValueError, match="Ambisonics output requires"):
+        decoder("ambisonics", order=0)
+    a = decoder("stereo", order=0)
+    with pytest.raises(ValueError, match="Ambisonics output requires"):
+        a.output_format = "ambisonics"
+    for output_format in ("mono", "stereo"):
+        decoder(output_format, order=0)
+    assert decoder("ambisonics", order=1).output_channels == 4
+
+
 def test_binaural_with_mono_impulse_responses_raises():
     with pytest.raises(ValueError, match="Binaural output requires"):
         decoder("binaural", order=0)
