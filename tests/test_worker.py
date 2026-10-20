@@ -216,7 +216,7 @@ def test_the_worker_starts_without_the_clients_python_path(tmp_path, monkeypatch
 def test_simulate_in_the_worker_matches_simulating_here(running_worker):
     s = scene()
     here = s.simulate(Pyroomacoustics(image_source_order=2, ray_tracing=False))
-    there, messages = worker.simulate(s, "pyroomacoustics", {"image_source_order": 2})
+    there, messages = worker.simulate(s, "pyroomacoustics", {"image_source_order": 2, "ray_tracing": False})
     assert sorted(there) == sorted(here)
     for key in here:
         expected = here[key].denormalized()
