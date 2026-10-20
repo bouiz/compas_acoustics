@@ -489,3 +489,11 @@ def test_trailing_zeros_do_not_hide_the_decay():
         results.append(analyser.reverberation_times())
     for key in ("EDT", "T20", "T30"):
         np.testing.assert_allclose(np.mean([r[key] for r in results], axis=0), 1.2, rtol=0.08, err_msg=key)
+
+
+@pytest.mark.parametrize("name", ["C50", "C80", "D50", "Ts", "EDT", "T20", "T30"])
+def test_single_numbers_average_500_and_1000_hz(name):
+    # ISO 3382-1:2009 Table A.1; C50 is a function of D50 and takes its bands
+    r = AcousticAnalyser(make_ir()).analyse()
+    assert r["freqs"][2:4] == [500, 1000]
+    assert r[f"{name}_overall"] == pytest.approx(np.nanmean([r[name][2], r[name][3]]), abs=0.01)

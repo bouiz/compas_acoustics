@@ -32,6 +32,12 @@ Nothing is kept under its old name. What replaces what:
 | `Auraliser`, `AcousticAnalyser`, `MaterialsLibrary` as `Data` | plain classes: no `guid`, `copy()` or `compas.json_dumps` |
 | Grasshopper: Simulate Ray Tracing, with a `sample_rate` input | Simulate Pyroomacoustics; the rate is the `sampling_rate` input of Room Scene |
 | Grasshopper: Analyse IR output STI | no longer an output, with G: they need pyrato >= 1.0 |
+| `Source` direction default +z; `shoebox_room(materials={'left_wall': ..., 'right_wall': ...})` with `left_wall` at y = 0 | direction default +x, as the Grasshopper Source component has it; `left_wall` is at y = width and `right_wall` at y = 0, the sides of a receiver at the centre facing +x (swap the two keys to keep a room) |
+| `scene.simulate(hybrid)`, then `hybrid.binaural(hrtf)` | `scene.simulate(Hybrid(output="binaural", hrtf=...))`, stored under `'hybrid_binaural'`; `output=["ambisonic", "binaural"]` for both from one run |
+| `Hybrid()` returning ambisonic responses | `Hybrid(output="ambisonic")`; the default output is now binaural |
+| `binaural_rir(result, hrtf, filters)` (MagLS-decoded late field) | `binaural_rir(result, hrtf)`: each delay line through its own HRIR |
+| `shape_late(late, early, reference, fs)` | `shape_late(signals, early_w, late_w, reference, fs)` |
+| Grasshopper: Simulate Hybrid output `ir_graph` (ambisonic) | outputs `binaural` and `ambisonic`; the input `output` (`binaural`, `ambisonic`, `both`) chooses them, default `binaural` |
 
 A Grasshopper definition saved with the old components keeps their old code inside the file, and fails on the removed names. Delete the components
 in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate components, Deconstruct IR Graph, Analyse IR, Auralise and Audio Player.
@@ -40,10 +46,14 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 
 * Added `Scene.simulate(method)` as the one way to simulate, with the methods `Pyroomacoustics(image_source_order=3, ray_tracing=True, ...)` and `Hybrid(...)` in `compas_acoustics.simulation_methods`.
 * Added `Scene.sampling_rate` (default 48000, serialised with the scene), the rate at which every method runs; the Room Scene component has the input.
-* Added `Hybrid`, ambisonic room impulse responses from image sources, optional edge diffraction (`diffraction="udfa"` or `"btms"`) and a directional feedback delay network tail, ported from hybrid-rir; needs Python >= 3.11.
+* Added `Hybrid`, ambisonic and binaural room impulse responses (binaural by default) from image sources, optional edge diffraction (`diffraction="udfa"` or `"btms"`) and a directional feedback delay network tail, ported from hybrid-rir; needs Python >= 3.11.
 * Added `Hybrid(tail=...)` with a reference response, the hybrid's own ray-traced reference, or an Eyring or Sabine prediction as decay target.
 * Added edge diffraction at the edges of the room's own boundary (re-entrant corners) to `Hybrid`.
-* Added `Hybrid.binaural(hrtf_path=None)`, which filters the early part path by path with the nearest HRTF, and `compas_acoustics.binaural` (`HrtfSet`, `render_early_binaural`, `binaural_rir`, `magls_filters`).
+* Added `Hybrid(scattering=False)`, surface scattering after Ewert et al. (2025) as RAZR 0.96.3 implements it: each image's specular part, the product of `sqrt(1 - s)` over its reflections, stays in the early field, and its scattered part, the product of `sqrt(s)`, enters the delay lines on its own hemisphere through an allpass cascade; checked against RAZR in `tests/hybrid/data/razr_scattering`. Off by default.
+* Added `compas_acoustics.binaural` (`HrtfSet`, `render_early_binaural`, `binaural_rir`, `magls_filters`): the hybrid's early part path by path with the nearest HRTF.
+* Added `Hybrid(output="binaural", hrtf=None)`: `output` is `"ambisonic"`, `"binaural"` or a list of both, rendered from one run; `hrtf` is `"kemar"` (the default for a binaural output) or a SOFA file. Binaural responses record `generation["output"] == "binaural"` and the HRTF file in `generation["hrtf"]`, ambisonic ones `generation["output"] == "ambisonic"`.
+* Added `HybridResult.late_lines` and `line_directions`: the late field per delay line before the output matrix, and each line's direction in the receiver frame.
+* Added `SimulationMethod.attribute` (the IR graph attribute, by default `name`) and `SimulationMethod.extra_responses` (responses in further formats from the same run, by attribute); `Scene.simulate` stores each.
 * Added `Pyroomacoustics(ray_tracing=True)`, hybrid-rir's ray tracer on top of the image sources (`n_rays`, `energy_thres`, `duration`, `receiver_radius`, `seed`).
 * Added `AirConditions(temperature=20, humidity=50, pressure=101325)`: speed of sound after Cramer (1993) and air absorption after ISO 9613-1, for every method, recorded in `ImpulseResponse.generation`.
 * Added `RoomGeometry`, the scene's surfaces as one validated room (welded, outward oriented, closedness checked, coplanar faces merged), with `to_pra()` and `is_inside()`.
@@ -70,7 +80,7 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 * Added the package `compas_acoustics_ghpython` with the Grasshopper components, `AcousticParameter`, `Plotter2D`, `Plotter2DSettings` and `ensure_inputs`, which gives unconnected inputs a value list or a button.
 * Added the components Simulate Hybrid (with a `run` button, its last input), Simulate Pyroomacoustics (was Simulate Ray Tracing), Material Library categories, and the inputs `output_format`, `hrtf`, `level` (Auralise), `normalize` (Audio Player, Simulate), `method` (Deconstruct IR Graph), `direction`, `up` and `plane` (Receiver).
 * Added the input `role` (a value list: `boundary` or `obstacle`) to the Grasshopper Acoustic Object component; a wrong role or material is an error on the component instead of a traceback.
-* Added `compas_acoustics_ghpython.MethodGraph`: Simulate Pyroomacoustics and Simulate Hybrid return the scene's IR graph tagged with their method, and Deconstruct IR Graph reads the method its wire comes from (Pyroomacoustics: mono, Hybrid: ambisonic), so it has no `method` input.
+* Added `compas_acoustics_ghpython.MethodGraph`: Simulate Pyroomacoustics and Simulate Hybrid return the scene's IR graph tagged with their method, and Deconstruct IR Graph reads the method its wire comes from (Pyroomacoustics: mono, Hybrid: `hybrid` ambisonic or `hybrid_binaural`), so it has no `method` input.
 * Changed the Grasshopper Check Channel component to count the channels of any sound: an audio file path, an impulse response, a Source with a sound file, or an array of samples such as the signals of Auralise (the input is now `sound`).
 * Changed `Auraliser` to refuse `output_format='ambisonics'` for mono impulse responses, as it does for `'binaural'`: a mono response has no directional information (it used to come back as a one-channel order 0 signal).
 * Added a warning to `Auraliser.convolve` (and the Grasshopper Auralise component) for mono impulse responses mixed with ambisonic ones in binaural or ambisonics output: the mono ones carry no direction and are not placed in space.
@@ -82,6 +92,9 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 * Added the input `select` (a value list: `all` or one of EDT, T20, T30, C50, C80, D50, DRR, Ts, STI, G) to the Grasshopper Deconstruct Parameter component: a selected parameter comes out as plain lists, `all` as one branch per parameter. Its `param` input takes the list.
 * Added STI and G to the Grasshopper Analyse IR component through the worker (`compas_acoustics.worker.analyse`): they need pyrato >= 1.0, which Rhino 8's Python 3.9 cannot install, so the worker computes them and Analyse IR leaves them out without one.
 * Changed the Grasshopper Plot 2D chart to leave half a band's spacing between the y axis and the first frequency band.
+* Added the inputs `output` (a value list: `binaural`, `ambisonic` or `both`) and `hrtf` (`kemar` or a SOFA path) and the outputs `binaural` and `ambisonic` (`None` for a format not requested) to the Grasshopper Simulate Hybrid component, which replace its output `ir_graph`; its status counts the responses of the requested formats.
+* Changed `compas_acoustics.worker.simulate` to store every format of a run on the scene's graph under its attribute and return the first, as `Scene.simulate` does; it used to store whatever came back under the method's name.
+* Changed the Grasshopper Auralise component to convolve binaural impulse responses as they are (output format `binaural` only) instead of decoding their two channels as ambisonics.
 * Added a status to the Grasshopper Simulate Hybrid component for when it is not running: it says `done` with the tail and order of the last result on the graph, `settings changed, press Run` when its inputs differ from that result, and `press Run` only when there is none.
 * Added the Grasshopper installer for Rhino 8 (`installer/compas_acoustics_installer.gh`), `invoke installer-bundle`, and `compas-dev/compas-actions` v1 workflows (build, release, `prepare release`), with tests on Python 3.9.
 * Added `examples/office_hybrid.py`, which runs both methods on an office.
@@ -121,9 +134,22 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 * Changed `matplotlib` to be imported by the `AcousticAnalyser` plot methods only when they run.
 * Changed the Grasshopper components to use ruff per-file ignores instead of `# flake8: noqa`, and the installer's `worker` input to `binaural` or `hybrid`.
 * Changed `librosa` out of the dependencies and `sounddevice` into them; `spharpy` is required on Python >= 3.11.
+* Changed `magls_filters` (the binaural decoder of `Auraliser`) to match the HRTF set's diffuse-field covariance (ear energies and interaural coherence) in every bin, after Zaunschirm et al. (2018) as Spatial_Audio_Framework's `applyDiffCovMatching` implements it; `covariance_constraint=False` gives the plain MagLS fit.
+* Changed `RoomGeometry` to weld vertices and close T-junctions at 1 mm (`WELD_TOLERANCE`, was 1 micrometre), as Rhino's tolerance in a metre model: a wall corner 10 micrometres off no longer leaves the room open. Faces with a corner more than 10 micrometres off their plane are triangulated (pyroomacoustics raised a `RuntimeError` on them), faces that collapse in welding are dropped with a warning, a model more than 500 units across warns that coordinates are read as metres, and a wall pyroomacoustics refuses is a `ValueError` naming the face.
+* Changed `AcousticObject.from_obj` to read OBJ files with its own parser: `o` (object) lines are the groups of a file without `g` lines, faces may use `i/j/k` and negative indices, vertices are no longer rounded (`RoomGeometry` welds them), and faces with fewer than three distinct vertices are skipped.
+* Changed the default `Source` direction to +x (was +z), the direction the Grasshopper Source component already defaults to and the receiver's facing direction.
+* Changed `AcousticObjectsLibrary.shoebox_room` so that `left_wall` is the surface at y = width and `right_wall` the one at y = 0, matching the receiver frame (x facing, y left); the two names were swapped. The surfaces come in the order floor, right, front, left and back wall, ceiling.
+* Changed the error of `Receiver` for a name with spaces or capitals to say `Receiver` (it said `Source`).
+* Changed `RoomGeometry.surfaces`, `surface_area`, `area_normals` and `volume` to count the air side only: a closed obstacle counts one side and its volume is subtracted, and obstacle faces lying on the boundary are left out, so Eyring and Sabine times, the default ray-tracing duration and the hybrid's delays and scattering decay time move in scenes with closed obstacles or obstacles on the boundary; a free panel still counts both sides.
+* Changed `AcousticMaterial` to validate coefficients on creation: numpy arrays and scalars become lists of float, and a length other than 7 or a value outside [0, 1] raises `ValueError`.
+* Changed the default output of `Hybrid` to binaural (`output="binaural"`), stored under `'hybrid_binaural'`; `Hybrid(output="ambisonic")` gives the ambisonic responses under `'hybrid'` as before, unchanged up to float rounding.
+* Changed the hybrid's binaural late field to be rendered per delay line, each line `/ sqrt(N)` through the HRIR measured nearest its direction, as RAZR and RAVEN render their feedback delay networks; it was the ambisonic late field MagLS-decoded at `sh_order`, so a binaural response no longer needs `sh_order >= 1`.
+* Changed `hybrid.late.render` to return the delay lines' outputs, `(n, num_delays)`, after the directional absorption and slope weights; the ambisonic late field is that times `C.T`.
+* Changed `Scene.simulate` to store a method's responses under `method.attribute` and its `extra_responses` under theirs; `'data'` still holds a mono method's only.
 
 ### Fixed
 
+* Fixed the single-number values of C50, C80, D50 and Ts averaging 500, 1000 and 2000 Hz: they average 500 and 1000 Hz, as ISO 3382-1:2009 Table A.1 has it for G, EDT, C80, D50 and Ts (C50 follows D50), like EDT, T20 and T30 already did.
 * Fixed responses simulated in the worker (the hybrid in Rhino) always coming back as peak-normalized views: they keep the method's `normalize`. Their raw level was already kept.
 * Fixed the Grasshopper Material Library component forgetting its material when the file is reopened: the choice is kept in the component's nickname, which Grasshopper saves.
 * Fixed the Grasshopper Material Library component failing with `No module named 'compas_acoustics'`: its script pinned an empty Rhino script environment, `compas_acoustics_rhino`, instead of the one the installer fills.
@@ -141,6 +167,10 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 * Fixed the hybrid failing on a fully absorbing surface, and counting a wall hit on a diffraction apex as a reflection.
 * Fixed `display_in_viewer` guards that treated `compas.is_rhino()` as a boolean, and the default HRTF path that pointed at a missing file.
 * Fixed the Grasshopper Auralise and Analyse IR components using a fixed sample rate, and the Auralise component returning the undecoded convolution.
+* Fixed `AcousticObject.from_obj` reading OBJ files in the platform's encoding: a UTF-8 byte order mark dropped the first vertex, and non-ASCII group names were garbled on Windows; files are read as UTF-8.
+* Fixed `magls_filters` raising `LinAlgError` for an HRTF set whose diffuse-field covariance is singular in a bin (ears identical at DC): the decoder of those bins is zero, as in Spatial_Audio_Framework, with a `UserWarning` naming the number of bins.
+* Fixed the Grasshopper Auralise component raising an uncaught `ValueError` for a binaural response with an output format other than `binaural`: it is an error message on the component.
+* Fixed obstacle faces lying on a boundary face being counted when the scene is not aligned with the axes: the test used the distance along each axis instead of the distance to the face's plane.
 
 ### Removed
 
@@ -153,3 +183,4 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 * Removed `Auraliser.multiconvolution()`, `decode_stereo_simple()`, `resample_signal()` and FuMa channel order.
 * Removed `compas_acoustics.orchestra_layouts` and the Orchestra Layout component; the layouts are now `examples/orchestra_layouts.py`.
 * Removed the two MIT KEMAR HRTF sets and `speech.wav`.
+* Removed `Hybrid.binaural()`; use `Hybrid(output="binaural")` or `output=["ambisonic", "binaural"]`.

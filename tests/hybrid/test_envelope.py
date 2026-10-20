@@ -48,14 +48,14 @@ def test_gains_never_exceed_one():
 
 def test_a_louder_reference_leaves_the_late_field_alone():
     early, late = parts()
-    shaped = shape_late(late, early, early[:, 0] + 3.0 * late[:, 0], FS)
+    shaped = shape_late(late, early[:, 0], late[:, 0], early[:, 0] + 3.0 * late[:, 0], FS)
     np.testing.assert_allclose(shaped, late, atol=1e-6)
 
 
 def test_a_quieter_reference_attenuates_by_the_difference():
     early, late = parts()
     reference = early[:, 0] + 10 ** (-6 / 20) * late[:, 0]
-    shaped = shape_late(late, early, reference, FS)
+    shaped = shape_late(late, early[:, 0], late[:, 0], reference, FS)
     lost = energy_db(shaped[:, 0], 0.15, 0.6) - energy_db(late[:, 0], 0.15, 0.6)
     assert lost == pytest.approx(-6.0, abs=0.5)
 
@@ -63,7 +63,7 @@ def test_a_quieter_reference_attenuates_by_the_difference():
 def test_every_channel_gets_the_same_gain():
     early, late = parts()
     reference = early[:, 0] + 0.5 * late[:, 0]
-    shaped = shape_late(late, early, reference, FS)
+    shaped = shape_late(late, early[:, 0], late[:, 0], reference, FS)
     ratio = [energy_db(shaped[:, c], 0.15, 0.6) - energy_db(late[:, c], 0.15, 0.6)
              for c in range(4)]
     assert np.ptp(ratio) < 0.5
@@ -76,15 +76,15 @@ def test_the_gain_is_held_once_the_reference_has_decayed_20_db():
     burst = reference.copy()
     i = int(1.0 * FS)
     burst[i:i + int(0.02 * FS)] *= 30.0
-    plain = shape_late(late, early, reference, FS)
-    bursty = shape_late(late, early, burst, FS)
+    plain = shape_late(late, early[:, 0], late[:, 0], reference, FS)
+    bursty = shape_late(late, early[:, 0], late[:, 0], burst, FS)
     np.testing.assert_allclose(bursty[int(0.9 * FS):], plain[int(0.9 * FS):], atol=1e-9)
 
 
 def test_a_short_reference_holds_its_last_gain():
     early, late = parts()
     reference = (early[:, 0] + 0.5 * late[:, 0])[: int(0.8 * FS)]
-    shaped = shape_late(late, early, reference, FS)
+    shaped = shape_late(late, early[:, 0], late[:, 0], reference, FS)
     assert shaped.shape == late.shape
     tail = energy_db(shaped[:, 0], 1.0, 1.4) - energy_db(late[:, 0], 1.0, 1.4)
     assert tail == pytest.approx(-6.0, abs=1.0)
@@ -94,7 +94,7 @@ def test_a_reference_on_another_scale_warns():
     early, late = parts()
     reference = 100.0 * (early[:, 0] + late[:, 0])
     with pytest.warns(UserWarning, match="scale"):
-        shape_late(late, early, reference, FS)
+        shape_late(late, early[:, 0], late[:, 0], reference, FS)
 
 
 # -------------------------------------------------------------- the pipeline --

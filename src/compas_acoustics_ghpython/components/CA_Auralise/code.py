@@ -80,6 +80,7 @@ class Auralise(Grasshopper.Kernel.GH_ScriptInstance):
                     # The response's own convention, e.g. a hybrid response in N3D
                     'channel_order': getattr(IR, 'channel_order', None) or 'acn',
                     'normalization': getattr(IR, 'normalization', None) or 'sn3d',
+                    'binaural': (IR.generation or {}).get('output') == 'binaural',
                 }
 
                 sound_groups[receiver_id][sub_key] = {
@@ -117,7 +118,11 @@ class Auralise(Grasshopper.Kernel.GH_ScriptInstance):
                             ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Error, str(e))
                             return None, None
                         auraliser.hrtf_path = hrtf_path
-                        signal = worker.convolve(auraliser)
+                        try:
+                            signal = worker.convolve(auraliser)
+                        except ValueError as e:
+                            ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Error, str(e))
+                            return None, None
                     for text in dict.fromkeys(str(w.message) for w in caught if issubclass(w.category, UserWarning)):
                         ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning, text)
                     renders.append((path, auraliser, signal, suffix))

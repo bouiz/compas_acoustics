@@ -2,7 +2,6 @@ import os
 
 from compas.data import Data
 from compas.datastructures import Mesh
-from compas.files import OBJ
 from compas.geometry import Box
 from compas.geometry import Frame
 from compas.geometry import Transformation
@@ -77,9 +76,13 @@ class AcousticObject(Data):
         """One acoustic object per ``g`` group of a Wavefront OBJ file.
 
         Rhino writes one group per layer or object; faces before any ``g`` line are in
-        ``'default'``. Each object is named ``'<name>_<group>'``. Coordinates are taken as
-        metres. :class:`compas.files.OBJ` welds the vertices to
-        :attr:`compas.tolerance.TOL.precision` and faces that collapse are dropped.
+        ``'default'``. A file without any ``g`` line takes its groups from its ``o``
+        (object) lines instead; where it has both, the ``g`` lines win. A group that
+        recurs later in the file is merged into the first. Each object is named
+        ``'<name>_<group>'``. Coordinates are taken as metres and are not rounded, since
+        :class:`RoomGeometry` welds them. Faces may use ``i``, ``i/j``, ``i//k`` or
+        ``i/j/k`` indices, negative ones counted from the vertices read so far; faces
+        with fewer than three distinct vertices are dropped.
 
         Every object is a boundary of the room; mark furniture as obstacles with
         :meth:`assign_roles_by_group`.
@@ -100,26 +103,40 @@ class AcousticObject(Data):
         -------
         list of :class:`AcousticObject`
         """
-        obj = OBJ(filepath)
-        obj.read()
-        # obj.groups keeps only the last run of a group name that recurs, as in Rhino exports
-        face_groups, group = [], 'default'
-        with open(filepath) as f:
+        vertices, faces, face_groups, face_objects = [], [], [], []
+        group = obj = None
+        has_groups = False
+        with open(filepath, encoding="utf-8-sig") as f:
             for line in f:
                 tokens = line.split()
-                if tokens[:1] == ['g']:
-                    group = " ".join(tokens[1:])
-                elif tokens[:1] == ['f'] and len(tokens) > 3:
-                    face_groups.append(group)
+                if not tokens:
+                    continue
+                if tokens[0] == 'v':
+                    vertices.append([float(value) for value in tokens[1:4]])
+                elif tokens[0] == 'g':
+                    group = " ".join(tokens[1:]) or None
+                    has_groups = True
+                elif tokens[0] == 'o':
+                    obj = " ".join(tokens[1:]) or None
+                elif tokens[0] == 'f':
+                    indices = []
+                    for token in tokens[1:]:
+                        index = int(token.split('/')[0])
+                        indices.append(len(vertices) + index if index < 0 else index - 1)
+                    if len(set(indices)) >= 3:
+                        faces.append(indices)
+                        face_groups.append(group)
+                        face_objects.append(obj)
+        names = face_groups if has_groups else face_objects
         groups = {}
-        for face, group in zip(obj.faces, face_groups):
-            groups.setdefault(group, []).append(face)
+        for face, group in zip(faces, names):
+            groups.setdefault(group or 'default', []).append(face)
         if name is None:
             name = os.path.splitext(os.path.basename(filepath))[0]
         objects = []
         material = None if isinstance(materials, dict) else materials
         for group, faces in groups.items():
-            mesh = Mesh.from_vertices_and_faces(obj.vertices, faces)
+            mesh = Mesh.from_vertices_and_faces(vertices, faces)
             mesh.remove_unused_vertices()
             objects.append(cls(mesh, material, name=f"{name}_{group}", group=group))
         if isinstance(materials, dict):
@@ -292,9 +309,9 @@ class AcousticObjectsLibrary:
     #: Face index -> surface name for a shoebox room built from :class:`compas.geometry.Box`.
     SHOEBOX_SURFACES = {
         0: 'floor',
-        1: 'left_wall',
+        1: 'right_wall',
         2: 'front_wall',
-        3: 'right_wall',
+        3: 'left_wall',
         4: 'back_wall',
         5: 'ceiling',
     }
@@ -357,7 +374,10 @@ class AcousticObjectsLibrary:
         Returns
         -------
         list of :class:`AcousticObject`
-            One per surface, in the order floor, left, front, right and back wall, ceiling.
+            One per surface, in the order floor, right, front, left and back wall, ceiling.
+            Seen from a receiver at the centre facing +x (y to its left), ``'left_wall'`` is
+            the surface at y = width and ``'right_wall'`` the one at y = 0; ``'front_wall'``
+            is at x = length.
         """
 
         box = Box(length, width, height)

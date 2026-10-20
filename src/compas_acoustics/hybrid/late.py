@@ -291,26 +291,36 @@ def render(
     tap: np.ndarray | None = None,
     line_eq: np.ndarray | None = None,
 ) -> np.ndarray:
-    """Run the network with a separate input per delay line, shape (n, n_ch).
+    """Run the network with a separate input per delay line; the lines' outputs, (n, num_delays).
 
     ``drive`` is ``(n_samples, num_delays)``: column ``i`` is the signal
-    entering delay line ``i``, so ``B`` is the identity and ``D`` is zero. The
-    slope networks are summed.
+    entering delay line ``i``, so ``B`` is the identity and ``D`` is zero.
+    Column ``i`` of the result is what line ``i`` radiates from its direction,
+    after ``line_eq`` and the slope weights, summed over the slope networks.
+    The ambisonic late field is the result times ``C.T`` (every build's ``C``
+    is the same); a binaural renderer filters each line with the HRIR of its
+    direction instead (:func:`compas_acoustics.binaural.binaural_rir`).
 
     ``line_eq``, an SOS bank of shape ``(n_sections, 6, num_delays)``, filters
     each line on its way out, after the feedback is taken, so it colours what
     is heard from that direction without touching the decay. That is where the
     direction-dependent boundary absorption of :mod:`hybrid_rir.directional`
-    sits (Kirsch et al. 2023). It is applied by rendering the lines themselves
-    and projecting with ``C`` afterwards, because ``pyFDN.process_dss`` filters
-    either inside the loop (``post_delay``) or after ``C`` (``post_output``).
+    sits (Kirsch et al. 2023). ``pyFDN.process_dss`` filters either inside the
+    loop (``post_delay``) or after its output matrix (``post_output``), so the
+    lines are rendered through an identity output matrix and filtered here.
+    A build's ``post_output``, the slope weight of :func:`design_fdn`, must be
+    the same filter on every channel; it is then applied to every line.
 
-    ``tap``, the same shape, is added at the delay line outputs, after the
-    attenuation filters: it is heard at once through ``C`` and then
-    recirculates through ``A``. That is where the scattered reflections of
-    :mod:`hybrid_rir.scattering` enter, "initially skipping the FDN delays"
-    (Ewert et al. 2025, Sec. 3.1.2). With a static ``A`` it is exactly
-    ``C tap`` at the output plus ``A tap`` into the delay lines.
+    ``tap``, the same shape, enters each line skipping its delay: it passes
+    the line's attenuation filters and is then heard at once from the line
+    and recirculates through ``A``, exactly as ``drive`` would one delay
+    earlier. That is where the scattered parts of
+    :mod:`compas_acoustics.hybrid.scattering` enter, "initially skipping the
+    FDN delays" (Ewert et al. 2025, Sec. 3.1.2); RAZR 0.96.3 places them one
+    delay early, so they too pass the line's absorption filter before they
+    are heard (``tests/hybrid/data/razr_scattering``, ``line_filter``). With
+    a static ``A`` it is exactly ``f(tap)`` at the lines' outputs plus
+    ``A f(tap)`` into the delay lines, ``f`` the attenuation filters.
 
     Not ``pyFDN.build_to_impz``: that renders an impulse through ``B``.
     ``pyFDN.process_dss`` takes a multichannel input and replaces ``B``, ``C``
@@ -324,15 +334,16 @@ def render(
         raise ValueError("drive must be 2-D (n_samples, num_delays)")
 
     n_samples, n_delays = drive.shape
-    n_ch = builds[0].C.shape[0]
     for build in builds:
         if np.asarray(build.delays).size != n_delays:
             raise ValueError(
                 f"drive must have one column per delay line: got {n_delays} "
                 f"columns for a network of {np.asarray(build.delays).size}"
             )
-        if build.C.shape[0] != n_ch:
-            raise ValueError("every build must have the same number of channels")
+        if build.post_output is not None:
+            sos = np.asarray(build.post_output, dtype=float)
+            if not np.array_equal(sos, np.broadcast_to(sos[:, :, :1], sos.shape)):
+                raise ValueError("post_output must be the same filter on every channel to be applied per line")
     if tap is not None:
         tap = np.asarray(tap, dtype=float)
         if tap.shape != drive.shape:
@@ -347,40 +358,28 @@ def render(
             )
 
     identity = np.eye(n_delays)
-    no_direct = np.zeros((n_ch, n_delays))
+    no_direct = np.zeros((n_delays, n_delays))
 
-    total = np.zeros((n_samples, n_ch), dtype=float)
+    def heard_from_the_lines(out, build):
+        if line_eq is not None:
+            out = SOSBank(line_eq).process_signal(out)
+        if build.post_output is not None:
+            weight = np.asarray(build.post_output, dtype=float)[:, :, :1]
+            out = SOSBank(np.repeat(weight, n_delays, axis=2)).process_signal(out)
+        return out
+
+    total = np.zeros((n_samples, n_delays), dtype=float)
     for build in builds:
         post_delay = SOSBank(build.post_delay) if build.post_delay is not None else None
-        post_output = (
-            SOSBank(build.post_output) if build.post_output is not None else None
-        )
-        line_input = drive if tap is None else drive + tap @ np.asarray(build.A).T
-        out = pyFDN.process_dss(
-            line_input,
-            build.delays,
-            build.A,
-            identity,
-            identity if line_eq is not None else build.C,
-            np.zeros((n_delays, n_delays)) if line_eq is not None else no_direct,
-            post_delay=post_delay,
-            post_output=None if line_eq is not None else post_output,
-        )
-        # process_dss squeezes its output; restore the outputs' axis every time
-        out = np.asarray(out, dtype=float).reshape(
-            n_samples, n_delays if line_eq is not None else n_ch
-        )
-        if line_eq is not None:
-            out = SOSBank(line_eq).process_signal(out) @ build.C.T
-            if post_output is not None:
-                out = post_output.process_signal(out)
-        total += out
+        heard = None
         if tap is not None:
-            heard = tap
-            if line_eq is not None:
-                heard = SOSBank(line_eq).process_signal(heard)
-            heard = heard @ build.C.T
-            if build.post_output is not None:
-                heard = SOSBank(build.post_output).process_signal(heard)
-            total += heard
+            heard = SOSBank(build.post_delay).process_signal(tap) if build.post_delay is not None else tap
+        line_input = drive if heard is None else drive + heard @ np.asarray(build.A).T
+        out = pyFDN.process_dss(
+            line_input, build.delays, build.A, identity, identity, no_direct, post_delay=post_delay,
+        )
+        # process_dss squeezes its output; restore the lines' axis every time
+        total += heard_from_the_lines(np.asarray(out, dtype=float).reshape(n_samples, n_delays), build)
+        if heard is not None:
+            total += heard_from_the_lines(heard, build)
     return total

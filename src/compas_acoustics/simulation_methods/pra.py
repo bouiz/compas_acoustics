@@ -35,7 +35,9 @@ class Pyroomacoustics(SimulationMethod):
     image_source_order : int, default=3
         Last specular order. With ray tracing, hybrid-rir measured 6 to 10 as
         the range where the decay of a room with uneven absorption stops
-        depending on it.
+        depending on it. The default 3 is chosen for the cost of the image
+        source search: with ray tracing, T30 did not move between orders 3 and
+        6 in the evaluation, EDT by up to 15 % and C80 by 1 dB.
     ray_tracing : bool, default=True
         Add the ray tracer; ``False`` runs the image sources alone. Materials without scattering coefficients scatter 0.05 in every band.
     air_absorption : bool, default=True

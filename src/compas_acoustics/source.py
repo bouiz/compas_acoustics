@@ -14,7 +14,7 @@ class Source(Point):
         self.name = name
         self.description = None
         self.directivity = directivity if directivity is not None else "omnidirectional"
-        self.direction = direction if direction is not None else Vector(0, 0, 1)
+        self.direction = direction if direction is not None else Vector(1, 0, 0)
         self.spl = 120.0 # Default SPL value for omni source TODO: swl?
         self.sound_file = sound_file
     

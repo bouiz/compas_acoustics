@@ -13,8 +13,9 @@ __all__ = ["AcousticAnalyser"]
 # Row order used throughout the class
 _PARAM_NAMES = ['EDT', 'T20', 'T30', 'C50', 'C80', 'D50', 'DRR', 'Ts', 'STI', 'G']
 
-# Parameters whose "Overall" is averaged over 500 & 1000 Hz (ISO 3382-1:2009)
-_RT_PARAMS = {'EDT', 'T20', 'T30'}
+# Single-number values of EDT, T20, T30, C50, C80, D50 and Ts average the 500 and 1000 Hz octaves
+# (ISO 3382-1:2009 Table A.1; C50 is a function of D50 and takes its bands)
+_SINGLE_NUMBER_BANDS = [500, 1000]
 
 # pyrato < 1.0 (the only one on Python 3.9, Rhino 8) has no `parameters` module
 _PYRATO_PARAMETERS = hasattr(pyrato, 'parameters')
@@ -648,7 +649,7 @@ class AcousticAnalyser:
             elif param == 'DRR':
                 overall = drr['DRR_overall']
             else:
-                idx = [freqs.index(500), freqs.index(1000)] if param in _RT_PARAMS else [freqs.index(500), freqs.index(1000), freqs.index(2000)]
+                idx = [freqs.index(f) for f in _SINGLE_NUMBER_BANDS]
                 overall = round(float(np.nanmean(vals[idx])), 2)
             result[f'{param}_overall'] = overall
 
@@ -670,8 +671,8 @@ class AcousticAnalyser:
 
         Notes
         -----
-        Overall values for EDT, T20, and T30 are averaged over 500 Hz and 1000 Hz bands (ISO 3382-1:2009).
-        Overall values for other parameters are averaged over 500 Hz, 1000 Hz, and 2000 Hz bands.
+        Overall values for EDT, T20, T30, C50, C80, D50 and Ts are averaged over the 500 Hz and 1000 Hz
+        bands (ISO 3382-1:2009 Table A.1). STI, DRR and G have their own overall values.
 
         """
         params = parameters if parameters else _PARAM_NAMES

@@ -45,6 +45,13 @@ SYNTHESIS_BANDS = (62.5, 125.0, 250.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0)
 # pyroomacoustics' geometric tolerance, so the copies are always resolved apart.
 OBSTACLE_OFFSET = 1e-3
 
+# Vertices closer than this are one vertex, and a vertex this close to an edge lies on it, in metres:
+# Rhino's default absolute tolerance in a metre model, which is what a CAD export is exact to.
+WELD_TOLERANCE = 1e-3
+
+# A bounding box larger than this, in metres, is taken for a model in millimetres.
+UNIT_WARNING_EXTENT = 500.0
+
 # Scattering coefficient, every band, of a material that gives none, in every pyroomacoustics room
 DEFAULT_SCATTERING = 0.05
 
@@ -166,7 +173,7 @@ def _weld(points: np.ndarray, tolerance: float) -> Tuple[np.ndarray, np.ndarray]
     return points[first], inverse.reshape(-1)
 
 
-def _split_at_t_junctions(vertices: np.ndarray, a: int, b: int) -> List[int]:
+def _split_at_t_junctions(vertices: np.ndarray, a: int, b: int, tolerance: float) -> List[int]:
     """The edge ``a -> b`` as the chain of vertices lying on it.
 
     CAD exports subdivide one side of a seam and not the other, so edges are
@@ -177,23 +184,55 @@ def _split_at_t_junctions(vertices: np.ndarray, a: int, b: int) -> List[int]:
     offsets = vertices - start
     t = offsets @ direction / (direction @ direction)
     distance = np.linalg.norm(offsets - np.outer(t, direction), axis=1)
-    tolerance = 1e-6 * float(np.ptp(vertices, axis=0).max())
     inner = np.flatnonzero((t > 0.0) & (t < 1.0) & (distance < tolerance))
     return [a, *inner[np.argsort(t[inner])].tolist(), b]
 
 
-def _segments(vertices: np.ndarray, face) -> List[Tuple[int, int]]:
+def _segments(vertices: np.ndarray, face, tolerance: float) -> List[Tuple[int, int]]:
     face = list(face)
     out: List[Tuple[int, int]] = []
     for a, b in zip(face, face[1:] + face[:1]):
         if a == b:
             raise ValueError("a face repeats a vertex")
-        chain = _split_at_t_junctions(vertices, a, b)
+        chain = _split_at_t_junctions(vertices, a, b, tolerance)
         out.extend(zip(chain[:-1], chain[1:]))
     return out
 
 
-def _orient(vertices: np.ndarray, faces):
+def _without_collapsed(faces, groups):
+    """Faces without consecutive repeated vertices, dropping those left with fewer than three; and how many were dropped."""
+    kept_faces, kept_groups = [], []
+    for face, group in zip(faces, groups):
+        cleaned = [v for k, v in enumerate(face) if v != face[k - 1]]
+        if len(set(cleaned)) >= 3:
+            kept_faces.append(cleaned)
+            kept_groups.append(group)
+    return kept_faces, kept_groups, len(faces) - len(kept_faces)
+
+
+def _triangulated_where_warped(vertices: np.ndarray, faces, groups):
+    """Faces whose corners lie off their own plane, as fans of triangles of the same group and winding.
+
+    pyroomacoustics refuses a wall whose corners are further than
+    ``_MERGE_TOLERANCE`` from a plane, and a CAD quad with one corner a few
+    millimetres out is still a surface.
+    """
+    out_faces, out_groups = [], []
+    for face, group in zip(faces, groups):
+        if len(face) > 3:
+            points = vertices[face]
+            _, normal, centroid = _polygon_area_and_centroid(points)
+            if np.max(np.abs((points - centroid) @ normal)) > _MERGE_TOLERANCE:
+                for k in range(1, len(face) - 1):
+                    out_faces.append([face[0], face[k], face[k + 1]])
+                    out_groups.append(group)
+                continue
+        out_faces.append(face)
+        out_groups.append(group)
+    return out_faces, out_groups
+
+
+def _orient(vertices: np.ndarray, faces, tolerance: float = WELD_TOLERANCE):
     """Flip flags that make every shared segment run opposite ways.
 
     Surfaces drawn as separate objects have no common winding, so each face's
@@ -202,7 +241,7 @@ def _orient(vertices: np.ndarray, faces):
     surface, and ``defect`` is ``None`` when every segment is shared by exactly
     two faces that can be made to agree, else such a segment ``(a, b)``.
     """
-    segments = [_segments(vertices, face) for face in faces]
+    segments = [_segments(vertices, face, tolerance) for face in faces]
     directed = [set(segs) for segs in segments]
     users: Dict[frozenset, List[int]] = {}
     for index, segs in enumerate(segments):
@@ -237,7 +276,7 @@ def _orient(vertices: np.ndarray, faces):
     return flips, component, None
 
 
-def _orient_outward(vertices: np.ndarray, faces):
+def _orient_outward(vertices: np.ndarray, faces, tolerance: float = WELD_TOLERANCE):
     """Boundary faces wound consistently, their largest volume facing out.
 
     pyroomacoustics needs normals pointing out of the air and drops image
@@ -245,7 +284,7 @@ def _orient_outward(vertices: np.ndarray, faces):
     the air from outside, so it is wound into itself. Returns ``(faces,
     defect)``; on a defect the faces come back as drawn.
     """
-    flips, component, defect = _orient(vertices, faces)
+    flips, component, defect = _orient(vertices, faces, tolerance)
     if defect is not None:
         return [list(f) for f in faces], defect
     oriented = [list(f)[::-1] if flip else list(f) for f, flip in zip(faces, flips)]
@@ -286,7 +325,7 @@ class RoomGeometry:
     mergeable_faces: int = 0
 
     @classmethod
-    def from_scene(cls, scene, merge_coplanar: bool = True, weld_tolerance: float = 1e-6) -> RoomGeometry:
+    def from_scene(cls, scene, merge_coplanar: bool = True, weld_tolerance: float = WELD_TOLERANCE) -> RoomGeometry:
         """Collect, weld, orient and validate every surface of ``scene``.
 
         Boundary faces that close a volume are wound outward. Boundary faces
@@ -318,7 +357,7 @@ class RoomGeometry:
 
     @classmethod
     def from_mesh(cls, vertices, faces, face_materials, materials, obstacles=(),
-                  merge_coplanar: bool = False, weld_tolerance: float = 1e-6) -> RoomGeometry:
+                  merge_coplanar: bool = False, weld_tolerance: float = WELD_TOLERANCE) -> RoomGeometry:
         """A room from shared vertices and faces, as upstream ``MeshGeometry``.
 
         ``materials`` maps names to :class:`SurfaceMaterial`; faces whose
@@ -348,6 +387,27 @@ class RoomGeometry:
             faces.append([int(i) for i in inverse[start:start + len(polygon)]])
             start += len(polygon)
 
+        extent = float(np.ptp(vertices, axis=0).max())
+        if extent > UNIT_WARNING_EXTENT:
+            warnings.warn(
+                f"The model is {extent:g} units across. Coordinates are read as metres; a model drawn in millimetres "
+                "needs scaling by 0.001 first.",
+                UserWarning,
+                stacklevel=3,
+            )
+
+        faces, groups, collapsed = _without_collapsed(faces, groups)
+        if collapsed:
+            warnings.warn(
+                f"{collapsed} faces collapsed to a line or a point when vertices within {weld_tolerance:g} m were "
+                "welded, and were dropped.",
+                UserWarning,
+                stacklevel=3,
+            )
+        if not faces:
+            raise ValueError("Every face of the scene collapsed when its vertices were welded; check the model's units.")
+        faces, groups = _triangulated_where_warped(vertices, faces, groups)
+
         mergeable = 0
         if merge_coplanar:
             faces, groups = _merged(vertices, faces, groups)
@@ -366,7 +426,7 @@ class RoomGeometry:
         defect = None
         oriented = [faces[i] for i in boundary]
         if boundary:
-            oriented, defect = _orient_outward(vertices, oriented)
+            oriented, defect = _orient_outward(vertices, oriented, weld_tolerance)
         is_closed = bool(boundary) and defect is None
         open_edge = None
         if not is_closed:
@@ -426,29 +486,62 @@ class RoomGeometry:
 
     @property
     def volume(self) -> float:
-        """The air volume, obstacles excluded. Defined only for a closed room."""
+        """The air volume: the boundary's, less the volume each closed obstacle encloses. Defined only for a closed room."""
         if not self.is_closed:
             raise ValueError("The room volume is undefined: the boundary surfaces do not close a volume.")
-        return _signed_volume(
-            self.vertices, [f for f, role in zip(self.faces, self.face_roles) if role == 'boundary']
+        boundary = [f for f, role in zip(self.faces, self.face_roles) if role == 'boundary']
+        drawn = self._drawn_vertices
+        enclosed = 0.0
+        for faces in self._closed_obstacles.values():
+            flips = _orient(drawn, faces)[0]
+            wound = [list(f)[::-1] if flip else list(f) for f, flip in zip(faces, flips)]
+            enclosed += abs(_signed_volume(drawn, wound))
+        return _signed_volume(self.vertices, boundary) - enclosed
+
+    def _exposed_faces(self) -> List[int]:
+        """Indices into ``faces`` of the faces the air touches.
+
+        The boundary faces; of an obstacle that closes a volume (a cabinet) its
+        front copies only, since the back copies face its inside; of any other
+        obstacle (a panel) both copies. An obstacle copy lying on a boundary
+        face (a cabinet's base on the floor) is not exposed, and the boundary
+        under a standing obstacle stays counted.
+        """
+        boundary = [i for i, role in enumerate(self.face_roles) if role == 'boundary']
+        count = len(self.obstacle_faces)
+        first = len(boundary)
+        closed = set(self._closed_obstacles)
+        copies = [first + k for k in range(count)]
+        copies += [first + count + k for k in range(count) if self.face_names[first + k] not in closed]
+        if not copies:
+            return boundary
+        geometry = self._face_geometry()
+        on_boundary = _lying_on(
+            np.array([geometry[i][2] for i in copies]),
+            [(self.vertices[list(self.faces[i])], geometry[i][1], geometry[i][2]) for i in boundary],
         )
+        return boundary + [i for i, lying in zip(copies, on_boundary) if not lying]
 
     @property
     def surfaces(self) -> List[Tuple[float, SurfaceMaterial]]:
-        """``(area, material)`` per material, both sides of an obstacle counted, as upstream ``MeshGeometry``."""
+        """``(area, material)`` per material over the faces exposed to the air (see :meth:`_exposed_faces`)."""
+        geometry = self._face_geometry()
         areas: Dict[str, float] = {}
-        for (area, _, _), name in zip(self._face_geometry(), self.face_materials):
-            areas[name] = areas.get(name, 0.0) + area
+        for i in self._exposed_faces():
+            name = self.face_materials[i]
+            areas[name] = areas.get(name, 0.0) + geometry[i][0]
         return [(areas[name], self.materials[name]) for name in areas]
 
     @property
     def surface_area(self) -> float:
-        """Total area of every face, both sides of an obstacle counted."""
-        return float(sum(area for area, _, _ in self._face_geometry()))
+        """Total area exposed to the air: Sabine's and Eyring's ``S``, and the ``S`` of the mean free path ``4 V / S``."""
+        geometry = self._face_geometry()
+        return float(sum(geometry[i][0] for i in self._exposed_faces()))
 
     def area_normals(self) -> np.ndarray:
-        """Every face's unit normal scaled by its area, shape (n_faces, 3)."""
-        return np.array([area * normal for area, normal, _ in self._face_geometry()])
+        """The unit normal of every exposed face scaled by its area, shape (n_exposed, 3); the boundary faces come first."""
+        geometry = self._face_geometry()
+        return np.array([geometry[i][0] * geometry[i][1] for i in self._exposed_faces()]).reshape(-1, 3)
 
     def faces_with_materials(self) -> List[Tuple[np.ndarray, str]]:
         """Every face as ``(vertices (k, 3), material name)``, obstacle copies included."""
@@ -470,17 +563,28 @@ class RoomGeometry:
         return not any(abs(_winding_number(point, triangles)) > 0.5 for triangles in self._triangles["obstacles"])
 
     @cached_property
-    def _triangles(self) -> Dict[str, object]:
-        """Fan triangles ``(n, 3, 3)`` of the boundary, and of each obstacle object that closes a volume."""
-        boundary = [f for f, role in zip(self.faces, self.face_roles) if role == 'boundary']
-        first = len(boundary)  # the front copies of the obstacle faces follow, in obstacle_faces order
+    def _drawn_vertices(self) -> np.ndarray:
+        """The vertices without the obstacle copies, which sit ``OBSTACLE_OFFSET`` from the drawn faces, the weld tolerance."""
+        first = sum(1 for role in self.face_roles if role == 'boundary')
+        # obstacle copies are appended after the welded vertices, so they are the tail of self.vertices
+        return self.vertices[:min(self.faces[first])] if self.obstacle_faces else self.vertices
+
+    @cached_property
+    def _closed_obstacles(self) -> Dict[str, List[Tuple[int, ...]]]:
+        """The drawn faces of each obstacle object whose faces close a volume, by object name."""
+        first = sum(1 for role in self.face_roles if role == 'boundary')  # the front copies follow, in obstacle_faces order
         by_object: Dict[str, List[Tuple[int, ...]]] = {}
         for k, face in enumerate(self.obstacle_faces):
             by_object.setdefault(self.face_names[first + k], []).append(face)
-        closed = [faces for faces in by_object.values() if _orient(self.vertices, faces)[2] is None]
+        return {name: faces for name, faces in by_object.items() if _orient(self._drawn_vertices, faces)[2] is None}
+
+    @cached_property
+    def _triangles(self) -> Dict[str, object]:
+        """Fan triangles ``(n, 3, 3)`` of the boundary, and of each obstacle object that closes a volume."""
+        boundary = [f for f, role in zip(self.faces, self.face_roles) if role == 'boundary']
         return {
             "boundary": _fan_triangles(self.vertices, boundary),
-            "obstacles": [_fan_triangles(self.vertices, faces) for faces in closed],
+            "obstacles": [_fan_triangles(self.vertices, faces) for faces in self._closed_obstacles.values()],
         }
 
     def without_obstacles(self) -> RoomGeometry:
@@ -553,14 +657,19 @@ class RoomGeometry:
                 if enclosure_only and role == 'obstacle':
                     continue
                 absorption, scattering = coefficients[material]
-                walls.append(
-                    pra.wall_factory(
+                try:
+                    wall = pra.wall_factory(
                         self.vertices[list(face)].T,
                         absorption,
                         scattering,
                         name=f"{face_name}_{index}",
                     )
-                )
+                except Exception as error:  # pyroomacoustics raises RuntimeError for corners off a plane
+                    raise ValueError(
+                        f"pyroomacoustics cannot build a wall from face {index} of '{face_name}' "
+                        f"({len(face)} corners): {error}"
+                    ) from error
+                walls.append(wall)
             try:
                 room = pra.Room(
                     walls,
@@ -702,6 +811,37 @@ def _merge_coplanar(
 
     keep = [i for i in range(len(faces)) if alive[i]]
     return [faces[i] for i in keep], [names[i] for i in keep]
+
+
+def _lying_on(points: np.ndarray, polygons) -> List[bool]:
+    """Whether each point is within ``2 * OBSTACLE_OFFSET`` of a polygon's plane and inside the polygon.
+
+    ``polygons`` are ``(corners (k, 3), unit normal, centroid)``. The test inside is an even-odd
+    crossing count in the polygon's plane.
+    """
+    if not polygons:
+        return [False] * len(points)
+    normals = np.array([normal for _, normal, _ in polygons])
+    centroids = np.array([centroid for _, _, centroid in polygons])
+    near = np.abs(np.einsum("pfk,fk->pf", points[:, None, :] - centroids[None], normals)) < 2.0 * OBSTACLE_OFFSET
+    lying = []
+    for p, candidates in zip(points, near):
+        found = False
+        for j in np.flatnonzero(candidates):
+            corners, normal, _ = polygons[j]
+            u = corners[1] - corners[0]
+            u = (u - (u @ normal) * normal) / np.linalg.norm(u - (u @ normal) * normal)
+            v = np.cross(normal, u)
+            x, y = (corners - p) @ u, (corners - p) @ v
+            x2, y2 = np.roll(x, -1), np.roll(y, -1)
+            straddles = (y > 0.0) != (y2 > 0.0)
+            with np.errstate(divide="ignore", invalid="ignore"):
+                crossing = x + (0.0 - y) * (x2 - x) / (y2 - y)
+            if int(np.count_nonzero(straddles & (crossing > 0.0))) % 2 == 1:
+                found = True
+                break
+        lying.append(found)
+    return lying
 
 
 def _fan_triangles(vertices: np.ndarray, faces) -> np.ndarray:

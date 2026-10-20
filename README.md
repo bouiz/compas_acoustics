@@ -72,7 +72,7 @@ scene.add_source(ca.Source("talker", 2, 2, 1.6))
 scene.add_receiver(ca.Receiver("listener", 6, 4, 1.2, direction=[-1, -0.5, 0]))
 
 mono = scene.simulate(ca.Pyroomacoustics(ray_tracing=True))   # image sources + ray tracing
-ambisonic = scene.simulate(ca.Hybrid())                        # first-order ambisonics; needs Python >= 3.11
+binaural = scene.simulate(ca.Hybrid())                         # binaural; output="ambisonic" for ambisonics; needs Python >= 3.11
 ```
 
 `examples/office_hybrid.py` runs both methods on an office, with reverberation times and an auralisation. The Grasshopper components are in

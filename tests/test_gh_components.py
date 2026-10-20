@@ -463,6 +463,38 @@ def test_auralise_shows_the_warnings_of_building_the_auraliser(monkeypatch, tmp_
     assert any(level == "warning" and "resampled to 48000 Hz" in text for level, text in messages)
 
 
+def test_auralise_convolves_a_binaural_response_as_it_is(monkeypatch, tmp_path):
+    import soundfile as sf
+
+    from compas_acoustics import ImpulseResponse
+
+    module, messages = load_component("CA_Auralise", monkeypatch, levels=True)
+    path = tmp_path / "speech.wav"
+    sf.write(str(path), np.random.default_rng(1).normal(size=4800) * 0.1, 48000)
+    ir = np.zeros((480, 2))
+    ir[10] = [1.0, 0.5]
+    response = ImpulseResponse("b", Source("s", 1, 1, 1, sound_file=str(path)), Receiver("rec", 5, 3, 1.5), ir, 48000,
+                               generation={"method": "hybrid", "output": "binaural"})
+    signals, _ = module.Auralise().RunScript(FakeTree({(0,): [response]}), None, "binaural", None, "relative", True, None, None, None)
+    (signal,) = signals.branches[(0,)]
+    assert signal.shape[1] == 2 and np.all(np.isfinite(signal)) and not any(level == "error" for level, _ in messages)
+    np.testing.assert_allclose(signal[10 : 10 + 4800, 1] / signal[10 : 10 + 4800, 0], 0.5, atol=1e-9)
+
+
+def test_auralise_reports_a_binaural_response_in_a_stereo_format_as_an_error(monkeypatch, tmp_path):
+    import soundfile as sf
+
+    from compas_acoustics import ImpulseResponse
+
+    module, messages = load_component("CA_Auralise", monkeypatch, levels=True)
+    path = tmp_path / "speech.wav"
+    sf.write(str(path), np.random.default_rng(1).normal(size=4800) * 0.1, 48000)
+    response = ImpulseResponse("b", Source("s", 1, 1, 1, sound_file=str(path)), Receiver("rec", 5, 3, 1.5), np.ones((480, 2)), 48000,
+                               generation={"method": "hybrid", "output": "binaural"})
+    result = module.Auralise().RunScript(FakeTree({(0,): [response]}), None, "stereo", None, "relative", True, None, None, None)
+    assert result == (None, None)
+    assert ("error", "Impulse response source_0 is binaural; it plays only with output_format='binaural'.") in messages
+
 # --------------------------------------------------------------- Value lists --
 class FakeParam:
     def __init__(self, name, sources=0):
@@ -571,7 +603,7 @@ def fake_hybrid(monkeypatch, warn=None):
 
 def run_hybrid(module, s, **inputs):
     inputs.setdefault("run", True)
-    names = ("tail", "reference", "sh_order", "ism_order", "diffraction", "late_envelope", "seed", "normalize", "run")
+    names = ("tail", "reference", "sh_order", "ism_order", "diffraction", "late_envelope", "seed", "normalize", "output", "hrtf", "run")
     return module.SimulateHybrid().RunScript(s, *(inputs.get(n) for n in names))
 
 
@@ -596,10 +628,24 @@ def test_simulate_hybrid_without_the_extra_runs_in_a_configured_worker(monkeypat
 
     monkeypatch.setattr(worker, "simulate", simulate)
     s = scene()
-    graph = run_hybrid(module, s, tail="eyring")
-    assert (graph.graph, graph.method) == (s.ir_graph, "hybrid")
+    binaural, ambisonic = run_hybrid(module, s, tail="eyring")
+    assert (binaural.graph, binaural.method, ambisonic) == (s.ir_graph, "hybrid_binaural", None)
     assert calls == [("hybrid", {"tail": "eyring"}, None)]
     assert ("warning", "a warning from the worker") in messages
+
+
+def test_the_worker_gets_the_requested_outputs_and_hrtf(monkeypatch):
+    from compas_acoustics import worker
+
+    module, _ = load_component("CA_Simulate_Hybrid", monkeypatch, levels=True)
+    monkeypatch.setitem(sys.modules, "compas_acoustics.simulation_methods.hybrid", None)
+    monkeypatch.setattr(worker, "worker_python", lambda: "/a/worker/python")
+    calls = []
+    monkeypatch.setattr(worker, "simulate", lambda scene, method, settings, references: calls.append(settings) or ({}, []))
+    s = scene()
+    binaural, ambisonic = run_hybrid(module, s, output="both", hrtf="kemar")
+    assert (binaural.method, ambisonic.method) == ("hybrid_binaural", "hybrid")
+    assert calls == [{"output": ["ambisonic", "binaural"], "hrtf": "kemar"}]
 
 
 @needs_hybrid
@@ -608,32 +654,59 @@ def test_the_hybrid_runs_only_when_run_is_pressed(monkeypatch):
     calls = fake_hybrid(monkeypatch)
     s = scene()
     for run in (None, False):
-        graph = run_hybrid(module, s, run=run)
-        assert (graph.graph, graph.method) == (s.ir_graph, "hybrid")
+        binaural, ambisonic = run_hybrid(module, s, run=run)
+        assert (binaural.graph, binaural.method, ambisonic) == (s.ir_graph, "hybrid_binaural", None)
     assert calls == [] and module.ghenv.Component.Message == "press Run"
     assert not messages
     run_hybrid(module, s, run=True)
     assert calls == [{}]
 
 
-def hybrid_graph(**generation):
+def hybrid_graph(attributes=("hybrid_binaural",), **generation):
     from compas_acoustics import ImpulseResponse
 
     s = scene()
     source, receiver = s.sources[0], s.receivers[0]
     last = dict(method="hybrid", tail="ray_tracing", sh_order=1, image_source_order=2, diffraction="udfa", **generation)
-    s.populate_ir_graph([ImpulseResponse("a", source, receiver, np.ones((4, 4)), 48000, ambisonic_order=1, normalization="sn3d",
-                                         channel_order="acn", generation=last)], attribute="hybrid")
+    for attribute in attributes:
+        s.populate_ir_graph([ImpulseResponse("a", source, receiver, np.ones((4, 4)), 48000, ambisonic_order=1, normalization="sn3d",
+                                             channel_order="acn", generation=last)], attribute=attribute)
     return s
 
 
 def test_the_hybrid_says_done_when_not_running_after_a_result(monkeypatch):
     module, messages = load_component("CA_Simulate_Hybrid", monkeypatch)
-    s = hybrid_graph()
+    s = hybrid_graph(attributes=("hybrid_binaural", "hybrid"))
     for inputs in ({}, {"tail": "auto"}, {"tail": "ray_tracing", "sh_order": 1, "ism_order": 2, "diffraction": "udfa"}, {"diffraction": True}):
-        assert run_hybrid(module, s, run=False, **inputs).graph is s.ir_graph
+        assert run_hybrid(module, s, run=False, **inputs)[0].graph is s.ir_graph
         assert module.ghenv.Component.Message == "done, 1 IR, tail: ray_tracing, order 1 (Run to redo)", inputs
     assert not messages
+
+
+def test_the_hybrid_status_counts_the_responses_of_the_requested_outputs(monkeypatch):
+    module, _ = load_component("CA_Simulate_Hybrid", monkeypatch)
+    s = hybrid_graph(attributes=("hybrid", "hybrid_binaural"))
+    for output, count in (("ambisonic", "1 IR"), ("binaural", "1 IR"), ("both", "2 IRs")):
+        run_hybrid(module, s, run=False, output=output)
+        assert module.ghenv.Component.Message == "done, {}, tail: ray_tracing, order 1 (Run to redo)".format(count), output
+
+
+def test_the_hybrid_says_when_a_requested_output_has_no_responses_yet(monkeypatch):
+    module, _ = load_component("CA_Simulate_Hybrid", monkeypatch)
+    s = hybrid_graph(attributes=("hybrid",))
+    run_hybrid(module, s, run=False, output="binaural")
+    assert module.ghenv.Component.Message == "press Run"
+    run_hybrid(module, s, run=False, output="both")
+    assert module.ghenv.Component.Message == "settings changed, press Run (tail: ray_tracing, order 1)"
+
+
+def test_the_hybrid_outputs_are_the_requested_formats_only(monkeypatch):
+    module, _ = load_component("CA_Simulate_Hybrid", monkeypatch)
+    s = scene()
+    for output, expected in (("binaural", ("hybrid_binaural", None)), ("ambisonic", (None, "hybrid")), ("both", ("hybrid_binaural", "hybrid")),
+                             (None, ("hybrid_binaural", None))):
+        result = run_hybrid(module, s, run=False, output=output)
+        assert tuple(r and r.method for r in result) == expected, output
 
 
 def test_the_hybrid_says_when_the_settings_changed_since_the_last_result(monkeypatch):
@@ -652,14 +725,15 @@ def test_the_hybrid_inputs_match_its_script_with_run_last(monkeypatch):
     metadata = json.loads((COMPONENTS / "CA_Simulate_Hybrid" / "metadata.json").read_text())
     names = [p["name"] for p in metadata["ghpython"]["inputParameters"]]
     assert list(inspect.signature(module.SimulateHybrid.RunScript).parameters)[1:] == names
-    assert names[0] == "scene" and names[-1] == "run"
+    assert names[0] == "scene" and names[-1] == "run" and names[-3:-1] == ["output", "hrtf"]
+    assert [p["name"] for p in metadata["ghpython"]["outputParameters"]] == ["binaural", "ambisonic"]
 
 
 def test_not_running_does_not_need_the_hybrid_extra(monkeypatch):
     module, messages = load_component("CA_Simulate_Hybrid", monkeypatch, levels=True)
     monkeypatch.setitem(sys.modules, "compas_acoustics.simulation_methods.hybrid", None)
     s = scene()
-    assert run_hybrid(module, s, run=False).graph is s.ir_graph
+    assert run_hybrid(module, s, run=False)[0].graph is s.ir_graph
     assert not messages
 
 
@@ -671,6 +745,23 @@ def test_the_hybrid_component_passes_only_given_inputs(monkeypatch):
     run_hybrid(module, scene(), tail="eyring", diffraction="btms", sh_order=2)
     assert calls == [{}, {"tail": "eyring", "diffraction": "btms", "sh_order": 2}]
     assert "tail: eyring" in module.ghenv.Component.Message
+    run_hybrid(module, scene(), output="both", hrtf="kemar")
+    run_hybrid(module, scene(), output="ambisonic", hrtf="kemar")
+    run_hybrid(module, scene(), output="binaural", hrtf="/a/set.sofa")
+    assert calls[2:] == [{"output": ["ambisonic", "binaural"], "hrtf": "kemar"}, {"output": "ambisonic"},
+                         {"output": "binaural", "hrtf": "/a/set.sofa"}]
+
+
+@needs_hybrid
+def test_a_local_run_fills_the_graph_of_each_requested_output(monkeypatch):
+    module, messages = load_component("CA_Simulate_Hybrid", monkeypatch, levels=True)
+    s = scene()
+    binaural, ambisonic = run_hybrid(module, s, tail="eyring", sh_order=1, ism_order=1, output="both")
+    assert not [m for m in messages if m[0] == "error"]
+    assert [ir.n_channels for ir in s.impulse_responses(binaural.method).values()] == [2]
+    assert [ir.n_channels for ir in s.impulse_responses(ambisonic.method).values()] == [4]
+    binaural, ambisonic = run_hybrid(module, s, tail="eyring", sh_order=1, ism_order=1, output="ambisonic", hrtf="kemar")
+    assert binaural is None and ambisonic.method == "hybrid"
 
 
 @needs_hybrid

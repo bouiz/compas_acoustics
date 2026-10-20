@@ -3,7 +3,7 @@
     "nickname": "SimHybrid",
     "category": "COMPAS Acoustics",
     "subcategory": "02 Simulation",
-    "description": "Simulate hybrid ambisonic impulse responses: image sources, optional edge diffraction around obstacles and at the edges of the room's boundary that open wider than 180 deg, and a directional feedback delay network tail. Needs Python >= 3.11 (in Rhino 8: the worker) and a closed room. Writes the responses to the impulse response graph under 'hybrid'.",
+    "description": "Simulate hybrid impulse responses, binaural and/or ambisonic from one run: image sources, optional edge diffraction around obstacles and at the edges of the room's boundary that open wider than 180 deg, and a directional feedback delay network tail. Needs Python >= 3.11 (in Rhino 8: the worker) and a closed room. Writes the responses to the impulse response graph under 'hybrid_binaural' and 'hybrid'.",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,
@@ -73,6 +73,20 @@
                 "typeHintID": "bool"
             },
             {
+                "name": "output",
+                "description": "The formats rendered from one run: binaural (default), ambisonic, or both. A value list is added when it is not connected.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "str"
+            },
+            {
+                "name": "hrtf",
+                "description": "HRTF set of the binaural format: kemar (default) or the path of a .sofa file. Not used by ambisonic.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "str"
+            },
+            {
                 "name": "run",
                 "description": "Press to simulate. The hybrid takes seconds to minutes and Grasshopper recomputes on every upstream change, so it runs only when this is true; a button is added when it is not connected. Without it, the responses already on the scene's graph are passed on.",
                 "optional": true,
@@ -82,8 +96,12 @@
         ],
         "outputParameters": [
             {
-                "name": "ir_graph",
-                "description": "Impulse response graph structure."
+                "name": "binaural",
+                "description": "Impulse response graph of the binaural responses (under 'hybrid_binaural'); None unless output is binaural or both."
+            },
+            {
+                "name": "ambisonic",
+                "description": "Impulse response graph of the ambisonic responses (under 'hybrid'); None unless output is ambisonic or both."
             }
         ]
     }

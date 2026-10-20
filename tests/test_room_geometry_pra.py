@@ -190,3 +190,34 @@ def test_without_a_medium_the_room_is_in_the_default_medium():
     assert room.c == pytest.approx(AirConditions().speed_of_sound)
     centres = [float(f) for f in room.octave_bands.centers]
     np.testing.assert_allclose(room.air_absorption, AirConditions().air_attenuation(centres), rtol=1e-12)
+
+
+def test_a_warped_wall_simulates():
+    from compas_acoustics import Receiver
+    from compas_acoustics import Source
+    from compas_acoustics.simulation_methods import Pyroomacoustics
+
+    scene = Scene("warped")
+    for obj in AcousticObjectsLibrary.shoebox_room(7, 5, 3, materials=WALL):
+        mesh = obj.acoustic_geometry
+        face = next(iter(mesh.faces()))
+        corners = [np.add(mesh.vertex_coordinates(v), [0, 0, 2e-3]) if np.allclose(mesh.vertex_coordinates(v), [0, 0, 3])
+                   else mesh.vertex_coordinates(v) for v in mesh.face_vertices(face)]
+        mesh = Mesh.from_vertices_and_faces([list(map(float, c)) for c in corners], [[0, 1, 2, 3]])
+        scene.add_acoustic_object(AcousticObject(mesh, WALL, name=obj.name))
+    scene.add_source(Source("s", 1.5, 1.5, 1.6))
+    scene.add_receiver(Receiver("r", 4.0, 2.0, 1.5))
+    rirs = scene.simulate(Pyroomacoustics(ray_tracing=False, image_source_order=2))
+    assert len(rirs) == 1
+
+
+def test_wall_factory_errors_are_value_errors(monkeypatch):
+    def broken(*args, **kwargs):
+        raise RuntimeError("corners are not coplanar")
+
+    g = geometry()
+    monkeypatch.setattr(pra, "wall_factory", broken)
+    with pytest.raises(ValueError, match="face 0") as raised:
+        g.to_pra(48000, 1)
+    assert "corners are not coplanar" in str(raised.value)
+    assert pra.constants.get("octave_bands_base_freq") == 125.0

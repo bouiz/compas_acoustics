@@ -24,7 +24,8 @@ from compas_acoustics.room_geometry import SurfaceMaterial
 
 FS = 48000
 WALL = AcousticMaterial("wall", 0.2, 0.1)
-FAST = dict(image_source_order=2, duration=0.5)
+# These tests read the ambisonic output; the binaural one is tested in test_hybrid_outputs.py and test_binaural.py
+FAST = dict(image_source_order=2, duration=0.5, output="ambisonic")
 FAST_RT = dict(image_source_order=3, n_rays=2000, duration=1.0, seed=1)
 
 
@@ -291,7 +292,7 @@ def test_diffraction_and_the_late_envelope_run():
 @pytest.mark.slow
 def test_the_w_channel_decays_at_the_target_rate():
     scene = make()
-    hybrid = Hybrid(references(scene, n_rays=20000), sh_order=1, image_source_order=3)
+    hybrid = Hybrid(references(scene, n_rays=20000), sh_order=1, image_source_order=3, output="ambisonic")
     ((key, ir),) = scene.simulate(hybrid).items()
     rt_w = np.asarray(pyFDN.estimate_rt_bands(ir.denormalized()[:, 0], FS)[0])
     target = hybrid.results[key].target.rt[:, 0]
@@ -472,7 +473,7 @@ def test_the_late_level_matches_an_exact_specular_room(dims, alpha, src, rec):
 
     levels = []
     for seed in range(4):
-        (ir,) = scene.simulate(Hybrid(reference=reference, seed=seed)).values()
+        (ir,) = scene.simulate(Hybrid(reference=reference, seed=seed, output="ambisonic")).values()
         start = ir.direct_sound_index() + int(0.08 * FS)
         levels.append(10 * np.log10(late_energy(ir.denormalized()[:, 0], start) / late_energy(exact, start)))
     assert np.mean(levels) == pytest.approx(0.0, abs=2.0)
@@ -548,10 +549,12 @@ s = ca.Scene("b")
 s.add_acoustic_objects(ca.AcousticObjectsLibrary.shoebox_room(6, 4, 3, materials=ca.AcousticMaterial("w", 0.2, 0.1)))
 s.add_source(ca.Source("s", 1.5, 1.5, 1.6))
 s.add_receiver(ca.Receiver("r", 4.5, 2.5, 1.2))
-(ir,) = s.simulate(Hybrid(tail="eyring", image_source_order=1, diffraction="udfa")).values()
+(ir,) = s.simulate(Hybrid(tail="eyring", image_source_order=1, diffraction="udfa", output=["ambisonic", "binaural"])).values()
+(binaural,) = s.impulse_responses("hybrid_binaural").values()
+print(binaural.n_channels)
 print(ir.n_channels)
 """
     result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, env=dict(os.environ), timeout=600)
     assert result.returncode == 0, result.stderr[-2000:]
-    assert result.stdout.strip().splitlines()[-1] == "4"
+    assert result.stdout.strip().splitlines()[-2:] == ["2", "4"]
 

@@ -54,7 +54,9 @@ in six furnished offices against Odeon, not taken from a reference:
   8 kHz gain.
 
 Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, src/envelope.py).
-No changes.
+``shape_late`` takes the W channels apart from the signals it shapes, so that
+it shapes the delay lines, from which both outputs are rendered; the gains are
+upstream's.
 """
 
 from __future__ import annotations
@@ -162,20 +164,23 @@ def envelope_gains(
 
 
 def shape_late(
-    late: np.ndarray, early: np.ndarray, reference: np.ndarray, fs: float
+    signals: np.ndarray, early_w: np.ndarray, late_w: np.ndarray, reference: np.ndarray, fs: float
 ) -> np.ndarray:
-    """The late field with the reference's envelope imposed, same shape as ``late``.
+    """``signals`` with the reference's envelope imposed, same shape as ``signals``.
 
-    ``late`` and ``early`` are the hybrid's parts, (n, C) with W first;
-    ``reference`` is (n,) on the same scale. Warns if the two disagree by more
-    than ``SCALE_WARN_DB`` over the first 50 ms, which means the reference is
-    on another scale (normalized, or with a different source level).
+    ``signals`` are the late field's parts, (n,) or (n, K): its ambisonic
+    channels, or the network's lines, whose sum through ``C`` is ``late_w``.
+    ``early_w`` and ``late_w`` are the W channels of the hybrid's two parts,
+    (n,); ``reference`` is (n,) on the same scale. The gains of
+    :func:`envelope_gains` go on every column alike. Warns if ``early_w +
+    late_w`` and the reference disagree by more than ``SCALE_WARN_DB`` over the
+    first 50 ms, which means the reference is on another scale (normalized, or
+    with a different source level).
     """
-    late = np.asarray(late, dtype=float)
-    early = np.asarray(early, dtype=float)
+    signals = np.asarray(signals, dtype=float)
+    early_w = np.asarray(early_w, dtype=float).ravel()
+    late_w = np.asarray(late_w, dtype=float).ravel()
     reference = np.asarray(reference, dtype=float).ravel()
-    late_w = late.reshape(late.shape[0], -1)[:, 0]
-    early_w = early.reshape(early.shape[0], -1)[:, 0]
 
     hybrid_w = early_w + late_w
     loud = np.flatnonzero(np.abs(hybrid_w) > 1e-3 * np.abs(hybrid_w).max())
@@ -195,7 +200,7 @@ def shape_late(
             )
 
     gains = envelope_gains(reference, early_w, late_w, fs)
-    bands = octave_band_split(late, fs)
-    if late.ndim == 1:
+    bands = octave_band_split(signals, fs)
+    if signals.ndim == 1:
         return np.einsum("bn,bn->n", gains, bands)
     return np.einsum("bn,bnc->nc", gains, bands)
