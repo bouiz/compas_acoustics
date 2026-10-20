@@ -161,6 +161,17 @@ def test_the_source_component_takes_position_name_direction_directivity_sound_fi
     assert not messages
 
 
+def test_the_auralise_inputs_go_sound_rendering_then_saving(monkeypatch):
+    import inspect
+    import json
+
+    module, _ = load_component("CA_Auralise", monkeypatch)
+    metadata = json.loads((COMPONENTS / "CA_Auralise" / "metadata.json").read_text())["ghpython"]
+    names = [p["name"] for p in metadata["inputParameters"]]
+    assert names == ["irs", "signals", "output_format", "hrtf", "level", "multiconvolve", "save_file_path", "save_file_name", "save"]
+    assert list(inspect.signature(module.Auralise.RunScript).parameters)[1:] == names
+
+
 def test_the_receiver_component_defaults_to_room_aligned(monkeypatch):
     module, _ = load_component("CA_Receiver", monkeypatch)
     receiver, orientation = module.CreateReceiver().RunScript((1.0, 2.0, 1.5), "r", None, None, None)

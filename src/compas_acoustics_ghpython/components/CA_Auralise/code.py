@@ -21,7 +21,7 @@ HRTFS = {
 
 class Auralise(Grasshopper.Kernel.GH_ScriptInstance):
 
-    def RunScript(self, irs, signals, multiconvolve, save_file_path, save_file_name, save, output_format, hrtf, level):
+    def RunScript(self, irs, signals, output_format, hrtf, level, multiconvolve, save_file_path, save_file_name, save):
         ensure_inputs(ghenv.Component, {"output_format": OUTPUT_FORMATS, "hrtf": list(HRTFS), "level": LEVELS})
 
         if irs is None:

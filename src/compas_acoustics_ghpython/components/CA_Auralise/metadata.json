@@ -24,6 +24,27 @@
                 "typeHintID": "ghdoc"
             },
             {
+                "name": "output_format",
+                "description": "Output format: 'stereo' (default, loudspeakers), 'binaural' (headphones, needs ambisonic impulse responses), 'mono', or 'ambisonics' (needs ambisonic impulse responses; multichannel file only, cannot be played). Mono impulse responses give mono or stereo (the same on both channels); the others are an error on the component.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "str"
+            },
+            {
+                "name": "hrtf",
+                "description": "HRTF set for binaural output: 'kemar' (default), or the path to a .sofa file.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "str"
+            },
+            {
+                "name": "level",
+                "description": "Output level: 'relative' (default) applies one gain to all signals of this run so the loudest peaks at -1 dBFS, keeping distance and level differences; 'individual' brings each signal to -1 dBFS; 'none' keeps the raw level and may clip.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "str"
+            },
+            {
                 "name": "multiconvolve",
                 "description": "Whether to convolve multiple signals with multiple impulse responses. If False, it will convolve each signal with the corresponding impulse response.",
                 "optional": true,
@@ -50,27 +71,6 @@
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "bool"
-            },
-            {
-                "name": "output_format",
-                "description": "Output format: 'stereo' (default, loudspeakers), 'binaural' (headphones, needs ambisonic impulse responses), 'mono', or 'ambisonics' (needs ambisonic impulse responses; multichannel file only, cannot be played). Mono impulse responses give mono or stereo (the same on both channels); the others are an error on the component.",
-                "optional": true,
-                "scriptParamAccess": 0,
-                "typeHintID": "str"
-            },
-            {
-                "name": "hrtf",
-                "description": "HRTF set for binaural output: 'kemar' (default), or the path to a .sofa file.",
-                "optional": true,
-                "scriptParamAccess": 0,
-                "typeHintID": "str"
-            },
-            {
-                "name": "level",
-                "description": "Output level: 'relative' (default) applies one gain to all signals of this run so the loudest peaks at -1 dBFS, keeping distance and level differences; 'individual' brings each signal to -1 dBFS; 'none' keeps the raw level and may clip.",
-                "optional": true,
-                "scriptParamAccess": 0,
-                "typeHintID": "str"
             }
         ],
         "outputParameters": [
