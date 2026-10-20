@@ -407,6 +407,62 @@ def test_the_audio_player_shows_a_failure_as_an_error_and_a_clipping_warning(mon
     assert ("warning", "The sound array peaks at +6.0 dBFS and will clip.") in messages
 
 
+def test_the_audio_player_says_which_rate_an_array_without_one_is_played_at(monkeypatch, tmp_path):
+    import soundfile as sf
+
+    from compas_acoustics import AudioPlayer
+
+    module, messages = load_component("CA_Audio_Player", monkeypatch, levels=True)
+    monkeypatch.setattr("platform.system", lambda: "Darwin")
+    monkeypatch.setattr(AudioPlayer, "play", lambda self, sound, sampling_rate, normalize: None)
+    module.PlayAudio().RunScript(np.zeros(4), True, False, None, None)
+    assert messages == [("remark", "No sampling_rate: the signal is played at 48000 Hz. Connect the sampling_rate of Auralise.")]
+    messages.clear()
+    module.PlayAudio().RunScript(np.zeros(4), True, False, 44100, None)
+    path = tmp_path / "s.wav"
+    sf.write(str(path), np.zeros(480), 44100)
+    module.PlayAudio().RunScript(str(path), True, False, None, None)
+    assert messages == []
+
+
+class FakeTree:
+    """Grasshopper's DataTree as the Auralise component reads its inputs."""
+
+    def __init__(self, branches):
+        self.branches = branches
+
+    @property
+    def BranchCount(self):
+        return len(self.branches)
+
+    @property
+    def DataCount(self):
+        return sum(len(items) for items in self.branches.values())
+
+    @property
+    def Paths(self):
+        return list(self.branches)
+
+    def Branch(self, i):
+        return list(self.branches.values())[i]
+
+
+def test_auralise_shows_the_warnings_of_building_the_auraliser(monkeypatch, tmp_path):
+    import soundfile as sf
+
+    from compas_acoustics import ImpulseResponse
+
+    module, messages = load_component("CA_Auralise", monkeypatch, levels=True)
+    path = tmp_path / "speech.wav"
+    sf.write(str(path), np.random.default_rng(1).normal(size=4800) * 0.1, 48000)
+    receiver = Receiver("rec", 5, 3, 1.5)
+    responses = [ImpulseResponse(f"ir{rate}", Source(f"s{rate}", 1, 1, 1, sound_file=str(path)), receiver, np.r_[1.0, np.zeros(479)], rate)
+                 for rate in (48000, 44100)]
+    signals, rates = module.Auralise().RunScript(FakeTree({(0,): responses}), None, "mono", None, "relative", True, None, None, None)
+    assert signals.branches and rates.branches == {(0,): [48000]}
+    assert any(level == "warning" and "resampled to 48000 Hz" in text for level, text in messages)
+
+
 # --------------------------------------------------------------- Value lists --
 class FakeParam:
     def __init__(self, name, sources=0):

@@ -102,21 +102,21 @@ class Auralise(Grasshopper.Kernel.GH_ScriptInstance):
                     ]
 
                 for name, ir_data, sound_data, suffix in tasks:
-                    try:
-                        # Sample rate defaults to that of the impulse responses
-                        auraliser = Auraliser(
-                            name=name,
-                            impulse_responses=ir_data,
-                            anechoic_sounds=sound_data,
-                            output_format=output_format,
-                        )
-                    except ValueError as e:
-                        ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Error, str(e))
-                        return None, None
-                    auraliser.hrtf_path = hrtf_path
-
+                    # Building the auraliser warns too: impulse responses resampled to a common rate, sounds mixed down to mono
                     with warnings.catch_warnings(record=True) as caught:
                         warnings.simplefilter("always")
+                        try:
+                            # Sample rate defaults to that of the impulse responses
+                            auraliser = Auraliser(
+                                name=name,
+                                impulse_responses=ir_data,
+                                anechoic_sounds=sound_data,
+                                output_format=output_format,
+                            )
+                        except ValueError as e:
+                            ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Error, str(e))
+                            return None, None
+                        auraliser.hrtf_path = hrtf_path
                         signal = worker.convolve(auraliser)
                     for text in dict.fromkeys(str(w.message) for w in caught if issubclass(w.category, UserWarning)):
                         ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning, text)

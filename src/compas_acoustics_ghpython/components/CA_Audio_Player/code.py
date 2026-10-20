@@ -33,6 +33,11 @@ class PlayAudio(Grasshopper.Kernel.GH_ScriptInstance):
                     "Only mono or stereo signals can be played. Save ambisonic signals as a multichannel file, or auralise to binaural for headphone playback."
                 )
                 return
+            if sampling_rate is None:
+                ghenv.Component.AddRuntimeMessage(
+                    Grasshopper.Kernel.GH_RuntimeMessageLevel.Remark,
+                    "No sampling_rate: the signal is played at {} Hz. Connect the sampling_rate of Auralise.".format(AudioPlayer.DEFAULT_SAMPLING_RATE),
+                )
         else:
             ghenv.Component.AddRuntimeMessage(
                 Grasshopper.Kernel.GH_RuntimeMessageLevel.Error, "Input parameter 'sound' is not valid."
