@@ -59,11 +59,11 @@ __all__ = [
 
 
 def __getattr__(name):
-    # The hybrid method needs the optional 'hybrid' extra (pyFDN, torch; Python >= 3.11), so it is imported on first use
+    # The hybrid method needs pyFDN, which compas_acoustics requires on Python >= 3.11 only, so it is imported on first use
     if name == "Hybrid":
         try:
             from .simulation_methods import Hybrid
         except ImportError as error:
-            raise ImportError("compas_acoustics.Hybrid needs Python >= 3.11 and the 'hybrid' extra: pip install compas_acoustics[hybrid]") from error
+            raise ImportError("compas_acoustics.Hybrid needs Python >= 3.11, where compas_acoustics installs pyFDN") from error
         return Hybrid
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

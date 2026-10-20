@@ -67,7 +67,7 @@ class SimulateHybrid(Grasshopper.Kernel.GH_ScriptInstance):
         except ImportError as e:
             if worker.worker_python() is None:
                 self.error(
-                    "The hybrid method needs Python >= 3.11 (Rhino 8 runs 3.9) and the 'hybrid' extra (pip install compas_acoustics[hybrid]), "
+                    "The hybrid method needs Python >= 3.11 (Rhino 8 runs 3.9), where compas_acoustics installs pyFDN, "
                     "or a worker: run the installer with worker 'hybrid'. {}".format(e)
                 )
                 return

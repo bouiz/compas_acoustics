@@ -16,7 +16,7 @@ from compas_acoustics import Receiver
 from compas_acoustics import Scene
 from compas_acoustics import Source
 
-needs_hybrid = pytest.mark.skipif(importlib.util.find_spec("pyFDN") is None, reason="needs the hybrid extra (Python >= 3.11)")
+needs_hybrid = pytest.mark.skipif(importlib.util.find_spec("pyFDN") is None, reason="needs pyFDN (Python >= 3.11)")
 
 @pytest.fixture(autouse=True)
 def no_configured_worker(monkeypatch, tmp_path):

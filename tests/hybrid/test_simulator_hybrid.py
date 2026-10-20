@@ -526,3 +526,32 @@ def test_without_a_medium_the_hybrid_and_its_reference_share_the_default():
     assert ir.generation["speed_of_sound"] == pytest.approx(AirConditions().speed_of_sound)
     (ir,) = scene.simulate(Hybrid(references(scene), **FAST)).values()
     assert ir.generation["air"] == AirConditions().to_dict()
+
+
+def test_the_hybrid_runs_without_pytorch_and_flamo():
+    # pyFDN requires flamo and PyTorch for its training modules only; the worker installs it without them
+    import os
+    import subprocess
+    import sys
+
+    script = """
+import importlib.abc, sys, warnings
+warnings.simplefilter("ignore")
+class Missing(importlib.abc.MetaPathFinder):
+    def find_spec(self, name, path, target=None):
+        if name.split(".")[0] in ("torch", "torchaudio", "flamo", "nnAudio"):
+            raise ImportError(name + " is not installed")
+sys.meta_path.insert(0, Missing())
+import compas_acoustics as ca
+from compas_acoustics.simulation_methods import Hybrid
+s = ca.Scene("b")
+s.add_acoustic_objects(ca.AcousticObjectsLibrary.shoebox_room(6, 4, 3, materials=ca.AcousticMaterial("w", 0.2, 0.1)))
+s.add_source(ca.Source("s", 1.5, 1.5, 1.6))
+s.add_receiver(ca.Receiver("r", 4.5, 2.5, 1.2))
+(ir,) = s.simulate(Hybrid(tail="eyring", image_source_order=1, diffraction="udfa")).values()
+print(ir.n_channels)
+"""
+    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, env=dict(os.environ), timeout=600)
+    assert result.returncode == 0, result.stderr[-2000:]
+    assert result.stdout.strip().splitlines()[-1] == "4"
+

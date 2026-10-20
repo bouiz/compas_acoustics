@@ -20,18 +20,14 @@ conda activate your_env_name
 pip install -e ".[dev]"
 ```
 
-### Hybrid ambisonic method (optional, Python >= 3.11)
+### Hybrid ambisonic method (Python >= 3.11)
 
 The `Hybrid` simulation method (image sources, edge diffraction and a directional
 feedback delay network, ported from [hybrid-rir](https://github.com/gpapadimitri/hybrid-rir))
-needs the `hybrid` extra, which pulls in pyFDN and with it PyTorch. The extra installs on
-Python 3.11 and newer only:
-
-```bash
-pip install -e ".[hybrid]"
-# flamo (via pyFDN) replaces soundfile with the abandoned PySoundFile; restore it:
-pip install --force-reinstall --no-deps soundfile
-```
+needs pyFDN, spharpy and multislope, which `compas_acoustics` installs on Python 3.11 and
+newer; on Python 3.9 and 3.10 (Rhino 8) it leaves them out and the method is not available.
+pyFDN brings flamo and with it PyTorch (about 0.5 GB on macOS, several GB with CUDA on Linux),
+which only pyFDN's training modules use; the hybrid method runs without them.
 
 ## Install in Rhino 8 / Grasshopper
 
@@ -52,8 +48,8 @@ Rhino 8 uses Python 3.9. With Python older than 3.11, the Speech Transmission In
 
 ### Python >= 3.11 features in Rhino 8: the worker
 
-The hybrid method and binaural decoding need Python >= 3.11 (and for the hybrid method, the `hybrid` extra). Rhino 8 runs
-Python 3.9. With the installer's `worker` input set to `binaural` or `hybrid` (also the hybrid method; downloads PyTorch, several GB),
+The hybrid method and binaural decoding need Python >= 3.11. Rhino 8 runs
+Python 3.9. With the installer's `worker` input set to `binaural` or `hybrid` (both install the same packages, PyTorch included; `hybrid` also checks that the hybrid method imports),
 the installer creates a second Python 3.12 environment with `uv` and records it in `~/.compas_acoustics/worker.json`. Set the environment variable
 `COMPAS_ACOUSTICS_WORKER_PYTHON` to use another interpreter that has `compas_acoustics`.
 
@@ -76,7 +72,7 @@ scene.add_source(ca.Source("talker", 2, 2, 1.6))
 scene.add_receiver(ca.Receiver("listener", 6, 4, 1.2, direction=[-1, -0.5, 0]))
 
 mono = scene.simulate(ca.Pyroomacoustics(ray_tracing=True))   # image sources + ray tracing
-ambisonic = scene.simulate(ca.Hybrid())                        # first-order ambisonics; needs the hybrid extra
+ambisonic = scene.simulate(ca.Hybrid())                        # first-order ambisonics; needs Python >= 3.11
 ```
 
 `examples/office_hybrid.py` runs both methods on an office, with reverberation times and an auralisation. The Grasshopper components are in

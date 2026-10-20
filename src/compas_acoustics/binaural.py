@@ -173,7 +173,7 @@ def render_early_binaural(result, hrtf: HrtfSet, n_samples: int | None = None) -
     it takes the HRIR measured nearest to it. Paths sharing a measured direction
     are summed first, so each HRIR is applied once.
     """
-    # the hybrid extra (pyFDN); the Auraliser imports this module without it
+    # pyFDN, on Python >= 3.11 only; the Auraliser imports this module without it
     from compas_acoustics.hybrid.early import _fft_grid
     from compas_acoustics.hybrid.early import _finish
 

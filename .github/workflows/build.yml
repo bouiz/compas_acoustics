@@ -78,8 +78,7 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: python -m pip install -e ".[hybrid]" pytest
-      # flamo (via pyFDN) installs the abandoned PySoundFile over soundfile
-      - run: python -m pip install --force-reinstall --no-deps soundfile
+      # On Python >= 3.11 compas_acoustics requires the hybrid method's packages
+      - run: python -m pip install -e . pytest
       # The parity tests skip without hybrid_rir; the slow claim tests need COMPAS_ACOUSTICS_SLOW
       - run: python -m pytest tests/hybrid tests/test_gh_components.py -m "not slow"

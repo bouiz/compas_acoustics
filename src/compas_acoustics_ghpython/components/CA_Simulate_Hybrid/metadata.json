@@ -3,7 +3,7 @@
     "nickname": "SimHybrid",
     "category": "COMPAS Acoustics",
     "subcategory": "02 Simulation",
-    "description": "Simulate hybrid ambisonic impulse responses: image sources, optional edge diffraction around obstacles and at the edges of the room's boundary that open wider than 180 deg, and a directional feedback delay network tail. Needs the 'hybrid' extra and a closed room. Writes the responses to the impulse response graph under 'hybrid'.",
+    "description": "Simulate hybrid ambisonic impulse responses: image sources, optional edge diffraction around obstacles and at the edges of the room's boundary that open wider than 180 deg, and a directional feedback delay network tail. Needs Python >= 3.11 (in Rhino 8: the worker) and a closed room. Writes the responses to the impulse response graph under 'hybrid'.",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,

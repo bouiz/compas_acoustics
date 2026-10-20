@@ -1,15 +1,15 @@
 """Hybrid ambisonic room impulse responses: image sources driving a directional FDN.
 
 Ported from hybrid-rir (gpapadimitri/hybrid-rir); every generated module names
-the upstream revision, :data:`UPSTREAM_REVISION`. Needs the ``hybrid`` extra
-(pyFDN, spharpy). Used through :class:`compas_acoustics.simulation_methods.Hybrid`, a
+the upstream revision, :data:`UPSTREAM_REVISION`. Needs pyFDN and spharpy, which
+compas_acoustics requires on Python >= 3.11. Used through :class:`compas_acoustics.simulation_methods.Hybrid`, a
 simulation method (:mod:`compas_acoustics.simulation_methods`) for :meth:`compas_acoustics.Scene.simulate`;
 this package holds the DSP it is built on.
 """
 
 import soundfile as _soundfile
 
-# flamo (via pyFDN) installs the abandoned PySoundFile, which overwrites soundfile.
+# flamo before 0.2.19 (via pyFDN) installs the abandoned PySoundFile, which overwrites soundfile.
 # PySoundFile is 0.9.0 and also defines __libsndfile_version__; the maintained package is >= 0.12.
 if tuple(int(part) for part in _soundfile.__version__.split(".")[:2]) < (0, 12):
     raise ImportError(

@@ -43,11 +43,8 @@ def install_worker(wheel, hybrid=False, home=WORKER_HOME, config=CONFIG, python_
     shutil.rmtree(home, ignore_errors=True)
     subprocess.run([uv, "venv", "--python", python_version, str(home)], check=True, env=env)
     python = home / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
-    requirement = "compas_acoustics{} @ {}".format("[hybrid]" if hybrid else "", Path(wheel).resolve().as_uri())
-    subprocess.run([uv, "pip", "install", "--python", str(python), requirement], check=True, env=env)
-    if hybrid:
-        # flamo (via pyFDN) installs the abandoned PySoundFile over soundfile
-        subprocess.run([uv, "pip", "install", "--python", str(python), "--reinstall", "--no-deps", "soundfile"], check=True, env=env)
+    # On Python >= 3.11 compas_acoustics requires the hybrid method's packages too
+    subprocess.run([uv, "pip", "install", "--python", str(python), "compas_acoustics @ {}".format(Path(wheel).resolve().as_uri())], check=True, env=env)
     # The first import of the scientific stack takes about 30 s; do it here, not on the first Grasshopper call
     subprocess.run([str(python), "-c", "import compas_acoustics.simulation_methods as m; m.Hybrid" if hybrid else "import compas_acoustics.worker.api"], check=True, env=env)
     config.parent.mkdir(parents=True, exist_ok=True)
@@ -58,7 +55,7 @@ def install_worker(wheel, hybrid=False, home=WORKER_HOME, config=CONFIG, python_
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--wheel", required=True)
-    parser.add_argument("--hybrid", action="store_true", help="also install the hybrid extra (PyTorch, several GB)")
+    parser.add_argument("--hybrid", action="store_true", help="check that the hybrid method imports (its packages come with compas_acoustics on Python >= 3.11)")
     parser.add_argument("--home", default=str(WORKER_HOME))
     parser.add_argument("--config", default=str(CONFIG))
     args = parser.parse_args()

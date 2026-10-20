@@ -246,7 +246,7 @@ def test_binaural_without_spharpy_is_decoded_in_the_worker(running_worker, monke
 @needs_worker
 def test_the_hybrid_runs_in_the_worker(running_worker):
     if not running_worker.info()["hybrid"]:
-        pytest.skip("the worker has no hybrid extra")
+        pytest.skip("the worker has no pyFDN")
     s = scene()
     rirs, _ = worker.simulate(s, "hybrid", {"tail": "eyring"})
     ir = next(iter(rirs.values()))
@@ -326,7 +326,7 @@ def test_the_worker_install_runs_its_python_without_the_callers_pythonpath(monke
     monkeypatch.setattr(install, "stop_running_workers", lambda: None)
     monkeypatch.setattr(install.subprocess, "run", lambda command, **kwargs: calls.append((command, kwargs.get("env"))))
     python = install.install_worker(tmp_path / "compas_acoustics.whl", hybrid=True, home=tmp_path / "worker", config=tmp_path / "worker.json")
-    assert len(calls) == 4 and all(env is not None for _, env in calls)
+    assert len(calls) == 3 and all(env is not None for _, env in calls)
     assert all("PYTHONPATH" not in env and "PYTHONHOME" not in env for _, env in calls)
     assert calls[-1][0][0] == str(python)
     assert json.loads((tmp_path / "worker.json").read_text()) == {"python": str(python), "hybrid": True}
@@ -405,4 +405,18 @@ def test_responses_from_the_worker_keep_the_methods_normalize(monkeypatch, setti
     for key, ir in there.items():
         assert ir.normalized is normalized
         np.testing.assert_allclose(ir.denormalized(), here[key].denormalized(), atol=1e-6 * np.max(np.abs(here[key].denormalized())))
+
+
+def test_the_worker_installs_the_wheel_and_nothing_else(monkeypatch, tmp_path):
+    from compas_acoustics.worker import install
+
+    calls = []
+    monkeypatch.setattr(install, "_uv", lambda: "uv")
+    monkeypatch.setattr(install, "stop_running_workers", lambda: None)
+    monkeypatch.setattr(install.subprocess, "run", lambda command, **kwargs: calls.append(command))
+    for hybrid in (False, True):
+        calls.clear()
+        install.install_worker(tmp_path / "compas_acoustics.whl", hybrid=hybrid, home=tmp_path / "worker", config=tmp_path / "worker.json")
+        installs = [command[5:] for command in calls if command[:3] == ["uv", "pip", "install"]]
+        assert installs == [[f"compas_acoustics @ {(tmp_path / 'compas_acoustics.whl').resolve().as_uri()}"]]
 

@@ -40,7 +40,7 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 
 * Added `Scene.simulate(method)` as the one way to simulate, with the methods `Pyroomacoustics(image_source_order=3, ray_tracing=True, ...)` and `Hybrid(...)` in `compas_acoustics.simulation_methods`.
 * Added `Scene.sampling_rate` (default 48000, serialised with the scene), the rate at which every method runs; the Room Scene component has the input.
-* Added `Hybrid`, ambisonic room impulse responses from image sources, optional edge diffraction (`diffraction="udfa"` or `"btms"`) and a directional feedback delay network tail, ported from hybrid-rir; needs the `hybrid` extra and Python >= 3.11.
+* Added `Hybrid`, ambisonic room impulse responses from image sources, optional edge diffraction (`diffraction="udfa"` or `"btms"`) and a directional feedback delay network tail, ported from hybrid-rir; needs Python >= 3.11.
 * Added `Hybrid(tail=...)` with a reference response, the hybrid's own ray-traced reference, or an Eyring or Sabine prediction as decay target.
 * Added edge diffraction at the edges of the room's own boundary (re-entrant corners) to `Hybrid`.
 * Added `Hybrid.binaural(hrtf_path=None)`, which filters the early part path by path with the nearest HRTF, and `compas_acoustics.binaural` (`HrtfSet`, `render_early_binaural`, `binaural_rir`, `magls_filters`).
@@ -66,7 +66,7 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 * Added `compas_acoustics.worker`: runs the hybrid method and binaural decoding in a second Python >= 3.11 for Rhino 8 (Python 3.9), through a `compas.rpc` server on a free local port with a token per session.
 * Added `anechoic_soundfiles_library` (bassoon, female and male speech, trumpet, viola) and `hrtfs_library` (KEMAR, free-field compensated, 48 kHz), with READMEs that credit the sources and licences.
 * Added `Defaults.HRTF_LIBRARY_PATH`, `ANECHOIC_SOUNDFILES_LIBRARY_PATH` and `PARAM_NAMES`.
-* Added the `hybrid` extra (`pyFDN`, `spharpy`, `multislope`; Python >= 3.11) and a CI job for it.
+* Added `pyFDN` and `multislope` to the requirements on Python >= 3.11, for the hybrid method (pyFDN brings flamo and PyTorch), and a CI job for it: one `pip install compas_acoustics`, no extra.
 * Added the package `compas_acoustics_ghpython` with the Grasshopper components, `AcousticParameter`, `Plotter2D`, `Plotter2DSettings` and `ensure_inputs`, which gives unconnected inputs a value list or a button.
 * Added the components Simulate Hybrid (with a `run` button, its last input), Simulate Pyroomacoustics (was Simulate Ray Tracing), Material Library categories, and the inputs `output_format`, `hrtf`, `level` (Auralise), `normalize` (Audio Player, Simulate), `method` (Deconstruct IR Graph), `direction`, `up` and `plane` (Receiver).
 * Added the input `role` (a value list: `boundary` or `obstacle`) to the Grasshopper Acoustic Object component; a wrong role or material is an error on the component instead of a traceback.

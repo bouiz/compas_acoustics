@@ -2,9 +2,10 @@
 
 Loads examples/cut_without.obj (an open-plan office, 20 x 22 x 3.9 m), simulates it with pyroomacoustics
 (image sources and ray tracing) and with the hybrid method fitted to that result, plots the reverberation
-times of both and renders a binaural recording of speech. Needs the hybrid extra and Python >= 3.11:
+times of both and renders a binaural recording of speech. Needs Python >= 3.11, where compas_acoustics installs the hybrid
+method's packages:
 
-    pip install -e ".[hybrid]"
+    pip install -e .
     python examples/office_hybrid.py
 """
 
