@@ -17,9 +17,9 @@ OCTAVE_TICKS = [(31.5, "31.5"), (63, "63"), (125, "125"), (250, "250"), (500, "5
 # A curve is drawn with the minimum and maximum of each of this many bins along the x axis
 CURVE_BINS = 1000
 
-# A time response ends where its Schroeder curve falls this far, in dB: the floor of a level plot, or
-# where an amplitude falls under 0.1 % of the peak. Keyed by whether the plot is in dB.
-TIME_TRIM_DB = {True: 100.0, False: 60.0}
+# An amplitude plot of a time response ends where its Schroeder curve falls this far, in dB: below it
+# the amplitude is under 0.1 % of the peak. A level plot in dB shows the whole response.
+LINEAR_TIME_TRIM_DB = 60.0
 
 __all__ = ["AcousticParameter", "Plotter2D", "Plotter2DSettings",]
 
@@ -236,11 +236,11 @@ class AcousticParameter:
     def from_time_response(cls, ir: ImpulseResponse, db: bool = True):
         """The impulse response against time, as a curve for Plot 2D: its level in dB re the peak, or its amplitude.
 
-        It ends where its decay leaves the plot: 100 dB down (the floor of the level) or 60 dB down
-        (below which an amplitude is under 0.1 % of the peak).
+        The level shows the whole response; the amplitude ends 60 dB down its decay, below which it
+        is under 0.1 % of the peak.
         """
         data, channels = cls._plotted_channels(ir)
-        times, values = time_response(data, ir.sampling_rate, db=db, trim_db=TIME_TRIM_DB[db])
+        times, values = time_response(data, ir.sampling_rate, db=db, trim_db=None if db else LINEAR_TIME_TRIM_DB)
         return cls(
             name="IR", frequencies=times, values=values, title=cls._curve_title("Impulse Response", channels),
             x_unit="Time (s)", y_unit="Level (dB)" if db else "Amplitude", x_scale="linear", channels=channels,

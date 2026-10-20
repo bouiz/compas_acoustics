@@ -47,7 +47,7 @@ class AnalyseIR(Grasshopper.Kernel.GH_ScriptInstance):
         if len(names) < len(AcousticParameter.NAMES):
             self.message("Remark", "STI and G need pyrato >= 1.0, which Rhino's Python 3.9 cannot install: "
                                    "run the installer with worker 'binaural' or 'hybrid' to compute them in the worker.")
-        params = [AcousticParameter().from_analyser(analyser, name) for name in names]
+        parameters = [AcousticParameter().from_analyser(analyser, name) for name in names]
         time = AcousticParameter.from_time_response(ir, db=time_scale == "db")
         frequency = AcousticParameter.from_frequency_response(ir)
-        return params, time, frequency
+        return parameters, time, frequency

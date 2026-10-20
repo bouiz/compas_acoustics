@@ -404,7 +404,7 @@ def test_analyse_ir_gives_the_time_and_frequency_responses_of_w_or_both_ears(mon
     mono = analysed_response()
     _, time, frequency = module.AnalyseIR().RunScript(mono, None)
     assert (time.x_scale, time.y_unit, frequency.x_scale) == ("linear", "Level (dB)", "log")
-    assert time.title == "Impulse Response" and np.max(time.values) == 0.0 and time.values.shape[0] == 1 and time.values.shape[1] <= len(mono.denormalized())
+    assert time.title == "Impulse Response" and np.max(time.values) == 0.0 and time.values.shape == (1, len(mono.denormalized()))
     assert 20 <= frequency.frequencies[0] and frequency.frequencies[-1] <= 20000
     assert str(time).startswith("Impulse Response: Time (s) 0 to")
     _, time, _ = module.AnalyseIR().RunScript(mono, "linear")
@@ -1119,7 +1119,7 @@ def test_deconstruct_parameter_offers_the_parameters_in_a_list_and_matches_its_m
     assert [item.name for item in value_list.ListItems] == ["all", "EDT", "T20", "T30", "C50", "C80", "D50", "DRR", "Ts", "STI", "G"]
     metadata = json.loads((COMPONENTS / "CA_Deconstruct_IR" / "metadata.json").read_text())["ghpython"]
     assert list(inspect.signature(module.DeconstructParam.RunScript).parameters)[1:] == [p["name"] for p in metadata["inputParameters"]]
-    assert [o["name"] for o in metadata["outputParameters"]] == ["param", "name", "values", "overall", "frequencies"]
+    assert [o["name"] for o in metadata["outputParameters"]] == ["parameter", "name", "values", "overall", "frequencies"]
     assert metadata["inputParameters"][0]["scriptParamAccess"] == 1
 
 
@@ -1320,3 +1320,13 @@ def test_the_plot_2d_inputs_match_its_script(monkeypatch):
     parameters = list(inspect.signature(module.Plot2D.RunScript).parameters)[1:]
     assert parameters == [p["name"] for p in metadata["inputParameters"]] == ["data", "plane", "x_size", "y_size", "settings"]
     assert module.Plot2D().RunScript(None, None, None, None, None) is None and "'data'" in messages[0]
+
+
+def test_the_analyse_ir_inputs_and_outputs_match_its_script(monkeypatch):
+    import inspect
+    import json
+
+    module, _ = load_component("CA_Analyse_IR", monkeypatch)
+    metadata = json.loads((COMPONENTS / "CA_Analyse_IR" / "metadata.json").read_text())["ghpython"]
+    assert list(inspect.signature(module.AnalyseIR.RunScript).parameters)[1:] == [p["name"] for p in metadata["inputParameters"]] == ["ir", "time_scale"]
+    assert [p["name"] for p in metadata["outputParameters"]] == ["parameters", "time", "frequency"]

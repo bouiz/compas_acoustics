@@ -26,12 +26,12 @@
         ],
         "outputParameters": [
             {
-                "name": "params",
+                "name": "parameters",
                 "description": "List of acoustic parameters ('EDT', 'T20', 'T30', 'C50', 'C80', 'D50', 'DRR', 'Ts', and with a worker 'STI', with its modulation transfer index per band, and 'G')."
             },
             {
                 "name": "time",
-                "description": "The impulse response against time, for Plot 2D or a panel: the W channel of an ambisonic response, both ears (left, right) of a binaural one. It ends with the decay, 5 % after the Schroeder curve falls 100 dB (db) or 60 dB (linear); the parameters and the frequency output use the whole response."
+                "description": "The impulse response against time, for Plot 2D or a panel: the W channel of an ambisonic response, both ears (left, right) of a binaural one. In db it is the whole response; in linear it ends 5 % after the Schroeder curve falls 60 dB, below which the amplitude is invisible. The parameters and the frequency output use the whole response."
             },
             {
                 "name": "frequency",

@@ -11,14 +11,14 @@ SELECT = ["all", *AcousticParameter.NAMES]
 
 
 class DeconstructParam(Grasshopper.Kernel.GH_ScriptInstance):
-    def RunScript(self, param, select):
+    def RunScript(self, parameters, select):
         ensure_inputs(ghenv.Component, {"select": SELECT})
 
-        if not param:
-            ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning, "Input parameter 'param' failed to collect data.")
+        if not parameters:
+            ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning, "Input parameter 'parameters' failed to collect data.")
             return None, None, None, None, None
 
-        params = list(param)
+        params = list(parameters)
         if select not in (None, "", "all"):
             params = [p for p in params if p.name == select]
             if not params:
