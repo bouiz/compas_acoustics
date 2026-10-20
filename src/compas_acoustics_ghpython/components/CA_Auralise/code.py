@@ -21,8 +21,9 @@ HRTFS = {
 
 class Auralise(Grasshopper.Kernel.GH_ScriptInstance):
 
-    def RunScript(self, irs, signals, output_format, hrtf, level, multiconvolve, save_file_path, save_file_name, save):
-        ensure_inputs(ghenv.Component, {"output_format": OUTPUT_FORMATS, "hrtf": list(HRTFS), "level": LEVELS})
+    def RunScript(self, irs, anechoic_sounds, output_format, hrtf, level, mix_sources, save_file_path, save_file_name, save):
+        # No value list on hrtf: empty is KEMAR, and a File Path connected there is the user's own SOFA set
+        ensure_inputs(ghenv.Component, {"output_format": OUTPUT_FORMATS, "level": LEVELS})
 
         if irs is None:
             ghenv.Component.AddRuntimeMessage(
@@ -41,11 +42,11 @@ class Auralise(Grasshopper.Kernel.GH_ScriptInstance):
         if hrtf_path is None:
             return None, None
 
-        has_signals = signals is not None and signals.DataCount > 0
-        if has_signals:
-            if irs.BranchCount != signals.BranchCount:
+        has_sounds = anechoic_sounds is not None and anechoic_sounds.DataCount > 0
+        if has_sounds:
+            if irs.BranchCount != anechoic_sounds.BranchCount:
                 raise ValueError("DataTree branch count mismatch.")
-            if any(len(irs.Branch(i)) != len(signals.Branch(i)) for i in range(irs.BranchCount)):
+            if any(len(irs.Branch(i)) != len(anechoic_sounds.Branch(i)) for i in range(irs.BranchCount)):
                 raise ValueError("DataTree branch length mismatch.")
 
         # Renders of this run: (path, auraliser, signal, suffix). Their output level is set together.
@@ -55,7 +56,7 @@ class Auralise(Grasshopper.Kernel.GH_ScriptInstance):
             path = irs.Paths[i]
 
             br = irs.Branch(i)
-            sound_files = signals.Branch(i) if has_signals else [ir.source.sound_file for ir in br]
+            sound_files = anechoic_sounds.Branch(i) if has_sounds else [ir.source.sound_file for ir in br]
 
             ir_groups = {}
             sound_groups = {}
@@ -89,7 +90,7 @@ class Auralise(Grasshopper.Kernel.GH_ScriptInstance):
 
             # 2. Construct auraliser(s), convolve and decode signals
             for r, receiver_id in enumerate(ir_groups.keys()):
-                if multiconvolve:
+                if mix_sources:
                     tasks = [(receiver_id, ir_groups[receiver_id], sound_groups[receiver_id], f"{r}")]
                 else:
                     tasks = [
@@ -143,7 +144,10 @@ class Auralise(Grasshopper.Kernel.GH_ScriptInstance):
                 filepath = self.set_save_file_path(save_file_path, save_file_name, suffix)
                 auraliser.export_convolved_sound(filepath, signal, gain=gain)
 
-        ghenv.Component.Message = "{}, {}, peak {:.1f} dBFS".format(output_format, level, peak_dbfs)
+        label = output_format
+        if output_format == "binaural":
+            label = "binaural ({})".format(os.path.basename(hrtf_path) if hrtf and hrtf not in HRTFS else hrtf or list(HRTFS)[0])
+        ghenv.Component.Message = "{}, {}, peak {:.1f} dBFS".format(label, level, peak_dbfs)
         if peak_dbfs > 0:
             ghenv.Component.AddRuntimeMessage(
                 Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning,

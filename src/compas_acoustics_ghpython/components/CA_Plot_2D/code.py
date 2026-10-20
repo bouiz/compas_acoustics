@@ -6,12 +6,12 @@ from compas_acoustics_ghpython import Plotter2D
 
 
 class Plot2D(Grasshopper.Kernel.GH_ScriptInstance):
-    def RunScript(self, param, plane, x_size, y_size, settings):
-        if param is None:
-            ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning, "Input parameter 'param' failed to collect data.")
+    def RunScript(self, data, plane, x_size, y_size, settings):
+        if data is None:
+            ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning, "Input parameter 'data' failed to collect data.")
             return None
 
-        plotter = Plotter2D(param, settings)
+        plotter = Plotter2D(data, settings)
         plotter.plot(plane=plane, width=x_size, height=y_size)
 
         title = plotter.title

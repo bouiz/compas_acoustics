@@ -60,7 +60,7 @@
             },
             {
                 "name": "seed",
-                "description": "Seed of the feedback matrices and delay jitter (default 42): the same scene gives the same responses.",
+                "description": "Seed of the feedback matrices and delay jitter. Empty (default): a new random seed each run, shown in the component's message. A number: the same scene gives the same responses.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "int"
@@ -81,7 +81,7 @@
             },
             {
                 "name": "hrtf",
-                "description": "HRTF set of the binaural format: kemar (default) or the path of a .sofa file. Not used by ambisonic.",
+                "description": "HRTF set of the binaural format. Empty: KEMAR (default). Connect a File Path to a .sofa file to use your own HRTF set; the component's message names the set in use. Not used by ambisonic.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "str"

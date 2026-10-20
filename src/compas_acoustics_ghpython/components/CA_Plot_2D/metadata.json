@@ -3,15 +3,15 @@
     "nickname": "Plot2D",
     "category": "COMPAS Acoustics",
     "subcategory": "05 Display",
-    "description": "Create a 2D chart of the acoustic parameter.",
+    "description": "Create a 2D chart of an acoustic parameter (a point per band), or of the time or frequency response of Analyse Impulse Response (a curve per channel).",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,
         "iconDisplay": 0,
         "inputParameters": [
             {
-                "name": "param",
-                "description": "AcousticParameter (AP) object.",
+                "name": "data",
+                "description": "Data to plot: an acoustic parameter (a point per band), or the time or frequency output of Analyse Impulse Response (a curve per channel).",
                 "optional": false,
                 "scriptParamAccess": 0,
                 "typeHintID": "ghdoc"
@@ -68,15 +68,15 @@
             },
             {
                 "name": "values",
-                "description": "Data values of the acoustic parameter."
+                "description": "Data values of the acoustic parameter (none for a time or frequency response)."
             },
             {
                 "name": "points",
-                "description": "Data points of the chart."
+                "description": "Data points of the chart (none for a time or frequency response)."
             },
             {
                 "name": "polyline",
-                "description": "Data polyline of the chart."
+                "description": "Data polyline of the chart; for a time or frequency response one per channel (left, right for binaural)."
             },
             {
                 "name": "grid",

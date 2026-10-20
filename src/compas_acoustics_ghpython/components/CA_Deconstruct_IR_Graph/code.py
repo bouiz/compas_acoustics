@@ -6,7 +6,7 @@ import System
 
 class DeconstructIRGraph(Grasshopper.Kernel.GH_ScriptInstance):
 
-    def RunScript(self, ir_graph, receiver_idx):
+    def RunScript(self, ir_graph, source_idx, receiver_idx):
 
         if ir_graph is None:
             ghenv.Component.AddRuntimeMessage(
@@ -45,6 +45,24 @@ class DeconstructIRGraph(Grasshopper.Kernel.GH_ScriptInstance):
         ]
         receiver_set = {rec.guid for rec in receiver_list}
 
+        # Sources are indexed over the whole graph, as receivers are, not within a receiver's branch
+        source_set = None
+        if source_idx:
+            source_list = [
+                ir_graph.node_attribute(node, 'data')
+                for node in ir_graph.nodes()
+                if ir_graph.node_attribute(node, 'type') == 'source'
+            ]
+            wrong = [i for i in source_idx if not 0 <= i < len(source_list)]
+            if wrong:
+                ghenv.Component.AddRuntimeMessage(
+                    Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning,
+                    "No source at index {}; the graph has {} source(s), 0 to {}.".format(
+                        ", ".join(str(i) for i in wrong), len(source_list), len(source_list) - 1
+                    ),
+                )
+            source_set = {source_list[i].guid for i in source_idx if 0 <= i < len(source_list)}
+
         # 2. Make ir group as {receiver_0: [src_0, ...], ...}
         source_group = {}
         ir_group = {}
@@ -62,7 +80,9 @@ class DeconstructIRGraph(Grasshopper.Kernel.GH_ScriptInstance):
                 rec, src = data_v, data_u
             else:
                 continue
-            
+            if source_set is not None and src.guid not in source_set:
+                continue
+
             source_group.setdefault(rec.guid, []).append(src)
             ir_group.setdefault(rec.guid, []).append(ir)
 

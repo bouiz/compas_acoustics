@@ -1,3 +1,5 @@
+import os
+import random
 import warnings
 
 import Grasshopper
@@ -10,7 +12,6 @@ from compas_acoustics_ghpython import ensure_inputs
 TAILS = ["auto", "reference", "ray_tracing", "eyring", "sabine"]
 DIFFRACTION = ["none", "udfa", "btms"]
 OUTPUTS = ["binaural", "ambisonic", "both"]
-HRTFS = ["kemar"]
 # The formats of each 'output', and the graph attribute each is stored under
 FORMATS = {"binaural": ["binaural"], "ambisonic": ["ambisonic"], "both": ["ambisonic", "binaural"]}
 ATTRIBUTES = {"binaural": "hybrid_binaural", "ambisonic": "hybrid"}
@@ -50,6 +51,13 @@ class SimulateHybrid(Grasshopper.Kernel.GH_ScriptInstance):
         """The outputs ``binaural`` and ``ambisonic``: the scene's graph tagged with the format's attribute, None if it is not requested."""
         return tuple(MethodGraph(scene.ir_graph, ATTRIBUTES[name]) if name in formats else None for name in ("binaural", "ambisonic"))
 
+    @staticmethod
+    def hrtf_label(given, formats):
+        """The HRTF set the binaural output is rendered with, for the message; empty without a binaural output."""
+        if "binaural" not in formats:
+            return ""
+        return ", hrtf {}".format(os.path.basename(given["hrtf"]) if "hrtf" in given else "kemar")
+
     def run_in_worker(self, scene, given, references, formats):
         settings = {key: value for key, value in given.items() if key != "reference"}
         try:
@@ -59,11 +67,14 @@ class SimulateHybrid(Grasshopper.Kernel.GH_ScriptInstance):
             return
         for message in messages:
             ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning, message)
-        ghenv.Component.Message = "{:g}Hz, hybrid (worker), tail: {}".format(scene.sampling_rate, settings.get("tail", "auto"))
+        ghenv.Component.Message = "{:g}Hz, hybrid (worker), tail: {}, seed {}{}".format(
+            scene.sampling_rate, settings.get("tail", "auto"), settings["seed"], self.hrtf_label(settings, formats)
+        )
         return self.graphs(scene, formats)
 
     def RunScript(self, scene, tail, reference, sh_order, ism_order, diffraction, late_envelope, seed, normalize, output, hrtf, run):
-        ensure_inputs(ghenv.Component, {"run": None, "tail": TAILS, "diffraction": DIFFRACTION, "output": OUTPUTS, "hrtf": HRTFS})
+        # No value list on hrtf: empty is KEMAR, and a File Path connected there is the user's own SOFA set
+        ensure_inputs(ghenv.Component, {"run": None, "tail": TAILS, "diffraction": DIFFRACTION, "output": OUTPUTS})
 
         if scene is None:
             ghenv.Component.AddRuntimeMessage(
@@ -76,6 +87,15 @@ class SimulateHybrid(Grasshopper.Kernel.GH_ScriptInstance):
             self.error("output must be one of {}, not {!r}.".format(", ".join(OUTPUTS), output))
             return
         formats = FORMATS[OUTPUTS[0] if output is None else output]
+
+        # Checked before 'run' so that it shows as soon as the tail is chosen, not only after pressing Run
+        if tail == "reference" and reference in (None, ""):
+            ghenv.Component.AddRuntimeMessage(
+                Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning,
+                "tail 'reference' needs a reference: connect the ir_graph of Simulate Pyroomacoustics to 'reference', or choose another tail.",
+            )
+            ghenv.Component.Message = "connect a reference"
+            return self.graphs(scene, formats)
 
         # The simulation can take minutes and Grasshopper recomputes on every upstream change, so it runs only
         # when 'run' is true (a button pulse). Otherwise the responses already on the scene's graph are passed on.
@@ -129,9 +149,10 @@ class SimulateHybrid(Grasshopper.Kernel.GH_ScriptInstance):
             "image_source_order": ism_order,
             "diffraction": diffraction,
             "late_envelope": late_envelope,
-            "seed": seed,
+            # The method's own default is a fixed seed; an empty input draws a new one each run
+            "seed": random.randrange(2**31) if seed is None else seed,
             "normalize": normalize,
-            # Hybrid takes an hrtf only with a binaural output; the value list always offers one
+            # Hybrid takes an hrtf only with a binaural output
             "output": None if output is None else (formats[0] if len(formats) == 1 else formats),
             "hrtf": hrtf if "binaural" in formats and hrtf not in ("", None) else None,
         }
@@ -151,7 +172,7 @@ class SimulateHybrid(Grasshopper.Kernel.GH_ScriptInstance):
                 continue
             ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning, str(warning.message))
 
-        ghenv.Component.Message = "{:g}Hz, hybrid, tail: {}, order {}".format(
-            scene.sampling_rate, method.tail, method.sh_order
+        ghenv.Component.Message = "{:g}Hz, hybrid, tail: {}, order {}, seed {}{}".format(
+            scene.sampling_rate, method.tail, method.sh_order, given["seed"], self.hrtf_label(given, formats)
         )
         return self.graphs(scene, formats)

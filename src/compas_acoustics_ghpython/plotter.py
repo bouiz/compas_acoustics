@@ -1,10 +1,21 @@
 import math
 from typing import Optional
 
+import numpy as np
 import Rhino.Geometry as rg  # type: ignore
 
 from compas_acoustics.analyser import AcousticAnalyser
+from compas_acoustics.analyser import frequency_response
+from compas_acoustics.analyser import time_response
 from compas_acoustics.ir import ImpulseResponse
+
+# The frequency axis of a frequency response, and its ticks at the octave centres
+FREQUENCY_AXIS = (20.0, 20000.0)
+OCTAVE_TICKS = [(31.5, "31.5"), (63, "63"), (125, "125"), (250, "250"), (500, "500"),
+                (1000, "1k"), (2000, "2k"), (4000, "4k"), (8000, "8k"), (16000, "16k")]
+
+# A curve is drawn with the minimum and maximum of each of this many bins along the x axis
+CURVE_BINS = 1000
 
 __all__ = ["AcousticParameter", "Plotter2D", "Plotter2DSettings",]
 
@@ -17,6 +28,45 @@ def order_of_magnitude(value):
 
 def remap_number(value, from_min, from_max, to_min, to_max):
     return to_min + (to_max - to_min) * ((value - from_min) / (from_max - from_min))
+
+def calculate_nice_step(graph_range, segment=5):
+    """Heckbert's Label Placement Algorithm: a "nice" step that cuts ``graph_range`` in about ``segment`` steps."""
+    raw_step = graph_range / segment
+    step_magnitude = order_of_magnitude(raw_step)
+    significand = raw_step / step_magnitude
+
+    if significand < 1.5:
+        return 1.0 * step_magnitude
+    elif significand < 3.0:
+        return 2.0 * step_magnitude
+    elif significand < 7.0:
+        return 5.0 * step_magnitude
+    return 10.0 * step_magnitude
+
+def linear_ticks(low, high):
+    """Nice ticks from at or below ``low`` to at or above ``high``, e.g. for a time axis starting at 0."""
+    if math.isclose(high, low):
+        return [low]
+    step = calculate_nice_step(high - low)
+    decimal = max(0, -math.floor(math.log10(step)))
+    first, last = math.floor(low / step + 1e-9), math.ceil(high / step - 1e-9)
+    return [round(i * step, decimal) for i in range(first, last + 1)]
+
+def min_max_indices(positions, values, bins=CURVE_BINS):
+    """The indices of the minimum and maximum of ``values`` in each of ``bins`` along ``positions`` (0 to 1), in order.
+
+    Drawn through these, a curve of many more points than the chart is wide looks as it does at full resolution.
+    """
+    positions, values = np.asarray(positions, dtype=float), np.asarray(values, dtype=float)
+    if len(values) <= 2 * bins:
+        return np.arange(len(values))
+    index = np.clip((positions * bins).astype(int), 0, bins - 1)
+    order = np.lexsort((values, index))
+    sorted_index = index[order]
+    starts = np.searchsorted(sorted_index, np.arange(bins), "left")
+    ends = np.searchsorted(sorted_index, np.arange(bins), "right")
+    full = ends > starts
+    return np.unique(np.concatenate([order[starts[full]], order[ends[full] - 1]]))
 
 def calculate_ticks(values, max_value=None):
     if not values:
@@ -50,20 +100,7 @@ def calculate_ticks(values, max_value=None):
     if math.isclose(graph_range, 0.0):
         return [approx_min]
 
-    # Heckbert's Label Placement Algorithm to determine a "nice" step size for ticks
-    segment = 5
-    raw_step = graph_range / segment
-    step_magnitude = order_of_magnitude(raw_step)
-    significand = raw_step / step_magnitude
-
-    if significand < 1.5:
-        nice_step = 1.0 * step_magnitude
-    elif significand < 3.0:
-        nice_step = 2.0 * step_magnitude
-    elif significand < 7.0:
-        nice_step = 5.0 * step_magnitude
-    else:
-        nice_step = 10.0 * step_magnitude
+    nice_step = calculate_nice_step(graph_range)
 
     # Snap the range to whole multiples of the chosen step so the generated
     # ticks always reach (or exceed) raw_max instead of stopping short of it
@@ -125,13 +162,17 @@ class AcousticParameter:
         x_unit=None,
         y_unit=None,
         source_name=None,
-        receiver_name=None
+        receiver_name=None,
+        x_scale="bands",
+        channels=None,
     ):
         self.name = name
+        # The x values: frequency bands, or the times or frequencies of a curve
         self.frequencies = frequencies
+        # One value per band; for a curve (channels, points)
         self.values = values
         self.overall = overall
-        
+
         self.title = title
         self.x_unit = x_unit
         self.y_unit = y_unit
@@ -139,8 +180,25 @@ class AcousticParameter:
         self.source_name = source_name
         self.receiver_name = receiver_name
 
+        # 'bands' plots one labelled point per band; a curve is 'linear' (time) or 'log' (frequency)
+        self.x_scale = x_scale
+        self.channels = channels
+
     def __str__(self):
-        return f"{self.title}, {self.source_name} -> {self.receiver_name}"
+        # A Grasshopper panel shows this
+        if self.frequencies is None:
+            return str(self.title)
+        if self.x_scale != "bands":
+            return "{}: {} {:g} to {:g}, {} points".format(
+                self.title, self.x_unit, self.frequencies[0], self.frequencies[-1], len(self.frequencies)
+            )
+        bands = ", ".join(f"{f:g} Hz {v:.3g}" for f, v in zip(self.frequencies, self.values))
+        text = f"{self.name}, {self.y_unit}: {bands}"
+        if self.overall is not None:
+            text += f"; overall {self.overall:.3g}"
+        if self.source_name or self.receiver_name:
+            text += f" ({self.source_name} -> {self.receiver_name})"
+        return text
     
     @classmethod
     def from_analyser(cls, analyser: AcousticAnalyser, name: str):
@@ -154,11 +212,39 @@ class AcousticParameter:
         # TODO: Add source and receiver names, but it needs to modify the AcousticAnalyser class
         return cls(name, frequencies, values, overall, title, x_unit, y_unit)
 
+    @staticmethod
+    def _plotted_channels(ir: ImpulseResponse):
+        """The raw channels a curve shows, (samples, channels), and their names: W of an ambisonic response, both ears of a binaural one."""
+        data = ir.denormalized()
+        data = data[:, np.newaxis] if data.ndim == 1 else data
+        if (ir.generation or {}).get("output") == "binaural":
+            return data[:, :2], ["left", "right"]
+        if data.shape[1] > 1:
+            return data[:, :1], ["W"]
+        return data, []
+
+    @staticmethod
+    def _curve_title(title, channels):
+        return "{} ({})".format(title, ", ".join(channels)) if channels else title
+
     @classmethod
-    def from_ir(cls, ir: ImpulseResponse):
-        """A duck-typed constructor to create an AcousticParameter from an ImpulseResponse object."""
+    def from_time_response(cls, ir: ImpulseResponse, db: bool = True):
+        """The impulse response against time, as a curve for Plot 2D: its level in dB re the peak, or its amplitude."""
+        data, channels = cls._plotted_channels(ir)
+        times, values = time_response(data, ir.sampling_rate, db=db)
         return cls(
-            name="IR", values=ir.ir, overall=None, title="Impulse Response (IR)", x_unit="Time (s)", y_unit="Amplitude"
+            name="IR", frequencies=times, values=values, title=cls._curve_title("Impulse Response", channels),
+            x_unit="Time (s)", y_unit="Level (dB)" if db else "Amplitude", x_scale="linear", channels=channels,
+        )
+
+    @classmethod
+    def from_frequency_response(cls, ir: ImpulseResponse):
+        """The 1/3-octave smoothed magnitude response from 20 Hz to 20 kHz, in dB re the peak, as a curve for Plot 2D."""
+        data, channels = cls._plotted_channels(ir)
+        frequencies, values = frequency_response(data, ir.sampling_rate, num_fractions=3, frequency_range=FREQUENCY_AXIS)
+        return cls(
+            name="FR", frequencies=frequencies, values=values, title=cls._curve_title("Frequency Response, 1/3 octave", channels),
+            x_unit="Frequency (Hz)", y_unit="Level (dB)", x_scale="log", channels=channels,
         )
 
 
@@ -257,6 +343,45 @@ class Plotter2D:
         
         return txt
 
+    def _plot_curve(self, plane, width, height):
+        """The x ticks and the polylines of a curve, one per channel; returns the x labels and the y ticks.
+
+        The x axis is linear from nice ticks around the data (time), or logarithmic over
+        :data:`FREQUENCY_AXIS` with ticks at the octave centres (frequency).
+        """
+        x = np.asarray(self.frequencies, dtype=float)
+        values = np.atleast_2d(np.asarray(self.values, dtype=float))
+        if self.param.x_scale == "log":
+            low, high = FREQUENCY_AXIS
+            ticks = [(f, label) for f, label in OCTAVE_TICKS if low <= f <= high]
+
+            def position(v):
+                return (np.log10(v) - math.log10(low)) / (math.log10(high) - math.log10(low))
+        else:
+            tick_values = linear_ticks(float(x[0]), float(x[-1]))
+            ticks = [(t, "{:g}".format(t)) for t in tick_values]
+            low, high = tick_values[0], tick_values[-1]
+
+            def position(v):
+                return (np.asarray(v, dtype=float) - low) / (high - low)
+
+        positions = position(x)
+        kept = [min_max_indices(positions, channel) for channel in values]
+        y_ticks = calculate_ticks([float(v) for channel, keep in zip(values, kept) for v in channel[keep]])
+        y_low, y_high = min(y_ticks), max(y_ticks)
+
+        self.x_axis_points = [plane.Origin + plane.XAxis * (width * float(position(t))) for t, _ in ticks]
+        self.data_points = []
+        self.data_polyline = []
+        for channel, keep in zip(values, kept):
+            polyline = rg.Polyline()
+            polyline.AddRange([
+                plane.Origin + plane.XAxis * (width * float(positions[i])) + plane.YAxis * remap_number(float(channel[i]), y_low, y_high, 0, height)
+                for i in keep
+            ])
+            self.data_polyline.append(polyline)
+        return [label for _, label in ticks], y_ticks
+
     def plot(self, plane=None, width=None, height=None):
 
         # 0. Initialize parameters
@@ -279,26 +404,26 @@ class Plotter2D:
         self.x_axis_line = rg.Line(plane.Origin, plane.Origin + x_dir * width)
         self.y_axis_line = rg.Line(plane.Origin, plane.Origin + y_dir * height)
 
-        # 2. Draw x & y axis points
-        count_x = len(self.frequencies)
-        y_ticks = calculate_ticks(self.values)
+        # 2. Draw x & y axis points, 3. data points and polyline
+        curve = getattr(self.param, "x_scale", "bands") != "bands"
+        if curve:
+            x_labels, y_ticks = self._plot_curve(plane, width, height)
+        else:
+            x_labels = [str(freq) for freq in self.frequencies]
+            y_ticks = calculate_ticks(self.values)
+            count_x = len(self.frequencies)
+            # half a step between the y axis and the first band, so its point and label are clear of the axis
+            step_x = width / (count_x - 0.5)
+            self.x_axis_points = [plane.Origin + (x_dir * step_x * (i + 0.5)) for i in range(count_x)]
+
+            y_values = [remap_number(value, min(y_ticks), max(y_ticks), 0, height) for value in self.values]
+            self.data_points = [pt + y_dir * y for pt, y in zip(self.x_axis_points, y_values)]
+            self.data_polyline = rg.Polyline()
+            self.data_polyline.AddRange(self.data_points)
+
         count_y = len(y_ticks)
-
-        # half a step between the y axis and the first band, so its point and label are clear of the axis
-        step_x = width / (count_x - 0.5)
         step_y = height / (count_y - 1)
-
-        self.x_tick_labels = [str(freq) for freq in self.frequencies]
-        self.y_tick_labels = [str(tick) for tick in y_ticks]
-
-        self.x_axis_points = [plane.Origin + (x_dir * step_x * (i + 0.5)) for i in range(count_x)]
         self.y_axis_points = [plane.Origin + (y_dir * step_y * i) for i in range(count_y)]
-
-        # 3. Draw data points and polyline
-        y_values = [remap_number(value, min(y_ticks), max(y_ticks), 0, height) for value in self.values]
-        self.data_points = [pt + y_dir * y for pt, y in zip(self.x_axis_points, y_values)]
-        self.data_polyline = rg.Polyline()
-        self.data_polyline.AddRange(self.data_points)
 
         # 4. Draw texts such as title, x & y axis titles, and tick labels
         pln_title = rg.Plane(plane)
@@ -330,7 +455,7 @@ class Plotter2D:
                 text_height=label_height,
                 justification=self.settings.x_label_justification
             )
-            for tick, pt in zip(self.frequencies, self.x_axis_points)
+            for tick, pt in zip(x_labels, self.x_axis_points)
         ]
 
         self.y_tick_labels = [
@@ -343,7 +468,8 @@ class Plotter2D:
             for tick, pt in zip(y_ticks, self.y_axis_points)
         ]
 
-        self.data_values = [
+        # A curve has too many points to label
+        self.data_values = [] if curve else [
             self.text_entity(
                 str(value),
                 plane=rg.Plane(pt + y_dir * .1, plane.XAxis, plane.YAxis),

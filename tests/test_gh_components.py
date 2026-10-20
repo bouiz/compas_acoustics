@@ -168,7 +168,7 @@ def test_the_auralise_inputs_go_sound_rendering_then_saving(monkeypatch):
     module, _ = load_component("CA_Auralise", monkeypatch)
     metadata = json.loads((COMPONENTS / "CA_Auralise" / "metadata.json").read_text())["ghpython"]
     names = [p["name"] for p in metadata["inputParameters"]]
-    assert names == ["irs", "signals", "output_format", "hrtf", "level", "multiconvolve", "save_file_path", "save_file_name", "save"]
+    assert names == ["irs", "anechoic_sounds", "output_format", "hrtf", "level", "mix_sources", "save_file_path", "save_file_name", "save"]
     assert list(inspect.signature(module.Auralise.RunScript).parameters)[1:] == names
 
 
@@ -234,13 +234,23 @@ def test_the_ism_order_input_states_the_methods_default(monkeypatch):
     assert "ism_order" in [p["name"] for p in hybrid] and "image_source_order" not in [p["name"] for p in hybrid]
 
 
-def test_empty_inputs_leave_the_method_defaults(monkeypatch):
+def test_empty_inputs_leave_the_method_defaults_but_draw_a_seed(monkeypatch):
     module, _ = load_component("CA_Simulate_Ray_Trace", monkeypatch)
     calls = capture(monkeypatch)
+    draw_seed(module, monkeypatch)
     s = scene()
     graph = module.SimulateRayTracing().RunScript(s, None, None, None, None, None, None, None, None)
-    assert calls == [method_defaults(ray_tracing=True)]
+    assert calls == [method_defaults(ray_tracing=True, seed=7)]
     assert (graph.graph, graph.method) == (s.ir_graph, "pyroomacoustics")
+    assert module.ghenv.Component.Message.endswith("seed=7")
+
+
+def test_an_empty_seed_is_a_new_draw_each_run(monkeypatch):
+    module, _ = load_component("CA_Simulate_Ray_Trace", monkeypatch)
+    calls = capture(monkeypatch)
+    for _ in range(3):
+        module.SimulateRayTracing().RunScript(scene(), None, None, None, None, None, None, None, None)
+    assert len({call["seed"] for call in calls}) == 3
 
 
 def test_given_inputs_are_passed_through(monkeypatch):
@@ -290,7 +300,7 @@ def graph_with_methods():
 def test_deconstruct_reads_data_by_default(monkeypatch):
     module, _ = load_component("CA_Deconstruct_IR_Graph", monkeypatch)
     s, mono, _ = graph_with_methods()
-    irs, *_ = module.DeconstructIRGraph().RunScript(s.ir_graph, None)
+    irs, *_ = module.DeconstructIRGraph().RunScript(s.ir_graph, None, None)
     assert irs.branches == {(0,): [mono]}
 
 
@@ -299,7 +309,7 @@ def test_deconstruct_skips_edges_without_the_method_and_warns(monkeypatch):
     s, _, _ = graph_with_methods()
     from compas_acoustics_ghpython import MethodGraph
 
-    irs, *_ = module.DeconstructIRGraph().RunScript(MethodGraph(s.ir_graph, "hybrid"), None)
+    irs, *_ = module.DeconstructIRGraph().RunScript(MethodGraph(s.ir_graph, "hybrid"), None, None)
     assert irs.branches.get((0,), []) == []
     assert messages and "pyroomacoustics" in messages[0]
 
@@ -311,10 +321,30 @@ def test_deconstruct_reads_the_method_its_wire_comes_from(monkeypatch):
     s, mono, ambisonic = graph_with_methods()
     s.populate_ir_graph([ambisonic], attribute="hybrid")
     for method, expected in (("hybrid", ambisonic), ("pyroomacoustics", mono)):
-        irs, *_ = module.DeconstructIRGraph().RunScript(MethodGraph(s.ir_graph, method), None)
+        irs, *_ = module.DeconstructIRGraph().RunScript(MethodGraph(s.ir_graph, method), None, None)
         assert irs.branches == {(0,): [expected]} and module.ghenv.Component.Message == method
     assert not messages
     assert MethodGraph(s.ir_graph, "hybrid").graph is s.ir_graph and not hasattr(MethodGraph(s.ir_graph, "x"), "nothing")
+
+
+def test_deconstruct_picks_a_source_receiver_combination(monkeypatch):
+    module, messages = load_component("CA_Deconstruct_IR_Graph", monkeypatch)
+    from compas_acoustics import ImpulseResponse
+
+    s = scene()
+    s.add_source(Source("src2", 2.5, 1.5, 1.6))
+    s.add_receiver(Receiver("rec2", 6, 4, 1.5))
+    responses = {(i, j): ImpulseResponse(f"{i}{j}", src, rec, np.ones(4), 48000)
+                 for i, src in enumerate(s.sources) for j, rec in enumerate(s.receivers)}
+    s.populate_ir_graph(list(responses.values()))
+    irs, sources, receivers, _ = module.DeconstructIRGraph().RunScript(s.ir_graph, [0], [1])
+    assert irs.branches == {(1,): [responses[0, 1]]} and sources.branches == {(1,): [s.sources[0]]}
+    irs, *_ = module.DeconstructIRGraph().RunScript(s.ir_graph, [1], None)
+    assert irs.branches == {(0,): [responses[1, 0]], (1,): [responses[1, 1]]}
+    assert not messages
+    irs, *_ = module.DeconstructIRGraph().RunScript(s.ir_graph, [1, 5], [0])
+    assert irs.branches == {(0,): [responses[1, 0]]}
+    assert len(messages) == 1 and "5" in messages[0]
 
 
 # -------------------------------------------------------------- Analyse IR --
@@ -324,7 +354,7 @@ def analysed_response():
 
 def test_analyse_ir_gives_sti_and_g_where_pyrato_can_compute_them(monkeypatch):
     module, messages = load_component("CA_Analyse_IR", monkeypatch, levels=True)
-    params = module.AnalyseIR().RunScript(analysed_response())
+    params, *_ = module.AnalyseIR().RunScript(analysed_response(), None)
     assert [p.name for p in params] == ["EDT", "T20", "T30", "C50", "C80", "D50", "DRR", "Ts", "STI", "G"]
     sti, g = params[-2:]
     assert 0.0 < sti.overall < 1.0 and len(sti.values) == 7 and np.isfinite(g.overall)
@@ -347,7 +377,7 @@ def test_analyse_ir_leaves_out_sti_and_g_when_they_could_not_be_computed(monkeyp
         return analyser, []
 
     monkeypatch.setattr(worker, "analyse", without_pyrato_1)
-    params = module.AnalyseIR().RunScript(analysed_response())
+    params, *_ = module.AnalyseIR().RunScript(analysed_response(), None)
     assert [p.name for p in params] == ["EDT", "T20", "T30", "C50", "C80", "D50", "DRR", "Ts"]
     assert any(level == "remark" and "worker 'binaural' or 'hybrid'" in text for level, text in messages)
 
@@ -361,9 +391,34 @@ def test_a_worker_failure_leaves_the_analysis_to_this_python(monkeypatch):
         raise RuntimeError("run the installer again")
 
     monkeypatch.setattr(worker, "analyse", failing)
-    params = module.AnalyseIR().RunScript(analysed_response())
+    params, *_ = module.AnalyseIR().RunScript(analysed_response(), None)
     assert [p.name for p in params][:8] == ["EDT", "T20", "T30", "C50", "C80", "D50", "DRR", "Ts"]
     assert ("warning", "STI and G could not be computed in the worker: run the installer again") in messages
+
+
+def test_analyse_ir_gives_the_time_and_frequency_responses_of_w_or_both_ears(monkeypatch):
+    from compas_acoustics import ImpulseResponse
+
+    module, messages = load_component("CA_Analyse_IR", monkeypatch, levels=True)
+    mono = analysed_response()
+    _, time, frequency = module.AnalyseIR().RunScript(mono, None)
+    assert (time.x_scale, time.y_unit, frequency.x_scale) == ("linear", "Level (dB)", "log")
+    assert time.title == "Impulse Response" and np.max(time.values) == 0.0 and time.values.shape == (1, len(mono.denormalized()))
+    assert 20 <= frequency.frequencies[0] and frequency.frequencies[-1] <= 20000
+    assert str(time).startswith("Impulse Response: Time (s) 0 to")
+    _, time, _ = module.AnalyseIR().RunScript(mono, "linear")
+    np.testing.assert_allclose(time.values[0], mono.denormalized())
+
+    ir = np.zeros((4800, 4))
+    ir[10] = [1.0, 0.5, 0.2, 0.1]
+    ambisonic = ImpulseResponse("a", mono.source, mono.receiver, ir, 48000, ambisonic_order=1, normalization="sn3d", channel_order="acn")
+    binaural = ImpulseResponse("b", mono.source, mono.receiver, ir[:, :2], 48000, generation={"method": "hybrid", "output": "binaural"})
+    for response, channels in ((ambisonic, ["W"]), (binaural, ["left", "right"])):
+        time = module.AcousticParameter.from_time_response(response)
+        frequency = module.AcousticParameter.from_frequency_response(response)
+        assert time.channels == frequency.channels == channels and len(time.values) == len(frequency.values) == len(channels)
+    assert module.AnalyseIR().RunScript(mono, "log") == (None, None, None)
+    assert ("error", "Input parameter 'time_scale' must be one of ['db', 'linear'].") in messages
 
 
 def test_the_plotter_offers_every_parameter_with_its_units(monkeypatch):
@@ -479,6 +534,49 @@ def test_auralise_convolves_a_binaural_response_as_it_is(monkeypatch, tmp_path):
     (signal,) = signals.branches[(0,)]
     assert signal.shape[1] == 2 and np.all(np.isfinite(signal)) and not any(level == "error" for level, _ in messages)
     np.testing.assert_allclose(signal[10 : 10 + 4800, 1] / signal[10 : 10 + 4800, 0], 0.5, atol=1e-9)
+
+
+@pytest.mark.skipif(importlib.util.find_spec("spharpy") is None, reason="binaural decoding needs spharpy (Python >= 3.11)")
+def test_auralise_decodes_with_a_sofa_file_the_user_connects(monkeypatch, tmp_path):
+    import shutil
+
+    import soundfile as sf
+
+    from compas_acoustics import ImpulseResponse
+    from compas_acoustics.binaural import DEFAULT_HRTF
+
+    module, messages = load_component("CA_Auralise", monkeypatch, levels=True)
+    path = tmp_path / "speech.wav"
+    sf.write(str(path), np.random.default_rng(1).normal(size=4800) * 0.1, 48000)
+    ir = np.zeros((480, 4))
+    ir[10] = [1.0, 0.3, 0.2, 0.1]
+    response = ImpulseResponse("a", Source("s", 1, 1, 1, sound_file=str(path)), Receiver("rec", 5, 3, 1.5), ir, 48000,
+                               ambisonic_order=1, normalization="sn3d", channel_order="acn")
+    own = tmp_path / "my_set.sofa"
+    shutil.copy(DEFAULT_HRTF, own)
+
+    def auralise(hrtf):
+        signals, _ = module.Auralise().RunScript(FakeTree({(0,): [response]}), None, "binaural", hrtf, "none", True, None, None, None)
+        return signals.branches[(0,)][0], module.ghenv.Component.Message
+
+    default, default_message = auralise(None)
+    custom, custom_message = auralise(str(own))
+    assert default_message.startswith("binaural (kemar)") and custom_message.startswith("binaural (my_set.sofa)")
+    np.testing.assert_allclose(custom, default)
+    assert not any(level == "error" for level, _ in messages)
+
+
+def test_the_hrtf_inputs_get_no_value_list(monkeypatch):
+    for name, cls, run in (("CA_Auralise", "Auralise", lambda c: c.RunScript(*[None] * 9)),
+                           ("CA_Simulate_Hybrid", "SimulateHybrid", lambda c: c.RunScript(*[None] * 12))):
+        module, _ = load_component(name, monkeypatch)
+        document, hrtf, output = FakeDocument(), FakeParam("hrtf"), FakeParam("output_format" if name == "CA_Auralise" else "output")
+        component = fake_component(document, hrtf, output, guid=name)
+        component.AddRuntimeMessage = lambda level, text: None
+        module.ghenv = types.SimpleNamespace(Component=component)
+        run(getattr(module, cls)())
+        document.solve()
+        assert hrtf.added == [] and len(output.added) == 1
 
 
 def test_auralise_reports_a_binaural_response_in_a_stereo_format_as_an_error(monkeypatch, tmp_path):
@@ -601,10 +699,25 @@ def fake_hybrid(monkeypatch, warn=None):
     return calls
 
 
+def draw_seed(module, monkeypatch, seed=7):
+    """An empty seed input draws a random one: fix the draw."""
+    monkeypatch.setattr(module, "random", types.SimpleNamespace(randrange=lambda n: seed))
+
+
 def run_hybrid(module, s, **inputs):
     inputs.setdefault("run", True)
     names = ("tail", "reference", "sh_order", "ism_order", "diffraction", "late_envelope", "seed", "normalize", "output", "hrtf", "run")
     return module.SimulateHybrid().RunScript(s, *(inputs.get(n) for n in names))
+
+
+def test_the_reference_tail_without_a_reference_warns_and_does_not_run(monkeypatch):
+    module, messages = load_component("CA_Simulate_Hybrid", monkeypatch, levels=True)
+    monkeypatch.setitem(sys.modules, "compas_acoustics.simulation_methods.hybrid", None)
+    for run in (False, True):
+        binaural, ambisonic = run_hybrid(module, scene(), tail="reference", run=run)
+        assert binaural is not None and ambisonic is None
+        assert module.ghenv.Component.Message == "connect a reference"
+    assert [level for level, _ in messages] == ["warning", "warning"] and "reference" in messages[0][1]
 
 
 def test_a_missing_hybrid_extra_is_an_error_not_a_traceback(monkeypatch):
@@ -627,10 +740,12 @@ def test_simulate_hybrid_without_the_extra_runs_in_a_configured_worker(monkeypat
         return {}, ["a warning from the worker"]
 
     monkeypatch.setattr(worker, "simulate", simulate)
+    draw_seed(module, monkeypatch)
     s = scene()
     binaural, ambisonic = run_hybrid(module, s, tail="eyring")
     assert (binaural.graph, binaural.method, ambisonic) == (s.ir_graph, "hybrid_binaural", None)
-    assert calls == [("hybrid", {"tail": "eyring"}, None)]
+    assert calls == [("hybrid", {"tail": "eyring", "seed": 7}, None)]
+    assert module.ghenv.Component.Message.endswith("seed 7, hrtf kemar")
     assert ("warning", "a warning from the worker") in messages
 
 
@@ -643,15 +758,16 @@ def test_the_worker_gets_the_requested_outputs_and_hrtf(monkeypatch):
     calls = []
     monkeypatch.setattr(worker, "simulate", lambda scene, method, settings, references: calls.append(settings) or ({}, []))
     s = scene()
-    binaural, ambisonic = run_hybrid(module, s, output="both", hrtf="kemar")
+    binaural, ambisonic = run_hybrid(module, s, output="both", hrtf="kemar", seed=3)
     assert (binaural.method, ambisonic.method) == ("hybrid_binaural", "hybrid")
-    assert calls == [{"output": ["ambisonic", "binaural"], "hrtf": "kemar"}]
+    assert calls == [{"output": ["ambisonic", "binaural"], "hrtf": "kemar", "seed": 3}]
 
 
 @needs_hybrid
 def test_the_hybrid_runs_only_when_run_is_pressed(monkeypatch):
     module, messages = load_component("CA_Simulate_Hybrid", monkeypatch, levels=True)
     calls = fake_hybrid(monkeypatch)
+    draw_seed(module, monkeypatch)
     s = scene()
     for run in (None, False):
         binaural, ambisonic = run_hybrid(module, s, run=run)
@@ -659,7 +775,7 @@ def test_the_hybrid_runs_only_when_run_is_pressed(monkeypatch):
     assert calls == [] and module.ghenv.Component.Message == "press Run"
     assert not messages
     run_hybrid(module, s, run=True)
-    assert calls == [{}]
+    assert calls == [{"seed": 7}]
 
 
 def hybrid_graph(attributes=("hybrid_binaural",), **generation):
@@ -741,15 +857,18 @@ def test_not_running_does_not_need_the_hybrid_extra(monkeypatch):
 def test_the_hybrid_component_passes_only_given_inputs(monkeypatch):
     module, _ = load_component("CA_Simulate_Hybrid", monkeypatch)
     calls = fake_hybrid(monkeypatch)
+    draw_seed(module, monkeypatch)
     run_hybrid(module, scene())
-    run_hybrid(module, scene(), tail="eyring", diffraction="btms", sh_order=2)
-    assert calls == [{}, {"tail": "eyring", "diffraction": "btms", "sh_order": 2}]
-    assert "tail: eyring" in module.ghenv.Component.Message
+    run_hybrid(module, scene(), tail="eyring", diffraction="btms", sh_order=2, seed=3)
+    assert calls == [{"seed": 7}, {"tail": "eyring", "diffraction": "btms", "sh_order": 2, "seed": 3}]
+    assert "tail: eyring" in module.ghenv.Component.Message and module.ghenv.Component.Message.endswith("seed 3, hrtf kemar")
     run_hybrid(module, scene(), output="both", hrtf="kemar")
     run_hybrid(module, scene(), output="ambisonic", hrtf="kemar")
+    assert module.ghenv.Component.Message.endswith("seed 7")
     run_hybrid(module, scene(), output="binaural", hrtf="/a/set.sofa")
-    assert calls[2:] == [{"output": ["ambisonic", "binaural"], "hrtf": "kemar"}, {"output": "ambisonic"},
-                         {"output": "binaural", "hrtf": "/a/set.sofa"}]
+    assert module.ghenv.Component.Message.endswith("hrtf set.sofa")
+    assert calls[2:] == [{"output": ["ambisonic", "binaural"], "hrtf": "kemar", "seed": 7}, {"output": "ambisonic", "seed": 7},
+                         {"output": "binaural", "hrtf": "/a/set.sofa", "seed": 7}]
 
 
 @needs_hybrid
@@ -768,8 +887,9 @@ def test_a_local_run_fills_the_graph_of_each_requested_output(monkeypatch):
 def test_auto_and_none_are_the_defaults(monkeypatch):
     module, _ = load_component("CA_Simulate_Hybrid", monkeypatch)
     calls = fake_hybrid(monkeypatch)
+    draw_seed(module, monkeypatch)
     run_hybrid(module, scene(), tail="auto", diffraction="none")
-    assert calls == [{}]
+    assert calls == [{"seed": 7}]
 
 
 @needs_hybrid
@@ -813,7 +933,7 @@ def test_deconstruct_defaults_to_the_only_method_when_there_is_no_data(monkeypat
     s.populate_ir_graph([], attribute="data")
     s.populate_ir_graph([], attribute="pyroomacoustics")
     s.populate_ir_graph([ambisonic], attribute="hybrid")
-    irs, *_ = module.DeconstructIRGraph().RunScript(s.ir_graph, None)
+    irs, *_ = module.DeconstructIRGraph().RunScript(s.ir_graph, None, None)
     assert irs.branches == {(0,): [ambisonic]}
     assert module.ghenv.Component.Message == "hybrid" and not messages
 
@@ -825,7 +945,7 @@ def test_the_deconstruct_inputs_match_its_script(monkeypatch):
     module, _ = load_component("CA_Deconstruct_IR_Graph", monkeypatch)
     metadata = json.loads((COMPONENTS / "CA_Deconstruct_IR_Graph" / "metadata.json").read_text())
     parameters = list(inspect.signature(module.DeconstructIRGraph.RunScript).parameters)[1:]
-    assert parameters == [p["name"] for p in metadata["ghpython"]["inputParameters"]] == ["ir_graph", "receiver_idx"]
+    assert parameters == [p["name"] for p in metadata["ghpython"]["inputParameters"]] == ["ir_graph", "source_idx", "receiver_idx"]
 
 
 @needs_hybrid
@@ -921,7 +1041,8 @@ def test_deconstruct_parameter_gives_every_parameter_apart_by_default(monkeypatc
     module, messages = load_component("CA_Deconstruct_IR", monkeypatch)
     t30, c50 = two_parameters(module)
     for select in (None, "all"):
-        name, values, overall, frequencies = module.DeconstructParam().RunScript([t30, c50], select)
+        param, name, values, overall, frequencies = module.DeconstructParam().RunScript([t30, c50], select)
+        assert param == [t30, c50]
         assert name == ["Reverberation Time (T30)", "Clarity (C50)"] and overall == [1.7, -2.49]
         assert values.branches == {(0,): [0.984, 1.17, 1.94], (1,): [-1.46, 1.94, -2.58]}
         assert list(frequencies) == [125, 250, 1000]
@@ -931,16 +1052,38 @@ def test_deconstruct_parameter_gives_every_parameter_apart_by_default(monkeypatc
 def test_deconstruct_parameter_gives_a_selected_parameter_as_plain_lists(monkeypatch):
     module, messages = load_component("CA_Deconstruct_IR", monkeypatch)
     t30, c50 = two_parameters(module)
-    name, values, overall, frequencies = module.DeconstructParam().RunScript([t30, c50], "C50")
+    param, name, values, overall, frequencies = module.DeconstructParam().RunScript([t30, c50], "C50")
+    assert param is c50
     assert (name, list(values), overall, list(frequencies)) == ("Clarity (C50)", [-1.46, 1.94, -2.58], -2.49, [125, 250, 1000])
     assert not messages
+
+
+def test_deconstruct_parameter_prints_its_bands_in_a_panel(monkeypatch):
+    module, _ = load_component("CA_Deconstruct_IR", monkeypatch)
+    t30, _ = two_parameters(module)
+    assert str(t30) == "T30, Time (s): 125 Hz 0.984, 250 Hz 1.17, 1000 Hz 1.94; overall 1.7"
+    t30.overall, t30.source_name, t30.receiver_name = None, "S1", "R1"
+    assert str(t30) == "T30, Time (s): 125 Hz 0.984, 250 Hz 1.17, 1000 Hz 1.94 (S1 -> R1)"
+    assert str(module.AcousticParameter(title="Impulse Response (IR)")) == "Impulse Response (IR)"
+
+
+def test_deconstruct_parameter_feeds_plot_2d(monkeypatch):
+    module, _ = load_component("CA_Deconstruct_IR", monkeypatch)
+    t30, c50 = two_parameters(module)
+    param = module.DeconstructParam().RunScript([t30, c50], "T30")[0]
+    import compas_acoustics_ghpython.plotter as plotter
+
+    monkeypatch.setattr(plotter, "rg", fake_rhino_geometry())
+    chart = plotter.Plotter2D(param)
+    chart.plot(plane=FakePlane(Vec(0, 0), Vec(1, 0), Vec(0, 1)), width=10.0, height=5.0)
+    assert chart.title.PlainText == "Reverberation Time (T30)" and len(chart.data_points) == 3
 
 
 def test_deconstruct_parameter_warns_without_data_or_without_the_selection(monkeypatch):
     module, messages = load_component("CA_Deconstruct_IR", monkeypatch)
     t30, _ = two_parameters(module)
     for call in (([], None), (None, None), ([t30], "EDT")):
-        assert module.DeconstructParam().RunScript(*call) == (None,) * 4
+        assert module.DeconstructParam().RunScript(*call) == (None,) * 5
     assert len(messages) == 3 and "EDT" in messages[2]
 
 
@@ -958,7 +1101,7 @@ def test_deconstruct_parameter_offers_the_parameters_in_a_list_and_matches_its_m
     assert [item.name for item in value_list.ListItems] == ["all", "EDT", "T20", "T30", "C50", "C80", "D50", "DRR", "Ts", "STI", "G"]
     metadata = json.loads((COMPONENTS / "CA_Deconstruct_IR" / "metadata.json").read_text())["ghpython"]
     assert list(inspect.signature(module.DeconstructParam.RunScript).parameters)[1:] == [p["name"] for p in metadata["inputParameters"]]
-    assert [o["name"] for o in metadata["outputParameters"]] == ["name", "values", "overall", "frequencies"]
+    assert [o["name"] for o in metadata["outputParameters"]] == ["param", "name", "values", "overall", "frequencies"]
     assert metadata["inputParameters"][0]["scriptParamAccess"] == 1
 
 
@@ -1012,6 +1155,43 @@ def test_the_plot_leaves_half_a_band_between_the_y_axis_and_the_first_band(monke
     assert xs[-1] == pytest.approx(13.0) and chart.x_axis_line[1].X - 2 == pytest.approx(13.0)
     assert [point.X - 2 for point in chart.data_points] == pytest.approx(xs)
     assert [label.PlainText for label in chart.x_tick_labels] == [str(b) for b in bands]
+
+
+def test_a_time_response_plots_as_a_curve_per_channel_on_a_time_axis(monkeypatch):
+    load_component("CA_Plot_2D", monkeypatch)
+    import compas_acoustics_ghpython.plotter as plotter
+
+    monkeypatch.setattr(plotter, "rg", fake_rhino_geometry())
+    rng = np.random.default_rng(0)
+    values = np.vstack([rng.normal(size=96000), 0.5 * rng.normal(size=96000)])
+    values[0, 12345] = 9.0
+    curve = plotter.AcousticParameter("IR", np.arange(96000) / 48000, values, None, "Impulse Response (left, right)",
+                                      "Time (s)", "Amplitude", x_scale="linear", channels=["left", "right"])
+    chart = plotter.Plotter2D(curve)
+    chart.plot(plane=FakePlane(Vec(0, 0), Vec(1, 0), Vec(0, 1)), width=10.0, height=5.0)
+    assert len(chart.data_polyline) == 2 and chart.data_points == [] and chart.data_values == []
+    assert all(len(polyline) <= 2 * plotter.CURVE_BINS for polyline in chart.data_polyline)
+    assert [label.PlainText for label in chart.x_tick_labels] == ["0", "0.5", "1", "1.5", "2"]
+    assert chart.x_axis_points[-1].X == pytest.approx(10.0)
+    # the decimated curve keeps its peak
+    top = max(point.Y for point in chart.data_polyline[0])
+    assert top == pytest.approx(plotter.remap_number(9.0, float(chart.y_tick_labels[0].PlainText), float(chart.y_tick_labels[-1].PlainText), 0, 5.0))
+
+
+def test_a_frequency_response_plots_on_a_log_axis_with_octave_ticks(monkeypatch):
+    load_component("CA_Plot_2D", monkeypatch)
+    import compas_acoustics_ghpython.plotter as plotter
+
+    monkeypatch.setattr(plotter, "rg", fake_rhino_geometry())
+    frequencies = np.geomspace(20, 20000, 500)
+    curve = plotter.AcousticParameter("FR", frequencies, -np.log10(frequencies)[np.newaxis], None, "Frequency Response, 1/3 octave",
+                                      "Frequency (Hz)", "Level (dB)", x_scale="log")
+    chart = plotter.Plotter2D(curve)
+    chart.plot(plane=FakePlane(Vec(0, 0), Vec(1, 0), Vec(0, 1)), width=12.0, height=5.0)
+    assert [label.PlainText for label in chart.x_tick_labels] == ["31.5", "63", "125", "250", "500", "1k", "2k", "4k", "8k", "16k"]
+    assert chart.x_axis_points[5].X == pytest.approx(12.0 * np.log10(1000 / 20) / 3)
+    (polyline,) = chart.data_polyline
+    assert len(polyline) == 500 and polyline[0].X == pytest.approx(0.0) and polyline[-1].X == pytest.approx(12.0)
 
 
 def test_the_y_axis_title_reads_upwards(monkeypatch):
@@ -1089,3 +1269,14 @@ def test_no_component_pins_its_own_script_environment():
     # The installer adds one itself when the user chooses a venv.
     pinned = [path.parent.name for path in COMPONENTS.glob("*/code.py") if re.search(r"^#\s*(venv|r|requirements)\s*:", path.read_text(), re.MULTILINE)]
     assert pinned == []
+
+
+def test_the_plot_2d_inputs_match_its_script(monkeypatch):
+    import inspect
+    import json
+
+    module, messages = load_component("CA_Plot_2D", monkeypatch)
+    metadata = json.loads((COMPONENTS / "CA_Plot_2D" / "metadata.json").read_text())["ghpython"]
+    parameters = list(inspect.signature(module.Plot2D.RunScript).parameters)[1:]
+    assert parameters == [p["name"] for p in metadata["inputParameters"]] == ["data", "plane", "x_size", "y_size", "settings"]
+    assert module.Plot2D().RunScript(None, None, None, None, None) is None and "'data'" in messages[0]

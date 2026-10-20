@@ -17,8 +17,8 @@
                 "typeHintID": "ghdoc"
             },
             {
-                "name": "signals",
-                "description": "Optional source signal(s). If not provided, it will take the signal(s) from the Source object(s) in the scene.",
+                "name": "anechoic_sounds",
+                "description": "Optional anechoic sound file(s), one per impulse response, paired by position in matching branches. If not provided, each impulse response uses the sound file of its Source.",
                 "optional": true,
                 "scriptParamAccess": 2,
                 "typeHintID": "ghdoc"
@@ -32,7 +32,7 @@
             },
             {
                 "name": "hrtf",
-                "description": "HRTF set for binaural output: 'kemar' (default), or the path to a .sofa file.",
+                "description": "HRTF set for binaural output. Empty: KEMAR (default). Connect a File Path to a .sofa file to use your own HRTF set; the component's message names the set in use.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "str"
@@ -45,8 +45,8 @@
                 "typeHintID": "str"
             },
             {
-                "name": "multiconvolve",
-                "description": "Whether to convolve multiple signals with multiple impulse responses. If False, it will convolve each signal with the corresponding impulse response.",
+                "name": "mix_sources",
+                "description": "If True, sum all sources heard at the same receiver into one signal per receiver (the full scene). If False (default), output one signal per source and receiver.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "bool"

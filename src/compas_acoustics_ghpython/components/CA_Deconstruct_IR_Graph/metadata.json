@@ -17,6 +17,13 @@
                 "typeHintID": "ghdoc"
             },
             {
+                "name": "source_idx",
+                "description": "Index(s) of the source(s) to filter, in the order of the scene's sources. With receiver_idx it picks a source-receiver combination, e.g. to pass a single impulse response to Analyse Impulse Response.",
+                "optional": true,
+                "scriptParamAccess": 1,
+                "typeHintID": "int"
+            },
+            {
                 "name": "receiver_idx",
                 "description": "Index(s) of the receiver(s) to filter.",
                 "optional": true,

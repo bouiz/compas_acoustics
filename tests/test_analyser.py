@@ -497,3 +497,30 @@ def test_single_numbers_average_500_and_1000_hz(name):
     r = AcousticAnalyser(make_ir()).analyse()
     assert r["freqs"][2:4] == [500, 1000]
     assert r[f"{name}_overall"] == pytest.approx(np.nanmean([r[name][2], r[name][3]]), abs=0.01)
+
+
+def test_the_time_response_is_in_db_re_the_peak_of_all_channels_floored_below_it():
+    from compas_acoustics.analyser import time_response
+
+    ir = np.zeros((4, 2))
+    ir[0] = [1.0, 0.1]
+    ir[2] = [-0.5, 0.0]
+    times, level = time_response(ir, 4)
+    np.testing.assert_allclose(times, [0, 0.25, 0.5, 0.75])
+    np.testing.assert_allclose(level[0], [0.0, -100.0, 20 * np.log10(0.5), -100.0])
+    np.testing.assert_allclose(level[1, 0], -20.0)
+    _, amplitude = time_response(ir, 4, db=False)
+    np.testing.assert_array_equal(amplitude, ir.T)
+    assert time_response(np.zeros(3), 4)[1].tolist() == [[-100.0] * 3]
+
+
+def test_the_frequency_response_of_an_impulse_is_flat_within_the_range():
+    from compas_acoustics.analyser import frequency_response
+
+    ir = np.zeros(4800)
+    ir[0] = 1.0
+    frequencies, level = frequency_response(ir, 48000)
+    assert frequencies[0] >= 20 and frequencies[-1] <= 20000 and level.shape == (1, len(frequencies))
+    np.testing.assert_allclose(level, 0.0, atol=1e-6)
+    _, both = frequency_response(np.column_stack([ir, 0.5 * ir]), 48000)
+    np.testing.assert_allclose(both[1], 20 * np.log10(0.5), atol=1e-6)

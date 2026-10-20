@@ -8,7 +8,7 @@ from scipy.signal import sosfilt
 
 from compas_acoustics.defaults import Defaults
 
-__all__ = ["AcousticAnalyser"]
+__all__ = ["AcousticAnalyser", "frequency_response", "time_response"]
 
 # Row order used throughout the class
 _PARAM_NAMES = ['EDT', 'T20', 'T30', 'C50', 'C80', 'D50', 'DRR', 'Ts', 'STI', 'G']
@@ -82,6 +82,74 @@ def _iso3382_start(ir_array, threshold_db=_START_THRESHOLD_DB):
         before = np.flatnonzero(level[:earlier[0] + 1] < -threshold_db)
         start = int(before[-1]) if before.size else 0
     return start
+
+
+def _channels_first(ir):
+    """An impulse response as (channels, samples), from (samples,) or (samples, channels)."""
+    return np.atleast_2d(np.asarray(ir, dtype=float).T)
+
+
+def time_response(ir, sampling_rate, db=True, dynamic_range=100.0):
+    """The impulse response against time, per channel.
+
+    Parameters
+    ----------
+    ir : np.ndarray
+        Shaped (samples,) or (samples, channels).
+    sampling_rate : int
+    db : bool, optional
+        ``True``: the level ``20 log10 |h|`` in dB re the peak of all channels, so that level
+        differences between channels are kept, floored ``dynamic_range`` dB below it.
+        ``False``: the amplitude.
+    dynamic_range : float, optional
+
+    Returns
+    -------
+    times : np.ndarray
+        (samples,), in seconds.
+    values : np.ndarray
+        (channels, samples).
+    """
+    ir = _channels_first(ir)
+    times = np.arange(ir.shape[1]) / sampling_rate
+    if not db:
+        return times, ir
+    peak = np.max(np.abs(ir))
+    if peak == 0:
+        return times, np.full_like(ir, -dynamic_range)
+    return times, 20 * np.log10(np.maximum(np.abs(ir) / peak, 10 ** (-dynamic_range / 20)))
+
+
+def frequency_response(ir, sampling_rate, num_fractions=3, frequency_range=(20.0, 20000.0), dynamic_range=100.0):
+    """The magnitude response, fractional-octave smoothed, per channel.
+
+    Parameters
+    ----------
+    ir : np.ndarray
+        Shaped (samples,) or (samples, channels).
+    sampling_rate : int
+    num_fractions : int, optional
+        Smoothing width in fractions of an octave (``pyfar.dsp.smooth_fractional_octave``).
+    frequency_range : tuple of float, optional
+        Bins kept, in Hz.
+    dynamic_range : float, optional
+        Floor below the peak, in dB.
+
+    Returns
+    -------
+    frequencies : np.ndarray
+        (bins,), in Hz.
+    values : np.ndarray
+        (channels, bins), in dB re the peak of all channels.
+    """
+    signal = pf.Signal(_channels_first(ir), sampling_rate)
+    smoothed, _ = pf.dsp.smooth_fractional_octave(signal, num_fractions=num_fractions)
+    keep = (smoothed.frequencies >= frequency_range[0]) & (smoothed.frequencies <= frequency_range[1])
+    magnitude = np.abs(smoothed.freq[..., keep])
+    peak = np.max(magnitude)
+    if peak == 0:
+        return smoothed.frequencies[keep], np.full(magnitude.shape, -dynamic_range)
+    return smoothed.frequencies[keep], 20 * np.log10(np.maximum(magnitude / peak, 10 ** (-dynamic_range / 20)))
 
 
 class AcousticAnalyser:

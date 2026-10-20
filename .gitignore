@@ -146,3 +146,8 @@ src/**/components/ghuser/
 # Demonstration notebooks are kept out of the repository
 examples/notebooks/
 examples/output/
+# Local translation of the hybrid-rir boxes_conditions notebook
+examples/boxes_conditions.ipynb
+examples/odeon_room.py
+examples/AA_rirs/
+examples/rooms_conditions.ipynb

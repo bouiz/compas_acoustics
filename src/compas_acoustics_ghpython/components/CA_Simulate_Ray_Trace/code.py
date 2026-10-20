@@ -1,3 +1,4 @@
+import random
 import warnings
 
 import Grasshopper
@@ -42,6 +43,9 @@ class SimulateRayTracing(Grasshopper.Kernel.GH_ScriptInstance):
                     "Ray tracing is off, so {} are not used.".format(", ".join(ignored)),
                 )
             given = {key: value for key, value in given.items() if key not in RAY_TRACING_ONLY}
+        elif "seed" not in given:
+            # The method's own default is a fixed seed; an empty input draws a new one each run
+            given["seed"] = random.randrange(2**31)
 
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
@@ -61,7 +65,7 @@ class SimulateRayTracing(Grasshopper.Kernel.GH_ScriptInstance):
             given.get("image_source_order", "default"),
             given.get("n_rays", "default") if ray_tracing else "-",
             given.get("air_absorption", "default"),
-            given.get("seed", "default") if ray_tracing else "-",
+            given["seed"] if ray_tracing else "-",
         )
 
         return MethodGraph(scene.ir_graph, "pyroomacoustics")

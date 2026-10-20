@@ -16,7 +16,7 @@ class DeconstructParam(Grasshopper.Kernel.GH_ScriptInstance):
 
         if not param:
             ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning, "Input parameter 'param' failed to collect data.")
-            return None, None, None, None
+            return None, None, None, None, None
 
         params = list(param)
         if select not in (None, "", "all"):
@@ -26,14 +26,14 @@ class DeconstructParam(Grasshopper.Kernel.GH_ScriptInstance):
                     Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning,
                     "The parameters connected do not include '{}'.".format(select),
                 )
-                return None, None, None, None
+                return None, None, None, None, None
 
         if len(params) == 1:
             p = params[0]
-            return p.title, p.values, p.overall, p.frequencies
+            return p, p.title, p.values, p.overall, p.frequencies
 
         # Every parameter in its own branch, so that they stay apart; they share their frequency bands
         values = DataTree[object]()
         for i, p in enumerate(params):
             values.AddRange(p.values, GH_Path(i))
-        return [p.title for p in params], values, [p.overall for p in params], params[0].frequencies
+        return params, [p.title for p in params], values, [p.overall for p in params], params[0].frequencies
