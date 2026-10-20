@@ -59,6 +59,20 @@ class AudioPlayer:
         else:
             raise NotImplementedError(f"Sound playback is not implemented for system {self.system}.")
 
+    @staticmethod
+    def _refresh_devices(sd):
+        """Re-read the audio devices, so that headphones connected after sounddevice was loaded are the default output.
+
+        sounddevice lists the devices once, when it is loaded, and has no public way to list them again.
+        """
+        if not (hasattr(sd, "_terminate") and hasattr(sd, "_initialize")):
+            return
+        try:
+            sd._terminate()
+            sd._initialize()
+        except Exception as e:
+            warnings.warn(f"The audio devices could not be refreshed, playing on the device found at start: {e}")
+
     def play_array(self, array, sampling_rate, normalize=True):
         """
         Play an audio signal represented as a numpy array.
@@ -89,6 +103,7 @@ class AudioPlayer:
         elif max_val > 1:
             warnings.warn(f"The sound array peaks at {20 * np.log10(max_val):+.1f} dBFS and will clip.")
 
+        self._refresh_devices(sd)
         sd.check_output_settings(samplerate=sampling_rate)
 
         sd.play(audio_data, sampling_rate)

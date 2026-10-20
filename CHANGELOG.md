@@ -75,6 +75,7 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 * Changed `Auraliser` to refuse `output_format='ambisonics'` for mono impulse responses, as it does for `'binaural'`: a mono response has no directional information (it used to come back as a one-channel order 0 signal).
 * Added a warning to `Auraliser.convolve` (and the Grasshopper Auralise component) for mono impulse responses mixed with ambisonic ones in binaural or ambisonics output: the mono ones carry no direction and are not placed in space.
 * Changed the order of the inputs of the Grasshopper Source component to `position`, `name`, `direction`, `directivity`, `sound_file`.
+* Changed `AudioPlayer` to read the audio devices again before it plays an array, so that headphones connected after Rhino started are the output.
 * Added the input `select` (a value list: `all` or one of EDT, T20, T30, C50, C80, D50, DRR, Ts, STI, G) to the Grasshopper Deconstruct Parameter component: a selected parameter comes out as plain lists, `all` as one branch per parameter. Its `param` input takes the list.
 * Added STI and G to the Grasshopper Analyse IR component through the worker (`compas_acoustics.worker.analyse`): they need pyrato >= 1.0, which Rhino 8's Python 3.9 cannot install, so the worker computes them and Analyse IR leaves them out without one.
 * Changed the Grasshopper Plot 2D chart to leave half a band's spacing between the y axis and the first frequency band.

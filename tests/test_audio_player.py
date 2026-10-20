@@ -34,6 +34,31 @@ def test_an_array_is_played_normalised_at_the_given_rate(player, sounddevice):
     assert rate == 44100 and np.max(np.abs(data)) == pytest.approx(0.99)
 
 
+def test_the_devices_are_read_again_before_an_array_is_played(player, sounddevice):
+    order = []
+    sounddevice._terminate = lambda: order.append("terminate")
+    sounddevice._initialize = lambda: order.append("initialize")
+    sounddevice.play = lambda data, rate: order.append("play")
+    player.play(np.array([0.0, 0.5]), 48000)
+    player.play(np.array([0.0, 0.5]), 48000)
+    assert order == ["terminate", "initialize", "play"] * 2
+
+
+def test_a_failure_to_read_the_devices_again_is_a_warning_and_the_sound_still_plays(player, sounddevice):
+    def terminate():
+        raise RuntimeError("PortAudio is busy")
+
+    sounddevice._terminate, sounddevice._initialize = terminate, lambda: None
+    with pytest.warns(UserWarning, match="could not be refreshed.*PortAudio is busy"):
+        player.play(np.array([0.0, 0.5]), 48000)
+    assert len(sounddevice.played) == 1
+
+
+def test_a_sounddevice_without_the_refresh_functions_just_plays(player, sounddevice, recwarn):
+    player.play(np.array([0.0, 0.5]), 48000)
+    assert len(sounddevice.played) == 1 and not recwarn.list
+
+
 def test_an_array_can_be_played_at_its_rendered_level_and_clipping_is_a_warning_not_a_print(player, sounddevice, capsys):
     with pytest.warns(UserWarning, match="will clip"):
         player.play(np.array([0.0, 2.0]), 48000, normalize=False)
