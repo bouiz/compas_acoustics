@@ -10,6 +10,7 @@ sound pressures for generated geometries), not toolbox code. They are copied unc
 | `double_edge_oracle.mat` | the three-sided barrier (Kirsch and Ewert 2024) against second-order BTMS and the UDFA toolbox | same |
 | `btms_first.mat`, `btms_second.mat` | first and second order BTMS cases (240 and 80, seed 20261006) | EDtoolbox v0.504, MATLAB R2025b |
 | `btms_plate.mat`, `btms_fd.mat` | a plate, and the second-order frequency-domain reference of three boxes and a prism | EDtoolbox v0.504 |
+| `razr_scattering/` | surface scattering (Ewert et al. 2025): the split per image, the time-spread delays and the coupling into the FDN; made here, with its script, see its README | RAZR 0.96.3, MATLAB R2025b |
 
-Licence: not confirmed. Check the terms of EDtoolbox and the UDFA toolbox, and ask their authors, before redistributing these
+Licence: RAZR is CC BY-NC-ND 4.0, and `razr_scattering/` holds only numbers derived from its output. Otherwise not confirmed. Check the terms of EDtoolbox and the UDFA toolbox, and ask their authors, before redistributing these
 files beyond this repository.
