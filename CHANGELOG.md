@@ -122,6 +122,7 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 * Changed `matplotlib` to be imported by the `AcousticAnalyser` plot methods only when they run.
 * Changed the Grasshopper components to use ruff per-file ignores instead of `# flake8: noqa`, and the installer's `worker` input to `binaural` or `hybrid`.
 * Changed `librosa` out of the dependencies and `sounddevice` into them; `spharpy` is required on Python >= 3.11.
+* Changed `magls_filters` (the binaural decoder of `Auraliser`) to match the HRTF set's diffuse-field covariance (ear energies and interaural coherence) in every bin, after Zaunschirm et al. (2018) as Spatial_Audio_Framework's `applyDiffCovMatching` implements it; `covariance_constraint=False` gives the plain MagLS fit.
 
 ### Fixed
 
