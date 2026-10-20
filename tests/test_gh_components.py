@@ -480,6 +480,21 @@ def test_auralise_convolves_a_binaural_response_as_it_is(monkeypatch, tmp_path):
     assert signal.shape[1] == 2 and np.all(np.isfinite(signal)) and not any(level == "error" for level, _ in messages)
     np.testing.assert_allclose(signal[10 : 10 + 4800, 1] / signal[10 : 10 + 4800, 0], 0.5, atol=1e-9)
 
+
+def test_auralise_reports_a_binaural_response_in_a_stereo_format_as_an_error(monkeypatch, tmp_path):
+    import soundfile as sf
+
+    from compas_acoustics import ImpulseResponse
+
+    module, messages = load_component("CA_Auralise", monkeypatch, levels=True)
+    path = tmp_path / "speech.wav"
+    sf.write(str(path), np.random.default_rng(1).normal(size=4800) * 0.1, 48000)
+    response = ImpulseResponse("b", Source("s", 1, 1, 1, sound_file=str(path)), Receiver("rec", 5, 3, 1.5), np.ones((480, 2)), 48000,
+                               generation={"method": "hybrid", "output": "binaural"})
+    result = module.Auralise().RunScript(FakeTree({(0,): [response]}), None, "stereo", None, "relative", True, None, None, None)
+    assert result == (None, None)
+    assert ("error", "Impulse response source_0 is binaural; it plays only with output_format='binaural'.") in messages
+
 # --------------------------------------------------------------- Value lists --
 class FakeParam:
     def __init__(self, name, sources=0):
