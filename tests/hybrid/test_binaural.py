@@ -308,3 +308,30 @@ def test_the_covariance_constraint_is_part_of_the_cache_key():
     plain = magls_filters(DEFAULT_HRTF, FS, 1, covariance_constraint=False)
     assert constrained is magls_filters(DEFAULT_HRTF, FS, 1, covariance_constraint=True)
     assert not np.allclose(constrained, plain)
+
+
+def test_a_singular_covariance_zeroes_the_bin_as_saf_does_and_warns_once(monkeypatch, tmp_path):
+    """Ears identical at DC make the 2x2 covariance singular there; the other bins keep their correction."""
+    pytest.importorskip("spharpy")
+    import pyfar as pf
+    from compas_acoustics import binaural
+    from compas_acoustics.binaural import DEFAULT_HRTF, magls_filters
+
+    hrirs, directions, _ = pf.io.read_sofa(str(DEFAULT_HRTF), verbose=False)
+    time = np.array(hrirs.time)
+    time[:, 1] += ((time[:, 0].sum(axis=-1) - time[:, 1].sum(axis=-1)) / time.shape[-1])[:, None]
+    synthetic = pf.Signal(time, hrirs.sampling_rate)
+    monkeypatch.setattr(binaural.pf.io, "read_sofa", lambda *args, **kwargs: (synthetic, directions, None))
+    monkeypatch.setattr(binaural, "_BINAURAL_FILTERS_CACHE", {})
+    matched = []
+    monkeypatch.setattr(binaural, "_diffuse_covariance_matched",
+                        lambda *args, original=binaural._diffuse_covariance_matched: matched.append(original(*args)) or matched[-1])
+    path = tmp_path / "dc_identical.sofa"
+
+    with pytest.warns(UserWarning, match=r"1 bin") as caught:
+        constrained = magls_filters(path, FS, 1)
+    assert len([w for w in caught if "bin" in str(w.message)]) == 1
+    plain = magls_filters(path, FS, 1, covariance_constraint=False)
+    assert np.all(np.isfinite(constrained)) and not np.allclose(constrained, plain)
+    np.testing.assert_array_equal(matched[0][..., 0], 0.0)
+    assert np.all(np.max(np.abs(matched[0][..., 1:-1]), axis=(0, 1)) > 0.0)

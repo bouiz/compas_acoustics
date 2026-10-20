@@ -97,16 +97,37 @@ def _diffuse_covariance_matched(decoder, hrtfs, Y, weights):
         covariance = (h * weights) @ hermitian(h)
         index = np.arange(2)
         covariance[..., index, index] = covariance[..., index, index].real
-        return hermitian(np.linalg.cholesky(covariance))
+        factors = np.zeros_like(covariance)
+        positive_definite = np.ones(len(covariance), dtype=bool)
+        try:
+            factors = hermitian(np.linalg.cholesky(covariance))
+        except np.linalg.LinAlgError:
+            for k, c in enumerate(covariance):
+                try:
+                    factors[k] = hermitian(np.linalg.cholesky(c))
+                except np.linalg.LinAlgError:
+                    positive_definite[k] = False
+        return factors, positive_definite
 
     bins = slice(0, decoder.shape[2] - 1)
     B = decoder[..., bins].transpose(2, 0, 1)  # (K, Q, 2)
-    X = upper_cholesky(hrtfs[..., bins].transpose(2, 1, 0))
-    X_ambi = upper_cholesky(np.einsum('kqe,dq->ked', B, Y))
-    U, _, Vh = np.linalg.svd(hermitian(X_ambi) @ X)
-    M = np.linalg.solve(X_ambi, hermitian(Vh) @ hermitian(U) @ X)
+    X, X_ok = upper_cholesky(hrtfs[..., bins].transpose(2, 1, 0))
+    X_ambi, X_ambi_ok = upper_cholesky(np.einsum('kqe,dq->ked', B, Y))
+    # SAF's utility_cchol zeroes the factor of a matrix that is not positive definite, which
+    # leaves that bin's decoder zeroed by the correction (it warns only in debug builds)
+    ok = X_ok & X_ambi_ok
+    U, _, Vh = np.linalg.svd(hermitian(X_ambi[ok]) @ X[ok])
+    M = np.linalg.solve(X_ambi[ok], hermitian(Vh) @ hermitian(U) @ X[ok])
     matched = decoder.copy()
-    matched[..., bins] = (B @ M.conj()).transpose(1, 2, 0)
+    corrected = np.zeros_like(B)
+    corrected[ok] = B[ok] @ M.conj()
+    matched[..., bins] = corrected.transpose(1, 2, 0)
+    if not ok.all():
+        warnings.warn(
+            f"The diffuse-field covariance of {np.count_nonzero(~ok)} bin(s) is not positive definite "
+            "(for example ears identical at DC): the decoder is zero there, as in Spatial_Audio_Framework.",
+            stacklevel=3,
+        )
     return matched
 
 
