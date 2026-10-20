@@ -391,3 +391,18 @@ def test_the_analysis_in_the_worker_matches_the_analysis_here(running_worker, mo
     for name in ("STI_overall", "G_overall"):
         assert analyser.analysis_data[name] == pytest.approx(here.analysis_data[name], abs=0.01)
 
+
+@pytest.mark.parametrize("settings, normalized", [({}, True), ({"normalize": True}, True), ({"normalize": False}, False)])
+def test_responses_from_the_worker_keep_the_methods_normalize(monkeypatch, settings, normalized):
+    import types
+
+    from compas_acoustics.worker import api
+
+    monkeypatch.setattr(worker, "proxy", lambda: types.SimpleNamespace(simulate=api.simulate))
+    s = scene()
+    here = s.simulate(Pyroomacoustics(image_source_order=2, ray_tracing=False))
+    there, _ = worker.simulate(s, "pyroomacoustics", dict(settings, image_source_order=2, ray_tracing=False))
+    for key, ir in there.items():
+        assert ir.normalized is normalized
+        np.testing.assert_allclose(ir.denormalized(), here[key].denormalized(), atol=1e-6 * np.max(np.abs(here[key].denormalized())))
+

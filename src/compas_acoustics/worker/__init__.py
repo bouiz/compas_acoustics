@@ -199,7 +199,8 @@ def simulate(scene, method, settings, references=None):
     rirs = {}
     for key, path in result["responses"].items():
         source, receiver = pairs[key]
-        rirs[key] = ImpulseResponse.from_wav(path, source=source, receiver=receiver)
+        # The WAV holds the peak-normalized samples and its JSON the raw level, but not which view the method returns
+        rirs[key] = ImpulseResponse.from_wav(path, source=source, receiver=receiver, normalized=settings.get("normalize", True))
         scene.add_impulse_response(source, receiver, rirs[key], attribute=method)
     return rirs, result["warnings"]
 

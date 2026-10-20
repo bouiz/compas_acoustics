@@ -121,6 +121,7 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 
 ### Fixed
 
+* Fixed responses simulated in the worker (the hybrid in Rhino) always coming back as peak-normalized views: they keep the method's `normalize`. Their raw level was already kept.
 * Fixed the Grasshopper Material Library component forgetting its material when the file is reopened: the choice is kept in the component's nickname, which Grasshopper saves.
 * Fixed the Grasshopper Material Library component failing with `No module named 'compas_acoustics'`: its script pinned an empty Rhino script environment, `compas_acoustics_rhino`, instead of the one the installer fills.
 * Fixed the worker setup from the Grasshopper installer failing at its last check: the worker's Python 3.12 inherited the `PYTHONPATH` of Rhino's 3.9 packages and could not import numpy.
