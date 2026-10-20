@@ -33,6 +33,10 @@ Nothing is kept under its old name. What replaces what:
 | Grasshopper: Simulate Ray Tracing, with a `sample_rate` input | Simulate Pyroomacoustics; the rate is the `sampling_rate` input of Room Scene |
 | Grasshopper: Analyse IR output STI | no longer an output, with G: they need pyrato >= 1.0 |
 | `Source` direction default +z; `shoebox_room(materials={'left_wall': ..., 'right_wall': ...})` with `left_wall` at y = 0 | direction default +x, as the Grasshopper Source component has it; `left_wall` is at y = width and `right_wall` at y = 0, the sides of a receiver at the centre facing +x (swap the two keys to keep a room) |
+| `scene.simulate(hybrid)`, then `hybrid.binaural(hrtf)` | `scene.simulate(Hybrid(output="binaural", hrtf=...))`, stored under `'hybrid_binaural'`; `output=["ambisonic", "binaural"]` for both from one run |
+| `Hybrid()` returning ambisonic responses | `Hybrid(output="ambisonic")`; the default output is now binaural |
+| `binaural_rir(result, hrtf, filters)` (MagLS-decoded late field) | `binaural_rir(result, hrtf)`: each delay line through its own HRIR |
+| `shape_late(late, early, reference, fs)` | `shape_late(signals, early_w, late_w, reference, fs)` |
 
 A Grasshopper definition saved with the old components keeps their old code inside the file, and fails on the removed names. Delete the components
 in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate components, Deconstruct IR Graph, Analyse IR, Auralise and Audio Player.
@@ -45,7 +49,10 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 * Added `Hybrid(tail=...)` with a reference response, the hybrid's own ray-traced reference, or an Eyring or Sabine prediction as decay target.
 * Added edge diffraction at the edges of the room's own boundary (re-entrant corners) to `Hybrid`.
 * Added `Hybrid(scattering=False)`, surface scattering after Ewert et al. (2025) as RAZR 0.96.3 implements it: each image's specular part, the product of `sqrt(1 - s)` over its reflections, stays in the early field, and its scattered part, the product of `sqrt(s)`, enters the delay lines on its own hemisphere through an allpass cascade; checked against RAZR in `tests/hybrid/data/razr_scattering`. Off by default.
-* Added `Hybrid.binaural(hrtf_path=None)`, which filters the early part path by path with the nearest HRTF, and `compas_acoustics.binaural` (`HrtfSet`, `render_early_binaural`, `binaural_rir`, `magls_filters`).
+* Added `compas_acoustics.binaural` (`HrtfSet`, `render_early_binaural`, `binaural_rir`, `magls_filters`): the hybrid's early part path by path with the nearest HRTF.
+* Added `Hybrid(output="binaural", hrtf=None)`: `output` is `"ambisonic"`, `"binaural"` or a list of both, rendered from one run; `hrtf` is `"kemar"` (the default for a binaural output) or a SOFA file. Binaural responses record `generation["output"] == "binaural"` and the HRTF file in `generation["hrtf"]`, ambisonic ones `generation["output"] == "ambisonic"`.
+* Added `HybridResult.late_lines` and `line_directions`: the late field per delay line before the output matrix, and each line's direction in the receiver frame.
+* Added `SimulationMethod.attribute` (the IR graph attribute, by default `name`) and `SimulationMethod.extra_responses` (responses in further formats from the same run, by attribute); `Scene.simulate` stores each.
 * Added `Pyroomacoustics(ray_tracing=True)`, hybrid-rir's ray tracer on top of the image sources (`n_rays`, `energy_thres`, `duration`, `receiver_radius`, `seed`).
 * Added `AirConditions(temperature=20, humidity=50, pressure=101325)`: speed of sound after Cramer (1993) and air absorption after ISO 9613-1, for every method, recorded in `ImpulseResponse.generation`.
 * Added `RoomGeometry`, the scene's surfaces as one validated room (welded, outward oriented, closedness checked, coplanar faces merged), with `to_pra()` and `is_inside()`.
@@ -131,6 +138,10 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 * Changed the error of `Receiver` for a name with spaces or capitals to say `Receiver` (it said `Source`).
 * Changed `RoomGeometry.surfaces`, `surface_area`, `area_normals` and `volume` to count the air side only: a closed obstacle counts one side and its volume is subtracted, and obstacle faces lying on the boundary are left out, so Eyring and Sabine times, the default ray-tracing duration and the hybrid's delays and scattering decay time move in scenes with closed obstacles or obstacles on the boundary; a free panel still counts both sides.
 * Changed `AcousticMaterial` to validate coefficients on creation: numpy arrays and scalars become lists of float, and a length other than 7 or a value outside [0, 1] raises `ValueError`.
+* Changed the default output of `Hybrid` to binaural (`output="binaural"`), stored under `'hybrid_binaural'`; `Hybrid(output="ambisonic")` gives the ambisonic responses under `'hybrid'` as before, unchanged up to float rounding.
+* Changed the hybrid's binaural late field to be rendered per delay line, each line `/ sqrt(N)` through the HRIR measured nearest its direction, as RAZR and RAVEN render their feedback delay networks; it was the ambisonic late field MagLS-decoded at `sh_order`, so a binaural response no longer needs `sh_order >= 1`.
+* Changed `hybrid.late.render` to return the delay lines' outputs, `(n, num_delays)`, after the directional absorption and slope weights; the ambisonic late field is that times `C.T`.
+* Changed `Scene.simulate` to store a method's responses under `method.attribute` and its `extra_responses` under theirs; `'data'` still holds a mono method's only.
 
 ### Fixed
 
@@ -164,3 +175,4 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 * Removed `Auraliser.multiconvolution()`, `decode_stereo_simple()`, `resample_signal()` and FuMa channel order.
 * Removed `compas_acoustics.orchestra_layouts` and the Orchestra Layout component; the layouts are now `examples/orchestra_layouts.py`.
 * Removed the two MIT KEMAR HRTF sets and `speech.wav`.
+* Removed `Hybrid.binaural()`; use `Hybrid(output="binaural")` or `output=["ambisonic", "binaural"]`.

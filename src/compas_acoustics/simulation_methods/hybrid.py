@@ -1,4 +1,4 @@
-"""The hybrid simulation method: image sources, optional edge diffraction, a directional FDN tail.
+"""The hybrid simulation method: image sources, optional edge diffraction, a directional FDN tail; ambisonic or binaural.
 
 A :class:`~compas_acoustics.simulation_methods.SimulationMethod` on the ported hybrid-rir
 modules of :mod:`compas_acoustics.hybrid`. The image source search runs once
@@ -32,17 +32,20 @@ from .base import SimulationMethod
 from .base import _warn_if_the_search_is_slow
 from .pra import Pyroomacoustics
 
-__all__ = ["Hybrid", "TAILS"]
+__all__ = ["Hybrid", "TAILS", "OUTPUTS"]
 
 #: Where the decay target of the late field comes from.
 TAILS = ("reference", "ray_tracing", "eyring", "sabine")
+
+#: The formats the hybrid renders, and the IR graph attribute each is stored under.
+OUTPUTS = {"ambisonic": "hybrid", "binaural": "hybrid_binaural"}
 
 # The 8 kHz octave's upper edge must lie below Nyquist for pyFDN's band estimator.
 _MIN_SAMPLING_RATE = 2.0 * 8000.0 * np.sqrt(2.0)
 
 
 class Hybrid(SimulationMethod):
-    """Image sources, optional edge diffraction and a directional FDN tail, in ambisonics.
+    """Image sources, optional edge diffraction and a directional FDN tail, rendered ambisonic and/or binaural.
 
     Image sources up to ``image_source_order`` (plus, with ``diffraction``, edge
     diffraction around obstacles and at the edges of the room's boundary that
@@ -51,6 +54,14 @@ class Hybrid(SimulationMethod):
     delay line per direction, whose decay follows a target (Wendt et al. 2014;
     RAZR). Ported from hybrid-rir (gpapadimitri/hybrid-rir). Needs the
     ``hybrid`` extra and a closed room.
+
+    One run renders either output, or both, from the same paths and delay
+    lines (:class:`~compas_acoustics.hybrid.synthesis.HybridResult`). The
+    ambisonic output encodes every path, and projects every line, at
+    ``sh_order``. The binaural output filters every early path, and every delay
+    line, with the HRIR measured nearest its direction
+    (:func:`compas_acoustics.binaural.binaural_rir`), as RAVEN renders its image
+    sources and RAZR and RAVEN their feedback delay networks.
 
     Parameters
     ----------
@@ -69,7 +80,7 @@ class Hybrid(SimulationMethod):
         warns where the room is not diffuse. ``None`` means ``"reference"`` when
         a reference is given, else ``"ray_tracing"``.
     sh_order : int, default=1
-        Ambisonic order of the output.
+        Ambisonic order of the ambisonic output; also sets the default number of delay lines.
     image_source_order : int, default=3
         Highest image source order rendered as early field.
     normalization : {"SN3D", "N3D"}, default="SN3D"
@@ -116,6 +127,16 @@ class Hybrid(SimulationMethod):
         over its reflections, in the early field; its scattered part, the
         product of ``sqrt(s)``, enters the delay lines on its own hemisphere
         through an allpass cascade. Needs a second image source search.
+    output : {"binaural", "ambisonic"} or list of them, default="binaural"
+        The formats rendered, both from one run. :meth:`compute` returns the
+        first, and :meth:`Scene.simulate` stores it under :attr:`attribute`;
+        the second is in :attr:`extra_responses`. Binaural responses are stored
+        under ``'hybrid_binaural'``, ambisonic ones under ``'hybrid'``; each
+        records its format in ``generation['output']``.
+    hrtf : str or path, optional
+        The HRTF set of the binaural output: ``"kemar"``, the Auraliser's KEMAR
+        set, or a SOFA file. ``None`` is ``"kemar"`` when the output is
+        binaural; with an ambisonic output only it must stay ``None``.
 
     Attributes
     ----------
@@ -123,7 +144,8 @@ class Hybrid(SimulationMethod):
         After :meth:`compute`, the references used: given, read from the graph, or run.
     results : dict
         After :meth:`compute`, the :class:`~compas_acoustics.hybrid.synthesis.HybridResult` per pair.
-        :meth:`binaural` returns the same pairs as two-channel binaural responses.
+    outputs : tuple of str
+        The formats rendered, in the order given.
 
     Examples
     --------
@@ -134,8 +156,15 @@ class Hybrid(SimulationMethod):
     >>> scene.add_receiver(ca.Receiver("listener", 4.0, 3.0, 1.2))
     >>> responses = scene.simulate(ca.Hybrid(tail="eyring"))  # doctest: +SKIP
     >>> ir = next(iter(responses.values()))  # doctest: +SKIP
-    >>> ir.n_channels, ir.ambisonic_order, ir.generation["method"]  # doctest: +SKIP
-    (4, 1, 'hybrid')
+    >>> ir.n_channels, ir.generation["output"], ir.generation["hrtf"]  # doctest: +SKIP
+    (2, 'binaural', 'KEMAR_FreeFieldComp_48kHz.sofa')
+
+    Both formats from one run: the ambisonic responses are returned and stored
+    under ``'hybrid'``, the binaural ones under ``'hybrid_binaural'``.
+
+    >>> responses = scene.simulate(ca.Hybrid(tail="eyring", output=["ambisonic", "binaural"]))  # doctest: +SKIP
+    >>> next(iter(responses.values())).ambisonic_order, len(scene.impulse_responses("hybrid_binaural"))  # doctest: +SKIP
+    (1, 1)
 
     With a ray-traced reference the decay is fitted to a response you already have.
 
@@ -144,12 +173,12 @@ class Hybrid(SimulationMethod):
     """
 
     name = "hybrid"
-    output = "ambisonic"
 
     def __init__(self, reference=None, tail=None, sh_order=1, image_source_order=3, normalization="SN3D",
                  n_slopes=1, decay_db=30.0, duration=None, num_delays=None, drive_gain=None,
                  directional_absorption=True, late_envelope=None, diffraction=False,
-                 air_absorption=None, seed=42, normalize=True, air=None, scattering=False):
+                 air_absorption=None, seed=42, normalize=True, air=None, scattering=False,
+                 output="binaural", hrtf=None):
         if tail is not None and tail not in TAILS:
             raise ValueError(f"tail must be None or one of {TAILS}, not {tail!r}")
         if reference is not None and not isinstance(reference, (str, dict, Pyroomacoustics)):
@@ -174,6 +203,15 @@ class Hybrid(SimulationMethod):
             raise ValueError("image_source_order must be non-negative")
         if duration is not None and duration <= 0:
             raise ValueError("duration must be positive")
+        outputs = (output,) if isinstance(output, str) else tuple(output)
+        if not outputs or len(set(outputs)) != len(outputs) or not set(outputs) <= set(OUTPUTS):
+            raise ValueError(f"output must be one of {tuple(OUTPUTS)} or a list of them without repeats, not {output!r}")
+        if "binaural" not in outputs and hrtf is not None:
+            raise ValueError("hrtf is the HRTF set of the binaural output; add 'binaural' to output, or leave hrtf out")
+        if "binaural" in outputs:
+            hrtf = "kemar" if hrtf is None else hrtf
+            if hrtf != "kemar" and not Path(hrtf).is_file():
+                raise ValueError(f"hrtf must be 'kemar' or a SOFA file, not {hrtf!r}")
 
         self.reference = reference
         self.tail = tail if tail is not None else ("reference" if reference is not None else "ray_tracing")
@@ -193,13 +231,26 @@ class Hybrid(SimulationMethod):
         self.normalize = normalize
         self.air = air
         self.scattering = bool(scattering)
+        self.output = output
+        self.outputs = outputs
+        self.hrtf = hrtf
         self.reference_rirs = None
         self.results = {}
-        self._pairs = {}
-        self._generation = None
+        self._extra_responses = {}
+
+    @property
+    def attribute(self) -> str:
+        """``'hybrid'`` when the first output is ambisonic, ``'hybrid_binaural'`` when it is binaural."""
+        return OUTPUTS[self.outputs[0]]
+
+    @property
+    def extra_responses(self) -> dict:
+        """After :meth:`compute`, the second output's responses under its attribute, if there is a second."""
+        return self._extra_responses
 
     # ------------------------------------------------------------------ run --
     def compute(self, context: SimulationContext) -> dict:
+        self._extra_responses = {}
         fs = context.sampling_rate
         geometry = context.geometry
         if fs <= _MIN_SAMPLING_RATE:
@@ -267,9 +318,16 @@ class Hybrid(SimulationMethod):
             "scene": getattr(context.scene, "name", None),
             "upstream": f"hybrid-rir @ {UPSTREAM_REVISION}",
         }
-        self._pairs, self._generation = {}, generation
+        hrtf_path = None
+        if "binaural" in self.outputs:
+            from compas_acoustics.binaural import DEFAULT_HRTF
+            from compas_acoustics.binaural import HrtfSet
+            from compas_acoustics.binaural import binaural_rir
 
-        rirs, self.results = {}, {}
+            hrtf_path = DEFAULT_HRTF if self.hrtf == "kemar" else Path(self.hrtf)
+            hrtf = HrtfSet.from_sofa(hrtf_path, fs)
+
+        rirs, self.results = {output: {} for output in self.outputs}, {}
         for s, source in enumerate(context.sources):
             directivity = (
                 None if source.directivity == "omnidirectional"
@@ -277,7 +335,6 @@ class Hybrid(SimulationMethod):
             )
             for m, receiver in enumerate(context.receivers):
                 key = context.key(source, receiver)
-                self._pairs[key] = (source, receiver)
                 spec = Pair(
                     geometry=geometry,
                     source=np.asarray(source.position, dtype=float),
@@ -312,45 +369,20 @@ class Hybrid(SimulationMethod):
                     scattering=self.scattering,
                 )
                 self.results[key] = result
-                rirs[key] = ImpulseResponse(
-                    name=key, source=source, receiver=receiver, ir=result.rir, sampling_rate=fs,
-                    normalized=self.normalize,
-                    generation=generation, ambisonic_order=self.sh_order,
-                    normalization=self.normalization.lower(), channel_order="acn",
-                )
-        return rirs
-
-    def binaural(self, hrtf_path=None) -> dict:
-        """Binaural responses of the last run, one per pair, keyed as :meth:`compute`'s.
-
-        The early part (image sources and diffracted paths) is filtered path by
-        path with the HRTF measured nearest each direction of arrival
-        (:func:`compas_acoustics.binaural.render_early_binaural`); the late field
-        is MagLS-decoded at ``sh_order``, as :meth:`Auraliser.decode_binaural`
-        decodes it. ``hrtf_path`` is a SOFA file, by default the Auraliser's KEMAR set.
-        """
-        from compas_acoustics.binaural import DEFAULT_HRTF
-        from compas_acoustics.binaural import HrtfSet
-        from compas_acoustics.binaural import binaural_rir
-        from compas_acoustics.binaural import magls_filters
-
-        if not self.results:
-            raise ValueError("run the hybrid first: Scene.simulate(hybrid), then hybrid.binaural()")
-        if self.sh_order < 1:
-            raise ValueError("a binaural response needs sh_order >= 1: at order 0 the late field is the same at both ears")
-        path = Path(hrtf_path) if hrtf_path is not None else DEFAULT_HRTF
-        sets, rirs = {}, {}
-        for key, result in self.results.items():
-            fs = int(result.fs)
-            if fs not in sets:
-                sets[fs] = (HrtfSet.from_sofa(path, fs), magls_filters(path, fs, self.sh_order))
-            hrtf, filters = sets[fs]
-            source, receiver = self._pairs[key]
-            rirs[key] = ImpulseResponse(
-                name=key, source=source, receiver=receiver, ir=binaural_rir(result, hrtf, filters), sampling_rate=fs,
-                normalized=self.normalize, generation=dict(self._generation, output="binaural", hrtf=path.name),
-            )
-        return rirs
+                if "ambisonic" in rirs:
+                    rirs["ambisonic"][key] = ImpulseResponse(
+                        name=key, source=source, receiver=receiver, ir=result.rir, sampling_rate=fs,
+                        normalized=self.normalize,
+                        generation=dict(generation, output="ambisonic"), ambisonic_order=self.sh_order,
+                        normalization=self.normalization.lower(), channel_order="acn",
+                    )
+                if "binaural" in rirs:
+                    rirs["binaural"][key] = ImpulseResponse(
+                        name=key, source=source, receiver=receiver, ir=binaural_rir(result, hrtf), sampling_rate=fs,
+                        normalized=self.normalize, generation=dict(generation, output="binaural", hrtf=hrtf_path.name),
+                    )
+        self._extra_responses = {OUTPUTS[output]: rirs[output] for output in self.outputs[1:]}
+        return rirs[self.outputs[0]]
 
     # ----------------------------------------------------------- references --
     def _references(self, context):

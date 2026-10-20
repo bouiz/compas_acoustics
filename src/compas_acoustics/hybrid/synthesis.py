@@ -55,7 +55,7 @@ class HybridResult:
 
     rir: np.ndarray  # (n, (sh_order + 1) ** 2), ACN, in ``normalization``
     early: np.ndarray
-    late: np.ndarray
+    late: np.ndarray  # late_lines @ C.T, in ``normalization``
     builds: list[pyFDN.FDNBuild]
     target: RoomTarget
     max_order: int
@@ -67,6 +67,9 @@ class HybridResult:
     images: ImageSourceSet | None = None  # orders 0 .. max_order
     diffraction_paths: tuple[DiffractionPath, ...] = ()
     btms_contributions: tuple[BtmsContribution, ...] = ()
+    # The late field before the output matrix, for renderers that need each line's direction (compas_acoustics.binaural)
+    late_lines: np.ndarray | None = None  # (n, num_delays), each line as heard from its direction
+    line_directions: np.ndarray | None = None  # (num_delays, 3), unit vectors in the receiver's frame
 
 
 def synthesize(
@@ -109,12 +112,17 @@ def synthesize(
        image source search.
     4. Each line's output is weighted with the reflection of the boundary in its
        direction (``directional_absorption``), and early field and network
-       output are summed.
+       output are summed. The lines are kept (``late_lines``, with
+       ``line_directions``): the ambisonic late field is their projection
+       through the output matrix, and a binaural renderer filters each with
+       the HRIR of its direction instead
+       (:func:`compas_acoustics.binaural.binaural_rir`).
 
     ``drive_gain`` defaults to ``sqrt(num_delays)``. ``late_envelope`` is an
     omnidirectional reference on the package scale, normally the pair's
     ray-traced response; the network output is attenuated per band to follow
-    its late energy (Vorlaender 2020, Sec. 11.9). ``diffraction=True`` adds
+    its late energy (Vorlaender 2020, Sec. 11.9), every line by the gains of the
+    late field's W channel. ``diffraction=True`` adds
     edge diffraction to the early field (Kirsch and Ewert 2023) around the
     obstacles and at the edges of the room's boundary that open wider than
     pi (see :func:`compas_acoustics.hybrid.diffraction.diffraction_edges`), for
@@ -210,11 +218,13 @@ def synthesize(
                 scattering_decay_time(free_path, spec.speed_of_sound),
                 spec.fs,
             ) * drive_gain
-    late = render(builds, drive * drive_gain, tap=tap, line_eq=line_eq)
+    lines = render(builds, drive * drive_gain, tap=tap, line_eq=line_eq)
+    C = builds[0].C
     if late_envelope is not None:
-        late = shape_late(late, early, late_envelope, spec.fs)
+        lines = shape_late(lines, early[:, 0], lines @ C[0], late_envelope, spec.fs)
 
-    early, late = (_from_n3d(x, normalization) for x in (early, late))
+    early, late = (_from_n3d(x, normalization) for x in (early, lines @ C.T))
+    unit = directions.cartesian / np.linalg.norm(directions.cartesian, axis=1, keepdims=True)
     return HybridResult(
         rir=early + late,
         early=early,
@@ -229,6 +239,8 @@ def synthesize(
         images=early_set,
         diffraction_paths=paths,
         btms_contributions=contributions,
+        late_lines=lines,
+        line_directions=unit,
     )
 
 

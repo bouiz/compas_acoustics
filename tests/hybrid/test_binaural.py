@@ -1,4 +1,4 @@
-"""Binaural rendering of the hybrid: an HRTF per early path, the late field MagLS-decoded."""
+"""Binaural rendering of the hybrid: an HRTF per early path and per delay line; MagLS decoding for the Auraliser."""
 
 import numpy as np
 import pytest
@@ -164,16 +164,17 @@ def test_the_ears_turn_with_the_receiver():
     assert direct_level(ears, result, 1) - direct_level(ears, result, 0) > 6.0
 
 
-def test_the_binaural_response_is_early_plus_the_magls_late_field():
+def test_the_binaural_response_is_early_plus_each_line_through_its_hrir():
     from scipy.signal import fftconvolve
-    from compas_acoustics.binaural import DEFAULT_HRTF, magls_filters
+    from compas_acoustics.binaural import DEFAULT_HRTF
     from compas_acoustics.binaural import HrtfSet, binaural_rir, render_early_binaural
 
     result = run(Hybrid(sh_order=1, **FAST))
-    hrtf, filters = HrtfSet.from_sofa(DEFAULT_HRTF, FS), magls_filters(DEFAULT_HRTF, FS, 1)
-    n = result.rir.shape[0]
-    late = sum(fftconvolve(result.late[:, ch:ch + 1], filters[:, ch, :], axes=0) for ch in range(4))[:n]
-    np.testing.assert_allclose(binaural_rir(result, hrtf, filters), render_early_binaural(result, hrtf) + late, atol=1e-12)
+    hrtf = HrtfSet.from_sofa(DEFAULT_HRTF, FS)
+    n, lines = result.rir.shape[0], result.late_lines.shape[1]
+    late = sum(fftconvolve(result.late_lines[:, i:i + 1] / np.sqrt(lines), hrtf.hrirs[hrtf.nearest(result.line_directions[i])[0]].T,
+                           axes=0)[:n] for i in range(lines))
+    np.testing.assert_allclose(binaural_rir(result, hrtf), render_early_binaural(result, hrtf) + late, atol=1e-12)
 
 
 def test_the_hrtf_must_be_at_the_simulations_rate():
@@ -186,10 +187,10 @@ def test_the_hrtf_must_be_at_the_simulations_rate():
 
 
 def test_hybrid_returns_binaural_responses():
-    hybrid = Hybrid(**FAST)
+    hybrid = Hybrid(output=["ambisonic", "binaural"], **FAST)
     s = scene()
     ambisonic = s.simulate(hybrid)
-    binaural = hybrid.binaural()
+    binaural = hybrid.extra_responses["hybrid_binaural"]
     assert binaural.keys() == ambisonic.keys()
     (ir,) = binaural.values()
     assert ir.n_channels == 2 and ir.ambisonic_order is None
@@ -199,23 +200,16 @@ def test_hybrid_returns_binaural_responses():
     assert ir.denormalized().shape == (next(iter(ambisonic.values())).denormalized().shape[0], 2)
 
 
-def test_binaural_needs_a_run_first():
-    with pytest.raises(ValueError, match="simulate"):
-        Hybrid(**FAST).binaural()
-
-
-def test_binaural_needs_a_directional_late_field():
-    hybrid = Hybrid(sh_order=0, **FAST)
-    scene().simulate(hybrid)
-    with pytest.raises(ValueError, match="sh_order"):
-        hybrid.binaural()
+def test_the_binaural_output_does_not_depend_on_sh_order():
+    """Every path and every line takes its own HRIR; the ambisonic order only sets the ambisonic output."""
+    (zero,) = scene().simulate(Hybrid(sh_order=0, num_delays=16, seed=3, **FAST)).values()
+    (first,) = scene().simulate(Hybrid(sh_order=1, num_delays=16, seed=3, **FAST)).values()
+    np.testing.assert_allclose(zero.denormalized(), first.denormalized(), atol=1e-12)
 
 
 def test_n3d_and_sn3d_give_the_same_binaural_response():
-    sn3d, n3d = Hybrid(seed=3, **FAST), Hybrid(normalization="N3D", seed=3, **FAST)
-    scene().simulate(sn3d)
-    scene().simulate(n3d)
-    (a,), (b,) = sn3d.binaural().values(), n3d.binaural().values()
+    (a,) = scene().simulate(Hybrid(seed=3, **FAST)).values()
+    (b,) = scene().simulate(Hybrid(normalization="N3D", seed=3, **FAST)).values()
     np.testing.assert_allclose(a.denormalized(), b.denormalized(), atol=1e-12)
 
 

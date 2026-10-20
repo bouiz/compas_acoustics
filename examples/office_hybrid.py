@@ -48,14 +48,17 @@ scene.add_receiver(listener)
 ########### the reference: image sources to order 3, then ray tracing
 scene.simulate(ca.Pyroomacoustics(image_source_order=3, ray_tracing=True, n_rays=100_000, duration=3.0, seed=42))
 
-########### the hybrid: image sources early, a feedback delay network late, fitted to the reference
-scene.simulate(ca.Hybrid("pyroomacoustics", sh_order=1, image_source_order=2, diffraction=True, seed=42))
+########### the hybrid: image sources early, a feedback delay network late, fitted to the reference;
+# one run renders it ambisonic (stored under "hybrid") and binaural (under "hybrid_binaural")
+scene.simulate(ca.Hybrid("pyroomacoustics", sh_order=1, image_source_order=2, diffraction=True, seed=42,
+                         output=["ambisonic", "binaural"]))
 
 ########### reverberation times of both; the analyser takes the hybrid's W channel (omnidirectional) of its four
 warnings.filterwarnings("ignore", message="Impulse response has 4 channels")
 # every method stores its responses on the scene under its own name
 ir_pra = scene.get_impulse_response(speaker, listener, attribute="pyroomacoustics")
 ir_hybrid = scene.get_impulse_response(speaker, listener, attribute="hybrid")
+ir_binaural = scene.get_impulse_response(speaker, listener, attribute="hybrid_binaural")
 results = {"pyroomacoustics": ca.AcousticAnalyser(ir_pra).analyse(), "hybrid": ca.AcousticAnalyser(ir_hybrid).analyse()}
 
 fig, axes = plt.subplots(1, 2, figsize=(10, 3.8), sharey=True)
@@ -70,9 +73,9 @@ axes[0].legend()
 plt.tight_layout()
 plt.savefig(OUTPUT / "office_reverberation_times.png", dpi=150)
 
-########### auralisation: speech through each response; the hybrid's is first-order ambisonic, decoded to binaural
+########### auralisation: speech through each response; the hybrid's binaural one has an HRTF per path and per delay line
 speech = Path(ca.Defaults().ANECHOIC_SOUNDFILES_LIBRARY_PATH) / "female_speech.wav"
-for name, ir, output_format in (("pyroomacoustics", ir_pra, "stereo"), ("hybrid", ir_hybrid, "binaural")):
+for name, ir, output_format in (("pyroomacoustics", ir_pra, "stereo"), ("hybrid", ir_binaural, "binaural")):
     auraliser = ca.Auraliser("office", [ir], anechoic_sounds=[str(speech)], output_format=output_format)
     auraliser.export_convolved_sound(str(OUTPUT / f"office_speech_{name}.wav"))
 

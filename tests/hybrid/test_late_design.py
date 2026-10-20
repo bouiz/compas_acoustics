@@ -28,11 +28,11 @@ def delays_of(n, lo=500, hi=1500, seed=0):
 
 
 def impulse_response(builds, n_samples):
-    """Every line fed 1 / sqrt(N) of an impulse: the impulse-excited FDN."""
+    """Every line fed 1 / sqrt(N) of an impulse: the impulse-excited FDN, through the output matrix."""
     n = np.asarray(builds[0].delays).size
     drive = np.zeros((n_samples, n))
     drive[0] = 1.0 / np.sqrt(n)
-    return render(builds, drive)
+    return render(builds, drive) @ builds[0].C.T
 
 
 def test_output_matrix_shape():
@@ -148,7 +148,7 @@ def test_render_matches_pyfdn_for_an_impulse_through_b():
     drive = np.zeros((n_samples, 8))
     drive[0] = build.B[:, 0]
     np.testing.assert_allclose(
-        render([build], drive), pyFDN.build_to_impz(build, n_samples)[:, :, 0], atol=1e-9
+        render([build], drive) @ build.C.T, pyFDN.build_to_impz(build, n_samples)[:, :, 0], atol=1e-9
     )
 
 
@@ -157,5 +157,15 @@ def test_a_single_line_emerges_after_that_lines_delay():
     builds = design_fdn(target_with(), delays)
     drive = np.zeros((4096, 16))
     drive[0, 3] = 1.0
-    out = render(builds, drive)
+    out = render(builds, drive) @ builds[0].C.T
     assert int(np.argmax(np.abs(out[:, 0]) > 1e-12)) == delays[3]
+
+
+def test_render_needs_the_same_slope_weight_on_every_channel():
+    from dataclasses import replace
+
+    (build,) = design_fdn(target_with(), delays_of(16))
+    sos = np.zeros((1, 6, build.C.shape[0]))
+    sos[0, 0], sos[0, 3] = np.arange(1.0, build.C.shape[0] + 1.0), 1.0
+    with pytest.raises(ValueError, match="every channel"):
+        render([replace(build, post_output=sos)], np.zeros((256, 16)))

@@ -1,13 +1,15 @@
-"""Binaural rendering: MagLS decoding filters, HRTF sets, and the hybrid's early part with an HRTF per path.
+"""Binaural rendering: MagLS decoding filters, HRTF sets, and the hybrid with an HRTF per path and per delay line.
 
 :func:`magls_filters` are the decoding filters of :meth:`Auraliser.decode_binaural`.
 
-The ambisonic early part of :class:`~compas_acoustics.simulation_methods.Hybrid` is limited
+The ambisonic output of :class:`~compas_acoustics.simulation_methods.Hybrid` is limited
 to its ``sh_order``: MagLS decodes it with the right magnitudes but a spatially
-smoothed image. Here every image source and diffracted path is filtered with
-the head-related transfer function measured nearest its direction of arrival,
-as RAVEN renders its image sources; the late field, which is diffuse, is
-MagLS-decoded as :meth:`Auraliser.decode_binaural` does.
+smoothed image. The hybrid's binaural output is rendered from the paths and
+lines themselves instead: every image source and diffracted path is filtered
+with the head-related transfer function measured nearest its direction of
+arrival, as RAVEN renders its image sources, and every delay line of the late
+field with the one nearest the line's direction, as RAZR and RAVEN render
+their feedback delay networks.
 """
 
 from __future__ import annotations
@@ -286,19 +288,23 @@ def render_early_binaural(result, hrtf: HrtfSet, n_samples: int | None = None) -
     return out
 
 
-def binaural_rir(result, hrtf: HrtfSet, filters: np.ndarray) -> np.ndarray:
-    """Early part with an HRTF per path plus the late field MagLS-decoded, (n, 2).
+def binaural_rir(result, hrtf: HrtfSet) -> np.ndarray:
+    """The hybrid at the two ears, (n, 2): every early path and every delay line with the HRIR nearest its direction.
 
-    ``filters`` are :func:`magls_filters` of the
-    result's ambisonic order, from the same HRTF set.
+    The early part is :func:`render_early_binaural`. The late field is rendered
+    per delay line, as RAZR and RAVEN render their FDN outputs: line ``i``,
+    ``result.late_lines[:, i] / sqrt(N)``, through the HRIR measured nearest
+    ``result.line_directions[i]``, lines sharing an HRIR summed first.
+    ``1 / sqrt(N)`` is the W row of the ambisonic output matrix, so each ear
+    receives the plane waves the ambisonic late field's W describes.
     """
-    from compas_acoustics.hybrid.synthesis import _from_n3d
-
+    if result.late_lines is None or result.line_directions is None:
+        raise ValueError("this HybridResult does not hold its delay lines; synthesise it again")
     n = result.rir.shape[0]
-    late = result.late if result.normalization == "SN3D" else _from_n3d(result.late, "SN3D")
-    if filters.shape[1] != late.shape[1]:
-        raise ValueError(f"MagLS filters for {filters.shape[1]} channels; the late field has {late.shape[1]}")
-    decoded = np.zeros((n, 2))
-    for ch in range(late.shape[1]):
-        decoded += fftconvolve(late[:, ch:ch + 1], filters[:, ch, :], axes=0)[:n]
-    return render_early_binaural(result, hrtf, n) + decoded
+    out = render_early_binaural(result, hrtf, n)
+    lines = np.asarray(result.late_lines, dtype=float) / np.sqrt(result.late_lines.shape[1])
+    nearest = hrtf.nearest(result.line_directions)
+    for index in np.unique(nearest):
+        line = lines[:, nearest == index].sum(axis=1)
+        out += fftconvolve(line[:, np.newaxis], hrtf.hrirs[index].T, axes=0)[:n]
+    return out

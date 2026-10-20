@@ -40,7 +40,7 @@ class Auraliser:
       Mono impulse responses play identically on both channels.
     * ``'binaural'``: MagLS binaural decoding with the HRTF at :attr:`hrtf_path`, for
       headphone playback. Requires ambisonic impulse responses (order 1 or higher).
-      Binaural impulse responses (``Hybrid.binaural()``, or a dict entry with
+      Binaural impulse responses (the ``Hybrid`` method's default output, or a dict entry with
       ``'binaural': True`` and two channels) are convolved as they are.
     * ``'ambisonics'``: the undecoded ACN/SN3D signal, to save as a multichannel file.
 

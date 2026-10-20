@@ -3,7 +3,8 @@
 Every method takes the same :class:`SimulationContext` and returns one
 :class:`~compas_acoustics.ir.ImpulseResponse` per source-receiver pair, keyed
 ``'<receiver guid>_<source guid>'``. :meth:`Scene.simulate` stores them in the
-scene's IR graph under the method's :attr:`~SimulationMethod.name`.
+scene's IR graph under the method's :attr:`~SimulationMethod.attribute`, its
+:attr:`~SimulationMethod.name` unless it renders several formats.
 
 Every method's responses meet one contract, so that they can be compared,
 mixed, analysed and auralised alike:
@@ -14,8 +15,9 @@ mixed, analysed and auralised alike:
 3. ``generation['method'] == method.name``, the settings, and
    ``generation['valid_range_hz']``: ``(low, high)`` in Hz where the method is
    trustworthy, or ``None`` for the full band;
-4. a stated channel convention: mono, or ``ambisonic_order``,
-   ``normalization`` and ``channel_order``;
+4. a stated channel convention: mono, ``ambisonic_order``,
+   ``normalization`` and ``channel_order``, or binaural (two channels, ears
+   left then right, ``generation['output'] == 'binaural'``);
 5. peak-normalized views by default, the raw level through ``denormalized()``.
 """
 
@@ -97,10 +99,20 @@ class SimulationContext:
 class SimulationMethod(ABC):
     """A way to compute impulse responses. See the module docstring for the output contract."""
 
-    #: IR graph attribute the results are stored under; also ``generation['method']``
+    #: ``generation['method']``, and the IR graph attribute the results are stored under unless :attr:`attribute` says otherwise
     name: ClassVar[str] = ""
-    #: ``'mono'`` or ``'ambisonic'``
-    output: ClassVar[str] = "mono"
+    #: ``'mono'``, ``'ambisonic'``, ``'binaural'``, or a list of formats rendered from one run
+    output = "mono"
+
+    @property
+    def attribute(self) -> str:
+        """The IR graph attribute :meth:`Scene.simulate` stores :meth:`compute`'s responses under: :attr:`name`."""
+        return self.name
+
+    @property
+    def extra_responses(self) -> dict:
+        """Responses of the last :meth:`compute` in further formats, ``{attribute: responses}``: none."""
+        return {}
 
     @abstractmethod
     def compute(self, context: SimulationContext) -> dict:

@@ -248,7 +248,7 @@ def test_the_hybrid_runs_in_the_worker(running_worker):
     if not running_worker.info()["hybrid"]:
         pytest.skip("the worker has no hybrid extra")
     s = scene()
-    rirs, _ = worker.simulate(s, "hybrid", {"tail": "eyring"})
+    rirs, _ = worker.simulate(s, "hybrid", {"tail": "eyring", "output": "ambisonic"})
     ir = next(iter(rirs.values()))
     assert ir.ambisonic_order == 1 and ir.n_channels == 4
     assert ir.normalization is not None and ir.channel_order is not None
