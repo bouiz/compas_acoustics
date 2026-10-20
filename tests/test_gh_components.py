@@ -632,7 +632,7 @@ def test_the_hybrid_says_done_when_not_running_after_a_result(monkeypatch):
     s = hybrid_graph()
     for inputs in ({}, {"tail": "auto"}, {"tail": "ray_tracing", "sh_order": 1, "ism_order": 2, "diffraction": "udfa"}, {"diffraction": True}):
         assert run_hybrid(module, s, run=False, **inputs).graph is s.ir_graph
-        assert module.ghenv.Component.Message == "done, 1 response, tail: ray_tracing, order 1 (Run to redo)", inputs
+        assert module.ghenv.Component.Message == "done, 1 IR, tail: ray_tracing, order 1 (Run to redo)", inputs
     assert not messages
 
 

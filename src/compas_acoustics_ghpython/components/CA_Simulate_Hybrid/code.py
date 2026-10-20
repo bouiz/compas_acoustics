@@ -33,7 +33,7 @@ class SimulateHybrid(Grasshopper.Kernel.GH_ScriptInstance):
         summary = "tail: {}, order {}".format(last.get("tail"), last.get("sh_order"))
         if changed:
             return "settings changed, press Run ({})".format(summary)
-        return "done, {} response{}, {} (Run to redo)".format(len(runs), "" if len(runs) == 1 else "s", summary)
+        return "done, {} IR{}, {} (Run to redo)".format(len(runs), "" if len(runs) == 1 else "s", summary)
 
     def run_in_worker(self, scene, given, references):
         settings = {key: value for key, value in given.items() if key != "reference"}
