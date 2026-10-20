@@ -56,8 +56,11 @@ def simulate(scene, method, settings, references, folder):
                                  for key, path in references.items()}
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        rirs = scene.simulate(method_class(**settings))
-    responses = {key: str(ir.to_wav(folder / f"{uuid.uuid4().hex}.wav")[0]) for key, ir in rirs.items()}
+        method = method_class(**settings)
+        rirs = scene.simulate(method)
+    formats = {method.attribute: rirs, **method.extra_responses}
+    responses = {attribute: {key: str(ir.to_wav(folder / f"{uuid.uuid4().hex}.wav")[0]) for key, ir in irs.items()}
+                 for attribute, irs in formats.items()}
     return {"responses": responses, "warnings": [str(w.message) for w in caught if issubclass(w.category, UserWarning)]}
 
 

@@ -80,6 +80,7 @@ class Auralise(Grasshopper.Kernel.GH_ScriptInstance):
                     # The response's own convention, e.g. a hybrid response in N3D
                     'channel_order': getattr(IR, 'channel_order', None) or 'acn',
                     'normalization': getattr(IR, 'normalization', None) or 'sn3d',
+                    'binaural': (IR.generation or {}).get('output') == 'binaural',
                 }
 
                 sound_groups[receiver_id][sub_key] = {

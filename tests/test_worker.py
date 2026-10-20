@@ -255,6 +255,32 @@ def test_the_hybrid_runs_in_the_worker(running_worker):
     assert s.impulse_responses("hybrid")
 
 
+@needs_worker
+def test_simulate_stores_every_hybrid_output(running_worker):
+    if not running_worker.info()["hybrid"]:
+        pytest.skip("the worker has no hybrid extra")
+    s = scene()
+    rirs, _ = worker.simulate(s, "hybrid", {"tail": "eyring", "output": ["ambisonic", "binaural"]})
+    assert {ir.n_channels for ir in rirs.values()} == {4}
+    assert {ir.n_channels for ir in s.impulse_responses("hybrid").values()} == {4}
+    binaural = s.impulse_responses("hybrid_binaural")
+    assert sorted(binaural) == sorted(rirs)
+    for ir in binaural.values():
+        assert ir.n_channels == 2 and ir.generation["output"] == "binaural" and ir.generation["hrtf"]
+
+
+def test_the_api_returns_the_responses_of_every_output_by_attribute(tmp_path, monkeypatch):
+    pytest.importorskip("pyFDN")
+    from compas_acoustics.worker import api
+
+    monkeypatch.setattr(api, "_worker_folder", lambda path: Path(path))
+    result = api.simulate(scene(), "hybrid", {"tail": "eyring", "output": ["binaural", "ambisonic"]}, None, str(tmp_path))
+    assert list(result["responses"]) == ["hybrid_binaural", "hybrid"]
+    assert all(len(paths) == 1 for paths in result["responses"].values())
+    result = api.simulate(scene(), "pyroomacoustics", {"image_source_order": 1, "ray_tracing": False}, None, str(tmp_path))
+    assert list(result["responses"]) == ["pyroomacoustics"]
+
+
 class FakeProxy:
     seen = {}
     fingerprint = None

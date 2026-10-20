@@ -174,8 +174,8 @@ def _has_spharpy():
 def simulate(scene, method, settings, references=None):
     """Run ``method`` (``"hybrid"`` or ``"pyroomacoustics"``) with ``settings`` on ``scene`` in the worker.
 
-    The responses are stored on ``scene.ir_graph`` under ``method``, as :meth:`Scene.simulate` does,
-    at the scene's ``sampling_rate``.
+    The responses are stored on ``scene.ir_graph`` as :meth:`Scene.simulate` stores them, at the scene's ``sampling_rate``:
+    under the method's attribute, and every further format of the run under its own (the hybrid with both outputs).
 
     Parameters
     ----------
@@ -185,7 +185,8 @@ def simulate(scene, method, settings, references=None):
     Returns
     -------
     tuple of (dict, list of str)
-        The responses by key, and the messages of the UserWarnings raised in the worker.
+        The responses of the first format by key, as :meth:`Scene.simulate` returns them, and the messages of the UserWarnings
+        raised in the worker.
     """
     from compas_acoustics import ImpulseResponse
     from compas_acoustics.simulation_methods import SimulationContext
@@ -196,13 +197,16 @@ def simulate(scene, method, settings, references=None):
         reference_paths = {key: str(ir.to_wav(folder / f"{uuid.uuid4().hex}.wav")[0]) for key, ir in references.items()}
     result = proxy().simulate(scene, method, settings, reference_paths, str(folder))
     pairs = {SimulationContext.key(s, r): (s, r) for s in scene.sources for r in scene.receivers}
-    rirs = {}
-    for key, path in result["responses"].items():
-        source, receiver = pairs[key]
-        # The WAV holds the peak-normalized samples and its JSON the raw level, but not which view the method returns
-        rirs[key] = ImpulseResponse.from_wav(path, source=source, receiver=receiver, normalized=settings.get("normalize", True))
-        scene.add_impulse_response(source, receiver, rirs[key], attribute=method)
-    return rirs, result["warnings"]
+    stored = {}
+    for attribute, paths in result["responses"].items():
+        stored[attribute] = {}
+        for key, path in paths.items():
+            source, receiver = pairs[key]
+            # The WAV holds the peak-normalized samples and its JSON the raw level, but not which view the method returns
+            ir = ImpulseResponse.from_wav(path, source=source, receiver=receiver, normalized=settings.get("normalize", True))
+            scene.add_impulse_response(source, receiver, ir, attribute=attribute)
+            stored[attribute][key] = ir
+    return next(iter(stored.values()), {}), result["warnings"]
 
 
 def convolve(auraliser):

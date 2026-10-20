@@ -9,6 +9,11 @@ from compas_acoustics_ghpython import ensure_inputs
 # First item is the default
 TAILS = ["auto", "reference", "ray_tracing", "eyring", "sabine"]
 DIFFRACTION = ["none", "udfa", "btms"]
+OUTPUTS = ["binaural", "ambisonic", "both"]
+HRTFS = ["kemar"]
+# The formats of each 'output', and the graph attribute each is stored under
+FORMATS = {"binaural": ["binaural"], "ambisonic": ["ambisonic"], "both": ["ambisonic", "binaural"]}
+ATTRIBUTES = {"binaural": "hybrid_binaural", "ambisonic": "hybrid"}
 
 
 class SimulateHybrid(Grasshopper.Kernel.GH_ScriptInstance):
@@ -17,15 +22,20 @@ class SimulateHybrid(Grasshopper.Kernel.GH_ScriptInstance):
         ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Error, text)
 
     @staticmethod
-    def status(graph, tail, sh_order, ism_order, diffraction):
+    def status(graph, formats, tail, sh_order, ism_order, diffraction):
         """What the component says while it is not running: the last result on the graph, or that there is none."""
-        runs = [ir for edge in graph.edges() for ir in [graph.edge_attribute(edge, "hybrid")] if ir is not None]
+        by_format = {
+            name: [ir for edge in graph.edges() for ir in [graph.edge_attribute(edge, ATTRIBUTES[name])] if ir is not None]
+            for name in formats
+        }
+        runs = [ir for irs in by_format.values() for ir in irs]
         if not runs:
             return "press Run"
         last = runs[0].generation or {}
         models = {None: False, False: False, "none": False, "": False, True: "udfa", "udfa": "udfa", "btms": "btms"}
         changed = (
-            (tail not in (None, "", "auto") and tail != last.get("tail"))
+            not all(by_format.values())
+            or (tail not in (None, "", "auto") and tail != last.get("tail"))
             or (sh_order is not None and sh_order != last.get("sh_order"))
             or (ism_order is not None and ism_order != last.get("image_source_order"))
             or (diffraction is not None and models.get(diffraction) != models.get(last.get("diffraction")))
@@ -35,7 +45,12 @@ class SimulateHybrid(Grasshopper.Kernel.GH_ScriptInstance):
             return "settings changed, press Run ({})".format(summary)
         return "done, {} IR{}, {} (Run to redo)".format(len(runs), "" if len(runs) == 1 else "s", summary)
 
-    def run_in_worker(self, scene, given, references):
+    @staticmethod
+    def graphs(scene, formats):
+        """The outputs ``binaural`` and ``ambisonic``: the scene's graph tagged with the format's attribute, None if it is not requested."""
+        return tuple(MethodGraph(scene.ir_graph, ATTRIBUTES[name]) if name in formats else None for name in ("binaural", "ambisonic"))
+
+    def run_in_worker(self, scene, given, references, formats):
         settings = {key: value for key, value in given.items() if key != "reference"}
         try:
             _, messages = worker.simulate(scene, "hybrid", settings, references)
@@ -45,10 +60,10 @@ class SimulateHybrid(Grasshopper.Kernel.GH_ScriptInstance):
         for message in messages:
             ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning, message)
         ghenv.Component.Message = "{:g}Hz, hybrid (worker), tail: {}".format(scene.sampling_rate, settings.get("tail", "auto"))
-        return MethodGraph(scene.ir_graph, "hybrid")
+        return self.graphs(scene, formats)
 
-    def RunScript(self, scene, tail, reference, sh_order, ism_order, diffraction, late_envelope, seed, normalize, run):
-        ensure_inputs(ghenv.Component, {"run": None, "tail": TAILS, "diffraction": DIFFRACTION})
+    def RunScript(self, scene, tail, reference, sh_order, ism_order, diffraction, late_envelope, seed, normalize, output, hrtf, run):
+        ensure_inputs(ghenv.Component, {"run": None, "tail": TAILS, "diffraction": DIFFRACTION, "output": OUTPUTS, "hrtf": HRTFS})
 
         if scene is None:
             ghenv.Component.AddRuntimeMessage(
@@ -56,11 +71,17 @@ class SimulateHybrid(Grasshopper.Kernel.GH_ScriptInstance):
             )
             return
 
+        output = None if output == "" else output
+        if output is not None and output not in FORMATS:
+            self.error("output must be one of {}, not {!r}.".format(", ".join(OUTPUTS), output))
+            return
+        formats = FORMATS[OUTPUTS[0] if output is None else output]
+
         # The simulation can take minutes and Grasshopper recomputes on every upstream change, so it runs only
         # when 'run' is true (a button pulse). Otherwise the responses already on the scene's graph are passed on.
         if not run:
-            ghenv.Component.Message = self.status(scene.ir_graph, tail, sh_order, ism_order, diffraction)
-            return MethodGraph(scene.ir_graph, "hybrid")
+            ghenv.Component.Message = self.status(scene.ir_graph, formats, tail, sh_order, ism_order, diffraction)
+            return self.graphs(scene, formats)
 
         try:
             from compas_acoustics.simulation_methods import Hybrid
@@ -110,10 +131,13 @@ class SimulateHybrid(Grasshopper.Kernel.GH_ScriptInstance):
             "late_envelope": late_envelope,
             "seed": seed,
             "normalize": normalize,
+            # Hybrid takes an hrtf only with a binaural output; the value list always offers one
+            "output": None if output is None else (formats[0] if len(formats) == 1 else formats),
+            "hrtf": hrtf if "binaural" in formats and hrtf not in ("", None) else None,
         }
         given = {key: value for key, value in given.items() if value is not None}
         if Hybrid is None:
-            return self.run_in_worker(scene, given, references)
+            return self.run_in_worker(scene, given, references, formats)
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             try:
@@ -130,4 +154,4 @@ class SimulateHybrid(Grasshopper.Kernel.GH_ScriptInstance):
         ghenv.Component.Message = "{:g}Hz, hybrid, tail: {}, order {}".format(
             scene.sampling_rate, method.tail, method.sh_order
         )
-        return MethodGraph(scene.ir_graph, "hybrid")
+        return self.graphs(scene, formats)
