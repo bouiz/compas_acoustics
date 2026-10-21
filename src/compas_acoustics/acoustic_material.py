@@ -1,4 +1,5 @@
 import math
+import numbers
 import os
 import re
 import warnings
@@ -54,11 +55,11 @@ class AcousticMaterial(Data):
     category : :class:`MaterialCategory` | str, optional
         The broad group the material belongs to. Defaults to ``MaterialCategory.OTHER``.
     absorption_coefficients : list
-        A list of absorption coefficients corresponding to frequency bands.
+        A list of absorption coefficients corresponding to frequency bands, or a single value for every band.
     scattering_coefficients : list
-        A list of scattering coefficients corresponding to frequency bands. Optional.
+        A list of scattering coefficients corresponding to frequency bands, or a single value for every band. Optional.
     transmission_coefficients : list
-        A list of transmission coefficients corresponding to frequency bands. Optional.
+        A list of transmission coefficients corresponding to frequency bands, or a single value for every band. Optional.
     """
     
     def __init__(self, name: str, absorption_coefficients, scattering_coefficients: list=None, transmission_coefficients: list=None, description: str=None, category=None, data_origin: str=None): # noqa: E501
@@ -115,9 +116,10 @@ class AcousticMaterial(Data):
     
     @absorption_coefficients.setter
     def absorption_coefficients(self, coefficients):
-        if coefficients is None or (isinstance(coefficients, (list, tuple)) and len(coefficients) == 0):
+        coefficients = self._sanitize_coefficients(coefficients, "Absorption")
+        if coefficients is None:
             raise ValueError("You need to provide absorption coefficients.")
-        self._absorption_coefficients = self._sanitize_coefficients(coefficients, "Absorption")
+        self._absorption_coefficients = coefficients
         
     
     @property
@@ -127,10 +129,7 @@ class AcousticMaterial(Data):
     
     @scattering_coefficients.setter
     def scattering_coefficients(self, coefficients):
-        if coefficients is None or (isinstance(coefficients, (list, tuple)) and len(coefficients) == 0):
-            self._scattering_coefficients = None
-        else:
-            self._scattering_coefficients = self._sanitize_coefficients(coefficients, "Scattering")
+        self._scattering_coefficients = self._sanitize_coefficients(coefficients, "Scattering")
     
     
     @property
@@ -140,10 +139,7 @@ class AcousticMaterial(Data):
     
     @transmission_coefficients.setter
     def transmission_coefficients(self, coefficients):
-        if coefficients is None or (isinstance(coefficients, (list, tuple)) and len(coefficients) == 0):
-            self._transmission_coefficients = None
-        else:
-            self._transmission_coefficients = self._sanitize_coefficients(coefficients, "Transmission")
+        self._transmission_coefficients = self._sanitize_coefficients(coefficients, "Transmission")
             
     
     @property
@@ -217,13 +213,21 @@ class AcousticMaterial(Data):
             
             
     def _sanitize_coefficients(self, coefficients, coeff_type:str):
+        """One float per frequency band; a single value applies to every band; None for None or an empty list."""
+        if coefficients is None:
+            return None
         count = Defaults().NUMBER_OF_FREQUENCY_BANDS
-        if isinstance(coefficients, (list, tuple, np.ndarray)):
-            values = [float(c) for c in np.asarray(coefficients, dtype=float).reshape(-1)]
+        if isinstance(coefficients, (str, numbers.Real)):
+            values = [float(coefficients)] * count
+        else:
+            # Any iterable, not only list/tuple: Grasshopper passes System.Collections.Generic.List[Double]
+            values = np.asarray(list(coefficients), dtype=float).reshape(-1).tolist()
+            if not values:
+                return None
+            if len(values) == 1:
+                values = values * count
             if len(values) != count:
                 raise ValueError(f"{coeff_type} coefficients list must have {count} values corresponding to the frequency bands.")
-        else:
-            values = [float(coefficients)] * count
         if not all(0.0 <= v <= 1.0 for v in values):
             raise ValueError(f"{coeff_type} coefficients must lie in [0, 1], got {values}.")
         return values

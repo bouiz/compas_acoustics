@@ -50,6 +50,43 @@ def test_numpy_coefficients_become_lists_of_float():
     assert m.scattering_coefficients == [0.3] * 7
 
 
+class _DotNetList:
+    """Stands in for Grasshopper's System.Collections.Generic.List[Double]: iterable, not a Python list."""
+
+    def __init__(self, values):
+        self._values = list(values)
+
+    def __iter__(self):
+        return iter(self._values)
+
+    def __len__(self):
+        return len(self._values)
+
+
+@pytest.mark.parametrize("kind", ["absorption", "scattering", "transmission"])
+def test_any_iterable_is_a_list_of_coefficients(kind):
+    kwargs = {"absorption_coefficients": 0.2, f"{kind}_coefficients": _DotNetList([0.5] * 7)}
+    values = getattr(AcousticMaterial("m", **kwargs), f"{kind}_coefficients")
+    assert type(values) is list and values == [0.5] * 7
+
+
+@pytest.mark.parametrize("one", [[0.3], (0.3,), np.array([0.3]), _DotNetList([0.3])])
+def test_one_value_applies_to_every_band(one):
+    m = AcousticMaterial("m", one, one, one)
+    assert m.absorption_coefficients == m.scattering_coefficients == m.transmission_coefficients == [0.3] * 7
+
+
+def test_one_value_out_of_range_raises():
+    with pytest.raises(ValueError):
+        AcousticMaterial("m", _DotNetList([1.2]))
+
+
+def test_an_empty_iterable_is_no_coefficients():
+    assert AcousticMaterial("m", 0.1, _DotNetList([])).scattering_coefficients is None
+    with pytest.raises(ValueError):
+        AcousticMaterial("m", _DotNetList([]))
+
+
 def test_the_materials_library_loads():
     paths = glob.glob(os.path.join(Defaults().MATERIALS_LIBRARY_PATH, "*.json"))
     assert paths
