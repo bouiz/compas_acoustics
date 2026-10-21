@@ -1,0 +1,56 @@
+{
+    "name": "Billiard",
+    "nickname": "Billiard",
+    "category": "COMPAS Acoustics",
+    "subcategory": "05 Display",
+    "description": "The rays of a ray field as particles at a time, like a 3D billiard: press Play to animate, or connect a time (a slider scrubs it) for a frozen frame.",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "ray_field",
+                "description": "The ray field, from Ray Field.",
+                "optional": false,
+                "scriptParamAccess": 0,
+                "typeHintID": "ghdoc"
+            },
+            {
+                "name": "time",
+                "description": "Time in ms. Alone: the frame at that time (a slider scrubs). With Play: where playback stops (default: the end).",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "float"
+            },
+            {
+                "name": "play",
+                "description": "Press (or turn a Boolean Toggle on) to play from 0 to time (default: the end of the ray field) and hold the last frame; pressing again restarts.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "bool"
+            },
+            {
+                "name": "speed",
+                "description": "Milliseconds of sound per second of playback (default: the whole ray field in 10 s).",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "float"
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "particles",
+                "description": "The position of every ray that has not ended yet at the time, as points."
+            },
+            {
+                "name": "trails",
+                "description": "The rays from the source up to the time, as polylines."
+            },
+            {
+                "name": "t",
+                "description": "The time shown, in ms."
+            }
+        ]
+    }
+}

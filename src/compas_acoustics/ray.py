@@ -534,6 +534,42 @@ class RayField(Data):
             scattered.extend(getattr(ray, 'scattered_reflections', []))
         return scattered
 
+    @property
+    def duration_ms(self) -> float:
+        """The largest travel time of the specular rays in milliseconds, 0.0 when empty."""
+        return max((ray.travel_time for ray in self.rays), default=0.0)
+
+    def particles(self, time_ms: float):
+        """Return the position of every specular ray at ``time_ms``, as particles for a billiard view.
+
+        Parameters
+        ----------
+        time_ms : float
+            The time in milliseconds, clamped to ``[0, duration_ms]``.
+
+        Returns
+        -------
+        tuple of (list of :class:`compas.geometry.Point`, list of int)
+            The positions and the ``ray_index`` of the ray each belongs to.
+            A ray that has ended by ``time_ms`` gives no particle.
+        """
+        time_ms = min(max(time_ms, 0.0), self.duration_ms)
+        points = []
+        indices = []
+        for ray in self.rays:
+            if ray.travel_time < time_ms:
+                continue
+            part = ray.up_to_time(time_ms)
+            if part is None:
+                # up_to_distance reports "not emerged" at distance == distance_offset too
+                if ray.sound_speed * time_ms / 1000.0 < ray.cumulative_distances[0]:
+                    continue
+                points.append(Point(*ray.points[0]))
+            else:
+                points.append(Point(*part.points[-1]))
+            indices.append(ray.ray_index)
+        return points, indices
+
     def filter(
         self,
         source=None,
