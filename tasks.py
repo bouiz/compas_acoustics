@@ -38,6 +38,8 @@ def installer_bundle(ctx, output="dist"):
     if os.path.isdir(bundle):
         shutil.rmtree(bundle)
     os.makedirs(bundle)
+    # setuptools copies into build/lib without emptying it, so removed modules and components would ship again
+    shutil.rmtree(os.path.join(base, "build"), ignore_errors=True)
 
     with ctx.cd(base):
         ctx.run('"{}" -m pip wheel --no-deps --wheel-dir "{}" .'.format(sys.executable, bundle))
