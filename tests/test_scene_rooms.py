@@ -9,8 +9,8 @@ from compas_acoustics import Receiver
 from compas_acoustics import RayField
 from compas_acoustics import Scene
 from compas_acoustics import Source
-from compas_acoustics.pra_converter import scene_to_pra_room
-from compas_acoustics.pra_converter import source_to_pra
+from compas_acoustics.room.pra import scene_to_pra_room
+from compas_acoustics.room.pra import source_to_pra
 
 
 def shoebox_scene():

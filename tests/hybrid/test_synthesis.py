@@ -15,9 +15,9 @@ from compas_acoustics.hybrid.pair import Pair
 from compas_acoustics.hybrid.synthesis import _select
 from compas_acoustics.hybrid.synthesis import synthesize
 from compas_acoustics.hybrid.target import RoomTarget
-from compas_acoustics.pra_converter import receivers_to_pra_mic_array
-from compas_acoustics.pra_converter import source_to_pra
-from compas_acoustics.room_geometry import RoomGeometry
+from compas_acoustics.room.pra import receivers_to_pra_mic_array
+from compas_acoustics.room.pra import source_to_pra
+from compas_acoustics.room.geometry import RoomGeometry
 
 FS = 48000
 MAX_ORDER = 2

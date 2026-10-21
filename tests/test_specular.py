@@ -15,7 +15,7 @@ from compas_acoustics import AirConditions
 from compas_acoustics import Receiver
 from compas_acoustics import Scene
 from compas_acoustics import Source
-from compas_acoustics.room_geometry import RoomGeometry
+from compas_acoustics.room.geometry import RoomGeometry
 from compas_acoustics.rays import SpecularPath
 from compas_acoustics.rays import SpecularReflections
 

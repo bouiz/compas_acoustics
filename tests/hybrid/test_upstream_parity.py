@@ -17,9 +17,9 @@ from compas_acoustics.hybrid.early import image_sources
 from compas_acoustics.hybrid.pair import Pair
 from compas_acoustics.hybrid.synthesis import synthesize
 from compas_acoustics.hybrid.target import RoomTarget
-from compas_acoustics.raytracing import ray_traced_rirs
-from compas_acoustics.room_geometry import RoomGeometry
-from compas_acoustics.room_geometry import SurfaceMaterial
+from compas_acoustics.simulation_methods.raytracing import ray_traced_rirs
+from compas_acoustics.room.geometry import RoomGeometry
+from compas_acoustics.room.geometry import SurfaceMaterial
 
 hybrid_rir = pytest.importorskip("hybrid_rir")
 

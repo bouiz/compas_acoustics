@@ -1,6 +1,6 @@
 """Diffuse-field prediction of a room's reverberation: Sabine and Eyring through pyrato.
 
-Used for the length of a ray-traced simulation (:func:`compas_acoustics.raytracing.default_duration`)
+Used for the length of a ray-traced simulation (:func:`compas_acoustics.simulation_methods.raytracing.default_duration`)
 and, in the hybrid method, for a decay target that needs no reference response
 (``Hybrid(tail="eyring")``). Base package: pyrato only, no pyFDN.
 
@@ -17,10 +17,10 @@ from typing import Optional
 import numpy as np
 import pyrato
 
-from compas_acoustics.air import AirConditions
-from compas_acoustics.air import air_or_default
-from compas_acoustics.air import speed_of_sound as _speed_of_sound
-from compas_acoustics.room_geometry import SYNTHESIS_BANDS
+from compas_acoustics.room.air import AirConditions
+from compas_acoustics.room.air import air_or_default
+from compas_acoustics.room.air import speed_of_sound as _speed_of_sound
+from compas_acoustics.room.geometry import SYNTHESIS_BANDS
 
 __all__ = ["DiffuseFieldWarning", "air_attenuation", "mean_absorption", "predicted_rt"]
 
@@ -149,7 +149,7 @@ def _air_absorption_coefficient() -> np.ndarray:
 
     Upstream's name for the air when none is given. It was a fixed table, ISO 9613-1
     at 10 C and 70 % rounded, documented as 20 C and 50 %; it is now ISO 9613-1 at
-    20 C and 50 % (:class:`~compas_acoustics.air.AirConditions`), as every method uses.
+    20 C and 50 % (:class:`~compas_acoustics.room.air.AirConditions`), as every method uses.
     """
     return air_attenuation(None)
 

@@ -39,7 +39,7 @@ import spharpy
 
 from .btms import _coordtrans1, element_grid, wedge1st_ir, wedge2nd_ir
 from .early import render_signals, render_transfers
-from compas_acoustics.room_geometry import _MERGE_TOLERANCE, OBSTACLE_OFFSET, RoomGeometry, _polygon_area_and_centroid
+from compas_acoustics.room.geometry import _MERGE_TOLERANCE, OBSTACLE_OFFSET, RoomGeometry, _polygon_area_and_centroid
 
 from .bands import BANDS
 from .pair import Pair

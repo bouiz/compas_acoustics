@@ -48,8 +48,8 @@ def test_the_result_keeps_the_diffracted_paths():
 
 
 def test_the_nearest_measured_direction_is_picked():
-    from compas_acoustics.binaural import DEFAULT_HRTF
-    from compas_acoustics.binaural import HrtfSet
+    from compas_acoustics.hybrid.binaural import DEFAULT_HRTF
+    from compas_acoustics.hybrid.binaural import HrtfSet
 
     hrtf = HrtfSet.from_sofa(DEFAULT_HRTF, FS)
     assert hrtf.hrirs.shape[1] == 2 and hrtf.directions.shape == (hrtf.hrirs.shape[0], 3)
@@ -58,8 +58,8 @@ def test_the_nearest_measured_direction_is_picked():
 
 
 def test_a_set_at_another_rate_is_resampled():
-    from compas_acoustics.binaural import DEFAULT_HRTF
-    from compas_acoustics.binaural import HrtfSet
+    from compas_acoustics.hybrid.binaural import DEFAULT_HRTF
+    from compas_acoustics.hybrid.binaural import HrtfSet
 
     native, resampled = HrtfSet.from_sofa(DEFAULT_HRTF, FS), HrtfSet.from_sofa(DEFAULT_HRTF, 44100)
     assert resampled.sampling_rate == 44100
@@ -68,7 +68,7 @@ def test_a_set_at_another_rate_is_resampled():
 
 def identity(n_dir=1):
     """An HRTF set that passes every direction through unchanged to both ears."""
-    from compas_acoustics.binaural import HrtfSet
+    from compas_acoustics.hybrid.binaural import HrtfSet
 
     hrirs = np.zeros((n_dir, 2, 8))
     hrirs[:, :, 0] = 1.0
@@ -78,7 +78,7 @@ def identity(n_dir=1):
 @pytest.mark.parametrize("diffraction", [False, True])
 def test_with_a_transparent_hrtf_both_ears_hear_the_omnidirectional_early_part(diffraction):
     """Same paths, same band interpolation, same delays and taper: the W channel exactly."""
-    from compas_acoustics.binaural import render_early_binaural
+    from compas_acoustics.hybrid.binaural import render_early_binaural
 
     result = run(Hybrid(diffraction=diffraction, **FAST), panel=diffraction)
     ears = render_early_binaural(result, identity())
@@ -89,7 +89,7 @@ def test_with_a_transparent_hrtf_both_ears_hear_the_omnidirectional_early_part(d
 
 @pytest.mark.slow
 def test_with_a_transparent_hrtf_btms_paths_match_too():
-    from compas_acoustics.binaural import render_early_binaural
+    from compas_acoustics.hybrid.binaural import render_early_binaural
 
     result = run(Hybrid(diffraction="btms", **FAST), panel=True)
     assert len(result.btms_contributions) > 0
@@ -107,8 +107,8 @@ def direct_level(ears, result, ear):
 
 
 def test_a_source_on_the_left_is_louder_in_the_left_ear():
-    from compas_acoustics.binaural import DEFAULT_HRTF
-    from compas_acoustics.binaural import HrtfSet, render_early_binaural
+    from compas_acoustics.hybrid.binaural import DEFAULT_HRTF
+    from compas_acoustics.hybrid.binaural import HrtfSet, render_early_binaural
 
     # The source is at (2, 4, 1.5); a receiver at (2, 1, 1.5) facing +x has it on its left (+y)
     result = run(Hybrid(**FAST), receiver=Receiver("rec", 2.0, 1.0, 1.5))
@@ -117,8 +117,8 @@ def test_a_source_on_the_left_is_louder_in_the_left_ear():
 
 
 def test_the_ears_turn_with_the_receiver():
-    from compas_acoustics.binaural import DEFAULT_HRTF
-    from compas_acoustics.binaural import HrtfSet, render_early_binaural
+    from compas_acoustics.hybrid.binaural import DEFAULT_HRTF
+    from compas_acoustics.hybrid.binaural import HrtfSet, render_early_binaural
 
     turned = Receiver("rec", 2.0, 1.0, 1.5, direction=[-1, 0, 0])
     result = run(Hybrid(**FAST), receiver=turned)
@@ -128,8 +128,8 @@ def test_the_ears_turn_with_the_receiver():
 
 def test_the_binaural_response_is_early_plus_each_line_through_its_hrir():
     from scipy.signal import fftconvolve
-    from compas_acoustics.binaural import DEFAULT_HRTF
-    from compas_acoustics.binaural import HrtfSet, binaural_rir, render_early_binaural
+    from compas_acoustics.hybrid.binaural import DEFAULT_HRTF
+    from compas_acoustics.hybrid.binaural import HrtfSet, binaural_rir, render_early_binaural
 
     result = run(Hybrid(sh_order=1, **FAST))
     hrtf = HrtfSet.from_sofa(DEFAULT_HRTF, FS)
@@ -140,8 +140,8 @@ def test_the_binaural_response_is_early_plus_each_line_through_its_hrir():
 
 
 def test_the_hrtf_must_be_at_the_simulations_rate():
-    from compas_acoustics.binaural import DEFAULT_HRTF
-    from compas_acoustics.binaural import HrtfSet, render_early_binaural
+    from compas_acoustics.hybrid.binaural import DEFAULT_HRTF
+    from compas_acoustics.hybrid.binaural import HrtfSet, render_early_binaural
 
     result = run(Hybrid(**FAST))
     with pytest.raises(ValueError, match="sample rate"):

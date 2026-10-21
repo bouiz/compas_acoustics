@@ -9,7 +9,7 @@ from compas_acoustics.hybrid.directional import scanned_absorption
 from compas_acoustics.hybrid.late import fdn_directions
 from compas_acoustics.hybrid.pair import Pair
 from compas_acoustics.hybrid.scattering import _first_hit
-from compas_acoustics.room_geometry import RoomGeometry
+from compas_acoustics.room.geometry import RoomGeometry
 
 FS = 48000.0
 

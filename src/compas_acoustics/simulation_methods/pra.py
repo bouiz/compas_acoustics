@@ -8,13 +8,13 @@ from typing import Union
 import numpy as np
 import pyroomacoustics as pra
 
-from compas_acoustics.air import AirConditions
-from compas_acoustics.air import air_or_default
 from compas_acoustics.ir import ImpulseResponse
-from compas_acoustics.pra_converter import source_to_pra
-from compas_acoustics.raytracing import _on_package_scale
-from compas_acoustics.raytracing import ray_traced_rirs
-from compas_acoustics.room_geometry import pra_octave_grid
+from compas_acoustics.room.air import AirConditions
+from compas_acoustics.room.air import air_or_default
+from compas_acoustics.room.geometry import pra_octave_grid
+from compas_acoustics.room.pra import source_to_pra
+from compas_acoustics.simulation_methods.raytracing import _on_package_scale
+from compas_acoustics.simulation_methods.raytracing import ray_traced_rirs
 
 from .base import DEFAULT_SEED
 from .base import SimulationContext
@@ -31,7 +31,7 @@ class Pyroomacoustics(SimulationMethod):
     There is no separate image-source method: like pyroomacoustics itself, this
     runs the image source model, and adds the stochastic ray tracer for
     everything past ``image_source_order`` when ``ray_tracing`` is True. The
-    ray tracer is hybrid-rir's (:mod:`compas_acoustics.raytracing`).
+    ray tracer is hybrid-rir's (:mod:`compas_acoustics.simulation_methods.raytracing`).
 
     Parameters
     ----------

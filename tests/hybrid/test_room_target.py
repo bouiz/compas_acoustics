@@ -7,7 +7,7 @@ import pytest
 from compas_acoustics.hybrid.bands import BANDS, N_BANDS
 from _compat import Material, RoomSpec, ShoeboxGeometry
 from compas_acoustics.hybrid.target import RoomTarget
-from compas_acoustics.diffuse import mean_absorption
+from compas_acoustics.room.diffuse import mean_absorption
 
 
 def spec_with(alpha=0.2, dims=(8.0, 6.0, 3.0)):

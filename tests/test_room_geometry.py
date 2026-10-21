@@ -8,9 +8,9 @@ from compas_acoustics import AcousticMaterial
 from compas_acoustics import AcousticObject
 from compas_acoustics import AcousticObjectsLibrary
 from compas_acoustics import Scene
-from compas_acoustics.room_geometry import OBSTACLE_OFFSET
-from compas_acoustics.room_geometry import SYNTHESIS_BANDS
-from compas_acoustics.room_geometry import RoomGeometry
+from compas_acoustics.room.geometry import OBSTACLE_OFFSET
+from compas_acoustics.room.geometry import SYNTHESIS_BANDS
+from compas_acoustics.room.geometry import RoomGeometry
 
 WALL = AcousticMaterial("wall", 0.2, 0.1)
 CENTRE = np.array([3.5, 2.5, 1.5])
@@ -176,7 +176,7 @@ def test_obstacle_polygons_are_kept_as_drawn():
 
 
 def test_points_across_a_grid_line_weld():
-    from compas_acoustics.room_geometry import _weld
+    from compas_acoustics.room.geometry import _weld
 
     points = np.array([[1.000000499, 3.0, 0.0], [1.000000501, 3.0, 0.0], [5.0, 5.0, 5.0]])
     vertices, inverse = _weld(points, 1e-6)
@@ -184,7 +184,7 @@ def test_points_across_a_grid_line_weld():
 
 
 def test_welding_is_transitive():
-    from compas_acoustics.room_geometry import _weld
+    from compas_acoustics.room.geometry import _weld
 
     points = np.array([[0.0, 0, 0], [0.8e-6, 0, 0], [1.6e-6, 0, 0]])
     assert len(_weld(points, 1e-6)[0]) == 1

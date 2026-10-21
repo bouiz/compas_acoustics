@@ -8,7 +8,7 @@ from __future__ import annotations
 import numpy as np
 import pyFDN
 
-from compas_acoustics.room_geometry import SYNTHESIS_BANDS
+from compas_acoustics.room.geometry import SYNTHESIS_BANDS
 
 # The package-wide octave band grid, fixed at pyFDN.octave_bands() defaults so
 # every band-indexed array shares one axis with pyFDN.estimate_rt_bands and

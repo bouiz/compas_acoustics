@@ -8,9 +8,9 @@ import pytest
 from compas_acoustics import AcousticMaterial
 from compas_acoustics import AcousticObjectsLibrary
 from compas_acoustics import Scene
-from compas_acoustics.raytracing import MIN_RAYS
-from compas_acoustics.raytracing import ray_traced_rirs
-from compas_acoustics.room_geometry import RoomGeometry
+from compas_acoustics.simulation_methods.raytracing import MIN_RAYS
+from compas_acoustics.simulation_methods.raytracing import ray_traced_rirs
+from compas_acoustics.room.geometry import RoomGeometry
 
 pytestmark = [pytest.mark.slow, pytest.mark.skipif(not os.environ.get("COMPAS_ACOUSTICS_SLOW"), reason="set COMPAS_ACOUSTICS_SLOW=1")]
 

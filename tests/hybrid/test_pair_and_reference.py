@@ -8,8 +8,8 @@ from compas_acoustics import Scene
 from compas_acoustics.hybrid.bands import BANDS
 from compas_acoustics.hybrid.pair import Pair
 from compas_acoustics.hybrid.target import reference_scale
-from compas_acoustics.room_geometry import SYNTHESIS_BANDS
-from compas_acoustics.room_geometry import RoomGeometry
+from compas_acoustics.room.geometry import SYNTHESIS_BANDS
+from compas_acoustics.room.geometry import RoomGeometry
 
 
 def shoebox(leaves=6):

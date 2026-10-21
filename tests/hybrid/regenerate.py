@@ -42,7 +42,7 @@ def bands():
     head = (
         f'"""The octave band grid of the hybrid synthesis.\n\n{provenance("src/room.py")}\n"""\n\n'
         "from __future__ import annotations\n\nimport numpy as np\nimport pyFDN\n\n"
-        "from compas_acoustics.room_geometry import SYNTHESIS_BANDS\n\n"
+        "from compas_acoustics.room.geometry import SYNTHESIS_BANDS\n\n"
     )
     tail = (
         "\n\n# RoomGeometry puts materials on SYNTHESIS_BANDS without importing pyFDN;\n"
@@ -85,7 +85,7 @@ def target():
 ''',
         '''        alpha = mean_absorption(spec.geometry, weighting=weighting)
         # Upstream's RT computation, moved to the base package so that the
-        # ray-tracing duration shares it (compas_acoustics.diffuse.predicted_rt).
+        # ray-tracing duration shares it (compas_acoustics.room.diffuse.predicted_rt).
         rt = predicted_rt(
             spec.geometry,
             model=model,
@@ -100,14 +100,14 @@ def target():
         f'"""The decay the late field must reproduce.\n\n{provenance("src/room.py")}\n'
         "``RoomTarget`` without ``from_ray_tracing`` (the Hybrid method runs its own\n"
         "reference instead); ``from_room`` takes its reverberation time from\n"
-        ":func:`compas_acoustics.diffuse.predicted_rt`.\n"
+        ":func:`compas_acoustics.room.diffuse.predicted_rt`.\n"
         '"""\n\n'
         "from __future__ import annotations\n\n"
         "from dataclasses import dataclass\nfrom typing import TYPE_CHECKING\n\n"
         "import numpy as np\nimport pyFDN\nimport pyroomacoustics as pra\n\n"
-        "from compas_acoustics.diffuse import _air_absorption_coefficient  # noqa: F401  (upstream's import path)\n"
-        "from compas_acoustics.diffuse import mean_absorption\n"
-        "from compas_acoustics.diffuse import predicted_rt\n\n"
+        "from compas_acoustics.room.diffuse import _air_absorption_coefficient  # noqa: F401  (upstream's import path)\n"
+        "from compas_acoustics.room.diffuse import mean_absorption\n"
+        "from compas_acoustics.room.diffuse import predicted_rt\n\n"
         "from .bands import BANDS\nfrom .bands import BANDWIDTHS\nfrom .bands import N_BANDS\nfrom .bands import check_bands\n\n"
         "if TYPE_CHECKING:\n    from .pair import Pair as RoomSpec\n\n\n"
     )
@@ -289,7 +289,7 @@ def diffraction():
     )
     text = replace_relative_import(
         text, "room",
-        "from compas_acoustics.room_geometry import _MERGE_TOLERANCE, OBSTACLE_OFFSET, RoomGeometry, _polygon_area_and_centroid\n\n"
+        "from compas_acoustics.room.geometry import _MERGE_TOLERANCE, OBSTACLE_OFFSET, RoomGeometry, _polygon_area_and_centroid\n\n"
         "from .bands import BANDS\nfrom .pair import Pair\n",
     )
     # the global MeshGeometry -> RoomGeometry rename turns this into an isinstance check against RoomGeometry

@@ -12,9 +12,9 @@ from typing import Optional
 
 import numpy as np
 
-from compas_acoustics.diffuse import air_attenuation
-from compas_acoustics.air import AirConditions
-from compas_acoustics.room_geometry import RoomGeometry
+from compas_acoustics.room.diffuse import air_attenuation
+from compas_acoustics.room.air import AirConditions
+from compas_acoustics.room.geometry import RoomGeometry
 
 from .bands import N_BANDS
 

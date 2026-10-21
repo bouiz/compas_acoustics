@@ -12,15 +12,15 @@ from compas_acoustics import AcousticObjectsLibrary
 from compas_acoustics import Receiver
 from compas_acoustics import Scene
 from compas_acoustics import Source
-from compas_acoustics.diffuse import DiffuseFieldWarning
+from compas_acoustics.room.diffuse import DiffuseFieldWarning
 from compas_acoustics.hybrid.diffraction import ShellEdgeWarning
 from compas_acoustics.hybrid.diffraction import diffraction_edges
 from compas_acoustics.hybrid.diffraction import enclosure_edges
 from compas_acoustics.simulation_methods import Hybrid
 from compas_acoustics.simulation_methods import Pyroomacoustics
 from compas_acoustics.simulation_methods import SimulationContext
-from compas_acoustics.room_geometry import RoomGeometry
-from compas_acoustics.room_geometry import SurfaceMaterial
+from compas_acoustics.room.geometry import RoomGeometry
+from compas_acoustics.room.geometry import SurfaceMaterial
 
 FS = 48000
 WALL = AcousticMaterial("wall", 0.2, 0.1)

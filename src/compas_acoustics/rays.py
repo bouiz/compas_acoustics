@@ -438,7 +438,7 @@ class RayField(_PackageDtype, Data):
 
         import pyroomacoustics as pra
 
-        from compas_acoustics.room_geometry import RoomGeometry
+        from compas_acoustics.room.geometry import RoomGeometry
         from compas_acoustics.simulation_methods.base import _seed
 
         geometry = RoomGeometry.from_scene(scene)
@@ -1013,7 +1013,7 @@ class SpecularReflections(RayField):
         """The specular paths from every source to every receiver of ``scene``, orders 0 to ``max_order``.
 
         The paths are those of the image sources pyroomacoustics finds visible for each pair, searched in the
-        room :meth:`compas_acoustics.room_geometry.RoomGeometry.to_pra` builds. pyroomacoustics records only
+        room :meth:`compas_acoustics.room.geometry.RoomGeometry.to_pra` builds. pyroomacoustics records only
         the last wall of each image, so each path is traced back from the receiver: through the image's
         last wall, across it to the parent image, and on through whichever wall leads back to the source.
         An image found more than once (a path through an edge, from both wall orderings) is kept once.
@@ -1036,7 +1036,7 @@ class SpecularReflections(RayField):
             If ``max_order`` is negative, or pyroomacoustics cannot build the room.
         """
         from compas_acoustics.defaults import Defaults
-        from compas_acoustics.room_geometry import RoomGeometry
+        from compas_acoustics.room.geometry import RoomGeometry
         from compas_acoustics.simulation_methods.base import _warn_if_the_search_is_slow
 
         if max_order < 0:

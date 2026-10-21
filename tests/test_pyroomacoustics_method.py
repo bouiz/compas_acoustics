@@ -9,10 +9,10 @@ from compas_acoustics import Scene
 from compas_acoustics import Source
 from compas_acoustics.simulation_methods import Pyroomacoustics
 from compas_acoustics.simulation_methods import SimulationContext
-from compas_acoustics.raytracing import OPEN_ROOM_DURATION
-from compas_acoustics.raytracing import default_duration
-from compas_acoustics.raytracing import ray_traced_rirs
-from compas_acoustics.room_geometry import RoomGeometry
+from compas_acoustics.simulation_methods.raytracing import OPEN_ROOM_DURATION
+from compas_acoustics.simulation_methods.raytracing import default_duration
+from compas_acoustics.simulation_methods.raytracing import ray_traced_rirs
+from compas_acoustics.room.geometry import RoomGeometry
 
 FS = 48000
 SOURCE = np.array([1.5, 1.5, 1.6])
@@ -185,7 +185,7 @@ def test_image_sources_need_no_scattering():
 
 
 def test_default_duration_follows_the_predicted_rt():
-    from compas_acoustics.diffuse import predicted_rt
+    from compas_acoustics.room.diffuse import predicted_rt
 
     g = geometry()
     rt = float(np.max(predicted_rt(g, air_absorption=True, warn=False)))

@@ -25,7 +25,7 @@ import numpy as np
 import pyfar as pf
 import pyFDN
 
-from compas_acoustics.raytracing import DirectionalHistogram
+from compas_acoustics.simulation_methods.raytracing import DirectionalHistogram
 
 from .diffraction import BtmsContribution
 from .diffraction import DiffractionPath
@@ -65,11 +65,11 @@ class HybridResult:
     drive_gain: float
     fs: float
     normalization: str  # "SN3D" or "N3D", audio convention (W = 1 for a unit plane wave)
-    # The early paths, for renderers that need each path rather than its encoding (compas_acoustics.binaural)
+    # The early paths, for renderers that need each path rather than its encoding (compas_acoustics.hybrid.binaural)
     images: ImageSourceSet | None = None  # orders 0 .. max_order
     diffraction_paths: tuple[DiffractionPath, ...] = ()
     btms_contributions: tuple[BtmsContribution, ...] = ()
-    # The late field before the output matrix, for renderers that need each line's direction (compas_acoustics.binaural)
+    # The late field before the output matrix, for renderers that need each line's direction (compas_acoustics.hybrid.binaural)
     late_lines: np.ndarray | None = None  # (n, num_delays), each line as heard from its direction
     line_directions: np.ndarray | None = None  # (num_delays, 3), unit vectors in the receiver's frame
 
@@ -124,14 +124,14 @@ def synthesize(
        ``line_directions``): the ambisonic late field is their projection
        through the output matrix, and a binaural renderer filters each with
        the HRIR of its direction instead
-       (:func:`compas_acoustics.binaural.binaural_rir`).
+       (:func:`compas_acoustics.hybrid.binaural.binaural_rir`).
 
     ``drive_gain`` defaults to ``sqrt(num_delays)``. ``late_envelope`` is an
     omnidirectional reference on the package scale, normally the pair's
     ray-traced response; the network output is attenuated per band to follow
     its late energy (Vorlaender 2020, Sec. 11.9), every line by the gains of the
     late field's W channel. ``directional_envelope``, a
-    :class:`~compas_acoustics.raytracing.DirectionalHistogram` binned on the
+    :class:`~compas_acoustics.simulation_methods.raytracing.DirectionalHistogram` binned on the
     lines' directions in room coordinates (their grid turned by the receiver's
     rotation), then gives the lines the rays' distribution over directions
     (:func:`~compas_acoustics.hybrid.envelope.shape_late_directional`, RAVEN's

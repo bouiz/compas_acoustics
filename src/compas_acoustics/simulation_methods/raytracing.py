@@ -25,10 +25,10 @@ from typing import Sequence
 import numpy as np
 import pyroomacoustics as pra
 
-from compas_acoustics.diffuse import DiffuseFieldWarning
-from compas_acoustics.diffuse import predicted_rt
-from compas_acoustics.room_geometry import RoomGeometry
-from compas_acoustics.room_geometry import pra_octave_grid
+from compas_acoustics.room.diffuse import DiffuseFieldWarning
+from compas_acoustics.room.diffuse import predicted_rt
+from compas_acoustics.room.geometry import RoomGeometry
+from compas_acoustics.room.geometry import pra_octave_grid
 
 __all__ = ['MIN_RAYS', 'OPEN_ROOM_DURATION', 'DirectionalHistogram', 'default_duration', 'directional_histograms', 'ray_traced_rirs']
 

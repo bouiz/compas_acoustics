@@ -6,8 +6,8 @@ import numpy as np
 import pytest
 
 from compas_acoustics import AirConditions
-from compas_acoustics.diffuse import _air_absorption_coefficient
-from compas_acoustics.air import speed_of_sound
+from compas_acoustics.room.diffuse import _air_absorption_coefficient
+from compas_acoustics.room.air import speed_of_sound
 
 try:
     import pyfar.constants  # noqa: F401
@@ -41,8 +41,8 @@ def test_air_absorption_reproduces_iso_9613_1_table_1(conditions):
 
 
 def test_without_a_medium_the_air_is_iso_9613_1_at_20_c_and_50_percent():
-    from compas_acoustics.diffuse import air_attenuation
-    from compas_acoustics.room_geometry import SYNTHESIS_BANDS
+    from compas_acoustics.room.diffuse import air_attenuation
+    from compas_acoustics.room.geometry import SYNTHESIS_BANDS
 
     default = AirConditions(temperature=20.0, humidity=50.0, pressure=101325.0)
     assert AirConditions() == default
@@ -101,8 +101,8 @@ def test_without_a_medium_the_speed_of_sound_is_the_default_mediums():
 
 def test_predicted_rt_follows_the_medium():
     from compas_acoustics import AcousticMaterial, AcousticObjectsLibrary, Scene
-    from compas_acoustics.diffuse import predicted_rt
-    from compas_acoustics.room_geometry import RoomGeometry
+    from compas_acoustics.room.diffuse import predicted_rt
+    from compas_acoustics.room.geometry import RoomGeometry
 
     scene = Scene("rt")
     scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(20, 15, 8, materials=AcousticMaterial("w", 0.05, 0.1)))
@@ -169,7 +169,7 @@ def test_a_default_simulation_runs_without_pyfar_constants(monkeypatch):
 def test_air_matches_pyfar_constants(t, h, p):
     from pyfar import constants
 
-    from compas_acoustics import _pyfar_constants as ours
+    from compas_acoustics.room import _pyfar_constants as ours
 
     f = np.array([62.5, 125, 250, 500, 1000, 2000, 4000, 8000, 16000])
     np.testing.assert_allclose(ours.speed_of_sound_cramer(t, h / 100, atmospheric_pressure=p),

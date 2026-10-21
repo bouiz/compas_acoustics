@@ -8,10 +8,10 @@ from compas_acoustics import AcousticMaterial
 from compas_acoustics import AcousticObjectsLibrary
 from compas_acoustics import Scene
 from compas_acoustics.hybrid.late import fdn_directions
-from compas_acoustics.raytracing import DirectionalHistogram
-from compas_acoustics.raytracing import directional_histograms
-from compas_acoustics.room_geometry import RoomGeometry
-from compas_acoustics.room_geometry import pra_octave_grid
+from compas_acoustics.simulation_methods.raytracing import DirectionalHistogram
+from compas_acoustics.simulation_methods.raytracing import directional_histograms
+from compas_acoustics.room.geometry import RoomGeometry
+from compas_acoustics.room.geometry import pra_octave_grid
 
 FS = 48000
 SOURCE = np.array([6.0, 3.0, 1.5])
@@ -75,7 +75,7 @@ def test_air_absorption_attenuates_the_late_bins():
     (damped,), = histograms(g, grid(), air_absorption=True)
     late = slice(int(0.4 / dry.bin_size), int(0.5 / dry.bin_size))
     ratio = damped.energy[:, 7, late].sum() / dry.energy[:, 7, late].sum()
-    # 8 kHz at 20 C, 50 %: 0.0242 /m in energy (compas_acoustics.diffuse.air_attenuation) over 0.45 s * 344 m/s
+    # 8 kHz at 20 C, 50 %: 0.0242 /m in energy (compas_acoustics.room.diffuse.air_attenuation) over 0.45 s * 344 m/s
     assert 10 * np.log10(ratio) == pytest.approx(-10 * np.log10(np.e) * 0.02424 * 0.45 * 343.98, abs=1.5)
     assert np.all(damped.energy <= dry.energy + 1e-15)
     early = slice(0, int(0.05 / dry.bin_size))

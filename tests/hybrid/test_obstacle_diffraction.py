@@ -11,7 +11,7 @@ from compas_acoustics import Scene
 from compas_acoustics.hybrid.diffraction import diffraction_paths
 from compas_acoustics.hybrid.diffraction import obstacle_edges
 from compas_acoustics.hybrid.pair import Pair
-from compas_acoustics.room_geometry import RoomGeometry
+from compas_acoustics.room.geometry import RoomGeometry
 
 WALL = AcousticMaterial("wall", [0.05, 0.08, 0.1, 0.12, 0.14, 0.16, 0.18], 0.1)
 SOURCE, RECEIVER = np.array([2.0, 4.0, 1.5]), np.array([8.0, 4.0, 1.5])

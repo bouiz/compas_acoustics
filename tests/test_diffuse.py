@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from compas_acoustics import diffuse
+from compas_acoustics.room import diffuse
 
 
 @pytest.mark.parametrize("model", ["sabine", "eyring"])

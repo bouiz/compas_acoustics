@@ -32,8 +32,8 @@ from compas.geometry import Point
 from compas.geometry import Polyline
 from scipy.spatial import cKDTree
 
-from compas_acoustics.air import AirConditions
-from compas_acoustics.air import air_or_default
+from compas_acoustics.room.air import AirConditions
+from compas_acoustics.room.air import air_or_default
 
 __all__ = ['RoomGeometry', 'SurfaceMaterial', 'SYNTHESIS_BANDS', 'OBSTACLE_OFFSET', 'DEFAULT_SCATTERING', 'pra_octave_grid']
 

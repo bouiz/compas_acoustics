@@ -19,7 +19,7 @@ class _PackageDtype:
 @functools.lru_cache(maxsize=None)
 def _speed_of_sound() -> float:
     # The air every simulation runs in without one given; cached, since Cramer's formula is behind an import
-    from compas_acoustics.air import AirConditions
+    from compas_acoustics.room.air import AirConditions
 
     return AirConditions().speed_of_sound
 

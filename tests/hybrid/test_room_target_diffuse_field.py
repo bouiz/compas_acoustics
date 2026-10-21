@@ -24,7 +24,7 @@ import numpy as np
 import pytest
 
 from compas_acoustics.hybrid.bands import BANDS
-from compas_acoustics.diffuse import DiffuseFieldWarning
+from compas_acoustics.room.diffuse import DiffuseFieldWarning
 from _compat import Material, RoomSpec, ShoeboxGeometry
 from compas_acoustics.hybrid.target import RoomTarget
 
@@ -118,7 +118,7 @@ def test_warning_does_not_change_the_returned_target():
     # unchanged against the model called directly
     import pyrato
 
-    from compas_acoustics.diffuse import mean_absorption
+    from compas_acoustics.room.diffuse import mean_absorption
 
     expected = pyrato.parametric.reverberation_time_eyring(
         volume=spec.geometry.volume,

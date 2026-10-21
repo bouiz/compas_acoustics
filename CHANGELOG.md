@@ -22,6 +22,7 @@ Nothing is kept under its old name. What replaces what:
 | `compas_acoustics.acoustic_material`, `compas_acoustics.materials_library` | `compas_acoustics.materials` (or the classes from `compas_acoustics`) |
 | `compas_acoustics.geometry` | `compas_acoustics.acoustic_object` (or the classes from `compas_acoustics`) |
 | `compas_acoustics.numerical.fitness` | `compas_acoustics.fitness`, or `compas_acoustics.regularized_fitness` |
+| `compas_acoustics.pra_converter` | `compas_acoustics.room.pra` (no longer an attribute of `compas_acoustics`) |
 | JSON with `"dtype": "compas_acoustics.<module>/<Class>"` | `"dtype": "compas_acoustics/<Class>"`; files saved before do not load |
 | `simulator.rirs`, `simulator.results` | the responses returned by `scene.simulate`, or `scene.impulse_responses(method_name)`, `scene.get_impulse_response(source, receiver)` |
 | `Scene(simulation_platform=)`, `ImpulseResponse(simulation_platform=)` | removed; `ir.generation` names the method |
@@ -33,7 +34,7 @@ Nothing is kept under its old name. What replaces what:
 | `Auraliser.decode_stereo_simple()`, `Auraliser.resample_signal()` | no decoder: binaural responses from `Hybrid()`, ambisonic ones saved for a decoder elsewhere; `pyfar.dsp.resample` |
 | `Auraliser(output_format=...)` | removed: the signal has the format of its impulse responses, `Auraliser.format` (`mono`, `binaural` or `ambisonic`) |
 | `sample_rate` (`ImpulseResponse`, `Auraliser`, `AudioPlayer.play`, `receivers_to_pra_mic_array`) | `sampling_rate` |
-| `pra_converter.material_to_pra`, `mesh_to_pra_wall`, `acoustic_object_to_pra_walls` | `RoomGeometry.to_pra`, `pra_converter.scene_to_pra_room` |
+| `pra_converter.material_to_pra`, `mesh_to_pra_wall`, `acoustic_object_to_pra_walls` | `RoomGeometry.to_pra`, `compas_acoustics.room.pra.scene_to_pra_room` |
 | `Tools` | removed |
 | `compas_acoustics.orchestra_layouts`; the Orchestra Layout component | `examples/orchestra_layouts.py`; no component |
 | `Auraliser`, `AcousticAnalyser`, `MaterialsLibrary` as `Data` | plain classes: no `guid`, `copy()` or `compas.json_dumps` |
@@ -58,7 +59,7 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 * Added `Hybrid(tail=...)` with a reference response, the hybrid's own ray-traced reference, or an Eyring or Sabine prediction as decay target.
 * Added edge diffraction at the edges of the room's own boundary (re-entrant corners) to `Hybrid`.
 * Added `Hybrid(scattering=False)`, surface scattering after Ewert et al. (2025) as RAZR 0.96.3 implements it: each image's specular part, the product of `sqrt(1 - s)` over its reflections, stays in the early field, and its scattered part, the product of `sqrt(s)`, enters the delay lines on its own hemisphere through an allpass cascade; checked against RAZR in `tests/hybrid/data/razr_scattering`. Off by default.
-* Added `compas_acoustics.binaural` (`HrtfSet`, `render_early_binaural`, `binaural_rir`): the hybrid's early part path by path with the nearest HRTF.
+* Added `compas_acoustics.hybrid.binaural` (`HrtfSet`, `render_early_binaural`, `binaural_rir`): the hybrid's early part path by path with the nearest HRTF.
 * Added `Hybrid(output="binaural", hrtf=None)`: `output` is `"ambisonic"`, `"binaural"` or a list of both, rendered from one run; `hrtf` is `"kemar"` (the default for a binaural output) or a SOFA file. Binaural responses record `generation["output"] == "binaural"` and the HRTF file in `generation["hrtf"]`, ambisonic ones `generation["output"] == "ambisonic"`.
 * Added `HybridResult.late_lines` and `line_directions`: the late field per delay line before the output matrix, and each line's direction in the receiver frame.
 * Added `SimulationMethod.attribute` (the IR graph attribute, by default `name`) and `SimulationMethod.extra_responses` (responses in further formats from the same run, by attribute); `Scene.simulate` stores each.
@@ -68,7 +69,7 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 * Added `AcousticObject(role="boundary" | "obstacle")` and `AcousticObject.from_obj(path, materials=None)`, a list with one object per OBJ group, every one a boundary; groups `materials` does not cover have none until they are assigned, and `AcousticObject.material` accepts only an `AcousticMaterial` or `None`.
 * Added `AcousticObject.assign_roles_by_group(objects, roles)` and `assign_materials_by_group(objects, materials)` to mark OBJ groups as obstacles and give them materials after reading, and `AcousticObject.group`, the OBJ group an object was read from (not serialised); a group name that none of the objects has raises a `ValueError`.
 * Added `Receiver.up`, `rotation`, `frame` and `Receiver.from_frame()`: the orientation sets the axes of ambisonic responses (x facing, y left, z up).
-* Added `compas_acoustics.diffuse` (`predicted_rt`, `mean_absorption`, `DiffuseFieldWarning`): Sabine and Eyring reverberation times.
+* Added `compas_acoustics.room.diffuse` (`predicted_rt`, `mean_absorption`, `DiffuseFieldWarning`): Sabine and Eyring reverberation times.
 * Added JSON serialisation (`compas.json_dumps`) for `Scene`, `AcousticObject`, `Source`, `Receiver`, `ImpulseResponse`, `Ray`, `ScatteredRay` and `RayField`; the IR graph is not serialised.
 * Added `Scene.impulse_responses(attribute)`, `Scene.simulation_methods()` and `attribute=` on the IR graph methods: each method stores its responses under its own name.
 * Added `ImpulseResponse` with peak normalization (`denormalized()`, `normalization_factor`, `level_db`), `to_wav()`, `from_wav()`, `generation`, `resampled()`, `ambisonic_order`, `normalization`, `channel_order` and `direct_sound_index()`.
@@ -79,7 +80,7 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 * Added `Source.directivity`, `Source.sound_file` (the `Auraliser` mixes a multichannel file down to mono when it reads it), `Receiver.direction`, `radius` and `received_spls`.
 * Added `AcousticMaterial.category` and `data_origin`, `MaterialsLibrary.materials_by_category`, preset materials, and `tools/import_backend_materials.py`.
 * Added `AudioPlayer` for `.wav` files and numpy arrays, with `normalize=True`.
-* Added `compas_acoustics.pra_converter` and `compas_acoustics.regularized_fitness`.
+* Added `compas_acoustics.regularized_fitness`, exported from the package.
 * Added a warning before an image source search that will take long (`simulation_methods.image_source_search_seconds()`).
 * Added `compas_acoustics.worker`: runs the hybrid method in a second Python >= 3.11 for Rhino 8 (Python 3.9), through a `compas.rpc` server on a free local port with a token per session.
 * Added `anechoic_soundfiles_library` (bassoon, female and male speech, trumpet, viola) and `hrtfs_library` (KEMAR, free-field compensated, 48 kHz), with READMEs that credit the sources and licences.
@@ -129,7 +130,7 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 ### Changed
 
 * Changed the JSON data type of every `compas_acoustics` class to `compas_acoustics/<ClassName>` (was `compas_acoustics.<module>/<ClassName>`), so that saved data no longer depends on the module a class lives in; the materials library is stored that way. Files saved before do not load.
-* Changed the modules: `ray` and `specular` are one module, `rays`; `acoustic_material` and `materials_library` are `materials`; `geometry` is `acoustic_object`; `numerical.fitness` is `fitness`. The classes are exported from `compas_acoustics` as before.
+* Changed the modules: `ray` and `specular` are one module, `rays`; `acoustic_material` and `materials_library` are `materials`; `geometry` is `acoustic_object`; `numerical.fitness` is `fitness`; `room_geometry`, `air`, `diffuse`, `pra_converter` and `_pyfar_constants` are the subpackage `room` (`room.geometry`, `room.air`, `room.diffuse`, `room.pra`, `room._pyfar_constants`), which exports `RoomGeometry` and `AirConditions`; `binaural` is `hybrid.binaural`; `raytracing` is `simulation_methods.raytracing`. The classes are exported from `compas_acoustics` as before.
 * Changed `Defaults().DEFAULT_SPEED_OF_SOUND` to the speed of sound of `AirConditions()` (343.98 m/s at 20 C and 50 %, was 343), the air every simulation runs in without one given. `Ray`, `ScatteredRay` and `RayField` no longer take or store a `sound_speed` (it was 343 on its own and was serialised with every ray): their travel times are at this default; ray fields saved with it still load.
 * Changed `Hybrid` to use 96 delay lines up to third ambisonic order, for every output (`hybrid.late.MIN_DELAYS`; 16 before at orders 0 and 1, 36 at 2, 64 at 3): the count Kirsch, Wendt and van de Par (2023) run their network with whatever the number of rendered directions, so that the tail's character does not change with the count, and the one they name for offline simulation; RAZR 0.96.3 allows up to 96 and defaults to 24 for real time. In the binaural output each line is heard through its own HRIR. A 1.5 s response takes about 1 s longer per source-receiver pair. `Hybrid` no longer takes `num_delays` and `drive_gain`: the count follows from `sh_order`, and the input gain `sqrt(num_delays)` offsets the output's `1 / sqrt(num_delays)`, so the late level does not depend on the count; `hybrid.synthesis.synthesize` keeps both.
 * Changed how the last rendered image-source order drives the hybrid's network: each image now enters the delay lines of the hemisphere opposite its arrival, weighted by the cosine to each line (`hybrid.scattering.scattering_weights(..., opposite=True)`), the mapping of Ewert et al. (2025, Sec. 3.1.2) as RAZR 0.96.3's `fdn_smart_ch_mapping` implements it, checked against RAZR's FDN input in `tests/hybrid/data/razr_scattering`. Before, each image entered the one line nearest the opposite direction, hybrid-rir's own choice without a reference. On four shoeboxes against an exact image-source room the late level now lies within 0.5 dB (before -1.5 to +1.8 dB); `hybrid.early.route_to_directions` stays as the one-hot form the tests compare against.

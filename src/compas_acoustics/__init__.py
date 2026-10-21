@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING
 
 from .defaults import Defaults
 # from .tools import Tools
-from .air import AirConditions
+from .room import AirConditions
 from .materials import AcousticMaterial
 from .materials import MaterialCategory
 from .materials import MaterialsLibrary
@@ -10,7 +10,7 @@ from .source import Source
 from .receiver import Receiver
 from .acoustic_object import AcousticObject, AcousticObjectsLibrary
 from .ir import ImpulseResponse
-from .room_geometry import RoomGeometry
+from .room import RoomGeometry
 from .rays import Ray, ScatteredRay, RayField
 from .rays import SpecularPath, SpecularReflections
 from .scene import Scene
@@ -19,7 +19,6 @@ from .simulation_methods import SimulationMethod, Pyroomacoustics
 from .auraliser import Auraliser
 from .audio_player import AudioPlayer
 from .fitness import regularized_fitness
-from . import pra_converter
 
 
 if TYPE_CHECKING:
@@ -57,7 +56,6 @@ __all__ = [
     'ImpulseResponse',
     'RoomGeometry',
     'regularized_fitness',
-    'pra_converter',
     ]
 
 

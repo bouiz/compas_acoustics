@@ -12,8 +12,8 @@ from compas_acoustics import AcousticObjectsLibrary
 from compas_acoustics import Scene
 from compas_acoustics.hybrid.early import image_sources
 from compas_acoustics.hybrid.pair import Pair
-from compas_acoustics.room_geometry import RoomGeometry
-from compas_acoustics.room_geometry import pra_octave_grid
+from compas_acoustics.room.geometry import RoomGeometry
+from compas_acoustics.room.geometry import pra_octave_grid
 
 FS = 48000
 DIMS = (10.0, 8.0, 4.0)

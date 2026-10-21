@@ -41,7 +41,7 @@ class AirConditions:
         try:
             from pyfar.constants import speed_of_sound_cramer
         except ImportError:  # pyfar < 0.8, on Python 3.9 (Rhino 8)
-            from compas_acoustics._pyfar_constants import speed_of_sound_cramer
+            from compas_acoustics.room._pyfar_constants import speed_of_sound_cramer
 
         return float(speed_of_sound_cramer(self.temperature, self.humidity / 100.0, atmospheric_pressure=self.pressure))
 
@@ -50,7 +50,7 @@ class AirConditions:
         try:
             from pyfar.constants import air_attenuation
         except ImportError:
-            from compas_acoustics._pyfar_constants import air_attenuation
+            from compas_acoustics.room._pyfar_constants import air_attenuation
 
         frequencies = np.asarray(frequencies, dtype=float)
         _, m, _ = air_attenuation(self.temperature, frequencies, self.humidity / 100.0,

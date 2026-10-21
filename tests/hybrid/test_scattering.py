@@ -30,10 +30,10 @@ from compas_acoustics.hybrid.scattering import scattering_weights
 from compas_acoustics.hybrid.scattering import smear
 from compas_acoustics.hybrid.synthesis import synthesize
 from compas_acoustics.hybrid.target import RoomTarget
-from compas_acoustics.pra_converter import receivers_to_pra_mic_array
-from compas_acoustics.pra_converter import source_to_pra
-from compas_acoustics.room_geometry import RoomGeometry
-from compas_acoustics.room_geometry import pra_octave_grid
+from compas_acoustics.room.pra import receivers_to_pra_mic_array
+from compas_acoustics.room.pra import source_to_pra
+from compas_acoustics.room.geometry import RoomGeometry
+from compas_acoustics.room.geometry import pra_octave_grid
 from compas_acoustics.simulation_methods import Hybrid
 
 sys.path.insert(0, str(Path(__file__).parent / "data"))

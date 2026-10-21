@@ -3,7 +3,7 @@
 Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, src/room.py).
 ``RoomTarget`` without ``from_ray_tracing`` (the Hybrid method runs its own
 reference instead); ``from_room`` takes its reverberation time from
-:func:`compas_acoustics.diffuse.predicted_rt`.
+:func:`compas_acoustics.room.diffuse.predicted_rt`.
 """
 
 from __future__ import annotations
@@ -15,9 +15,9 @@ import numpy as np
 import pyFDN
 import pyroomacoustics as pra
 
-from compas_acoustics.diffuse import _air_absorption_coefficient  # noqa: F401  (upstream's import path)
-from compas_acoustics.diffuse import mean_absorption
-from compas_acoustics.diffuse import predicted_rt
+from compas_acoustics.room.diffuse import _air_absorption_coefficient  # noqa: F401  (upstream's import path)
+from compas_acoustics.room.diffuse import mean_absorption
+from compas_acoustics.room.diffuse import predicted_rt
 
 from .bands import BANDS
 from .bands import BANDWIDTHS
@@ -160,7 +160,7 @@ class RoomTarget:
             air_absorption = spec.air_absorption
         alpha = mean_absorption(spec.geometry, weighting=weighting)
         # Upstream's RT computation, moved to the base package so that the
-        # ray-tracing duration shares it (compas_acoustics.diffuse.predicted_rt).
+        # ray-tracing duration shares it (compas_acoustics.room.diffuse.predicted_rt).
         rt = predicted_rt(
             spec.geometry,
             model=model,

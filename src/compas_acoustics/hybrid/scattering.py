@@ -21,7 +21,7 @@ import numpy as np
 import pyfar as pf
 from scipy.signal import lfilter
 
-from ..room_geometry import DEFAULT_SCATTERING
+from ..room.geometry import DEFAULT_SCATTERING
 
 _APC_GAIN = 1.0 / np.sqrt(2.0)
 _APC_DELAY_RATIO = np.pi

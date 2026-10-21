@@ -33,7 +33,7 @@ from typing import ClassVar
 
 import numpy as np
 
-from compas_acoustics.room_geometry import RoomGeometry
+from compas_acoustics.room.geometry import RoomGeometry
 
 __all__ = ['SimulationContext', 'SimulationMethod', 'image_source_search_seconds', 'DEFAULT_SEED']
 

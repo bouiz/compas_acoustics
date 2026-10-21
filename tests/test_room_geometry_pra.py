@@ -7,7 +7,7 @@ from compas_acoustics import AcousticMaterial
 from compas_acoustics import AcousticObject
 from compas_acoustics import AcousticObjectsLibrary
 from compas_acoustics import Scene
-from compas_acoustics.room_geometry import RoomGeometry
+from compas_acoustics.room.geometry import RoomGeometry
 
 WALL = AcousticMaterial("wall", 0.2, 0.1)
 
@@ -70,7 +70,7 @@ def test_a_material_without_scattering_works_for_image_sources():
 
 
 def test_a_material_without_scattering_scatters_the_default_in_every_band():
-    from compas_acoustics.room_geometry import DEFAULT_SCATTERING
+    from compas_acoustics.room.geometry import DEFAULT_SCATTERING
 
     room = geometry(AcousticMaterial("bare", 0.2)).to_pra(48000, 2, ray_tracing=True)
     for wall in room.walls:

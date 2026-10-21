@@ -11,7 +11,7 @@ from compas.tolerance import TOL
 
 from compas_acoustics import Defaults
 from compas_acoustics.receiver import Receiver
-from compas_acoustics.room_geometry import RoomGeometry
+from compas_acoustics.room.geometry import RoomGeometry
 from compas_acoustics.scene import Scene
 from compas_acoustics.source import Source
 

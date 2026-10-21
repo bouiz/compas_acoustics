@@ -17,8 +17,8 @@ import numpy as np
 from compas_acoustics.hybrid.bands import BANDS
 from compas_acoustics.hybrid.bands import check_bands
 from compas_acoustics.hybrid.pair import Pair
-from compas_acoustics.room_geometry import RoomGeometry
-from compas_acoustics.room_geometry import SurfaceMaterial
+from compas_acoustics.room.geometry import RoomGeometry
+from compas_acoustics.room.geometry import SurfaceMaterial
 
 
 class Material:

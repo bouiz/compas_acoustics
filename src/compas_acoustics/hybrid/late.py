@@ -311,7 +311,7 @@ def render(
     after ``line_eq`` and the slope weights, summed over the slope networks.
     The ambisonic late field is the result times ``C.T`` (every build's ``C``
     is the same); a binaural renderer filters each line with the HRIR of its
-    direction instead (:func:`compas_acoustics.binaural.binaural_rir`).
+    direction instead (:func:`compas_acoustics.hybrid.binaural.binaural_rir`).
 
     ``line_eq``, an SOS bank of shape ``(n_sections, 6, num_delays)``, filters
     each line on its way out, after the feedback is taken, so it colours what

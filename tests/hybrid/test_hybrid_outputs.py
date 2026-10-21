@@ -7,9 +7,9 @@ import numpy as np
 import pytest
 
 import compas_acoustics as ca
-from compas_acoustics.binaural import DEFAULT_HRTF
-from compas_acoustics.binaural import HrtfSet
-from compas_acoustics.binaural import binaural_rir
+from compas_acoustics.hybrid.binaural import DEFAULT_HRTF
+from compas_acoustics.hybrid.binaural import HrtfSet
+from compas_acoustics.hybrid.binaural import binaural_rir
 from compas_acoustics.hybrid.envelope import shape_late
 from compas_acoustics.hybrid.late import ambisonic_output_matrix
 from compas_acoustics.hybrid.late import fdn_directions

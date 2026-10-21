@@ -14,8 +14,6 @@ from pathlib import Path
 
 import numpy as np
 
-from compas_acoustics.air import AirConditions
-from compas_acoustics.air import air_or_default
 from compas_acoustics.hybrid import UPSTREAM_REVISION
 from compas_acoustics.hybrid.early import image_sources
 from compas_acoustics.hybrid.late import default_num_delays
@@ -24,9 +22,11 @@ from compas_acoustics.hybrid.scattering import complementary_scattering
 from compas_acoustics.hybrid.synthesis import synthesize
 from compas_acoustics.hybrid.target import RoomTarget
 from compas_acoustics.ir import ImpulseResponse
-from compas_acoustics.pra_converter import directivity_to_pra
-from compas_acoustics.pra_converter import source_to_pra
-from compas_acoustics.room_geometry import pra_octave_grid
+from compas_acoustics.room.air import AirConditions
+from compas_acoustics.room.air import air_or_default
+from compas_acoustics.room.geometry import pra_octave_grid
+from compas_acoustics.room.pra import directivity_to_pra
+from compas_acoustics.room.pra import source_to_pra
 
 from .base import SimulationContext
 from .base import SimulationMethod
@@ -62,7 +62,7 @@ class Hybrid(SimulationMethod):
     ambisonic output encodes every path, and projects every line, at
     ``sh_order``. The binaural output filters every early path, and every delay
     line, with the HRIR measured nearest its direction
-    (:func:`compas_acoustics.binaural.binaural_rir`), as RAVEN renders its image
+    (:func:`compas_acoustics.hybrid.binaural.binaural_rir`), as RAVEN renders its image
     sources and the directivity groups of its ray-tracing histogram, and RAZR
     its feedback delay network.
 
@@ -106,7 +106,7 @@ class Hybrid(SimulationMethod):
         Shape the late field: attenuated per band to the reference's late
         energy, and each delay line given its direction's share of the energy
         the rays bring, RAVEN's directional histogram
-        (:func:`compas_acoustics.raytracing.directional_histograms`,
+        (:func:`compas_acoustics.simulation_methods.raytracing.directional_histograms`,
         :func:`compas_acoustics.hybrid.envelope.shape_late_directional`). The
         histogram is traced by the hybrid itself, ``Pyroomacoustics(ray_tracing=True)``
         with its default settings at ``image_source_order``, also when a
@@ -332,9 +332,9 @@ class Hybrid(SimulationMethod):
         }
         hrtf_path = None
         if "binaural" in self.outputs:
-            from compas_acoustics.binaural import DEFAULT_HRTF
-            from compas_acoustics.binaural import HrtfSet
-            from compas_acoustics.binaural import binaural_rir
+            from compas_acoustics.hybrid.binaural import DEFAULT_HRTF
+            from compas_acoustics.hybrid.binaural import HrtfSet
+            from compas_acoustics.hybrid.binaural import binaural_rir
 
             hrtf_path = DEFAULT_HRTF if self.hrtf == "kemar" else Path(self.hrtf)
             hrtf = HrtfSet.from_sofa(hrtf_path, fs)
@@ -342,7 +342,7 @@ class Hybrid(SimulationMethod):
         histograms = None
         if self.late_envelope:
             from compas_acoustics.hybrid.late import fdn_directions
-            from compas_acoustics.raytracing import directional_histograms
+            from compas_acoustics.simulation_methods.raytracing import directional_histograms
 
             grid = fdn_directions(self.sh_order, num_delays).cartesian
             grid = grid / np.linalg.norm(grid, axis=1, keepdims=True)

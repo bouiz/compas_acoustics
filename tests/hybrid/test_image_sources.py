@@ -11,10 +11,10 @@ from compas_acoustics import Source
 from compas_acoustics.hybrid.early import image_sources
 from compas_acoustics.hybrid.pair import Pair
 from compas_acoustics.hybrid.target import _air_absorption_coefficient
-from compas_acoustics.pra_converter import directivity_to_pra
-from compas_acoustics.pra_converter import receivers_to_pra_mic_array
-from compas_acoustics.pra_converter import source_to_pra
-from compas_acoustics.room_geometry import RoomGeometry
+from compas_acoustics.room.pra import directivity_to_pra
+from compas_acoustics.room.pra import receivers_to_pra_mic_array
+from compas_acoustics.room.pra import source_to_pra
+from compas_acoustics.room.geometry import RoomGeometry
 
 FS = 48000
 WALL = AcousticMaterial("wall", 0.2, 0.1)
@@ -121,7 +121,7 @@ def test_air_absorption_darkens_by_the_path_length():
 
 def test_a_medium_sets_the_air_the_images_cross():
     from compas_acoustics import AirConditions
-    from compas_acoustics.room_geometry import SYNTHESIS_BANDS
+    from compas_acoustics.room.geometry import SYNTHESIS_BANDS
 
     source, receiver = Source("s", 1.5, 1.5, 1.6), Receiver("r", 5, 3, 1.5)
     geometry, room = computed([source], [receiver])

@@ -9,7 +9,7 @@ from compas_acoustics import Scene
 from compas_acoustics.hybrid.late import directional_delays
 from compas_acoustics.hybrid.late import fdn_directions
 from compas_acoustics.hybrid.pair import Pair
-from compas_acoustics.room_geometry import RoomGeometry
+from compas_acoustics.room.geometry import RoomGeometry
 
 FS = 48000.0
 DIMS = np.array([7.0, 5.0, 3.0])
