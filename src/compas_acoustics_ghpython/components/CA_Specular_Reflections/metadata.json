@@ -1,0 +1,68 @@
+{
+    "name": "Specular Reflections",
+    "nickname": "Spec",
+    "category": "COMPAS Acoustics",
+    "subcategory": "05 Display",
+    "description": "The specular (image source) reflection paths from the scene's sources to its receivers, by order: each path as a polyline from the source over its wall hits to the receiver, with its image source, order, walls and travel time.",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "scene",
+                "description": "Room scene object.",
+                "optional": false,
+                "scriptParamAccess": 0,
+                "typeHintID": "ghdoc"
+            },
+            {
+                "name": "order",
+                "description": "Reflection order(s) to give, 0 for the direct sound. Empty (default): the first order.",
+                "optional": true,
+                "scriptParamAccess": 1,
+                "typeHintID": "int"
+            },
+            {
+                "name": "source_idx",
+                "description": "Index of the source, in the order of the scene's sources. Empty (default): every source.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "int"
+            },
+            {
+                "name": "receiver_idx",
+                "description": "Index of the receiver, in the order of the scene's receivers. Empty (default): every receiver.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "int"
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "reflections",
+                "description": "The SpecularReflections object, the paths of the chosen orders and pair."
+            },
+            {
+                "name": "paths",
+                "description": "The reflection paths as polylines, from the source over the wall hits to the receiver."
+            },
+            {
+                "name": "images",
+                "description": "The image source of each path as a point."
+            },
+            {
+                "name": "order",
+                "description": "The reflection order of each path."
+            },
+            {
+                "name": "walls",
+                "description": "The face index of each reflection of a path, in path order: a branch per path."
+            },
+            {
+                "name": "time",
+                "description": "The travel time of each path in milliseconds."
+            }
+        ]
+    }
+}

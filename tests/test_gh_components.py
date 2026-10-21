@@ -1265,6 +1265,80 @@ def test_the_y_axis_title_reads_upwards(monkeypatch):
     assert (title.Plane.Origin.X, title.Plane.Origin.Y) == pytest.approx((-1.0, 2.5))
 
 
+# ------------------------------------------------------ Specular Reflections --
+def test_specular_reflections_default_to_first_order_of_every_pair(monkeypatch):
+    module, messages = load_component("CA_Specular_Reflections", monkeypatch)
+    reflections, paths, images, orders, walls, times = module.SpecularReflectionsComponent().RunScript(scene(), [], None, None)
+    assert set(orders) == {1} and len(paths) == len(images) == len(times) == 6
+    assert sorted(walls.branches) == [(i,) for i in range(6)] and all(len(w) == 1 for w in walls.branches.values())
+    assert all(t > 0 for t in times) and not messages
+    assert module.ghenv.Component.Message == "order 1: 6"
+
+
+def test_specular_reflections_pick_a_pair_and_orders(monkeypatch):
+    s = scene()
+    s.add_receiver(Receiver("rec2", 2, 4, 1.5))
+    module, _ = load_component("CA_Specular_Reflections", monkeypatch)
+    out = module.SpecularReflectionsComponent().RunScript(s, [0, 1], 0, 1)
+    assert set(out[3]) == {0, 1} and all(p.receiver_index == 1 for p in out[0])
+    assert len(out[1]) == len(out[2]) == len(out[3]) == len(out[5]) == len(out[0]) == 7
+    assert module.ghenv.Component.Message == "order 0: 1, order 1: 6"
+
+
+def test_specular_reflections_take_numpy_orders_and_ignore_empty_items(monkeypatch):
+    module, _ = load_component("CA_Specular_Reflections", monkeypatch)
+    out = module.SpecularReflectionsComponent().RunScript(scene(), [None, np.int64(2)], None, None)
+    assert set(out[3]) == {2}
+    out = module.SpecularReflectionsComponent().RunScript(scene(), [None], None, None)
+    assert set(out[3]) == {1}
+
+
+def test_an_out_of_range_receiver_warns(monkeypatch):
+    module, messages = load_component("CA_Specular_Reflections", monkeypatch, levels=True)
+    out = module.SpecularReflectionsComponent().RunScript(scene(), [1], 0, 5)
+    assert any(level == "warning" and "receiver" in text for level, text in messages)
+    assert len(out[1]) == 0
+
+
+def test_an_out_of_range_source_warns(monkeypatch):
+    module, messages = load_component("CA_Specular_Reflections", monkeypatch, levels=True)
+    module.SpecularReflectionsComponent().RunScript(scene(), [1], -1, None)
+    assert any(level == "warning" and "source" in text for level, text in messages)
+
+
+def test_specular_reflections_without_a_scene_warn(monkeypatch):
+    module, messages = load_component("CA_Specular_Reflections", monkeypatch, levels=True)
+    assert module.SpecularReflectionsComponent().RunScript(None, [1], None, None) == (None,) * 6
+    assert messages == [("warning", "Input parameter 'scene' failed to collect data.")]
+
+
+def test_specular_reflections_show_the_scenes_warnings(monkeypatch):
+    module, messages = load_component("CA_Specular_Reflections", monkeypatch, levels=True)
+    s = scene()
+    s.add_receiver(Receiver("outside", 50, 50, 50))
+    out = module.SpecularReflectionsComponent().RunScript(s, [1], None, None)
+    assert ("warning", "Receiver 'outside' is outside the room and has no specular paths.") in messages
+    assert len(out[1]) == 6
+
+
+def test_a_scene_without_a_room_is_an_error(monkeypatch):
+    module, messages = load_component("CA_Specular_Reflections", monkeypatch, levels=True)
+    out = module.SpecularReflectionsComponent().RunScript(Scene("empty"), [1], None, None)
+    assert out == (None,) * 6 and [level for level, _ in messages] == ["error"]
+
+
+def test_the_specular_reflections_inputs_match_its_script(monkeypatch):
+    import inspect
+    import json
+
+    module, _ = load_component("CA_Specular_Reflections", monkeypatch)
+    metadata = json.loads((COMPONENTS / "CA_Specular_Reflections" / "metadata.json").read_text())
+    parameters = list(inspect.signature(module.SpecularReflectionsComponent.RunScript).parameters)[1:]
+    assert parameters == [p["name"] for p in metadata["ghpython"]["inputParameters"]] == ["scene", "order", "source_idx", "receiver_idx"]
+    assert [p["name"] for p in metadata["ghpython"]["outputParameters"]] == ["reflections", "paths", "images", "order", "walls", "time"]
+    assert (metadata["name"], metadata["nickname"], metadata["subcategory"]) == ("Specular Reflections", "Spec", "05 Display")
+
+
 def test_components_with_list_inputs_import_system():
     import json
     import re
