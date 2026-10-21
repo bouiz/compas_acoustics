@@ -1,5 +1,5 @@
 {
-    "name": "Billiard",
+    "name": "Visualise Billiard",
     "nickname": "Billiard",
     "category": "COMPAS Acoustics",
     "subcategory": "05 Display",
@@ -11,7 +11,7 @@
         "inputParameters": [
             {
                 "name": "ray_field",
-                "description": "The ray field, from Ray Field.",
+                "description": "The ray field, from Visualise Rays or Visualise Reflections.",
                 "optional": false,
                 "scriptParamAccess": 0,
                 "typeHintID": "ghdoc"

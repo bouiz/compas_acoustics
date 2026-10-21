@@ -1,9 +1,9 @@
 {
-    "name": "Specular Reflections",
-    "nickname": "Spec",
+    "name": "Visualise Reflections",
+    "nickname": "Reflections",
     "category": "COMPAS Acoustics",
     "subcategory": "05 Display",
-    "description": "The specular (image source) reflection paths from the scene's sources to its receivers, by order, drawn in one colour per order (order 0 black). Outputs them as a ray field from the source over the wall hits to the receiver, for the Billiard.",
+    "description": "The specular (image source) reflection paths from the scene's sources to its receivers, by order, drawn in one colour per order (order 0 black). Outputs them as a ray field from the source over the wall hits to the receiver, for Visualise Billiard.",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,
@@ -41,7 +41,7 @@
         "outputParameters": [
             {
                 "name": "ray_field",
-                "description": "The paths as a ray field, each from the source over its wall hits to the receiver, for the Billiard."
+                "description": "The paths as a ray field, each from the source over its wall hits to the receiver, for Visualise Billiard."
             },
             {
                 "name": "order",

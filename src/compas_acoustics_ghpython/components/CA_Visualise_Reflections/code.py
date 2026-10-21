@@ -11,7 +11,7 @@ from compas_acoustics_ghpython.display import order_color
 PATH_THICKNESS = 2
 
 
-class SpecularReflectionsComponent(Grasshopper.Kernel.GH_ScriptInstance):
+class VisualiseReflections(Grasshopper.Kernel.GH_ScriptInstance):
 
     def RunScript(self, scene, order, source_idx, receiver_idx):
         self._drawn = []

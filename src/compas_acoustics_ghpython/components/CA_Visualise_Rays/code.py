@@ -29,7 +29,7 @@ def _segments(ray):
     return [(first + k, Rhino.Geometry.Line(start, end)) for k, (start, end) in enumerate(zip(points, points[1:]))]
 
 
-class RayFieldComponent(Grasshopper.Kernel.GH_ScriptInstance):
+class VisualiseRays(Grasshopper.Kernel.GH_ScriptInstance):
 
     def RunScript(self, scene, source_idx, n_rays, max_order, direction, angle, scattering, seed, order):
         self._drawn = {}

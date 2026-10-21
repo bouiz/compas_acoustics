@@ -18,7 +18,7 @@ def _now():
     return time.time()
 
 
-class BilliardComponent(Grasshopper.Kernel.GH_ScriptInstance):
+class VisualiseBilliard(Grasshopper.Kernel.GH_ScriptInstance):
 
     def RunScript(self, ray_field, time, play, speed):
         ensure_inputs(ghenv.Component, {"play": None})

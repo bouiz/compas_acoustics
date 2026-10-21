@@ -115,10 +115,10 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 * Added a getting-started section to the README, and `Examples` sections that `invoke testdocs` can run in the docstrings of `Scene`, `Pyroomacoustics`, `Hybrid`, `AcousticAnalyser` and `Auraliser`.
 * Added `SpecularReflections.from_scene(scene, max_order=3)`, the image-source paths from each source to each receiver for inspection, with `filter(source, ray_index, receiver_index, order)`. It is a `RayField` of `SpecularPath` rays, so it plays in a billiard (`particles`) and displays like traced rays.
 * Added `RayField.particles(time_ms)` and `RayField.duration_ms`, the rays' positions at a time, for a billiard view.
-* Added the Grasshopper Specular Reflections component: image-source paths of a source-receiver pair by order, output as a ray field for the Billiard.
-* Added the Grasshopper Ray Field component: rays traced from one source (`source_idx`) or all, for display and the Billiard.
-* Added the Grasshopper Billiard component: the rays of a ray field as particles (points only) at a time, played with a button or scrubbed with a slider.
-* Added colours by reflection order to Specular Reflections, Ray Field and Billiard: each component draws its paths, ray segments or particles itself (round particles, order 0 black, one colour per order) and Ray Field and Billiard output the `colors`; `RayField.particles` returns each particle's reflection order too.
+* Added the Grasshopper Visualise Reflections component: image-source paths of a source-receiver pair by order, output as a ray field for Visualise Billiard.
+* Added the Grasshopper Visualise Rays component: rays traced from one source (`source_idx`) or all, for display and Visualise Billiard.
+* Added the Grasshopper Visualise Billiard component: the rays of a ray field as particles (points only) at a time, played with a button or scrubbed with a slider.
+* Added colours by reflection order to Visualise Reflections, Visualise Rays and Visualise Billiard: each component draws its paths, ray segments or particles itself (round particles, order 0 black, one colour per order) and Visualise Rays and Visualise Billiard output the `colors`; `RayField.particles` returns each particle's reflection order too.
 
 ### Changed
 

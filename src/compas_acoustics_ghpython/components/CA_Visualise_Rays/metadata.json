@@ -1,9 +1,9 @@
 {
-    "name": "Ray Field",
+    "name": "Visualise Rays",
     "nickname": "Rays",
     "category": "COMPAS Acoustics",
     "subcategory": "05 Display",
-    "description": "Trace rays from the scene's sources, for display and for the Billiard: each ray as a polyline over its wall hits, with the scattered rays when scattering is on.",
+    "description": "Trace rays from the scene's sources, for display and for Visualise Billiard: each ray as a polyline over its wall hits, with the scattered rays when scattering is on.",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,
@@ -76,7 +76,7 @@
         "outputParameters": [
             {
                 "name": "ray_field",
-                "description": "The RayField, whole, for the Billiard."
+                "description": "The RayField, whole, for Visualise Billiard."
             },
             {
                 "name": "rays",
