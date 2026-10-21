@@ -493,6 +493,20 @@ def test_trailing_zeros_do_not_hide_the_decay():
         np.testing.assert_allclose(np.mean([r[key] for r in results], axis=0), 1.2, rtol=0.08, err_msg=key)
 
 
+@needs_sti
+def test_sti_equals_pyrato_indirect_method():
+    """The MTF reduced once gives what pyrato's speech_transmission_index_indirect gives, exactly."""
+    import pyfar as pf
+    import pyrato
+
+    for seed in range(3):
+        ir = make_ir(seed=seed)
+        analyser = AcousticAnalyser(ir)
+        sti = analyser.speech_transmission_index()["sti"]
+        expected = float(np.squeeze(pyrato.parameters.speech_transmission_index_indirect(pf.Signal(ir, analyser.sampling_rate), snr=np.inf)))
+        assert sti == round(expected, 4)
+
+
 def test_each_octave_filter_is_designed_once(monkeypatch):
     import pyfar as pf
 

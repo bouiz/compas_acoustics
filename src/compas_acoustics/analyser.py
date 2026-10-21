@@ -576,7 +576,13 @@ class AcousticAnalyser:
             mtf = np.squeeze(np.asarray(pyrato.parameters.modulation_transfer_function(sig, snr=snr_arg)))
             snr_app = 10.0 * np.log10(mtf / (1.0 - mtf + 1e-12) + 1e-12)
             mti = np.mean(np.clip((snr_app + 15.0) / 30.0, 0, 1), axis=-1)  # (7,)
-            sti_val = round(float(np.squeeze(pyrato.parameters.speech_transmission_index_indirect(sig, snr=snr_arg))), 4)
+            # speech_transmission_index_indirect computes this MTF again and reduces it with _sti_calc (IEC 60268-16
+            # Annex A.2.1); the reduction alone, where pyrato exposes it, halves the cost
+            sti_calc = getattr(pyrato.parameters, '_sti_calc', None)
+            if sti_calc is not None and mtf.shape == (7, 14):
+                sti_val = round(float(sti_calc(mtf)), 4)
+            else:
+                sti_val = round(float(np.squeeze(pyrato.parameters.speech_transmission_index_indirect(sig, snr=snr_arg))), 4)
         except Exception as e:
             warnings.warn(f"STI computation failed: {e}")
             mti = np.full(7, np.nan)
