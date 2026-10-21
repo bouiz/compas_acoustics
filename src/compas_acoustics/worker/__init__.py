@@ -1,6 +1,6 @@
 """Run the parts of compas_acoustics that need Python >= 3.11 in a second interpreter.
 
-Rhino 8 runs CPython 3.9, where the hybrid method and binaural decoding are not available. The worker is a local :mod:`compas.rpc`
+Rhino 8 runs CPython 3.9, where the hybrid method and pyrato's STI and G are not available. The worker is a local :mod:`compas.rpc`
 server in another Python with compas_acoustics installed (see
 :mod:`compas_acoustics.worker.install`); :func:`proxy` starts it on first use.
 Scenes travel as COMPAS JSON, audio as WAV files in a temporary folder.
@@ -12,7 +12,6 @@ without the token are refused. The worker stops when the session ends, and when 
 import atexit
 import contextlib
 import hashlib
-import importlib.util
 import json
 import os
 import secrets
@@ -167,10 +166,6 @@ def _folder():
     return Path(tempfile.mkdtemp(prefix=FOLDER_PREFIX))
 
 
-def _has_spharpy():
-    return importlib.util.find_spec("spharpy") is not None
-
-
 def simulate(scene, method, settings, references=None):
     """Run ``method`` (``"hybrid"`` or ``"pyroomacoustics"``) with ``settings`` on ``scene`` in the worker.
 
@@ -207,32 +202,6 @@ def simulate(scene, method, settings, references=None):
             scene.add_impulse_response(source, receiver, ir, attribute=attribute)
             stored[attribute][key] = ir
     return next(iter(stored.values()), {}), result["warnings"]
-
-
-def convolve(auraliser):
-    """``auraliser.convolve()``, in the worker when binaural decoding needs spharpy and this Python has none.
-
-    Returns the signal before any output gain, as :meth:`Auraliser.convolve` does.
-    """
-    # Binaural impulse responses are convolved as they are; only ambisonic ones are decoded with spharpy
-    decodes = auraliser.output_format == "binaural" and not all(data.get("binaural") for data in auraliser.impulse_responses.values())
-    if not decodes or _has_spharpy() or worker_python() is None:
-        return auraliser.convolve()
-    import numpy as np
-    import soundfile as sf
-
-    folder = _folder()
-    impulse_responses = {}
-    for ir_id, data in auraliser.impulse_responses.items():
-        path = folder / f"{uuid.uuid4().hex}.wav"
-        sf.write(str(path), np.asarray(data["ir"], dtype=float), int(data["sampling_rate"]), subtype="FLOAT")
-        impulse_responses[ir_id] = {key: value for key, value in data.items() if key != "ir"}
-        impulse_responses[ir_id]["path"] = str(path)
-    sounds = {key: sound["filepath"] for key, sound in auraliser.anechoic_sounds.items()}
-    out = proxy().convolve(auraliser.name, impulse_responses, sounds, auraliser.output_format,
-                           str(auraliser.hrtf_path), int(auraliser.sampling_rate), str(folder / "convolved.wav"))
-    signal, _ = sf.read(out, dtype="float64", always_2d=True)
-    return signal
 
 
 #: The parameters that need pyrato >= 1.0, which Rhino 8's Python 3.9 cannot install

@@ -42,18 +42,18 @@ Installer options:
 
 - `source`: path or download link of a `.whl` file. Empty: use the `.whl` file next to the `.gh` file.
 - `venv`: name of the Rhino script environment to install into. Empty: `default`. With another name, the installed components use that environment.
-- `worker`: empty, `binaural` or `hybrid`. See below.
+- `worker`: empty or `hybrid`. See below.
 
 Rhino 8 uses Python 3.9. With Python older than 3.11, the Speech Transmission Index (STI) and sound strength (G) are not available there: with a worker (below), the Analyse IR component computes them in the worker; without one, it leaves them out.
 
 ### Python >= 3.11 features in Rhino 8: the worker
 
-The hybrid method and binaural decoding need Python >= 3.11. Rhino 8 runs
-Python 3.9. With the installer's `worker` input set to `binaural` or `hybrid` (both install the same packages, PyTorch included; `hybrid` also checks that the hybrid method imports),
+The hybrid method needs Python >= 3.11. Rhino 8 runs
+Python 3.9. With the installer's `worker` input set to `hybrid` (it installs PyTorch, several GB),
 the installer creates a second Python 3.12 environment with `uv` and records it in `~/.compas_acoustics/worker.json`. Set the environment variable
 `COMPAS_ACOUSTICS_WORKER_PYTHON` to use another interpreter that has `compas_acoustics`.
 
-Simulate Hybrid, Auralise and Analyse IR (for STI and G) then run those parts in the worker, a local [`compas.rpc`](https://compas.dev) server that
+Simulate Hybrid and Analyse IR (for STI and G) then run those parts in the worker, a local [`compas.rpc`](https://compas.dev) server that
 starts on first use (a few seconds) and exchanges scenes as COMPAS JSON and audio as WAV files. Every Rhino session starts its own worker, on a free
 port of `127.0.0.1`, and shares a random token with it; the worker serves only `compas_acoustics.worker.api`, refuses calls without the token, reads and
 writes only in temporary folders made for the call, and exits when the session ends or dies. It checks that it runs the same code as Rhino's Python, and tells you
@@ -73,7 +73,14 @@ scene.add_receiver(ca.Receiver("listener", 6, 4, 1.2, direction=[-1, -0.5, 0]))
 
 mono = scene.simulate(ca.Pyroomacoustics(ray_tracing=True))   # image sources + ray tracing
 binaural = scene.simulate(ca.Hybrid())                         # binaural; output="ambisonic" for ambisonics; needs Python >= 3.11
+
+speech = ca.Defaults().ANECHOIC_SOUNDFILES_LIBRARY_PATH + "/female_speech.wav"
+signal = ca.Auraliser("room", list(binaural.values()), anechoic_sounds=[speech]).convolve()   # (samples, 2)
 ```
+
+`Auraliser` convolves and keeps the format of its responses: mono, binaural, or ambisonic ACN/SN3D (AmbiX) to save as a
+multichannel file for an ambisonic decoder elsewhere. There is no ambisonic-to-binaural or stereo decoder: for headphones,
+simulate binaurally with `Hybrid`.
 
 `examples/office_hybrid.py` runs both methods on an office, with reverberation times and an auralisation. The Grasshopper components are in
 `src/compas_acoustics_ghpython/components`; rebuild their user objects with `invoke build-cpython-ghuser-components`.

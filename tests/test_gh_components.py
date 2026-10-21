@@ -380,7 +380,7 @@ def test_analyse_ir_leaves_out_sti_and_g_when_they_could_not_be_computed(monkeyp
     monkeypatch.setattr(worker, "analyse", without_pyrato_1)
     params, *_ = module.AnalyseIR().RunScript(analysed_response(), None)
     assert [p.name for p in params] == ["EDT", "T20", "T30", "C50", "C80", "D50", "DRR", "Ts"]
-    assert any(level == "remark" and "worker 'binaural' or 'hybrid'" in text for level, text in messages)
+    assert any(level == "remark" and "worker 'hybrid'" in text for level, text in messages)
 
 
 def test_a_worker_failure_leaves_the_analysis_to_this_python(monkeypatch):

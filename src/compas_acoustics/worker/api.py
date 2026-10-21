@@ -13,11 +13,11 @@ from pathlib import Path
 
 from compas_acoustics.worker import FOLDER_PREFIX
 
-__all__ = ["info", "simulate", "convolve", "analyse"]
+__all__ = ["info", "simulate", "analyse"]
 
 
 def _worker_folder(path):
-    """``path`` resolved, if it is one of the temporary folders :func:`compas_acoustics.worker.simulate` and ``convolve`` make."""
+    """``path`` resolved, if it is one of the temporary folders :func:`compas_acoustics.worker.simulate` and ``analyse`` make."""
     path = Path(path).resolve()
     if path.parent != Path(tempfile.gettempdir()).resolve() or not path.name.startswith(FOLDER_PREFIX):
         raise ValueError(f"{path} is not a compas_acoustics worker folder.")
@@ -62,25 +62,6 @@ def simulate(scene, method, settings, references, folder):
     responses = {attribute: {key: str(ir.to_wav(folder / f"{uuid.uuid4().hex}.wav")[0]) for key, ir in irs.items()}
                  for attribute, irs in formats.items()}
     return {"responses": responses, "warnings": [str(w.message) for w in caught if issubclass(w.category, UserWarning)]}
-
-
-def convolve(name, impulse_responses, anechoic_sounds, output_format, hrtf_path, sampling_rate, out_path):
-    import soundfile as sf
-
-    from compas_acoustics import Auraliser
-
-    out_path = _worker_file(out_path)
-    irs = {}
-    for ir_id, data in impulse_responses.items():
-        data = dict(data)
-        ir, _ = sf.read(str(_worker_file(data.pop("path"))), dtype="float64", always_2d=True)
-        data["ir"] = ir
-        irs[ir_id] = data
-    sounds = {key: {"filepath": path} for key, path in anechoic_sounds.items()}
-    auraliser = Auraliser(name, irs, sounds, output_format=output_format, sampling_rate=sampling_rate)
-    auraliser.hrtf_path = hrtf_path
-    sf.write(str(out_path), auraliser.convolve(), int(sampling_rate), subtype="FLOAT")
-    return str(out_path)
 
 
 def analyse(path):

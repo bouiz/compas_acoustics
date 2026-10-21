@@ -37,7 +37,7 @@ def test_a_stereo_sound_is_mixed_down_by_the_auraliser(tmp_path):
     path = stereo_file(tmp_path)
     ir = ImpulseResponse("ir", Source("s", 1, 0, 0, sound_file=path), Receiver("r", 0, 0, 0), np.array([1.0, 0.5]), 48000)
     with pytest.warns(UserWarning, match="mixing down to mono"):
-        signal = Auraliser("room", [ir], output_format="mono").convolve()
+        signal = Auraliser("room", [ir]).convolve()
     np.testing.assert_allclose(signal[:, 0], [0.5, 0.75, 0.25, 0.0], atol=1e-6)
     assert sorted(p.name for p in tmp_path.iterdir()) == ["chord.wav"]
 

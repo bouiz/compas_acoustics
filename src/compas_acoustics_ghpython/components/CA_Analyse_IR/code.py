@@ -46,7 +46,7 @@ class AnalyseIR(Grasshopper.Kernel.GH_ScriptInstance):
                  if name not in worker.NEEDS_PYRATO_1 or not all(math.isnan(value) for value in data[name])]
         if len(names) < len(AcousticParameter.NAMES):
             self.message("Remark", "STI and G need pyrato >= 1.0, which Rhino's Python 3.9 cannot install: "
-                                   "run the installer with worker 'binaural' or 'hybrid' to compute them in the worker.")
+                                   "run the installer with worker 'hybrid' to compute them in the worker.")
         parameters = [AcousticParameter().from_analyser(analyser, name) for name in names]
         time = AcousticParameter.from_time_response(ir, db=time_scale == "db")
         frequency = AcousticParameter.from_frequency_response(ir)

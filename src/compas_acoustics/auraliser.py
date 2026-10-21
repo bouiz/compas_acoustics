@@ -5,13 +5,12 @@ import numpy as np
 import pyfar as pf
 from scipy.signal import fftconvolve
 
-from compas_acoustics.binaural import DEFAULT_HRTF
-from compas_acoustics.binaural import magls_filters
 from compas_acoustics.defaults import Defaults
 
-__all__ = ['Auraliser']
+__all__ = ['Auraliser', 'FORMATS']
 
-_OUTPUT_FORMATS = {"mono", "stereo", "ambisonics", "binaural"}
+#: The formats an impulse response, and with it the auralised signal, can have
+FORMATS = ("mono", "binaural", "ambisonic")
 _LEVELS = {"relative", "individual", "none"}
 _AUDIO_EXTENSIONS = {".wav", ".mp3", ".flac", ".ogg", ".aiff", ".aif"}
 
@@ -29,20 +28,17 @@ class Auraliser:
     """
     A class for handling auralisation.
 
-    Each impulse response is convolved with its anechoic sound, decoded to the output
-    format and summed. Ambisonic impulse responses are ACN/SN3D (AmbiX) and are combined
-    at the highest ambisonic order present.
+    Each impulse response is convolved with its anechoic sound and the results are
+    summed. The signal keeps the format of its impulse responses (:attr:`format`):
 
-    Output formats:
+    * ``'mono'``: one channel, e.g. from the ``Pyroomacoustics`` method.
+    * ``'binaural'``: two channels, ears left and right, e.g. the ``Hybrid`` method's
+      default output (or a dict entry with ``'binaural': True`` and two channels).
+    * ``'ambisonic'``: ACN/SN3D (AmbiX) channels, (order + 1)**2 of them, at the highest
+      order present, to save as a multichannel file for an ambisonic decoder elsewhere.
+      N3D responses are converted to SN3D.
 
-    * ``'mono'``: the omnidirectional (W) channel.
-    * ``'stereo'``: virtual cardioids pointing left and right, for loudspeaker playback.
-      Mono impulse responses play identically on both channels.
-    * ``'binaural'``: MagLS binaural decoding with the HRTF at :attr:`hrtf_path`, for
-      headphone playback. Requires ambisonic impulse responses (order 1 or higher).
-      Binaural impulse responses (the ``Hybrid`` method's default output, or a dict entry with
-      ``'binaural': True`` and two channels) are convolved as they are.
-    * ``'ambisonics'``: the undecoded ACN/SN3D signal, to save as a multichannel file.
+    There is no decoding: responses of different formats cannot be auralised together.
 
     Impulse responses are auralised at their raw level, so distance and level
     differences between them are kept. The output level is set on export by
@@ -64,14 +60,12 @@ class Auraliser:
         ``'channel_order'`` (``'acn'``) and ``'normalization'`` (``'sn3d'`` or
         ``'n3d'``), or a list of
         :class:`ImpulseResponse` objects, whose ``channel_order`` and ``normalization``
-        are used (ACN/SN3D when they state none).
+        are used (ACN/SN3D when they state none). All of one format.
     anechoic_sounds : dict or list, optional
         Either a dict mapping an id to a dict with the key ``'filepath'``, or a list of
         file paths. Paired with the impulse responses by id when both are dicts with the
         same ids, otherwise by position. If None, the ``sound_file`` of each impulse
         response's source is used.
-    output_format : str, optional
-        One of ``'mono'``, ``'stereo'``, ``'binaural'`` or ``'ambisonics'``. Default is ``'stereo'``.
     description : str, optional
         A text describing the auralisation.
     sampling_rate : int, optional
@@ -91,13 +85,12 @@ class Auraliser:
     >>> scene.add_source(ca.Source("talker", 1.5, 1.5, 1.6, sound_file=sound))
     >>> scene.add_receiver(ca.Receiver("listener", 4.0, 3.0, 1.2))
     >>> responses = scene.simulate(ca.Pyroomacoustics(ray_tracing=True, n_rays=2000, duration=0.5))
-    >>> auraliser = ca.Auraliser("office", list(responses.values()), output_format="stereo")
-    >>> signal = auraliser.convolve()
-    >>> signal.shape[1]
-    2
+    >>> auraliser = ca.Auraliser("office", list(responses.values()))
+    >>> auraliser.format, auraliser.convolve().shape[1]
+    ('mono', 1)
     """
 
-    def __init__(self, name: str, impulse_responses, anechoic_sounds=None, output_format: str = "stereo", description: str = None, sampling_rate: int = None,
+    def __init__(self, name: str, impulse_responses, anechoic_sounds=None, description: str = None, sampling_rate: int = None,
                  level: str = "relative", headroom_db: float = -1.0):
         self.name = name
         self.description = description
@@ -110,8 +103,6 @@ class Auraliser:
         if anechoic_sounds is None:
             anechoic_sounds = self._sounds_from_impulse_response_sources(self._impulse_responses_input)
         self.anechoic_sounds = anechoic_sounds
-        self._hrtf_path = DEFAULT_HRTF
-        self.output_format = output_format
         self.check_number_of_impulse_responses_vs_anechoic_sounds()
 
 
@@ -155,38 +146,6 @@ class Auraliser:
 
 
     @property
-    def hrtf_path(self):
-        return self._hrtf_path
-
-
-    @hrtf_path.setter
-    def hrtf_path(self, path_str: str):
-        if path_str is None:
-            raise ValueError("Path can't be empty.")
-        self._hrtf_path = Path(path_str)
-
-
-    @property
-    def output_format(self):
-        return self._output_format
-
-
-    @output_format.setter
-    def output_format(self, output_format):
-        if " " in output_format:
-            raise ValueError("Auraliser output_format cannot contain spaces.")
-        if any(char.isupper() for char in output_format):
-            raise ValueError("Auraliser output_format must be lowercase.")
-        if output_format not in _OUTPUT_FORMATS:
-            raise ValueError(f"Auraliser output_format must be one of {sorted(_OUTPUT_FORMATS)}.")
-        decoded = [data for data in (getattr(self, '_impulse_responses', None) or {}).values() if not data.get('binaural')]
-        if output_format in ("binaural", "ambisonics") and decoded and self.maximum_ambisonics_order == 0:
-            raise ValueError(f"{output_format.capitalize()} output requires ambisonic impulse responses of order 1 or higher. "
-                             "Use mono or stereo output for mono impulse responses.")
-        self._output_format = output_format
-
-
-    @property
     def level(self):
         return self._level
 
@@ -212,7 +171,7 @@ class Auraliser:
 
     @property
     def impulse_responses(self):
-        """dict : Impulse responses as (samples, channels) arrays in ACN/SN3D at :attr:`sampling_rate`."""
+        """dict : Impulse responses as (samples, channels) arrays at :attr:`sampling_rate`, ambisonic ones in ACN/SN3D."""
         return self._impulse_responses
 
 
@@ -224,7 +183,23 @@ class Auraliser:
         if not isinstance(impulse_responses, dict):
             impulse_responses = self._impulse_responses_from_objects(impulse_responses)
         # Work on copies so the caller's data is never modified
-        self._impulse_responses = {ir_id: self._prepare_impulse_response(ir_id, dict(data)) for ir_id, data in impulse_responses.items()}
+        prepared = {ir_id: self._prepare_impulse_response(ir_id, dict(data)) for ir_id, data in impulse_responses.items()}
+        formats = {ir_id: self._format_of(data) for ir_id, data in prepared.items()}
+        if len(set(formats.values())) > 1:
+            raise ValueError(
+                "The impulse responses are of different formats ("
+                + ", ".join(f"{ir_id}: {fmt}" for ir_id, fmt in formats.items())
+                + "); auralise each format on its own, there is no decoding between them."
+            )
+        self._impulse_responses = prepared
+        self._format = next(iter(formats.values()), "mono")
+
+
+    @staticmethod
+    def _format_of(data):
+        if data.get('binaural'):
+            return "binaural"
+        return "mono" if data['ambisonic_order'] == 0 else "ambisonic"
 
 
     @property
@@ -251,13 +226,17 @@ class Auraliser:
 
 
     @property
+    def format(self):
+        """str : ``'mono'``, ``'binaural'`` or ``'ambisonic'``, the format of the impulse responses and of the signal."""
+        return self._format
+
+
+    @property
     def output_channels(self):
-        """int : Number of channels of the auralised signal for :attr:`output_format`."""
-        if self.output_format == "mono":
-            return 1
-        if self.output_format == "ambisonics":
-            return (self.maximum_ambisonics_order + 1) ** 2
-        return 2
+        """int : Number of channels of the auralised signal: 1, 2, or (order + 1)**2 for ambisonics."""
+        if self.format == "binaural":
+            return 2
+        return (self.maximum_ambisonics_order + 1) ** 2
 
 
     @property
@@ -349,7 +328,7 @@ class Auraliser:
             raise ValueError(f"Impulse response {ir_id} has invalid sample rate {data['sampling_rate']}. Must be positive.")
 
         if data.get('binaural'):
-            # Ears, not spherical harmonics: convolved as they are, only for binaural output
+            # Ears, not spherical harmonics: convolved as they are
             if ir.shape[1] != 2:
                 raise ValueError(f"Binaural impulse response {ir_id} must have 2 channels, got {ir.shape[1]}.")
             data['binaural'] = True
@@ -436,42 +415,19 @@ class Auraliser:
         return sound.time.reshape(-1)
 
 
-    def ambisonics_upmix_downmix(self, sound, ambisonics_order):
-        target_channels = (int(ambisonics_order) + 1)**2
-        current_channels = sound.shape[1]
-        if current_channels < target_channels:
-            # Pad extra channels with zeros
-            pad_width = ((0, 0), (0, target_channels - current_channels))
-            return np.pad(sound, pad_width)
-        elif current_channels > target_channels:
-            # Truncate channels (downmix naively)
-            return sound[:, :target_channels]
-        else:
-            # Channel count is same as ambisonics order
-            return sound
-
-
-    def _warn_about_mono_responses(self):
-        """Warn when mono impulse responses are mixed with ambisonic ones in an output that places sources in space."""
-        if self.output_format not in ("binaural", "ambisonics") or self.maximum_ambisonics_order == 0:
-            return
-        decoded = {ir_id: data for ir_id, data in self.impulse_responses.items() if not data.get('binaural')}
-        mono = [ir_id for ir_id, data in decoded.items() if data['ambisonic_order'] == 0]
-        if mono:
-            warnings.warn(
-                f"{len(mono)} of {len(decoded)} impulse responses are mono and carry no direction: in {self.output_format} output "
-                f"they are not placed in space ({', '.join(str(ir_id) for ir_id in mono)}).",
-                UserWarning,
-                stacklevel=3,
-            )
+    @staticmethod
+    def _at_order(ir, order):
+        """An ACN/SN3D response padded with zero channels up to ``order``."""
+        return np.pad(ir, ((0, 0), (0, (int(order) + 1) ** 2 - ir.shape[1])))
 
 
     def convolve(self):
-        """Convolve each impulse response with its anechoic sound, decode to :attr:`output_format` and sum.
+        """Convolve each impulse response with its anechoic sound and sum, in the responses' :attr:`format`.
 
-        Impulse responses that share an anechoic sound are summed and decoded before
-        convolving, which is equivalent by linearity. Each sound is then read and convolved
-        once, with only the output channels.
+        Impulse responses that share an anechoic sound are summed before convolving,
+        which is equivalent by linearity, so each sound is read and convolved once.
+        Ambisonic responses of lower orders are padded with zero channels to the
+        highest order present.
 
         Returns
         -------
@@ -479,16 +435,11 @@ class Auraliser:
             The auralised signal, shaped (samples, :attr:`output_channels`).
         """
         order = self.maximum_ambisonics_order
-        self._warn_about_mono_responses()
-
-        # Sum the impulse responses per anechoic sound, padded to the common channel count
+        # Sum the impulse responses per anechoic sound
         summed_impulse_responses = {}
         for ir_id, ir_data, filepath in self._pairs():
-            binaural = bool(ir_data.get('binaural'))
-            if binaural and self.output_format != 'binaural':
-                raise ValueError(f"Impulse response {ir_id} is binaural; it plays only with output_format='binaural'.")
-            ir = ir_data['ir'] if binaural else self.ambisonics_upmix_downmix(ir_data['ir'], order)
-            key = (str(Path(filepath).resolve()), binaural)
+            ir = ir_data['ir'] if self.format == "binaural" else self._at_order(ir_data['ir'], order)
+            key = str(Path(filepath).resolve())
             current = summed_impulse_responses.get(key)
             if current is None:
                 summed_impulse_responses[key] = ir
@@ -499,83 +450,15 @@ class Auraliser:
                 summed_impulse_responses[key] = current
 
         convolved = []
-        for (filepath, binaural), ir in summed_impulse_responses.items():
-            decoded_ir = ir if binaural else self.decode(ir)
+        for filepath, ir in summed_impulse_responses.items():
             anechoic_sound = self.import_anechoic_sound(filepath, self.sampling_rate)
-            convolved.append(fftconvolve(decoded_ir, anechoic_sound[:, np.newaxis], axes=0))
+            convolved.append(fftconvolve(ir, anechoic_sound[:, np.newaxis], axes=0))
 
         convolved_sound_summed = np.zeros((max((c.shape[0] for c in convolved), default=0), self.output_channels))
         for c in convolved:
             convolved_sound_summed[:c.shape[0]] += c
 
         return convolved_sound_summed
-
-
-    def decode(self, ambisonics_sound):
-        """Decode a (samples, channels) ACN/SN3D signal to :attr:`output_format`.
-
-        Returns
-        -------
-        np.ndarray
-            The decoded signal, shaped (samples, channels).
-        """
-        if self.output_format == "mono":
-            return self.decode_mono(ambisonics_sound)
-        if self.output_format == "stereo":
-            return self.decode_stereo(ambisonics_sound)
-        if self.output_format == "binaural":
-            return self.decode_binaural(ambisonics_sound)
-        return ambisonics_sound
-
-
-    def decode_mono(self, ambisonics_sound):
-        """Return the omnidirectional (W) channel."""
-        return ambisonics_sound[:, :1]
-
-
-    def decode_stereo(self, ambisonics_sound):
-        """Decode to two virtual cardioid microphones pointing left and right (+y and -y).
-
-        A mono (order 0) signal is played identically on both channels.
-        """
-        W = ambisonics_sound[:, 0]
-        # ACN channel 1 is the left-right (Y) dipole
-        Y = ambisonics_sound[:, 1] if ambisonics_sound.shape[1] > 1 else 0.0
-
-        left = 0.5 * (W + Y)
-        right = 0.5 * (W - Y)
-
-        return np.stack([left, right], axis=1)
-
-
-    def decode_binaural(self, ambisonics_sound):
-        """Decode to binaural with the HRTF set at :attr:`hrtf_path`.
-
-        Each ambisonic channel is convolved with its MagLS binaural decoding filter
-        (see :meth:`binaural_filters`) and the results are summed per ear, as in
-        ``spaudiopy.decoder.sh2bin``.
-
-        Raises
-        ------
-        ValueError
-            If the signal is mono (order 0), which carries no directional information.
-        """
-        channels = ambisonics_sound.shape[1]
-        if channels < 4:
-            raise ValueError("Binaural output requires an ambisonic signal of order 1 or higher. Use mono or stereo output for mono impulse responses.")
-        order = int(round(np.sqrt(channels))) - 1
-
-        filters = self.binaural_filters(order)  # (samples, channels, 2)
-        binaural = np.zeros((ambisonics_sound.shape[0] + filters.shape[0] - 1, 2))
-        for ch in range(channels):
-            binaural += fftconvolve(ambisonics_sound[:, ch:ch + 1], filters[:, ch, :], axes=0)
-
-        return binaural
-
-
-    def binaural_filters(self, order):
-        """MagLS binaural decoding filters up to ``order`` for :attr:`hrtf_path` (see :func:`magls_filters`)."""
-        return magls_filters(self.hrtf_path, self.sampling_rate, order)
 
 
     @staticmethod

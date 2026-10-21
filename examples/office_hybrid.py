@@ -74,10 +74,11 @@ axes[0].legend()
 plt.tight_layout()
 plt.savefig(OUTPUT / "office_reverberation_times.png", dpi=150)
 
-########### auralisation: speech through each response; the hybrid's binaural one has an HRTF per path and per delay line
+########### auralisation: speech through each response, in its format: mono, binaural (an HRTF per path and per delay line)
+########### and ambisonic ACN/SN3D, a multichannel file for an ambisonic decoder elsewhere
 speech = Path(ca.Defaults().ANECHOIC_SOUNDFILES_LIBRARY_PATH) / "female_speech.wav"
-for name, ir, output_format in (("pyroomacoustics", ir_pra, "stereo"), ("hybrid", ir_binaural, "binaural")):
-    auraliser = ca.Auraliser("office", [ir], anechoic_sounds=[str(speech)], output_format=output_format)
+for name, ir in (("pyroomacoustics", ir_pra), ("hybrid_binaural", ir_binaural), ("hybrid_ambisonic", ir_hybrid)):
+    auraliser = ca.Auraliser("office", [ir], anechoic_sounds=[str(speech)])
     auraliser.export_convolved_sound(str(OUTPUT / f"office_speech_{name}.wav"))
 
 print(f"written to {OUTPUT}")

@@ -5,15 +5,12 @@ from Grasshopper import DataTree
 import numpy as np
 import os
 
-from compas_acoustics import worker
 from compas_acoustics.auraliser import Auraliser
 from compas_acoustics_ghpython import ensure_inputs
 
 # First item is the default
 LEVELS = ["relative", "individual", "none"]
 HEADROOM_DB = -1.0
-# The signal keeps the format of its impulse responses: the Auraliser output format of each
-OUTPUT_FORMATS = {"mono": "mono", "binaural": "binaural", "ambisonic": "ambisonics"}
 
 
 class Auralise(Grasshopper.Kernel.GH_ScriptInstance):
@@ -90,7 +87,7 @@ class Auralise(Grasshopper.Kernel.GH_ScriptInstance):
                     'filepath': sound_file
                 }
 
-            # 2. Construct auraliser(s), convolve and decode signals
+            # 2. Construct auraliser(s) and convolve
             for r, receiver_id in enumerate(ir_groups.keys()):
                 if mix_sources:
                     tasks = [(receiver_id, ir_groups[receiver_id], sound_groups[receiver_id], f"{r}")]
@@ -121,17 +118,8 @@ class Auralise(Grasshopper.Kernel.GH_ScriptInstance):
                         warnings.simplefilter("always")
                         try:
                             # Sample rate defaults to that of the impulse responses
-                            auraliser = Auraliser(
-                                name=name,
-                                impulse_responses=ir_data,
-                                anechoic_sounds=sound_data,
-                                output_format=OUTPUT_FORMATS[ir_format],
-                            )
-                        except ValueError as e:
-                            ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Error, str(e))
-                            return None, None
-                        try:
-                            signal = worker.convolve(auraliser)
+                            auraliser = Auraliser(name=name, impulse_responses=ir_data, anechoic_sounds=sound_data)
+                            signal = auraliser.convolve()
                         except ValueError as e:
                             ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Error, str(e))
                             return None, None
