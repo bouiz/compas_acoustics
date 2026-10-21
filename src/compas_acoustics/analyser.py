@@ -1,4 +1,5 @@
 import warnings
+from functools import lru_cache
 
 import numpy as np
 import pyfar as pf
@@ -60,6 +61,18 @@ _GEOMETRIC_SEARCH_LEAD = 0.001
 
 # Floor of the levels of time_response and frequency_response, in dB below the peak
 _RESPONSE_FLOOR_DB = 100.0
+
+
+@lru_cache(maxsize=None)
+def _octave_band_filter(sampling_rate, center_frequency):
+    # A filter without an initialised state keeps none between calls, so one design serves every call
+    return pf.dsp.filter.fractional_octave_bands(
+        signal=None,
+        num_fractions=1,
+        sampling_rate=sampling_rate,
+        frequency_range=(center_frequency * 0.9, center_frequency * 1.1),
+        order=14,
+    )
 
 
 def _iso3382_start(ir_array, threshold_db=_START_THRESHOLD_DB):
@@ -199,6 +212,8 @@ class AcousticAnalyser:
     def __init__(self, ir):
         self.ir = ir
         self.analysis_data = None
+        # Zero-phase bands of self.ir by centre frequency, kept while analyse() runs
+        self._bands_from_onset = None
         sampling_rate = getattr(ir, 'sampling_rate', None)
         self.sampling_rate = int(sampling_rate) if sampling_rate is not None else Defaults().SAMPLING_RATE
 
@@ -348,14 +363,7 @@ class AcousticAnalyser:
         pyfar 0.8.0 to include 3 bands instead of 1.
         """
         sig = pf.Signal(np.asarray(impulse_response, dtype=float), self.sampling_rate)
-        filt = pf.dsp.filter.fractional_octave_bands(
-            signal=None,
-            num_fractions=1,
-            sampling_rate=self.sampling_rate,
-            frequency_range=(center_frequency * 0.9, center_frequency * 1.1),
-            order=14,
-        )
-        return filt.process(sig).time.squeeze()
+        return _octave_band_filter(self.sampling_rate, center_frequency).process(sig).time.squeeze()
 
 
     # Calculate acoustic parameters
@@ -420,6 +428,9 @@ class AcousticAnalyser:
         tuple of (np.ndarray, int)
             The band-filtered IR and the index of the direct sound in it.
         """
+        kept = self._bands_from_onset if ir_array is self.ir else None
+        if kept is not None and center_frequency in kept:
+            return kept[center_frequency]
         fs = self.sampling_rate
         lead = int(round(_ZERO_PHASE_LEAD * fs))
         onset = self._direct_sound_onset(ir_array)
@@ -427,7 +438,10 @@ class AcousticAnalyser:
         forward = self._filter_impulse_response(padded, center_frequency)
         zero_phase = self._filter_impulse_response(forward[::-1], center_frequency)[::-1]
         # The direct sound is at onset + lead in the padded signal; start lead before it
-        return zero_phase[onset:], lead
+        band = zero_phase[onset:], lead
+        if kept is not None:
+            kept[center_frequency] = band
+        return band
 
     def clarity_definition(self, impulse_response=None) -> dict:
         """Compute clarity and definition parameters (C50, C80, D50) per frequency band.
@@ -691,13 +705,14 @@ class AcousticAnalyser:
 
     # Methods
 
-    def analyse(self, ir=None) -> dict:
+    def _sti_and_strength(self, ir=None) -> dict:
+        """STI and G as :meth:`analyse` gives them: ``'STI'`` and ``'G'`` per band in :attr:`frequency_bands`, and their overall values.
+
+        The worker computes only these, for a client whose pyrato cannot (:func:`compas_acoustics.worker.analyse`).
+        """
         if ir is None:
             ir = self.ir
-        rt = self.reverberation_times(ir)
-        clarity = self.clarity_definition(ir)
-        drr = self.direct_to_reverberant_ratio(ir)
-        ct = self.center_time(ir)
+        freqs = list(self.frequency_bands)
         sti_data = self.speech_transmission_index(ir)
         # G needs the absolute level; an array or a normalized-only response has none
         own = None if ir is self.ir else ir
@@ -705,32 +720,43 @@ class AcousticAnalyser:
             strength = self.sound_strength(impulse_response=own)
             g_vector, g_overall = strength['G'], strength['G_overall']
         else:
-            g_vector, g_overall = [np.nan] * len(self.frequency_bands), np.nan
-
-        freqs = list(self.frequency_bands)
+            g_vector, g_overall = [np.nan] * len(freqs), np.nan
 
         sti_bands = [125, 250, 500, 1000, 2000, 4000, 8000]
-        sti_freq_mapped = []
-        for f in freqs:
-            if f in sti_bands:
-                sti_freq_mapped.append(round(sti_data['mti'][sti_bands.index(f)], 2))
-            else:
-                sti_freq_mapped.append(np.nan)
+        sti_vector = [round(sti_data['mti'][sti_bands.index(f)], 2) if f in sti_bands else np.nan for f in freqs]
+        return {
+            'STI': np.array(sti_vector, dtype=float).tolist(), 'STI_overall': round(float(sti_data['sti']), 4),
+            'G': np.array(g_vector, dtype=float).tolist(), 'G_overall': g_overall,
+        }
+
+    def analyse(self, ir=None) -> dict:
+        if ir is None:
+            ir = self.ir
+        # reverberation_times and center_time take the same zero-phase bands
+        self._bands_from_onset = {}
+        try:
+            rt = self.reverberation_times(ir)
+            clarity = self.clarity_definition(ir)
+            drr = self.direct_to_reverberant_ratio(ir)
+            ct = self.center_time(ir)
+        finally:
+            self._bands_from_onset = None
+        sti_and_strength = self._sti_and_strength(ir)
+
+        freqs = list(self.frequency_bands)
 
         param_vectors = {
             'EDT': rt['EDT'], 'T20': rt['T20'], 'T30': rt['T30'],
             'C50': clarity['C50'], 'C80': clarity['C80'], 'D50': clarity['D50'],
-            'DRR': drr['DRR'], 'Ts': ct['Ts'], 'STI': sti_freq_mapped, 'G': g_vector
+            'DRR': drr['DRR'], 'Ts': ct['Ts'], 'STI': sti_and_strength['STI'], 'G': sti_and_strength['G']
         }
 
         result = {'freqs': freqs}
         for param in _PARAM_NAMES:
             vals = np.array(param_vectors[param], dtype=float)
             result[param] = vals.tolist()
-            if param == 'STI':
-                overall = round(float(sti_data['sti']), 4)
-            elif param == 'G':
-                overall = g_overall
+            if param in ('STI', 'G'):
+                overall = sti_and_strength[f'{param}_overall']
             elif param == 'DRR':
                 overall = drr['DRR_overall']
             else:

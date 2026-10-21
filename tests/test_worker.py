@@ -402,6 +402,17 @@ def test_the_analysis_in_the_worker_matches_the_analysis_here(running_worker, mo
         assert analyser.analysis_data[name] == pytest.approx(here.analysis_data[name], abs=0.01)
 
 
+@needs_sti
+def test_the_worker_computes_only_sti_and_g(monkeypatch):
+    from compas_acoustics import AcousticAnalyser
+    from compas_acoustics.worker import api
+
+    path, _ = response().to_wav(worker._folder() / "ir.wav")
+    for name in ("reverberation_times", "clarity_definition", "direct_to_reverberant_ratio", "center_time"):
+        monkeypatch.setattr(AcousticAnalyser, name, lambda *args, **kwargs: pytest.fail("the client computes these itself"))
+    assert set(api.analyse(str(path))["analysis"]) == {"STI", "STI_overall", "G", "G_overall"}
+
+
 @pytest.mark.parametrize("settings, normalized", [({}, True), ({"normalize": True}, True), ({"normalize": False}, False)])
 def test_responses_from_the_worker_keep_the_methods_normalize(monkeypatch, settings, normalized):
     import types

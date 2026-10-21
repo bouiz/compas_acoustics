@@ -72,5 +72,6 @@ def analyse(path):
     ir = ImpulseResponse.from_wav(_worker_file(path))
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        analysis = AcousticAnalyser(ir).analyse()
+        # the client computes every other parameter itself
+        analysis = AcousticAnalyser(ir)._sti_and_strength()
     return {"analysis": analysis, "warnings": [str(w.message) for w in caught if issubclass(w.category, UserWarning)]}

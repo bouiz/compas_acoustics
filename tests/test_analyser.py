@@ -493,6 +493,52 @@ def test_trailing_zeros_do_not_hide_the_decay():
         np.testing.assert_allclose(np.mean([r[key] for r in results], axis=0), 1.2, rtol=0.08, err_msg=key)
 
 
+def test_each_octave_filter_is_designed_once(monkeypatch):
+    import pyfar as pf
+
+    from compas_acoustics import analyser as analysis
+
+    designs = []
+    design = pf.dsp.filter.fractional_octave_bands
+
+    def counted(*args, **kwargs):
+        designs.append(kwargs)
+        return design(*args, **kwargs)
+
+    monkeypatch.setattr(pf.dsp.filter, "fractional_octave_bands", counted)
+    analysis._octave_band_filter.cache_clear()
+    # not analyse(): pyrato's STI designs its own filters
+    for seed in range(2):
+        analyser = AcousticAnalyser(make_ir(seed=seed))
+        analyser.reverberation_times()
+        analyser.clarity_definition()
+    assert len(designs) == len(Defaults().DEFAULT_FREQUENCY_BANDS)
+
+
+def test_analyse_filters_the_bands_of_the_decay_once_for_the_reverberation_times_and_center_time(monkeypatch):
+    analyser = AcousticAnalyser(make_ir())
+    calls = []
+    filter_band = AcousticAnalyser._filter_impulse_response
+
+    def counted(self, *args):
+        calls.append(args)
+        return filter_band(self, *args)
+
+    monkeypatch.setattr(AcousticAnalyser, "_filter_impulse_response", counted)
+
+    def count(run):
+        calls.clear()
+        run()
+        return len(calls)
+
+    alone = count(analyser.center_time)
+    others = sum(count(run) for run in (analyser.reverberation_times, analyser.clarity_definition, analyser.direct_to_reverberant_ratio))
+    assert alone > 0
+    assert count(analyser.analyse) == others
+    # the bands are kept only for the analysis
+    assert count(analyser.center_time) == alone
+
+
 @pytest.mark.parametrize("name", ["C50", "C80", "D50", "Ts", "EDT", "T20", "T30"])
 def test_single_numbers_average_500_and_1000_hz(name):
     # ISO 3382-1:2009 Table A.1; C50 is a function of D50 and takes its bands
