@@ -1441,6 +1441,147 @@ def test_the_ray_field_inputs_match_its_script(monkeypatch):
     assert (metadata["name"], metadata["nickname"], metadata["subcategory"]) == ("Ray Field", "Rays", "05 Display")
 
 
+# ------------------------------------------------------------------ Billiard --
+class Clock:
+    now = 0.0
+
+    def __call__(self):
+        return self.now
+
+
+def billiard(monkeypatch, with_document=True):
+    module, messages = load_component("CA_Billiard", monkeypatch)
+    clock, document = Clock(), types.SimpleNamespace(scheduled=[])
+    module.ghenv.Component.Params = types.SimpleNamespace(Input=[])
+    document.ScheduleSolution = lambda delay, callback: document.scheduled.append((delay, callback))
+    module.ghenv.Component.OnPingDocument = lambda: document if with_document else None
+    module.ghenv.Component.ExpireSolution = lambda recompute: document.__dict__.setdefault("expired", []).append(recompute)
+    monkeypatch.setattr(module.time, "time", clock)
+    return module, messages, clock, document
+
+
+def billiard_field(seed=1):
+    from compas_acoustics import RayField
+
+    return RayField.from_scene(scene(), n_rays=20, max_reflection_order=4, random_seed=seed)
+
+
+def run_billiard(module, field, time, play, speed):
+    return module.BilliardComponent().RunScript(field, time, play, speed)
+
+
+def test_billiard_without_play_or_time_shows_the_start(monkeypatch):
+    module, messages, clock, document = billiard(monkeypatch)
+    field = billiard_field()
+    particles, trails, t = run_billiard(module, field, None, False, None)
+    assert t == 0.0 and len(particles) == len(field)
+    assert all(tuple(p) == tuple(ray.points[0]) for p, ray in zip(particles, field))
+    assert module.ghenv.Component.Message == "press Play or connect time"
+    assert document.scheduled == []
+
+
+def test_billiard_time_alone_is_a_frozen_frame(monkeypatch):
+    module, messages, clock, document = billiard(monkeypatch)
+    field = billiard_field()
+    particles, trails, t = run_billiard(module, field, 10.0, False, None)
+    assert t == 10.0 and document.scheduled == []
+    assert [tuple(p) for p in particles] == [tuple(p) for p in field.particles(10.0)[0]]
+    assert module.ghenv.Component.Message == "t = 10.0 ms"
+
+
+def test_play_animates_up_to_time_and_stops(monkeypatch):
+    module, messages, clock, document = billiard(monkeypatch)
+    field = billiard_field()
+    clock.now = 0.0
+    assert run_billiard(module, field, 10.0, True, 5.0)[2] == 0.0
+    assert len(document.scheduled) == 1 and document.scheduled[0][0] == 33
+    clock.now = 1.0
+    assert run_billiard(module, field, 10.0, False, 5.0)[2] == 5.0
+    assert len(document.scheduled) == 2
+    clock.now = 3.0
+    assert run_billiard(module, field, 10.0, False, 5.0)[2] == 10.0
+    assert len(document.scheduled) == 2
+    clock.now = 9.0
+    assert run_billiard(module, field, 10.0, False, 5.0)[2] == 10.0
+    assert len(document.scheduled) == 2
+
+
+def test_play_without_time_runs_to_the_end_at_the_default_speed(monkeypatch):
+    module, messages, clock, document = billiard(monkeypatch)
+    field = billiard_field()
+    clock.now = 0.0
+    run_billiard(module, field, None, True, None)
+    clock.now = 5.0
+    assert run_billiard(module, field, None, False, None)[2] == pytest.approx(field.duration_ms / 2)
+    clock.now = 20.0
+    assert run_billiard(module, field, None, False, None)[2] == pytest.approx(field.duration_ms)
+
+
+def test_a_new_ray_field_keeps_playing(monkeypatch):
+    module, messages, clock, document = billiard(monkeypatch)
+    clock.now = 0.0
+    run_billiard(module, billiard_field(1), 10.0, True, 5.0)
+    clock.now = 1.0
+    scheduled = len(document.scheduled)
+    particles, trails, t = run_billiard(module, billiard_field(2), 10.0, False, 5.0)
+    assert t == 5.0 and len(document.scheduled) == scheduled + 1
+
+
+def test_the_scheduled_frame_expires_the_component_without_a_second_solution(monkeypatch):
+    module, messages, clock, document = billiard(monkeypatch)
+    run_billiard(module, billiard_field(), 10.0, True, 5.0)
+    document.scheduled[0][1](document)
+    assert document.expired == [False]
+
+
+def test_pressing_play_while_playing_restarts(monkeypatch):
+    module, messages, clock, document = billiard(monkeypatch)
+    field = billiard_field()
+    clock.now = 0.0
+    run_billiard(module, field, 10.0, True, 5.0)
+    clock.now = 1.5
+    assert run_billiard(module, field, 10.0, False, 5.0)[2] == 7.5
+    assert run_billiard(module, field, 10.0, True, 5.0)[2] == 0.0
+
+
+def test_billiard_trails_are_the_rays_up_to_t(monkeypatch):
+    module, messages, clock, document = billiard(monkeypatch)
+    module.Rhino.Geometry.Polyline = RecordingPolyline
+    field = billiard_field()
+    particles, trails, t = run_billiard(module, field, 15.0, False, None)
+    kept = field.truncated(travel_time_ms=15.0)
+    assert [list(trail) for trail in trails] == [[tuple(p) for p in ray.points] for ray in kept]
+    assert len(trails) == len(particles)
+
+
+def test_billiard_without_a_ray_field_warns(monkeypatch):
+    module, messages, clock, document = billiard(monkeypatch)
+    assert run_billiard(module, None, 1.0, True, None) == (None,) * 3
+    assert messages == ["Connect a ray field."] and document.scheduled == []
+
+
+def test_billiard_ignores_a_speed_that_is_not_positive_and_does_not_need_a_document(monkeypatch):
+    module, messages, clock, document = billiard(monkeypatch, with_document=False)
+    field = billiard_field()
+    clock.now = 0.0
+    run_billiard(module, field, None, True, 0.0)
+    clock.now = 5.0
+    assert run_billiard(module, field, None, False, -1.0)[2] == pytest.approx(field.duration_ms / 2)
+    assert any("speed" in m for m in messages)
+
+
+def test_the_billiard_inputs_match_its_script(monkeypatch):
+    import inspect
+    import json
+
+    module, *_ = billiard(monkeypatch)
+    metadata = json.loads((COMPONENTS / "CA_Billiard" / "metadata.json").read_text())
+    parameters = list(inspect.signature(module.BilliardComponent.RunScript).parameters)[1:]
+    assert parameters == [p["name"] for p in metadata["ghpython"]["inputParameters"]] == ["ray_field", "time", "play", "speed"]
+    assert [p["name"] for p in metadata["ghpython"]["outputParameters"]] == ["particles", "trails", "t"]
+    assert (metadata["name"], metadata["nickname"], metadata["subcategory"]) == ("Billiard", "Billiard", "05 Display")
+
+
 def test_components_with_list_inputs_import_system():
     import json
     import re

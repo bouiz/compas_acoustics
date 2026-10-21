@@ -116,6 +116,7 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 * Added `SpecularReflections.from_scene(scene, max_order=3)`, the image-source paths from each source to each receiver for inspection, with `filter(source_index, receiver_index, order)`.
 * Added the Specular Reflections component: image-source paths of a source-receiver pair by order.
 * Added the Ray Field component: rays traced from the sources, for display and the Billiard.
+* Added the Billiard component: the rays of a ray field as particles at a time, played with a button or scrubbed with a slider.
 
 ### Changed
 
