@@ -13,10 +13,13 @@ from compas_acoustics import Pyroomacoustics
 from compas_acoustics import Receiver
 from compas_acoustics import Scene
 from compas_acoustics import Source
+from compas_acoustics import analyser
 from compas_acoustics import worker
 
 WORKER_PYTHON = os.environ.get("COMPAS_ACOUSTICS_TEST_WORKER_PYTHON")
 needs_worker = pytest.mark.skipif(not WORKER_PYTHON, reason="set COMPAS_ACOUSTICS_TEST_WORKER_PYTHON to a Python >= 3.11 with compas_acoustics")
+# the local reference needs STI and G, which pyrato < 1.0 (Python < 3.11, Rhino 8) cannot compute
+needs_sti = pytest.mark.skipif(not analyser._STI_SUPPORTED, reason="STI and G need pyrato >= 1.0 (Python >= 3.11)")
 VIOLA = str(Path(compas_acoustics.__file__).parent / "anechoic_soundfiles_library" / "viola.wav")
 
 
@@ -340,12 +343,14 @@ def response():
     return next(iter(scene().simulate(Pyroomacoustics(image_source_order=2, ray_tracing=False)).values()))
 
 
+@needs_sti
 def test_without_a_worker_the_analysis_stays_here(monkeypatch):
     monkeypatch.setattr(worker, "proxy", lambda: pytest.fail("no worker is configured"))
     analyser, messages = worker.analyse(response())
     assert messages == [] and np.isfinite(analyser.analysis_data["STI_overall"]) and np.isfinite(analyser.analysis_data["G_overall"])
 
 
+@needs_sti
 def test_sti_and_g_come_from_the_worker_where_pyrato_cannot_compute_them(monkeypatch):
     import types
     import warnings
@@ -383,6 +388,7 @@ def test_sti_and_g_come_from_the_worker_where_pyrato_cannot_compute_them(monkeyp
     assert isinstance(messages, list)
 
 
+@needs_sti
 @needs_worker
 def test_the_analysis_in_the_worker_matches_the_analysis_here(running_worker, monkeypatch):
     from compas_acoustics import AcousticAnalyser

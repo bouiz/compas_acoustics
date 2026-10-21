@@ -15,8 +15,10 @@ from compas_acoustics import Pyroomacoustics
 from compas_acoustics import Receiver
 from compas_acoustics import Scene
 from compas_acoustics import Source
+from compas_acoustics import analyser
 
 needs_hybrid = pytest.mark.skipif(importlib.util.find_spec("pyFDN") is None, reason="needs pyFDN (Python >= 3.11)")
+needs_sti = pytest.mark.skipif(not analyser._STI_SUPPORTED, reason="STI and G need pyrato >= 1.0 (Python >= 3.11)")
 
 @pytest.fixture(autouse=True)
 def no_configured_worker(monkeypatch, tmp_path):
@@ -353,6 +355,7 @@ def analysed_response():
     return next(iter(scene().simulate(Pyroomacoustics(image_source_order=2, ray_tracing=False)).values()))
 
 
+@needs_sti
 def test_analyse_ir_gives_sti_and_g_where_pyrato_can_compute_them(monkeypatch):
     module, messages = load_component("CA_Analyse_IR", monkeypatch, levels=True)
     params, *_ = module.AnalyseIR().RunScript(analysed_response(), None)
