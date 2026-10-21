@@ -10,6 +10,7 @@ import compas_acoustics as ca
 from compas_acoustics.binaural import DEFAULT_HRTF
 from compas_acoustics.binaural import HrtfSet
 from compas_acoustics.binaural import binaural_rir
+from compas_acoustics.hybrid import late
 from compas_acoustics.hybrid.envelope import shape_late
 from compas_acoustics.hybrid.late import ambisonic_output_matrix
 from compas_acoustics.hybrid.late import fdn_directions
@@ -52,25 +53,13 @@ def deltas(directions):
     return HrtfSet(hrirs, np.asarray(directions, dtype=float), FS)
 
 
-def test_a_binaural_output_has_at_least_razrs_delay_lines():
-    from compas_acoustics.hybrid.late import default_num_delays
-    from compas_acoustics.simulation_methods.hybrid import BINAURAL_MIN_DELAYS
-
-    assert BINAURAL_MIN_DELAYS == 24 and default_num_delays(1, minimum=24) == 24
-    for output in ("binaural", ["ambisonic", "binaural"]):
+def test_every_output_has_kirschs_96_delay_lines():
+    for output in ("binaural", "ambisonic", ["ambisonic", "binaural"]):
         hybrid = ca.Hybrid(**FAST, output=output)
         ir = one(evaluation_scene().simulate(hybrid))
-        assert ir.generation["num_delays"] == 24
-        assert one(hybrid.results).late_lines.shape[1] == 24
-
-
-def test_an_ambisonic_output_keeps_the_order_default_and_num_delays_wins():
-    hybrid = ca.Hybrid(**FAST, output="ambisonic")
-    assert one(evaluation_scene().simulate(hybrid)).generation["num_delays"] is None
-    assert one(hybrid.results).late_lines.shape[1] == 16
-    hybrid = ca.Hybrid(**FAST, output="binaural", num_delays=16)
-    evaluation_scene().simulate(hybrid)
-    assert one(hybrid.results).late_lines.shape[1] == 16
+        assert ir.generation["num_delays"] == 96
+        assert one(hybrid.results).late_lines.shape[1] == 96
+        assert one(hybrid.results).drive_gain == pytest.approx(np.sqrt(96))
 
 
 def test_the_default_output_is_binaural():
@@ -187,8 +176,10 @@ def test_shape_late_gives_every_column_the_gains_of_w():
 
 
 @pytest.mark.parametrize("case", sorted(CASES))
-def test_the_ambisonic_output_is_unchanged(case):
+def test_the_ambisonic_output_is_unchanged(case, monkeypatch):
     """The code before the hybrid rendered both outputs (f658127, data/hybrid_reference.py) gives the same response."""
+    # f658127 used 16 delay lines at first order, before MIN_DELAYS became 96
+    monkeypatch.setattr(late, "MIN_DELAYS", 16)
     before = np.load(DATA / "hybrid_reference_f658127.npz")[case]
     after = reference_rir(output="ambisonic", **CASES[case])
     assert np.any(after[-200:] != 0.0)  # the late field is inside the window

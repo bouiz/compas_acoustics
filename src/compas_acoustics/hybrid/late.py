@@ -90,7 +90,18 @@ def fdn_directions(sh_order: int, num_delays: int | None = None) -> pf.Coordinat
     return directions
 
 
-def default_num_delays(sh_order: int, minimum: int = 16) -> int:
+#: Fewest delay lines at any ambisonic order. Kirsch, Wendt and van de Par (2023, Secs. 1.2
+#: and 3.3) ran their network with 96 lines whatever the number of rendered directions, so that
+#: the tail's spectro-temporal character does not change with the count and the recurrent
+#: patterns of a small network are avoided; they name 96 as the choice for offline simulation.
+#: RAZR 0.96.3 allows 6, 12, 24, 48 or 96 (``get_default_options.m``) and defaults to 24 for
+#: real-time use. The 96-point equal-area grid supports orders 0 to 3, so the count no longer
+#: moves with ``sh_order`` there. A smaller grid also landed badly in one shoebox: with 24 lines
+#: the late level sat 2.8 dB below the exact image-source room against 1.5 dB with 16 or 28.
+MIN_DELAYS = 96
+
+
+def default_num_delays(sh_order: int, minimum: int | None = None) -> int:
     """Smallest workable number of delay lines for an ambisonic order.
 
     ``num_delays`` and ``sh_order`` are coupled twice: the direction grid must
@@ -103,11 +114,12 @@ def default_num_delays(sh_order: int, minimum: int = 16) -> int:
     Searched rather than computed, because the counts that satisfy both
     conditions are irregular: 20, 23, 24, 27, 28 ... at second order. The
     search starts at ``4 (N + 1) ** 2``: more lines than the order strictly
-    needs, for echo density, and never below ``minimum``.
+    needs, for echo density, and never below ``minimum`` (:data:`MIN_DELAYS`
+    when None), so 96 lines at orders 0 to 3 and 100 at fourth order.
     """
     if sh_order < 0:
         raise ValueError("sh_order must be non-negative")
-    start = max(minimum, 4 * (sh_order + 1) ** 2)
+    start = max(MIN_DELAYS if minimum is None else minimum, 4 * (sh_order + 1) ** 2)
     for num_delays in range(start, 4 * start + 1):
         directions = spharpy.samplings.equal_area(n_max=sh_order, n_points=num_delays)
         if directions.cshape[0] != num_delays:

@@ -65,9 +65,10 @@ def test_the_network_is_heard_one_line_after_the_last_order():
     result = synthesize(spec, iss, TARGET, max_order=2, duration_s=0.3)
     first = iss.delay[iss.order == 2].min() * FS + np.asarray(result.builds[0].delays).min()
     energy = result.late[:, 0] ** 2
-    # before that only the zero-phase band magnitude's pre-ringing (about -51 dB here); a drive heard
-    # at once would put the whole last order there
-    assert energy[: int(first) - 48].sum() < 1e-4 * energy.sum()
+    # before that only the zero-phase band magnitude's pre-ringing: about -34 dB here, each image entering
+    # some 48 lines of its opposite hemisphere (-51 dB when it entered one); a drive heard at once would
+    # put the whole last order there, at 0 dB
+    assert energy[: int(first) - 48].sum() < 1e-3 * energy.sum()
 
 
 def unit(xyz):

@@ -164,8 +164,8 @@ def test_hybrid_returns_binaural_responses():
 
 def test_the_binaural_output_does_not_depend_on_sh_order():
     """Every path and every line takes its own HRIR; the ambisonic order only sets the ambisonic output."""
-    (zero,) = scene().simulate(Hybrid(sh_order=0, num_delays=16, seed=3, **FAST)).values()
-    (first,) = scene().simulate(Hybrid(sh_order=1, num_delays=16, seed=3, **FAST)).values()
+    (zero,) = scene().simulate(Hybrid(sh_order=0, seed=3, **FAST)).values()
+    (first,) = scene().simulate(Hybrid(sh_order=1, seed=3, **FAST)).values()
     np.testing.assert_allclose(zero.denormalized(), first.denormalized(), atol=1e-12)
 
 

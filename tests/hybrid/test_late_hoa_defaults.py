@@ -19,7 +19,7 @@ import pytest
 import spharpy
 
 from compas_acoustics.hybrid.bands import BANDS
-from compas_acoustics.hybrid.late import ambisonic_output_matrix, default_num_delays, design_fdn
+from compas_acoustics.hybrid.late import MIN_DELAYS, ambisonic_output_matrix, default_num_delays, design_fdn
 from compas_acoustics.hybrid.target import RoomTarget
 
 
@@ -44,14 +44,15 @@ def test_the_default_grid_supports_the_order_it_was_chosen_for(sh_order):
     ambisonic_output_matrix(sh_order, directions)  # raises if leakage is too high
 
 
-def test_first_order_still_defaults_to_sixteen_delay_lines():
-    assert default_num_delays(1) == 16
+def test_orders_zero_to_three_default_to_kirschs_96_delay_lines():
+    assert MIN_DELAYS == 96 and [default_num_delays(n) for n in range(4)] == [96] * 4
+    assert default_num_delays(1, minimum=16) == 16 and default_num_delays(2, minimum=16) == 36
 
 
-def test_the_default_grows_with_the_ambisonic_order():
-    counts = [default_num_delays(n) for n in range(1, 4)]
+def test_the_default_grows_with_the_ambisonic_order_above_the_floor():
+    counts = [default_num_delays(n) for n in range(1, 5)]
     assert counts == sorted(counts)
-    assert counts[-1] > counts[0]
+    assert counts[-1] > counts[0]  # fourth order needs more than the 96 lines of the floor
 
 
 @pytest.mark.parametrize("sh_order", [1, 2, 3])

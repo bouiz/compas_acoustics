@@ -48,7 +48,7 @@ def test_the_response_is_early_plus_late():
     np.testing.assert_allclose(result.rir, result.early + result.late)
     np.testing.assert_allclose(result.early, encode(_select(iss, iss.order <= MAX_ORDER), 1, 24000))
     assert result.driving_images == int(np.sum(iss.order == MAX_ORDER))
-    assert result.drive_gain == pytest.approx(4.0)
+    assert result.drive_gain == pytest.approx(np.sqrt(96))
     assert result.normalization == "N3D"
     assert np.sum(result.late ** 2) > 0.0
 

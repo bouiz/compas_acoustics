@@ -35,7 +35,6 @@ from .directional import directional_absorption_filters
 from .early import ImageSourceSet
 from .early import encode
 from .early import render_images
-from .early import route_to_directions
 from .scattering import scattering_decay_time
 from .scattering import scattering_weights
 from .scattering import smear
@@ -101,15 +100,20 @@ def synthesize(
        attenuation filters follow ``target.rt``, and each line is the room's
        free path along its direction (:func:`directional_delays`).
     3. The images of order ``max_order``, the last order rendered, also enter
-       the network, each into the delay line opposite its direction of
-       arrival, so the network's first output is the next order, one free path
-       later. Wendt et al. (2014, Sec. 1.3): the network input "must equal the
-       total energy of the Nth-order reflections"; RAZR 0.96.3 feeds that
-       order (``image_source_model.m``), as do Kirsch et al. (2023) and Ewert
-       et al. (2025, Sec. 3.1.2), whose mapping to the opposite hemisphere this
-       follows. hybrid-rir @ a272da7 fed order ``max_order + 1`` without
-       rendering it, which has no reference and costs one more order of
-       image source search.
+       the network, each spread over the delay lines of the hemisphere opposite
+       its direction of arrival, weighted by the cosine to each line
+       (:func:`~compas_acoustics.hybrid.scattering.scattering_weights` with
+       ``opposite``), so the network's first output is the next order, one
+       free path later, off the far side of the room. Wendt et al. (2014,
+       Sec. 1.3): the network input "must equal the total energy of the
+       Nth-order reflections"; RAZR 0.96.3 feeds that order
+       (``image_source_model.m``), as do Kirsch et al. (2023) and Ewert et al.
+       (2025, Sec. 3.1.2), whose mapping this is (RAZR's
+       ``fdn_smart_ch_mapping``; its default, Wendt's, is by image index).
+       hybrid-rir @ a272da7 fed order ``max_order + 1`` without rendering it,
+       into the one line nearest the opposite direction; neither has a
+       reference, and the extra order costs one more order of image source
+       search.
     4. Each line's output is weighted with the reflection of the boundary in its
        direction (``directional_absorption``), and early field and network
        output are summed. The lines are kept (``late_lines``, with
@@ -146,9 +150,9 @@ def synthesize(
     ``fdn_smart_ch_mapping`` rule, whose unit l2 norm is that of one driving
     image, times the same ``drive_gain``. It is ``render``'s ``tap``: heard
     through each line's attenuation filters and then recirculating, as RAZR's
-    input placed one delay early is. RAZR's smart mapping also spreads the
-    drive softly over the opposite hemisphere; the drive here stays one-hot
-    (hybrid-rir's choice, so that arrival times are not smeared).
+    input placed one delay early is. The specular drive takes the same rule
+    with the opposite hemisphere (step 3), so both inputs enter as RAZR's
+    smart mapping places them.
     Everything is computed in N3D; ``normalization`` sets the output, SN3D
     (AmbiX) or N3D, both with W = 1 for a unit plane wave.
     """
@@ -195,7 +199,7 @@ def synthesize(
         contributions = tuple(btms_paths(spec, max_order=min(max_order, 1)))
         early = early + encode_btms(list(contributions), sh_order, n_samples, spec.fs)
     drive = render_images(
-        driving_set, route_to_directions(driving_set, directions, opposite=True), n_samples
+        driving_set, scattering_weights(driving_set.doa, directions, opposite=True), n_samples
     )
     line_eq = (
         directional_absorption_filters(spec, directions)

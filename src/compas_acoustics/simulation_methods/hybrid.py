@@ -34,7 +34,7 @@ from .base import _seed
 from .base import _warn_if_the_search_is_slow
 from .pra import Pyroomacoustics
 
-__all__ = ["Hybrid", "TAILS", "OUTPUTS", "BINAURAL_MIN_DELAYS"]
+__all__ = ["Hybrid", "TAILS", "OUTPUTS"]
 
 #: Where the decay target of the late field comes from.
 TAILS = ("reference", "ray_tracing", "eyring", "sabine")
@@ -44,10 +44,6 @@ OUTPUTS = {"ambisonic": "hybrid", "binaural": "hybrid_binaural"}
 
 # The 8 kHz octave's upper edge must lie below Nyquist for pyFDN's band estimator.
 _MIN_SAMPLING_RATE = 2.0 * 8000.0 * np.sqrt(2.0)
-
-#: Fewest delay lines with a binaural output, each heard through its own HRIR: RAZR 0.96.3's default
-#: ``op.fdn_numDelays`` (``get_default_options.m``), which also spatialises one HRIR per line.
-BINAURAL_MIN_DELAYS = 24
 
 
 class Hybrid(SimulationMethod):
@@ -86,7 +82,12 @@ class Hybrid(SimulationMethod):
         warns where the room is not diffuse. ``None`` means ``"reference"`` when
         a reference is given, else ``"ray_tracing"``.
     sh_order : int, default=1
-        Ambisonic order of the ambisonic output; also sets the default number of delay lines.
+        Ambisonic order of the ambisonic output. The network has 96 delay lines
+        up to third order, the count Kirsch et al. (2023) use for offline simulation
+        (:data:`~compas_acoustics.hybrid.late.MIN_DELAYS`), and the smallest
+        equal-area grid supporting the order above that. The network input has
+        the gain ``sqrt(num_delays)``, which offsets the ``1 / sqrt(num_delays)``
+        of the output, so the late level does not depend on the count.
     image_source_order : int, default=3
         Highest image source order rendered as early field.
     normalization : {"SN3D", "N3D"}, default="SN3D"
@@ -98,14 +99,6 @@ class Hybrid(SimulationMethod):
         Single-slope fit range from -5 dB: 30 is T30, 20 is T20.
     duration : float, optional
         Length in seconds; defaults to 1.5 times the longest target RT.
-    num_delays : int, optional
-        Delay lines; defaults to the smallest count supporting ``sh_order``, and
-        with a binaural output to at least ``BINAURAL_MIN_DELAYS`` (24, RAZR 0.96.3's
-        default ``op.fdn_numDelays``): each line is heard through the HRIR of its
-        direction, and with the KEMAR set 16 lines leave the late field's octave-band
-        interaural coherence up to 0.18 above the diffuse field's, 24 lines 0.04.
-    drive_gain : float, optional
-        Gain on the network input; defaults to ``sqrt(num_delays)``.
     directional_absorption : bool, default=True
         Weight each delay line with the reflection of the boundary it faces.
     late_envelope : bool, optional
@@ -186,8 +179,7 @@ class Hybrid(SimulationMethod):
     name = "hybrid"
 
     def __init__(self, reference=None, tail=None, sh_order=1, image_source_order=3, normalization="SN3D",
-                 n_slopes=1, decay_db=30.0, duration=None, num_delays=None, drive_gain=None,
-                 directional_absorption=True, late_envelope=None, diffraction=False,
+                 n_slopes=1, decay_db=30.0, duration=None, directional_absorption=True, late_envelope=None, diffraction=False,
                  air_absorption=None, seed=True, normalize=True, air=None, scattering=False,
                  output="binaural", hrtf=None):
         if tail is not None and tail not in TAILS:
@@ -232,8 +224,6 @@ class Hybrid(SimulationMethod):
         self.n_slopes = n_slopes
         self.decay_db = decay_db
         self.duration = duration
-        self.num_delays = num_delays
-        self.drive_gain = drive_gain
         self.directional_absorption = directional_absorption
         self.late_envelope = self.tail not in ("eyring", "sabine") if late_envelope is None else bool(late_envelope)
         self.diffraction = model
@@ -309,9 +299,7 @@ class Hybrid(SimulationMethod):
         speed_of_sound = float(getattr(room, "c", 343.0))
         # The network needs an int, ``rng + slope``: without a seed, a fresh one from the OS
         rng = self.seed if self.seed is not None else int(np.random.default_rng().integers(2**31))
-        num_delays = self.num_delays
-        if num_delays is None and "binaural" in self.outputs:
-            num_delays = default_num_delays(self.sh_order, minimum=BINAURAL_MIN_DELAYS)
+        num_delays = default_num_delays(self.sh_order)
         generation = {
             "method": self.name,
             "scale": "package",
@@ -376,7 +364,6 @@ class Hybrid(SimulationMethod):
                     sh_order=self.sh_order,
                     duration_s=self.duration,
                     num_delays=num_delays,
-                    drive_gain=self.drive_gain,
                     directional_absorption=self.directional_absorption,
                     late_envelope=reference if self.late_envelope else None,
                     diffraction=self.diffraction or False,

@@ -414,20 +414,12 @@ def route_to_directions(iss: ImageSourceSet, directions: pf.Coordinates, opposit
 
     Each image is assigned to the direction closest to its own direction of
     arrival, by cosine similarity, or with ``opposite`` to the direction closest
-    to the reverse of it. The images that drive the network use the latter: the
-    network is heard from them one traversal of the room later, off the far
-    side (Ewert et al. 2025, Sec. 3.1.2: the channels "representing the
-    spatially opposite hemisphere (including the FDN delays, thus mimicking
-    sound having travelled once through the room and being reflected on the
-    opposite side)"). This generalises the mapping of delay lines
-    to the six faces of a cube in Wendt et al. (2014, Sec. 1.2) to the
-    resolution this package's network already has, since every delay line is
-    given a direction anyway to build the ambisonic output matrix.
-
-    One-hot rather than a soft projection deliberately: a soft assignment would
-    put every image into every delay line, which spreads each reflection over
-    the whole network's delay spread and smears its arrival time. The cost is
-    that the routing is lumpy in energy, which is worth revisiting.
+    to the reverse of it. hybrid-rir @ a272da7 drove its network with the
+    latter, a choice of its own without a reference; the network is now driven
+    by :func:`~compas_acoustics.hybrid.scattering.scattering_weights` with
+    ``opposite``, Ewert et al. (2025, Sec. 3.1.2) as RAZR 0.96.3 implements it.
+    This one-hot form is kept as the sharp limit the tests compare that rule
+    against.
     """
     unit_dir = directions.cartesian
     unit_dir = unit_dir / np.linalg.norm(unit_dir, axis=1, keepdims=True)

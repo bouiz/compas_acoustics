@@ -17,6 +17,7 @@ from compas_acoustics import Source
 from compas_acoustics.hybrid.bands import BANDS
 from compas_acoustics.hybrid.early import ImageSourceSet
 from compas_acoustics.hybrid.early import image_sources
+from compas_acoustics.hybrid import late
 from compas_acoustics.hybrid.early import route_to_directions
 from compas_acoustics.hybrid.late import design_fdn
 from compas_acoustics.hybrid.late import directional_delays
@@ -236,10 +237,11 @@ def test_scattering_moves_energy_from_the_early_to_the_late_field():
     assert b.images.scattered is not None and b.images.wall is not None
 
 
-def test_without_scattering_nothing_changes():
+def test_without_scattering_nothing_changes(monkeypatch):
     """``scattering=False`` gives what the code before surface scattering gave (82833d1, data/hybrid_reference.py)."""
+    # 82833d1 rendered ambisonics only, with 16 delay lines at first order, before MIN_DELAYS became 96
+    monkeypatch.setattr(late, "MIN_DELAYS", 16)
     before = np.load(DATA / "hybrid_reference_82833d1.npz")["rir"]
-    # 82833d1 rendered ambisonics only; a binaural output takes more delay lines (BINAURAL_MIN_DELAYS)
     after = reference_rir(scattering=False, output="ambisonic")
     assert np.any(after[-200:] != 0.0)  # the late field is inside the window
     np.testing.assert_allclose(after, before, rtol=0.0, atol=1e-12 * np.abs(before).max())
@@ -288,7 +290,7 @@ def test_synthesize_assembles_the_tap_from_the_scattered_parts_of_orders_one_to_
         delays = [directional_delays(spec, directions, rng=slope) for slope in range(target.n_slopes)]
         builds = design_fdn(target, delays, sh_order=1, rng=0)
         driving = subset(parts.order == last)
-        drive = render_images(driving, route_to_directions(driving, directions, opposite=True), n_samples)
+        drive = render_images(driving, scattering_weights(driving.doa, directions, opposite=True), n_samples)
         reflected = subset(np.isin(parts.order, tap_orders))
         x, y, z = case["boxsize"]
         free_path = 4.0 * (x * y * z) / (2.0 * (x * y + y * z + x * z))

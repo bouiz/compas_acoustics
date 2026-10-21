@@ -89,22 +89,30 @@ def smear(signal: np.ndarray, decay_time: float, fs: float) -> np.ndarray:
     return out
 
 
-def scattering_weights(doa: pf.Coordinates, directions: pf.Coordinates) -> np.ndarray:
-    """Weights of each image's scattered part on each delay line, shape (M, n_lines).
+def scattering_weights(doa: pf.Coordinates, directions: pf.Coordinates, opposite: bool = False) -> np.ndarray:
+    """Weights of each image on the delay lines of a hemisphere, shape (M, n_lines).
 
-    The paper maps a scattered part onto the "FDN channels on the same
-    hemisphere" (Sec. 3.1.2) by a dot product (Sec. 2.1.2). RAZR does so with
-    ``op.fdn_smart_ch_mapping = 1``, and its FDN input then holds exactly
-    (oracle, ``coupling``): ``w = clip(v . u, 0) / ||clip(v . u, 0)||_2``,
-    with ``v`` the image's direction of arrival, not the wall's normal, and
-    ``u`` a line's direction; the unit l2 norm gives each scattered part the
-    weight of one last-order specular image. ``doa`` and ``directions`` are in
-    the same frame. A part with no line in its hemisphere has no weights.
+    Ewert et al. (2025, Sec. 3.1.2) map a scattered part onto the "FDN channels
+    on the same hemisphere" by a dot product (Sec. 2.1.2), and the last order's
+    specular part onto "those FDN channels representing the spatially opposite
+    hemisphere (including the FDN delays, thus mimicking sound having travelled
+    once through the room and being reflected on the opposite side)". RAZR does
+    both with ``op.fdn_smart_ch_mapping = 1``, and its FDN input then holds
+    exactly (oracle, ``coupling``): ``w = clip(v . u, 0) / ||clip(v . u, 0)||_2``,
+    with ``v`` the image's direction of arrival, ``-v`` with ``opposite``, not
+    the wall's normal, and ``u`` a line's direction; the unit l2 norm gives every
+    image, scattered part or specular drive, the same weight. ``doa`` and
+    ``directions`` are in the same frame. An image with no line in its
+    hemisphere has no weights.
     """
     lines = directions.cartesian
     lines = lines / np.linalg.norm(lines, axis=1, keepdims=True)
+    if doa.cshape == (0,):
+        return np.zeros((0, lines.shape[0]), dtype=float)  # pyfar cannot read the coordinates of an empty set
     arrival = doa.cartesian.reshape(-1, 3)
     arrival = arrival / np.linalg.norm(arrival, axis=1, keepdims=True)
+    if opposite:
+        arrival = -arrival
     weights = np.clip(arrival @ lines.T, 0.0, None)
     norm = np.linalg.norm(weights, axis=1, keepdims=True)
     return weights / np.where(norm > 0.0, norm, 1.0)
