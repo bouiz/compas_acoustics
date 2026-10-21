@@ -117,7 +117,7 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 * Changed `Hybrid` with a binaural output to use at least 24 delay lines when `num_delays` is not given (`BINAURAL_MIN_DELAYS`, RAZR 0.96.3's default): with 16, the late field's octave-band interaural coherence was up to 0.18 above the KEMAR set's diffuse field, with 24 up to 0.04.
 * Changed the spelling of identifiers to `normalization` and `normalized` everywhere, including `ImpulseResponse.normalization` (the ambisonic convention) and its JSON metadata key.
 * Changed `AudioPlayer` to raise errors and `warnings.warn` instead of printing them; the Audio Player component shows them as messages. An unsupported sound type raises a `TypeError`.
-* Changed the seed to default to 42 in `Pyroomacoustics`, `Hybrid` (was 0) and `RayField.from_scene`; `None` also means 42.
+* Changed `seed` of `Pyroomacoustics` and `Hybrid` (was 0) to `True` by default, which seeds with 42 (`DEFAULT_SEED`); an int seeds with that value; `False` (or `None`) leaves the run unseeded, a new draw each run, recorded as `generation["seed"] = None`. Anything else raises a `ValueError`. `RayField.from_scene(random_seed=)` follows the same rule.
 * Changed `Hybrid` to drive the network with the last rendered image source order, as Wendt et al. (2014), RAZR and Ewert et al. (2025) do; hybrid-rir used the next, unrendered order. The search stops at `image_source_order` (29 minutes became 14 seconds on BRAS CR2).
 * Changed `Hybrid` without a reference to run `Pyroomacoustics(ray_tracing=True, image_source_order=3, n_rays=100000, seed=42)` and fit the decay to it.
 * Changed the hybrid's 35 Hz high-pass to a causal filter, which removes pre-arrival ringing in the diffracted paths.

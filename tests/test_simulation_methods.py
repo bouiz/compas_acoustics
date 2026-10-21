@@ -164,13 +164,27 @@ def traced_responses(**kwargs):
     return {ir.receiver.name: ir.denormalized() for ir in scene().simulate(method).values()}
 
 
-def test_the_seed_defaults_to_42_so_that_a_scene_gives_the_same_responses():
-    assert Pyroomacoustics().seed == 42 and Pyroomacoustics(seed=None).seed == 42
-    default, again, none, other = traced_responses(), traced_responses(), traced_responses(seed=None), traced_responses(seed=7)
+def test_the_seed_is_true_42_by_default_false_unseeded_or_an_int():
+    assert Pyroomacoustics().seed == 42 and Pyroomacoustics(seed=True).seed == 42 and Pyroomacoustics(seed=7).seed == 7
+    assert Pyroomacoustics(seed=False).seed is None and Pyroomacoustics(seed=None).seed is None
+    default, again, explicit, other = traced_responses(), traced_responses(), traced_responses(seed=42), traced_responses(seed=7)
+    unseeded, unseeded_again = traced_responses(seed=False), traced_responses(seed=False)
     for name in default:
         np.testing.assert_array_equal(again[name], default[name])
-        np.testing.assert_array_equal(none[name], default[name])
+        np.testing.assert_array_equal(explicit[name], default[name])
         assert not np.array_equal(other[name], default[name])
+        assert not np.array_equal(unseeded[name], default[name]) and not np.array_equal(unseeded_again[name], unseeded[name])
+
+
+def test_an_unseeded_run_records_no_seed():
+    method = Pyroomacoustics(ray_tracing=True, n_rays=2000, duration=0.5, seed=False)
+    assert all(ir.generation["seed"] is None for ir in scene().simulate(method).values())
+
+
+@pytest.mark.parametrize("seed", [1.5, "42"])
+def test_a_seed_that_is_not_a_bool_or_an_int_raises(seed):
+    with pytest.raises(ValueError, match="seed"):
+        Pyroomacoustics(seed=seed)
 
 
 def test_a_scene_without_receivers_returns_nothing():

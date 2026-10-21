@@ -248,17 +248,22 @@ def test_a_sampling_rate_too_low_for_the_8_khz_octave_raises():
         scene.simulate(Hybrid({}, **FAST))
 
 
-def test_the_seed_defaults_to_42_so_that_a_scene_gives_the_same_responses():
-    assert Hybrid().seed == 42 and Hybrid(seed=None).seed == 42
+def test_the_seed_is_true_42_by_default_false_unseeded_or_an_int():
+    assert Hybrid().seed == 42 and Hybrid(seed=True).seed == 42 and Hybrid(seed=1).seed == 1
+    assert Hybrid(seed=False).seed is None and Hybrid(seed=None).seed is None
 
     def response(**kwargs):
         (ir,) = make().simulate(Hybrid(tail="eyring", **FAST, **kwargs)).values()
-        return ir.denormalized()
+        return ir
 
-    default = response()
-    np.testing.assert_array_equal(response(), default)
-    np.testing.assert_array_equal(response(seed=None), default)
-    assert not np.array_equal(response(seed=1), default)
+    default = response().denormalized()
+    np.testing.assert_array_equal(response().denormalized(), default)
+    np.testing.assert_array_equal(response(seed=42).denormalized(), default)
+    assert not np.array_equal(response(seed=1).denormalized(), default)
+    unseeded, unseeded_again = response(seed=False), response(seed=False)
+    assert unseeded.generation["seed"] is None
+    assert not np.array_equal(unseeded.denormalized(), default)
+    assert not np.array_equal(unseeded_again.denormalized(), unseeded.denormalized())
 
 
 def test_decay_db_reaches_the_target():

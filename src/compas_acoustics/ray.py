@@ -367,7 +367,7 @@ class RayField(Data):
         scatter_density: int = 10,
         scatter_max_bounces: int = 1,
         scatter_band: Optional[int] = None,
-        random_seed: int = 42,
+        random_seed: Union[bool, int] = True,
     ):
         """Trace acoustic rays through the scene for visualisation.
 
@@ -411,8 +411,9 @@ class RayField(Data):
         scatter_band : int, optional
             Index of the frequency band whose scattering coefficient to use. Defaults
             to the mean across all bands.
-        random_seed : int, default=42
-            Seed for the scattered-direction sampler, so that the same scene gives the same rays (``None`` is 42 too).
+        random_seed : bool or int, default=True
+            Seed for the scattered-direction sampler. True seeds with 42, so that the same scene gives the same rays;
+            an int seeds with that value; False (or None) leaves it unseeded, new directions each call.
 
         Returns
         -------
@@ -425,6 +426,7 @@ class RayField(Data):
 
         from compas_acoustics.defaults import Defaults
         from compas_acoustics.room_geometry import RoomGeometry
+        from compas_acoustics.simulation_methods.base import _seed
 
         geometry = RoomGeometry.from_scene(scene)
         simulation = geometry.to_pra(Defaults().SAMPLING_RATE, max_reflection_order, ray_tracing=False, air_absorption=False)
@@ -443,7 +445,7 @@ class RayField(Data):
             else:
                 warnings.warn(f"Source '{source.name}' is outside the room and no rays will be traced from it.", UserWarning, stacklevel=2)
 
-        rng = np.random.default_rng(42 if random_seed is None else random_seed)
+        rng = np.random.default_rng(_seed(random_seed))
         if direction is None:
             directions = np.asarray(pra.fibonacci_spherical_sampling(n_rays)).T
         else:

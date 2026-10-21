@@ -30,6 +30,7 @@ from compas_acoustics.room_geometry import pra_octave_grid
 
 from .base import SimulationContext
 from .base import SimulationMethod
+from .base import _seed
 from .base import _warn_if_the_search_is_slow
 from .pra import Pyroomacoustics
 
@@ -119,8 +120,9 @@ class Hybrid(SimulationMethod):
         Air absorption on the image sources and diffracted paths. By default the
         reference's setting, or True without one. It must agree with the
         reference's, because the early field and the decay target share it.
-    seed : int, default=42
-        Seeds the feedback matrices and delay jitter, so that the same scene gives the same responses (``None`` is 42 too).
+    seed : bool or int, default=True
+        Seeds the feedback matrices and delay jitter. True seeds with 42, so that the same scene gives the same responses;
+        an int seeds with that value; False (or None) leaves them unseeded, a new draw each run, recorded as ``generation["seed"] = None``.
     normalize : bool, default=True
         Whether the returned responses are peak-normalized views.
     air : AirConditions, optional
@@ -186,7 +188,7 @@ class Hybrid(SimulationMethod):
     def __init__(self, reference=None, tail=None, sh_order=1, image_source_order=3, normalization="SN3D",
                  n_slopes=1, decay_db=30.0, duration=None, num_delays=None, drive_gain=None,
                  directional_absorption=True, late_envelope=None, diffraction=False,
-                 air_absorption=None, seed=42, normalize=True, air=None, scattering=False,
+                 air_absorption=None, seed=True, normalize=True, air=None, scattering=False,
                  output="binaural", hrtf=None):
         if tail is not None and tail not in TAILS:
             raise ValueError(f"tail must be None or one of {TAILS}, not {tail!r}")
@@ -236,7 +238,7 @@ class Hybrid(SimulationMethod):
         self.late_envelope = self.tail not in ("eyring", "sabine") if late_envelope is None else bool(late_envelope)
         self.diffraction = model
         self.air_absorption = air_absorption
-        self.seed = 42 if seed is None else int(seed)
+        self.seed = _seed(seed)
         self.normalize = normalize
         self.air = air
         self.scattering = bool(scattering)
@@ -305,7 +307,8 @@ class Hybrid(SimulationMethod):
         room = rooms[0]
         scattered_room = rooms[1] if self.scattering else None
         speed_of_sound = float(getattr(room, "c", 343.0))
-        rng = self.seed
+        # The network needs an int, ``rng + slope``: without a seed, a fresh one from the OS
+        rng = self.seed if self.seed is not None else int(np.random.default_rng().integers(2**31))
         num_delays = self.num_delays
         if num_delays is None and "binaural" in self.outputs:
             num_delays = default_num_delays(self.sh_order, minimum=BINAURAL_MIN_DELAYS)

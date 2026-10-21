@@ -83,8 +83,8 @@ def ray_traced_rirs(
     ray-traced energy; hybrid-rir measured 6 to 10 as the range where the
     decay stops depending on it. ``duration`` defaults to
     :func:`default_duration`. ``n_rays=None`` takes pyroomacoustics' heuristic,
-    raised to ``MIN_RAYS``. ``seed`` seeds pyroomacoustics' generators; without
-    scattering nothing is random.
+    raised to ``MIN_RAYS``. ``seed`` seeds pyroomacoustics' generators; None
+    draws a fresh seed from the OS. Without scattering nothing is random.
     ``air`` (:class:`AirConditions`) sets the speed of sound and the air absorption (see :meth:`RoomGeometry.to_pra`).
     """
     if duration is None:
@@ -98,11 +98,11 @@ def ray_traced_rirs(
         "time_thres": float(duration),
         "hist_bin_size": _HIST_BIN,
     }
-    if seed is not None:
-        # numpy only, as hybrid-rir: seeding libroom as well draws different
-        # noise for the ray-traced tail (same envelope, 0.1 dB per window),
-        # which breaks sample parity with upstream. Repeatable either way.
-        pra.random.seed(seed)
+    # numpy only, as hybrid-rir: seeding libroom as well draws different
+    # noise for the ray-traced tail (same envelope, 0.1 dB per window),
+    # which breaks sample parity with upstream. Repeatable either way.
+    # None reseeds from the OS rather than continuing an earlier run's stream.
+    pra.random.seed(seed)
     with pra_octave_grid():
         room = geometry.to_pra(fs, max_order, ray_tracing=True, air_absorption=air_absorption, air=air)
         for source in sources:

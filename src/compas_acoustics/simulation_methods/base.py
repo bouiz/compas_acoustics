@@ -23,6 +23,7 @@ mixed, analysed and auralised alike:
 
 from __future__ import annotations
 
+import numbers
 import warnings
 from abc import ABC
 from abc import abstractmethod
@@ -34,7 +35,19 @@ import numpy as np
 
 from compas_acoustics.room_geometry import RoomGeometry
 
-__all__ = ['SimulationContext', 'SimulationMethod', 'image_source_search_seconds']
+__all__ = ['SimulationContext', 'SimulationMethod', 'image_source_search_seconds', 'DEFAULT_SEED']
+
+#: The seed ``seed=True``, every method's default, stands for
+DEFAULT_SEED = 42
+
+
+def _seed(seed):
+    """A method's ``seed`` as the int to seed with, or None for no seed: True is :data:`DEFAULT_SEED`, False or None none."""
+    if seed is None or isinstance(seed, (bool, np.bool_)):
+        return DEFAULT_SEED if seed else None
+    if isinstance(seed, numbers.Integral):
+        return int(seed)
+    raise ValueError(f"seed must be True, False or an int, not {seed!r}")
 
 
 def image_source_search_seconds(n_faces: int, order: int) -> float:

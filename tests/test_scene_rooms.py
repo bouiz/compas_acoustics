@@ -37,6 +37,26 @@ def test_trace_rays_runs_on_room_geometry():
     assert len(field.rays) == 20
 
 
+def test_the_ray_field_seed_is_true_42_by_default_false_unseeded_or_an_int():
+    scene = Scene("scattering")
+    scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(7, 5, 3, materials=AcousticMaterial("wall", 0.2, 0.5)))
+    scene.add_source(Source("src", 1.5, 1.5, 1.6))
+
+    def scattered(**kwargs):
+        field = RayField.from_scene(scene, n_rays=5, max_reflection_order=3, include_scattering=True, **kwargs)
+        return np.concatenate([np.asarray(ray.direction, dtype=float) for ray in field.scattered_rays])
+
+    default = scattered()
+    np.testing.assert_array_equal(scattered(), default)
+    np.testing.assert_array_equal(scattered(random_seed=True), default)
+    np.testing.assert_array_equal(scattered(random_seed=42), default)
+    assert not np.array_equal(scattered(random_seed=7), default)
+    unseeded = scattered(random_seed=False)
+    assert not np.array_equal(unseeded, default) and not np.array_equal(scattered(random_seed=None), unseeded)
+    with pytest.raises(ValueError, match="seed"):
+        scattered(random_seed=1.5)
+
+
 def test_ray_field_has_no_merge_coplanar_argument():
     with pytest.raises(TypeError):
         RayField.from_scene(shoebox_scene(), n_rays=5, merge_coplanar=True)

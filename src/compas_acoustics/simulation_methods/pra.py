@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Optional
+from typing import Union
 
 import numpy as np
 import pyroomacoustics as pra
@@ -15,8 +16,10 @@ from compas_acoustics.raytracing import _on_package_scale
 from compas_acoustics.raytracing import ray_traced_rirs
 from compas_acoustics.room_geometry import pra_octave_grid
 
+from .base import DEFAULT_SEED
 from .base import SimulationContext
 from .base import SimulationMethod
+from .base import _seed
 from .base import _warn_if_the_search_is_slow
 
 __all__ = ['Pyroomacoustics']
@@ -55,9 +58,10 @@ class Pyroomacoustics(SimulationMethod):
         their natural length.
     receiver_radius : float, default=0.5
         Radius of the ray-tracing receivers in metres.
-    seed : int, default=42
-        Seeds pyroomacoustics' generator, so that the same scene gives the same responses (``None`` is 42 too).
-        The T30 spread between seeds is the ray tracer's own variance: change the seed to see it.
+    seed : bool or int, default=True
+        Seeds pyroomacoustics' generator. True seeds with 42, so that the same scene gives the same responses;
+        an int seeds with that value; False (or None) leaves it unseeded, a new draw each run, recorded as
+        ``generation["seed"] = None``. The T30 spread between seeds is the ray tracer's own variance: change the seed to see it.
     normalize : bool, default=True
         Whether the returned responses are peak-normalized views.
     air : AirConditions, optional
@@ -96,14 +100,14 @@ class Pyroomacoustics(SimulationMethod):
         "energy_thres": 1e-8,
         "duration": None,
         "receiver_radius": 0.5,
-        "seed": 42,
+        "seed": DEFAULT_SEED,
     }
 
     def __init__(self, image_source_order: int = 3, ray_tracing: bool = True, air_absorption: bool = True,
                  n_rays: Optional[int] = 20_000, energy_thres: float = 1e-8, duration: Optional[float] = None,
-                 receiver_radius: float = 0.5, seed: int = 42, normalize: bool = True,
+                 receiver_radius: float = 0.5, seed: Union[bool, int] = True, normalize: bool = True,
                  air: Optional[AirConditions] = None):
-        seed = 42 if seed is None else int(seed)
+        seed = _seed(seed)
         given = {"n_rays": n_rays, "energy_thres": energy_thres, "duration": duration,
                  "receiver_radius": receiver_radius, "seed": seed}
         if not ray_tracing:
