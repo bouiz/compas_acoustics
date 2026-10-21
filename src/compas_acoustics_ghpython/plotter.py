@@ -9,10 +9,9 @@ from compas_acoustics.analyser import frequency_response
 from compas_acoustics.analyser import time_response
 from compas_acoustics.ir import ImpulseResponse
 
-# The frequency axis of a frequency response, and its ticks at the octave centres
+# The frequency axis of a frequency response, and its ticks at 1, 2 and 5 times the powers of ten
 FREQUENCY_AXIS = (20.0, 20000.0)
-OCTAVE_TICKS = [(31.5, "31.5"), (63, "63"), (125, "125"), (250, "250"), (500, "500"),
-                (1000, "1k"), (2000, "2k"), (4000, "4k"), (8000, "8k"), (16000, "16k")]
+FREQUENCY_TICKS = [50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000]
 
 # A curve is drawn with the minimum and maximum of each of this many bins along the x axis
 CURVE_BINS = 1000
@@ -356,7 +355,7 @@ class Plotter2D:
         """The x axis, its ticks and the polylines of a curve, one per channel; returns the x labels, their points and the y ticks.
 
         The x axis is linear from nice ticks around the data (time), or logarithmic over
-        :data:`FREQUENCY_AXIS` with ticks at the octave centres (frequency). A signed curve (an
+        :data:`FREQUENCY_AXIS` with ticks at 50, 100, 200, 500 ... 20000 Hz (frequency). A signed curve (an
         amplitude) gets a y range symmetric about zero and its x axis at zero; a level in dB
         runs from its floor on the x axis to its peak.
         """
@@ -364,7 +363,7 @@ class Plotter2D:
         values = np.atleast_2d(np.asarray(self.values, dtype=float))
         if self.param.x_scale == "log":
             low, high = FREQUENCY_AXIS
-            ticks = [(f, label) for f, label in OCTAVE_TICKS if low <= f <= high]
+            ticks = [(f, str(f)) for f in FREQUENCY_TICKS if low <= f <= high]
 
             def position(v):
                 return (np.log10(v) - math.log10(low)) / (math.log10(high) - math.log10(low))

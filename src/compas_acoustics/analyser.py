@@ -58,6 +58,9 @@ _REVERBERATION_TIME = getattr(pyrato, 'parameters', pyrato).reverberation_time_l
 _START_THRESHOLD_DB = 20.0
 _GEOMETRIC_SEARCH_LEAD = 0.001
 
+# Floor of the levels of time_response and frequency_response, in dB below the peak
+_RESPONSE_FLOOR_DB = 100.0
+
 
 def _iso3382_start(ir_array, threshold_db=_START_THRESHOLD_DB):
     """Start sample of an impulse response as ``ita_start_IR`` (ITA Toolbox) finds it, after ISO 3382-1.
@@ -100,7 +103,7 @@ def _decay_end(ir, trim_db, margin=0.05):
     return min(ir.shape[1], int(np.ceil(below[0] * (1 + margin))))
 
 
-def time_response(ir, sampling_rate, db=True, dynamic_range=100.0, trim_db=None):
+def time_response(ir, sampling_rate, db=True, trim_db=None):
     """The impulse response against time, per channel.
 
     Parameters
@@ -110,13 +113,12 @@ def time_response(ir, sampling_rate, db=True, dynamic_range=100.0, trim_db=None)
     sampling_rate : int
     db : bool, optional
         ``True``: the level ``20 log10 |h|`` in dB re the peak of all channels, so that level
-        differences between channels are kept, floored ``dynamic_range`` dB below it.
+        differences between channels are kept, floored 100 dB below it.
         ``False``: the amplitude.
-    dynamic_range : float, optional
     trim_db : float, optional
         Ends the response 5 % after its Schroeder curve (the energy of all channels) falls this
-        far below its start, e.g. ``dynamic_range`` for a level plot: the rest lies under its
-        floor. The Schroeder curve, unlike single samples, is not lengthened by a stray late bin.
+        far below its start. The Schroeder curve, unlike single samples, is not lengthened by a
+        stray late bin.
 
     Returns
     -------
@@ -133,11 +135,11 @@ def time_response(ir, sampling_rate, db=True, dynamic_range=100.0, trim_db=None)
         return times, ir
     peak = np.max(np.abs(ir))
     if peak == 0:
-        return times, np.full_like(ir, -dynamic_range)
-    return times, 20 * np.log10(np.maximum(np.abs(ir) / peak, 10 ** (-dynamic_range / 20)))
+        return times, np.full_like(ir, -_RESPONSE_FLOOR_DB)
+    return times, 20 * np.log10(np.maximum(np.abs(ir) / peak, 10 ** (-_RESPONSE_FLOOR_DB / 20)))
 
 
-def frequency_response(ir, sampling_rate, num_fractions=3, frequency_range=(20.0, 20000.0), dynamic_range=100.0):
+def frequency_response(ir, sampling_rate, num_fractions=3, frequency_range=(20.0, 20000.0)):
     """The magnitude response, fractional-octave smoothed, per channel.
 
     Parameters
@@ -149,15 +151,13 @@ def frequency_response(ir, sampling_rate, num_fractions=3, frequency_range=(20.0
         Smoothing width in fractions of an octave (``pyfar.dsp.smooth_fractional_octave``).
     frequency_range : tuple of float, optional
         Bins kept, in Hz.
-    dynamic_range : float, optional
-        Floor below the peak, in dB.
 
     Returns
     -------
     frequencies : np.ndarray
         (bins,), in Hz.
     values : np.ndarray
-        (channels, bins), in dB re the peak of all channels.
+        (channels, bins), in dB re the peak of all channels, floored 100 dB below it.
     """
     signal = pf.Signal(_channels_first(ir), sampling_rate)
     smoothed, _ = pf.dsp.smooth_fractional_octave(signal, num_fractions=num_fractions)
@@ -165,8 +165,8 @@ def frequency_response(ir, sampling_rate, num_fractions=3, frequency_range=(20.0
     magnitude = np.abs(smoothed.freq[..., keep])
     peak = np.max(magnitude)
     if peak == 0:
-        return smoothed.frequencies[keep], np.full(magnitude.shape, -dynamic_range)
-    return smoothed.frequencies[keep], 20 * np.log10(np.maximum(magnitude / peak, 10 ** (-dynamic_range / 20)))
+        return smoothed.frequencies[keep], np.full(magnitude.shape, -_RESPONSE_FLOOR_DB)
+    return smoothed.frequencies[keep], 20 * np.log10(np.maximum(magnitude / peak, 10 ** (-_RESPONSE_FLOOR_DB / 20)))
 
 
 class AcousticAnalyser:

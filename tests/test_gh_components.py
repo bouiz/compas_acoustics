@@ -1218,7 +1218,7 @@ def test_a_level_in_db_runs_from_its_floor_on_the_x_axis_to_its_peak(monkeypatch
     assert chart.x_axis_line[0].Y == pytest.approx(0.0)
 
 
-def test_a_frequency_response_plots_on_a_log_axis_with_octave_ticks(monkeypatch):
+def test_a_frequency_response_plots_on_a_log_axis_with_ticks_at_1_2_5_times_powers_of_ten(monkeypatch):
     load_component("CA_Plot_2D", monkeypatch)
     import compas_acoustics_ghpython.plotter as plotter
 
@@ -1228,8 +1228,8 @@ def test_a_frequency_response_plots_on_a_log_axis_with_octave_ticks(monkeypatch)
                                       "Frequency (Hz)", "Level (dB)", x_scale="log")
     chart = plotter.Plotter2D(curve)
     chart.plot(plane=FakePlane(Vec(0, 0), Vec(1, 0), Vec(0, 1)), width=12.0, height=5.0)
-    assert [label.PlainText for label in chart.x_tick_labels] == ["31.5", "63", "125", "250", "500", "1k", "2k", "4k", "8k", "16k"]
-    assert chart.x_axis_points[5].X == pytest.approx(12.0 * np.log10(1000 / 20) / 3)
+    assert [label.PlainText for label in chart.x_tick_labels] == ["50", "100", "200", "500", "1000", "2000", "5000", "10000", "20000"]
+    assert chart.x_axis_points[4].X == pytest.approx(12.0 * np.log10(1000 / 20) / 3)
     (polyline,) = chart.data_polyline
     assert len(polyline) == 500 and polyline[0].X == pytest.approx(0.0) and polyline[-1].X == pytest.approx(12.0)
 
