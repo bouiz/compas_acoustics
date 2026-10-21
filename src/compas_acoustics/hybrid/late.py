@@ -90,7 +90,7 @@ def fdn_directions(sh_order: int, num_delays: int | None = None) -> pf.Coordinat
     return directions
 
 
-def default_num_delays(sh_order: int) -> int:
+def default_num_delays(sh_order: int, minimum: int = 16) -> int:
     """Smallest workable number of delay lines for an ambisonic order.
 
     ``num_delays`` and ``sh_order`` are coupled twice: the direction grid must
@@ -103,11 +103,11 @@ def default_num_delays(sh_order: int) -> int:
     Searched rather than computed, because the counts that satisfy both
     conditions are irregular: 20, 23, 24, 27, 28 ... at second order. The
     search starts at ``4 (N + 1) ** 2``: more lines than the order strictly
-    needs, for echo density.
+    needs, for echo density, and never below ``minimum``.
     """
     if sh_order < 0:
         raise ValueError("sh_order must be non-negative")
-    start = max(16, 4 * (sh_order + 1) ** 2)
+    start = max(minimum, 4 * (sh_order + 1) ** 2)
     for num_delays in range(start, 4 * start + 1):
         directions = spharpy.samplings.equal_area(n_max=sh_order, n_points=num_delays)
         if directions.cshape[0] != num_delays:

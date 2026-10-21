@@ -52,6 +52,27 @@ def deltas(directions):
     return HrtfSet(hrirs, np.asarray(directions, dtype=float), FS)
 
 
+def test_a_binaural_output_has_at_least_razrs_delay_lines():
+    from compas_acoustics.hybrid.late import default_num_delays
+    from compas_acoustics.simulation_methods.hybrid import BINAURAL_MIN_DELAYS
+
+    assert BINAURAL_MIN_DELAYS == 24 and default_num_delays(1, minimum=24) == 24
+    for output in ("binaural", ["ambisonic", "binaural"]):
+        hybrid = ca.Hybrid(**FAST, output=output)
+        ir = one(evaluation_scene().simulate(hybrid))
+        assert ir.generation["num_delays"] == 24
+        assert one(hybrid.results).late_lines.shape[1] == 24
+
+
+def test_an_ambisonic_output_keeps_the_order_default_and_num_delays_wins():
+    hybrid = ca.Hybrid(**FAST, output="ambisonic")
+    assert one(evaluation_scene().simulate(hybrid)).generation["num_delays"] is None
+    assert one(hybrid.results).late_lines.shape[1] == 16
+    hybrid = ca.Hybrid(**FAST, output="binaural", num_delays=16)
+    evaluation_scene().simulate(hybrid)
+    assert one(hybrid.results).late_lines.shape[1] == 16
+
+
 def test_the_default_output_is_binaural():
     ir = one(evaluation_scene().simulate(ca.Hybrid(**FAST)))
     assert ir.n_channels == 2 and ir.ambisonic_order is None

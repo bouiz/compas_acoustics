@@ -18,6 +18,7 @@ from compas_acoustics.air import AirConditions
 from compas_acoustics.air import air_or_default
 from compas_acoustics.hybrid import UPSTREAM_REVISION
 from compas_acoustics.hybrid.early import image_sources
+from compas_acoustics.hybrid.late import default_num_delays
 from compas_acoustics.hybrid.pair import Pair
 from compas_acoustics.hybrid.scattering import complementary_scattering
 from compas_acoustics.hybrid.synthesis import synthesize
@@ -32,7 +33,7 @@ from .base import SimulationMethod
 from .base import _warn_if_the_search_is_slow
 from .pra import Pyroomacoustics
 
-__all__ = ["Hybrid", "TAILS", "OUTPUTS"]
+__all__ = ["Hybrid", "TAILS", "OUTPUTS", "BINAURAL_MIN_DELAYS"]
 
 #: Where the decay target of the late field comes from.
 TAILS = ("reference", "ray_tracing", "eyring", "sabine")
@@ -42,6 +43,10 @@ OUTPUTS = {"ambisonic": "hybrid", "binaural": "hybrid_binaural"}
 
 # The 8 kHz octave's upper edge must lie below Nyquist for pyFDN's band estimator.
 _MIN_SAMPLING_RATE = 2.0 * 8000.0 * np.sqrt(2.0)
+
+#: Fewest delay lines with a binaural output, each heard through its own HRIR: RAZR 0.96.3's default
+#: ``op.fdn_numDelays`` (``get_default_options.m``), which also spatialises one HRIR per line.
+BINAURAL_MIN_DELAYS = 24
 
 
 class Hybrid(SimulationMethod):
@@ -93,7 +98,11 @@ class Hybrid(SimulationMethod):
     duration : float, optional
         Length in seconds; defaults to 1.5 times the longest target RT.
     num_delays : int, optional
-        Delay lines; defaults to the smallest count supporting ``sh_order``.
+        Delay lines; defaults to the smallest count supporting ``sh_order``, and
+        with a binaural output to at least ``BINAURAL_MIN_DELAYS`` (24, RAZR 0.96.3's
+        default ``op.fdn_numDelays``): each line is heard through the HRIR of its
+        direction, and with the KEMAR set 16 lines leave the late field's octave-band
+        interaural coherence up to 0.18 above the diffuse field's, 24 lines 0.04.
     drive_gain : float, optional
         Gain on the network input; defaults to ``sqrt(num_delays)``.
     directional_absorption : bool, default=True
@@ -297,6 +306,9 @@ class Hybrid(SimulationMethod):
         scattered_room = rooms[1] if self.scattering else None
         speed_of_sound = float(getattr(room, "c", 343.0))
         rng = self.seed
+        num_delays = self.num_delays
+        if num_delays is None and "binaural" in self.outputs:
+            num_delays = default_num_delays(self.sh_order, minimum=BINAURAL_MIN_DELAYS)
         generation = {
             "method": self.name,
             "scale": "package",
@@ -314,6 +326,7 @@ class Hybrid(SimulationMethod):
             "late_envelope": self.late_envelope,
             "directional_absorption": self.directional_absorption,
             "scattering": self.scattering,
+            "num_delays": num_delays,
             "seed": self.seed,
             "scene": getattr(context.scene, "name", None),
             "upstream": f"hybrid-rir @ {UPSTREAM_REVISION}",
@@ -359,7 +372,7 @@ class Hybrid(SimulationMethod):
                     max_order=self.image_source_order,
                     sh_order=self.sh_order,
                     duration_s=self.duration,
-                    num_delays=self.num_delays,
+                    num_delays=num_delays,
                     drive_gain=self.drive_gain,
                     directional_absorption=self.directional_absorption,
                     late_envelope=reference if self.late_envelope else None,

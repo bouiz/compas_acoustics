@@ -116,6 +116,7 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 
 ### Changed
 
+* Changed `Hybrid` with a binaural output to use at least 24 delay lines when `num_delays` is not given (`BINAURAL_MIN_DELAYS`, RAZR 0.96.3's default): with 16, the late field's octave-band interaural coherence was up to 0.18 above the KEMAR set's diffuse field, with 24 up to 0.04.
 * Changed the spelling of identifiers to `normalization` and `normalized` everywhere, including `ImpulseResponse.normalization` (the ambisonic convention) and its JSON metadata key.
 * Changed `AudioPlayer` to raise errors and `warnings.warn` instead of printing them; the Audio Player component shows them as messages. An unsupported sound type raises a `TypeError`.
 * Changed the seed to default to 42 in `Pyroomacoustics`, `Hybrid` (was 0) and `RayField.from_scene`; `None` also means 42.

@@ -239,10 +239,11 @@ def test_scattering_moves_energy_from_the_early_to_the_late_field():
 def test_without_scattering_nothing_changes():
     """``scattering=False`` gives what the code before surface scattering gave (82833d1, data/hybrid_reference.py)."""
     before = np.load(DATA / "hybrid_reference_82833d1.npz")["rir"]
-    after = reference_rir(scattering=False)
+    # 82833d1 rendered ambisonics only; a binaural output takes more delay lines (BINAURAL_MIN_DELAYS)
+    after = reference_rir(scattering=False, output="ambisonic")
     assert np.any(after[-200:] != 0.0)  # the late field is inside the window
     np.testing.assert_allclose(after, before, rtol=0.0, atol=1e-12 * np.abs(before).max())
-    assert np.array_equal(reference_rir(), after)
+    assert np.array_equal(reference_rir(output="ambisonic"), after)
 
 
 def test_scattering_is_off_by_default():
