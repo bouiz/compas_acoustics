@@ -112,6 +112,7 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 * Added the Grasshopper installer for Rhino 8 (`installer/compas_acoustics_installer.gh`), `invoke installer-bundle`, and `compas-dev/compas-actions` v1 workflows (build, release, `prepare release`), with tests on Python 3.9.
 * Added `examples/office_hybrid.py`, which runs both methods on an office.
 * Added a getting-started section to the README, and `Examples` sections that `invoke testdocs` can run in the docstrings of `Scene`, `Pyroomacoustics`, `Hybrid`, `AcousticAnalyser` and `Auraliser`.
+* Added `SpecularReflections.from_scene(scene, max_order=3)`, the image-source paths from each source to each receiver for inspection, with `filter(source_index, receiver_index, order)`.
 
 ### Changed
 
