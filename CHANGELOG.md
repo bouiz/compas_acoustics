@@ -115,6 +115,7 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 * Added a getting-started section to the README, and `Examples` sections that `invoke testdocs` can run in the docstrings of `Scene`, `Pyroomacoustics`, `Hybrid`, `AcousticAnalyser` and `Auraliser`.
 * Added `SpecularReflections.from_scene(scene, max_order=3)`, the image-source paths from each source to each receiver for inspection, with `filter(source_index, receiver_index, order)`.
 * Added the Specular Reflections component: image-source paths of a source-receiver pair by order.
+* Added the Ray Field component: rays traced from the sources, for display and the Billiard.
 
 ### Changed
 

@@ -1358,6 +1358,89 @@ def test_the_specular_reflections_inputs_match_its_script(monkeypatch):
     assert (metadata["name"], metadata["nickname"], metadata["subcategory"]) == ("Specular Reflections", "Spec", "05 Display")
 
 
+# ------------------------------------------------------------------ Ray Field --
+def test_ray_field_traces_with_the_python_defaults_and_a_drawn_seed(monkeypatch):
+    module, _ = load_component("CA_Ray_Field", monkeypatch)
+    field, rays, scattered = module.RayFieldComponent().RunScript(scene(), None, None, None, None, None, None, None)
+    assert len(field) == 500 and scattered == []
+    assert "seed" in module.ghenv.Component.Message
+
+
+def test_ray_field_order_truncates_only_the_drawn_rays(monkeypatch):
+    module, _ = load_component("CA_Ray_Field", monkeypatch)
+    module.Rhino.Geometry.Polyline = RecordingPolyline
+    field, rays, _ = module.RayFieldComponent().RunScript(scene(), 20, 6, None, None, None, 1, 2)
+    assert max(r.reflection_order for r in field) > 2
+    assert len(rays) == 20 and max(len(r) for r in rays) == 3
+    for polyline, ray in zip(rays, field):
+        assert polyline == [tuple(point) for point in ray.points[:3]]
+
+
+def test_ray_field_gives_the_whole_rays_without_an_order(monkeypatch):
+    module, _ = load_component("CA_Ray_Field", monkeypatch)
+    module.Rhino.Geometry.Polyline = RecordingPolyline
+    field, rays, _ = module.RayFieldComponent().RunScript(scene(), 5, 4, None, None, None, 1, None)
+    assert [len(r) for r in rays] == [len(ray.points) for ray in field]
+
+
+def test_ray_field_scattering_gives_the_scattered_polylines_and_a_given_seed(monkeypatch):
+    module, _ = load_component("CA_Ray_Field", monkeypatch)
+    module.Rhino.Geometry.Polyline = RecordingPolyline
+    field, rays, scattered = module.RayFieldComponent().RunScript(scene(), 10, 3, None, None, True, 7, None)
+    assert len(scattered) == len(field.scattered_rays) > 0
+    assert [tuple(p) for p in field.scattered_rays[0].points] == scattered[0]
+    assert module.ghenv.Component.Message.endswith("seed=7")
+    again, *_ = module.RayFieldComponent().RunScript(scene(), 10, 3, None, None, True, 7, None)
+    assert [tuple(p) for p in again.scattered_rays[0].points] == scattered[0]
+
+
+def test_ray_field_order_truncates_the_scattered_rays_too(monkeypatch):
+    module, _ = load_component("CA_Ray_Field", monkeypatch)
+    module.Rhino.Geometry.Polyline = RecordingPolyline
+    field, _, scattered = module.RayFieldComponent().RunScript(scene(), 10, 4, None, None, True, 7, 1)
+    assert len(scattered) == len(field.truncated(reflection_order=1).scattered_rays) < len(field.scattered_rays)
+
+
+def test_ray_field_emits_into_a_cone(monkeypatch):
+    module, messages = load_component("CA_Ray_Field", monkeypatch)
+    field, *_ = module.RayFieldComponent().RunScript(scene(), 20, 2, xyz(1, 0, 0), 30, None, 1, None)
+    assert len(field) == 20 and not messages
+    assert all(ray.direction.angle([1, 0, 0], degrees=True) <= 30 + 1e-6 for ray in field)
+
+
+def test_direction_without_angle_is_a_warning_not_a_traceback(monkeypatch):
+    module, messages = load_component("CA_Ray_Field", monkeypatch)
+    out = module.RayFieldComponent().RunScript(scene(), 20, 3, xyz(1, 0, 0), None, None, 1, None)
+    assert any("angle" in m for m in messages) and out == (None,) * 3
+
+
+def test_ray_field_without_a_scene_warns(monkeypatch):
+    module, messages = load_component("CA_Ray_Field", monkeypatch, levels=True)
+    assert module.RayFieldComponent().RunScript(None, None, None, None, None, None, None, None) == (None,) * 3
+    assert messages == [("warning", "Input parameter 'scene' failed to collect data.")]
+
+
+def test_ray_field_shows_the_scenes_warnings(monkeypatch):
+    module, messages = load_component("CA_Ray_Field", monkeypatch, levels=True)
+    s = scene()
+    s.add_source(Source("outside", 50, 50, 50))
+    module.RayFieldComponent().RunScript(s, 5, 2, None, None, None, 1, None)
+    assert any(level == "warning" and "outside" in text for level, text in messages)
+
+
+def test_the_ray_field_inputs_match_its_script(monkeypatch):
+    import inspect
+    import json
+
+    module, _ = load_component("CA_Ray_Field", monkeypatch)
+    metadata = json.loads((COMPONENTS / "CA_Ray_Field" / "metadata.json").read_text())
+    parameters = list(inspect.signature(module.RayFieldComponent.RunScript).parameters)[1:]
+    assert parameters == [p["name"] for p in metadata["ghpython"]["inputParameters"]]
+    assert parameters == ["scene", "n_rays", "max_order", "direction", "angle", "scattering", "seed", "order"]
+    assert [p["name"] for p in metadata["ghpython"]["outputParameters"]] == ["ray_field", "rays", "scattered"]
+    assert (metadata["name"], metadata["nickname"], metadata["subcategory"]) == ("Ray Field", "Rays", "05 Display")
+
+
 def test_components_with_list_inputs_import_system():
     import json
     import re
