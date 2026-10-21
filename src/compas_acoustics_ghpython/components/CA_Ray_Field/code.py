@@ -15,12 +15,20 @@ def _polyline(ray):
 
 class RayFieldComponent(Grasshopper.Kernel.GH_ScriptInstance):
 
-    def RunScript(self, scene, n_rays, max_order, direction, angle, scattering, seed, order):
+    def RunScript(self, scene, source_idx, n_rays, max_order, direction, angle, scattering, seed, order):
 
         empty = (None,) * 3
         if scene is None:
             ghenv.Component.AddRuntimeMessage(
                 Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning, "Input parameter 'scene' failed to collect data."
+            )
+            return empty
+
+        count = len(scene.sources)
+        if source_idx is not None and not 0 <= source_idx < count:
+            ghenv.Component.AddRuntimeMessage(
+                Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning,
+                "No source at index {}; the scene has {} source(s), 0 to {}.".format(source_idx, count, count - 1),
             )
             return empty
 
@@ -43,6 +51,7 @@ class RayFieldComponent(Grasshopper.Kernel.GH_ScriptInstance):
             try:
                 field = RayField.from_scene(
                     scene,
+                    sources=None if source_idx is None else [scene.sources[source_idx]],
                     n_rays=n_rays,
                     max_reflection_order=max_order,
                     include_scattering=bool(scattering),

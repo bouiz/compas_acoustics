@@ -402,6 +402,7 @@ class RayField(Data):
             Energy threshold below which a ray is stopped (based on surface absorption).
         sources : list of :class:`compas_acoustics.Source`, optional
             The sources to shoot rays from. Defaults to all sources in the scene.
+            Each ray's ``source_index`` is its source's index in ``scene.sources``.
         include_scattering : bool, default=False
             Whether to spawn coefficient-driven scattered (diffuse) rays at each reflection.
         scatter_density : int, default=10
@@ -438,10 +439,12 @@ class RayField(Data):
         if sources is None:
             sources = scene.sources
 
+        # A ray keeps its source's index in the scene, whichever sources are traced
+        scene_index = {id(source): index for index, source in enumerate(scene.sources)}
         sim_sources = []
-        for source in sources:
+        for position, source in enumerate(sources):
             if simulation.is_inside(source.position):
-                sim_sources.append(source)
+                sim_sources.append((scene_index.get(id(source), position), source))
             else:
                 warnings.warn(f"Source '{source.name}' is outside the room and no rays will be traced from it.", UserWarning, stacklevel=2)
 
@@ -454,7 +457,7 @@ class RayField(Data):
         distance_thres = time_thres * sound_speed if time_thres is not None else None
 
         rays = []
-        for source_index, source in enumerate(sim_sources):
+        for source_index, source in sim_sources:
             source_position = np.asarray(source.position, dtype=float)
 
             for ray_index in range(directions.shape[0]):

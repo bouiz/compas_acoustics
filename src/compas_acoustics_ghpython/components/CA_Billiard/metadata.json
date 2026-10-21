@@ -44,10 +44,6 @@
                 "description": "The position of every ray that has not ended yet at the time, as points."
             },
             {
-                "name": "trails",
-                "description": "The rays from the source up to the time, as polylines."
-            },
-            {
                 "name": "t",
                 "description": "The time shown, in ms."
             }

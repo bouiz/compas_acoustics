@@ -13,12 +13,6 @@ def _now():
     return time.time()
 
 
-def _polyline(ray):
-    polyline = Rhino.Geometry.Polyline()
-    polyline.AddRange([Rhino.Geometry.Point3d(*point) for point in ray.points])
-    return polyline
-
-
 class BilliardComponent(Grasshopper.Kernel.GH_ScriptInstance):
 
     def RunScript(self, ray_field, time, play, speed):
@@ -28,7 +22,7 @@ class BilliardComponent(Grasshopper.Kernel.GH_ScriptInstance):
             ghenv.Component.Message = ""
             text = "Input parameter 'ray_field' failed to collect data." if ray_field is None else "The ray field has no rays."
             ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning, text)
-            return (None,) * 3
+            return (None,) * 2
 
         duration = ray_field.duration_ms
         key = "compas_acoustics.billiard." + str(ghenv.Component.InstanceGuid)
@@ -74,9 +68,7 @@ class BilliardComponent(Grasshopper.Kernel.GH_ScriptInstance):
             ghenv.Component.Message = "t = {:.1f} ms".format(t)
 
         points, _ = ray_field.particles(t)
-        particles = [Rhino.Geometry.Point3d(*point) for point in points]
-        trails = [_polyline(ray) for ray in ray_field.truncated(travel_time_ms=t)]
-        return particles, trails, t
+        return [Rhino.Geometry.Point3d(*point) for point in points], t
 
     @staticmethod
     def _schedule_next_frame():

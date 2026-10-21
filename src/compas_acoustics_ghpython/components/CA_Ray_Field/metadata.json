@@ -17,6 +17,13 @@
                 "typeHintID": "ghdoc"
             },
             {
+                "name": "source_idx",
+                "description": "Index of the source to trace from, in the order of the scene's sources. Empty (default): every source.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "int"
+            },
+            {
                 "name": "n_rays",
                 "description": "Number of rays per source (default 500).",
                 "optional": true,

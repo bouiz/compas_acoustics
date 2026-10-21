@@ -1375,7 +1375,7 @@ def test_the_specular_reflections_inputs_match_its_script(monkeypatch):
 # ------------------------------------------------------------------ Ray Field --
 def test_ray_field_traces_with_the_python_defaults_and_a_drawn_seed(monkeypatch):
     module, _ = load_component("CA_Ray_Field", monkeypatch)
-    field, rays, scattered = module.RayFieldComponent().RunScript(scene(), None, None, None, None, None, None, None)
+    field, rays, scattered = module.RayFieldComponent().RunScript(scene(), None, None, None, None, None, None, None, None)
     assert len(field) == 500 and scattered == []
     assert "seed" in module.ghenv.Component.Message
 
@@ -1383,7 +1383,7 @@ def test_ray_field_traces_with_the_python_defaults_and_a_drawn_seed(monkeypatch)
 def test_ray_field_order_truncates_only_the_drawn_rays(monkeypatch):
     module, _ = load_component("CA_Ray_Field", monkeypatch)
     module.Rhino.Geometry.Polyline = RecordingPolyline
-    field, rays, _ = module.RayFieldComponent().RunScript(scene(), 20, 6, None, None, None, 1, 2)
+    field, rays, _ = module.RayFieldComponent().RunScript(scene(), None, 20, 6, None, None, None, 1, 2)
     assert max(r.reflection_order for r in field) > 2
     assert len(rays) == 20 and max(len(r) for r in rays) == 3
     for polyline, ray in zip(rays, field):
@@ -1393,44 +1393,44 @@ def test_ray_field_order_truncates_only_the_drawn_rays(monkeypatch):
 def test_ray_field_gives_the_whole_rays_without_an_order(monkeypatch):
     module, _ = load_component("CA_Ray_Field", monkeypatch)
     module.Rhino.Geometry.Polyline = RecordingPolyline
-    field, rays, _ = module.RayFieldComponent().RunScript(scene(), 5, 4, None, None, None, 1, None)
+    field, rays, _ = module.RayFieldComponent().RunScript(scene(), None, 5, 4, None, None, None, 1, None)
     assert [len(r) for r in rays] == [len(ray.points) for ray in field]
 
 
 def test_ray_field_scattering_gives_the_scattered_polylines_and_a_given_seed(monkeypatch):
     module, _ = load_component("CA_Ray_Field", monkeypatch)
     module.Rhino.Geometry.Polyline = RecordingPolyline
-    field, rays, scattered = module.RayFieldComponent().RunScript(scene(), 10, 3, None, None, True, 7, None)
+    field, rays, scattered = module.RayFieldComponent().RunScript(scene(), None, 10, 3, None, None, True, 7, None)
     assert len(scattered) == len(field.scattered_rays) > 0
     assert [tuple(p) for p in field.scattered_rays[0].points] == scattered[0]
     assert module.ghenv.Component.Message.endswith("seed=7")
-    again, *_ = module.RayFieldComponent().RunScript(scene(), 10, 3, None, None, True, 7, None)
+    again, *_ = module.RayFieldComponent().RunScript(scene(), None, 10, 3, None, None, True, 7, None)
     assert [tuple(p) for p in again.scattered_rays[0].points] == scattered[0]
 
 
 def test_ray_field_order_truncates_the_scattered_rays_too(monkeypatch):
     module, _ = load_component("CA_Ray_Field", monkeypatch)
     module.Rhino.Geometry.Polyline = RecordingPolyline
-    field, _, scattered = module.RayFieldComponent().RunScript(scene(), 10, 4, None, None, True, 7, 1)
+    field, _, scattered = module.RayFieldComponent().RunScript(scene(), None, 10, 4, None, None, True, 7, 1)
     assert len(scattered) == len(field.truncated(reflection_order=1).scattered_rays) < len(field.scattered_rays)
 
 
 def test_ray_field_emits_into_a_cone(monkeypatch):
     module, messages = load_component("CA_Ray_Field", monkeypatch)
-    field, *_ = module.RayFieldComponent().RunScript(scene(), 20, 2, xyz(1, 0, 0), 30, None, 1, None)
+    field, *_ = module.RayFieldComponent().RunScript(scene(), None, 20, 2, xyz(1, 0, 0), 30, None, 1, None)
     assert len(field) == 20 and not messages
     assert all(ray.direction.angle([1, 0, 0], degrees=True) <= 30 + 1e-6 for ray in field)
 
 
 def test_direction_without_angle_is_a_warning_not_a_traceback(monkeypatch):
     module, messages = load_component("CA_Ray_Field", monkeypatch)
-    out = module.RayFieldComponent().RunScript(scene(), 20, 3, xyz(1, 0, 0), None, None, 1, None)
+    out = module.RayFieldComponent().RunScript(scene(), None, 20, 3, xyz(1, 0, 0), None, None, 1, None)
     assert any("angle" in m for m in messages) and out == (None,) * 3
 
 
 def test_ray_field_without_a_scene_warns(monkeypatch):
     module, messages = load_component("CA_Ray_Field", monkeypatch, levels=True)
-    assert module.RayFieldComponent().RunScript(None, None, None, None, None, None, None, None) == (None,) * 3
+    assert module.RayFieldComponent().RunScript(None, None, None, None, None, None, None, None, None) == (None,) * 3
     assert messages == [("warning", "Input parameter 'scene' failed to collect data.")]
 
 
@@ -1438,8 +1438,25 @@ def test_ray_field_shows_the_scenes_warnings(monkeypatch):
     module, messages = load_component("CA_Ray_Field", monkeypatch, levels=True)
     s = scene()
     s.add_source(Source("outside", 50, 50, 50))
-    module.RayFieldComponent().RunScript(s, 5, 2, None, None, None, 1, None)
+    module.RayFieldComponent().RunScript(s, None, 5, 2, None, None, None, 1, None)
     assert any(level == "warning" and "outside" in text for level, text in messages)
+
+
+def test_ray_field_traces_only_the_chosen_source(monkeypatch):
+    module, messages = load_component("CA_Ray_Field", monkeypatch)
+    s = scene()
+    s.add_source(Source("second", 5, 2, 1.5))
+    field, rays, _ = module.RayFieldComponent().RunScript(s, 1, 5, 2, None, None, None, 1, None)
+    assert len(field) == 5 and {ray.source_index for ray in field} == {1} and not messages
+    field, *_ = module.RayFieldComponent().RunScript(s, None, 5, 2, None, None, None, 1, None)
+    assert {ray.source_index for ray in field} == {0, 1}
+
+
+def test_ray_field_warns_for_a_source_index_out_of_range(monkeypatch):
+    module, messages = load_component("CA_Ray_Field", monkeypatch, levels=True)
+    out = module.RayFieldComponent().RunScript(scene(), 3, 5, 2, None, None, None, 1, None)
+    assert out == (None,) * 3
+    assert messages == [("warning", "No source at index 3; the scene has 1 source(s), 0 to 0.")]
 
 
 def test_the_ray_field_inputs_match_its_script(monkeypatch):
@@ -1450,7 +1467,7 @@ def test_the_ray_field_inputs_match_its_script(monkeypatch):
     metadata = json.loads((COMPONENTS / "CA_Ray_Field" / "metadata.json").read_text())
     parameters = list(inspect.signature(module.RayFieldComponent.RunScript).parameters)[1:]
     assert parameters == [p["name"] for p in metadata["ghpython"]["inputParameters"]]
-    assert parameters == ["scene", "n_rays", "max_order", "direction", "angle", "scattering", "seed", "order"]
+    assert parameters == ["scene", "source_idx", "n_rays", "max_order", "direction", "angle", "scattering", "seed", "order"]
     assert [p["name"] for p in metadata["ghpython"]["outputParameters"]] == ["ray_field", "rays", "scattered"]
     assert (metadata["name"], metadata["nickname"], metadata["subcategory"]) == ("Ray Field", "Rays", "05 Display")
 
@@ -1487,7 +1504,7 @@ def run_billiard(module, field, time, play, speed):
 def test_billiard_without_play_or_time_shows_the_start(monkeypatch):
     module, messages, clock, document = billiard(monkeypatch)
     field = billiard_field()
-    particles, trails, t = run_billiard(module, field, None, False, None)
+    particles, t = run_billiard(module, field, None, False, None)
     assert t == 0.0 and len(particles) == len(field)
     assert all(tuple(p) == tuple(ray.points[0]) for p, ray in zip(particles, field))
     assert module.ghenv.Component.Message == "press Play or connect time"
@@ -1497,7 +1514,7 @@ def test_billiard_without_play_or_time_shows_the_start(monkeypatch):
 def test_billiard_time_alone_is_a_frozen_frame(monkeypatch):
     module, messages, clock, document = billiard(monkeypatch)
     field = billiard_field()
-    particles, trails, t = run_billiard(module, field, 10.0, False, None)
+    particles, t = run_billiard(module, field, 10.0, False, None)
     assert t == 10.0 and document.scheduled == []
     assert [tuple(p) for p in particles] == [tuple(p) for p in field.particles(10.0)[0]]
     assert module.ghenv.Component.Message == "t = 10.0 ms"
@@ -1507,16 +1524,16 @@ def test_play_animates_up_to_time_and_stops(monkeypatch):
     module, messages, clock, document = billiard(monkeypatch)
     field = billiard_field()
     clock.now = 0.0
-    assert run_billiard(module, field, 10.0, True, 5.0)[2] == 0.0
+    assert run_billiard(module, field, 10.0, True, 5.0)[1] == 0.0
     assert len(document.scheduled) == 1 and document.scheduled[0][0] == 33
     clock.now = 1.0
-    assert run_billiard(module, field, 10.0, False, 5.0)[2] == 5.0
+    assert run_billiard(module, field, 10.0, False, 5.0)[1] == 5.0
     assert len(document.scheduled) == 2
     clock.now = 3.0
-    assert run_billiard(module, field, 10.0, False, 5.0)[2] == 10.0
+    assert run_billiard(module, field, 10.0, False, 5.0)[1] == 10.0
     assert len(document.scheduled) == 2
     clock.now = 9.0
-    assert run_billiard(module, field, 10.0, False, 5.0)[2] == 10.0
+    assert run_billiard(module, field, 10.0, False, 5.0)[1] == 10.0
     assert len(document.scheduled) == 2
 
 
@@ -1526,9 +1543,9 @@ def test_play_without_time_runs_to_the_end_at_the_default_speed(monkeypatch):
     clock.now = 0.0
     run_billiard(module, field, None, True, None)
     clock.now = 5.0
-    assert run_billiard(module, field, None, False, None)[2] == pytest.approx(field.duration_ms / 2)
+    assert run_billiard(module, field, None, False, None)[1] == pytest.approx(field.duration_ms / 2)
     clock.now = 20.0
-    assert run_billiard(module, field, None, False, None)[2] == pytest.approx(field.duration_ms)
+    assert run_billiard(module, field, None, False, None)[1] == pytest.approx(field.duration_ms)
 
 
 def test_a_new_ray_field_keeps_playing(monkeypatch):
@@ -1537,7 +1554,7 @@ def test_a_new_ray_field_keeps_playing(monkeypatch):
     run_billiard(module, billiard_field(1), 10.0, True, 5.0)
     clock.now = 1.0
     scheduled = len(document.scheduled)
-    particles, trails, t = run_billiard(module, billiard_field(2), 10.0, False, 5.0)
+    particles, t = run_billiard(module, billiard_field(2), 10.0, False, 5.0)
     assert t == 5.0 and len(document.scheduled) == scheduled + 1
 
 
@@ -1554,8 +1571,8 @@ def test_pressing_play_while_playing_restarts(monkeypatch):
     clock.now = 0.0
     run_billiard(module, field, 10.0, True, 5.0)
     clock.now = 1.5
-    assert run_billiard(module, field, 10.0, False, 5.0)[2] == 7.5
-    assert run_billiard(module, field, 10.0, True, 5.0)[2] == 0.0
+    assert run_billiard(module, field, 10.0, False, 5.0)[1] == 7.5
+    assert run_billiard(module, field, 10.0, True, 5.0)[1] == 0.0
 
 
 def test_scrubbing_time_after_a_finished_play_scrubs(monkeypatch):
@@ -1563,12 +1580,12 @@ def test_scrubbing_time_after_a_finished_play_scrubs(monkeypatch):
     field = billiard_field()
     run_billiard(module, field, 10.0, True, 5.0)
     clock.now = 100.0
-    assert run_billiard(module, field, 10.0, False, 5.0)[2] == 10.0
+    assert run_billiard(module, field, 10.0, False, 5.0)[1] == 10.0
     scheduled = len(document.scheduled)
-    assert run_billiard(module, field, 3.0, False, 5.0)[2] == 3.0
+    assert run_billiard(module, field, 3.0, False, 5.0)[1] == 3.0
     assert len(document.scheduled) == scheduled
     clock.now = 200.0
-    assert run_billiard(module, field, 3.0, False, 5.0)[2] == 3.0
+    assert run_billiard(module, field, 3.0, False, 5.0)[1] == 3.0
 
 
 def test_changing_time_during_playback_stops_it(monkeypatch):
@@ -1577,7 +1594,7 @@ def test_changing_time_during_playback_stops_it(monkeypatch):
     run_billiard(module, field, 10.0, True, 5.0)
     clock.now = 1.0
     scheduled = len(document.scheduled)
-    assert run_billiard(module, field, 4.0, False, 5.0)[2] == 4.0
+    assert run_billiard(module, field, 4.0, False, 5.0)[1] == 4.0
     assert len(document.scheduled) == scheduled
 
 
@@ -1586,38 +1603,36 @@ def test_the_held_end_frame_stays_while_time_stays_empty(monkeypatch):
     field = billiard_field()
     run_billiard(module, field, None, True, None)
     clock.now = 50.0
-    assert run_billiard(module, field, None, False, None)[2] == pytest.approx(field.duration_ms)
+    assert run_billiard(module, field, None, False, None)[1] == pytest.approx(field.duration_ms)
     clock.now = 60.0
-    assert run_billiard(module, field, None, False, None)[2] == pytest.approx(field.duration_ms)
+    assert run_billiard(module, field, None, False, None)[1] == pytest.approx(field.duration_ms)
     assert len(document.scheduled) == 1
 
 
 def test_billiard_times_are_clamped_to_the_ray_fields_duration(monkeypatch):
     module, messages, clock, document = billiard(monkeypatch)
     field = billiard_field()
-    assert run_billiard(module, field, -5.0, True, 5.0)[2] == 0.0
+    assert run_billiard(module, field, -5.0, True, 5.0)[1] == 0.0
     assert document.scheduled == []
     clock.now = 3.0
-    assert run_billiard(module, field, -5.0, False, 5.0)[2] == 0.0
-    assert run_billiard(module, field, 1e9, False, 5.0)[2] == field.duration_ms
-    assert run_billiard(module, field, -5.0, False, 5.0)[2] == 0.0
+    assert run_billiard(module, field, -5.0, False, 5.0)[1] == 0.0
+    assert run_billiard(module, field, 1e9, False, 5.0)[1] == field.duration_ms
+    assert run_billiard(module, field, -5.0, False, 5.0)[1] == 0.0
     assert module.ghenv.Component.Message == "t = 0.0 ms"
 
 
-def test_billiard_trails_are_the_rays_up_to_t(monkeypatch):
+def test_billiard_draws_only_the_particles(monkeypatch):
     module, messages, clock, document = billiard(monkeypatch)
-    module.Rhino.Geometry.Polyline = RecordingPolyline
     field = billiard_field()
-    particles, trails, t = run_billiard(module, field, 15.0, False, None)
-    kept = field.truncated(travel_time_ms=15.0)
-    assert [list(trail) for trail in trails] == [[tuple(p) for p in ray.points] for ray in kept]
-    assert len(trails) == len(particles)
+    out = run_billiard(module, field, 15.0, False, None)
+    points, _ = field.particles(15.0)
+    assert len(out) == 2 and out[0] == [tuple(p) for p in points] and out[1] == 15.0
 
 
 def test_billiard_without_a_ray_field_warns(monkeypatch):
     module, messages, clock, document = billiard(monkeypatch)
     module.ghenv.Component.Message = "t = 3.0 ms"
-    assert run_billiard(module, None, 1.0, True, None) == (None,) * 3
+    assert run_billiard(module, None, 1.0, True, None) == (None,) * 2
     assert messages == ["Input parameter 'ray_field' failed to collect data."] and document.scheduled == []
     assert module.ghenv.Component.Message == ""
 
@@ -1627,7 +1642,7 @@ def test_billiard_with_an_empty_ray_field_warns(monkeypatch):
 
     module, messages, clock, document = billiard(monkeypatch)
     module.ghenv.Component.Message = "t = 3.0 ms"
-    assert run_billiard(module, RayField([]), 1.0, True, None) == (None,) * 3
+    assert run_billiard(module, RayField([]), 1.0, True, None) == (None,) * 2
     assert messages == ["The ray field has no rays."] and document.scheduled == []
     assert module.ghenv.Component.Message == ""
 
@@ -1636,14 +1651,14 @@ def test_a_held_play_toggle_plays_once_and_holds(monkeypatch):
     module, messages, clock, document = billiard(monkeypatch)
     field = billiard_field()
     clock.now = 0.0
-    assert run_billiard(module, field, 10.0, True, 5.0)[2] == 0.0
+    assert run_billiard(module, field, 10.0, True, 5.0)[1] == 0.0
     clock.now = 1.0
-    assert run_billiard(module, field, 10.0, True, 5.0)[2] == 5.0
+    assert run_billiard(module, field, 10.0, True, 5.0)[1] == 5.0
     clock.now = 3.0
-    assert run_billiard(module, field, 10.0, True, 5.0)[2] == 10.0
+    assert run_billiard(module, field, 10.0, True, 5.0)[1] == 10.0
     scheduled = len(document.scheduled)
     clock.now = 4.0
-    assert run_billiard(module, field, 10.0, True, 5.0)[2] == 10.0
+    assert run_billiard(module, field, 10.0, True, 5.0)[1] == 10.0
     assert len(document.scheduled) == scheduled
 
 
@@ -1653,10 +1668,10 @@ def test_play_turned_off_and_on_again_restarts(monkeypatch):
     clock.now = 0.0
     run_billiard(module, field, 10.0, True, 5.0)
     clock.now = 1.0
-    assert run_billiard(module, field, 10.0, False, 5.0)[2] == 5.0
-    assert run_billiard(module, field, 10.0, True, 5.0)[2] == 0.0
+    assert run_billiard(module, field, 10.0, False, 5.0)[1] == 5.0
+    assert run_billiard(module, field, 10.0, True, 5.0)[1] == 0.0
     clock.now = 1.5
-    assert run_billiard(module, field, 10.0, True, 5.0)[2] == 2.5
+    assert run_billiard(module, field, 10.0, True, 5.0)[1] == 2.5
 
 
 def test_scrubbing_with_a_held_play_toggle_scrubs(monkeypatch):
@@ -1664,9 +1679,9 @@ def test_scrubbing_with_a_held_play_toggle_scrubs(monkeypatch):
     field = billiard_field()
     run_billiard(module, field, 10.0, True, 5.0)
     clock.now = 1.0
-    assert run_billiard(module, field, 4.0, True, 5.0)[2] == 4.0
+    assert run_billiard(module, field, 4.0, True, 5.0)[1] == 4.0
     clock.now = 2.0
-    assert run_billiard(module, field, 4.0, True, 5.0)[2] == 4.0
+    assert run_billiard(module, field, 4.0, True, 5.0)[1] == 4.0
 
 
 def test_playing_to_the_end_follows_a_longer_ray_field(monkeypatch):
@@ -1679,8 +1694,8 @@ def test_playing_to_the_end_follows_a_longer_ray_field(monkeypatch):
     clock.now = 0.0
     run_billiard(module, short, None, True, 5.0)
     clock.now = 1000.0
-    assert run_billiard(module, short, None, False, 5.0)[2] == pytest.approx(short.duration_ms)
-    assert run_billiard(module, longer, None, False, 5.0)[2] == pytest.approx(longer.duration_ms)
+    assert run_billiard(module, short, None, False, 5.0)[1] == pytest.approx(short.duration_ms)
+    assert run_billiard(module, longer, None, False, 5.0)[1] == pytest.approx(longer.duration_ms)
 
 
 def test_the_default_speed_follows_a_new_ray_field(monkeypatch):
@@ -1692,9 +1707,9 @@ def test_the_default_speed_follows_a_new_ray_field(monkeypatch):
     clock.now = 0.0
     run_billiard(module, short, None, True, None)
     clock.now = 2.0
-    assert run_billiard(module, longer, None, False, None)[2] == pytest.approx(short.duration_ms / 5)
+    assert run_billiard(module, longer, None, False, None)[1] == pytest.approx(short.duration_ms / 5)
     clock.now = 3.0
-    assert run_billiard(module, longer, None, False, None)[2] == pytest.approx(short.duration_ms / 5 + longer.duration_ms / 10)
+    assert run_billiard(module, longer, None, False, None)[1] == pytest.approx(short.duration_ms / 5 + longer.duration_ms / 10)
 
 
 def test_a_new_speed_while_playing_runs_on_from_the_current_frame(monkeypatch):
@@ -1704,10 +1719,10 @@ def test_a_new_speed_while_playing_runs_on_from_the_current_frame(monkeypatch):
     clock.now = 0.0
     run_billiard(module, field, None, True, 1.0)
     clock.now = 2.0
-    assert run_billiard(module, field, None, False, 1.0)[2] == pytest.approx(2.0)
-    assert run_billiard(module, field, None, False, 4.0)[2] == pytest.approx(2.0)
+    assert run_billiard(module, field, None, False, 1.0)[1] == pytest.approx(2.0)
+    assert run_billiard(module, field, None, False, 4.0)[1] == pytest.approx(2.0)
     clock.now = 3.0
-    assert run_billiard(module, field, None, False, 4.0)[2] == pytest.approx(6.0)
+    assert run_billiard(module, field, None, False, 4.0)[1] == pytest.approx(6.0)
 
 
 def test_billiard_ignores_a_speed_that_is_not_positive_and_does_not_need_a_document(monkeypatch):
@@ -1716,7 +1731,7 @@ def test_billiard_ignores_a_speed_that_is_not_positive_and_does_not_need_a_docum
     clock.now = 0.0
     run_billiard(module, field, None, True, 0.0)
     clock.now = 5.0
-    assert run_billiard(module, field, None, False, -1.0)[2] == pytest.approx(field.duration_ms / 2)
+    assert run_billiard(module, field, None, False, -1.0)[1] == pytest.approx(field.duration_ms / 2)
     assert any("speed" in m for m in messages)
 
 
@@ -1728,7 +1743,7 @@ def test_the_billiard_inputs_match_its_script(monkeypatch):
     metadata = json.loads((COMPONENTS / "CA_Billiard" / "metadata.json").read_text())
     parameters = list(inspect.signature(module.BilliardComponent.RunScript).parameters)[1:]
     assert parameters == [p["name"] for p in metadata["ghpython"]["inputParameters"]] == ["ray_field", "time", "play", "speed"]
-    assert [p["name"] for p in metadata["ghpython"]["outputParameters"]] == ["particles", "trails", "t"]
+    assert [p["name"] for p in metadata["ghpython"]["outputParameters"]] == ["particles", "t"]
     assert (metadata["name"], metadata["nickname"], metadata["subcategory"]) == ("Billiard", "Billiard", "05 Display")
 
 

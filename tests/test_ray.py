@@ -156,3 +156,29 @@ def test_particles_start_once_the_ray_has_emerged_from_its_offset():
     assert field.particles(3.0) == ([], [])
     assert list(field.particles(5.0)[0][0]) == pytest.approx([0, 0, 0])
     assert list(field.particles(10.0)[0][0]) == pytest.approx([5, 0, 0])
+
+
+def _two_source_scene(first_outside=False):
+    from compas_acoustics import AcousticMaterial
+    from compas_acoustics import AcousticObjectsLibrary
+    from compas_acoustics import Scene
+    from compas_acoustics import Source
+
+    scene = Scene("rays")
+    scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(7, 5, 3, materials=AcousticMaterial("wall", 0.2, 0.1)))
+    scene.add_source(Source("a", 50, 50, 50) if first_outside else Source("a", 1.5, 1.5, 1.6))
+    scene.add_source(Source("b", 5, 3, 1.5))
+    return scene
+
+
+def test_rays_keep_the_scene_index_of_their_source():
+    scene = _two_source_scene()
+    field = RayField.from_scene(scene, n_rays=5, sources=[scene.sources[1]])
+    assert {ray.source_index for ray in field} == {1}
+    assert all(ray.source is scene.sources[1] for ray in field)
+
+
+def test_a_source_outside_the_room_does_not_shift_the_others_index():
+    with pytest.warns(UserWarning, match="outside"):
+        field = RayField.from_scene(_two_source_scene(first_outside=True), n_rays=5)
+    assert {ray.source_index for ray in field} == {1}
