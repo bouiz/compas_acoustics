@@ -176,8 +176,8 @@ def test_shape_late_gives_every_column_the_gains_of_w():
 
 @pytest.mark.parametrize("case", sorted(CASES))
 def test_the_ambisonic_output_is_unchanged(case):
-    """The code at cb644a8 (96 lines, the hemisphere drive; data/hybrid_reference.py) gives the same response."""
-    before = np.load(DATA / "hybrid_reference_cb644a8.npz")[case]
+    """The code at 2535c3d (the late envelope's directional shares; data/hybrid_reference.py) gives the same response."""
+    before = np.load(DATA / "hybrid_reference_2535c3d.npz")[case]
     after = reference_rir(output="ambisonic", **CASES[case])
     assert np.any(after[-200:] != 0.0)  # the late field is inside the window
     assert np.allclose(after, before, rtol=0, atol=1e-10 * np.abs(before).max())

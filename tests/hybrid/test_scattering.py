@@ -237,8 +237,8 @@ def test_scattering_moves_energy_from_the_early_to_the_late_field():
 
 
 def test_without_scattering_nothing_changes():
-    """``scattering=False`` gives the response stored at cb644a8 (data/hybrid_reference.py), as the default does."""
-    before = np.load(DATA / "hybrid_reference_cb644a8.npz")["rir"]
+    """``scattering=False`` gives the response stored at 2535c3d (data/hybrid_reference.py), as the default does."""
+    before = np.load(DATA / "hybrid_reference_2535c3d.npz")["rir"]
     after = reference_rir(scattering=False, output="ambisonic")
     assert np.any(after[-200:] != 0.0)  # the late field is inside the window
     np.testing.assert_allclose(after, before, rtol=0.0, atol=1e-12 * np.abs(before).max())
