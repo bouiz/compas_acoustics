@@ -448,6 +448,17 @@ def test_the_plotter_offers_every_parameter_with_its_units(monkeypatch):
 
 
 # ------------------------------------------------------------- Audio Player --
+def test_the_audio_player_inputs_are_audio_sampling_rate_normalize_play_stop(monkeypatch):
+    import inspect
+    import json
+
+    module, _ = load_component("CA_Audio_Player", monkeypatch)
+    metadata = json.loads((COMPONENTS / "CA_Audio_Player" / "metadata.json").read_text())["ghpython"]
+    names = [p["name"] for p in metadata["inputParameters"]]
+    assert names == ["audio", "sampling_rate", "normalize", "play", "stop"]
+    assert list(inspect.signature(module.PlayAudio.RunScript).parameters)[1:] == names
+
+
 def test_the_audio_player_shows_a_failure_as_an_error_and_a_clipping_warning(monkeypatch):
     from compas_acoustics import AudioPlayer
 
@@ -461,7 +472,7 @@ def test_the_audio_player_shows_a_failure_as_an_error_and_a_clipping_warning(mon
         raise RuntimeError("no output device")
 
     monkeypatch.setattr(AudioPlayer, "play", play)
-    module.PlayAudio().RunScript(np.ones(4) * 2.0, True, False, 48000, False)
+    module.PlayAudio().RunScript(np.ones(4) * 2.0, 48000, False, True, False)
     assert ("error", "The sound could not be played: no output device") in messages
     assert ("warning", "The sound array peaks at +6.0 dBFS and will clip.") in messages
 
@@ -474,13 +485,13 @@ def test_the_audio_player_says_which_rate_an_array_without_one_is_played_at(monk
     module, messages = load_component("CA_Audio_Player", monkeypatch, levels=True)
     monkeypatch.setattr("platform.system", lambda: "Darwin")
     monkeypatch.setattr(AudioPlayer, "play", lambda self, sound, sampling_rate, normalize: None)
-    module.PlayAudio().RunScript(np.zeros(4), True, False, None, None)
+    module.PlayAudio().RunScript(np.zeros(4), None, None, True, False)
     assert messages == [("remark", "No sampling_rate: the signal is played at 48000 Hz. Connect the sampling_rate of Auralise.")]
     messages.clear()
-    module.PlayAudio().RunScript(np.zeros(4), True, False, 44100, None)
+    module.PlayAudio().RunScript(np.zeros(4), 44100, None, True, False)
     path = tmp_path / "s.wav"
     sf.write(str(path), np.zeros(480), 44100)
-    module.PlayAudio().RunScript(str(path), True, False, None, None)
+    module.PlayAudio().RunScript(str(path), None, None, True, False)
     assert messages == []
 
 
@@ -604,7 +615,7 @@ def test_the_audio_player_warns_for_an_ambisonic_signal_and_plays_mono_on_both_c
     module, messages = load_component("CA_Audio_Player", monkeypatch, levels=True)
     played = []
     monkeypatch.setattr(AudioPlayer, "play", lambda self, sound, sampling_rate, normalize: played.append(sound))
-    module.PlayAudio().RunScript(np.zeros((480, 4)), True, False, 48000, None)
+    module.PlayAudio().RunScript(np.zeros((480, 4)), 48000, None, True, False)
     assert played == [] and [level for level, _ in messages] == ["warning"] and "4-channel ambisonic" in messages[0][1]
 
     fake = types.SimpleNamespace(play=lambda data, rate: played.append(data), check_output_settings=lambda **kwargs: None,

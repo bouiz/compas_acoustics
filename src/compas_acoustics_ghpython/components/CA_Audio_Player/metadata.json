@@ -10,11 +10,25 @@
         "iconDisplay": 0,
         "inputParameters": [
             {
-                "name": "sound",
+                "name": "audio",
                 "description": "Audio file path, numpy array, or Source object.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "ghdoc"
+            },
+            {
+                "name": "sampling_rate",
+                "description": "Sample rate of a numpy array, in Hz, e.g. from the Auralise component. Default is the project sample rate.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "int"
+            },
+            {
+                "name": "normalize",
+                "description": "Whether to scale a numpy array to full level before playing (default True). Disable it to hear auralised signals at their rendered level.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "bool"
             },
             {
                 "name": "play",
@@ -26,20 +40,6 @@
             {
                 "name": "stop",
                 "description": "Stop the audio.",
-                "optional": true,
-                "scriptParamAccess": 0,
-                "typeHintID": "bool"
-            },
-            {
-                "name": "sampling_rate",
-                "description": "Sample rate of a numpy array sound, in Hz, e.g. from the Auralise component. Default is the project sample rate.",
-                "optional": true,
-                "scriptParamAccess": 0,
-                "typeHintID": "int"
-            },
-            {
-                "name": "normalize",
-                "description": "Whether to scale a numpy array sound to full level before playing (default True). Disable it to hear auralised signals at their rendered level.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "bool"

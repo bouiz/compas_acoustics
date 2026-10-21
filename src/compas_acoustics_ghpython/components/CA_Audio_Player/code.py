@@ -9,29 +9,29 @@ import soundfile as sf
 
 class PlayAudio(Grasshopper.Kernel.GH_ScriptInstance):
 
-    def RunScript(self, sound, play, stop, sampling_rate, normalize):
+    def RunScript(self, audio, sampling_rate, normalize, play, stop):
         ensure_inputs(ghenv.Component, {"play": None, "stop": None})
 
-        if sound is None:
+        if audio is None:
             return
 
-        if isinstance(sound, str):  # file path
+        if isinstance(audio, str):  # file path
             try:
-                sampling_rate = sf.info(sound).samplerate
+                sampling_rate = sf.info(audio).samplerate
             except Exception:
                 pass
-        elif hasattr(sound, "sound_file"):  # Source object
-            sound = sound.sound_file
+        elif hasattr(audio, "sound_file"):  # Source object
+            audio = audio.sound_file
             try:
-                sampling_rate = sf.info(sound).samplerate
+                sampling_rate = sf.info(audio).samplerate
             except Exception:
                 pass
-        elif hasattr(sound, "shape") and hasattr(sound, "ndim"):  # numpy array
-            if sound.ndim == 2 and sound.shape[1] > 2:
+        elif hasattr(audio, "shape") and hasattr(audio, "ndim"):  # numpy array
+            if audio.ndim == 2 and audio.shape[1] > 2:
                 ghenv.Component.AddRuntimeMessage(
                     Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning,
                     "A {}-channel ambisonic signal cannot be played here. Save it with Auralise as a multichannel file for an ambisonic decoder, "
-                    "or simulate with Simulate Hybrid output binaural for headphone playback.".format(sound.shape[1])
+                    "or simulate with Simulate Hybrid output binaural for headphone playback.".format(audio.shape[1])
                 )
                 return
             if sampling_rate is None:
@@ -41,7 +41,7 @@ class PlayAudio(Grasshopper.Kernel.GH_ScriptInstance):
                 )
         else:
             ghenv.Component.AddRuntimeMessage(
-                Grasshopper.Kernel.GH_RuntimeMessageLevel.Error, "Input parameter 'sound' is not valid."
+                Grasshopper.Kernel.GH_RuntimeMessageLevel.Error, "Input parameter 'audio' is not valid."
             )
             return
 
@@ -55,7 +55,7 @@ class PlayAudio(Grasshopper.Kernel.GH_ScriptInstance):
             warnings.simplefilter("always")
             try:
                 if play:
-                    player.play(sound, sampling_rate, normalize is not False)
+                    player.play(audio, sampling_rate, normalize is not False)
                 if stop:
                     player.stop()
             except Exception as e:
