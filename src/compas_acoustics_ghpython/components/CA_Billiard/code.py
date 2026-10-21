@@ -40,11 +40,17 @@ class BilliardComponent(Grasshopper.Kernel.GH_ScriptInstance):
         if play:
             sc.sticky[key] = {
                 "start": _now(),
-                "end": float(duration if time is None else time),
+                "end": max(float(duration if time is None else time), 0.0),
+                "time": time,
                 "speed": float(duration / 10.0 if speed is None else speed),
             }
 
         state = sc.sticky.get(key)
+        if state is not None and not play and time != state["time"]:
+            # Moving the slider during or after playback stops it and scrubs
+            del sc.sticky[key]
+            state = None
+
         if state is not None:
             end = min(state["end"], duration)
             t = min(max((_now() - state["start"]) * state["speed"], 0.0), end)

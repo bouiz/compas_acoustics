@@ -1544,6 +1544,52 @@ def test_pressing_play_while_playing_restarts(monkeypatch):
     assert run_billiard(module, field, 10.0, True, 5.0)[2] == 0.0
 
 
+def test_scrubbing_time_after_a_finished_play_scrubs(monkeypatch):
+    module, messages, clock, document = billiard(monkeypatch)
+    field = billiard_field()
+    run_billiard(module, field, 10.0, True, 5.0)
+    clock.now = 100.0
+    assert run_billiard(module, field, 10.0, False, 5.0)[2] == 10.0
+    scheduled = len(document.scheduled)
+    assert run_billiard(module, field, 3.0, False, 5.0)[2] == 3.0
+    assert len(document.scheduled) == scheduled
+    clock.now = 200.0
+    assert run_billiard(module, field, 3.0, False, 5.0)[2] == 3.0
+
+
+def test_changing_time_during_playback_stops_it(monkeypatch):
+    module, messages, clock, document = billiard(monkeypatch)
+    field = billiard_field()
+    run_billiard(module, field, 10.0, True, 5.0)
+    clock.now = 1.0
+    scheduled = len(document.scheduled)
+    assert run_billiard(module, field, 4.0, False, 5.0)[2] == 4.0
+    assert len(document.scheduled) == scheduled
+
+
+def test_the_held_end_frame_stays_while_time_stays_empty(monkeypatch):
+    module, messages, clock, document = billiard(monkeypatch)
+    field = billiard_field()
+    run_billiard(module, field, None, True, None)
+    clock.now = 50.0
+    assert run_billiard(module, field, None, False, None)[2] == pytest.approx(field.duration_ms)
+    clock.now = 60.0
+    assert run_billiard(module, field, None, False, None)[2] == pytest.approx(field.duration_ms)
+    assert len(document.scheduled) == 1
+
+
+def test_billiard_times_are_clamped_to_the_ray_fields_duration(monkeypatch):
+    module, messages, clock, document = billiard(monkeypatch)
+    field = billiard_field()
+    assert run_billiard(module, field, -5.0, True, 5.0)[2] == 0.0
+    assert document.scheduled == []
+    clock.now = 3.0
+    assert run_billiard(module, field, -5.0, False, 5.0)[2] == 0.0
+    assert run_billiard(module, field, 1e9, False, 5.0)[2] == field.duration_ms
+    assert run_billiard(module, field, -5.0, False, 5.0)[2] == 0.0
+    assert module.ghenv.Component.Message == "t = 0.0 ms"
+
+
 def test_billiard_trails_are_the_rays_up_to_t(monkeypatch):
     module, messages, clock, document = billiard(monkeypatch)
     module.Rhino.Geometry.Polyline = RecordingPolyline
