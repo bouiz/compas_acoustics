@@ -22,6 +22,8 @@ class SimulateRayTracing(Grasshopper.Kernel.GH_ScriptInstance):
 
         if ray_tracing is None:
             ray_tracing = True
+        if absorb_air is None:
+            absorb_air = True
 
         # Unset inputs are left out so that the method's own defaults apply
         # (image source order 3, 20000 rays, an Eyring-sized buffer).

@@ -39,7 +39,7 @@
             },
             {
                 "name": "absorb_air",
-                "description": "Whether to consider air absorption.",
+                "description": "Whether to consider air absorption (default True).",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "bool"
