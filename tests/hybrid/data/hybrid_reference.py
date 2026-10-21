@@ -2,8 +2,8 @@
 
 Run against a checkout of that revision (``git archive <revision>``), not this tree:
     PYTHONPATH=<archive>/src python tests/hybrid/data/hybrid_reference.py <out.npz> [case ...]
-Each case is stored under its name. ``hybrid_reference_cb644a8.npz`` holds every case, from the
-code that gave the network 96 delay lines and Ewert's hemisphere drive: ``test_scattering.py`` checks
+Each case is stored under its name. ``hybrid_reference_227725f.npz`` holds every case, from the
+code with energy_thres 1e-7 and the early part rendered in one pass for both outputs: ``test_scattering.py`` checks
 ``Hybrid(scattering=False)`` against its ``rir``, ``test_hybrid_outputs.py`` every case.
 """
 
