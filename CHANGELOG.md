@@ -46,6 +46,7 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 
 ### Added
 
+* Added `RayField.particles(time_ms)` and `RayField.duration_ms`, the rays' positions at a time, for a billiard view.
 * Added `Scene.simulate(method)` as the one way to simulate, with the methods `Pyroomacoustics(image_source_order=3, ray_tracing=True, ...)` and `Hybrid(...)` in `compas_acoustics.simulation_methods`.
 * Added `Scene.sampling_rate` (default 48000, serialised with the scene), the rate at which every method runs; the Room Scene component has the input.
 * Added `Hybrid`, ambisonic and binaural room impulse responses (binaural by default) from image sources, optional edge diffraction (`diffraction="udfa"` or `"btms"`) and a directional feedback delay network tail, ported from hybrid-rir; needs Python >= 3.11.

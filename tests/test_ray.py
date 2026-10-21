@@ -1,5 +1,6 @@
 import math
 
+import pytest
 from compas.geometry import Vector
 
 from compas_acoustics import Ray
@@ -123,3 +124,27 @@ def test_rayfield_truncated_reflection_order_carries_scattered():
     # budget = 1 - 1 = 0 -> scattered ray dropped
     dropped = field.truncated(reflection_order=1)
     assert len(dropped.scattered_rays) == 0
+
+
+def test_particles_sit_at_c_t_along_each_ray():
+    ray = Ray([[0, 0, 0], [10, 0, 0], [10, 10, 0]], sound_speed=1000.0)  # 20 m = 20 ms
+    points, indices = RayField([ray], sound_speed=1000.0).particles(15.0)
+    assert list(points[0]) == pytest.approx([10, 5, 0])
+
+
+def test_a_ray_that_ended_has_no_particle():
+    short = Ray([[0, 0, 0], [5, 0, 0]], sound_speed=1000.0, ray_index=0)
+    long = Ray([[0, 0, 0], [20, 0, 0]], sound_speed=1000.0, ray_index=1)
+    assert RayField([short, long], sound_speed=1000.0).particles(10.0)[1] == [1]
+
+
+def test_duration_is_the_longest_ray():
+    rays = [Ray([[0, 0, 0], [d, 0, 0]], sound_speed=1000.0) for d in (5, 20)]
+    assert RayField(rays, sound_speed=1000.0).duration_ms == pytest.approx(20.0)
+
+
+def test_particles_clamp_time():
+    field = RayField([Ray([[0, 0, 0], [20, 0, 0]], sound_speed=1000.0)], sound_speed=1000.0)
+    assert list(field.particles(-5.0)[0][0]) == pytest.approx([0, 0, 0])
+    assert list(field.particles(99.0)[0][0]) == pytest.approx([20, 0, 0])
+    assert RayField([]).particles(1.0) == ([], [])
