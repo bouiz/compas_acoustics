@@ -1,3 +1,4 @@
+import numbers
 import warnings
 from typing import List
 from typing import Optional
@@ -10,16 +11,34 @@ from compas.geometry import Polyline
 from compas.geometry import Vector
 from compas.tolerance import TOL
 
+from compas_acoustics.defaults import Defaults
+
 __all__ = ['Ray', 'ScatteredRay', 'RayField']
 
-DEFAULT_SOUND_SPEED = 343.0
+
+def _distance(time_ms: float) -> float:
+    """The distance sound travels in ``time_ms`` at ``Defaults().DEFAULT_SPEED_OF_SOUND``."""
+    return Defaults().DEFAULT_SPEED_OF_SOUND * time_ms / 1000.0
+
+
+def _inside(geometry, items, message: str) -> list:
+    """The ``(index, item)`` pairs whose item is inside the room, a ``UserWarning`` ``message`` for each other."""
+    inside = []
+    for index, item in items:
+        if geometry.is_inside(item.position):
+            inside.append((index, item))
+        else:
+            warnings.warn(message.format(name=item.name), UserWarning, stacklevel=3)
+    return inside
 
 
 class Ray(Polyline):
     """A single acoustic ray traced through a scene, represented as a polyline.
 
     The vertices of the polyline are ``[source_position, hit_1, hit_2, ...]`` where
-    each ``hit_i`` is a point where the ray was reflected by a surface.
+    each ``hit_i`` is a point where the ray was reflected by a surface. Times are
+    distances at ``Defaults().DEFAULT_SPEED_OF_SOUND``, the speed of sound of
+    ``AirConditions()`` that every simulation uses.
 
     Parameters
     ----------
@@ -34,8 +53,6 @@ class Ray(Polyline):
     direction : :class:`compas.geometry.Vector` or list, optional
         The initial (unit) direction of the ray. If not provided it is derived
         from the first segment of the polyline.
-    sound_speed : float, optional
-        The speed of sound in m/s used to convert travel distance to travel time.
     distance_offset : float, optional
         The distance already travelled before ``points[0]``. This is ``0`` for
         specular rays emitted from the source, and non-zero for scattered rays
@@ -51,7 +68,6 @@ class Ray(Polyline):
         source_index: Optional[int] = None,
         ray_index: Optional[int] = None,
         direction=None,
-        sound_speed: float = DEFAULT_SOUND_SPEED,
         distance_offset: float = 0.0,
         name: Optional[str] = None,
     ):
@@ -59,7 +75,6 @@ class Ray(Polyline):
         self.source = source
         self.source_index = source_index
         self.ray_index = ray_index
-        self.sound_speed = sound_speed
         self.distance_offset = distance_offset
 
         if direction is not None:
@@ -77,7 +92,6 @@ class Ray(Polyline):
             source_index=self.source_index,
             ray_index=self.ray_index,
             direction=list(self.direction),
-            sound_speed=self.sound_speed,
             distance_offset=self.distance_offset,
         )
         scattered = getattr(self, 'scattered_reflections', None)
@@ -88,6 +102,7 @@ class Ray(Polyline):
     @classmethod
     def __from_data__(cls, data):
         data = dict(data)
+        data.pop("sound_speed", None)  # stored before the speed of sound came from Defaults
         scattered = data.pop("scattered_reflections", None)
         ray = cls(**data)
         if scattered:
@@ -128,7 +143,7 @@ class Ray(Polyline):
     @property
     def travel_time(self) -> float:
         """The total travel time of the ray in milliseconds."""
-        return self.total_distance / self.sound_speed * 1000.0
+        return self.total_distance / Defaults().DEFAULT_SPEED_OF_SOUND * 1000.0
 
     @property
     def reflection_order(self) -> int:
@@ -166,7 +181,6 @@ class Ray(Polyline):
             source_index=self.source_index,
             ray_index=self.ray_index,
             direction=self.direction,
-            sound_speed=self.sound_speed,
             distance_offset=self.distance_offset,
             name=self.name,
         )
@@ -250,8 +264,7 @@ class Ray(Polyline):
         """
         if time_ms is None:
             return self._clone_with_points(self.points[:])
-        distance = self.sound_speed * time_ms / 1000.0
-        return self.up_to_distance(distance)
+        return self.up_to_distance(_distance(time_ms))
 
 
 class ScatteredRay(Ray):
@@ -306,7 +319,6 @@ class ScatteredRay(Ray):
             source_index=self.source_index,
             ray_index=self.ray_index,
             direction=self.direction,
-            sound_speed=self.sound_speed,
             distance_offset=self.distance_offset,
             name=self.name,
         )
@@ -320,27 +332,24 @@ class RayField(Data):
     rays : list of :class:`compas_acoustics.Ray`, optional
         The specular rays. Each ray may carry its scattered rays in
         ``ray.scattered_reflections``.
-    sound_speed : float, optional
-        The speed of sound in m/s used for time based operations.
     name : str, optional
         The name of the ray field.
     """
 
-    def __init__(self, rays: Optional[List[Ray]] = None, sound_speed: float = DEFAULT_SOUND_SPEED, name: Optional[str] = None):
+    def __init__(self, rays: Optional[List[Ray]] = None, name: Optional[str] = None):
         super().__init__(name=name)
         self.rays = list(rays) if rays else []
-        self.sound_speed = sound_speed
 
     @property
     def __data__(self):
         # Each source once, by its index, instead of once per ray
         sources = {ray.source_index: ray.source for ray in self.rays if ray.source is not None and ray.source_index is not None}
-        return {"rays": self.rays, "sound_speed": self.sound_speed, "sources": [[index, source] for index, source in sorted(sources.items())]}
+        return {"rays": self.rays, "sources": [[index, source] for index, source in sorted(sources.items())]}
 
     @classmethod
     def __from_data__(cls, data):
         sources = {int(index): source for index, source in data.get("sources", [])}
-        field = cls(data["rays"], sound_speed=data["sound_speed"])
+        field = cls(data["rays"])
         for ray in field.rays:
             for traced in [ray, *getattr(ray, 'scattered_reflections', [])]:
                 traced.source = sources.get(traced.source_index)
@@ -425,7 +434,6 @@ class RayField(Data):
 
         import pyroomacoustics as pra
 
-        from compas_acoustics.defaults import Defaults
         from compas_acoustics.room_geometry import RoomGeometry
         from compas_acoustics.simulation_methods.base import _seed
 
@@ -434,19 +442,17 @@ class RayField(Data):
         engine = simulation.room_engine
         walls = engine.walls
         max_dist = float(engine.max_dist)
-        sound_speed = float(getattr(simulation, 'c', 343.0))
 
         if sources is None:
             sources = scene.sources
 
         # A ray keeps its source's index in the scene, whichever sources are traced
         scene_index = {id(source): index for index, source in enumerate(scene.sources)}
-        sim_sources = []
-        for position, source in enumerate(sources):
-            if simulation.is_inside(source.position):
-                sim_sources.append((scene_index.get(id(source), position), source))
-            else:
-                warnings.warn(f"Source '{source.name}' is outside the room and no rays will be traced from it.", UserWarning, stacklevel=2)
+        sim_sources = _inside(
+            geometry,
+            [(scene_index.get(id(source), position), source) for position, source in enumerate(sources)],
+            "Source '{name}' is outside the room and no rays will be traced from it.",
+        )
 
         rng = np.random.default_rng(_seed(random_seed))
         if direction is None:
@@ -454,7 +460,7 @@ class RayField(Data):
         else:
             directions = _cone_sampling(direction, angle, n_rays)
 
-        distance_thres = time_thres * sound_speed if time_thres is not None else None
+        distance_thres = _distance(time_thres * 1000.0) if time_thres is not None else None
 
         rays = []
         for source_index, source in sim_sources:
@@ -500,7 +506,6 @@ class RayField(Data):
                                     source_index=source_index,
                                     ray_index=ray_index,
                                     max_dist=max_dist,
-                                    sound_speed=sound_speed,
                                     scatter_density=scatter_density,
                                     scatter_max_bounces=scatter_max_bounces,
                                     rng=rng,
@@ -522,12 +527,11 @@ class RayField(Data):
                     source_index=source_index,
                     ray_index=ray_index,
                     direction=Vector(*initial_direction),
-                    sound_speed=sound_speed,
                 )
                 ray.scattered_reflections = scattered_reflections
                 rays.append(ray)
 
-        return cls(rays, sound_speed=sound_speed)
+        return cls(rays)
 
     @property
     def scattered_rays(self) -> List[ScatteredRay]:
@@ -561,20 +565,21 @@ class RayField(Data):
         points = []
         indices = []
         orders = []
+        distance = _distance(time_ms)
         for ray in self.rays:
             if ray.travel_time < time_ms:
                 continue
-            part = ray.up_to_time(time_ms)
+            part = ray.up_to_distance(distance)
             if part is None:
                 # up_to_distance reports "not emerged" at distance == distance_offset too
-                if ray.sound_speed * time_ms / 1000.0 < ray.cumulative_distances[0]:
+                if distance < ray.cumulative_distances[0]:
                     continue
                 points.append(Point(*ray.points[0]))
             else:
                 points.append(Point(*part.points[-1]))
             indices.append(ray.ray_index)
-            distance = ray.sound_speed * time_ms / 1000.0
-            orders.append(sum(1 for reached in ray.cumulative_distances[1:] if reached <= distance))
+            # A particle on a wall is reflected only once it moves on, so the end of a ray is no reflection
+            orders.append(sum(1 for reached in ray.cumulative_distances[1:] if reached < distance - TOL.absolute))
         return points, indices, orders
 
     def filter(
@@ -597,7 +602,7 @@ class RayField(Data):
         """
         ray_indices = None
         if ray_index is not None:
-            ray_indices = {ray_index} if isinstance(ray_index, int) else set(ray_index)
+            ray_indices = {ray_index} if isinstance(ray_index, numbers.Integral) else set(ray_index)
 
         kept = []
         for ray in self.rays:
@@ -607,11 +612,11 @@ class RayField(Data):
                 continue
             kept.append(ray)
 
-        return RayField(kept, sound_speed=self.sound_speed, name=self.name)
+        return type(self)(kept, name=self.name)
 
     @staticmethod
     def _matches_source(ray: Ray, source) -> bool:
-        if isinstance(source, int):
+        if isinstance(source, numbers.Integral):
             return ray.source_index == source
         return ray.source is source
 
@@ -644,7 +649,8 @@ class RayField(Data):
             truncated_ray.scattered_reflections = scattered
 
             new_rays.append(truncated_ray)
-        return RayField(new_rays, sound_speed=self.sound_speed, name=self.name)
+        # Truncated rays are plain rays, whatever the field held
+        return RayField(new_rays, name=self.name)
 
     @staticmethod
     def _truncate_ray(ray: Ray, reflection_order: Optional[int], travel_time_ms: Optional[float]) -> Optional[Ray]:
@@ -829,7 +835,6 @@ def _make_scattered_rays(
     source_index: int,
     ray_index: int,
     max_dist: float,
-    sound_speed: float,
     scatter_density: int,
     scatter_max_bounces: int,
     rng,
@@ -881,7 +886,6 @@ def _make_scattered_rays(
                 source_index=source_index,
                 ray_index=ray_index,
                 direction=Vector(*scatter_direction),
-                sound_speed=sound_speed,
                 distance_offset=travel_distance,
             )
         )

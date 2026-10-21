@@ -24,20 +24,21 @@ WALL = AcousticMaterial("w", 0.2, 0.1)
 
 def path(order=1, s=0, r=0):
     return SpecularPath([[0, 0, 0], [3, 4, 0], [6, 0, 0]], order=order, walls=[2] * order,
-                        image=[0, 8, 0], source_index=s, receiver_index=r, sound_speed=343.98)
+                        image=[0, 8, 0], source_index=s, receiver_index=r)
 
 
 def test_path_length_and_travel_time():
     p = path()
     assert p.length == pytest.approx(10.0)
-    assert p.travel_time == pytest.approx(10.0 / 343.98 * 1000)
+    assert p.travel_time == pytest.approx(10.0 / AirConditions().speed_of_sound * 1000)
 
 
 def test_filter_by_pair_and_exact_order():
     field = SpecularReflections([path(1, 0, 0), path(2, 0, 0), path(1, 1, 0), path(1, 0, 1)])
-    assert len(field.filter(source_index=0, receiver_index=0)) == 2
+    assert len(field.filter(source=0, receiver_index=0)) == 2
     assert [p.order for p in field.filter(order=2)] == [2]
-    assert len(field.filter(order=[1, 2], source_index=0, receiver_index=0)) == 2
+    assert len(field.filter(order=[1, 2], source=0, receiver_index=0)) == 2
+    assert isinstance(field.filter(order=1), SpecularReflections)
     assert field.orders == [1, 2]
 
 
@@ -114,7 +115,7 @@ def test_first_order_hit_points_are_the_mirror_solution():
 def test_images_match_pyroomacoustics_visible_images(room):
     scene = ROOMS[room]()
     field = SpecularReflections.from_scene(scene, max_order=3)
-    ours = np.array([list(p.image) for p in field.filter(source_index=0, receiver_index=0)])
+    ours = np.array([list(p.image) for p in field.filter(source=0, receiver_index=0)])
     theirs = pra_visible_images(scene, 3)
     assert len(ours) == len(theirs)
     assert cKDTree(theirs).query(ours)[0].max() < 1e-3
@@ -149,7 +150,7 @@ def test_every_pair_in_scene_order():
     field = SpecularReflections.from_scene(scene, max_order=1)
     for s in range(2):
         for r in range(2):
-            pair = field.filter(source_index=s, receiver_index=r)
+            pair = field.filter(source=s, receiver_index=r)
             assert len(pair) == 7
             assert list(pair.filter(order=0).paths[0].points[0]) == pytest.approx(scene.sources[s].position)
             assert list(pair.filter(order=0).paths[0].points[-1]) == pytest.approx(scene.receivers[r].position)
@@ -168,8 +169,10 @@ def test_a_source_outside_the_room_warns_and_has_no_paths():
 
 
 def test_travel_time_uses_the_package_air():
-    p = SpecularReflections.from_scene(shoebox(), 0).paths[0]
-    assert p.sound_speed == pytest.approx(AirConditions().speed_of_sound)
+    scene = shoebox()
+    p = SpecularReflections.from_scene(scene, 0).paths[0]
+    distance = np.linalg.norm(np.subtract(scene.receivers[0].position, scene.sources[0].position))
+    assert p.travel_time == pytest.approx(distance / AirConditions().speed_of_sound * 1000)
 
 
 def test_filter_takes_numpy_integers():
@@ -188,26 +191,13 @@ def edge():
     return shoebox(source=(2, 2.5, 1.5), receiver=(5, 2.5, 1.5))
 
 
-def test_the_wall_names_are_the_objects_the_walls_belong_to():
-    scene = shoebox()
-    names = RoomGeometry.from_scene(scene).face_names
-    field = SpecularReflections.from_scene(scene, 1)
-    assert all(p.wall_names == [names[w] for w in p.walls] for p in field)
-    assert ["shoebox_room_7x5x3_floor"] in [p.wall_names for p in field.filter(order=1)]
-    cabinet = SpecularReflections.from_scene(obstacle(), 3)
-    assert any("cabinet" in p.wall_names for p in cabinet)
-
-
-def test_json_round_trip_keeps_the_wall_names():
-    field = SpecularReflections.from_scene(shoebox(), 1)
-    back = compas.json_loads(compas.json_dumps(field))
-    assert [p.wall_names for p in back] == [p.wall_names for p in field]
-
-
-def test_data_without_wall_names_still_loads():
+def test_data_stored_with_wall_names_and_a_speed_of_sound_still_loads():
     data = path().__data__
-    del data["wall_names"]
-    assert SpecularPath.__from_data__(data).wall_names == []
+    data.update(wall_names=["floor"], sound_speed=343.98)
+    loaded = SpecularPath.__from_data__(data)
+    assert (loaded.order, loaded.walls, loaded.receiver_index) == (1, [2], 0)
+    stored = compas.json_dumps(SpecularReflections([path()])).replace('"rays":', '"paths":')
+    assert len(compas.json_loads(stored)) == 1
 
 
 def test_a_negative_order_is_a_value_error():
@@ -285,3 +275,23 @@ def test_each_hit_is_on_its_wall_and_reflects_specularly(room):
                     break
             assert np.linalg.norm(direction - _unit(points[j + 1] - points[k + 1])) < 1e-4
             k = j
+
+
+def test_specular_reflections_are_a_ray_field_of_paths_that_end_at_the_receiver():
+    from compas_acoustics import Ray
+    from compas_acoustics import RayField
+
+    scene = shoebox()
+    field = SpecularReflections.from_scene(scene, max_order=2)
+    assert isinstance(field, RayField) and all(isinstance(path, Ray) for path in field)
+    assert [path.ray_index for path in field] == list(range(len(field)))
+    assert all(path.source is scene.sources[path.source_index] for path in field)
+    assert all(path.reflection_order == path.order for path in field)
+    assert field.duration_ms == pytest.approx(max(path.travel_time for path in field))
+    points, indices, orders = field.particles(0.0)
+    assert len(points) == len(field) and set(orders) == {0}
+    # cut paths are plain rays: they no longer reach the receiver
+    assert all(type(ray) is Ray for ray in field.truncated(reflection_order=1))
+    back = compas.json_loads(compas.json_dumps(field))
+    assert isinstance(back, SpecularReflections) and back.paths[3].source.name == scene.sources[0].name
+    assert [path.walls for path in back] == [path.walls for path in field]

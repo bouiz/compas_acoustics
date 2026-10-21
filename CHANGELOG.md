@@ -17,6 +17,7 @@ Nothing is kept under its old name. What replaces what:
 | `Simulator(scene).rir_from_image_source_method(order)` | `scene.simulate(Pyroomacoustics(image_source_order=order, ray_tracing=False))` |
 | `simulator.sampling_rate = fs` | `Scene(name, sampling_rate=fs)` or `scene.sampling_rate = fs` |
 | `simulator.trace_rays(...)` | `RayField.from_scene(scene, ...)` |
+| `Ray(..., sound_speed=)`, `RayField(..., sound_speed=)` | removed; travel times are at `Defaults().DEFAULT_SPEED_OF_SOUND` |
 | `simulator.rirs`, `simulator.results` | the responses returned by `scene.simulate`, or `scene.impulse_responses(method_name)`, `scene.get_impulse_response(source, receiver)` |
 | `Scene(simulation_platform=)`, `ImpulseResponse(simulation_platform=)` | removed; `ir.generation` names the method |
 | `AcousticObjectsGroup`; `scene.iter_acoustic_objects()` | `scene.add_acoustic_objects(shoebox_room(...))` (a list); `scene.acoustic_objects` |
@@ -112,15 +113,16 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 * Added the Grasshopper installer for Rhino 8 (`installer/compas_acoustics_installer.gh`), `invoke installer-bundle`, and `compas-dev/compas-actions` v1 workflows (build, release, `prepare release`), with tests on Python 3.9.
 * Added `examples/office_hybrid.py`, which runs both methods on an office.
 * Added a getting-started section to the README, and `Examples` sections that `invoke testdocs` can run in the docstrings of `Scene`, `Pyroomacoustics`, `Hybrid`, `AcousticAnalyser` and `Auraliser`.
-* Added `SpecularReflections.from_scene(scene, max_order=3)`, the image-source paths from each source to each receiver for inspection, with `filter(source_index, receiver_index, order)`.
+* Added `SpecularReflections.from_scene(scene, max_order=3)`, the image-source paths from each source to each receiver for inspection, with `filter(source, ray_index, receiver_index, order)`. It is a `RayField` of `SpecularPath` rays, so it plays in a billiard (`particles`) and displays like traced rays.
 * Added `RayField.particles(time_ms)` and `RayField.duration_ms`, the rays' positions at a time, for a billiard view.
-* Added the Grasshopper Specular Reflections component: image-source paths of a source-receiver pair by order.
+* Added the Grasshopper Specular Reflections component: image-source paths of a source-receiver pair by order, output as a ray field for the Billiard.
 * Added the Grasshopper Ray Field component: rays traced from one source (`source_idx`) or all, for display and the Billiard.
 * Added the Grasshopper Billiard component: the rays of a ray field as particles (points only) at a time, played with a button or scrubbed with a slider.
-* Added colours by reflection order to Specular Reflections, Ray Field and Billiard: each component draws its paths, ray segments or particles itself (round particles, order 0 black, one colour per order) and outputs the `colors`; `RayField.particles` returns each particle's reflection order too.
+* Added colours by reflection order to Specular Reflections, Ray Field and Billiard: each component draws its paths, ray segments or particles itself (round particles, order 0 black, one colour per order) and Ray Field and Billiard output the `colors`; `RayField.particles` returns each particle's reflection order too.
 
 ### Changed
 
+* Changed `Defaults().DEFAULT_SPEED_OF_SOUND` to the speed of sound of `AirConditions()` (343.98 m/s at 20 C and 50 %, was 343), the air every simulation runs in without one given. `Ray`, `ScatteredRay` and `RayField` no longer take or store a `sound_speed` (it was 343 on its own and was serialised with every ray): their travel times are at this default; ray fields saved with it still load.
 * Changed `Hybrid` to use 96 delay lines up to third ambisonic order, for every output (`hybrid.late.MIN_DELAYS`; 16 before at orders 0 and 1, 36 at 2, 64 at 3): the count Kirsch, Wendt and van de Par (2023) run their network with whatever the number of rendered directions, so that the tail's character does not change with the count, and the one they name for offline simulation; RAZR 0.96.3 allows up to 96 and defaults to 24 for real time. In the binaural output each line is heard through its own HRIR. A 1.5 s response takes about 1 s longer per source-receiver pair. `Hybrid` no longer takes `num_delays` and `drive_gain`: the count follows from `sh_order`, and the input gain `sqrt(num_delays)` offsets the output's `1 / sqrt(num_delays)`, so the late level does not depend on the count; `hybrid.synthesis.synthesize` keeps both.
 * Changed how the last rendered image-source order drives the hybrid's network: each image now enters the delay lines of the hemisphere opposite its arrival, weighted by the cosine to each line (`hybrid.scattering.scattering_weights(..., opposite=True)`), the mapping of Ewert et al. (2025, Sec. 3.1.2) as RAZR 0.96.3's `fdn_smart_ch_mapping` implements it, checked against RAZR's FDN input in `tests/hybrid/data/razr_scattering`. Before, each image entered the one line nearest the opposite direction, hybrid-rir's own choice without a reference. On four shoeboxes against an exact image-source room the late level now lies within 0.5 dB (before -1.5 to +1.8 dB); `hybrid.early.route_to_directions` stays as the one-hot form the tests compare against.
 * Changed the spelling of identifiers to `normalization` and `normalized` everywhere, including `ImpulseResponse.normalization` (the ambisonic convention) and its JSON metadata key.

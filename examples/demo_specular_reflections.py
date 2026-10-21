@@ -33,4 +33,4 @@ for order in reflections.orders:
 
 
 ########### display the first and second order reflections
-reflections.display_in_viewer(scene, order=[1, 2])
+reflections.filter(order=[1, 2]).display_in_viewer(scene)

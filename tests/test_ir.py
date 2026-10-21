@@ -170,12 +170,15 @@ def test_ambisonic_fields_survive_the_wav_and_json_round_trip(tmp_path):
 
 
 def test_on_the_package_scale_the_onset_is_the_geometric_arrival():
+    from compas_acoustics.defaults import Defaults
+
+    onset = round(3.43 / Defaults().DEFAULT_SPEED_OF_SOUND * 48000)
     data = np.zeros(2000)
-    data[480] = 1.0
+    data[onset] = 1.0
     data[10] = 5.0  # an early ray-traced bin louder than the direct sound
     ir = ImpulseResponse("k", Source("s", 0, 0, 0), Receiver("r", 3.43, 0, 0), data, 48000,
                          generation={"scale": "package"})
-    assert ir.direct_sound_index() == 480
+    assert ir.direct_sound_index() == onset
     ir.generation = {}
     assert ir.direct_sound_index() == 10
 

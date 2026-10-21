@@ -3,7 +3,7 @@
     "nickname": "Spec",
     "category": "COMPAS Acoustics",
     "subcategory": "05 Display",
-    "description": "The specular (image source) reflection paths from the scene's sources to its receivers, by order: each path as a polyline from the source over its wall hits to the receiver, with its image source, order, walls and travel time.",
+    "description": "The specular (image source) reflection paths from the scene's sources to its receivers, by order, drawn in one colour per order (order 0 black). Outputs them as a ray field from the source over the wall hits to the receiver, for the Billiard.",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,
@@ -40,32 +40,16 @@
         ],
         "outputParameters": [
             {
-                "name": "reflections",
-                "description": "The SpecularReflections object, the paths of the chosen orders and pair."
-            },
-            {
-                "name": "paths",
-                "description": "The reflection paths as polylines, from the source over the wall hits to the receiver."
-            },
-            {
-                "name": "images",
-                "description": "The image source of each path as a point."
+                "name": "ray_field",
+                "description": "The paths as a ray field, each from the source over its wall hits to the receiver, for the Billiard."
             },
             {
                 "name": "order",
                 "description": "The reflection order of each path."
             },
             {
-                "name": "walls",
-                "description": "The name of the object each reflection of a path is off, in path order: a branch per path."
-            },
-            {
                 "name": "time",
                 "description": "The travel time of each path in milliseconds."
-            },
-            {
-                "name": "colors",
-                "description": "The colour of each path, by its reflection order (the colours the component draws with: order 0 black, then one colour per order)."
             }
         ]
     }

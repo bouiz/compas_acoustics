@@ -8,6 +8,7 @@ from compas_acoustics import Pyroomacoustics
 from compas_acoustics import Receiver
 from compas_acoustics import Scene
 from compas_acoustics import Source
+from compas_acoustics.defaults import Defaults
 from compas_acoustics.simulation_methods import SimulationContext
 from compas_acoustics.simulation_methods import SimulationMethod
 
@@ -41,7 +42,7 @@ class Delta(SimulationMethod):
             for receiver in context.receivers:
                 distance = float(np.linalg.norm(np.subtract(receiver.position, source.position)))
                 data = np.zeros(int(0.1 * fs))
-                data[round(distance / 343.0 * fs)] = 1.0 / (4 * np.pi * distance) * (4 * np.pi if self.broken == "scale" else 1.0)
+                data[round(distance / Defaults().DEFAULT_SPEED_OF_SOUND * fs)] = 1.0 / (4 * np.pi * distance) * (4 * np.pi if self.broken == "scale" else 1.0)
                 if self.channels:
                     data = np.tile(data[:, None], (1, self.channels))
                 generation = {"method": self.name, "scale": "package", "valid_range_hz": None}

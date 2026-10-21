@@ -1,18 +1,14 @@
 import warnings
 
 import Grasshopper
-from Grasshopper import DataTree
-from Grasshopper.Kernel.Data import GH_Path
 import Rhino
 import System
 
 from compas_acoustics import SpecularReflections
-from compas_acoustics_ghpython.display import POINT_STYLE
 from compas_acoustics_ghpython.display import bounding_box
 from compas_acoustics_ghpython.display import order_color
 
 PATH_THICKNESS = 2
-IMAGE_RADIUS = 3
 
 
 class SpecularReflectionsComponent(Grasshopper.Kernel.GH_ScriptInstance):
@@ -21,7 +17,7 @@ class SpecularReflectionsComponent(Grasshopper.Kernel.GH_ScriptInstance):
         self._drawn = []
         self._box = bounding_box([])
 
-        empty = (None,) * 7
+        empty = (None,) * 3
         if scene is None:
             ghenv.Component.AddRuntimeMessage(
                 Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning, "Input parameter 'scene' failed to collect data."
@@ -58,34 +54,21 @@ class SpecularReflectionsComponent(Grasshopper.Kernel.GH_ScriptInstance):
             if issubclass(warning.category, UserWarning):
                 ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning, str(warning.message))
 
-        reflections = found.filter(source_index=source_idx, receiver_index=receiver_idx, order=orders)
+        reflections = found.filter(source=source_idx, receiver_index=receiver_idx, order=orders)
 
         paths = []
-        images = []
-        walls = DataTree[object]()
-        for i, path in enumerate(reflections):
+        for path in reflections:
             polyline = Rhino.Geometry.Polyline()
             polyline.AddRange([Rhino.Geometry.Point3d(*point) for point in path.points])
             paths.append(polyline)
-            images.append(Rhino.Geometry.Point3d(*path.image))
-            walls.AddRange(path.wall_names, GH_Path(i))
-
-        colors = [order_color(path.order) for path in reflections]
-        self._drawn = list(zip(paths, images, colors))
-        self._box = bounding_box([Rhino.Geometry.Point3d(*point) for path in reflections for point in list(path.points) + [path.image]])
+        # Drawn here, not output as geometry: Grasshopper would preview polylines in one colour on top
+        self._drawn = [(polyline, order_color(path.order)) for polyline, path in zip(paths, reflections)]
+        self._box = bounding_box([Rhino.Geometry.Point3d(*point) for path in reflections for point in path.points])
 
         counts = ["order {}: {}".format(o, sum(1 for path in reflections if path.order == o)) for o in reflections.orders]
         ghenv.Component.Message = ", ".join(counts) if counts else "no paths"
 
-        return (
-            reflections,
-            paths,
-            images,
-            [path.order for path in reflections],
-            walls,
-            [path.travel_time for path in reflections],
-            colors,
-        )
+        return reflections, [path.order for path in reflections], [path.travel_time for path in reflections]
 
     @property
     def ClippingBox(self):
@@ -93,6 +76,5 @@ class SpecularReflectionsComponent(Grasshopper.Kernel.GH_ScriptInstance):
         return bounding_box([]) if box is None else box
 
     def DrawViewportWires(self, args):
-        for path, image, color in getattr(self, "_drawn", []):
+        for path, color in getattr(self, "_drawn", []):
             args.Display.DrawPolyline(path, color, PATH_THICKNESS)
-            args.Display.DrawPoint(image, POINT_STYLE, IMAGE_RADIUS, color)

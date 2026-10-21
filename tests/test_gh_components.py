@@ -1280,69 +1280,65 @@ def test_the_y_axis_title_reads_upwards(monkeypatch):
 # ------------------------------------------------------ Specular Reflections --
 def test_specular_reflections_default_to_first_order_of_every_pair(monkeypatch):
     module, messages = load_component("CA_Specular_Reflections", monkeypatch)
-    reflections, paths, images, orders, walls, times, colors = module.SpecularReflectionsComponent().RunScript(scene(), [], None, None)
-    assert set(orders) == {1} and len(paths) == len(images) == len(times) == 6
-    assert sorted(walls.branches) == [(i,) for i in range(6)] and all(len(w) == 1 for w in walls.branches.values())
-    assert walls.branches[(0,)] == reflections.paths[0].wall_names
-    assert all(isinstance(name, str) for w in walls.branches.values() for name in w)
-    assert ["shoebox_room_7x5x3_floor"] in walls.branches.values()
+    field, orders, times = module.SpecularReflectionsComponent().RunScript(scene(), [], None, None)
+    assert set(orders) == {1} and len(field) == len(times) == 6
     assert all(t > 0 for t in times) and not messages
     assert module.ghenv.Component.Message == "order 1: 6"
+
+
+def test_specular_reflections_are_a_ray_field_from_the_source_over_the_walls_to_the_receiver(monkeypatch):
+    from compas_acoustics import RayField
+    from compas_acoustics import SpecularReflections
+
+    s = scene()
+    module, _ = load_component("CA_Specular_Reflections", monkeypatch)
+    field, orders, times = module.SpecularReflectionsComponent().RunScript(s, [0, 2], None, None)
+    paths = SpecularReflections.from_scene(s, max_order=2).filter(order=[0, 2])
+    assert isinstance(field, RayField) and len(field) == len(paths) > 0
+    for ray, path, order, time in zip(field, paths, orders, times):
+        assert [list(p) for p in ray.points] == [list(p) for p in path.points]
+        assert ray.source is s.sources[0] and order == path.order and time == pytest.approx(ray.travel_time)
 
 
 def test_specular_reflections_pick_a_pair_and_orders(monkeypatch):
     s = scene()
     s.add_receiver(Receiver("rec2", 2, 4, 1.5))
     module, _ = load_component("CA_Specular_Reflections", monkeypatch)
-    out = module.SpecularReflectionsComponent().RunScript(s, [0, 1], 0, 1)
-    assert set(out[3]) == {0, 1} and all(p.receiver_index == 1 for p in out[0])
-    assert len(out[1]) == len(out[2]) == len(out[3]) == len(out[5]) == len(out[0]) == 7
+    field, orders, times = module.SpecularReflectionsComponent().RunScript(s, [0, 1], 0, 1)
+    assert set(orders) == {0, 1} and len(field) == len(times) == 7
+    assert list(field.rays[0].points[-1]) == pytest.approx(list(s.receivers[1].position))
     assert module.ghenv.Component.Message == "order 0: 1, order 1: 6"
 
 
 def test_specular_reflections_take_numpy_orders_and_ignore_empty_items(monkeypatch):
     module, _ = load_component("CA_Specular_Reflections", monkeypatch)
     out = module.SpecularReflectionsComponent().RunScript(scene(), [None, np.int64(2)], None, None)
-    assert set(out[3]) == {2}
+    assert set(out[1]) == {2}
     out = module.SpecularReflectionsComponent().RunScript(scene(), [None], None, None)
-    assert set(out[3]) == {1}
+    assert set(out[1]) == {1}
 
 
 def test_specular_reflections_leave_out_negative_orders_with_a_warning(monkeypatch):
     module, messages = load_component("CA_Specular_Reflections", monkeypatch, levels=True)
     out = module.SpecularReflectionsComponent().RunScript(scene(), [-1, 0], None, None)
-    assert set(out[3]) == {0}
+    assert set(out[1]) == {0}
     assert [level for level, text in messages] == ["warning"] and "-1" in messages[0][1]
     messages.clear()
     out = module.SpecularReflectionsComponent().RunScript(scene(), [-2, -1], None, None)
-    assert set(out[3]) == {1} and len(out[1]) == 6
+    assert set(out[1]) == {1} and len(out[0]) == 6
     assert [level for level, text in messages] == ["warning"] and "-2, -1" in messages[0][1]
 
 
 class RecordingPolyline(list):
-    def __init__(self):
-        super().__init__()
-
     def AddRange(self, points):
         self.extend(points)
-
-
-def test_specular_reflections_give_the_paths_vertices_and_image_points(monkeypatch):
-    module, _ = load_component("CA_Specular_Reflections", monkeypatch)
-    module.Rhino.Geometry.Polyline = RecordingPolyline
-    reflections, paths, images, *_ = module.SpecularReflectionsComponent().RunScript(scene(), [0, 2], None, None)
-    assert len(paths) == len(images) == len(reflections) > 0
-    for polyline, image, path in zip(paths, images, reflections):
-        assert polyline == [tuple(point) for point in path.points]
-        assert len(polyline) == path.order + 2
-        assert image == tuple(path.image)
 
 
 def test_an_out_of_range_receiver_warns(monkeypatch):
     module, messages = load_component("CA_Specular_Reflections", monkeypatch, levels=True)
     out = module.SpecularReflectionsComponent().RunScript(scene(), [1], 0, 5)
     assert any(level == "warning" and "receiver" in text for level, text in messages)
-    assert len(out[1]) == 0
+    assert len(out[0]) == 0
 
 
 def test_an_out_of_range_source_warns(monkeypatch):
@@ -1353,7 +1349,7 @@ def test_an_out_of_range_source_warns(monkeypatch):
 
 def test_specular_reflections_without_a_scene_warn(monkeypatch):
     module, messages = load_component("CA_Specular_Reflections", monkeypatch, levels=True)
-    assert module.SpecularReflectionsComponent().RunScript(None, [1], None, None) == (None,) * 7
+    assert module.SpecularReflectionsComponent().RunScript(None, [1], None, None) == (None,) * 3
     assert messages == [("warning", "Input parameter 'scene' failed to collect data.")]
 
 
@@ -1363,13 +1359,13 @@ def test_specular_reflections_show_the_scenes_warnings(monkeypatch):
     s.add_receiver(Receiver("outside", 50, 50, 50))
     out = module.SpecularReflectionsComponent().RunScript(s, [1], None, None)
     assert ("warning", "Receiver 'outside' is outside the room and has no specular paths.") in messages
-    assert len(out[1]) == 6
+    assert len(out[0]) == 6
 
 
 def test_a_scene_without_a_room_is_an_error(monkeypatch):
     module, messages = load_component("CA_Specular_Reflections", monkeypatch, levels=True)
     out = module.SpecularReflectionsComponent().RunScript(Scene("empty"), [1], None, None)
-    assert out == (None,) * 7 and [level for level, _ in messages] == ["error"]
+    assert out == (None,) * 3 and [level for level, _ in messages] == ["error"]
 
 
 def test_the_specular_reflections_inputs_match_its_script(monkeypatch):
@@ -1380,7 +1376,7 @@ def test_the_specular_reflections_inputs_match_its_script(monkeypatch):
     metadata = json.loads((COMPONENTS / "CA_Specular_Reflections" / "metadata.json").read_text())
     parameters = list(inspect.signature(module.SpecularReflectionsComponent.RunScript).parameters)[1:]
     assert parameters == [p["name"] for p in metadata["ghpython"]["inputParameters"]] == ["scene", "order", "source_idx", "receiver_idx"]
-    assert [p["name"] for p in metadata["ghpython"]["outputParameters"]] == ["reflections", "paths", "images", "order", "walls", "time", "colors"]
+    assert [p["name"] for p in metadata["ghpython"]["outputParameters"]] == ["ray_field", "order", "time"]
     assert (metadata["name"], metadata["nickname"], metadata["subcategory"]) == ("Specular Reflections", "Spec", "05 Display")
 
 
@@ -1864,18 +1860,25 @@ def test_each_reflection_order_has_its_colour(monkeypatch):
     assert display.order_color(11) == display.order_color(1)
 
 
-def test_specular_reflections_draw_each_path_in_the_colour_of_its_order(monkeypatch):
+def test_specular_reflections_draw_each_path_in_the_colour_of_its_order_and_no_image_points(monkeypatch):
     module, _ = load_component("CA_Specular_Reflections", monkeypatch)
+    module.Rhino.Geometry.Polyline = RecordingPolyline
     from compas_acoustics_ghpython.display import order_color
 
     component = module.SpecularReflectionsComponent()
-    reflections, paths, images, orders, walls, times, colors = component.RunScript(scene(), [0, 1, 2], None, None)
-    assert colors == [order_color(o) for o in orders]
+    field, orders, times = component.RunScript(scene(), [0, 1, 2], None, None)
     calls = draw(component)
-    lines = [call for call in calls if call[0] == "DrawPolyline"]
-    dots = [call for call in calls if call[0] == "DrawPoint"]
-    assert [call[2] for call in lines] == colors and len(dots) == len(images)
-    assert all(call[2] == "round" for call in dots)
+    assert {call[0] for call in calls} == {"DrawPolyline"}
+    assert [call[2] for call in calls] == [order_color(o) for o in orders]
+    assert [call[1] for call in calls] == [[tuple(p) for p in ray.points] for ray in field]
+
+
+def test_the_billiard_plays_the_specular_reflections(monkeypatch):
+    specular, _ = load_component("CA_Specular_Reflections", monkeypatch)
+    field, *_ = specular.SpecularReflectionsComponent().RunScript(scene(), [0, 1], None, None)
+    module, messages, clock, document = billiard(monkeypatch)
+    particles, t, colors = run_billiard(module, field, 1.0, False, None)
+    assert len(particles) == len(field) == 7 and not messages
 
 
 def test_ray_field_colours_each_segment_by_the_reflections_before_it(monkeypatch):

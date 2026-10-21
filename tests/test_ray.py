@@ -3,15 +3,24 @@ import math
 import pytest
 from compas.geometry import Vector
 
+from compas_acoustics import AirConditions
 from compas_acoustics import Ray
 from compas_acoustics import RayField
 from compas_acoustics import ScatteredRay
+from compas_acoustics.defaults import Defaults
+
+C = Defaults().DEFAULT_SPEED_OF_SOUND
+
+
+def ms(distance):
+    """The time sound takes over ``distance`` metres, in ms."""
+    return distance / C * 1000.0
 
 
 def make_ray(**kwargs):
     # source -> hit1 -> hit2 -> hit3, segment lengths 3, 4, 3
     points = [[0, 0, 0], [3, 0, 0], [3, 4, 0], [3, 4, 3]]
-    return Ray(points, sound_speed=343.0, **kwargs)
+    return Ray(points, **kwargs)
 
 
 def test_segment_and_cumulative_distances():
@@ -23,7 +32,7 @@ def test_segment_and_cumulative_distances():
 def test_total_distance_and_travel_time():
     ray = make_ray()
     assert ray.total_distance == 10.0
-    assert math.isclose(ray.travel_time, 10.0 / 343.0 * 1000.0)
+    assert math.isclose(ray.travel_time, 10.0 / C * 1000.0)
 
 
 def test_reflection_order():
@@ -39,7 +48,7 @@ def test_direction_defaults_to_first_segment_and_is_unit():
 
 def test_distance_offset_included_in_totals():
     points = [[0, 0, 0], [0, 0, 2]]
-    ray = Ray(points, sound_speed=343.0, distance_offset=3.0)
+    ray = Ray(points, distance_offset=3.0)
     assert ray.cumulative_distances == [3.0, 5.0]
     assert ray.total_distance == 5.0
 
@@ -65,7 +74,7 @@ def test_up_to_distance_before_emergence_returns_none():
 
 def test_up_to_time_converts_time_to_distance():
     ray = make_ray()
-    time_ms = 5.0 / 343.0 * 1000.0
+    time_ms = ms(5.0)
     truncated = ray.up_to_time(time_ms)
     assert [list(p) for p in truncated.points] == [[0, 0, 0], [3, 0, 0], [3, 2, 0]]
 
@@ -127,35 +136,53 @@ def test_rayfield_truncated_reflection_order_carries_scattered():
 
 
 def test_particles_sit_at_c_t_along_each_ray():
-    ray = Ray([[0, 0, 0], [10, 0, 0], [10, 10, 0]], sound_speed=1000.0)  # 20 m = 20 ms
-    points, indices, orders = RayField([ray], sound_speed=1000.0).particles(15.0)
+    ray = Ray([[0, 0, 0], [10, 0, 0], [10, 10, 0]])
+    points, indices, orders = RayField([ray]).particles(ms(15.0))
     assert list(points[0]) == pytest.approx([10, 5, 0])
 
 
 def test_a_ray_that_ended_has_no_particle():
-    short = Ray([[0, 0, 0], [5, 0, 0]], sound_speed=1000.0, ray_index=0)
-    long = Ray([[0, 0, 0], [20, 0, 0]], sound_speed=1000.0, ray_index=1)
-    assert RayField([short, long], sound_speed=1000.0).particles(10.0)[1] == [1]
+    short = Ray([[0, 0, 0], [5, 0, 0]], ray_index=0)
+    long = Ray([[0, 0, 0], [20, 0, 0]], ray_index=1)
+    assert RayField([short, long]).particles(ms(10.0))[1] == [1]
 
 
 def test_duration_is_the_longest_ray():
-    rays = [Ray([[0, 0, 0], [d, 0, 0]], sound_speed=1000.0) for d in (5, 20)]
-    assert RayField(rays, sound_speed=1000.0).duration_ms == pytest.approx(20.0)
+    rays = [Ray([[0, 0, 0], [d, 0, 0]]) for d in (5, 20)]
+    assert RayField(rays).duration_ms == pytest.approx(ms(20.0))
 
 
 def test_particles_clamp_time():
-    field = RayField([Ray([[0, 0, 0], [20, 0, 0]], sound_speed=1000.0)], sound_speed=1000.0)
+    field = RayField([Ray([[0, 0, 0], [20, 0, 0]])])
     assert list(field.particles(-5.0)[0][0]) == pytest.approx([0, 0, 0])
-    assert list(field.particles(99.0)[0][0]) == pytest.approx([20, 0, 0])
+    assert list(field.particles(ms(99.0))[0][0]) == pytest.approx([20, 0, 0])
     assert RayField([]).particles(1.0) == ([], [], [])
 
 
 def test_particles_start_once_the_ray_has_emerged_from_its_offset():
-    # 5 m before the first point, then one 10 m segment: 15 m = 15 ms at 1000 m/s
-    field = RayField([Ray([[0, 0, 0], [10, 0, 0]], sound_speed=1000.0, distance_offset=5.0)], sound_speed=1000.0)
-    assert field.particles(3.0) == ([], [], [])
-    assert list(field.particles(5.0)[0][0]) == pytest.approx([0, 0, 0])
-    assert list(field.particles(10.0)[0][0]) == pytest.approx([5, 0, 0])
+    # 5 m before the first point, then one 10 m segment
+    field = RayField([Ray([[0, 0, 0], [10, 0, 0]], distance_offset=5.0)])
+    assert field.particles(ms(3.0)) == ([], [], [])
+    assert list(field.particles(ms(5.0))[0][0]) == pytest.approx([0, 0, 0])
+    assert list(field.particles(ms(10.0))[0][0]) == pytest.approx([5, 0, 0])
+
+
+def test_times_are_at_the_speed_of_sound_of_the_default_air():
+    assert C == AirConditions().speed_of_sound == pytest.approx(343.98, abs=0.01)
+    assert make_ray().travel_time == pytest.approx(10.0 / AirConditions().speed_of_sound * 1000.0)
+
+
+def test_a_ray_field_keeps_no_speed_of_sound_and_loads_one_stored_with_it():
+    import compas
+
+    field = RayField([make_ray(ray_index=2)])
+    data = compas.json_loads(compas.json_dumps(field)).__data__
+    assert "sound_speed" not in data and "sound_speed" not in data["rays"][0].__data__
+    stored = compas.json_dumps(field).replace('"distance_offset"', '"sound_speed": 343.0, "distance_offset"')
+    stored = stored.replace('"rays":', '"sound_speed": 343.0, "rays":')
+    assert stored.count("sound_speed") == 2
+    back = compas.json_loads(stored)
+    assert back.rays[0].ray_index == 2 and back.rays[0].travel_time == pytest.approx(ms(10.0))
 
 
 def _two_source_scene(first_outside=False):
@@ -185,6 +212,8 @@ def test_a_source_outside_the_room_does_not_shift_the_others_index():
 
 
 def test_particles_carry_the_reflection_order_they_have_reached():
-    ray = Ray([[0, 0, 0], [10, 0, 0], [10, 10, 0], [0, 10, 0]], sound_speed=1000.0, ray_index=0)
-    field = RayField([ray], sound_speed=1000.0)
-    assert [field.particles(t)[2] for t in (0.0, 5.0, 10.0, 15.0, 25.0, 30.0)] == [[0], [0], [1], [1], [2], [3]]
+    ray = Ray([[0, 0, 0], [10, 0, 0], [10, 10, 0], [0, 10, 0]], ray_index=0)
+    field = RayField([ray])
+    # A particle on a wall has not been reflected yet; the end of the last segment is not a reflection
+    times = [ms(d) for d in (0.0, 5.0, 10.0, 15.0, 20.0, 25.0, 30.0)]
+    assert [field.particles(t)[2] for t in times] == [[0], [0], [0], [1], [1], [2], [2]]

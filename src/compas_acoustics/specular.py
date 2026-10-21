@@ -5,17 +5,17 @@ from typing import Optional
 from typing import Union
 
 import numpy as np
-from compas.data import Data
 from compas.geometry import Point
-from compas.geometry import Polyline
+
+from compas_acoustics.ray import Ray
+from compas_acoustics.ray import RayField
+from compas_acoustics.ray import _inside
 
 __all__ = ['SpecularPath', 'SpecularReflections']
 
-DEFAULT_SOUND_SPEED = 343.98
 
-
-class SpecularPath(Polyline):
-    """A specular (image-source) reflection path from a source to a receiver, as a polyline.
+class SpecularPath(Ray):
+    """A specular (image-source) reflection path from a source to a receiver: a ray that ends at the receiver.
 
     The vertices are ``[source_position, hit_1, ..., hit_order, receiver_position]``.
 
@@ -30,94 +30,71 @@ class SpecularPath(Polyline):
         ``RoomGeometry.from_scene(scene)``, obstacle copies included (:attr:`RoomGeometry.faces`).
     image : :class:`compas.geometry.Point` or list
         The image source of the path.
-    source_index : int
-        The index of the source in the scene.
     receiver_index : int
         The index of the receiver in the scene.
-    sound_speed : float
-        The speed of sound in m/s used to convert the path length to travel time.
-    name : str, optional
-        The name of the path.
-    wall_names : list of str, optional
-        The name of the object each reflection's wall belongs to, in path order (``RoomGeometry.face_names``).
+    **kwargs
+        Forwarded to :class:`compas_acoustics.Ray`: ``source``, ``source_index`` (the source's index in the
+        scene), ``ray_index``, ``name``.
     """
 
-    def __init__(
-        self,
-        points,
-        order: int,
-        walls: List[int],
-        image,
-        source_index: int,
-        receiver_index: int,
-        sound_speed: float,
-        name: Optional[str] = None,
-        wall_names: Optional[List[str]] = None,
-    ):
-        super().__init__(points, name=name)
+    def __init__(self, points, order: int, walls: List[int], image, receiver_index: int, **kwargs):
+        super().__init__(points, **kwargs)
         self.order = order
         self.walls = list(walls)
-        self.wall_names = list(wall_names) if wall_names else []
         self.image = Point(*image)
-        self.source_index = source_index
         self.receiver_index = receiver_index
-        self.sound_speed = sound_speed
 
     @property
     def __data__(self):
         data = super().__data__
-        data.update(
-            order=self.order,
-            walls=self.walls,
-            wall_names=self.wall_names,
-            image=list(self.image),
-            source_index=self.source_index,
-            receiver_index=self.receiver_index,
-            sound_speed=self.sound_speed,
-        )
+        data.update(order=self.order, walls=self.walls, image=list(self.image), receiver_index=self.receiver_index)
         return data
 
     @classmethod
     def __from_data__(cls, data):
-        return cls(**data)
+        data = dict(data)
+        data.pop("wall_names", None)  # stored by the first version
+        return super().__from_data__(data)
 
     @property
-    def travel_time(self) -> float:
-        """The travel time of the path in milliseconds."""
-        return self.length / self.sound_speed * 1000.0
+    def reflection_order(self) -> int:
+        """The number of walls the path is reflected by: its last segment ends at the receiver, not a wall."""
+        return self.order
+
+    def _clone_with_points(self, points) -> Ray:
+        # A cut path no longer reaches its receiver: a plain ray
+        return Ray(points, source=self.source, source_index=self.source_index, ray_index=self.ray_index,
+                   direction=self.direction, name=self.name)
 
 
-class SpecularReflections(Data):
-    """A collection of specular reflection paths between sources and receivers.
+class SpecularReflections(RayField):
+    """The specular reflection paths between sources and receivers: a ray field whose rays are :class:`SpecularPath`.
+
+    As a :class:`compas_acoustics.RayField` it plays in a billiard (:meth:`particles`), truncates and displays
+    like traced rays.
 
     Parameters
     ----------
     paths : list of :class:`SpecularPath`, optional
         The reflection paths.
-    sound_speed : float, optional
-        The speed of sound in m/s.
     name : str, optional
         The name of the collection.
     """
 
-    def __init__(self, paths: Optional[List[SpecularPath]] = None, sound_speed: float = DEFAULT_SOUND_SPEED, name: Optional[str] = None):
-        super().__init__(name=name)
-        self.paths = list(paths) if paths else []
-        self.sound_speed = sound_speed
-
-    @property
-    def __data__(self):
-        return {"paths": self.paths, "sound_speed": self.sound_speed}
+    def __init__(self, paths: Optional[List[SpecularPath]] = None, name: Optional[str] = None):
+        super().__init__(paths, name=name)
 
     @classmethod
     def __from_data__(cls, data):
-        return cls(data["paths"], sound_speed=data["sound_speed"])
+        data = dict(data)
+        if "rays" not in data:  # stored by the first version
+            data["rays"] = data.pop("paths")
+        return super().__from_data__(data)
 
-    def __len__(self) -> int:
-        return len(self.paths)
-
-    def __iter__(self):
-        return iter(self.paths)
+    @property
+    def paths(self) -> List[SpecularPath]:
+        """The reflection paths, the field's rays."""
+        return self.rays
 
     @classmethod
     def from_scene(cls, scene, max_order: int = 3) -> "SpecularReflections":
@@ -146,19 +123,17 @@ class SpecularReflections(Data):
         ValueError
             If ``max_order`` is negative, or pyroomacoustics cannot build the room.
         """
-        from compas_acoustics.air import AirConditions
         from compas_acoustics.defaults import Defaults
         from compas_acoustics.room_geometry import RoomGeometry
         from compas_acoustics.simulation_methods.base import _warn_if_the_search_is_slow
 
         if max_order < 0:
             raise ValueError(f"max_order must be 0 or more, not {max_order}.")
-        sound_speed = AirConditions().speed_of_sound
         geometry = RoomGeometry.from_scene(scene)
-        sources = _inside(geometry, scene.sources, "Source")
-        receivers = _inside(geometry, scene.receivers, "Receiver")
+        sources = _inside(geometry, enumerate(scene.sources), "Source '{name}' is outside the room and has no specular paths.")
+        receivers = _inside(geometry, enumerate(scene.receivers), "Receiver '{name}' is outside the room and has no specular paths.")
         if not sources or not receivers:
-            return cls(sound_speed=sound_speed)
+            return cls()
 
         _warn_if_the_search_is_slow(geometry, max_order)
         room = geometry.to_pra(Defaults().SAMPLING_RATE, max_order, ray_tracing=False, air_absorption=False)
@@ -196,62 +171,17 @@ class SpecularReflections(Data):
                         [start, *hits, end],
                         order=int(orders[i]),
                         walls=path_walls,
-                        wall_names=[geometry.face_names[w] for w in path_walls],
                         image=images[i],
-                        source_index=source_index,
                         receiver_index=receiver_index,
-                        sound_speed=sound_speed,
+                        source=source,
+                        source_index=source_index,
+                        ray_index=len(paths),
                     ))
                 # another image of the group may have traced a position whose first image did not
                 untraced += sum(1 for image in failed if not _near(kept, image, tolerance))
         if untraced:
             warnings.warn(f"{untraced} visible image sources could not be traced back to their source.", UserWarning, stacklevel=2)
-        return cls(paths, sound_speed=sound_speed)
-
-    def display_in_viewer(self, scene=None, order=None, color=None, linewidth: float = 1.0, show: bool = True):
-        """Display the paths (and optionally the scene) in a compas viewer.
-
-        Parameters
-        ----------
-        scene : :class:`compas_acoustics.Scene`, optional
-            If provided, the acoustic geometry, sources and receivers are drawn as context.
-        order : int or list of int, optional
-            Only display the paths of these reflection orders.
-        color : :class:`compas.colors.Color`, optional
-            The colour of the paths.
-        linewidth : float, optional
-            The width of the drawn path lines.
-        show : bool, optional
-            Whether to open the viewer. If ``False`` the configured viewer is returned without showing.
-
-        Returns
-        -------
-        The configured viewer instance.
-        """
-        import compas
-
-        if compas.is_rhino():
-            raise RuntimeError("Displaying specular reflections in the viewer is not supported in Rhino.")
-
-        from compas.colors import Color
-        from compas_viewer import Viewer
-
-        from compas_acoustics.ray import RayField
-
-        if color is None:
-            color = Color.blue()
-
-        viewer = Viewer()
-        if scene is not None:
-            RayField._add_scene_to_viewer(viewer, scene)
-
-        for index, path in enumerate(self.filter(order=order)):
-            name = f"specular_{path.source_index}_{path.receiver_index}_{path.order}_{index}"
-            viewer.scene.add(path, name=name, linecolor=color, linewidth=linewidth)
-
-        if show:
-            viewer.show()
-        return viewer
+        return cls(paths)
 
     @property
     def orders(self) -> List[int]:
@@ -260,7 +190,8 @@ class SpecularReflections(Data):
 
     def filter(
         self,
-        source_index: Optional[int] = None,
+        source=None,
+        ray_index: Optional[Union[int, List[int]]] = None,
         receiver_index: Optional[int] = None,
         order: Optional[Union[int, List[int]]] = None,
     ) -> "SpecularReflections":
@@ -268,8 +199,10 @@ class SpecularReflections(Data):
 
         Parameters
         ----------
-        source_index : int, optional
-            Keep only paths from this source.
+        source : :class:`compas_acoustics.Source` or int, optional
+            Keep only paths from this source (matched by object or scene index).
+        ray_index : int or list of int, optional
+            Keep only paths with these ray indices.
         receiver_index : int, optional
             Keep only paths to this receiver.
         order : int or list of int, optional
@@ -282,26 +215,13 @@ class SpecularReflections(Data):
         orders = None
         if order is not None:
             orders = {order} if isinstance(order, numbers.Integral) else set(order)
-
         kept = [
             path
-            for path in self.paths
-            if (source_index is None or path.source_index == source_index)
-            and (receiver_index is None or path.receiver_index == receiver_index)
+            for path in super().filter(source=source, ray_index=ray_index)
+            if (receiver_index is None or path.receiver_index == receiver_index)
             and (orders is None or path.order in orders)
         ]
-        return SpecularReflections(kept, sound_speed=self.sound_speed, name=self.name)
-
-
-def _inside(geometry, items, kind: str) -> list:
-    """``(scene index, item)`` of the items inside the room, warning for the others."""
-    inside = []
-    for index, item in enumerate(items):
-        if geometry.is_inside(item.position):
-            inside.append((index, item))
-        else:
-            warnings.warn(f"{kind} '{item.name}' is outside the room and has no specular paths.", UserWarning, stacklevel=3)
-    return inside
+        return SpecularReflections(kept, name=self.name)
 
 
 def _near(images: list, image, tolerance: float) -> bool:

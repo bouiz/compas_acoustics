@@ -281,13 +281,15 @@ def test_a_package_scale_response_is_analysed_from_its_geometric_onset():
 
 def test_the_stored_onset_follows_the_response():
     from compas_acoustics import ImpulseResponse, Receiver, Source
+    from compas_acoustics.defaults import Defaults
 
+    onset = round(3.43 / Defaults().DEFAULT_SPEED_OF_SOUND * 48000)
     data = np.zeros(2000)
-    data[480] = 1.0
+    data[onset] = 1.0
     data[10] = 5.0
     package = ImpulseResponse("k", Source("s", 0, 0, 0), Receiver("r", 3.43, 0, 0), data, 48000, generation={"scale": "package"})
     analyser = AcousticAnalyser(package)
-    assert analyser.onset == 480
+    assert analyser.onset == onset
     analyser.ir = data
     assert analyser.onset is None
 
@@ -440,7 +442,7 @@ def test_a_response_less_than_20_db_above_its_noise_has_no_start():
 
 
 def test_a_blocked_direct_sound_is_found_as_ita_finds_it():
-    # Package scale, direct path blocked: nothing arrives at the geometric sample (4800). Like ita_start_IR,
+    # Package scale, direct path blocked: nothing arrives at the geometric sample (4786). Like ita_start_IR,
     # the analysis starts at the first arrival; the geometric window held nothing and gave a DRR of about -110 dB.
     from compas_acoustics import ImpulseResponse
     from compas_acoustics import Receiver
@@ -453,7 +455,7 @@ def test_a_blocked_direct_sound_is_found_as_ita_finds_it():
     tail = np.arange(9500, ir.size)
     ir[tail] = rng.standard_normal(tail.size) * 0.05 * np.exp(-(tail - 9500) / fs / 0.15)
     package = ImpulseResponse("k", Source("s", 0, 0, 0), Receiver("r", 34.3, 0, 0), ir, fs, generation={"scale": "package"})
-    assert package.direct_sound_index() == 4800
+    assert package.direct_sound_index() == 4786  # 34.3 m at 343.98 m/s
     blocked, plain = AcousticAnalyser(package), AcousticAnalyser(ir)
     assert blocked._direct_sound_onset(blocked.ir) == plain._direct_sound_onset(plain.ir) == 7999
     assert blocked.direct_to_reverberant_ratio() == plain.direct_to_reverberant_ratio()
