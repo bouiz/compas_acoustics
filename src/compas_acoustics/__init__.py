@@ -12,6 +12,7 @@ from .geometry import AcousticObject, AcousticObjectsLibrary
 from .ir import ImpulseResponse
 from .room_geometry import RoomGeometry
 from .ray import Ray, ScatteredRay, RayField
+from .specular import SpecularPath, SpecularReflections
 from .scene import Scene
 from .analyser import AcousticAnalyser
 from .simulation_methods import SimulationMethod, Pyroomacoustics
@@ -44,6 +45,8 @@ __all__ = [
     'Ray',
     'ScatteredRay',
     'RayField',
+    'SpecularPath',
+    'SpecularReflections',
     'Scene',
     'AcousticAnalyser',
     'SimulationMethod',
