@@ -6,9 +6,11 @@ from compas.geometry import Point
 from compas.geometry import Vector
 from compas.tolerance import TOL
 
+from compas_acoustics.defaults import _PackageDtype
+
 __all__ = ['Receiver']
 
-class Receiver(Point):
+class Receiver(_PackageDtype, Point):
     """
     Receiver class representing a receiver in an acoustic simulation.
 

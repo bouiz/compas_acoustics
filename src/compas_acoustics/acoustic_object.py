@@ -7,7 +7,8 @@ from compas.geometry import Frame
 from compas.geometry import Transformation
 
 from compas_acoustics import Source
-from compas_acoustics.acoustic_material import AcousticMaterial
+from compas_acoustics.defaults import _PackageDtype
+from compas_acoustics.materials import AcousticMaterial
 
 __all__ = ['AcousticObject', 'AcousticObjectsLibrary']
 
@@ -33,7 +34,7 @@ def _objects_by_group(objects, names):
     return {name: by_group[name] for name in names}
 
 
-class AcousticObject(Data):
+class AcousticObject(_PackageDtype, Data):
 
     def __init__(self, acoustic_geometry:Mesh, material:AcousticMaterial, x:float=0, y:float=0, z:float=0, name:str=None, role:str='boundary', group:str=None):
         """Initialize Acoustic object
@@ -42,7 +43,7 @@ class AcousticObject(Data):
         ----------
         acoustic_geometry : :class:`compas.datastructures.Mesh`
             A COMPAS Mesh representing the acoustic geometry.
-        material : :class:`compas_acoustics.acoustic_material.AcousticMaterial`
+        material : :class:`compas_acoustics.AcousticMaterial`
             The acoustic material assigned to the acoustic object.
         x : float
             The x-coordinate of the geometry's reference point.

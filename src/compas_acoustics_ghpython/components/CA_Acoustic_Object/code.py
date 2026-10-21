@@ -1,6 +1,6 @@
 import Grasshopper
 import Rhino
-from compas_acoustics.geometry import AcousticObject
+from compas_acoustics import AcousticObject
 from compas_acoustics_ghpython import ensure_inputs
 from compas_rhino.conversions import mesh_to_compas
 from compas_rhino.conversions import polyline_to_compas

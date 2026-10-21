@@ -10,6 +10,7 @@ from numpy.typing import NDArray
 from scipy import signal
 
 from compas_acoustics.defaults import Defaults
+from compas_acoustics.defaults import _PackageDtype
 from compas_acoustics.receiver import Receiver
 from compas_acoustics.source import Source
 
@@ -19,7 +20,7 @@ __all__ = ['ImpulseResponse']
 _METADATA_VERSION = 1
 
 
-class ImpulseResponse(Data):
+class ImpulseResponse(_PackageDtype, Data):
     """An impulse response between a source and a receiver.
 
     The impulse response is stored at its raw (physical) level together with its

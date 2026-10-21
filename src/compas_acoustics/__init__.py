@@ -3,22 +3,22 @@ from typing import TYPE_CHECKING
 from .defaults import Defaults
 # from .tools import Tools
 from .air import AirConditions
-from .acoustic_material import AcousticMaterial
-from .acoustic_material import MaterialCategory
-from .materials_library import MaterialsLibrary
+from .materials import AcousticMaterial
+from .materials import MaterialCategory
+from .materials import MaterialsLibrary
 from .source import Source
 from .receiver import Receiver
-from .geometry import AcousticObject, AcousticObjectsLibrary
+from .acoustic_object import AcousticObject, AcousticObjectsLibrary
 from .ir import ImpulseResponse
 from .room_geometry import RoomGeometry
-from .ray import Ray, ScatteredRay, RayField
-from .specular import SpecularPath, SpecularReflections
+from .rays import Ray, ScatteredRay, RayField
+from .rays import SpecularPath, SpecularReflections
 from .scene import Scene
 from .analyser import AcousticAnalyser
 from .simulation_methods import SimulationMethod, Pyroomacoustics
 from .auraliser import Auraliser
 from .audio_player import AudioPlayer
-from .numerical.fitness import regularized_fitness
+from .fitness import regularized_fitness
 from . import pra_converter
 
 

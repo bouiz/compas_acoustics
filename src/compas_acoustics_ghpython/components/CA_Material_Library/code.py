@@ -3,7 +3,7 @@
 import Grasshopper
 from System.Windows.Forms import ToolStripMenuItem
 from System.Windows.Forms import ToolStripSeparator
-from compas_acoustics.materials_library import MaterialsLibrary
+from compas_acoustics import MaterialsLibrary
 
 
 class MaterialLibraryPicker(Grasshopper.Kernel.GH_ScriptInstance):

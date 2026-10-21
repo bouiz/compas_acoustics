@@ -6,6 +6,7 @@ from compas.data import Data
 from compas.datastructures import Graph
 
 from compas_acoustics.defaults import Defaults
+from compas_acoustics.defaults import _PackageDtype
 from compas_acoustics.ir import ImpulseResponse
 from compas_acoustics.receiver import Receiver
 from compas_acoustics.source import Source
@@ -15,7 +16,7 @@ __all__ = ['Scene']
 _log = logging.getLogger(__name__)
 
 
-class Scene(Data):
+class Scene(_PackageDtype, Data):
     """The acoustic model of a room: its surfaces with materials, sources, receivers, and the impulse responses simulated for them.
 
     Parameters

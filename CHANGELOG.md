@@ -18,6 +18,11 @@ Nothing is kept under its old name. What replaces what:
 | `simulator.sampling_rate = fs` | `Scene(name, sampling_rate=fs)` or `scene.sampling_rate = fs` |
 | `simulator.trace_rays(...)` | `RayField.from_scene(scene, ...)` |
 | `Ray(..., sound_speed=)`, `RayField(..., sound_speed=)` | removed; travel times are at `Defaults().DEFAULT_SPEED_OF_SOUND` |
+| `compas_acoustics.ray`, `compas_acoustics.specular` | `compas_acoustics.rays` (or the classes from `compas_acoustics`) |
+| `compas_acoustics.acoustic_material`, `compas_acoustics.materials_library` | `compas_acoustics.materials` (or the classes from `compas_acoustics`) |
+| `compas_acoustics.geometry` | `compas_acoustics.acoustic_object` (or the classes from `compas_acoustics`) |
+| `compas_acoustics.numerical.fitness` | `compas_acoustics.fitness`, or `compas_acoustics.regularized_fitness` |
+| JSON with `"dtype": "compas_acoustics.<module>/<Class>"` | `"dtype": "compas_acoustics/<Class>"`; files saved before do not load |
 | `simulator.rirs`, `simulator.results` | the responses returned by `scene.simulate`, or `scene.impulse_responses(method_name)`, `scene.get_impulse_response(source, receiver)` |
 | `Scene(simulation_platform=)`, `ImpulseResponse(simulation_platform=)` | removed; `ir.generation` names the method |
 | `AcousticObjectsGroup`; `scene.iter_acoustic_objects()` | `scene.add_acoustic_objects(shoebox_room(...))` (a list); `scene.acoustic_objects` |
@@ -74,7 +79,7 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 * Added `Source.directivity`, `Source.sound_file` (the `Auraliser` mixes a multichannel file down to mono when it reads it), `Receiver.direction`, `radius` and `received_spls`.
 * Added `AcousticMaterial.category` and `data_origin`, `MaterialsLibrary.materials_by_category`, preset materials, and `tools/import_backend_materials.py`.
 * Added `AudioPlayer` for `.wav` files and numpy arrays, with `normalize=True`.
-* Added `compas_acoustics.pra_converter` and `compas_acoustics.numerical.fitness.regularized_fitness`.
+* Added `compas_acoustics.pra_converter` and `compas_acoustics.regularized_fitness`.
 * Added a warning before an image source search that will take long (`simulation_methods.image_source_search_seconds()`).
 * Added `compas_acoustics.worker`: runs the hybrid method in a second Python >= 3.11 for Rhino 8 (Python 3.9), through a `compas.rpc` server on a free local port with a token per session.
 * Added `anechoic_soundfiles_library` (bassoon, female and male speech, trumpet, viola) and `hrtfs_library` (KEMAR, free-field compensated, 48 kHz), with READMEs that credit the sources and licences.
@@ -122,6 +127,8 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 
 ### Changed
 
+* Changed the JSON data type of every `compas_acoustics` class to `compas_acoustics/<ClassName>` (was `compas_acoustics.<module>/<ClassName>`), so that saved data no longer depends on the module a class lives in; the materials library is stored that way. Files saved before do not load.
+* Changed the modules: `ray` and `specular` are one module, `rays`; `acoustic_material` and `materials_library` are `materials`; `geometry` is `acoustic_object`; `numerical.fitness` is `fitness`. The classes are exported from `compas_acoustics` as before.
 * Changed `Defaults().DEFAULT_SPEED_OF_SOUND` to the speed of sound of `AirConditions()` (343.98 m/s at 20 C and 50 %, was 343), the air every simulation runs in without one given. `Ray`, `ScatteredRay` and `RayField` no longer take or store a `sound_speed` (it was 343 on its own and was serialised with every ray): their travel times are at this default; ray fields saved with it still load.
 * Changed `Hybrid` to use 96 delay lines up to third ambisonic order, for every output (`hybrid.late.MIN_DELAYS`; 16 before at orders 0 and 1, 36 at 2, 64 at 3): the count Kirsch, Wendt and van de Par (2023) run their network with whatever the number of rendered directions, so that the tail's character does not change with the count, and the one they name for offline simulation; RAZR 0.96.3 allows up to 96 and defaults to 24 for real time. In the binaural output each line is heard through its own HRIR. A 1.5 s response takes about 1 s longer per source-receiver pair. `Hybrid` no longer takes `num_delays` and `drive_gain`: the count follows from `sh_order`, and the input gain `sqrt(num_delays)` offsets the output's `1 / sqrt(num_delays)`, so the late level does not depend on the count; `hybrid.synthesis.synthesize` keeps both.
 * Changed how the last rendered image-source order drives the hybrid's network: each image now enters the delay lines of the hemisphere opposite its arrival, weighted by the cosine to each line (`hybrid.scattering.scattering_weights(..., opposite=True)`), the mapping of Ewert et al. (2025, Sec. 3.1.2) as RAZR 0.96.3's `fdn_smart_ch_mapping` implements it, checked against RAZR's FDN input in `tests/hybrid/data/razr_scattering`. Before, each image entered the one line nearest the opposite direction, hybrid-rir's own choice without a reference. On four shoeboxes against an exact image-source room the late level now lies within 0.5 dB (before -1.5 to +1.8 dB); `hybrid.early.route_to_directions` stays as the one-hot form the tests compare against.

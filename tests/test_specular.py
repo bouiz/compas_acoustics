@@ -16,8 +16,8 @@ from compas_acoustics import Receiver
 from compas_acoustics import Scene
 from compas_acoustics import Source
 from compas_acoustics.room_geometry import RoomGeometry
-from compas_acoustics.specular import SpecularPath
-from compas_acoustics.specular import SpecularReflections
+from compas_acoustics.rays import SpecularPath
+from compas_acoustics.rays import SpecularReflections
 
 WALL = AcousticMaterial("w", 0.2, 0.1)
 
@@ -216,7 +216,7 @@ def test_the_search_warns_when_it_would_be_slow(monkeypatch):
 
 
 def test_an_image_traced_on_a_second_attempt_is_not_counted_as_untraced(monkeypatch):
-    import compas_acoustics.specular as specular
+    import compas_acoustics.rays as specular
 
     trace_back = specular._trace_back
     calls = {}

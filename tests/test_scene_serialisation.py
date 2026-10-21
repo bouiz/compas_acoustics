@@ -119,3 +119,34 @@ def test_the_services_are_plain_classes_that_pickle():
     assert pickle.loads(pickle.dumps(analyser)).analysis_data.keys() == analyser.analysis_data.keys()
     assert pickle.loads(pickle.dumps(auraliser)).name == "a"
     assert pickle.loads(pickle.dumps(MaterialsLibrary())).index == MaterialsLibrary().index
+
+
+def test_every_class_is_stored_under_the_package_whatever_its_module():
+    import inspect
+
+    import compas
+    from compas.data import Data
+
+    import compas_acoustics as ca
+
+    classes = [c for _, c in inspect.getmembers(ca, inspect.isclass) if issubclass(c, Data)]
+    assert len(classes) == 11
+    for cls in classes:
+        assert cls.__dtype__.fget(object.__new__(cls)) == "compas_acoustics/" + cls.__name__
+    scene = ca.Scene("dtype")
+    scene.add_acoustic_objects(ca.AcousticObjectsLibrary.shoebox_room(7, 5, 3, materials=ca.AcousticMaterial("w", 0.2, 0.1)))
+    scene.add_source(ca.Source("s", 1, 1, 1))
+    scene.add_receiver(ca.Receiver("r", 3, 2, 1))
+    text = compas.json_dumps(scene)
+    assert '"compas_acoustics.' not in text
+    back = compas.json_loads(text)
+    assert isinstance(back, ca.Scene) and isinstance(back.acoustic_objects[0].material, ca.AcousticMaterial)
+
+
+def test_every_library_material_loads():
+    import compas_acoustics as ca
+
+    library = ca.MaterialsLibrary()
+    names = library.material_names
+    assert len(names) == 95
+    assert all(isinstance(library.material_from_name(name), ca.AcousticMaterial) for name in names)

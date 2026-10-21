@@ -1,6 +1,6 @@
 import Grasshopper
 import System
-from compas_acoustics.numerical.fitness import regularized_fitness
+from compas_acoustics import regularized_fitness
 
 
 class RegularizedFitness(Grasshopper.Kernel.GH_ScriptInstance):

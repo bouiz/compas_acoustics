@@ -2,12 +2,13 @@ from compas.geometry import Point
 from compas.geometry import Vector
 
 from compas_acoustics.defaults import Defaults
+from compas_acoustics.defaults import _PackageDtype
 
 __all__ = ['Source']
 
 # directivity = ["bidirectional", "hypercardioid", "supercardioid", "cardioid", "omnidirectional", "custom",]
 
-class Source(Point):
+class Source(_PackageDtype, Point):
     
     def __init__(self, name: str, x: float, y: float, z: float, directivity: str = None, direction: Vector = None, sound_file: str = None):
         super().__init__(x, y, z)

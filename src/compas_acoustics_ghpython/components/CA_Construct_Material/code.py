@@ -1,6 +1,6 @@
 import Grasshopper
 import System
-from compas_acoustics.acoustic_material import AcousticMaterial
+from compas_acoustics import AcousticMaterial
 
 
 class ConstructMaterial(Grasshopper.Kernel.GH_ScriptInstance):

@@ -4,6 +4,18 @@ import os
 __all__ = ['Defaults']
 
 
+class _PackageDtype:
+    """Names a class's data type after the package, ``compas_acoustics/<ClassName>``, for COMPAS JSON.
+
+    COMPAS's own default is the class's module, ``compas_acoustics.<module>/<ClassName>``, which a
+    module renamed or merged would break; every class is exported from the package itself.
+    """
+
+    @property
+    def __dtype__(self):
+        return "compas_acoustics/{}".format(type(self).__name__)
+
+
 @functools.lru_cache(maxsize=None)
 def _speed_of_sound() -> float:
     # The air every simulation runs in without one given; cached, since Cramer's formula is behind an import
