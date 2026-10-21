@@ -1906,3 +1906,18 @@ def test_billiard_draws_round_particles_in_the_colour_of_their_order(monkeypatch
     assert all(call[2] == "round" for call in drawn)
     assert {call[4] for call in drawn} == colors and len(drawn) == len(colors)
     assert sum(len(list(call[1])) for call in drawn) == len(particles)
+
+
+# ---------------------------------------------------------------- Room Scene --
+def test_room_scene_leaves_out_empty_and_invalid_objects_with_a_warning(monkeypatch):
+    module, messages = load_component("CA_Model", monkeypatch, levels=True)
+    room = AcousticObjectsLibrary.shoebox_room(7, 5, 3, materials=AcousticMaterial("wall", 0.2, 0.1))
+    s = module.CreateModelScene().RunScript([None, *room, "text"], [Source("s", 1, 1, 1)], [Receiver("r", 3, 2, 1)], "t", None)
+    assert len(s.acoustic_objects) == 6
+    assert messages == [("warning", "2 of the 8 objects are not acoustic objects (empty or invalid) and are left out.")]
+
+
+def test_room_scene_without_any_acoustic_object_warns(monkeypatch):
+    module, messages = load_component("CA_Model", monkeypatch, levels=True)
+    assert module.CreateModelScene().RunScript([None], [Source("s", 1, 1, 1)], [Receiver("r", 3, 2, 1)], "t", None) is None
+    assert messages == [("warning", "No acoustic objects: the 1 object(s) given are empty or invalid.")]

@@ -179,6 +179,7 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 
 ### Fixed
 
+* Fixed the Grasshopper Room Scene component failing with `'NoneType' object has no attribute 'sources'` when an object is empty or not an acoustic object (an upstream Acoustic Object that failed): such items are left out with a warning.
 * Fixed `RoomGeometry` taking a vertex up to 1 mm off an edge for a T-junction, which left rooms with sliver faces open (BRAS CR2): the edge test is 1e-6 of the model's extent again.
 * Fixed the single-number values of C50, C80, D50 and Ts averaging 500, 1000 and 2000 Hz: they average 500 and 1000 Hz, as ISO 3382-1:2009 Table A.1 has it for G, EDT, C80, D50 and Ts (C50 follows D50), like EDT, T20 and T30 already did.
 * Fixed responses simulated in the worker (the hybrid in Rhino) always coming back as peak-normalized views: they keep the method's `normalize`. Their raw level was already kept.
