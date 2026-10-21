@@ -117,6 +117,7 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 * Added the Grasshopper Specular Reflections component: image-source paths of a source-receiver pair by order.
 * Added the Grasshopper Ray Field component: rays traced from one source (`source_idx`) or all, for display and the Billiard.
 * Added the Grasshopper Billiard component: the rays of a ray field as particles (points only) at a time, played with a button or scrubbed with a slider.
+* Added colours by reflection order to Specular Reflections, Ray Field and Billiard: each component draws its paths, ray segments or particles itself (round particles, order 0 black, one colour per order) and outputs the `colors`; `RayField.particles` returns each particle's reflection order too.
 
 ### Changed
 

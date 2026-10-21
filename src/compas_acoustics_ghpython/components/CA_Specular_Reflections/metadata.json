@@ -62,6 +62,10 @@
             {
                 "name": "time",
                 "description": "The travel time of each path in milliseconds."
+            },
+            {
+                "name": "colors",
+                "description": "The colour of each path, by its reflection order (the colours the component draws with: order 0 black, then one colour per order)."
             }
         ]
     }

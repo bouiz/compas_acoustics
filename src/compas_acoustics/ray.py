@@ -552,13 +552,15 @@ class RayField(Data):
 
         Returns
         -------
-        tuple of (list of :class:`compas.geometry.Point`, list of int)
-            The positions and the ``ray_index`` of the ray each belongs to.
+        tuple of (list of :class:`compas.geometry.Point`, list of int, list of int)
+            The positions, the ``ray_index`` of the ray each belongs to, and the
+            number of reflections each has passed (its reflection order).
             A ray that has ended by ``time_ms`` gives no particle.
         """
         time_ms = min(max(time_ms, 0.0), self.duration_ms)
         points = []
         indices = []
+        orders = []
         for ray in self.rays:
             if ray.travel_time < time_ms:
                 continue
@@ -571,7 +573,9 @@ class RayField(Data):
             else:
                 points.append(Point(*part.points[-1]))
             indices.append(ray.ray_index)
-        return points, indices
+            distance = ray.sound_speed * time_ms / 1000.0
+            orders.append(sum(1 for reached in ray.cumulative_distances[1:] if reached <= distance))
+        return points, indices, orders
 
     def filter(
         self,

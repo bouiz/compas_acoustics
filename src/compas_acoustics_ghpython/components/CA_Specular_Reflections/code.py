@@ -7,13 +7,21 @@ import Rhino
 import System
 
 from compas_acoustics import SpecularReflections
+from compas_acoustics_ghpython.display import POINT_STYLE
+from compas_acoustics_ghpython.display import bounding_box
+from compas_acoustics_ghpython.display import order_color
+
+PATH_THICKNESS = 2
+IMAGE_RADIUS = 3
 
 
 class SpecularReflectionsComponent(Grasshopper.Kernel.GH_ScriptInstance):
 
     def RunScript(self, scene, order, source_idx, receiver_idx):
+        self._drawn = []
+        self._box = bounding_box([])
 
-        empty = (None,) * 6
+        empty = (None,) * 7
         if scene is None:
             ghenv.Component.AddRuntimeMessage(
                 Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning, "Input parameter 'scene' failed to collect data."
@@ -62,6 +70,10 @@ class SpecularReflectionsComponent(Grasshopper.Kernel.GH_ScriptInstance):
             images.append(Rhino.Geometry.Point3d(*path.image))
             walls.AddRange(path.wall_names, GH_Path(i))
 
+        colors = [order_color(path.order) for path in reflections]
+        self._drawn = list(zip(paths, images, colors))
+        self._box = bounding_box([Rhino.Geometry.Point3d(*point) for path in reflections for point in list(path.points) + [path.image]])
+
         counts = ["order {}: {}".format(o, sum(1 for path in reflections if path.order == o)) for o in reflections.orders]
         ghenv.Component.Message = ", ".join(counts) if counts else "no paths"
 
@@ -72,4 +84,15 @@ class SpecularReflectionsComponent(Grasshopper.Kernel.GH_ScriptInstance):
             [path.order for path in reflections],
             walls,
             [path.travel_time for path in reflections],
+            colors,
         )
+
+    @property
+    def ClippingBox(self):
+        box = getattr(self, "_box", None)
+        return bounding_box([]) if box is None else box
+
+    def DrawViewportWires(self, args):
+        for path, image, color in getattr(self, "_drawn", []):
+            args.Display.DrawPolyline(path, color, PATH_THICKNESS)
+            args.Display.DrawPoint(image, POINT_STYLE, IMAGE_RADIUS, color)

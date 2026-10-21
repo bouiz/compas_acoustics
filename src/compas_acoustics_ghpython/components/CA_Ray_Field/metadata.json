@@ -85,6 +85,10 @@
             {
                 "name": "scattered",
                 "description": "The scattered rays as polylines; empty without scattering."
+            },
+            {
+                "name": "colors",
+                "description": "The colour of each segment of each ray in rays, by the reflections before it (one branch per ray; the colours the component draws with)."
             }
         ]
     }

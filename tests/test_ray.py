@@ -128,7 +128,7 @@ def test_rayfield_truncated_reflection_order_carries_scattered():
 
 def test_particles_sit_at_c_t_along_each_ray():
     ray = Ray([[0, 0, 0], [10, 0, 0], [10, 10, 0]], sound_speed=1000.0)  # 20 m = 20 ms
-    points, indices = RayField([ray], sound_speed=1000.0).particles(15.0)
+    points, indices, orders = RayField([ray], sound_speed=1000.0).particles(15.0)
     assert list(points[0]) == pytest.approx([10, 5, 0])
 
 
@@ -147,13 +147,13 @@ def test_particles_clamp_time():
     field = RayField([Ray([[0, 0, 0], [20, 0, 0]], sound_speed=1000.0)], sound_speed=1000.0)
     assert list(field.particles(-5.0)[0][0]) == pytest.approx([0, 0, 0])
     assert list(field.particles(99.0)[0][0]) == pytest.approx([20, 0, 0])
-    assert RayField([]).particles(1.0) == ([], [])
+    assert RayField([]).particles(1.0) == ([], [], [])
 
 
 def test_particles_start_once_the_ray_has_emerged_from_its_offset():
     # 5 m before the first point, then one 10 m segment: 15 m = 15 ms at 1000 m/s
     field = RayField([Ray([[0, 0, 0], [10, 0, 0]], sound_speed=1000.0, distance_offset=5.0)], sound_speed=1000.0)
-    assert field.particles(3.0) == ([], [])
+    assert field.particles(3.0) == ([], [], [])
     assert list(field.particles(5.0)[0][0]) == pytest.approx([0, 0, 0])
     assert list(field.particles(10.0)[0][0]) == pytest.approx([5, 0, 0])
 
@@ -182,3 +182,9 @@ def test_a_source_outside_the_room_does_not_shift_the_others_index():
     with pytest.warns(UserWarning, match="outside"):
         field = RayField.from_scene(_two_source_scene(first_outside=True), n_rays=5)
     assert {ray.source_index for ray in field} == {1}
+
+
+def test_particles_carry_the_reflection_order_they_have_reached():
+    ray = Ray([[0, 0, 0], [10, 0, 0], [10, 10, 0], [0, 10, 0]], sound_speed=1000.0, ray_index=0)
+    field = RayField([ray], sound_speed=1000.0)
+    assert [field.particles(t)[2] for t in (0.0, 5.0, 10.0, 15.0, 25.0, 30.0)] == [[0], [0], [1], [1], [2], [3]]
