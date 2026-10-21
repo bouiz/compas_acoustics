@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 import pyroomacoustics as pra
 import pytest
@@ -65,6 +67,17 @@ def test_an_open_room_gets_the_fixed_default():
     with pytest.warns(UserWarning):
         g = RoomGeometry.from_scene(scene_of(leaves=5))
     assert default_duration(g, air_absorption=True) == OPEN_ROOM_DURATION
+
+
+def test_a_long_predicted_rt_warns_that_the_run_will_be_slow():
+    # alpha 0.01 everywhere: a reverberation chamber, RT about 12 s at 125 Hz, the response capped at 12 s
+    chamber = AcousticMaterial("chamber", 0.01, 0.1)
+    with pytest.warns(UserWarning, match=r"Predicted reverberation time [0-9.]+ s at [0-9.]+ Hz") as caught:
+        assert default_duration(geometry(chamber), air_absorption=True) == 12.0
+    assert "absorption" in str(caught[0].message) and "duration" in str(caught[0].message)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        default_duration(geometry(), air_absorption=True)
 
 
 def test_a_fully_absorbing_surface_has_a_finite_default():
@@ -189,6 +202,7 @@ def test_default_duration_follows_the_predicted_rt():
 
     g = geometry()
     rt = float(np.max(predicted_rt(g, air_absorption=True, warn=False)))
+    # hybrid-rir's rule: 2.5 times the longest Eyring RT within 0.5 to 12 s, so the hybrid's late field (1.5 RT) is outlasted
     assert default_duration(g, air_absorption=True) == pytest.approx(np.clip(2.5 * rt, 0.5, 12.0))
 
 

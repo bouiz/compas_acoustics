@@ -44,6 +44,14 @@ def test_one_histogram_per_microphone_and_source_binned_by_line():
     assert np.all(hist.energy >= 0.0)
 
 
+def test_a_run_longer_than_pyroomacoustics_default_cap_keeps_every_line():
+    """libroom sizes each line's histogram for 10 s and doubles only the lines hit later; the lines must still stack."""
+    # 500 rays: some of the 96 lines are hit after 10 s, others are not
+    (hist,), = histograms(geometry(absorption=0.02), grid(), duration=12.0, n_rays=500, energy_threshold=1e-8)
+    assert hist.energy.shape == (96, 9, 3000)
+    assert hist.energy[:, :, 2500:].sum() > 0.0  # rays past 10 s are kept
+
+
 def test_the_lines_sum_to_pyroomacoustics_own_histogram():
     """Without scattering nothing is random: the omni run and the directional run see the same rays."""
     g = geometry(scattering=0.0)

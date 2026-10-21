@@ -25,37 +25,59 @@ from typing import Sequence
 import numpy as np
 import pyroomacoustics as pra
 
-from compas_acoustics.room.diffuse import DiffuseFieldWarning
 from compas_acoustics.room.diffuse import predicted_rt
+from compas_acoustics.room.geometry import SYNTHESIS_BANDS
 from compas_acoustics.room.geometry import RoomGeometry
 from compas_acoustics.room.geometry import pra_octave_grid
 
-__all__ = ['MIN_RAYS', 'OPEN_ROOM_DURATION', 'DirectionalHistogram', 'default_duration', 'directional_histograms', 'ray_traced_rirs']
+__all__ = ['MIN_RAYS', 'OPEN_ROOM_DURATION', 'MAX_DURATION', 'DirectionalHistogram', 'default_duration', 'directional_histograms', 'ray_traced_rirs']
 
 # Floor on pyroomacoustics' own ray count, applied only with n_rays=None.
 MIN_RAYS = 50_000
+# The response lasts this many times the longest Eyring RT, clipped to the range below, in seconds
+# (hybrid-rir's rule). Eyring underestimates the decay of absorbing rooms by 18 to 31 % (diffuse.py),
+# and the hybrid's late field runs to 1.5 times the fitted RT (synthesis.py), which its reference and
+# directional histogram must outlast: RAZR's factor of 1.0 (op.len_rt_factor) and ODEON's floor of
+# 2/3 hold T30 of the pyroomacoustics method alone, measured, but not those.
+DURATION_RT_FACTOR = 2.5
+MIN_DURATION = 0.5
+MAX_DURATION = 12.0
 # Buffer for a scene that does not close a volume and so has no Eyring estimate.
 OPEN_ROOM_DURATION = 10.0
 _HIST_BIN = 0.004
 
 
 def default_duration(geometry: RoomGeometry, air_absorption: bool, speed_of_sound: Optional[float] = None, air=None) -> float:
-    """How long to simulate this room, from the Eyring prediction (upstream ``_default_simulation_duration``).
+    """How long to simulate this room, from the Eyring prediction.
 
-    Eyring is not accurate enough to be a decay target, but it sizes a buffer:
-    2.5 times the longest predicted RT leaves the ray tracer room to be wrong
-    by a factor of two and still capture 60 dB of decay, within 0.5 to 12 s.
-    Its diffuse-field warning is suppressed because nothing acoustic is being
-    claimed. A scene that does not close a volume has no Eyring estimate and
-    gets ``OPEN_ROOM_DURATION``.
+    ``DURATION_RT_FACTOR`` times the longest predicted RT, within ``MIN_DURATION``
+    and ``MAX_DURATION``: Eyring is not accurate enough to be a decay target, but
+    2.5 times its longest RT leaves the ray tracer room to be wrong by a factor of
+    two and still capture 60 dB of decay, and outlasts the hybrid's late field.
+    The diffuse-field check is skipped because nothing acoustic is being claimed.
+    A scene that does not close a volume has no Eyring estimate and gets
+    ``OPEN_ROOM_DURATION``.
+
+    A prediction long enough to hit ``MAX_DURATION`` warns: the rays of such a
+    room live for hundreds of reflections and the run takes seconds per source,
+    and more often than not it is a material with no low-frequency absorption on
+    a large surface rather than the room intended.
     """
     if not geometry.is_closed:
         return OPEN_ROOM_DURATION
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DiffuseFieldWarning)
-        rt = float(np.max(predicted_rt(geometry, air_absorption=air_absorption, speed_of_sound=speed_of_sound,
-                                        air=air)))
-    return float(np.clip(2.5 * rt, 0.5, 12.0))
+    rt = predicted_rt(geometry, air_absorption=air_absorption, speed_of_sound=speed_of_sound, air=air, warn=False)
+    longest = int(np.argmax(rt))
+    if DURATION_RT_FACTOR * rt[longest] > MAX_DURATION:
+        # the 62.5 Hz band holds the 125 Hz coefficients
+        band = f"{SYNTHESIS_BANDS[longest]:g} Hz" + (" (the 125 Hz coefficients held)" if longest == 0 else "")
+        warnings.warn(
+            f"Predicted reverberation time {rt[longest]:.1f} s at {band}: the response is capped at "
+            f"{MAX_DURATION:g} s and the ray tracing will take seconds per source. Check the low-frequency absorption of the "
+            "large surfaces, or pass duration= to size the response yourself.",
+            UserWarning,
+            stacklevel=2,
+        )
+    return float(np.clip(DURATION_RT_FACTOR * rt[longest], MIN_DURATION, MAX_DURATION))
 
 
 def _on_package_scale(rir, latency: int, n_samples: int) -> np.ndarray:
@@ -73,7 +95,7 @@ def ray_traced_rirs(
     duration: Optional[float] = None,
     n_rays: Optional[int] = 20000,
     receiver_radius: float = 0.5,
-    energy_threshold: float = 1e-8,
+    energy_threshold: float = 1e-7,
     air_absorption: bool = True,
     seed: Optional[int] = None,
     air=None,
@@ -154,7 +176,7 @@ def directional_histograms(
     duration: Optional[float] = None,
     n_rays: Optional[int] = 20000,
     receiver_radius: float = 0.5,
-    energy_threshold: float = 1e-8,
+    energy_threshold: float = 1e-7,
     air_absorption: bool = True,
     seed: Optional[int] = None,
     air=None,
@@ -225,8 +247,10 @@ def directional_histograms(
                 ray_energies = np.broadcast_to(ray_energies, (n_rays, n_bands))
             room.room_engine.ray_tracing(ray_directions, ray_energies, source.position)
             for m, d in enumerate(unit):
-                energy = np.stack([h.get_hist() for h in room.room_engine.microphones[m].histograms])
-                energy = np.pad(energy, ((0, 0), (0, 0), (0, max(0, n_bins - energy.shape[2]))))[:, :, :n_bins]
+                # libroom sizes every line's histogram for its default 10 s and doubles only the lines hit later
+                lines = [np.asarray(h.get_hist(), dtype=float) for h in room.room_engine.microphones[m].histograms]
+                width = max(n_bins, *(line.shape[1] for line in lines))
+                energy = np.stack([np.pad(line, ((0, 0), (0, width - line.shape[1]))) for line in lines])[:, :, :n_bins]
                 histograms[m].append(DirectionalHistogram(
                     energy=energy * damping / (4.0 * np.pi) ** 2, bin_size=bin_size, directions=d, bands=bands,
                 ))

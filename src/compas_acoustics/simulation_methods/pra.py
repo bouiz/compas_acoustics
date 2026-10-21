@@ -49,13 +49,17 @@ class Pyroomacoustics(SimulationMethod):
         Rays per source; ``None`` takes pyroomacoustics' heuristic, at least
         50000. The T30 spread across seeds is about 3.9 % at 20000 rays and
         2.6 % at 50000.
-    energy_thres : float, default=1e-8
-        Energy at which a ray is stopped.
+    energy_thres : float, default=1e-7
+        Energy at which a ray is stopped, pyroomacoustics' own default: the product of its
+        wall reflections in its least absorbed band, while what the receiver logs is that
+        energy over the squared distance (Schroeder 2011, eq. 5.54), so the logged tail
+        has decayed much further by then. Between 1e-8 and 1e-4 no parameter moved beyond the
+        seed-to-seed spread; 1e-8 (hybrid-rir's) cost 25 % more in a reverberant room.
     duration : float, optional
         Length of the ray-traced responses in seconds; by default 2.5 times the
-        longest Eyring reverberation time, within 0.5 to 12 s (10 s for a scene
-        that does not close a volume). Without ray tracing the responses have
-        their natural length.
+        longest Eyring reverberation time, within 0.5 to 12 s, with a warning when
+        the prediction exceeds the cap (10 s for a scene that does not close a
+        volume). Without ray tracing the responses have their natural length.
     receiver_radius : float, default=0.5
         Radius of the ray-tracing receivers in metres.
     seed : bool or int, default=True
@@ -97,14 +101,14 @@ class Pyroomacoustics(SimulationMethod):
 
     _RAY_TRACING_DEFAULTS = {
         "n_rays": 20_000,
-        "energy_thres": 1e-8,
+        "energy_thres": 1e-7,
         "duration": None,
         "receiver_radius": 0.5,
         "seed": DEFAULT_SEED,
     }
 
     def __init__(self, image_source_order: int = 3, ray_tracing: bool = True, air_absorption: bool = True,
-                 n_rays: Optional[int] = 20_000, energy_thres: float = 1e-8, duration: Optional[float] = None,
+                 n_rays: Optional[int] = 20_000, energy_thres: float = 1e-7, duration: Optional[float] = None,
                  receiver_radius: float = 0.5, seed: Union[bool, int] = True, normalize: bool = True,
                  air: Optional[AirConditions] = None):
         seed = _seed(seed)

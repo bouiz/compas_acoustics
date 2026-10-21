@@ -46,14 +46,14 @@
             },
             {
                 "name": "energy_thres",
-                "description": "Energy at which a ray is stopped (default 1e-8). Ray tracing only.",
+                "description": "Energy at which a ray is stopped (default 1e-7, pyroomacoustics' own). Ray tracing only.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "float"
             },
             {
                 "name": "time_thres",
-                "description": "Length of the responses in seconds (default: from the Eyring prediction). Ray tracing only.",
+                "description": "Length of the responses in seconds (default: 2.5 times the longest Eyring reverberation time, 0.5 to 12 s). Ray tracing only.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "float"
