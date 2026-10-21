@@ -29,7 +29,7 @@ class VisualiseBilliard(Grasshopper.Kernel.GH_ScriptInstance):
             ghenv.Component.Message = ""
             text = "Input parameter 'ray_field' failed to collect data." if ray_field is None else "The ray field has no rays."
             ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning, text)
-            return (None,) * 3
+            return (None,) * 2
 
         duration = ray_field.duration_ms
         key = "compas_acoustics.billiard." + str(ghenv.Component.InstanceGuid)
@@ -81,7 +81,7 @@ class VisualiseBilliard(Grasshopper.Kernel.GH_ScriptInstance):
         self._drawn = {order: typed_list(Rhino.Geometry.Point3d, group) for order, group in self._drawn.items()}
         # The whole field, not the particles: the box stays still while they move
         self._box = bounding_box([Rhino.Geometry.Point3d(*point) for ray in ray_field for point in ray.points])
-        return particles, t, [order_color(order) for order in orders]
+        return particles, t
 
     @property
     def ClippingBox(self):

@@ -1376,14 +1376,14 @@ def test_the_specular_reflections_inputs_match_its_script(monkeypatch):
     metadata = json.loads((COMPONENTS / "CA_Visualise_Reflections" / "metadata.json").read_text())
     parameters = list(inspect.signature(module.VisualiseReflections.RunScript).parameters)[1:]
     assert parameters == [p["name"] for p in metadata["ghpython"]["inputParameters"]] == ["scene", "order", "source_idx", "receiver_idx"]
-    assert [p["name"] for p in metadata["ghpython"]["outputParameters"]] == ["ray_field", "order", "time"]
+    assert [p["name"] for p in metadata["ghpython"]["outputParameters"]] == ["reflections", "order", "time"]
     assert (metadata["name"], metadata["nickname"], metadata["subcategory"]) == ("Visualise Reflections", "Reflections", "05 Display")
 
 
 # ------------------------------------------------------------ Visualise Rays --
 def test_ray_field_traces_with_the_python_defaults_and_a_drawn_seed(monkeypatch):
     module, _ = load_component("CA_Visualise_Rays", monkeypatch)
-    field, rays, scattered, _colors = module.VisualiseRays().RunScript(scene(), None, None, None, None, None, None, None, None)
+    field, rays, scattered = module.VisualiseRays().RunScript(scene(), None, None, None, None, None, None, None, None)
     assert len(field) == 500 and scattered == []
     assert "seed" in module.ghenv.Component.Message
 
@@ -1391,7 +1391,7 @@ def test_ray_field_traces_with_the_python_defaults_and_a_drawn_seed(monkeypatch)
 def test_ray_field_order_truncates_only_the_drawn_rays(monkeypatch):
     module, _ = load_component("CA_Visualise_Rays", monkeypatch)
     module.Rhino.Geometry.Polyline = RecordingPolyline
-    field, rays, _, _colors = module.VisualiseRays().RunScript(scene(), None, 20, 6, None, None, None, 1, 2)
+    field, rays, _ = module.VisualiseRays().RunScript(scene(), None, 20, 6, None, None, None, 1, 2)
     assert max(r.reflection_order for r in field) > 2
     assert len(rays) == 20 and max(len(r) for r in rays) == 3
     for polyline, ray in zip(rays, field):
@@ -1401,14 +1401,14 @@ def test_ray_field_order_truncates_only_the_drawn_rays(monkeypatch):
 def test_ray_field_gives_the_whole_rays_without_an_order(monkeypatch):
     module, _ = load_component("CA_Visualise_Rays", monkeypatch)
     module.Rhino.Geometry.Polyline = RecordingPolyline
-    field, rays, _, _colors = module.VisualiseRays().RunScript(scene(), None, 5, 4, None, None, None, 1, None)
+    field, rays, _ = module.VisualiseRays().RunScript(scene(), None, 5, 4, None, None, None, 1, None)
     assert [len(r) for r in rays] == [len(ray.points) for ray in field]
 
 
 def test_ray_field_scattering_gives_the_scattered_polylines_and_a_given_seed(monkeypatch):
     module, _ = load_component("CA_Visualise_Rays", monkeypatch)
     module.Rhino.Geometry.Polyline = RecordingPolyline
-    field, rays, scattered, _colors = module.VisualiseRays().RunScript(scene(), None, 10, 3, None, None, True, 7, None)
+    field, rays, scattered = module.VisualiseRays().RunScript(scene(), None, 10, 3, None, None, True, 7, None)
     assert len(scattered) == len(field.scattered_rays) > 0
     assert [tuple(p) for p in field.scattered_rays[0].points] == scattered[0]
     assert module.ghenv.Component.Message.endswith("seed=7")
@@ -1419,7 +1419,7 @@ def test_ray_field_scattering_gives_the_scattered_polylines_and_a_given_seed(mon
 def test_ray_field_order_truncates_the_scattered_rays_too(monkeypatch):
     module, _ = load_component("CA_Visualise_Rays", monkeypatch)
     module.Rhino.Geometry.Polyline = RecordingPolyline
-    field, _, scattered, _colors = module.VisualiseRays().RunScript(scene(), None, 10, 4, None, None, True, 7, 1)
+    field, _, scattered = module.VisualiseRays().RunScript(scene(), None, 10, 4, None, None, True, 7, 1)
     assert len(scattered) == len(field.truncated(reflection_order=1).scattered_rays) < len(field.scattered_rays)
 
 
@@ -1433,12 +1433,12 @@ def test_ray_field_emits_into_a_cone(monkeypatch):
 def test_direction_without_angle_is_a_warning_not_a_traceback(monkeypatch):
     module, messages = load_component("CA_Visualise_Rays", monkeypatch)
     out = module.VisualiseRays().RunScript(scene(), None, 20, 3, xyz(1, 0, 0), None, None, 1, None)
-    assert any("angle" in m for m in messages) and out == (None,) * 4
+    assert any("angle" in m for m in messages) and out == (None,) * 3
 
 
 def test_ray_field_without_a_scene_warns(monkeypatch):
     module, messages = load_component("CA_Visualise_Rays", monkeypatch, levels=True)
-    assert module.VisualiseRays().RunScript(None, None, None, None, None, None, None, None, None) == (None,) * 4
+    assert module.VisualiseRays().RunScript(None, None, None, None, None, None, None, None, None) == (None,) * 3
     assert messages == [("warning", "Input parameter 'scene' failed to collect data.")]
 
 
@@ -1454,7 +1454,7 @@ def test_ray_field_traces_only_the_chosen_source(monkeypatch):
     module, messages = load_component("CA_Visualise_Rays", monkeypatch)
     s = scene()
     s.add_source(Source("second", 5, 2, 1.5))
-    field, rays, _, _colors = module.VisualiseRays().RunScript(s, 1, 5, 2, None, None, None, 1, None)
+    field, rays, _ = module.VisualiseRays().RunScript(s, 1, 5, 2, None, None, None, 1, None)
     assert len(field) == 5 and {ray.source_index for ray in field} == {1} and not messages
     field, *_ = module.VisualiseRays().RunScript(s, None, 5, 2, None, None, None, 1, None)
     assert {ray.source_index for ray in field} == {0, 1}
@@ -1463,7 +1463,7 @@ def test_ray_field_traces_only_the_chosen_source(monkeypatch):
 def test_ray_field_warns_for_a_source_index_out_of_range(monkeypatch):
     module, messages = load_component("CA_Visualise_Rays", monkeypatch, levels=True)
     out = module.VisualiseRays().RunScript(scene(), 3, 5, 2, None, None, None, 1, None)
-    assert out == (None,) * 4
+    assert out == (None,) * 3
     assert messages == [("warning", "No source at index 3; the scene has 1 source(s), 0 to 0.")]
 
 
@@ -1476,7 +1476,7 @@ def test_the_ray_field_inputs_match_its_script(monkeypatch):
     parameters = list(inspect.signature(module.VisualiseRays.RunScript).parameters)[1:]
     assert parameters == [p["name"] for p in metadata["ghpython"]["inputParameters"]]
     assert parameters == ["scene", "source_idx", "n_rays", "max_order", "direction", "angle", "scattering", "seed", "order"]
-    assert [p["name"] for p in metadata["ghpython"]["outputParameters"]] == ["ray_field", "rays", "scattered", "colors"]
+    assert [p["name"] for p in metadata["ghpython"]["outputParameters"]] == ["ray_field", "rays", "scattered"]
     assert (metadata["name"], metadata["nickname"], metadata["subcategory"]) == ("Visualise Rays", "Rays", "05 Display")
 
 
@@ -1512,7 +1512,7 @@ def run_billiard(module, field, time, play, speed):
 def test_billiard_without_play_or_time_shows_the_start(monkeypatch):
     module, messages, clock, document = billiard(monkeypatch)
     field = billiard_field()
-    particles, t, colors = run_billiard(module, field, None, False, None)
+    particles, t = run_billiard(module, field, None, False, None)
     assert t == 0.0 and len(particles) == len(field)
     assert all(tuple(p) == tuple(ray.points[0]) for p, ray in zip(particles, field))
     assert module.ghenv.Component.Message == "press Play or connect time"
@@ -1522,7 +1522,7 @@ def test_billiard_without_play_or_time_shows_the_start(monkeypatch):
 def test_billiard_time_alone_is_a_frozen_frame(monkeypatch):
     module, messages, clock, document = billiard(monkeypatch)
     field = billiard_field()
-    particles, t, colors = run_billiard(module, field, 10.0, False, None)
+    particles, t = run_billiard(module, field, 10.0, False, None)
     assert t == 10.0 and document.scheduled == []
     assert [tuple(p) for p in particles] == [tuple(p) for p in field.particles(10.0)[0]]
     assert module.ghenv.Component.Message == "t = 10.0 ms"
@@ -1562,7 +1562,7 @@ def test_a_new_ray_field_keeps_playing(monkeypatch):
     run_billiard(module, billiard_field(1), 10.0, True, 5.0)
     clock.now = 1.0
     scheduled = len(document.scheduled)
-    particles, t, colors = run_billiard(module, billiard_field(2), 10.0, False, 5.0)
+    particles, t = run_billiard(module, billiard_field(2), 10.0, False, 5.0)
     assert t == 5.0 and len(document.scheduled) == scheduled + 1
 
 
@@ -1634,13 +1634,13 @@ def test_billiard_draws_only_the_particles(monkeypatch):
     field = billiard_field()
     out = run_billiard(module, field, 15.0, False, None)
     points, _, _ = field.particles(15.0)
-    assert len(out) == 3 and out[0] == [tuple(p) for p in points] and out[1] == 15.0
+    assert len(out) == 2 and out[0] == [tuple(p) for p in points] and out[1] == 15.0
 
 
 def test_billiard_without_a_ray_field_warns(monkeypatch):
     module, messages, clock, document = billiard(monkeypatch)
     module.ghenv.Component.Message = "t = 3.0 ms"
-    assert run_billiard(module, None, 1.0, True, None) == (None,) * 3
+    assert run_billiard(module, None, 1.0, True, None) == (None,) * 2
     assert messages == ["Input parameter 'ray_field' failed to collect data."] and document.scheduled == []
     assert module.ghenv.Component.Message == ""
 
@@ -1650,7 +1650,7 @@ def test_billiard_with_an_empty_ray_field_warns(monkeypatch):
 
     module, messages, clock, document = billiard(monkeypatch)
     module.ghenv.Component.Message = "t = 3.0 ms"
-    assert run_billiard(module, RayField([]), 1.0, True, None) == (None,) * 3
+    assert run_billiard(module, RayField([]), 1.0, True, None) == (None,) * 2
     assert messages == ["The ray field has no rays."] and document.scheduled == []
     assert module.ghenv.Component.Message == ""
 
@@ -1751,7 +1751,7 @@ def test_the_billiard_inputs_match_its_script(monkeypatch):
     metadata = json.loads((COMPONENTS / "CA_Visualise_Billiard" / "metadata.json").read_text())
     parameters = list(inspect.signature(module.VisualiseBilliard.RunScript).parameters)[1:]
     assert parameters == [p["name"] for p in metadata["ghpython"]["inputParameters"]] == ["ray_field", "time", "play", "speed"]
-    assert [p["name"] for p in metadata["ghpython"]["outputParameters"]] == ["particles", "t", "colors"]
+    assert [p["name"] for p in metadata["ghpython"]["outputParameters"]] == ["particles", "t"]
     assert (metadata["name"], metadata["nickname"], metadata["subcategory"]) == ("Visualise Billiard", "Billiard", "05 Display")
 
 
@@ -1877,19 +1877,16 @@ def test_the_billiard_plays_the_specular_reflections(monkeypatch):
     specular, _ = load_component("CA_Visualise_Reflections", monkeypatch)
     field, *_ = specular.VisualiseReflections().RunScript(scene(), [0, 1], None, None)
     module, messages, clock, document = billiard(monkeypatch)
-    particles, t, colors = run_billiard(module, field, 1.0, False, None)
+    particles, t = run_billiard(module, field, 1.0, False, None)
     assert len(particles) == len(field) == 7 and not messages
 
 
-def test_ray_field_colours_each_segment_by_the_reflections_before_it(monkeypatch):
+def test_visualise_rays_draws_each_segment_in_the_colour_of_the_reflections_before_it(monkeypatch):
     module, _ = load_component("CA_Visualise_Rays", monkeypatch)
     from compas_acoustics_ghpython.display import order_color
 
     component = module.VisualiseRays()
-    field, rays, scattered, colors = component.RunScript(scene(), None, 4, 3, None, None, None, 1, None)
-    assert [colors.branches[(i,)] for i in range(len(field))] == [
-        [order_color(k) for k in range(len(ray.points) - 1)] for ray in field
-    ]
+    field, rays, scattered = component.RunScript(scene(), None, 4, 3, None, None, None, 1, None)
     drawn = [call for call in draw(component) if call[0] == "DrawLines"]
     segments = sum(len(ray.points) - 1 for ray in field)
     assert sum(len(list(call[1])) for call in drawn) == segments
@@ -1902,10 +1899,10 @@ def test_billiard_draws_round_particles_in_the_colour_of_their_order(monkeypatch
 
     field = billiard_field()
     component = module.VisualiseBilliard()
-    particles, t, colors = component.RunScript(field, 15.0, False, None)
+    particles, t = component.RunScript(field, 15.0, False, None)
     _, _, orders = field.particles(15.0)
-    assert colors == [order_color(o) for o in orders]
+    colors = {order_color(o) for o in orders}
     drawn = [call for call in draw(component) if call[0] == "DrawPoints"]
     assert all(call[2] == "round" for call in drawn)
-    assert {call[4] for call in drawn} == set(colors) and len(drawn) == len(set(colors))
+    assert {call[4] for call in drawn} == colors and len(drawn) == len(colors)
     assert sum(len(list(call[1])) for call in drawn) == len(particles)

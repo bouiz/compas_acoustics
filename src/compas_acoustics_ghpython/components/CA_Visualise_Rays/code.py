@@ -3,8 +3,6 @@ import warnings
 
 import Grasshopper
 import Rhino
-from Grasshopper import DataTree
-from Grasshopper.Kernel.Data import GH_Path
 
 from compas_acoustics import RayField
 from compas_acoustics import ScatteredRay
@@ -35,7 +33,7 @@ class VisualiseRays(Grasshopper.Kernel.GH_ScriptInstance):
         self._drawn = {}
         self._box = bounding_box([])
 
-        empty = (None,) * 4
+        empty = (None,) * 3
         if scene is None:
             ghenv.Component.AddRuntimeMessage(
                 Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning, "Input parameter 'scene' failed to collect data."
@@ -90,19 +88,13 @@ class VisualiseRays(Grasshopper.Kernel.GH_ScriptInstance):
             len(field), max_order if order is None else int(order), seed
         )
 
-        colors = DataTree[object]()
-        for i, ray in enumerate(shown):
-            segments = _segments(ray)
-            colors.AddRange([order_color(k) for k, _ in segments], GH_Path(i))
-            for k, line in segments:
-                self._drawn.setdefault(k, []).append(line)
-        for ray in shown.scattered_rays:
+        for ray in list(shown) + shown.scattered_rays:
             for k, line in _segments(ray):
                 self._drawn.setdefault(k, []).append(line)
         self._drawn = {k: typed_list(Rhino.Geometry.Line, lines) for k, lines in self._drawn.items()}
         self._box = bounding_box([Rhino.Geometry.Point3d(*point) for ray in list(shown) + shown.scattered_rays for point in ray.points])
 
-        return field, [_polyline(ray) for ray in shown], [_polyline(ray) for ray in shown.scattered_rays], colors
+        return field, [_polyline(ray) for ray in shown], [_polyline(ray) for ray in shown.scattered_rays]
 
     @property
     def ClippingBox(self):

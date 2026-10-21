@@ -46,10 +46,6 @@
             {
                 "name": "t",
                 "description": "The time shown, in ms."
-            },
-            {
-                "name": "colors",
-                "description": "The colour of each particle, by the reflections it has passed (the colours the component draws with)."
             }
         ]
     }
