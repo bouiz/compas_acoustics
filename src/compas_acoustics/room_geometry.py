@@ -45,8 +45,10 @@ SYNTHESIS_BANDS = (62.5, 125.0, 250.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0)
 # pyroomacoustics' geometric tolerance, so the copies are always resolved apart.
 OBSTACLE_OFFSET = 1e-3
 
-# Vertices closer than this are one vertex, and a vertex this close to an edge lies on it, in metres:
-# Rhino's default absolute tolerance in a metre model, which is what a CAD export is exact to.
+# Vertices closer than this are one vertex, in metres: Rhino's default absolute tolerance in a metre
+# model, which is what a CAD export is exact to. A vertex lies on an edge only within 1e-6 of the model's
+# extent (_split_at_t_junctions): a sliver face can put a vertex of its own a fraction of a millimetre
+# off an edge, and splitting the edge there makes it non-manifold.
 WELD_TOLERANCE = 1e-3
 
 # A bounding box larger than this, in metres, is taken for a model in millimetres.
@@ -173,7 +175,7 @@ def _weld(points: np.ndarray, tolerance: float) -> Tuple[np.ndarray, np.ndarray]
     return points[first], inverse.reshape(-1)
 
 
-def _split_at_t_junctions(vertices: np.ndarray, a: int, b: int, tolerance: float) -> List[int]:
+def _split_at_t_junctions(vertices: np.ndarray, a: int, b: int) -> List[int]:
     """The edge ``a -> b`` as the chain of vertices lying on it.
 
     CAD exports subdivide one side of a seam and not the other, so edges are
@@ -184,17 +186,18 @@ def _split_at_t_junctions(vertices: np.ndarray, a: int, b: int, tolerance: float
     offsets = vertices - start
     t = offsets @ direction / (direction @ direction)
     distance = np.linalg.norm(offsets - np.outer(t, direction), axis=1)
+    tolerance = 1e-6 * float(np.ptp(vertices, axis=0).max())
     inner = np.flatnonzero((t > 0.0) & (t < 1.0) & (distance < tolerance))
     return [a, *inner[np.argsort(t[inner])].tolist(), b]
 
 
-def _segments(vertices: np.ndarray, face, tolerance: float) -> List[Tuple[int, int]]:
+def _segments(vertices: np.ndarray, face) -> List[Tuple[int, int]]:
     face = list(face)
     out: List[Tuple[int, int]] = []
     for a, b in zip(face, face[1:] + face[:1]):
         if a == b:
             raise ValueError("a face repeats a vertex")
-        chain = _split_at_t_junctions(vertices, a, b, tolerance)
+        chain = _split_at_t_junctions(vertices, a, b)
         out.extend(zip(chain[:-1], chain[1:]))
     return out
 
@@ -232,7 +235,7 @@ def _triangulated_where_warped(vertices: np.ndarray, faces, groups):
     return out_faces, out_groups
 
 
-def _orient(vertices: np.ndarray, faces, tolerance: float = WELD_TOLERANCE):
+def _orient(vertices: np.ndarray, faces):
     """Flip flags that make every shared segment run opposite ways.
 
     Surfaces drawn as separate objects have no common winding, so each face's
@@ -241,7 +244,7 @@ def _orient(vertices: np.ndarray, faces, tolerance: float = WELD_TOLERANCE):
     surface, and ``defect`` is ``None`` when every segment is shared by exactly
     two faces that can be made to agree, else such a segment ``(a, b)``.
     """
-    segments = [_segments(vertices, face, tolerance) for face in faces]
+    segments = [_segments(vertices, face) for face in faces]
     directed = [set(segs) for segs in segments]
     users: Dict[frozenset, List[int]] = {}
     for index, segs in enumerate(segments):
@@ -276,7 +279,7 @@ def _orient(vertices: np.ndarray, faces, tolerance: float = WELD_TOLERANCE):
     return flips, component, None
 
 
-def _orient_outward(vertices: np.ndarray, faces, tolerance: float = WELD_TOLERANCE):
+def _orient_outward(vertices: np.ndarray, faces):
     """Boundary faces wound consistently, their largest volume facing out.
 
     pyroomacoustics needs normals pointing out of the air and drops image
@@ -284,7 +287,7 @@ def _orient_outward(vertices: np.ndarray, faces, tolerance: float = WELD_TOLERAN
     the air from outside, so it is wound into itself. Returns ``(faces,
     defect)``; on a defect the faces come back as drawn.
     """
-    flips, component, defect = _orient(vertices, faces, tolerance)
+    flips, component, defect = _orient(vertices, faces)
     if defect is not None:
         return [list(f) for f in faces], defect
     oriented = [list(f)[::-1] if flip else list(f) for f, flip in zip(faces, flips)]
@@ -426,7 +429,7 @@ class RoomGeometry:
         defect = None
         oriented = [faces[i] for i in boundary]
         if boundary:
-            oriented, defect = _orient_outward(vertices, oriented, weld_tolerance)
+            oriented, defect = _orient_outward(vertices, oriented)
         is_closed = bool(boundary) and defect is None
         open_edge = None
         if not is_closed:

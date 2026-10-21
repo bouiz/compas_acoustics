@@ -92,6 +92,18 @@ def test_a_t_junction_seam_still_closes():
     assert g.volume == pytest.approx(105.0)
 
 
+def test_a_sliver_face_off_an_edge_still_closes():
+    # As in BRAS CR2: a sliver's apex lies a fraction of a millimetre off its own long edge, inside the weld
+    # tolerance but not on the edge; taking it for a T-junction would make the edge non-manifold.
+    walls = [o for o in shoebox_leaves() if not o.name.endswith("floor")]
+    apex = [3.5, 5e-4, 0.0]
+    sliver = AcousticObject(Mesh.from_vertices_and_faces([[0, 0, 0], [7, 0, 0], apex], [[0, 1, 2]]), WALL, name="sliver")
+    rest = Mesh.from_vertices_and_faces([[0, 0, 0], apex, [7, 0, 0], [7, 5, 0], [0, 5, 0]], [[0, 1, 2, 3, 4]])
+    g = RoomGeometry.from_scene(scene_of(*walls, sliver, AcousticObject(rest, WALL, name="floor")))
+    assert g.is_closed
+    assert g.volume == pytest.approx(105.0)
+
+
 def test_near_coincident_vertices_weld():
     leaves = shoebox_leaves()
     ceiling = leaves[-1]
