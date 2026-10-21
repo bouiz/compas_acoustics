@@ -49,7 +49,9 @@ class SpecularReflectionsComponent(Grasshopper.Kernel.GH_ScriptInstance):
         images = []
         walls = DataTree[object]()
         for i, path in enumerate(reflections):
-            paths.append(Rhino.Geometry.Polyline([Rhino.Geometry.Point3d(*point) for point in path.points]))
+            polyline = Rhino.Geometry.Polyline()
+            polyline.AddRange([Rhino.Geometry.Point3d(*point) for point in path.points])
+            paths.append(polyline)
             images.append(Rhino.Geometry.Point3d(*path.image))
             walls.AddRange(path.walls, GH_Path(i))
 

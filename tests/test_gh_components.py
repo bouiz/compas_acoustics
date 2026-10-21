@@ -1293,6 +1293,25 @@ def test_specular_reflections_take_numpy_orders_and_ignore_empty_items(monkeypat
     assert set(out[3]) == {1}
 
 
+class RecordingPolyline(list):
+    def __init__(self):
+        super().__init__()
+
+    def AddRange(self, points):
+        self.extend(points)
+
+
+def test_specular_reflections_give_the_paths_vertices_and_image_points(monkeypatch):
+    module, _ = load_component("CA_Specular_Reflections", monkeypatch)
+    module.Rhino.Geometry.Polyline = RecordingPolyline
+    reflections, paths, images, *_ = module.SpecularReflectionsComponent().RunScript(scene(), [0, 2], None, None)
+    assert len(paths) == len(images) == len(reflections) > 0
+    for polyline, image, path in zip(paths, images, reflections):
+        assert polyline == [tuple(point) for point in path.points]
+        assert len(polyline) == path.order + 2
+        assert image == tuple(path.image)
+
+
 def test_an_out_of_range_receiver_warns(monkeypatch):
     module, messages = load_component("CA_Specular_Reflections", monkeypatch, levels=True)
     out = module.SpecularReflectionsComponent().RunScript(scene(), [1], 0, 5)
