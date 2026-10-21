@@ -227,8 +227,8 @@ def test_the_ism_order_input_states_the_methods_default(monkeypatch):
 
     from compas_acoustics.simulation_methods import Pyroomacoustics
 
-    module, _ = load_component("CA_Simulate_Ray_Trace", monkeypatch)
-    metadata = json.loads((COMPONENTS / "CA_Simulate_Ray_Trace" / "metadata.json").read_text())["ghpython"]
+    module, _ = load_component("CA_Simulate_Ray_Tracing", monkeypatch)
+    metadata = json.loads((COMPONENTS / "CA_Simulate_Ray_Tracing" / "metadata.json").read_text())["ghpython"]
     assert list(inspect.signature(module.SimulateRayTracing.RunScript).parameters)[1:] == [p["name"] for p in metadata["inputParameters"]]
     assert [p["name"] for p in metadata["outputParameters"]] == ["mono_ir_graph"]
     (ism_order,) = [p for p in metadata["inputParameters"] if p["name"] == "ism_order"]
@@ -238,7 +238,7 @@ def test_the_ism_order_input_states_the_methods_default(monkeypatch):
 
 
 def test_empty_inputs_leave_the_method_defaults_but_draw_a_seed(monkeypatch):
-    module, _ = load_component("CA_Simulate_Ray_Trace", monkeypatch)
+    module, _ = load_component("CA_Simulate_Ray_Tracing", monkeypatch)
     calls = capture(monkeypatch)
     draw_seed(module, monkeypatch)
     s = scene()
@@ -249,7 +249,7 @@ def test_empty_inputs_leave_the_method_defaults_but_draw_a_seed(monkeypatch):
 
 
 def test_an_empty_seed_is_a_new_draw_each_run(monkeypatch):
-    module, _ = load_component("CA_Simulate_Ray_Trace", monkeypatch)
+    module, _ = load_component("CA_Simulate_Ray_Tracing", monkeypatch)
     calls = capture(monkeypatch)
     for _ in range(3):
         module.SimulateRayTracing().RunScript(scene(), None, None, None, None, None, None, None, None)
@@ -257,7 +257,7 @@ def test_an_empty_seed_is_a_new_draw_each_run(monkeypatch):
 
 
 def test_given_inputs_are_passed_through(monkeypatch):
-    module, _ = load_component("CA_Simulate_Ray_Trace", monkeypatch)
+    module, _ = load_component("CA_Simulate_Ray_Tracing", monkeypatch)
     calls = capture(monkeypatch)
     module.SimulateRayTracing().RunScript(scene(), 4, True, 5000, False, 1e-7, 2.0, 3, False)
     assert calls == [method_defaults(image_source_order=4, ray_tracing=True, n_rays=5000, air_absorption=False,
@@ -265,7 +265,7 @@ def test_given_inputs_are_passed_through(monkeypatch):
 
 
 def test_without_ray_tracing_the_ray_inputs_are_dropped_with_a_remark(monkeypatch):
-    module, messages = load_component("CA_Simulate_Ray_Trace", monkeypatch)
+    module, messages = load_component("CA_Simulate_Ray_Tracing", monkeypatch)
     calls = capture(monkeypatch)
     module.SimulateRayTracing().RunScript(scene(), 3, False, 5000, None, None, None, 3, None)
     assert calls == [method_defaults(image_source_order=3, ray_tracing=False)]
@@ -273,7 +273,7 @@ def test_without_ray_tracing_the_ray_inputs_are_dropped_with_a_remark(monkeypatc
 
 
 def test_the_message_shows_the_scenes_sampling_rate(monkeypatch):
-    module, _ = load_component("CA_Simulate_Ray_Trace", monkeypatch)
+    module, _ = load_component("CA_Simulate_Ray_Tracing", monkeypatch)
     capture(monkeypatch)
     s = scene()
     s.sampling_rate = 44100
@@ -282,7 +282,7 @@ def test_the_message_shows_the_scenes_sampling_rate(monkeypatch):
 
 
 def test_a_missing_scene_warns(monkeypatch):
-    module, messages = load_component("CA_Simulate_Ray_Trace", monkeypatch)
+    module, messages = load_component("CA_Simulate_Ray_Tracing", monkeypatch)
     assert module.SimulateRayTracing().RunScript(None, None, None, None, None, None, None, None, None) is None
     assert messages and "scene" in messages[0]
 
@@ -995,7 +995,7 @@ def test_the_hybrid_reference_can_be_the_ray_tracing_graph_wire(monkeypatch):
 def test_the_ray_tracing_component_shows_warnings(monkeypatch):
     import warnings
 
-    module, messages = load_component("CA_Simulate_Ray_Trace", monkeypatch, levels=True)
+    module, messages = load_component("CA_Simulate_Ray_Tracing", monkeypatch, levels=True)
 
     def simulate(self, method):
         warnings.warn("Receiver 'x' is outside the room and will not be simulated.", UserWarning)
