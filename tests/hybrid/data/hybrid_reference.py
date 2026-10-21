@@ -2,10 +2,9 @@
 
 Run against a checkout of that revision (``git archive <revision>``), not this tree:
     PYTHONPATH=<archive>/src python tests/hybrid/data/hybrid_reference.py <out.npz> [case ...]
-Each case is stored under its name; the default, ``rir``, is the only one in
-``hybrid_reference_82833d1.npz``, which ``tests/hybrid/test_scattering.py`` checks
-``Hybrid(scattering=False)`` against. ``hybrid_reference_f658127.npz`` holds every case, the code
-before the hybrid rendered ambisonic and binaural outputs from one run (``test_hybrid_outputs.py``).
+Each case is stored under its name. ``hybrid_reference_cb644a8.npz`` holds every case, from the
+code that gave the network 96 delay lines and Ewert's hemisphere drive: ``test_scattering.py`` checks
+``Hybrid(scattering=False)`` against its ``rir``, ``test_hybrid_outputs.py`` every case.
 """
 
 import sys

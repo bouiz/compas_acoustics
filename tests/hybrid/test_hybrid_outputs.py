@@ -10,7 +10,6 @@ import compas_acoustics as ca
 from compas_acoustics.binaural import DEFAULT_HRTF
 from compas_acoustics.binaural import HrtfSet
 from compas_acoustics.binaural import binaural_rir
-from compas_acoustics.hybrid import late
 from compas_acoustics.hybrid.envelope import shape_late
 from compas_acoustics.hybrid.late import ambisonic_output_matrix
 from compas_acoustics.hybrid.late import fdn_directions
@@ -176,11 +175,9 @@ def test_shape_late_gives_every_column_the_gains_of_w():
 
 
 @pytest.mark.parametrize("case", sorted(CASES))
-def test_the_ambisonic_output_is_unchanged(case, monkeypatch):
-    """The code before the hybrid rendered both outputs (f658127, data/hybrid_reference.py) gives the same response."""
-    # f658127 used 16 delay lines at first order, before MIN_DELAYS became 96
-    monkeypatch.setattr(late, "MIN_DELAYS", 16)
-    before = np.load(DATA / "hybrid_reference_f658127.npz")[case]
+def test_the_ambisonic_output_is_unchanged(case):
+    """The code at cb644a8 (96 lines, the hemisphere drive; data/hybrid_reference.py) gives the same response."""
+    before = np.load(DATA / "hybrid_reference_cb644a8.npz")[case]
     after = reference_rir(output="ambisonic", **CASES[case])
     assert np.any(after[-200:] != 0.0)  # the late field is inside the window
     assert np.allclose(after, before, rtol=0, atol=1e-10 * np.abs(before).max())
