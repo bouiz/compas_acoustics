@@ -63,7 +63,8 @@ class Hybrid(SimulationMethod):
     ``sh_order``. The binaural output filters every early path, and every delay
     line, with the HRIR measured nearest its direction
     (:func:`compas_acoustics.binaural.binaural_rir`), as RAVEN renders its image
-    sources and RAZR and RAVEN their feedback delay networks.
+    sources and the directivity groups of its ray-tracing histogram, and RAZR
+    its feedback delay network.
 
     Parameters
     ----------
@@ -102,9 +103,16 @@ class Hybrid(SimulationMethod):
     directional_absorption : bool, default=True
         Weight each delay line with the reflection of the boundary it faces.
     late_envelope : bool, optional
-        Attenuate the late field per band to the reference's late energy. By
-        default on for a reference or ray-tracing tail; an Eyring or Sabine tail
-        has no reference, so there it is off and ``True`` raises.
+        Shape the late field: attenuated per band to the reference's late
+        energy, and each delay line given its direction's share of the energy
+        the rays bring, RAVEN's directional histogram
+        (:func:`compas_acoustics.raytracing.directional_histograms`,
+        :func:`compas_acoustics.hybrid.envelope.shape_late_directional`). The
+        histogram is traced by the hybrid itself, ``Pyroomacoustics(ray_tracing=True)``
+        with its default settings at ``image_source_order``, also when a
+        reference is given. By default on for a reference or ray-tracing tail;
+        an Eyring or Sabine tail has no reference, so there it is off and
+        ``True`` raises.
     diffraction : {False, True, "udfa", "btms"}, default=False
         Edge diffraction around obstacles and at the edges of the room's boundary that
         open wider than 180 deg; ``True`` is ``"udfa"``. ``"btms"`` is
@@ -193,7 +201,7 @@ class Hybrid(SimulationMethod):
         if tail in ("eyring", "sabine"):
             if n_slopes != 1:
                 raise ValueError(f"an {tail} tail has one decay slope; n_slopes must be 1, not {n_slopes!r}")
-            if late_envelope is True:
+            if late_envelope:
                 raise ValueError(f"late_envelope follows a reference; an {tail} tail has none")
         model = {False: None, True: "udfa", "udfa": "udfa", "btms": "btms"}.get(diffraction, "invalid")
         if model == "invalid":
@@ -331,6 +339,30 @@ class Hybrid(SimulationMethod):
             hrtf_path = DEFAULT_HRTF if self.hrtf == "kemar" else Path(self.hrtf)
             hrtf = HrtfSet.from_sofa(hrtf_path, fs)
 
+        histograms = None
+        if self.late_envelope:
+            from compas_acoustics.hybrid.late import fdn_directions
+            from compas_acoustics.raytracing import directional_histograms
+
+            grid = fdn_directions(self.sh_order, num_delays).cartesian
+            grid = grid / np.linalg.norm(grid, axis=1, keepdims=True)
+            tracer = Pyroomacoustics(ray_tracing=True)
+            histograms = directional_histograms(
+                geometry,
+                [source_to_pra(source) for source in context.sources],
+                np.array([receiver.position for receiver in context.receivers], dtype=float).T,
+                fs,
+                [grid @ rotations[id(receiver)].T for receiver in context.receivers],
+                max_order=self.image_source_order,
+                duration=self.duration,
+                n_rays=tracer.n_rays,
+                receiver_radius=tracer.receiver_radius,
+                energy_threshold=tracer.energy_thres,
+                air_absorption=air_absorption,
+                seed=self.seed,
+                air=air,
+            )
+
         rirs, self.results = {output: {} for output in self.outputs}, {}
         for s, source in enumerate(context.sources):
             directivity = (
@@ -366,6 +398,7 @@ class Hybrid(SimulationMethod):
                     num_delays=num_delays,
                     directional_absorption=self.directional_absorption,
                     late_envelope=reference if self.late_envelope else None,
+                    directional_envelope=histograms[m][s] if histograms is not None else None,
                     diffraction=self.diffraction or False,
                     normalization=self.normalization,
                     rng=rng,

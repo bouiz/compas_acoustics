@@ -57,6 +57,32 @@ Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, src/envelope.py).
 ``shape_late`` takes the W channels apart from the signals it shapes, so that
 it shapes the delay lines, from which both outputs are rendered; the gains are
 upstream's.
+
+The directional envelope
+------------------------
+:func:`shape_late_directional` adds RAVEN's directional histogram (Lentz,
+Schroeder and Vorlaender 2007, Sec. 2.2: the detection sphere divided into
+"directivity groups", each ray's energy added to the group of its time and
+direction of arrival; Schroeder 2011, Sec. 5.3.4), which pyroomacoustics keeps
+per receiver direction (:func:`compas_acoustics.raytracing.directional_histograms`).
+RAVEN shapes the level of each time slot with the omni energy spectral density
+and uses the directional histogram only as the distribution of directions the
+impulses of that slot are allotted to, one distribution for all bands. Here
+the level is the omni envelope above, unchanged, and every delay line is then
+scaled by ``sqrt(p_i / q_i)``, its direction's share of the rays' energy over
+its share of the lines' energy (:func:`directional_shares`), so the lines take
+the rays' distribution and keep their total: a direction facing an absorbing
+wall decays faster, as the rays say it does, which one gain on every line
+cannot express. Shaping an FDN carrier this way has no precedent, as the omni
+envelope has none.
+
+Before that the bins are pooled over neighbouring directions with the weights
+of Kirsch, Wendt and van de Par (2023, Eq. 4), ``max(u_i . u_j, 0) ** (N /
+6)``, the kernel the directional absorption uses: at 96 lines a bin of 4 ms
+holds a handful of detections per direction (RAVEN's rule of thumb, ``N = V /
+((sigma / 4.34) ** 2 pi r ** 2 c dt)`` particles for sigma dB per bin, asks
+for about a hundred times the rays of the omni histogram at the same
+precision), and the kernel pools roughly the nearest ring.
 """
 
 from __future__ import annotations
@@ -69,6 +95,10 @@ from scipy.signal import fftconvolve
 
 SMOOTH_MS = 100.0
 HOLD_DB = -20.0
+# the directional shares follow the rays until their energy has decayed this far: RAVEN traces its
+# particles until they have lost 63 dB (itaRavenProject, energyLoss_DetectionSphere = 63), and a ray
+# tracer's detections per bin do not thin out as the energy decays, as a reference response's late part does
+SHARES_HOLD_DB = -60.0
 # the early images have ended once they stay this far below the reference
 EARLY_END_DB = -13.0
 # a reference this far from the hybrid over its first 50 ms is on another scale
@@ -204,3 +234,96 @@ def shape_late(
     if signals.ndim == 1:
         return np.einsum("bn,bn->n", gains, bands)
     return np.einsum("bn,bnc->nc", gains, bands)
+
+
+# ------------------------------------------------------ the directional envelope --
+def smooth_over_directions(energy: np.ndarray, directions: np.ndarray) -> np.ndarray:
+    """``energy`` (n_directions, ...) pooled over neighbouring directions, same shape.
+
+    Kirsch et al. (2023, Eq. 4): direction ``i`` takes the mean of all
+    directions weighted by ``max(u_i . u_j, 0) ** (N / 6)``. The rows of the
+    kernel are normalised, so on a grid whose columns sum alike (an equal-area
+    grid) the energy of every bin is kept to within the grid's unevenness.
+    """
+    energy = np.asarray(energy, dtype=float)
+    unit = np.asarray(directions, dtype=float)
+    unit = unit / np.linalg.norm(unit, axis=1, keepdims=True)
+    if unit.shape[0] != energy.shape[0]:
+        raise ValueError(f"energy has {energy.shape[0]} directions, directions {unit.shape[0]}")
+    weights = np.clip(unit @ unit.T, 0.0, None) ** (unit.shape[0] / 6.0)
+    weights /= weights.sum(axis=1, keepdims=True)
+    return np.tensordot(weights, energy, axes=(1, 0))
+
+
+
+
+def directional_shares(histogram, lines: np.ndarray, fs: float) -> np.ndarray:
+    """The factor on every delay line that gives the lines the rays' distribution over directions, (n, n_lines).
+
+    ``histogram`` is a :class:`~compas_acoustics.raytracing.DirectionalHistogram`
+    whose directions are the lines', in the same order; ``lines`` are the
+    network's lines as heard, (n, n_lines); both start at the emission. Per
+    time slot, ``p_i`` is direction ``i``'s share of the rays' energy summed
+    over the bands (RAVEN's "ray probability for each directivity group", one
+    distribution for all bands) and ``q_i`` the line's share of the lines'
+    energy, both after :func:`smooth_over_directions`; the factor is
+    ``sqrt(p_i / q_i)``, both smoothed over ``SMOOTH_MS``, so the lines' total
+    energy is kept and only its distribution over directions changes. The
+    shares are held once the rays' energy has decayed ``SHARES_HOLD_DB``,
+    RAVEN's particle cutoff, and never before the lines have started.
+    """
+    lines = np.asarray(lines, dtype=float)
+    if lines.ndim != 2:
+        raise ValueError("lines must be (n, n_lines)")
+    n, n_lines = lines.shape
+    energy = np.asarray(histogram.energy, dtype=float)
+    if energy.ndim != 3 or energy.shape[0] != n_lines:
+        raise ValueError(f"the histogram must hold one direction per line ({n_lines}), got {energy.shape}")
+    bin_samples = max(int(round(histogram.bin_size * fs)), 1)
+    window = max(round(SMOOTH_MS * 1e-3 * fs), 1)
+    hann = np.hanning(window + 2)[1:-1]
+    hann /= hann.sum()
+
+    rays = smooth_over_directions(energy.sum(axis=1), histogram.directions)  # (n_lines, n_bins)
+    m = min(rays.shape[1] * bin_samples, n)
+    rays = np.repeat(rays, bin_samples, axis=1)[:, :m].T  # (m, n_lines)
+    e_rays = np.maximum(fftconvolve(rays, hann[:, np.newaxis], mode="same", axes=0), 0.0)
+    e_lines = np.maximum(fftconvolve(lines[:m] ** 2, hann[:, np.newaxis], mode="same", axes=0), 0.0)
+    e_lines = smooth_over_directions(e_lines.T, histogram.directions).T
+    p = e_rays / np.where(e_rays.sum(axis=1, keepdims=True) > 0.0, e_rays.sum(axis=1, keepdims=True), 1.0)
+    q = e_lines / np.where(e_lines.sum(axis=1, keepdims=True) > 0.0, e_lines.sum(axis=1, keepdims=True), 1.0)
+
+    shares = np.ones((m, n_lines))
+    active = (q > 1e-12 * q.max()) & (p.sum(axis=1, keepdims=True) > 0.0)
+    shares[active] = np.sqrt(p[active] / q[active])
+
+    total = e_lines.sum(axis=1)
+    present = np.flatnonzero(total > 1e-6 * total.max())
+    earliest = (int(present[0]) if present.size else 0) + window
+    edc = np.cumsum(rays.sum(axis=1)[::-1])[::-1]
+    below = np.flatnonzero(edc <= 10 ** (SHARES_HOLD_DB / 10) * edc[0])
+    hold = int(below[0]) if below.size else m - 1
+    hold = min(max(hold, earliest), m - 1)
+    start = max(hold - window, 0)
+    held_rays = e_rays[start:hold].sum(axis=0)
+    held_lines = e_lines[start:hold].sum(axis=0)
+    if held_rays.sum() > 0.0 and held_lines.sum() > 0.0:
+        held = np.sqrt((held_rays / held_rays.sum()) / np.where(held_lines > 0.0, held_lines / held_lines.sum(), 1.0))
+        shares[hold:] = np.where(held_lines > 0.0, held, 1.0)
+
+    if m < n:
+        shares = np.concatenate([shares, np.repeat(shares[-1:], n - m, axis=0)])
+    return shares
+
+
+def shape_late_directional(
+    lines: np.ndarray, early_w: np.ndarray, late_w: np.ndarray, reference: np.ndarray, histogram, fs: float
+) -> np.ndarray:
+    """``lines`` (n, n_lines) shaped to the reference's envelope and to the rays' distribution over directions.
+
+    :func:`shape_late` with the omni reference, then every line times its
+    :func:`directional_shares`. RAVEN's two uses of its histogram: the energy
+    envelope per band, and the directions the impulses of each time slot
+    come from.
+    """
+    return shape_late(lines, early_w, late_w, reference, fs) * directional_shares(histogram, lines, fs)

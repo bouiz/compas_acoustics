@@ -25,6 +25,8 @@ import numpy as np
 import pyfar as pf
 import pyFDN
 
+from compas_acoustics.raytracing import DirectionalHistogram
+
 from .diffraction import BtmsContribution
 from .diffraction import DiffractionPath
 from .diffraction import btms_paths
@@ -39,6 +41,7 @@ from .scattering import scattering_decay_time
 from .scattering import scattering_weights
 from .scattering import smear
 from .envelope import shape_late
+from .envelope import shape_late_directional
 from .late import default_num_delays
 from .late import design_fdn
 from .late import directional_delays
@@ -83,6 +86,7 @@ def synthesize(
     drive_gain: float | None = None,
     directional_absorption: bool = True,
     late_envelope: np.ndarray | None = None,
+    directional_envelope: DirectionalHistogram | None = None,
     diffraction: bool | Literal["udfa", "btms"] = False,
     normalization: Literal["SN3D", "N3D"] = "SN3D",
     rng: int = 0,
@@ -126,7 +130,12 @@ def synthesize(
     omnidirectional reference on the package scale, normally the pair's
     ray-traced response; the network output is attenuated per band to follow
     its late energy (Vorlaender 2020, Sec. 11.9), every line by the gains of the
-    late field's W channel. ``diffraction=True`` adds
+    late field's W channel. ``directional_envelope``, a
+    :class:`~compas_acoustics.raytracing.DirectionalHistogram` binned on the
+    lines' directions in room coordinates (their grid turned by the receiver's
+    rotation), then gives the lines the rays' distribution over directions
+    (:func:`~compas_acoustics.hybrid.envelope.shape_late_directional`, RAVEN's
+    directivity groups); it needs ``late_envelope``. ``diffraction=True`` adds
     edge diffraction to the early field (Kirsch and Ewert 2023) around the
     obstacles and at the edges of the room's boundary that open wider than
     pi (see :func:`compas_acoustics.hybrid.diffraction.diffraction_edges`), for
@@ -224,7 +233,15 @@ def synthesize(
             ) * drive_gain
     lines = render(builds, drive * drive_gain, tap=tap, line_eq=line_eq)
     C = builds[0].C
-    if late_envelope is not None:
+    if directional_envelope is not None:
+        if late_envelope is None:
+            raise ValueError("directional_envelope needs late_envelope, the omni reference that sets the level")
+        if directional_envelope.energy.shape[0] != num_delays:
+            raise ValueError(
+                f"the directional histogram holds {directional_envelope.energy.shape[0]} directions; the network has {num_delays} lines"
+            )
+        lines = shape_late_directional(lines, early[:, 0], lines @ C[0], late_envelope, directional_envelope, spec.fs)
+    elif late_envelope is not None:
         lines = shape_late(lines, early[:, 0], lines @ C[0], late_envelope, spec.fs)
 
     early, late = (_from_n3d(x, normalization) for x in (early, lines @ C.T))

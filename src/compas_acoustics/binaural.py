@@ -5,8 +5,8 @@ The hybrid's binaural output (:class:`~compas_acoustics.simulation_methods.Hybri
 spherical harmonics: every image source and diffracted path is filtered with the
 head-related transfer function measured nearest its direction of arrival, as
 RAVEN renders its image sources, and every delay line of the late field with the
-one nearest the line's direction, as RAZR and RAVEN render their feedback delay
-networks. compas_acoustics has no ambisonic-to-binaural decoder: ambisonic
+one nearest the line's direction, as RAZR renders its feedback delay network
+and RAVEN the directivity groups of its ray-tracing histogram. compas_acoustics has no ambisonic-to-binaural decoder: ambisonic
 responses are saved or convolved as they are, for a decoder elsewhere.
 """
 
@@ -125,7 +125,7 @@ def binaural_rir(result, hrtf: HrtfSet) -> np.ndarray:
     """The hybrid at the two ears, (n, 2): every early path and every delay line with the HRIR nearest its direction.
 
     The early part is :func:`render_early_binaural`. The late field is rendered
-    per delay line, as RAZR and RAVEN render their FDN outputs: line ``i``,
+    per delay line, as RAZR renders its FDN output and RAVEN its directivity groups: line ``i``,
     ``result.late_lines[:, i] / sqrt(N)``, through the HRIR measured nearest
     ``result.line_directions[i]``, lines sharing an HRIR summed first.
     ``1 / sqrt(N)`` is the W row of the ambisonic output matrix, so each ear

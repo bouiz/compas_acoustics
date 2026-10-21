@@ -53,7 +53,7 @@
             },
             {
                 "name": "late_envelope",
-                "description": "Shape the late field to the reference's late energy (default True; off for an Eyring or Sabine tail).",
+                "description": "Shape the late field: its level per band to the reference's late energy, and each delay line to its direction's share of the ray-traced energy (default True; off for an Eyring or Sabine tail).",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "bool"

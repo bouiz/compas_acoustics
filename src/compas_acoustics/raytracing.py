@@ -17,8 +17,10 @@ fractional-delay kernel).
 from __future__ import annotations
 
 import warnings
+from dataclasses import dataclass
 from typing import List
 from typing import Optional
+from typing import Sequence
 
 import numpy as np
 import pyroomacoustics as pra
@@ -28,7 +30,7 @@ from compas_acoustics.diffuse import predicted_rt
 from compas_acoustics.room_geometry import RoomGeometry
 from compas_acoustics.room_geometry import pra_octave_grid
 
-__all__ = ['MIN_RAYS', 'OPEN_ROOM_DURATION', 'default_duration', 'ray_traced_rirs']
+__all__ = ['MIN_RAYS', 'OPEN_ROOM_DURATION', 'DirectionalHistogram', 'default_duration', 'directional_histograms', 'ray_traced_rirs']
 
 # Floor on pyroomacoustics' own ray count, applied only with n_rays=None.
 MIN_RAYS = 50_000
@@ -119,3 +121,114 @@ def ray_traced_rirs(
         [_on_package_scale(room.rir[m][s], latency, n_samples) for s in range(len(sources))]
         for m in range(mic_positions.shape[1])
     ]
+
+
+@dataclass(frozen=True)
+class DirectionalHistogram:
+    """The ray-traced energy of one source at one receiver, per direction of arrival, band and time bin.
+
+    ``energy`` is ``(n_directions, n_bands, n_bins)``: the energy of the pressure
+    response on the package scale (``1 / (4 pi r)``) that arrives within each
+    bin of ``bin_size`` seconds, from the direction of ``directions`` (unit
+    vectors in room coordinates) nearest to its last leg, in the octave band of
+    ``bands``. Time runs from the emission, as :func:`ray_traced_rirs` returns
+    it. The sum over the directions is pyroomacoustics' own histogram on the
+    package scale; the sum over the bins is the energy the rays carry beyond the
+    image source order of the run.
+    """
+
+    energy: np.ndarray
+    bin_size: float
+    directions: np.ndarray
+    bands: np.ndarray
+
+
+def directional_histograms(
+    geometry: RoomGeometry,
+    sources,
+    mic_positions,
+    fs: int,
+    directions: Sequence[np.ndarray],
+    *,
+    max_order: int = 6,
+    duration: Optional[float] = None,
+    n_rays: Optional[int] = 20000,
+    receiver_radius: float = 0.5,
+    energy_threshold: float = 1e-8,
+    air_absorption: bool = True,
+    seed: Optional[int] = None,
+    air=None,
+) -> List[List[DirectionalHistogram]]:
+    """Ray-traced energy per direction of arrival of every source at every microphone, ``[mic][source]``.
+
+    RAVEN's detection sphere divided into "directivity groups" (Lentz, Schroeder
+    and Vorlaender 2007; Schroeder 2011, Sec. 5.3.4): pyroomacoustics' receiver
+    keeps one histogram per direction and bins every detected ray by the
+    direction, nearest in angle, its last leg arrives from
+    (``libroom_src/microphone.hpp``, ``get_dir_bin``). ``directions`` holds one
+    ``(n, 3)`` array of unit vectors in room coordinates per microphone; a
+    receiver's own frame is the caller's business. The arguments are those of
+    :func:`ray_traced_rirs`, and the rays are the same: pyroomacoustics logs a
+    specular ray only after ``max_order`` reflections, so the bins hold what
+    the image sources of that order do not. ``Room.ray_tracing`` would reset an
+    omnidirectional receiver to one bin, so the engine is driven directly, as
+    that method does. Air absorption is applied per band on the bins' travel
+    distance, as pyroomacoustics applies it to its tail.
+    """
+    if duration is None:
+        duration = default_duration(geometry, air_absorption, air=air)
+    if duration <= 0.0:
+        raise ValueError(f"duration must be positive, got {duration!r}")
+    mic_positions = np.asarray(mic_positions, dtype=float).reshape(3, -1)
+    if len(directions) != mic_positions.shape[1]:
+        raise ValueError(f"directions must hold one array per microphone ({mic_positions.shape[1]}), got {len(directions)}")
+    unit = []
+    for d in directions:
+        d = np.asarray(d, dtype=float)
+        if d.ndim != 2 or d.shape[1] != 3 or d.shape[0] < 1:
+            raise ValueError("each microphone's directions must be (n, 3)")
+        unit.append(d / np.linalg.norm(d, axis=1, keepdims=True))
+    options = {
+        "receiver_radius": receiver_radius,
+        "energy_thres": energy_threshold,
+        "time_thres": float(duration),
+        "hist_bin_size": _HIST_BIN,
+    }
+    pra.random.seed(seed)
+    with pra_octave_grid():
+        room = geometry.to_pra(fs, max_order, ray_tracing=True, air_absorption=air_absorption, air=air)
+        for source in sources:
+            room.add_soundsource(source)
+        room.add_microphone_array(pra.MicrophoneArray(mic_positions, fs))
+        room.set_ray_tracing(n_rays=n_rays, **options)
+        if n_rays is None and room.rt_args["n_rays"] < MIN_RAYS:
+            room.set_ray_tracing(n_rays=MIN_RAYS, **options)
+        n_rays = room.rt_args["n_rays"]
+        n_bands = len(room.octave_bands.get_bw())
+        bands = np.asarray(room.octave_bands.centers, dtype=float)
+        for m, d in enumerate(unit):
+            room.room_engine.microphones[m].set_directions(np.asarray(d, dtype=np.float32))
+        bin_size = float(room.rt_args["hist_bin_size"])
+        n_bins = int(np.ceil(duration / bin_size))
+        distance = (np.arange(n_bins) + 0.5) * bin_size * room.c
+        damping = (
+            np.exp(-np.asarray(room.air_absorption, dtype=float)[:, np.newaxis] * distance[np.newaxis, :])
+            if air_absorption else np.ones((n_bands, n_bins))
+        )
+        histograms = [[] for _ in unit]
+        for source in room.sources:
+            if source.directivity is None:
+                ray_directions = pra.fibonacci_spherical_sampling(n_rays).T
+                ray_energies = np.ones((n_rays, n_bands))
+            else:
+                ray_directions, ray_energies = source.directivity.sample_rays(n_rays)
+                ray_energies = np.broadcast_to(ray_energies, (n_rays, n_bands))
+            room.room_engine.ray_tracing(ray_directions, ray_energies, source.position)
+            for m, d in enumerate(unit):
+                energy = np.stack([h.get_hist() for h in room.room_engine.microphones[m].histograms])
+                energy = np.pad(energy, ((0, 0), (0, 0), (0, max(0, n_bins - energy.shape[2]))))[:, :, :n_bins]
+                histograms[m].append(DirectionalHistogram(
+                    energy=energy * damping / (4.0 * np.pi) ** 2, bin_size=bin_size, directions=d, bands=bands,
+                ))
+            room.room_engine.reset_mics()
+    return histograms
