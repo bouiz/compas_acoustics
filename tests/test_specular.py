@@ -15,7 +15,6 @@ from compas_acoustics import AirConditions
 from compas_acoustics import Receiver
 from compas_acoustics import Scene
 from compas_acoustics import Source
-from compas_acoustics.hybrid.early import _first_of_each_position
 from compas_acoustics.room_geometry import RoomGeometry
 from compas_acoustics.specular import SpecularPath
 from compas_acoustics.specular import SpecularReflections
@@ -83,6 +82,9 @@ ROOMS = {"shoebox": shoebox, "l_shaped": l_shaped, "obstacle": obstacle}
 
 def pra_visible_images(scene, max_order, s=0, m=0):
     """pyroomacoustics' own visible images for one pair, duplicates removed, as an (n, 3) array."""
+    pytest.importorskip("spharpy")  # hybrid.early needs it, Python >= 3.11 only
+    from compas_acoustics.hybrid.early import _first_of_each_position
+
     geometry = RoomGeometry.from_scene(scene)
     room = geometry.to_pra(48000, max_order)
     for source in scene.sources:
