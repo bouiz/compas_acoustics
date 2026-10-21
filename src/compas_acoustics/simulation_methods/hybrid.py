@@ -403,6 +403,7 @@ class Hybrid(SimulationMethod):
                     normalization=self.normalization,
                     rng=rng,
                     scattering=self.scattering,
+                    hrtf=hrtf if "binaural" in rirs else None,
                 )
                 self.results[key] = result
                 if "ambisonic" in rirs:

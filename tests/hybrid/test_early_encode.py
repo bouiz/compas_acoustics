@@ -172,6 +172,51 @@ def test_shoebox_end_to_end_produces_a_finite_response():
     assert np.max(np.abs(out)) > 0.0
 
 
+def several_images(n=7, seed=3, fs=48000.0):
+    rng = np.random.default_rng(seed)
+    azimuth, elevation = rng.uniform(-np.pi, np.pi, n), rng.uniform(-0.5, 0.5, n)
+    return ImageSourceSet(
+        delay=rng.uniform(0.005, 0.03, n),
+        gain=rng.uniform(0.05, 1.0, (n, N_BANDS)),
+        doa=pf.Coordinates(np.cos(elevation) * np.cos(azimuth), np.cos(elevation) * np.sin(azimuth), np.sin(elevation)),
+        order=np.arange(n),
+        bands=BANDS.copy(),
+        fs=fs,
+    )
+
+
+def test_render_images_is_the_sum_of_every_image_times_its_weights():
+    """One outer product per image, accumulated and finished as the renderer does, to 1e-12."""
+    from compas_acoustics.hybrid.early import _band_magnitude_fn, _fft_grid, _finish
+
+    iss, n = several_images(), 2048
+    weights = np.random.default_rng(4).standard_normal((7, 5))
+    nfft, freq = _fft_grid(n, iss.fs)
+    magnitude = _band_magnitude_fn(freq, iss.bands, iss.fs)
+    spectrum = np.zeros((freq.size, 5), dtype=complex)
+    for m in range(7):
+        spectrum += np.outer(magnitude(iss.gain[m]) * np.exp(-2j * np.pi * freq * iss.delay[m]), weights[m])
+    expected = _finish(spectrum, freq, nfft, n)
+    out = render_images(iss, weights, n)
+    np.testing.assert_allclose(out, expected, rtol=0, atol=1e-12 * np.max(np.abs(expected)))
+
+
+def test_render_transfers_is_the_sum_of_every_path_times_its_weights():
+    from compas_acoustics.hybrid.early import _band_magnitude_fn, _fft_grid, _finish, render_transfers
+
+    iss, n = several_images(), 2048
+    weights = np.random.default_rng(5).standard_normal((7, 3))
+    transfers = [lambda f, k=k: np.exp(-1j * 0.1 * k * f / iss.fs) / (1.0 + k) for k in range(7)]
+    nfft, freq = _fft_grid(n, iss.fs)
+    magnitude = _band_magnitude_fn(freq, iss.bands, iss.fs)
+    spectrum = np.zeros((freq.size, 3), dtype=complex)
+    for m in range(7):
+        spectrum += np.outer(transfers[m](freq) * magnitude(iss.gain[m]) * np.exp(-2j * np.pi * freq * iss.delay[m]), weights[m])
+    expected = _finish(spectrum, freq, nfft, n)
+    out = render_transfers(iss.delay, transfers, iss.gain, weights, iss.bands, iss.fs, n)
+    np.testing.assert_allclose(out, expected, rtol=0, atol=1e-12 * np.max(np.abs(expected)))
+
+
 def test_render_signals_equals_render_images_for_impulses():
     iss = one_image(0.3, 0.1)
     n = 4096

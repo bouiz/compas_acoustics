@@ -88,9 +88,11 @@ precision), and the kernel pools roughly the nearest ring.
 from __future__ import annotations
 
 import warnings
+from functools import lru_cache
 
 import numpy as np
 import pyfar as pf
+import scipy.fft
 from scipy.signal import fftconvolve
 
 SMOOTH_MS = 100.0
@@ -108,26 +110,46 @@ _TOP_BAND_HZ = 16000.0
 _N_FILT = 2**12  # reconstructing bank length; its delay is half of it
 
 
-def octave_band_split(x: np.ndarray, fs: float) -> np.ndarray:
-    """Octave bands 63 Hz to 16 kHz that sum back to ``x``, shape (9, n[, C]).
-
-    pyfar's amplitude-preserving bank, linear phase, with its delay removed.
-    """
-    x = np.asarray(x, dtype=float)
-    columns = x.reshape(x.shape[0], -1)
-    padded = np.concatenate([columns.T, np.zeros((columns.shape[1], _N_FILT))], axis=1)
+@lru_cache(maxsize=None)
+def _reconstructing_bank(fs: float) -> np.ndarray:
+    """pyfar's amplitude-preserving octave bank, 63 Hz to 16 kHz, as FIR coefficients (9, _N_FILT)."""
     with warnings.catch_warnings():
         # the second return value (frequencies) is deprecated; both forms are handled
         warnings.filterwarnings("ignore", message="Return parameter 'frequencies'")
         out = pf.dsp.filter.reconstructing_fractional_octave_bands(
-            pf.Signal(padded, fs),
+            None,
             num_fractions=1,
             frequency_range=(63, _TOP_BAND_HZ),
             n_samples=_N_FILT,
+            sampling_rate=fs,
         )
-    filtered = out[0] if isinstance(out, tuple) else out
+    bank = out[0] if isinstance(out, tuple) else out
+    return np.asarray(bank.coefficients, dtype=float)
+
+
+@lru_cache(maxsize=8)
+def _bank_response(fs: float, n_fft: int) -> np.ndarray:
+    """The bank's spectrum on an ``n_fft`` grid, (9, n_fft // 2 + 1); the four splits of one run share it."""
+    return scipy.fft.rfft(_reconstructing_bank(fs), n_fft, axis=1)
+
+
+def octave_band_split(x: np.ndarray, fs: float) -> np.ndarray:
+    """Octave bands 63 Hz to 16 kHz that sum back to ``x``, shape (9, n[, C]).
+
+    pyfar's amplitude-preserving bank, linear phase, with its delay removed.
+    The bank is applied as one FFT per channel and one inverse FFT per band,
+    zero-padded past ``n + _N_FILT - 1`` so the circular product is the linear
+    convolution pyfar computes.
+    """
+    x = np.asarray(x, dtype=float)
+    columns = x.reshape(x.shape[0], -1)
+    n_fft = scipy.fft.next_fast_len(columns.shape[0] + _N_FILT - 1, real=True)
+    spectrum = scipy.fft.rfft(columns, n_fft, axis=0, workers=-1)
+    response = _bank_response(float(fs), n_fft)
     delay = _N_FILT // 2
-    bands = np.transpose(filtered.time[:, :, delay:delay + x.shape[0]], (0, 2, 1))
+    bands = np.empty((response.shape[0], x.shape[0], columns.shape[1]))
+    for b in range(response.shape[0]):
+        bands[b] = scipy.fft.irfft(spectrum * response[b][:, np.newaxis], n_fft, axis=0, workers=-1)[delay:delay + x.shape[0]]
     return bands[..., 0] if x.ndim == 1 else bands
 
 

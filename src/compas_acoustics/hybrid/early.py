@@ -244,12 +244,16 @@ def encode(
     n_samples: int,
     *,
     normalization: str = "NM",
+    extra_weights: np.ndarray | None = None,
 ) -> np.ndarray:
     """Encode an image source set to an ambisonic impulse response.
 
     ACN channels, N3D by default (spharpy ``"NM"``: a unit plane wave gives
     W = 1), the normalization the package computes in; :func:`synthesize`
-    converts once at the end.
+    converts once at the end. ``extra_weights``, (M, K), adds K output
+    channels after the ambisonic ones, each image weighted by its row, so a
+    renderer that needs the images on other channels (the binaural one, per
+    HRIR) gets them from the same pass over the images.
 
     Each image's eight band gains are interpolated onto the FFT grid in
     log-frequency and decibels, giving a smooth magnitude response; the
@@ -270,13 +274,15 @@ def encode(
     # An empty set is a legitimate input, not an error: the driven-FDN path
     # renders the orders below the driving one, and at max_order=0 there are
     # none. spharpy cannot take an empty coordinate set, so answer first.
+    n_extra = 0 if extra_weights is None else np.asarray(extra_weights).shape[1]
     if np.asarray(iss.delay).size == 0:
-        return np.zeros((n_samples, (sh_order + 1) ** 2), dtype=float)
+        return np.zeros((n_samples, (sh_order + 1) ** 2 + n_extra), dtype=float)
 
     sh = spharpy.spherical.spherical_harmonic_basis_real(
         sh_order, iss.doa, normalization=normalization, channel_convention="ACN"
     )  # (M, n_ch)
-    return render_images(iss, sh, n_samples)
+    weights = sh if extra_weights is None else np.hstack([sh, np.asarray(extra_weights, dtype=float)])
+    return render_images(iss, weights, n_samples)
 
 
 def render_images(
@@ -309,12 +315,34 @@ def render_images(
 
     nfft, freq = _fft_grid(n_samples, iss.fs)
     magnitude = _band_magnitude_fn(freq, iss.bands, iss.fs)
-    spectrum = np.zeros((freq.size, n_ch), dtype=complex)
-    for m in np.flatnonzero(inside):
-        spectrum += np.outer(
-            magnitude(iss.gain[m]) * np.exp(-2j * np.pi * freq * iss.delay[m]), weights[m]
-        )
+    spectrum = _accumulate(
+        lambda m: magnitude(iss.gain[m]) * np.exp(-2j * np.pi * freq * iss.delay[m]),
+        np.flatnonzero(inside), weights, freq.size,
+    )
     return _finish(spectrum, freq, nfft, n_samples)
+
+
+# Paths per matrix product: their spectra, (chunk, n_freq) complex, at a million bins is 250 MB
+_CHUNK = 16
+
+
+def _accumulate(spectrum_of, paths: np.ndarray, weights: np.ndarray, n_freq: int) -> np.ndarray:
+    """``sum_m outer(spectrum_of(m), weights[m])`` over ``paths``, as matrix products over chunks of paths.
+
+    The sum of outer products is the product of the stacked spectra with the
+    stacked weights; a product over a chunk of paths costs one pass over the
+    bins instead of one per path.
+    """
+    weights = np.asarray(weights, dtype=complex)
+    spectrum = np.zeros((n_freq, weights.shape[1]), dtype=complex)
+    for start in range(0, paths.size, _CHUNK):
+        chunk = paths[start:start + _CHUNK]
+        # the spectra as columns, so the product reads them contiguously
+        columns = np.empty((n_freq, chunk.size), dtype=complex)
+        for k, m in enumerate(chunk):
+            columns[:, k] = spectrum_of(m)
+        spectrum += columns @ weights[chunk]
+    return spectrum
 
 
 def _fft_grid(n_samples: int, fs: float) -> tuple[int, np.ndarray]:
@@ -366,10 +394,10 @@ def render_transfers(
     weights = np.asarray(weights, dtype=float).reshape(delays.size, -1)
     nfft, freq = _fft_grid(n_samples, fs)
     magnitude = _band_magnitude_fn(freq, bands, fs)
-    spectrum = np.zeros((freq.size, weights.shape[1]), dtype=complex)
-    for m in np.flatnonzero(delays * fs < n_samples):
-        h = transfers[m](freq) * magnitude(gains[m]) * np.exp(-2j * np.pi * freq * delays[m])
-        spectrum += np.outer(h, weights[m])
+    spectrum = _accumulate(
+        lambda m: transfers[m](freq) * magnitude(gains[m]) * np.exp(-2j * np.pi * freq * delays[m]),
+        np.flatnonzero(delays * fs < n_samples), weights, freq.size,
+    )
     return _finish(spectrum, freq, nfft, n_samples)
 
 

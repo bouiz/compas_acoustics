@@ -839,18 +839,24 @@ def diffraction_paths(spec: Pair, *, max_order: int = 1) -> list[DiffractionPath
 
 
 def encode_diffraction(paths: list[DiffractionPath], sh_order: int, n_samples: int, fs: float,
-                       *, normalization: str = "NM") -> np.ndarray:
-    """Encode diffracted paths at their arrival directions, as :func:`encode` does images."""
+                       *, normalization: str = "NM", extra_weights: np.ndarray | None = None) -> np.ndarray:
+    """Encode diffracted paths at their arrival directions, as :func:`encode` does images.
+
+    ``extra_weights`` (M, K) adds K channels after the ambisonic ones, as :func:`encode`'s does: each
+    path's transfer function is evaluated once for all of them.
+    """
     n_ch = (sh_order + 1) ** 2
+    n_extra = 0 if extra_weights is None else np.asarray(extra_weights).shape[1]
     if not paths:
-        return np.zeros((n_samples, n_ch))
+        return np.zeros((n_samples, n_ch + n_extra))
     doa = np.array([p.doa for p in paths])
     sh = spharpy.spherical.spherical_harmonic_basis_real(
         sh_order, pf.Coordinates(doa[:, 0], doa[:, 1], doa[:, 2]),
         normalization=normalization, channel_convention="ACN")
+    weights = sh if extra_weights is None else np.hstack([sh, np.asarray(extra_weights, dtype=float)])
     gains = np.array([p.band_gain / (4.0 * np.pi * p.distance) for p in paths])
     return render_transfers(np.array([p.delay for p in paths]), [p.transfer for p in paths],
-                            gains, sh, BANDS, fs, n_samples)
+                            gains, weights, BANDS, fs, n_samples)
 
 
 @dataclass(frozen=True)
@@ -1052,14 +1058,19 @@ def btms_paths(spec: Pair, *, max_order: int = 1, second_order: bool = True) -> 
 
 
 def encode_btms(contributions: list[BtmsContribution], sh_order: int, n_samples: int, fs: float,
-                *, normalization: str = "NM") -> np.ndarray:
-    """Encode BTMS contributions at their directions; free field 1/r to 1/(4 pi r)."""
+                *, normalization: str = "NM", extra_weights: np.ndarray | None = None) -> np.ndarray:
+    """Encode BTMS contributions at their directions; free field 1/r to 1/(4 pi r).
+
+    ``extra_weights`` (M, K) adds K channels after the ambisonic ones, as :func:`encode`'s does.
+    """
     n_ch = (sh_order + 1) ** 2
+    n_extra = 0 if extra_weights is None else np.asarray(extra_weights).shape[1]
     if not contributions:
-        return np.zeros((n_samples, n_ch))
+        return np.zeros((n_samples, n_ch + n_extra))
     doa = np.array([p.doa for p in contributions])
     sh = spharpy.spherical.spherical_harmonic_basis_real(
         sh_order, pf.Coordinates(doa[:, 0], doa[:, 1], doa[:, 2]),
         normalization=normalization, channel_convention="ACN")
-    signals = [(p.start, np.outer(p.ir / (4.0 * np.pi), sh[m])) for m, p in enumerate(contributions)]
+    weights = sh if extra_weights is None else np.hstack([sh, np.asarray(extra_weights, dtype=float)])
+    signals = [(p.start, np.outer(p.ir / (4.0 * np.pi), weights[m])) for m, p in enumerate(contributions)]
     return render_signals(signals, np.array([p.band_gain for p in contributions]), BANDS, fs, n_samples)

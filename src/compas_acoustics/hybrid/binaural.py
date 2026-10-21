@@ -55,6 +55,22 @@ class HrtfSet:
         return np.argmax(doa @ self.directions.T, axis=1)
 
 
+def hrir_groups(hrtf: HrtfSet, doa) -> tuple[np.ndarray, np.ndarray]:
+    """The measured directions nearest the directions of arrival ``doa`` (M, 3), and the (M, G) one-hot
+    weights that sum the paths sharing one onto a channel per measured direction."""
+    nearest = hrtf.nearest(doa)
+    groups = np.unique(nearest)
+    return groups, (nearest[:, np.newaxis] == groups[np.newaxis, :]).astype(float)
+
+
+def render_groups(monos: np.ndarray, groups: np.ndarray, hrtf: HrtfSet, n_samples: int) -> np.ndarray:
+    """The two ears, (n, 2): channel ``g`` of ``monos`` (n, G) through the HRIR of measured direction ``groups[g]``."""
+    out = np.zeros((n_samples, 2))
+    for g, index in enumerate(groups):
+        out += fftconvolve(monos[:, g:g + 1], hrtf.hrirs[index].T, axes=0)[:n_samples]
+    return out
+
+
 def _terms(result, freq: np.ndarray, nfft: int, n_samples: int) -> list:
     """``(direction of arrival, spectrum thunk)`` for every early path that arrives within ``n_samples``.
 
@@ -134,7 +150,11 @@ def binaural_rir(result, hrtf: HrtfSet) -> np.ndarray:
     if result.late_lines is None or result.line_directions is None:
         raise ValueError("this HybridResult does not hold its delay lines; synthesise it again")
     n = result.rir.shape[0]
-    out = render_early_binaural(result, hrtf, n)
+    if result.early_binaural is not None and result.early_hrtf is hrtf:
+        # rendered in the same pass as the ambisonic early part (synthesize(hrtf=...))
+        out = np.array(result.early_binaural, dtype=float)
+    else:
+        out = render_early_binaural(result, hrtf, n)
     lines = np.asarray(result.late_lines, dtype=float) / np.sqrt(result.late_lines.shape[1])
     nearest = hrtf.nearest(result.line_directions)
     for index in np.unique(nearest):

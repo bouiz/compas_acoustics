@@ -37,6 +37,24 @@ def test_the_band_split_sums_back_to_the_input():
     np.testing.assert_allclose(bands.sum(axis=0), x, atol=1e-6)
 
 
+def test_the_band_split_is_pyfar_reconstructing_bank():
+    """pyfar's linear-phase bank applied by pyfar itself, its delay removed, to 1e-12; one channel and several."""
+    import pyfar as pf
+
+    from compas_acoustics.hybrid.envelope import _N_FILT, _TOP_BAND_HZ
+
+    x = np.random.default_rng(2).standard_normal((3000, 4)) * np.exp(-np.arange(3000) / 600.0)[:, None]
+    padded = np.concatenate([x.T, np.zeros((4, _N_FILT))], axis=1)
+    out = pf.dsp.filter.reconstructing_fractional_octave_bands(
+        pf.Signal(padded, FS), num_fractions=1, frequency_range=(63, _TOP_BAND_HZ), n_samples=_N_FILT)
+    filtered = out[0] if isinstance(out, tuple) else out
+    delay = _N_FILT // 2
+    expected = np.transpose(filtered.time[:, :, delay:delay + 3000], (0, 2, 1))
+    bands = octave_band_split(x, FS)
+    np.testing.assert_allclose(bands, expected, rtol=0, atol=1e-12 * np.max(np.abs(expected)))
+    np.testing.assert_allclose(octave_band_split(x[:, 0], FS), expected[:, :, 0], rtol=0, atol=1e-12 * np.max(np.abs(expected)))
+
+
 # ---------------------------------------------------------------- the gains --
 def test_gains_never_exceed_one():
     early, late = parts()

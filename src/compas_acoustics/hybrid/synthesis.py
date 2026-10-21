@@ -72,6 +72,10 @@ class HybridResult:
     # The late field before the output matrix, for renderers that need each line's direction (compas_acoustics.hybrid.binaural)
     late_lines: np.ndarray | None = None  # (n, num_delays), each line as heard from its direction
     line_directions: np.ndarray | None = None  # (num_delays, 3), unit vectors in the receiver's frame
+    # The early part at the two ears, rendered in the same pass over the paths as ``early`` when
+    # ``synthesize`` was given the HRTF set (``early_hrtf``), so no path is evaluated twice
+    early_binaural: np.ndarray | None = None  # (n, 2)
+    early_hrtf: object | None = None
 
 
 def synthesize(
@@ -91,8 +95,17 @@ def synthesize(
     normalization: Literal["SN3D", "N3D"] = "SN3D",
     rng: int = 0,
     scattering: bool = False,
+    hrtf=None,
 ) -> HybridResult:
     """Synthesise a hybrid ambisonic room impulse response.
+
+    With ``hrtf`` (a :class:`~compas_acoustics.hybrid.binaural.HrtfSet`) the early
+    part at the two ears is rendered in the same pass over the images and
+    diffracted paths as the ambisonic one and kept as ``early_binaural``, which
+    :func:`~compas_acoustics.hybrid.binaural.binaural_rir` then takes instead of
+    evaluating every path again. BTMS contributions keep their separate
+    rendering: their encoder sums paths whose band gains agree to 0.01 dB under
+    one gain, which the per-path binaural rendering does not.
 
     After Wendt, van de Par and Ewert (2014) and Kirsch et al. (2021, 2023),
     with ambisonic output:
@@ -190,7 +203,30 @@ def synthesize(
         drive_gain = float(np.sqrt(num_delays))
 
     early_set = _select(iss, iss.order <= max_order)
-    early = encode(early_set, sh_order, n_samples)
+    paths, contributions = (), ()
+    if model == "udfa":
+        paths = tuple(diffraction_paths(spec, max_order=min(max_order, 1)))
+    elif model == "btms":
+        contributions = tuple(btms_paths(spec, max_order=min(max_order, 1)))
+
+    # One pass per path for both outputs: the ambisonic channels and, per measured HRIR direction, a
+    # channel summing the paths it is nearest to, which the ears then hear through that HRIR
+    n_ch = (sh_order + 1) ** 2
+    groups = extra_images = extra_paths = None
+    if hrtf is not None and model != "btms":
+        from .binaural import hrir_groups
+
+        # an empty Coordinates set has no cartesian (pyfar raises)
+        image_doa = (np.asarray(early_set.doa.cartesian, dtype=float).reshape(-1, 3)
+                     if np.asarray(early_set.delay).size else np.zeros((0, 3)))
+        path_doa = np.array([p.doa for p in paths], dtype=float).reshape(-1, 3)
+        if image_doa.shape[0] + path_doa.shape[0]:
+            groups, onehot = hrir_groups(hrtf, np.vstack([image_doa, path_doa]))
+            extra_images, extra_paths = onehot[:image_doa.shape[0]], onehot[image_doa.shape[0]:]
+        else:
+            groups, extra_images, extra_paths = np.zeros(0, dtype=int), np.zeros((0, 0)), np.zeros((0, 0))
+
+    early = encode(early_set, sh_order, n_samples, extra_weights=extra_images)
     driving_set = _select(iss, iss.order == max_order)
     if driving_set.delay.size == 0:
         warnings.warn(
@@ -200,13 +236,15 @@ def synthesize(
             UserWarning,
             stacklevel=2,
         )
-    paths, contributions = (), ()
     if model == "udfa":
-        paths = tuple(diffraction_paths(spec, max_order=min(max_order, 1)))
-        early = early + encode_diffraction(list(paths), sh_order, n_samples, spec.fs)
+        early = early + encode_diffraction(list(paths), sh_order, n_samples, spec.fs, extra_weights=extra_paths)
     elif model == "btms":
-        contributions = tuple(btms_paths(spec, max_order=min(max_order, 1)))
         early = early + encode_btms(list(contributions), sh_order, n_samples, spec.fs)
+    early_binaural = None
+    if groups is not None:
+        from .binaural import render_groups
+
+        early, early_binaural = early[:, :n_ch], render_groups(early[:, n_ch:], groups, hrtf, n_samples)
     drive = render_images(
         driving_set, scattering_weights(driving_set.doa, directions, opposite=True), n_samples
     )
@@ -262,6 +300,8 @@ def synthesize(
         btms_contributions=contributions,
         late_lines=lines,
         line_directions=unit,
+        early_binaural=early_binaural,
+        early_hrtf=hrtf if early_binaural is not None else None,
     )
 
 

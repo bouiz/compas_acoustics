@@ -100,6 +100,26 @@ def test_with_a_transparent_hrtf_btms_paths_match_too():
     np.testing.assert_allclose(render_early_binaural(result, identity())[:, 0], w, atol=1.15e-3 * np.max(np.abs(w)))
 
 
+@pytest.mark.parametrize("diffraction", [False, True])
+def test_the_early_part_rendered_with_the_ambisonic_pass_equals_the_separate_rendering(diffraction):
+    """synthesize(hrtf=...) renders the ears from the same path spectra as the ambisonic channels; path by path it is
+    render_early_binaural, to rounding. BTMS keeps the separate rendering (its encoder groups gains)."""
+    from compas_acoustics.hybrid.binaural import DEFAULT_HRTF, HrtfSet, binaural_rir, render_early_binaural
+
+    method = Hybrid(diffraction=diffraction, output="binaural", **FAST)
+    result = run(method, panel=diffraction)
+    assert result.early_binaural is not None and result.early_hrtf is not None
+    separate = render_early_binaural(result, result.early_hrtf)
+    np.testing.assert_allclose(result.early_binaural, separate, rtol=0, atol=1e-12 * np.max(np.abs(separate)))
+    # another HRTF set falls back to the separate rendering
+    other = HrtfSet.from_sofa(DEFAULT_HRTF, FS)
+    np.testing.assert_allclose(binaural_rir(result, other), binaural_rir(result, result.early_hrtf), rtol=0,
+                               atol=1e-12 * np.max(np.abs(separate)))
+    ambisonic_only = run(Hybrid(diffraction=diffraction, output="ambisonic", **FAST), panel=diffraction)
+    assert ambisonic_only.early_binaural is None
+    np.testing.assert_allclose(ambisonic_only.early, result.early, rtol=0, atol=1e-12 * np.max(np.abs(result.early)))
+
+
 def direct_level(ears, result, ear):
     """Level in dB of the 2 ms after the direct sound arrives, at one ear."""
     start = int(round(float(result.images.delay[result.images.order == 0][0]) * FS))
