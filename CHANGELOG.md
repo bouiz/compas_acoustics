@@ -46,7 +46,6 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 
 ### Added
 
-* Added `RayField.particles(time_ms)` and `RayField.duration_ms`, the rays' positions at a time, for a billiard view.
 * Added `Scene.simulate(method)` as the one way to simulate, with the methods `Pyroomacoustics(image_source_order=3, ray_tracing=True, ...)` and `Hybrid(...)` in `compas_acoustics.simulation_methods`.
 * Added `Scene.sampling_rate` (default 48000, serialised with the scene), the rate at which every method runs; the Room Scene component has the input.
 * Added `Hybrid`, ambisonic and binaural room impulse responses (binaural by default) from image sources, optional edge diffraction (`diffraction="udfa"` or `"btms"`) and a directional feedback delay network tail, ported from hybrid-rir; needs Python >= 3.11.
@@ -114,9 +113,10 @@ in it and drop the new ones from the toolbar: Room Scene, Receiver, the Simulate
 * Added `examples/office_hybrid.py`, which runs both methods on an office.
 * Added a getting-started section to the README, and `Examples` sections that `invoke testdocs` can run in the docstrings of `Scene`, `Pyroomacoustics`, `Hybrid`, `AcousticAnalyser` and `Auraliser`.
 * Added `SpecularReflections.from_scene(scene, max_order=3)`, the image-source paths from each source to each receiver for inspection, with `filter(source_index, receiver_index, order)`.
-* Added the Specular Reflections component: image-source paths of a source-receiver pair by order.
-* Added the Ray Field component: rays traced from the sources, for display and the Billiard.
-* Added the Billiard component: the rays of a ray field as particles at a time, played with a button or scrubbed with a slider.
+* Added `RayField.particles(time_ms)` and `RayField.duration_ms`, the rays' positions at a time, for a billiard view.
+* Added the Grasshopper Specular Reflections component: image-source paths of a source-receiver pair by order.
+* Added the Grasshopper Ray Field component: rays traced from the sources, for display and the Billiard.
+* Added the Grasshopper Billiard component: the rays of a ray field as particles at a time, played with a button or scrubbed with a slider.
 
 ### Changed
 

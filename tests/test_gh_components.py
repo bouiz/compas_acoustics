@@ -1271,6 +1271,9 @@ def test_specular_reflections_default_to_first_order_of_every_pair(monkeypatch):
     reflections, paths, images, orders, walls, times = module.SpecularReflectionsComponent().RunScript(scene(), [], None, None)
     assert set(orders) == {1} and len(paths) == len(images) == len(times) == 6
     assert sorted(walls.branches) == [(i,) for i in range(6)] and all(len(w) == 1 for w in walls.branches.values())
+    assert walls.branches[(0,)] == reflections.paths[0].wall_names
+    assert all(isinstance(name, str) for w in walls.branches.values() for name in w)
+    assert ["shoebox_room_7x5x3_floor"] in walls.branches.values()
     assert all(t > 0 for t in times) and not messages
     assert module.ghenv.Component.Message == "order 1: 6"
 
@@ -1291,6 +1294,17 @@ def test_specular_reflections_take_numpy_orders_and_ignore_empty_items(monkeypat
     assert set(out[3]) == {2}
     out = module.SpecularReflectionsComponent().RunScript(scene(), [None], None, None)
     assert set(out[3]) == {1}
+
+
+def test_specular_reflections_leave_out_negative_orders_with_a_warning(monkeypatch):
+    module, messages = load_component("CA_Specular_Reflections", monkeypatch, levels=True)
+    out = module.SpecularReflectionsComponent().RunScript(scene(), [-1, 0], None, None)
+    assert set(out[3]) == {0}
+    assert [level for level, text in messages] == ["warning"] and "-1" in messages[0][1]
+    messages.clear()
+    out = module.SpecularReflectionsComponent().RunScript(scene(), [-2, -1], None, None)
+    assert set(out[3]) == {1} and len(out[1]) == 6
+    assert [level for level, text in messages] == ["warning"] and "-2, -1" in messages[0][1]
 
 
 class RecordingPolyline(list):
@@ -1602,8 +1616,98 @@ def test_billiard_trails_are_the_rays_up_to_t(monkeypatch):
 
 def test_billiard_without_a_ray_field_warns(monkeypatch):
     module, messages, clock, document = billiard(monkeypatch)
+    module.ghenv.Component.Message = "t = 3.0 ms"
     assert run_billiard(module, None, 1.0, True, None) == (None,) * 3
-    assert messages == ["Connect a ray field."] and document.scheduled == []
+    assert messages == ["Input parameter 'ray_field' failed to collect data."] and document.scheduled == []
+    assert module.ghenv.Component.Message == ""
+
+
+def test_billiard_with_an_empty_ray_field_warns(monkeypatch):
+    from compas_acoustics import RayField
+
+    module, messages, clock, document = billiard(monkeypatch)
+    module.ghenv.Component.Message = "t = 3.0 ms"
+    assert run_billiard(module, RayField([]), 1.0, True, None) == (None,) * 3
+    assert messages == ["The ray field has no rays."] and document.scheduled == []
+    assert module.ghenv.Component.Message == ""
+
+
+def test_a_held_play_toggle_plays_once_and_holds(monkeypatch):
+    module, messages, clock, document = billiard(monkeypatch)
+    field = billiard_field()
+    clock.now = 0.0
+    assert run_billiard(module, field, 10.0, True, 5.0)[2] == 0.0
+    clock.now = 1.0
+    assert run_billiard(module, field, 10.0, True, 5.0)[2] == 5.0
+    clock.now = 3.0
+    assert run_billiard(module, field, 10.0, True, 5.0)[2] == 10.0
+    scheduled = len(document.scheduled)
+    clock.now = 4.0
+    assert run_billiard(module, field, 10.0, True, 5.0)[2] == 10.0
+    assert len(document.scheduled) == scheduled
+
+
+def test_play_turned_off_and_on_again_restarts(monkeypatch):
+    module, messages, clock, document = billiard(monkeypatch)
+    field = billiard_field()
+    clock.now = 0.0
+    run_billiard(module, field, 10.0, True, 5.0)
+    clock.now = 1.0
+    assert run_billiard(module, field, 10.0, False, 5.0)[2] == 5.0
+    assert run_billiard(module, field, 10.0, True, 5.0)[2] == 0.0
+    clock.now = 1.5
+    assert run_billiard(module, field, 10.0, True, 5.0)[2] == 2.5
+
+
+def test_scrubbing_with_a_held_play_toggle_scrubs(monkeypatch):
+    module, messages, clock, document = billiard(monkeypatch)
+    field = billiard_field()
+    run_billiard(module, field, 10.0, True, 5.0)
+    clock.now = 1.0
+    assert run_billiard(module, field, 4.0, True, 5.0)[2] == 4.0
+    clock.now = 2.0
+    assert run_billiard(module, field, 4.0, True, 5.0)[2] == 4.0
+
+
+def test_playing_to_the_end_follows_a_longer_ray_field(monkeypatch):
+    from compas_acoustics import RayField
+
+    module, messages, clock, document = billiard(monkeypatch)
+    short = billiard_field()
+    longer = RayField.from_scene(scene(), n_rays=20, max_reflection_order=12, random_seed=1)
+    assert longer.duration_ms > short.duration_ms
+    clock.now = 0.0
+    run_billiard(module, short, None, True, 5.0)
+    clock.now = 1000.0
+    assert run_billiard(module, short, None, False, 5.0)[2] == pytest.approx(short.duration_ms)
+    assert run_billiard(module, longer, None, False, 5.0)[2] == pytest.approx(longer.duration_ms)
+
+
+def test_the_default_speed_follows_a_new_ray_field(monkeypatch):
+    from compas_acoustics import RayField
+
+    module, messages, clock, document = billiard(monkeypatch)
+    short = billiard_field()
+    longer = RayField.from_scene(scene(), n_rays=20, max_reflection_order=12, random_seed=1)
+    clock.now = 0.0
+    run_billiard(module, short, None, True, None)
+    clock.now = 2.0
+    assert run_billiard(module, longer, None, False, None)[2] == pytest.approx(short.duration_ms / 5)
+    clock.now = 3.0
+    assert run_billiard(module, longer, None, False, None)[2] == pytest.approx(short.duration_ms / 5 + longer.duration_ms / 10)
+
+
+def test_a_new_speed_while_playing_runs_on_from_the_current_frame(monkeypatch):
+    module, messages, clock, document = billiard(monkeypatch)
+    field = billiard_field()
+    assert field.duration_ms > 10.0
+    clock.now = 0.0
+    run_billiard(module, field, None, True, 1.0)
+    clock.now = 2.0
+    assert run_billiard(module, field, None, False, 1.0)[2] == pytest.approx(2.0)
+    assert run_billiard(module, field, None, False, 4.0)[2] == pytest.approx(2.0)
+    clock.now = 3.0
+    assert run_billiard(module, field, None, False, 4.0)[2] == pytest.approx(6.0)
 
 
 def test_billiard_ignores_a_speed_that_is_not_positive_and_does_not_need_a_document(monkeypatch):

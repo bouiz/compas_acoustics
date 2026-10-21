@@ -18,7 +18,7 @@
             },
             {
                 "name": "order",
-                "description": "Reflection order(s) to give, 0 for the direct sound. Empty (default): the first order.",
+                "description": "Reflection order(s) to give, 0 for the direct sound; negative orders are left out. Empty (default): the first order.",
                 "optional": true,
                 "scriptParamAccess": 1,
                 "typeHintID": "int"
@@ -57,7 +57,7 @@
             },
             {
                 "name": "walls",
-                "description": "The face index of each reflection of a path, in path order: a branch per path."
+                "description": "The name of the object each reflection of a path is off, in path order: a branch per path."
             },
             {
                 "name": "time",

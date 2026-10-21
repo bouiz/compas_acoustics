@@ -21,6 +21,13 @@ class SpecularReflectionsComponent(Grasshopper.Kernel.GH_ScriptInstance):
             return empty
 
         orders = sorted({int(o) for o in order if o is not None}) if order else []
+        negative = [o for o in orders if o < 0]
+        if negative:
+            ghenv.Component.AddRuntimeMessage(
+                Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning,
+                "Orders below 0 are left out: {}.".format(", ".join(str(o) for o in negative)),
+            )
+            orders = [o for o in orders if o >= 0]
         if not orders:
             orders = [1]
 
@@ -53,7 +60,7 @@ class SpecularReflectionsComponent(Grasshopper.Kernel.GH_ScriptInstance):
             polyline.AddRange([Rhino.Geometry.Point3d(*point) for point in path.points])
             paths.append(polyline)
             images.append(Rhino.Geometry.Point3d(*path.image))
-            walls.AddRange(path.walls, GH_Path(i))
+            walls.AddRange(path.wall_names, GH_Path(i))
 
         counts = ["order {}: {}".format(o, sum(1 for path in reflections if path.order == o)) for o in reflections.orders]
         ghenv.Component.Message = ", ".join(counts) if counts else "no paths"

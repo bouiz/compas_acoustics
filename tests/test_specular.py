@@ -181,3 +181,107 @@ def test_the_viewer_is_not_available_in_rhino(monkeypatch):
     monkeypatch.setattr(compas, "is_rhino", lambda: True)
     with pytest.raises(RuntimeError):
         SpecularReflections([path()]).display_in_viewer(show=False)
+
+
+def edge():
+    # source and receiver on the room's mid-height line, so second-order paths run through edges
+    return shoebox(source=(2, 2.5, 1.5), receiver=(5, 2.5, 1.5))
+
+
+def test_the_wall_names_are_the_objects_the_walls_belong_to():
+    scene = shoebox()
+    names = RoomGeometry.from_scene(scene).face_names
+    field = SpecularReflections.from_scene(scene, 1)
+    assert all(p.wall_names == [names[w] for w in p.walls] for p in field)
+    assert ["shoebox_room_7x5x3_floor"] in [p.wall_names for p in field.filter(order=1)]
+    cabinet = SpecularReflections.from_scene(obstacle(), 3)
+    assert any("cabinet" in p.wall_names for p in cabinet)
+
+
+def test_json_round_trip_keeps_the_wall_names():
+    field = SpecularReflections.from_scene(shoebox(), 1)
+    back = compas.json_loads(compas.json_dumps(field))
+    assert [p.wall_names for p in back] == [p.wall_names for p in field]
+
+
+def test_data_without_wall_names_still_loads():
+    data = path().__data__
+    del data["wall_names"]
+    assert SpecularPath.__from_data__(data).wall_names == []
+
+
+def test_a_negative_order_is_a_value_error():
+    with pytest.raises(ValueError, match="max_order"):
+        SpecularReflections.from_scene(shoebox(), max_order=-1)
+
+
+def test_the_search_warns_when_it_would_be_slow(monkeypatch):
+    import compas_acoustics.simulation_methods.base as base
+
+    calls = []
+    monkeypatch.setattr(base, "_warn_if_the_search_is_slow", lambda geometry, order, *args, **kwargs: calls.append((geometry, order)))
+    SpecularReflections.from_scene(shoebox(), max_order=2)
+    assert len(calls) == 1
+    assert isinstance(calls[0][0], RoomGeometry) and len(calls[0][0].faces) == 6 and calls[0][1] == 2
+
+
+def test_an_image_traced_on_a_second_attempt_is_not_counted_as_untraced(monkeypatch):
+    import compas_acoustics.specular as specular
+
+    trace_back = specular._trace_back
+    calls = {}
+
+    def first_attempt_fails(walls, receiver, image, *args):
+        key = tuple(np.round(image, 3))
+        calls[key] = calls.get(key, 0) + 1
+        return None if calls[key] == 1 else trace_back(walls, receiver, image, *args)
+
+    monkeypatch.setattr(specular, "_trace_back", first_attempt_fails)
+    with pytest.warns(UserWarning, match="could not be traced") as record:
+        field = SpecularReflections.from_scene(edge(), max_order=2)
+    alone = sum(1 for count in calls.values() if count == 1)
+    assert 0 < alone < len(calls) and len(field) == len(calls) - alone
+    assert [str(w.message) for w in record] == [f"{alone} visible image sources could not be traced back to their source."]
+
+
+def _inside_polygon(point, polygon, normal, tolerance):
+    # on the plane: inside when every edge sees the point on its inner side, or the point is on the boundary
+    signs = [np.dot(np.cross(b - a, point - a), normal) for a, b in zip(polygon, np.roll(polygon, -1, axis=0))]
+    lengths = [np.linalg.norm(b - a) for a, b in zip(polygon, np.roll(polygon, -1, axis=0))]
+    return all(s / length >= -tolerance for s, length in zip(signs, lengths))
+
+
+def _unit(vector):
+    return vector / np.linalg.norm(vector)
+
+
+@pytest.mark.parametrize("room", ["shoebox", "l_shaped", "obstacle", "edge"])
+def test_each_hit_is_on_its_wall_and_reflects_specularly(room):
+    scene = dict(ROOMS, edge=edge)[room]()
+    geometry = RoomGeometry.from_scene(scene)
+    field = SpecularReflections.from_scene(scene, max_order=3)
+    assert max(field.orders) == 3
+    for p in field:
+        points = np.array([list(q) for q in p.points])
+        normals = []
+        for k, w in enumerate(p.walls):
+            polygon = geometry.vertices[list(geometry.faces[w])]
+            normal = _unit(np.cross(polygon[1] - polygon[0], polygon[2] - polygon[0]))
+            normals.append(normal)
+            hit = points[k + 1]
+            assert abs(np.dot(hit - polygon[0], normal)) < 1e-4
+            # the L-shaped room's floor and ceiling are not convex: test against their fan triangles
+            triangles = [polygon[[0, j, j + 1]] for j in range(1, len(polygon) - 1)]
+            assert any(_inside_polygon(hit, t, normal, 1e-4) for t in triangles)
+        # successive hits at one point (an edge) reflect the ray in each of their walls in turn
+        k = 0
+        while k < p.order:
+            direction = _unit(points[k + 1] - points[k])
+            j = k
+            while True:
+                direction = direction - 2 * np.dot(direction, normals[j]) * normals[j]
+                j += 1
+                if j == p.order or np.linalg.norm(points[j + 1] - points[k + 1]) > 1e-4:
+                    break
+            assert np.linalg.norm(direction - _unit(points[j + 1] - points[k + 1])) < 1e-4
+            k = j

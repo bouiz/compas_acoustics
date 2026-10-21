@@ -25,7 +25,7 @@
             },
             {
                 "name": "play",
-                "description": "Press to play from 0 to time (default: the end of the ray field) and hold the last frame; pressing again restarts.",
+                "description": "Press (or turn a Boolean Toggle on) to play from 0 to time (default: the end of the ray field) and hold the last frame; pressing again restarts.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "bool"

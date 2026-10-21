@@ -148,3 +148,11 @@ def test_particles_clamp_time():
     assert list(field.particles(-5.0)[0][0]) == pytest.approx([0, 0, 0])
     assert list(field.particles(99.0)[0][0]) == pytest.approx([20, 0, 0])
     assert RayField([]).particles(1.0) == ([], [])
+
+
+def test_particles_start_once_the_ray_has_emerged_from_its_offset():
+    # 5 m before the first point, then one 10 m segment: 15 m = 15 ms at 1000 m/s
+    field = RayField([Ray([[0, 0, 0], [10, 0, 0]], sound_speed=1000.0, distance_offset=5.0)], sound_speed=1000.0)
+    assert field.particles(3.0) == ([], [])
+    assert list(field.particles(5.0)[0][0]) == pytest.approx([0, 0, 0])
+    assert list(field.particles(10.0)[0][0]) == pytest.approx([5, 0, 0])

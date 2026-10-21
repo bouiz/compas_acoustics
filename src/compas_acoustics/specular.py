@@ -26,7 +26,8 @@ class SpecularPath(Polyline):
     order : int
         The reflection order, the number of walls the path is reflected by.
     walls : list of int
-        The wall index of each reflection, in path order.
+        The wall index of each reflection, in path order: an index into the faces of
+        ``RoomGeometry.from_scene(scene)``, obstacle copies included (:attr:`RoomGeometry.faces`).
     image : :class:`compas.geometry.Point` or list
         The image source of the path.
     source_index : int
@@ -37,6 +38,8 @@ class SpecularPath(Polyline):
         The speed of sound in m/s used to convert the path length to travel time.
     name : str, optional
         The name of the path.
+    wall_names : list of str, optional
+        The name of the object each reflection's wall belongs to, in path order (``RoomGeometry.face_names``).
     """
 
     def __init__(
@@ -49,10 +52,12 @@ class SpecularPath(Polyline):
         receiver_index: int,
         sound_speed: float,
         name: Optional[str] = None,
+        wall_names: Optional[List[str]] = None,
     ):
         super().__init__(points, name=name)
         self.order = order
         self.walls = list(walls)
+        self.wall_names = list(wall_names) if wall_names else []
         self.image = Point(*image)
         self.source_index = source_index
         self.receiver_index = receiver_index
@@ -64,6 +69,7 @@ class SpecularPath(Polyline):
         data.update(
             order=self.order,
             walls=self.walls,
+            wall_names=self.wall_names,
             image=list(self.image),
             source_index=self.source_index,
             receiver_index=self.receiver_index,
@@ -129,16 +135,24 @@ class SpecularReflections(Data):
         scene : :class:`compas_acoustics.Scene`
             The scene whose room, sources and receivers the paths are found for.
         max_order : int, default=3
-            The highest reflection order.
+            The highest reflection order, 0 or more.
 
         Returns
         -------
         :class:`SpecularReflections`
+
+        Raises
+        ------
+        ValueError
+            If ``max_order`` is negative, or pyroomacoustics cannot build the room.
         """
         from compas_acoustics.air import AirConditions
         from compas_acoustics.defaults import Defaults
         from compas_acoustics.room_geometry import RoomGeometry
+        from compas_acoustics.simulation_methods.base import _warn_if_the_search_is_slow
 
+        if max_order < 0:
+            raise ValueError(f"max_order must be 0 or more, not {max_order}.")
         sound_speed = AirConditions().speed_of_sound
         geometry = RoomGeometry.from_scene(scene)
         sources = _inside(geometry, scene.sources, "Source")
@@ -146,6 +160,7 @@ class SpecularReflections(Data):
         if not sources or not receivers:
             return cls(sound_speed=sound_speed)
 
+        _warn_if_the_search_is_slow(geometry, max_order)
         room = geometry.to_pra(Defaults().SAMPLING_RATE, max_order, ray_tracing=False, air_absorption=False)
         for _, source in sources:
             room.add_source(np.asarray(source.position, dtype=float))
@@ -165,13 +180,15 @@ class SpecularReflections(Data):
             for m, (receiver_index, receiver) in enumerate(receivers):
                 end = np.asarray(receiver.position, dtype=float)
                 kept = []
+                failed = []
                 for i in np.flatnonzero(np.asarray(room.visibility[s][m], dtype=bool)):
                     # the first of each group at one position, as hybrid.early._first_of_each_position
-                    if kept and np.min(np.linalg.norm(np.asarray(kept) - images[i], axis=1)) <= tolerance:
+                    if _near(kept, images[i], tolerance):
                         continue
                     traced = _trace_back(walls, end, images[i], int(last_walls[i]), int(orders[i]), start, tolerance)
                     if traced is None:
-                        untraced += 1
+                        if not _near(failed, images[i], tolerance):
+                            failed.append(images[i])
                         continue
                     kept.append(images[i])
                     hits, path_walls = traced
@@ -179,11 +196,14 @@ class SpecularReflections(Data):
                         [start, *hits, end],
                         order=int(orders[i]),
                         walls=path_walls,
+                        wall_names=[geometry.face_names[w] for w in path_walls],
                         image=images[i],
                         source_index=source_index,
                         receiver_index=receiver_index,
                         sound_speed=sound_speed,
                     ))
+                # another image of the group may have traced a position whose first image did not
+                untraced += sum(1 for image in failed if not _near(kept, image, tolerance))
         if untraced:
             warnings.warn(f"{untraced} visible image sources could not be traced back to their source.", UserWarning, stacklevel=2)
         return cls(paths, sound_speed=sound_speed)
@@ -282,6 +302,11 @@ def _inside(geometry, items, kind: str) -> list:
         else:
             warnings.warn(f"{kind} '{item.name}' is outside the room and has no specular paths.", UserWarning, stacklevel=3)
     return inside
+
+
+def _near(images: list, image, tolerance: float) -> bool:
+    """Whether ``image`` is within ``tolerance`` of any of ``images``."""
+    return bool(images) and float(np.min(np.linalg.norm(np.asarray(images) - image, axis=1))) <= tolerance
 
 
 def _crossing(wall, start, end) -> Optional[np.ndarray]:

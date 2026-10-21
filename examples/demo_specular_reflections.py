@@ -8,7 +8,6 @@ displays the first and second order reflections.
 import compas_acoustics as ca
 
 
-
 ########### create a source and a receiver
 source = ca.Source(x=1.5, y=1.5, z=1.6, name="source")
 receiver = ca.Receiver(x=5.0, y=3.0, z=1.5, name="receiver")
