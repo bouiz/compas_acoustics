@@ -26,9 +26,10 @@ from .base import _warn_if_the_search_is_slow
 
 __all__ = ['Pyroomacoustics']
 
-# A ray-traced response must last this many times its own longest T30, or it warns: Eyring, which sizes the default
-# buffer, read 0.64 s on a furnished office whose response decays in 2 s
-MIN_RESPONSE_RT_FACTOR = 1.0
+# A ray-traced response must last this many times its own longest T30, or it warns. ODEON's rule: T30's fit ends 35 dB
+# down, at 0.58 of the reverberation time, and an ideal decay cut at 2/3 of it reads T30 2.4 % short (0.7 % at 0.76,
+# 5 % at 0.6). Eyring, which sizes the default buffer, read 0.64 s on a furnished office whose response decays in 2 s.
+MIN_RESPONSE_RT_FACTOR = 2.0 / 3.0
 
 
 class Pyroomacoustics(SimulationMethod):
@@ -194,7 +195,7 @@ class Pyroomacoustics(SimulationMethod):
 
     @staticmethod
     def _warn_if_cut_short(rirs: dict, fs: int) -> None:
-        """Warn when a response ends before its own reverberation time: the buffer comes from Eyring, which a
+        """Warn when a response ends before 2/3 of its own reverberation time: the buffer comes from Eyring, which a
         non-diffuse room (an absorbing ceiling over hard walls) can underestimate several times over, and a
         response that is cut reads T30 short and, as the reference of :class:`Hybrid`, truncates its decay fit."""
         from compas_acoustics.analyser import AcousticAnalyser
@@ -209,7 +210,7 @@ class Pyroomacoustics(SimulationMethod):
             length = ir.ir.shape[0] / fs
         if longest > 0.0 and length < MIN_RESPONSE_RT_FACTOR * longest:
             warnings.warn(
-                f"The responses are {length:.1f} s long, shorter than their reverberation time ({longest:.1f} s): T30 reads "
+                f"The responses are {length:.1f} s long, less than 2/3 of their reverberation time ({longest:.1f} s): T30 reads "
                 f"short and the hybrid's decay fit would be cut. Rerun with duration (time_thres) of at least "
                 f"{DURATION_RT_FACTOR * longest:.1f} s; the default buffer comes from Eyring, which this room's decay outruns.",
                 UserWarning,

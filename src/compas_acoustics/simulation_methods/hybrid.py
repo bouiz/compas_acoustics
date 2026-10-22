@@ -38,8 +38,10 @@ from .raytracing import default_duration
 
 __all__ = ["Hybrid", "TAILS", "OUTPUTS"]
 
-# A given reference must last this many times its reverberation time (the fitted or the Eyring one, whichever is longer)
-MIN_REFERENCE_RT_FACTOR = 1.0
+# A given reference must last this many times its reverberation time (the fitted or the Eyring one, whichever is longer):
+# ODEON's 2/3, as for T30, since the decay fit spans the same 30 dB from -5 dB and the late envelope holds its gain once
+# the reference has fallen 20 dB
+MIN_REFERENCE_RT_FACTOR = 2.0 / 3.0
 
 #: Where the decay target of the late field comes from.
 TAILS = ("reference", "ray_tracing", "eyring", "sabine")
@@ -108,7 +110,7 @@ class Hybrid(SimulationMethod):
         ray-traced reference the hybrid makes itself has the pyroomacoustics
         method's default length (1.5 times the longest Eyring RT), whatever the
         output's; the directional histogram takes ``duration``. A reference
-        shorter than its reverberation time warns.
+        shorter than 2/3 of its reverberation time warns.
     directional_absorption : bool, default=True
         Weight each delay line with the reflection of the boundary it faces.
     late_envelope : bool, optional
@@ -444,15 +446,15 @@ class Hybrid(SimulationMethod):
         return default_duration(geometry, air_absorption, air=air)
 
     def _check_reference_length(self, length, target, eyring_rt, key):
-        """Warn when a reference ends before its own reverberation time: pyFDN's fit then shrinks its range to what
+        """Warn when a reference ends before 2/3 of its own reverberation time: pyFDN's fit then shrinks its range to what
         the response has, and the late envelope reads a cut tail. Measured: a reference of 1.0 times the Eyring RT
         read T30 at 125 Hz 25 % short in a room with curtain walls; 1.5 times gave the 2.5-times result."""
-        needed = MIN_REFERENCE_RT_FACTOR * max(float(np.max(target.rt)), float(eyring_rt))
-        if length < needed:
+        rt = max(float(np.max(target.rt)), float(eyring_rt))
+        if length < MIN_REFERENCE_RT_FACTOR * rt:
             warnings.warn(
-                f"The reference of {key} is {length:.1f} s long, shorter than its reverberation time ({needed:.1f} s): the "
+                f"The reference of {key} is {length:.1f} s long, less than 2/3 of its reverberation time ({rt:.1f} s): the "
                 f"decay fit and the late envelope read a cut tail. Simulate the reference with time_thres (duration) of at "
-                f"least {DURATION_RT_FACTOR * needed / MIN_REFERENCE_RT_FACTOR:.1f} s.",
+                f"least {DURATION_RT_FACTOR * rt:.1f} s.",
                 UserWarning,
                 stacklevel=3,
             )

@@ -587,7 +587,7 @@ def test_a_reference_shorter_than_its_reverberation_time_warns():
     """pyFDN's fit shrinks its range to what the response has, silently; the hybrid says so."""
     scene = make()
     short = references(scene, duration=0.2)
-    with pytest.warns(UserWarning, match="shorter than its reverberation time"):
+    with pytest.warns(UserWarning, match="less than 2/3 of its reverberation time"):
         scene.simulate(Hybrid(short, **FAST))
     scene = make()
     long_enough = references(scene, duration=None)  # the Pyroomacoustics default, 1.5 x the longest Eyring RT
@@ -595,3 +595,15 @@ def test_a_reference_shorter_than_its_reverberation_time_warns():
         warnings.simplefilter("error", UserWarning)
         warnings.filterwarnings("ignore", category=DiffuseFieldWarning)
         scene.simulate(Hybrid(long_enough, **FAST))
+
+
+def test_a_reference_of_two_thirds_of_its_reverberation_time_is_long_enough():
+    """The decay fit, like T30, ends 35 dB down; the late envelope holds its gain from 20 dB down."""
+    from types import SimpleNamespace
+
+    target = SimpleNamespace(rt=np.array([2.0, 2.5]))
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
+        Hybrid()._check_reference_length(1.9, target, 1.3, "rec, src")
+    with pytest.warns(UserWarning, match=r"less than 2/3 of its reverberation time \(2.5 s\).* at least 3.8 s"):
+        Hybrid()._check_reference_length(1.5, target, 1.3, "rec, src")

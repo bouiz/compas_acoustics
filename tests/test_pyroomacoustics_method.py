@@ -264,9 +264,28 @@ def test_the_default_duration_follows_the_medium():
 def test_a_response_shorter_than_its_reverberation_time_warns():
     """The buffer comes from Eyring; a room whose decay outruns it (a furnished office read 2 s against Eyring's 0.64 s) warns."""
     scene = simulator()
-    with pytest.warns(UserWarning, match="shorter than their reverberation time"):
+    with pytest.warns(UserWarning, match="less than 2/3 of their reverberation time"):
         scene.simulate(Pyroomacoustics(duration=0.15, n_rays=2000, seed=1))
     with warnings.catch_warnings():
         warnings.simplefilter("error", UserWarning)
         warnings.filterwarnings("ignore", category=DiffuseFieldWarning)
         scene.simulate(Pyroomacoustics(n_rays=2000, seed=1))
+
+
+def _decay_response(reverberation_time, seconds, seed=0, fs=48000):
+    from compas_acoustics import ImpulseResponse
+    from compas_acoustics import Receiver
+    from compas_acoustics import Source
+
+    t = np.arange(int(seconds * fs)) / fs
+    ir = np.random.default_rng(seed).standard_normal(t.size) * 10 ** (-3 * t / reverberation_time)
+    return ImpulseResponse("r", Source("s", 0, 0, 0), Receiver("m", 1, 1, 1), ir, fs, normalized=False)
+
+
+def test_a_response_of_two_thirds_of_its_reverberation_time_is_long_enough():
+    """ODEON's rule: T30's fit ends 35 dB down, at 0.58 of the reverberation time; cut at 0.76 it reads 0.7 % short."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
+        Pyroomacoustics._warn_if_cut_short({"k": _decay_response(2.5, 1.9)}, 48000)
+    with pytest.warns(UserWarning, match="less than 2/3 of their reverberation time"):
+        Pyroomacoustics._warn_if_cut_short({"k": _decay_response(2.5, 1.5)}, 48000)

@@ -188,32 +188,44 @@ def test_the_auralise_inputs_go_sound_rendering_then_saving(monkeypatch):
 
 def test_the_receiver_component_defaults_to_room_aligned(monkeypatch):
     module, _ = load_component("CA_Receiver", monkeypatch)
-    receiver, orientation = module.CreateReceiver().RunScript((1.0, 2.0, 1.5), "r", None, None, None)
+    receiver = module.CreateReceiver().RunScript((1.0, 2.0, 1.5), "r", None, None)
     assert receiver.position == [1.0, 2.0, 1.5]
     np.testing.assert_allclose(receiver.rotation, np.eye(3), atol=1e-12)
-    assert (orientation.XAxis.X, orientation.YAxis.Y) == (1.0, 1.0)
 
 
-def test_the_receiver_component_takes_direction_and_up(monkeypatch):
+def test_the_receiver_component_takes_a_direction_and_stays_upright(monkeypatch):
     module, _ = load_component("CA_Receiver", monkeypatch)
-    receiver, orientation = module.CreateReceiver().RunScript((1.0, 2.0, 1.5), "r", (0.0, 1.0, 0.0), (0.0, 0.0, 1.0), None)
+    receiver = module.CreateReceiver().RunScript((1.0, 2.0, 1.5), "r", (0.0, 1.0, 0.0), None)
     np.testing.assert_allclose(receiver.rotation[:, 0], [0.0, 1.0, 0.0], atol=1e-12)
-    # facing +y, the receiver's left is -x
-    np.testing.assert_allclose([orientation.YAxis.X, orientation.YAxis.Y], [-1.0, 0.0], atol=1e-12)
+    # facing +y, the receiver's left is -x and its up +z
+    np.testing.assert_allclose(receiver.rotation[:, 1], [-1.0, 0.0, 0.0], atol=1e-12)
+    np.testing.assert_allclose(receiver.rotation[:, 2], [0.0, 0.0, 1.0], atol=1e-12)
 
 
 def test_the_receiver_component_takes_a_plane(monkeypatch):
     module, messages = load_component("CA_Receiver", monkeypatch)
-    receiver, _ = module.CreateReceiver().RunScript((9.0, 9.0, 9.0), "r", None, None, plane((1.0, 2.0, 1.5), (0.0, 1.0, 0.0), (-1.0, 0.0, 0.0)))
+    receiver = module.CreateReceiver().RunScript((9.0, 9.0, 9.0), "r", None, plane((1.0, 2.0, 1.5), (0.0, 1.0, 0.0), (-1.0, 0.0, 0.0)))
     assert receiver.position == [1.0, 2.0, 1.5]
     np.testing.assert_allclose(receiver.rotation, [[0, -1, 0], [1, 0, 0], [0, 0, 1]], atol=1e-12)
-    assert messages and "plane" in messages[0]
+    assert messages and "'plane' sets the position and orientation; 'position' and 'direction' are not used." in messages[0]
 
 
 def test_a_receiver_facing_up_is_an_error_not_a_traceback(monkeypatch):
     module, messages = load_component("CA_Receiver", monkeypatch)
-    assert module.CreateReceiver().RunScript((1.0, 2.0, 1.5), "r", (0.0, 0.0, 1.0), None, None) == (None, None)
+    assert module.CreateReceiver().RunScript((1.0, 2.0, 1.5), "r", (0.0, 0.0, 1.0), None) is None
     assert messages and "parallel" in messages[0]
+
+
+def test_the_receiver_inputs_match_its_script_and_it_outputs_only_the_receiver(monkeypatch):
+    import inspect
+    import json
+
+    module, _ = load_component("CA_Receiver", monkeypatch)
+    metadata = json.loads((COMPONENTS / "CA_Receiver" / "metadata.json").read_text())["ghpython"]
+    names = [p["name"] for p in metadata["inputParameters"]]
+    assert names == ["position", "name", "direction", "plane"]
+    assert list(inspect.signature(module.CreateReceiver.RunScript).parameters)[1:] == names
+    assert [o["name"] for o in metadata["outputParameters"]] == ["receiver"]
 
 
 def capture(monkeypatch):

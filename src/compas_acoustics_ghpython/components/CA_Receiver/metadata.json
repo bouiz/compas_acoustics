@@ -3,7 +3,7 @@
     "nickname": "Receiver",
     "category": "COMPAS Acoustics",
     "subcategory": "00 Elements",
-    "description": "Acoustic Receiver object (microphone, human ear, etc.) with an orientation: the direction it faces and its up direction, which set the frame of ambisonic responses (x facing, y left, z up).",
+    "description": "Acoustic Receiver object (microphone, human ear, etc.) with an orientation: the direction it faces, upright (+z up), which sets the frame of ambisonic responses (x facing, y left, z up).",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,
@@ -31,15 +31,8 @@
                 "typeHintID": "vector"
             },
             {
-                "name": "up",
-                "description": "Up direction of the receiver (default +z): the z axis of its ambisonic responses.",
-                "optional": true,
-                "scriptParamAccess": 0,
-                "typeHintID": "vector"
-            },
-            {
                 "name": "plane",
-                "description": "Optional: position and orientation as a plane (x axis facing, z axis up). Overrides position, direction and up.",
+                "description": "Optional: position and orientation as a plane (x axis facing, z axis up). Overrides position and direction.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "plane"
@@ -49,10 +42,6 @@
             {
                 "name": "receiver",
                 "description": "Receiver object."
-            },
-            {
-                "name": "plane",
-                "description": "The receiver's orientation as a plane: x axis facing, y axis left, z axis up."
             }
         ]
     }
