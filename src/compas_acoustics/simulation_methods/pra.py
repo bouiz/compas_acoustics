@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import Optional
 from typing import Union
 
@@ -13,6 +14,7 @@ from compas_acoustics.room.air import AirConditions
 from compas_acoustics.room.air import air_or_default
 from compas_acoustics.room.geometry import pra_octave_grid
 from compas_acoustics.room.pra import source_to_pra
+from compas_acoustics.simulation_methods.raytracing import DURATION_RT_FACTOR
 from compas_acoustics.simulation_methods.raytracing import _on_package_scale
 from compas_acoustics.simulation_methods.raytracing import ray_traced_rirs
 
@@ -23,6 +25,10 @@ from .base import _seed
 from .base import _warn_if_the_search_is_slow
 
 __all__ = ['Pyroomacoustics']
+
+# A ray-traced response must last this many times its own longest T30, or it warns: Eyring, which sizes the default
+# buffer, read 0.64 s on a furnished office whose response decays in 2 s
+MIN_RESPONSE_RT_FACTOR = 1.0
 
 
 class Pyroomacoustics(SimulationMethod):
@@ -56,10 +62,12 @@ class Pyroomacoustics(SimulationMethod):
         has decayed much further by then. Between 1e-8 and 1e-4 no parameter moved beyond the
         seed-to-seed spread; 1e-8 (hybrid-rir's) cost 25 % more in a reverberant room.
     duration : float, optional
-        Length of the ray-traced responses in seconds; by default 2.5 times the
+        Length of the ray-traced responses in seconds; by default 1.5 times the
         longest Eyring reverberation time, within 0.5 to 12 s, with a warning when
         the prediction exceeds the cap (10 s for a scene that does not close a
-        volume). Without ray tracing the responses have their natural length.
+        volume). A response that is the reference of :class:`Hybrid` must outlast
+        its reverberation time: the hybrid warns when it does not. Without ray
+        tracing the responses have their natural length.
     receiver_radius : float, default=0.5
         Radius of the ray-tracing receivers in metres.
     seed : bool or int, default=True
@@ -180,7 +188,33 @@ class Pyroomacoustics(SimulationMethod):
                     normalized=self.normalize,
                     generation=generation,
                 )
+        if self.ray_tracing and rirs:
+            self._warn_if_cut_short(rirs, fs)
         return rirs
+
+    @staticmethod
+    def _warn_if_cut_short(rirs: dict, fs: int) -> None:
+        """Warn when a response ends before its own reverberation time: the buffer comes from Eyring, which a
+        non-diffuse room (an absorbing ceiling over hard walls) can underestimate several times over, and a
+        response that is cut reads T30 short and, as the reference of :class:`Hybrid`, truncates its decay fit."""
+        from compas_acoustics.analyser import AcousticAnalyser
+
+        longest, length = 0.0, 0.0
+        for ir in rirs.values():
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                t30 = np.asarray(AcousticAnalyser(ir).reverberation_times()["T30"], dtype=float)
+            if np.any(np.isfinite(t30)):
+                longest = max(longest, float(np.nanmax(t30)))
+            length = ir.ir.shape[0] / fs
+        if longest > 0.0 and length < MIN_RESPONSE_RT_FACTOR * longest:
+            warnings.warn(
+                f"The responses are {length:.1f} s long, shorter than their reverberation time ({longest:.1f} s): T30 reads "
+                f"short and the hybrid's decay fit would be cut. Rerun with duration (time_thres) of at least "
+                f"{DURATION_RT_FACTOR * longest:.1f} s; the default buffer comes from Eyring, which this room's decay outruns.",
+                UserWarning,
+                stacklevel=4,
+            )
 
     def _image_sources(self, geometry, sources, mic_positions, fs) -> list:
         """Image-source responses ``[mic][source]`` on the package scale, at their natural length."""

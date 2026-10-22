@@ -14,6 +14,7 @@ from compas_acoustics.simulation_methods import SimulationContext
 from compas_acoustics.simulation_methods.raytracing import OPEN_ROOM_DURATION
 from compas_acoustics.simulation_methods.raytracing import default_duration
 from compas_acoustics.simulation_methods.raytracing import ray_traced_rirs
+from compas_acoustics.room.diffuse import DiffuseFieldWarning
 from compas_acoustics.room.geometry import RoomGeometry
 
 FS = 48000
@@ -202,8 +203,9 @@ def test_default_duration_follows_the_predicted_rt():
 
     g = geometry()
     rt = float(np.max(predicted_rt(g, air_absorption=True, warn=False)))
-    # hybrid-rir's rule: 2.5 times the longest Eyring RT within 0.5 to 12 s, so the hybrid's late field (1.5 RT) is outlasted
-    assert default_duration(g, air_absorption=True) == pytest.approx(np.clip(2.5 * rt, 0.5, 12.0))
+    # 1.5 times the longest Eyring RT within 0.5 to 12 s (ODEON: at least 2/3 of the RT; RAZR: 1.0; Eyring 18-31 % short)
+    assert default_duration(g, air_absorption=True) == pytest.approx(np.clip(1.5 * rt, 0.5, 12.0))
+    assert default_duration(g, air_absorption=True, factor=2.5) == pytest.approx(np.clip(2.5 * rt, 0.5, 12.0))
 
 
 def test_a_source_outside_the_room_warns_and_prints_nothing(capsys):
@@ -257,3 +259,14 @@ def test_the_default_duration_follows_the_medium():
     dry = default_duration(g, air_absorption=True, speed_of_sound=AirConditions(humidity=10.0).speed_of_sound,
                            air=AirConditions(humidity=10.0))
     assert dry != default_duration(g, air_absorption=True)
+
+
+def test_a_response_shorter_than_its_reverberation_time_warns():
+    """The buffer comes from Eyring; a room whose decay outruns it (a furnished office read 2 s against Eyring's 0.64 s) warns."""
+    scene = simulator()
+    with pytest.warns(UserWarning, match="shorter than their reverberation time"):
+        scene.simulate(Pyroomacoustics(duration=0.15, n_rays=2000, seed=1))
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
+        warnings.filterwarnings("ignore", category=DiffuseFieldWarning)
+        scene.simulate(Pyroomacoustics(n_rays=2000, seed=1))

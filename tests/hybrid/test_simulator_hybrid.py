@@ -565,3 +565,33 @@ print(ir.n_channels)
     assert result.returncode == 0, result.stderr[-2000:]
     assert result.stdout.strip().splitlines()[-2:] == ["2", "4"]
 
+
+
+def test_the_hybrids_own_reference_has_the_methods_default_length_whatever_the_output_duration():
+    """A ray-traced reference carries its full decay (1.5 x the longest Eyring RT) even when the output is cut short."""
+    from compas_acoustics.simulation_methods.raytracing import default_duration
+
+    scene = make()
+    hybrid = Hybrid(image_source_order=2, output="ambisonic", duration=0.3)
+    scene.simulate(hybrid)
+    g = SimulationContext.from_scene(scene).geometry
+    expected = default_duration(g, air_absorption=True)
+    assert expected > 0.3
+    for ir in hybrid.reference_rirs.values():
+        assert ir.ir.shape[0] == round(expected * FS)
+    (result,) = hybrid.results.values()
+    assert result.rir.shape[0] == round(0.3 * FS)
+
+
+def test_a_reference_shorter_than_its_reverberation_time_warns():
+    """pyFDN's fit shrinks its range to what the response has, silently; the hybrid says so."""
+    scene = make()
+    short = references(scene, duration=0.2)
+    with pytest.warns(UserWarning, match="shorter than its reverberation time"):
+        scene.simulate(Hybrid(short, **FAST))
+    scene = make()
+    long_enough = references(scene, duration=None)  # the Pyroomacoustics default, 1.5 x the longest Eyring RT
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
+        warnings.filterwarnings("ignore", category=DiffuseFieldWarning)
+        scene.simulate(Hybrid(long_enough, **FAST))

@@ -33,8 +33,13 @@ from .base import SimulationMethod
 from .base import _seed
 from .base import _warn_if_the_search_is_slow
 from .pra import Pyroomacoustics
+from .raytracing import DURATION_RT_FACTOR
+from .raytracing import default_duration
 
 __all__ = ["Hybrid", "TAILS", "OUTPUTS"]
+
+# A given reference must last this many times its reverberation time (the fitted or the Eyring one, whichever is longer)
+MIN_REFERENCE_RT_FACTOR = 1.0
 
 #: Where the decay target of the late field comes from.
 TAILS = ("reference", "ray_tracing", "eyring", "sabine")
@@ -99,7 +104,11 @@ class Hybrid(SimulationMethod):
     decay_db : float, default=30.0
         Single-slope fit range from -5 dB: 30 is T30, 20 is T20.
     duration : float, optional
-        Length in seconds; defaults to 1.5 times the longest target RT.
+        Length in seconds; defaults to 1.5 times the longest target RT. A
+        ray-traced reference the hybrid makes itself has the pyroomacoustics
+        method's default length (1.5 times the longest Eyring RT), whatever the
+        output's; the directional histogram takes ``duration``. A reference
+        shorter than its reverberation time warns.
     directional_absorption : bool, default=True
         Weight each delay line with the reflection of the boundary it faces.
     late_envelope : bool, optional
@@ -339,6 +348,9 @@ class Hybrid(SimulationMethod):
             hrtf_path = DEFAULT_HRTF if self.hrtf == "kemar" else Path(self.hrtf)
             hrtf = HrtfSet.from_sofa(hrtf_path, fs)
 
+        # The longest Eyring RT, against which a given reference's length is checked
+        eyring_rt = default_duration(geometry, air_absorption, air=air, factor=1.0)
+
         histograms = None
         if self.late_envelope:
             from compas_acoustics.hybrid.late import fdn_directions
@@ -354,7 +366,7 @@ class Hybrid(SimulationMethod):
                 fs,
                 [grid @ rotations[id(receiver)].T for receiver in context.receivers],
                 max_order=self.image_source_order,
-                duration=self.duration,
+                duration=self._own_duration(geometry, air_absorption, air, output_length=True),
                 n_rays=tracer.n_rays,
                 receiver_radius=tracer.receiver_radius,
                 energy_threshold=tracer.energy_thres,
@@ -386,6 +398,7 @@ class Hybrid(SimulationMethod):
                     # Decay target and late envelope need the absolute (package) level
                     reference = np.asarray(references[key].denormalized(), dtype=float)
                     target = RoomTarget.from_rir(reference, fs, n_slopes=self.n_slopes, decay_db=self.decay_db)
+                    self._check_reference_length(reference.size / fs, target, eyring_rt, key)
                 else:
                     target = RoomTarget.from_room(spec, model=self.tail)
                 result = synthesize(
@@ -422,6 +435,28 @@ class Hybrid(SimulationMethod):
         return rirs[self.outputs[0]]
 
     # ----------------------------------------------------------- references --
+    def _own_duration(self, geometry, air_absorption, air, output_length: bool = False):
+        """Length of the runs the hybrid makes itself: the pyroomacoustics method's default (``DURATION_RT_FACTOR``
+        times the longest Eyring RT). A ray-traced reference always carries its full decay, whatever ``duration`` the
+        output has; the directional histogram (``output_length``) needs no more than the output and takes ``duration``."""
+        if output_length and self.duration is not None:
+            return self.duration
+        return default_duration(geometry, air_absorption, air=air)
+
+    def _check_reference_length(self, length, target, eyring_rt, key):
+        """Warn when a reference ends before its own reverberation time: pyFDN's fit then shrinks its range to what
+        the response has, and the late envelope reads a cut tail. Measured: a reference of 1.0 times the Eyring RT
+        read T30 at 125 Hz 25 % short in a room with curtain walls; 1.5 times gave the 2.5-times result."""
+        needed = MIN_REFERENCE_RT_FACTOR * max(float(np.max(target.rt)), float(eyring_rt))
+        if length < needed:
+            warnings.warn(
+                f"The reference of {key} is {length:.1f} s long, shorter than its reverberation time ({needed:.1f} s): the "
+                f"decay fit and the late envelope read a cut tail. Simulate the reference with time_thres (duration) of at "
+                f"least {DURATION_RT_FACTOR * needed / MIN_REFERENCE_RT_FACTOR:.1f} s.",
+                UserWarning,
+                stacklevel=3,
+            )
+
     def _references(self, context):
         """``(references or None, air_absorption, air, description)`` for :attr:`tail`."""
         if self.tail in ("eyring", "sabine"):
@@ -429,8 +464,9 @@ class Hybrid(SimulationMethod):
             return None, absorption, air_or_default(self.air), None
 
         if self.tail == "ray_tracing":
-            method = Pyroomacoustics(ray_tracing=True, air_absorption=True if self.air_absorption is None else bool(self.air_absorption),
-                                     air=self.air)
+            absorption = True if self.air_absorption is None else bool(self.air_absorption)
+            method = Pyroomacoustics(ray_tracing=True, air_absorption=absorption, air=self.air,
+                                     duration=self._own_duration(context.geometry, absorption, self.air))
             references, description = method.compute(context), method.generation
         elif isinstance(self.reference, str):
             references, description = context.scene.impulse_responses(self.reference), self.reference
