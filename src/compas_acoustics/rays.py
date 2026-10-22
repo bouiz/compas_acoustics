@@ -390,10 +390,12 @@ class RayField(_PackageDtype, Data):
         ``include_scattering`` is set, extra scattered rays are spawned at each hit,
         with their number and directions driven by the surface scattering coefficient.
 
-        By default rays are emitted omnidirectionally from each source. If a spotlight
-        cone is specified (via ``direction`` and ``angle``), all ``n_rays`` are instead
-        emitted directly into that cone (apex at each source), so no separate filtering
-        step is needed.
+        Each source emits its rays with the density of the energy it radiates, the square of
+        its first-order pattern p + (1 - p) cos(theta) about its ``direction``: an omnidirectional
+        source evenly, a cardioid nothing straight back, a figure-of-eight nothing in its side plane.
+        If a spotlight cone is specified (via ``direction`` and ``angle``), all ``n_rays`` are instead
+        emitted directly into that cone (apex at each source), with the same density within it,
+        so no separate filtering step is needed.
 
         Parameters
         ----------
@@ -436,8 +438,6 @@ class RayField(_PackageDtype, Data):
         if (direction is None) != (angle is None):
             raise ValueError("Both 'direction' and 'angle' must be provided together to emit rays into a cone.")
 
-        import pyroomacoustics as pra
-
         from compas_acoustics.room.geometry import RoomGeometry
         from compas_acoustics.simulation_methods.base import _seed
 
@@ -459,10 +459,7 @@ class RayField(_PackageDtype, Data):
         )
 
         rng = np.random.default_rng(_seed(random_seed))
-        if direction is None:
-            directions = np.asarray(pra.fibonacci_spherical_sampling(n_rays)).T
-        else:
-            directions = _cone_sampling(direction, angle, n_rays)
+        cone = direction
 
         distance_thres = _distance(time_thres * 1000.0) if time_thres is not None else None
 
@@ -472,6 +469,7 @@ class RayField(_PackageDtype, Data):
         for n, (source_index, source) in enumerate(sim_sources):
             jobs.progress("tracing", n, len(sim_sources))
             source_position = np.asarray(source.position, dtype=float)
+            directions = _source_directions(source, cone, angle, n_rays)
 
             for ray_index in range(directions.shape[0]):
                 initial_direction = directions[ray_index] / np.linalg.norm(directions[ray_index])
@@ -815,6 +813,65 @@ def _cone_sampling(direction, angle: float, n_rays: int):
         vector = radius * np.cos(phi) * tangent_1 + radius * np.sin(phi) * tangent_2 + z * axis
         directions[i] = vector / np.linalg.norm(vector)
     return directions
+
+
+# Candidates per ray when a directive source emits into a cone: the cone's lattice is thinned to the pattern
+_CONE_OVERSAMPLING = 64
+
+
+def _source_directions(source, cone, angle: Optional[float], n_rays: int):
+    """The ``n_rays`` unit directions a source emits, shape ``(n_rays, 3)``: the lattice of the cone, if given, or
+    of the sphere, with the density of the energy of the source's pattern about its facing."""
+    import pyroomacoustics as pra
+
+    from compas_acoustics.room.pra import CARDIOID_P
+
+    p = CARDIOID_P.get(source.directivity or "omnidirectional", 1.0)
+    if cone is None:
+        if p == 1.0:
+            directions = np.asarray(pra.fibonacci_spherical_sampling(n_rays)).T
+            return directions / np.linalg.norm(directions, axis=1)[:, None]
+        return _pattern_sampling(source.direction, p, n_rays)
+    if p == 1.0:
+        return _cone_sampling(cone, angle, n_rays)
+    candidates = _cone_sampling(cone, angle, n_rays * _CONE_OVERSAMPLING)
+    facing = np.asarray(source.direction, dtype=float)
+    weights = (p + (1.0 - p) * candidates @ (facing / np.linalg.norm(facing))) ** 2
+    if weights.sum() <= 0.0:
+        return _cone_sampling(cone, angle, n_rays)
+    # systematic resampling along the lattice, which runs from the axis outwards
+    cumulative = np.cumsum(weights) / weights.sum()
+    picks = np.searchsorted(cumulative, (np.arange(n_rays) + 0.5) / n_rays)
+    return candidates[np.minimum(picks, len(candidates) - 1)]
+
+
+def _pattern_sampling(axis, p: float, n_rays: int):
+    """``n_rays`` unit directions, shape ``(n_rays, 3)``, with the density (p + (1 - p) cos(theta))^2 about ``axis``.
+
+    The fibonacci lattice of the sphere with its cosines through the inverse of the pattern's distribution: the
+    energy within cos(theta) < u is ((p + (1 - p) u)^3 - (2p - 1)^3) / (1 - (2p - 1)^3), for p < 1.
+    """
+    q = (2.0 * p - 1.0) ** 3
+    share = 1.0 - (np.arange(n_rays) + 0.5) / n_rays
+    cosines = np.clip((np.cbrt(q + share * (1.0 - q)) - p) / (1.0 - p), -1.0, 1.0)
+    return _spiral(axis, cosines)
+
+
+def _spiral(axis, cosines):
+    """Unit directions at ``cosines`` to ``axis``, turned by the golden angle one after the other."""
+    axis = np.asarray(axis, dtype=float)
+    norm = np.linalg.norm(axis)
+    if TOL.is_zero(norm):
+        raise ValueError("A source's 'direction' must be a non-zero vector.")
+    axis = axis / norm
+    helper = np.array([1.0, 0.0, 0.0]) if abs(axis[0]) < 0.9 else np.array([0.0, 1.0, 0.0])
+    tangent_1 = np.cross(axis, helper)
+    tangent_1 /= np.linalg.norm(tangent_1)
+    tangent_2 = np.cross(axis, tangent_1)
+    phi = np.arange(len(cosines)) * np.pi * (3.0 - np.sqrt(5.0))
+    radius = np.sqrt(np.maximum(1.0 - cosines**2, 0.0))
+    directions = (radius * np.cos(phi))[:, None] * tangent_1 + (radius * np.sin(phi))[:, None] * tangent_2 + cosines[:, None] * axis
+    return directions / np.linalg.norm(directions, axis=1)[:, None]
 
 
 def _scatter_coefficient(wall, scatter_band: Optional[int]) -> float:

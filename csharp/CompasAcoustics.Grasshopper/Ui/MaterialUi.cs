@@ -19,7 +19,7 @@ namespace CompasAcoustics.Grasshopper
         Action? Pick { get; }
     }
 
-    /// <summary>The body below the ports: the material's name and a sparkline of its absorption per band (0 to 1).</summary>
+    /// <summary>The body below the ports: the material's name and its absorption and scattering per band as paired bars (0 to 1), as in the picker.</summary>
     public sealed class MaterialUi : ComponentUi
     {
         private const float Height = ChartLayout.StripHeight;
@@ -43,7 +43,7 @@ namespace CompasAcoustics.Grasshopper
             g.FillRectangle(Brushes.White, strip);
             if (Body.Shown is not { } material)
                 return;
-            // as Deconstruct Parameter's strip: a line per coefficient through a dot per band, the bands below, 0 and 1 beside
+            // as Deconstruct Parameter's strip: the bands below, 0 and 1 beside
             var labelWidth = Math.Max(GH_FontServer.StringWidth("0", ChartPainter.Tiny), GH_FontServer.StringWidth("1", ChartPainter.Tiny));
             var chart = MaterialChart.Strip(material.AbsorptionCoefficients.ToList(),
                 material.ScatteringCoefficients.Count > 0 ? material.ScatteringCoefficients.ToList() : null, strip, labelWidth);
@@ -61,18 +61,15 @@ namespace CompasAcoustics.Grasshopper
                 g.DrawString(text, ChartPainter.Tiny, Brushes.DimGray, x - size.Width / 2, plot.Bottom + 1);
             }
             g.DrawRectangle(Pens.Gray, plot.X, plot.Y, plot.Width, plot.Height);
-            var state = g.SmoothingMode;
-            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            foreach (var (points, color) in new[] { (chart.Scattering, ScatteringColor), (chart.Absorption, AbsorptionColor) })
+            // the picker's paired bars, absorption then scattering per band
+            var (absorption, scattering) = MaterialChart.PairedBars(material.AbsorptionCoefficients.ToList(),
+                material.ScatteringCoefficients.Count > 0 ? material.ScatteringCoefficients.ToList() : null, plot);
+            foreach (var (bars, color) in new[] { (absorption, AbsorptionColor), (scattering, ScatteringColor) })
             {
-                using var pen = new Pen(color, 1.2f);
-                using var dot = new SolidBrush(color);
-                if (points.Length > 1)
-                    g.DrawLines(pen, points);
-                foreach (var p in points)
-                    g.FillEllipse(dot, p.X - 1.6f, p.Y - 1.6f, 3.2f, 3.2f);
+                using var fill = new SolidBrush(color);
+                foreach (var r in bars.Where(r => r.Height > 0))
+                    g.FillRectangle(fill, r);
             }
-            g.SmoothingMode = state;
         }
 
         protected override GH_ObjectResponse? RespondToExtraMouseDown(GH_Canvas sender, GH_CanvasMouseEvent e)

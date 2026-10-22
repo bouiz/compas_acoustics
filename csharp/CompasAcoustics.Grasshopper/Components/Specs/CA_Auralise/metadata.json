@@ -38,6 +38,7 @@
             },
             {
                 "name": "sampling_rate",
+                "typeHintID": "int",
                 "description": "Sample rate of each auralised signal, in Hz."
             }
         ]

@@ -20,6 +20,7 @@
         "outputParameters": [
             {
                 "name": "channels",
+                "typeHintID": "int",
                 "description": "Number of channels of the sound."
             }
         ]

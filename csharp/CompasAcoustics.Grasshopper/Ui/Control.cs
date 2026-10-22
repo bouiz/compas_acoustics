@@ -19,6 +19,9 @@ namespace CompasAcoustics.Grasshopper
     /// <summary>A trigger: a press runs the component once with ``Pressed(Port)`` true. ``Port`` need not be an input (``cancel``).</summary>
     public sealed record ButtonControl(string Port, string Label) : Control(Port);
 
+    /// <summary>One button that switches a choice on and off (``on``/``off``): dark when on.</summary>
+    public sealed record ToggleControl(string Port, string Label) : Control(Port);
+
     /// <summary>A number from ``Min`` to ``Max``, dragged.</summary>
     public sealed record SliderControl(string Port, double Min, double Max, string Unit) : Control(Port);
 

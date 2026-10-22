@@ -34,15 +34,19 @@ def vector_to_pra(vec: Vector, tol=None) -> pra.DirectionVector:
         degrees=False  # NOTE: Always use radians?
     )
 
+# The p of each first-order pattern p + (1 - p) cos(theta)
+CARDIOID_P = {
+    "bidirectional": 0.0,
+    "hypercardioid": 0.25,
+    "supercardioid": 0.37,
+    "cardioid": 0.5,
+    "omnidirectional": 1.0,
+}
+
+
 def directivity_to_pra(dirt: str, vec: Vector) -> pra.CardioidFamily:
     """Convert a Directivity. Only support CardioidFamily now."""
-    supported_directivity = {
-        "bidirectional": 0.0,
-        "hypercardioid": 0.25,
-        "supercardioid": 0.37,
-        "cardioid": 0.5,
-        "omnidirectional": 1.0,
-    }
+    supported_directivity = CARDIOID_P
 
     if dirt not in supported_directivity.keys():
         raise ValueError(f"Directivity '{dirt}' is not supported.")

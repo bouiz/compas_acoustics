@@ -78,6 +78,9 @@ namespace CompasAcoustics.Grasshopper
         private double _lastEnd;
         private double? _lastTime;
 
+        /// <summary>Whether the playback is moving now (not stopped, not at its end).</summary>
+        public bool Running => _state != null && _state.Offset + (_now() - _state.Start) * _state.Speed < _lastEnd;
+
         /// <summary>Whether a playback runs, ended, or holds a frame (else the time input, or nothing, decides).</summary>
         public bool Active => _state != null || _held != null;
 

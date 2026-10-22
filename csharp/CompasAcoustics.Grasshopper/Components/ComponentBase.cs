@@ -110,14 +110,20 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>Whether a new component starts with its preview off (the surfaces it previews are in Rhino already).</summary>
         public virtual bool PreviewOffByDefault => false;
 
-        /// <summary>Whether the component draws in the viewport itself (the Visualise components), besides its outputs.</summary>
-        protected virtual bool DrawsInViewport => false;
-
         // Grasshopper previews every previewable parameter, inputs included: a geometry, point or plane input would draw
         // the geometry wired into it again, on top of the Rhino objects it comes from. Only the outputs preview.
-        private IEnumerable<IGH_PreviewObject> PreviewedOutputs => Params.Output.OfType<IGH_PreviewObject>();
+        /// <summary>Whether ``output`` previews; the Visualise components draw themselves instead, and data drawn by the
+        /// component that makes it (a source, a receiver) is not drawn again where it passes through.</summary>
+        public virtual bool PreviewsOutput(IGH_Param output) => true;
 
-        public override bool IsPreviewCapable => DrawsInViewport || PreviewedOutputs.Any(p => p.IsPreviewCapable);
+        private IEnumerable<IGH_PreviewObject> PreviewedOutputs => Params.Output.Where(PreviewsOutput).OfType<IGH_PreviewObject>();
+
+        /// <summary>The label a button shows now, when it changes (Play reads Stop while playing); null for its own.</summary>
+        public virtual string? ButtonLabel(string port) => null;
+
+        // Grasshopper draws a component that cannot preview in the dark "preview off" grey; every component here is drawn
+        // light, and one that has nothing to draw draws nothing (its outputs are typed, none previewed).
+        public override bool IsPreviewCapable => true;
 
         public override Rhino.Geometry.BoundingBox ClippingBox
         {
@@ -186,7 +192,7 @@ namespace CompasAcoustics.Grasshopper
         protected override void RegisterOutputParams(GH_OutputParamManager manager)
         {
             foreach (var port in CurrentSpec.Outputs)
-                manager.AddParameter(CreateParam(port, false) ?? new Param_GenericObject(), port.Name, port.Name, port.Description, GH_ParamAccess.item);
+                manager.AddParameter(CreateParam(port, false) ?? DefaultParam(port.TypeHint), port.Name, port.Name, port.Description, GH_ParamAccess.item);
         }
 
         protected sealed override void SolveInstance(IGH_DataAccess access)

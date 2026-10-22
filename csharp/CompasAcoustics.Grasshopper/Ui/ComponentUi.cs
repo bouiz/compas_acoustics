@@ -68,7 +68,8 @@ namespace CompasAcoustics.Grasshopper
                 DropdownControl d when port != null => ControlState.Of(port, d.Options),
                 SwitchControl or DropdownControl when Component.IsChoice(box.Control.Port) => (Component.Choice(box.Control.Port), false),
                 SliderControl when port != null => (Convert.ToString(ControlState.Persistent(port) ?? 0.0, System.Globalization.CultureInfo.InvariantCulture)!, port.SourceCount > 0),
-                ButtonControl b => (b.Label, port != null && port.SourceCount > 0),
+                ButtonControl b => (Component.ButtonLabel(b.Port) ?? b.Label, port != null && port.SourceCount > 0),
+                ToggleControl t => (Component.Choice(t.Port), false),
                 _ => ("", false),
             };
         }
@@ -94,6 +95,10 @@ namespace CompasAcoustics.Grasshopper
                     return GH_ObjectResponse.Handled;
                 case DropdownControl d when port != null || Component.IsChoice(d.Port):
                     OpenMenu(sender, e, d, port);
+                    return GH_ObjectResponse.Handled;
+                case ToggleControl t:
+                    Component.SetChoice(t.Port, Component.Choice(t.Port) == "on" ? "off" : "on");
+                    sender.Invalidate();
                     return GH_ObjectResponse.Handled;
                 case ButtonControl:
                 case SliderControl:
@@ -224,6 +229,14 @@ namespace CompasAcoustics.Grasshopper
                     var x = box.Bounds.Right - 9;
                     var y = box.Bounds.Top + box.Bounds.Height / 2 - 2;
                     g.FillPolygon(Brushes.Black, new[] { new PointF(x, y), new PointF(x + 6, y), new PointF(x + 3, y + 4) });
+                    break;
+                }
+                case ToggleControl toggle:
+                {
+                    // dark when on
+                    using var capsule = GH_Capsule.CreateTextCapsule(R(box.Bounds), R(box.Bounds), state.value == "on" ? GH_Palette.Black : GH_Palette.White,
+                        toggle.Label, 2, 0);
+                    capsule.Render(g, selected, locked, false);
                     break;
                 }
                 case ButtonControl:

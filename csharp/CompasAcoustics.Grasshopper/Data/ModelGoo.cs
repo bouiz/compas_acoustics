@@ -37,7 +37,7 @@ namespace CompasAcoustics.Grasshopper
         protected override MessageGoo<AcousticMaterialData> Create(AcousticMaterialData? value) => value == null ? new MaterialGoo() : new MaterialGoo(value);
     }
 
-    public sealed class SourceGoo : MessageGoo<SourceData>, IGH_PreviewData
+    public sealed class SourceGoo : MessageGoo<SourceData>, IOwnPreview
     {
         private (SourceData of, SourcePreview preview)? _preview;
 
@@ -45,13 +45,11 @@ namespace CompasAcoustics.Grasshopper
 
         public BoundingBox ClippingBox => Preview == null ? BoundingBox.Empty : PreviewDrawing.Box(Preview.Centre, PreviewGeometry.SourceArrow);
 
-        public void DrawViewportWires(GH_PreviewWireArgs args)
+        public void DrawWires(Rhino.Display.DisplayPipeline pipeline, System.Drawing.Color color, int thickness)
         {
             if (Preview != null)
-                PreviewDrawing.Source(args.Pipeline, Preview, args.Color, args.Thickness);
+                PreviewDrawing.Source(pipeline, Preview, color, thickness);
         }
-
-        public void DrawViewportMeshes(GH_PreviewMeshArgs args) { }
 
         public SourceGoo() { }
         public SourceGoo(SourceData value) : base(value) { }
@@ -65,7 +63,7 @@ namespace CompasAcoustics.Grasshopper
         protected override MessageGoo<SourceData> Create(SourceData? value) => value == null ? new SourceGoo() : new SourceGoo(value);
     }
 
-    public sealed class ReceiverGoo : MessageGoo<ReceiverData>, IGH_PreviewData
+    public sealed class ReceiverGoo : MessageGoo<ReceiverData>, IOwnPreview
     {
         private (ReceiverData of, ReceiverPreview preview)? _preview;
 
@@ -73,13 +71,11 @@ namespace CompasAcoustics.Grasshopper
 
         public BoundingBox ClippingBox => Preview == null ? BoundingBox.Empty : PreviewDrawing.Box(Preview.Centre, PreviewGeometry.FacingArrow);
 
-        public void DrawViewportWires(GH_PreviewWireArgs args)
+        public void DrawWires(Rhino.Display.DisplayPipeline pipeline, System.Drawing.Color color, int thickness)
         {
             if (Preview != null)
-                PreviewDrawing.Receiver(args.Pipeline, Preview, args.Color, args.Thickness);
+                PreviewDrawing.Receiver(pipeline, Preview, color, thickness);
         }
-
-        public void DrawViewportMeshes(GH_PreviewMeshArgs args) { }
 
         public ReceiverGoo() { }
         public ReceiverGoo(ReceiverData value) : base(value) { }
@@ -92,24 +88,22 @@ namespace CompasAcoustics.Grasshopper
     }
 
     /// <summary>
-    /// Data that draws surfaces, only from its own parameter: not IGH_PreviewData, which Grasshopper's generic parameters
-    /// (Merge, Data) would draw too, on top of the Rhino geometry the surfaces come from.
+    /// Model data drawn only from its own parameter, under the preview toggle of the component that makes it: not
+    /// IGH_PreviewData, which Grasshopper's generic parameters (Merge, Data) would draw too, past that toggle. Surfaces only
+    /// as edges: a mesh would cover the Rhino surface it comes from.
     /// </summary>
-    public interface ISurfacePreview
+    public interface IOwnPreview
     {
         BoundingBox ClippingBox { get; }
 
         void DrawWires(Rhino.Display.DisplayPipeline pipeline, System.Drawing.Color color, int thickness);
-
-        void DrawMeshes(Rhino.Display.DisplayPipeline pipeline, Rhino.Display.DisplayMaterial material);
     }
 
-    public sealed class AcousticObjectGoo : MessageGoo<AcousticObjectData>, ISurfacePreview
+    public sealed class AcousticObjectGoo : MessageGoo<AcousticObjectData>, IOwnPreview
     {
         private (AcousticObjectData of, ObjectPreview preview)? _preview;
-        private (ObjectPreview of, Mesh? shaded, Mesh? plain)? _meshes;
 
-        /// <summary>The object's surface and its shade, built once for each message.</summary>
+        /// <summary>The object's surface, built once for each message.</summary>
         public ObjectPreview? Preview => Value == null ? null : (_preview is { } p && ReferenceEquals(p.of, Value) ? p : (_preview = (Value, PreviewGeometry.Object(Value))).Value).preview;
 
         public BoundingBox ClippingBox
@@ -130,20 +124,6 @@ namespace CompasAcoustics.Grasshopper
                 PreviewDrawing.ObjectWires(pipeline, new[] { preview }, color, thickness);
         }
 
-        public void DrawMeshes(Rhino.Display.DisplayPipeline pipeline, Rhino.Display.DisplayMaterial material)
-        {
-            if (Preview is not { } preview)
-                return;
-            if (_meshes is not { } m || !ReferenceEquals(m.of, preview))
-            {
-                var (shaded, plain) = PreviewDrawing.Meshes(new[] { preview });
-                _meshes = m = (preview, shaded, plain);
-            }
-            if (m.shaded != null)
-                pipeline.DrawMeshFalseColors(m.shaded);
-            if (m.plain != null)
-                pipeline.DrawMeshShaded(m.plain, material);
-        }
 
         public AcousticObjectGoo() { }
         public AcousticObjectGoo(AcousticObjectData value) : base(value) { }
@@ -153,10 +133,9 @@ namespace CompasAcoustics.Grasshopper
         protected override MessageGoo<AcousticObjectData> Create(AcousticObjectData? value) => value == null ? new AcousticObjectGoo() : new AcousticObjectGoo(value);
     }
 
-    public sealed class SceneGoo : MessageGoo<SceneData>, ISurfacePreview
+    public sealed class SceneGoo : MessageGoo<SceneData>, IOwnPreview
     {
         private (SceneData of, ScenePreview preview)? _preview;
-        private (ScenePreview of, Mesh? shaded, Mesh? plain)? _meshes;
 
         /// <summary>The preview geometry, built once for each message.</summary>
         public ScenePreview? Preview => Value == null ? null : (_preview is { } p && ReferenceEquals(p.of, Value) ? p : (_preview = (Value, PreviewGeometry.Scene(Value))).Value).preview;
@@ -169,21 +148,6 @@ namespace CompasAcoustics.Grasshopper
                 PreviewDrawing.SceneWires(pipeline, Preview, color, thickness);
         }
 
-        public void DrawMeshes(Rhino.Display.DisplayPipeline pipeline, Rhino.Display.DisplayMaterial material)
-        {
-            var preview = Preview;
-            if (preview == null)
-                return;
-            if (_meshes is not { } m || !ReferenceEquals(m.of, preview))
-            {
-                var (shaded, plain) = PreviewDrawing.Meshes(preview.Objects);
-                _meshes = m = (preview, shaded, plain);
-            }
-            if (m.shaded != null)
-                pipeline.DrawMeshFalseColors(m.shaded);
-            if (m.plain != null)
-                pipeline.DrawMeshShaded(m.plain, material);
-        }
 
         public SceneGoo() { }
         public SceneGoo(SceneData value) : base(value) { }

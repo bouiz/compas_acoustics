@@ -211,6 +211,77 @@ def test_a_source_outside_the_room_does_not_shift_the_others_index():
     assert {ray.source_index for ray in field} == {1}
 
 
+def _directive_scene(directivity, direction=(1, 0, 0), second=None):
+    from compas_acoustics import AcousticMaterial
+    from compas_acoustics import AcousticObjectsLibrary
+    from compas_acoustics import Scene
+    from compas_acoustics import Source
+
+    scene = Scene("rays")
+    scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(7, 5, 3, materials=AcousticMaterial("wall", 0.2, 0.1)))
+    scene.add_source(Source("a", 3.5, 2.5, 1.5, directivity=directivity, direction=Vector(*direction)))
+    if second is not None:
+        scene.add_source(Source("b", 2, 2, 1.5, directivity=directivity, direction=Vector(*second)))
+    return scene
+
+
+def _cosines(field, axis, source_index=0):
+    axis = [a / math.sqrt(sum(c * c for c in axis)) for a in axis]
+    return [sum(d * a for d, a in zip(ray.direction, axis)) for ray in field if ray.source_index == source_index]
+
+
+def _pattern_cdf(u, p):
+    # the share of the energy |p + (1 - p) cos|^2 radiated within cos < u
+    q = 2 * p - 1
+    return ((p + (1 - p) * u) ** 3 - q**3) / (1 - q**3)
+
+
+def test_an_omnidirectional_source_emits_the_uniform_lattice():
+    import numpy as np
+    import pyroomacoustics as pra
+
+    field = RayField.from_scene(_directive_scene("omnidirectional"), n_rays=50, max_reflection_order=1)
+    expected = np.asarray(pra.fibonacci_spherical_sampling(50)).T
+    assert np.allclose([list(ray.direction) for ray in field], expected / np.linalg.norm(expected, axis=1)[:, None])
+
+
+@pytest.mark.parametrize("directivity, p", [("cardioid", 0.5), ("supercardioid", 0.37), ("hypercardioid", 0.25), ("bidirectional", 0.0)])
+def test_rays_leave_a_directive_source_with_the_density_of_its_radiated_energy(directivity, p):
+    n = 2000
+    cosines = _cosines(RayField.from_scene(_directive_scene(directivity), n_rays=n, max_reflection_order=1), (1, 0, 0))
+    assert len(cosines) == n
+    for u in (-0.5, 0.0, 0.5):
+        assert sum(c < u for c in cosines) / n == pytest.approx(_pattern_cdf(u, p), abs=2.0 / n)
+
+
+def test_a_cardioid_sends_almost_nothing_straight_back_and_a_figure_of_eight_nothing_sideways():
+    n = 1000
+    cardioid = _cosines(RayField.from_scene(_directive_scene("cardioid"), n_rays=n, max_reflection_order=1), (1, 0, 0))
+    assert sum(c < -0.8 for c in cardioid) / n < 0.002
+    eight = _cosines(RayField.from_scene(_directive_scene("bidirectional"), n_rays=n, max_reflection_order=1), (1, 0, 0))
+    assert sum(abs(c) < 0.2 for c in eight) / n < 0.01
+
+
+def test_each_source_radiates_along_its_own_facing():
+    field = RayField.from_scene(_directive_scene("cardioid", (1, 0, 0), second=(0, -1, 0)), n_rays=400, max_reflection_order=1)
+    assert sum(_cosines(field, (1, 0, 0), 0)) / 400 == pytest.approx(0.5, abs=0.01)
+    assert sum(_cosines(field, (0, -1, 0), 1)) / 400 == pytest.approx(0.5, abs=0.01)
+
+
+def test_a_cone_keeps_its_rays_and_weights_them_by_the_pattern():
+    import numpy as np
+
+    n = 600
+    omni = RayField.from_scene(_directive_scene("omnidirectional"), n_rays=n, max_reflection_order=1, direction=[0, 1, 0], angle=60)
+    cardioid = RayField.from_scene(_directive_scene("cardioid"), n_rays=n, max_reflection_order=1, direction=[0, 1, 0], angle=60)
+    assert len(cardioid.rays) == n
+    # every ray inside the cone, distinct, and leaning towards the source's facing (+x) where omni is even
+    assert min(_cosines(cardioid, (0, 1, 0))) >= math.cos(math.radians(60)) - 1e-9
+    assert len({tuple(np.round(list(ray.direction), 9)) for ray in cardioid}) == n
+    assert abs(np.mean(_cosines(omni, (1, 0, 0)))) < 0.01
+    assert np.mean(_cosines(cardioid, (1, 0, 0))) > 0.1
+
+
 def test_particles_carry_the_reflection_order_they_have_reached():
     ray = Ray([[0, 0, 0], [10, 0, 0], [10, 10, 0], [0, 10, 0]], ray_index=0)
     field = RayField([ray])

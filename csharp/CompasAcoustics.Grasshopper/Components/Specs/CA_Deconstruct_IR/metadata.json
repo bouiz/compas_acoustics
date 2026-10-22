@@ -24,18 +24,22 @@
             },
             {
                 "name": "name",
+                "typeHintID": "str",
                 "description": "Name of the acoustic parameter (one per parameter when select is all)."
             },
             {
                 "name": "values",
+                "typeHintID": "float",
                 "description": "Values of the acoustic parameter, one per frequency band (one branch per parameter when select is all)."
             },
             {
                 "name": "overall",
+                "typeHintID": "float",
                 "description": "Overall value of the acoustic parameter (one per parameter when select is all)."
             },
             {
                 "name": "frequencies",
+                "typeHintID": "float",
                 "description": "Frequencies of the acoustic parameter."
             }
         ]

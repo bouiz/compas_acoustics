@@ -9,16 +9,16 @@ using Rhino.Geometry;
 
 namespace CompasAcoustics.Grasshopper
 {
-    public sealed record SourcePreview(Point3d Centre, Line Arrow, Polyline Lobe, string Label);
+    /// <summary>A source: a loudspeaker, a cube turned with it and a driver on the face toward its direction; its arrow and directivity lobe.</summary>
+    public sealed record SourcePreview(Point3d Centre, Line Arrow, Polyline Lobe, string Label, Line[] Cube, Point3d Driver, Vector3d Facing, double DriverRadius);
 
-    /// <summary>A receiver: a cube turned with it (a source is a sphere), its ears on the cube's sides, its facing and up.</summary>
-    public sealed record ReceiverPreview(Point3d Centre, Line Facing, Line Up, Point3d LeftEar, Point3d RightEar, Vector3d EarAxis, string Label, Line[] Cube);
+    /// <summary>A receiver: a head, a sphere with its ears on the sides, its facing and up (a source is a loudspeaker).</summary>
+    public sealed record ReceiverPreview(Point3d Centre, Line Facing, Line Up, Point3d LeftEar, Point3d RightEar, Vector3d EarAxis, string Label);
 
     /// <summary>One acoustic object: its mesh (or its polyline), its shade, whether it is an obstacle.</summary>
-    public sealed record ObjectPreview(Point3d[] Vertices, int[][] Faces, Polyline? Polyline, Color? Shade, bool Obstacle);
+    public sealed record ObjectPreview(Point3d[] Vertices, int[][] Faces, Polyline? Polyline, bool Obstacle);
 
-    public sealed record ScenePreview(IReadOnlyList<ObjectPreview> Objects, IReadOnlyList<SourcePreview> Sources, IReadOnlyList<ReceiverPreview> Receivers,
-        string Label, Point3d LabelAt, double Volume, double Area, BoundingBox Box);
+    public sealed record ScenePreview(IReadOnlyList<ObjectPreview> Objects, string Label, Point3d LabelAt, double Volume, double Area, BoundingBox Box);
 
     public sealed record PairPreview(Line Line, string Label);
 
@@ -65,7 +65,14 @@ namespace CompasAcoustics.Grasshopper
                 lobe.Add(centre + r * (Math.Cos(t) * direction + Math.Sin(t) * side));
             }
             lobe.Add(lobe[0]);
-            return new SourcePreview(centre, new Line(centre, centre + SourceArrow * direction), lobe, source.Name);
+            // the cube's up is world z, or x for a source facing up or down
+            var up = Vector3d.ZAxis - (Vector3d.ZAxis * direction) * direction;
+            up = up.Length < 1e-9 ? Vector3d.XAxis - (Vector3d.XAxis * direction) * direction : up;
+            up /= up.Length;
+            var left = Vector3d.CrossProduct(up, direction);
+            left /= left.Length;
+            return new SourcePreview(centre, new Line(centre, centre + SourceArrow * direction), lobe, source.Name,
+                Cube(centre, direction, left, up, SourceRadius), centre + SourceRadius * direction, direction, 0.6 * SourceRadius);
         }
 
         public static ReceiverPreview Receiver(ReceiverData receiver)
@@ -78,7 +85,7 @@ namespace CompasAcoustics.Grasshopper
             // the frame's y axis: z cross x, to the listener's left
             var y = Unit(Vector3d.CrossProduct(up, facing), Vector3d.YAxis);
             return new ReceiverPreview(centre, new Line(centre, centre + FacingArrow * facing), new Line(centre, centre + UpTick * up),
-                centre + HeadRadius * y, centre - HeadRadius * y, y, receiver.Name, Cube(centre, facing, y, up, HeadRadius));
+                centre + HeadRadius * y, centre - HeadRadius * y, y, receiver.Name);
         }
 
         /// <summary>The 12 edges of a cube of half-size ``h`` around ``centre``, along the axes ``x``, ``y``, ``z``.</summary>
@@ -107,18 +114,17 @@ namespace CompasAcoustics.Grasshopper
             return (vertices, faces);
         }
 
-        /// <summary>One acoustic object: its mesh or polyline, its shade, whether it is an obstacle.</summary>
+        /// <summary>One acoustic object: its mesh or polyline, whether it is an obstacle.</summary>
         public static ObjectPreview Object(AcousticObjectData o)
         {
             var obstacle = o.Role == "obstacle";
-            var shade = MaterialShade.Of(o.Material);
             if (o.GeometryCase == AcousticObjectData.GeometryOneofCase.Mesh)
             {
                 var (vertices, faces) = Mesh(o.Mesh);
-                return new ObjectPreview(vertices, faces, null, shade, obstacle);
+                return new ObjectPreview(vertices, faces, null, obstacle);
             }
             var polyline = o.GeometryCase == AcousticObjectData.GeometryOneofCase.Polyline ? new Polyline(MeshConversion.Points(o.Polyline.Points)) : null;
-            return new ObjectPreview(Array.Empty<Point3d>(), Array.Empty<int[]>(), polyline, shade, obstacle);
+            return new ObjectPreview(Array.Empty<Point3d>(), Array.Empty<int[]>(), polyline, obstacle);
         }
 
         public static ScenePreview Scene(SceneData scene)
@@ -161,16 +167,10 @@ namespace CompasAcoustics.Grasshopper
                     }
                 }
             }
-            var sources = scene.Sources.Select(Source).ToList();
-            var receivers = scene.Receivers.Select(Receiver).ToList();
-            foreach (var s in sources)
-                box.Union(new BoundingBox(s.Centre - new Vector3d(SourceArrow, SourceArrow, SourceArrow), s.Centre + new Vector3d(SourceArrow, SourceArrow, SourceArrow)));
-            foreach (var r in receivers)
-                box.Union(new BoundingBox(r.Centre - new Vector3d(FacingArrow, FacingArrow, FacingArrow), r.Centre + new Vector3d(FacingArrow, FacingArrow, FacingArrow)));
             volume = Math.Abs(volume);
             var label = string.Format(CultureInfo.InvariantCulture, "{0}, V {1:0} m3, S {2:0} m2", scene.Name, volume, area);
             var at = boundary.IsValid ? boundary.Center : box.IsValid ? box.Center : Point3d.Origin;
-            return new ScenePreview(objects, sources, receivers, label, at, volume, area, box);
+            return new ScenePreview(objects, label, at, volume, area, box);
         }
 
         /// <summary>A line from the source to the receiver of each response.</summary>
@@ -178,21 +178,5 @@ namespace CompasAcoustics.Grasshopper
             graph.Responses.Where(r => r.Value?.Source != null && r.Value.Receiver != null)
                 .Select(r => new PairPreview(new Line(Points.Of(r.Value.Source.Point), Points.Of(r.Value.Receiver.Point)), $"{r.SourceName} -> {r.ReceiverName}"))
                 .ToList();
-    }
-
-    /// <summary>The grey of a material in the scene preview: light for absorption 0, dark for 1, by the mean absorption.</summary>
-    public static class MaterialShade
-    {
-        public const int Light = 230;
-        public const int Dark = 60;
-
-        public static Color? Of(AcousticMaterialData? material)
-        {
-            if (material == null || material.AbsorptionCoefficients.Count == 0)
-                return null;
-            var mean = Math.Clamp(material.AbsorptionCoefficients.Average(), 0, 1);
-            var grey = (int)Math.Round(Light - (Light - Dark) * mean);
-            return Color.FromArgb(grey, grey, grey);
-        }
     }
 }

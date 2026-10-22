@@ -17,7 +17,13 @@ namespace CompasAcoustics.Grasshopper
         protected DisplayComponent(string key) : base(key) { }
 
         /// <summary>The drawing on and off on the body: the component's preview, as its right-click menu sets it.</summary>
-        protected static readonly SwitchControl PreviewSwitch = new("preview", new[] { "on", "off" });
+        protected static readonly ToggleControl PreviewSwitch = new("preview", "Preview");
+
+        /// <summary>Not the outputs: the component draws its rays, paths or particles itself (Rays' curves would show every ray before Play).</summary>
+        public override bool PreviewsOutput(IGH_Param output) => false;
+
+        /// <summary>What the Play button reads: Stop while the playback moves.</summary>
+        public static string PlayLabel(Playback playback) => playback.Running ? "Stop" : "Play";
 
         public override string Choice(string name) => name == PreviewSwitch.Port ? (Hidden ? "off" : "on") : base.Choice(name);
 
@@ -41,8 +47,6 @@ namespace CompasAcoustics.Grasshopper
                 global::Grasshopper.Instances.RedrawCanvas();
             }
         }
-
-        protected override bool DrawsInViewport => true;
 
         protected static BoundingBox BoxOf(IEnumerable<Point3d> points)
         {
@@ -143,10 +147,12 @@ namespace CompasAcoustics.Grasshopper
 
         public override IReadOnlyList<Control> Controls { get; } = new Control[]
         {
-            PreviewSwitch, new ButtonControl("play", "Play"), new ButtonControl("stop", "Stop"), new ButtonControl("rewind", "Rewind"),
+            PreviewSwitch, new ButtonControl("play", "Play"), new ButtonControl("rewind", "Rewind"),
         };
 
         public VisualiseRaysComponent() : base("CA_Visualise_Rays") { }
+
+        public override string? ButtonLabel(string port) => port == "play" ? PlayLabel(_playback) : null;
 
         /// <summary>How far the rays are drawn: nothing until Play, then as far as sound has travelled in ``timeMs``.</summary>
         public static double DrawnDistance(bool active, double timeMs, double speedOfSound) => active ? timeMs / 1000.0 * speedOfSound : 0.0;
@@ -199,11 +205,16 @@ namespace CompasAcoustics.Grasshopper
                 var rays = RayGeometry.FromField(shown);
                 // nothing until Play: all rays at once are a blur; Play draws them as far as sound has travelled, Stop holds them
                 var speedOfSound = Worker.SpeedOfSound;
-                if (Pressed("stop"))
+                // one button: Play, and Stop while playing (it holds the rays where they are)
+                var play = Pressed("play");
+                if (play && _playback.Running)
+                {
                     _playback.Stop();
+                    play = false;
+                }
                 if (Pressed("rewind"))
                     _playback.Rewind();
-                var frame = _playback.Update(null, Pressed("play"), null, rays.Select(r => r.TravelTimeMs(speedOfSound)).DefaultIfEmpty(0).Max());
+                var frame = _playback.Update(null, play, null, rays.Select(r => r.TravelTimeMs(speedOfSound)).DefaultIfEmpty(0).Max());
                 if (frame.Animating)
                     OnPingDocument()?.ScheduleSolution(FrameMs, document => ExpireSolution(false));
                 var distance = DrawnDistance(_playback.Active, frame.T, speedOfSound);
@@ -248,8 +259,10 @@ namespace CompasAcoustics.Grasshopper
 
         public override IReadOnlyList<Control> Controls { get; } = new Control[]
         {
-            PreviewSwitch, new ButtonControl("play", "Play"), new ButtonControl("stop", "Stop"), new ButtonControl("rewind", "Rewind"),
+            PreviewSwitch, new ButtonControl("play", "Play"), new ButtonControl("rewind", "Rewind"),
         };
+
+        public override string? ButtonLabel(string port) => port == "play" ? PlayLabel(_playback) : null;
 
         protected override void Clear() => _drawn.Clear();
 
@@ -265,11 +278,16 @@ namespace CompasAcoustics.Grasshopper
             Worker.EnsureStarted();
             var speedOfSound = Worker.SpeedOfSound;
             var rays = RayGeometry.Specular(field.Value);
-            if (Pressed("stop"))
+            // one button: Play, and Stop while playing (it holds the particles where they are)
+            var pressed = Pressed("play");
+            if (pressed && _playback.Running)
+            {
                 _playback.Stop();
+                pressed = false;
+            }
             if (Pressed("rewind"))
                 _playback.Rewind();
-            var frame = _playback.Update(Value<double>(access, "time"), Value<bool>(access, "play") == true || Pressed("play"), Value<double>(access, "speed"),
+            var frame = _playback.Update(Value<double>(access, "time"), Value<bool>(access, "play") == true || pressed, Value<double>(access, "speed"),
                 Particles.DurationMs(rays, speedOfSound));
             if (frame.Remark != null)
                 Remark(frame.Remark);

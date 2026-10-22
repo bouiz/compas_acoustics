@@ -17,7 +17,7 @@ namespace CompasAcoustics.Grasshopper
         public override GH_Exposure Exposure => GH_Exposure.hidden;
     }
 
-    /// <summary>A parameter whose data draw in the viewport (sources, receivers, scenes, IR graphs), with the preview toggle.</summary>
+    /// <summary>A parameter whose data draw in the viewport wherever they flow (IR graphs), with the preview toggle.</summary>
     public abstract class PreviewParam<T> : CompasAcousticsParam<T>, IGH_PreviewObject where T : class, IGH_Goo
     {
         protected PreviewParam(string name, string nickname, string description) : base(name, nickname, description) { }
@@ -34,12 +34,12 @@ namespace CompasAcoustics.Grasshopper
     }
 
     /// <summary>
-    /// A parameter whose data draw surfaces (acoustic objects, scenes): it draws them itself, with the component's preview
-    /// toggle; Grasshopper's generic parameters, which only draw IGH_PreviewData, pass them through without drawing.
+    /// A parameter of model data (sources, receivers, acoustic objects, scenes): it draws them itself, with the component's
+    /// preview toggle; Grasshopper's generic parameters, which only draw IGH_PreviewData, pass them through without drawing.
     /// </summary>
-    public abstract class SurfaceParam<T> : CompasAcousticsParam<T>, IGH_PreviewObject where T : class, IGH_Goo, ISurfacePreview
+    public abstract class OwnPreviewParam<T> : CompasAcousticsParam<T>, IGH_PreviewObject where T : class, IGH_Goo, IOwnPreview
     {
-        protected SurfaceParam(string name, string nickname, string description) : base(name, nickname, description) { }
+        protected OwnPreviewParam(string name, string nickname, string description) : base(name, nickname, description) { }
 
         public bool Hidden { get; set; }
 
@@ -66,11 +66,7 @@ namespace CompasAcoustics.Grasshopper
                 item.DrawWires(args.Display, Selected ? args.WireColour_Selected : args.WireColour, args.DefaultCurveThickness);
         }
 
-        public void DrawViewportMeshes(IGH_PreviewArgs args)
-        {
-            foreach (var item in Items)
-                item.DrawMeshes(args.Display, Selected ? args.ShadeMaterial_Selected : args.ShadeMaterial);
-        }
+        public void DrawViewportMeshes(IGH_PreviewArgs args) { }
     }
 
     public sealed class Param_Material : CompasAcousticsParam<MaterialGoo>
@@ -80,28 +76,28 @@ namespace CompasAcoustics.Grasshopper
         public override Guid ComponentGuid => new Guid("fcff26b1-3776-5d3f-813e-0e62f111eecc");
     }
 
-    public sealed class Param_Source : PreviewParam<SourceGoo>
+    public sealed class Param_Source : OwnPreviewParam<SourceGoo>
     {
         public Param_Source() : base("Source", "Src", "A sound source.") { }
 
         public override Guid ComponentGuid => new Guid("b24c8d47-d588-5fa4-9df0-8eff723964f9");
     }
 
-    public sealed class Param_Receiver : PreviewParam<ReceiverGoo>
+    public sealed class Param_Receiver : OwnPreviewParam<ReceiverGoo>
     {
         public Param_Receiver() : base("Receiver", "Rcv", "A receiver.") { }
 
         public override Guid ComponentGuid => new Guid("ebf79d87-17ed-521c-a252-07ea00963afd");
     }
 
-    public sealed class Param_AcousticObject : SurfaceParam<AcousticObjectGoo>
+    public sealed class Param_AcousticObject : OwnPreviewParam<AcousticObjectGoo>
     {
         public Param_AcousticObject() : base("Acoustic Object", "AObj", "A surface of the room or an obstacle, with its material.") { }
 
         public override Guid ComponentGuid => new Guid("b25b9536-0380-5708-bf77-580108d287b2");
     }
 
-    public sealed class Param_Scene : SurfaceParam<SceneGoo>
+    public sealed class Param_Scene : OwnPreviewParam<SceneGoo>
     {
         public Param_Scene() : base("Acoustic Scene", "Scene", "Acoustic objects, sources and receivers.") { }
 

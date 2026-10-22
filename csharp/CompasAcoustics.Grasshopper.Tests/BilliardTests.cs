@@ -82,17 +82,41 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void TheBilliardAndTheRays_HavePlayStopAndRewind_AndAllThreeAPreviewSwitch()
+        public void TheBilliardAndTheRays_HaveOnePlayStopButtonAndRewind_AndAllThreeAPreviewToggle()
         {
-            Assert.Equal(new[] { "play", "stop", "rewind" }, new VisualiseBilliardComponent().Controls.OfType<ButtonControl>().Select(b => b.Port));
-            Assert.Equal(new[] { "play", "stop", "rewind" }, new VisualiseRaysComponent().Controls.OfType<ButtonControl>().Select(b => b.Port));
+            Assert.Equal(new[] { "play", "rewind" }, new VisualiseBilliardComponent().Controls.OfType<ButtonControl>().Select(b => b.Port));
+            Assert.Equal(new[] { "play", "rewind" }, new VisualiseRaysComponent().Controls.OfType<ButtonControl>().Select(b => b.Port));
             var reflections = new VisualiseReflectionsComponent();
+            Assert.Contains(reflections.Controls, c => c is ToggleControl { Port: "preview" });
             Assert.True(reflections.IsChoice("preview"));
             reflections.SetChoice("preview", "off");
             Assert.True(reflections.Hidden);
             reflections.Hidden = false;
             Assert.Equal("on", reflections.Choice("preview"));
             Assert.True(new VisualiseBilliardComponent().IsChoice("preview") && new VisualiseRaysComponent().IsChoice("preview"));
+            // the drawing is the component's own: its curve outputs would draw every ray before Play
+            var rays = new VisualiseRaysComponent();
+            Assert.All(rays.Params.Output, p => Assert.False(rays.PreviewsOutput(p)));
+        }
+
+        [Fact]
+        public void ThePlayButton_ReadsStopWhilePlaying()
+        {
+            var p = Make();
+            Assert.False(p.Running);
+            _now = 0;
+            p.Update(null, true, 5.0, Duration);
+            _now = 1;
+            Assert.True(p.Running);
+            Assert.Equal("Stop", VisualiseBilliardComponent.PlayLabel(p));
+            p.Stop();
+            Assert.False(p.Running);
+            Assert.Equal("Play", VisualiseBilliardComponent.PlayLabel(p));
+            // a playback that has reached its end is not running
+            p.Update(null, true, 5.0, Duration);
+            _now = 100;
+            p.Update(null, false, 5.0, Duration);
+            Assert.False(p.Running);
         }
 
         [Fact]

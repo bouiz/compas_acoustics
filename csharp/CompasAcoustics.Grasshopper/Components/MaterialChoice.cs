@@ -95,8 +95,8 @@ namespace CompasAcoustics.Grasshopper
                 : hz.ToString("0", System.Globalization.CultureInfo.InvariantCulture);
         }
 
-        /// <summary>The compact chart of a material: a line per coefficient through a dot per band, the bands below, 0 and 1 beside.</summary>
-        public sealed record StripChart(RectangleF Plot, PointF[] Absorption, PointF[] Scattering, (float x, string text)[] Bands, (float y, string text)[] Values);
+        /// <summary>The compact chart of a material: its plot area, the bands below, 0 and 1 beside.</summary>
+        public sealed record StripChart(RectangleF Plot, (float x, string text)[] Bands, (float y, string text)[] Values);
 
         /// <summary>The compact chart in ``area``, ``labelWidth`` the width of the value labels on its left.</summary>
         public static StripChart Strip(IReadOnlyList<double> absorption, IReadOnlyList<double>? scattering, RectangleF area, float labelWidth)
@@ -106,8 +106,7 @@ namespace CompasAcoustics.Grasshopper
                 Math.Max(area.Height - ChartLayout.CompactTop - ChartLayout.CompactBottom, 1));
             var bands = Math.Max(Math.Max(absorption.Count, scattering?.Count ?? 0), 1);
             var step = plot.Width / bands;
-            PointF Point(double v, int i) => new(plot.Left + step * (i + 0.5f), plot.Bottom - (float)Math.Clamp(v, 0, 1) * plot.Height);
-            return new StripChart(plot, absorption.Select((v, i) => Point(v, i)).ToArray(), scattering?.Select((v, i) => Point(v, i)).ToArray() ?? Array.Empty<PointF>(),
+            return new StripChart(plot,
                 Enumerable.Range(0, bands).Select(i => (plot.Left + step * (i + 0.5f), Band(i))).ToArray(),
                 new[] { (plot.Bottom, "0"), (plot.Top, "1") });
         }

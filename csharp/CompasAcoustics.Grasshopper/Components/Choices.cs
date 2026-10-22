@@ -34,6 +34,9 @@ namespace CompasAcoustics.Grasshopper
                             case DropdownControl d:
                                 choices[d.Port] = d.Options;
                                 break;
+                            case ToggleControl t:
+                                choices[t.Port] = new[] { "on", "off" };
+                                break;
                         }
                 return choices;
             }

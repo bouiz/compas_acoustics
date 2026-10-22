@@ -51,6 +51,38 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.NotEqual(Guid.Empty, component.ComponentGuid);
         }
 
+        [Theory]
+        [MemberData(nameof(Components))]
+        public void AComponent_HasTypedOutputs_SoNothingDrawsThroughAGenericOne(string typeName)
+        {
+            // a generic output draws whatever previewable data passes through it
+            var component = Make(typeName);
+            Assert.Empty(component.Params.Output.Where(p => p is global::Grasshopper.Kernel.Parameters.Param_GenericObject).Select(p => p.Name));
+        }
+
+        /// <summary>The outputs each component draws in the viewport; every other component draws nothing (the Visualise ones draw themselves).</summary>
+        private static readonly Dictionary<string, string[]> Previewed = new()
+        {
+            ["SourceComponent"] = new[] { "source" },
+            ["ReceiverComponent"] = new[] { "receiver" },
+            ["AcousticObjectComponent"] = new[] { "acoustic_object" },
+            ["RoomSceneComponent"] = new[] { "scene" },
+            ["SimulatePyroomacousticsComponent"] = new[] { "mono_ir_graph" },
+            ["SimulateHybridComponent"] = new[] { "binaural_ir_graph", "ambisonic_ir_graph" },
+            ["DeconstructIrGraphComponent"] = new[] { "edges" },
+        };
+
+        [Theory]
+        [MemberData(nameof(Components))]
+        public void AComponent_IsDrawnLight_AndPreviewsOnlyWhatItShould(string typeName)
+        {
+            var component = Make(typeName);
+            // light, as every other: Grasshopper draws a component that cannot preview in the dark "preview off" grey
+            Assert.True(component.IsPreviewCapable);
+            var previewed = component.Params.Output.Where(component.PreviewsOutput).Where(p => p is IGH_PreviewObject).Select(p => p.Name);
+            Assert.Equal(Previewed.TryGetValue(typeName, out var expected) ? expected : Array.Empty<string>(), previewed);
+        }
+
         [Fact]
         public void Components_HaveDistinctGuids()
         {

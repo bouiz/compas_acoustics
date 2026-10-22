@@ -62,31 +62,18 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void AReceiver_IsACubeTurnedWithIt_NotASphereLikeASource()
+        public void ASource_IsALoudspeaker_ACubeTurnedWithItAndADriverOnItsFront()
         {
-            var preview = PreviewGeometry.Receiver(new ReceiverData { Name = "rec", Point = P(0, 0, 1.5), Direction = V(1, 1, 0) });
+            var preview = PreviewGeometry.Source(Source("cardioid", V(1, 1, 0)));
+            var centre = new Point3d(1, 2, 3);
+            var h = PreviewGeometry.SourceRadius;
             Assert.Equal(12, preview.Cube.Length);
-            Assert.All(preview.Cube, edge => Assert.Equal(2 * PreviewGeometry.HeadRadius, edge.Length, 9));
-            // turned with the receiver: an edge runs along its facing direction
+            Assert.All(preview.Cube, edge => Assert.Equal(2 * h, edge.Length, 9));
             var facing = new Vector3d(1, 1, 0) / Math.Sqrt(2);
             Assert.Contains(preview.Cube, edge => Math.Abs(Math.Abs((edge.To - edge.From) * facing) - edge.Length) < 1e-9);
-            Assert.All(preview.Cube, edge => Assert.True(edge.From.DistanceTo(new Point3d(0, 0, 1.5)) <= PreviewGeometry.HeadRadius * Math.Sqrt(3) + 1e-9));
-        }
-
-        [Fact]
-        public void MaterialShade_Interpolates()
-        {
-            AcousticMaterialData Absorbing(params double[] a)
-            {
-                var m = new AcousticMaterialData();
-                m.AbsorptionCoefficients.Add(a);
-                return m;
-            }
-            Assert.Equal(Color.FromArgb(230, 230, 230), MaterialShade.Of(Absorbing(0, 0, 0)));
-            Assert.Equal(Color.FromArgb(60, 60, 60), MaterialShade.Of(Absorbing(1, 1)));
-            Assert.Equal(Color.FromArgb(145, 145, 145), MaterialShade.Of(Absorbing(0.2, 0.8)));
-            Assert.Null(MaterialShade.Of(null));
-            Assert.Null(MaterialShade.Of(new AcousticMaterialData()));
+            // the driver: a circle on the face toward the source's direction
+            Assert.Equal(0, preview.Driver.DistanceTo(centre + h * facing), 9);
+            Assert.True(preview.DriverRadius > 0 && preview.DriverRadius < h);
         }
 
         internal static SceneData Room(bool obstacle = false)
@@ -116,9 +103,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal("room, V 105 m3, S 142 m2", preview.Label);
             Assert.Equal(new Point3d(3.5, 2.5, 1.5), preview.LabelAt);
             Assert.Equal(6, preview.Objects.Count);
-            Assert.All(preview.Objects, o => Assert.Equal(Color.FromArgb(145, 145, 145), o.Shade));
-            Assert.Single(preview.Sources);
-            Assert.Single(preview.Receivers);
         }
 
         [Fact]
@@ -129,28 +113,50 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(142, preview.Area, 9);
             var obstacle = preview.Objects.Last();
             Assert.True(obstacle.Obstacle);
-            Assert.Null(obstacle.Shade);
             Assert.Equal(new[] { 4 }, obstacle.Faces.Select(f => f.Length));
         }
 
         [Fact]
-        public void SurfacesDraw_OnlyFromTheirOwnParameters_NotFromMergeOrData()
+        public void ModelData_DrawOnlyFromTheirOwnParameters_NotFromMergeOrData()
         {
             // Grasshopper's generic parameters (Merge, Data) draw any data that is IGH_PreviewData
             Assert.False(typeof(global::Grasshopper.Kernel.IGH_PreviewData).IsAssignableFrom(typeof(AcousticObjectGoo)));
             Assert.False(typeof(global::Grasshopper.Kernel.IGH_PreviewData).IsAssignableFrom(typeof(SceneGoo)));
             Assert.True(typeof(global::Grasshopper.Kernel.IGH_PreviewObject).IsAssignableFrom(typeof(Param_AcousticObject)));
             Assert.True(typeof(global::Grasshopper.Kernel.IGH_PreviewObject).IsAssignableFrom(typeof(Param_Scene)));
-            // points and lines still draw wherever they flow, as Grasshopper's own do
-            Assert.True(typeof(global::Grasshopper.Kernel.IGH_PreviewData).IsAssignableFrom(typeof(SourceGoo)));
+            // nor sources and receivers: a Merge of sources drew them past the Source's preview toggle
+            Assert.False(typeof(global::Grasshopper.Kernel.IGH_PreviewData).IsAssignableFrom(typeof(SourceGoo)));
+            Assert.False(typeof(global::Grasshopper.Kernel.IGH_PreviewData).IsAssignableFrom(typeof(ReceiverGoo)));
+            Assert.True(typeof(global::Grasshopper.Kernel.IGH_PreviewObject).IsAssignableFrom(typeof(Param_Source)));
+            Assert.True(typeof(global::Grasshopper.Kernel.IGH_PreviewObject).IsAssignableFrom(typeof(Param_Receiver)));
         }
 
         [Fact]
-        public void AnAcousticObject_PreviewsItsShadedSurface()
+        public void ObjectsAndScenes_PreviewOnlyTheirEdges_NoSurfacesOverTheRhinoGeometry()
+        {
+            // a mesh on the very surface it was made from covers it and fights with it in depth
+            Assert.Null(typeof(IOwnPreview).GetMethod("DrawMeshes"));
+            Assert.Null(typeof(AcousticObjectGoo).GetMethod("DrawMeshes"));
+            Assert.Null(typeof(SceneGoo).GetMethod("DrawMeshes"));
+        }
+
+        [Fact]
+        public void SourcesAndReceivers_AreDrawnOnlyByTheirOwnComponents()
+        {
+            // the Source and Receiver previews switch them off; a scene or a graph drawing them again would not
+            Assert.Null(typeof(ScenePreview).GetProperty("Sources"));
+            Assert.Null(typeof(ScenePreview).GetProperty("Receivers"));
+            var graph = new DeconstructIrGraphComponent();
+            Assert.Equal(new[] { "edges" }, graph.Params.Output.Where(graph.PreviewsOutput).Select(p => p.Name));
+            var source = new SourceComponent();
+            Assert.All(source.Params.Output, p => Assert.True(source.PreviewsOutput(p)));
+        }
+
+        [Fact]
+        public void AnAcousticObject_PreviewsItsSurface()
         {
             var obj = Room(obstacle: true).AcousticObjects[0];
             var preview = new AcousticObjectGoo(obj).Preview!;
-            Assert.Equal(Color.FromArgb(145, 145, 145), preview.Shade);
             Assert.Equal(4, preview.Vertices.Length);
             Assert.False(preview.Obstacle);
             Assert.True(new AcousticObjectGoo(Room(obstacle: true).AcousticObjects.Last()).Preview!.Obstacle);

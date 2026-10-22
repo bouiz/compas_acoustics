@@ -35,6 +35,7 @@
         "outputParameters": [
             {
                 "name": "fitness",
+                "typeHintID": "float",
                 "description": "The fitness score, a lower value indicates better fitness."
             }
         ]

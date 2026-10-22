@@ -92,19 +92,23 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(new[] { "0.0", "0.2", "0.4", "0.6", "0.8", "1.0" }, MaterialChart.Ticks.Select(t => t.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)));
 
         [Fact]
-        public void TheStrip_IsALinePerCoefficient_WithTheBandsBelowAndZeroAndOneBeside()
+        public void TheStrip_HasThePickersPairedBars_WithTheBandsBelowAndZeroAndOneBeside()
         {
             var area = new RectangleF(0, 0, 140, 50);
             var strip = MaterialChart.Strip(new[] { 0.0, 0.5, 1.0 }, new[] { 0.2, 0.2, 0.2 }, area, labelWidth: 6);
             Assert.True(area.Contains(strip.Plot));
-            Assert.Equal(new[] { strip.Plot.Bottom, strip.Plot.Top + strip.Plot.Height / 2, strip.Plot.Top }, strip.Absorption.Select(p => p.Y));
-            Assert.Equal(3, strip.Scattering.Length);
-            var step = strip.Plot.Width / 3;
-            Assert.Equal(strip.Plot.Left + step / 2, strip.Absorption[0].X, 3);
+            var (absorption, scattering) = MaterialChart.PairedBars(new[] { 0.0, 0.5, 1.0 }, new[] { 0.2, 0.2, 0.2 }, strip.Plot);
+            Assert.Equal(new[] { 0f, strip.Plot.Height / 2, strip.Plot.Height }, absorption.Select(r => r.Height));
+            Assert.All(absorption.Concat(scattering), r => Assert.Equal(strip.Plot.Bottom, r.Bottom, 3));
+            // each band's pair sits on its label, absorption left of scattering
+            for (var i = 0; i < 3; i++)
+            {
+                Assert.Equal(absorption[i].Right, scattering[i].Left, 3);
+                Assert.Equal(strip.Bands[i].x, absorption[i].Right, 3);
+            }
             Assert.Equal(new[] { "125", "250", "500" }, strip.Bands.Select(b => b.text));
             Assert.Equal(new[] { "0", "1" }, strip.Values.Select(v => v.text));
             Assert.Equal((strip.Plot.Bottom, strip.Plot.Top), (strip.Values[0].y, strip.Values[1].y));
-            Assert.Empty(MaterialChart.Strip(new[] { 0.5 }, null, area, 6).Scattering);
         }
 
         [Fact]
