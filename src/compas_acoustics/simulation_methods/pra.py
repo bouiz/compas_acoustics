@@ -164,6 +164,9 @@ class Pyroomacoustics(SimulationMethod):
         _warn_if_the_search_is_slow(context.geometry, self.image_source_order)
         sources = [source_to_pra(source) for source in context.sources]
         mic_positions = np.array([receiver.position for receiver in context.receivers], dtype=float).T
+        from compas_acoustics.worker import jobs
+
+        jobs.progress("ray tracing" if self.ray_tracing else "image sources")
         if self.ray_tracing:
             responses = ray_traced_rirs(
                 context.geometry, sources, mic_positions, fs,
@@ -183,6 +186,7 @@ class Pyroomacoustics(SimulationMethod):
         rirs = {}
         for m, receiver in enumerate(context.receivers):
             for s, source in enumerate(context.sources):
+                jobs.progress("responses", m * len(context.sources) + s, len(context.sources) * len(context.receivers))
                 key = context.key(source, receiver)
                 rirs[key] = ImpulseResponse(
                     name=key, source=source, receiver=receiver, ir=responses[m][s], sampling_rate=fs,

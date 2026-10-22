@@ -31,33 +31,44 @@ which only pyFDN's training modules use; the hybrid method runs without them.
 
 ## Install in Rhino 8 / Grasshopper
 
+The Grasshopper components are a compiled plugin, `CompasAcoustics.gha` (C#, `csharp/`), for Rhino 8 on
+Windows and macOS. Everything they compute runs in the worker, a Python 3.12 with `compas_acoustics`; the plugin
+sends it scenes, responses and signals as [compas_pb](https://github.com/compas-dev/compas_pb) protobuf messages.
+
 `compas_acoustics` is not on PyPI yet. To install it in Rhino 8, use the Grasshopper installer:
 
-1. Run `invoke installer-bundle`. It creates `dist/compas_acoustics_installer.zip`.
+1. Run `invoke installer-bundle` (it needs the .NET 8 SDK). It creates `dist/compas_acoustics_installer.zip`:
+   the wheel, the plugin (`gha/`) and `compas_acoustics_installer.gh`.
    GitHub Actions also builds it: download it from the `compas_acoustics_installer` artifact of the build workflow, or from the release.
 2. Unzip it and open `compas_acoustics_installer.gh` in Grasshopper.
 3. Press **Install**. When the component says *Restart Rhino*, restart Rhino.
 
+The installer copies the plugin into Grasshopper's Libraries folder (`compas_acoustics/`), removes the CPython
+components of earlier versions, and creates the worker: a Python 3.12 environment made with `uv` (it installs
+PyTorch, several GB, the first time), recorded in `~/.compas_acoustics/worker.json`. Set the environment variable
+`COMPAS_ACOUSTICS_WORKER_PYTHON` to use another interpreter that has this version of `compas_acoustics`.
+
 Installer options:
 
-- `source`: path or download link of a `.whl` file. Empty: use the `.whl` file next to the `.gh` file.
-- `venv`: name of the Rhino script environment to install into. Empty: `default`. With another name, the installed components use that environment.
-- `worker`: empty or `hybrid`. See below.
+- `source`: path of the `.whl` file in the bundle. Empty: use the `.whl` file next to the `.gh` file. The plugin must be next to it, in `gha/`.
+- `venv`: name of the Rhino script environment that gets `compas_acoustics` too, for your own scripts. Empty: `default`.
+- `worker`: not used any more; the worker is always set up.
 
-Rhino 8 uses Python 3.9. With Python older than 3.11, the Speech Transmission Index (STI) and sound strength (G) are not available there: with a worker (below), the Analyse IR component computes them in the worker; without one, it leaves them out.
+### The worker
 
-### Python >= 3.11 features in Rhino 8: the worker
+The worker starts with the first component that needs it (a few seconds; half a minute the first time) and stops with
+Rhino. Every Rhino session starts its own, on a free port of `127.0.0.1`, and shares a random token with it: it answers
+`POST /api/<function>` of `compas_acoustics.worker.api` only with the token, takes and returns `compas_pb` payloads, and exits
+when Rhino ends or dies. It must run the same `compas_acoustics` version and protobuf schema as the plugin; otherwise the
+components say to run the installer again. A Python script can use the same worker through `compas_acoustics.worker.client()`.
 
-The hybrid method needs Python >= 3.11. Rhino 8 runs
-Python 3.9. With the installer's `worker` input set to `hybrid` (it installs PyTorch, several GB),
-the installer creates a second Python 3.12 environment with `uv` and records it in `~/.compas_acoustics/worker.json`. Set the environment variable
-`COMPAS_ACOUSTICS_WORKER_PYTHON` to use another interpreter that has `compas_acoustics`.
+### Using the components
 
-Simulate Hybrid and Analyse IR (for STI and G) then run those parts in the worker, a local [`compas.rpc`](https://compas.dev) server that
-starts on first use (a few seconds) and exchanges scenes as COMPAS JSON and audio as WAV files. Every Rhino session starts its own worker, on a free
-port of `127.0.0.1`, and shares a random token with it; the worker serves only `compas_acoustics.worker.api`, refuses calls without the token, reads and
-writes only in temporary folders made for the call, and exits when the session ends or dies. It checks that it runs the same code as Rhino's Python, and tells you
-to run the installer again if not. Without a worker nothing changes: the components run in Rhino's Python and report what is missing.
+Choices sit on the component bodies (switches, dropdowns, buttons); a wire into the same input wins over the control. The long
+runs (simulations, analysis, auralisation, rays) work in the background: the canvas stays responsive, the message shows the
+time and the worker's stage, and Cancel stops the run. Material Library opens a searchable picker on a click of its body;
+Plot 2D draws its charts on the canvas; the Audio Player shows the signal (an auralisation, a file, or an impulse response from Deconstruct IR Graph) and plays, pauses, seeks and sets the volume. The
+Worker component (06 Util) shows the worker's state and opens its log; every component's right-click menu has "Open worker log".
 
 ## Getting started
 
@@ -82,8 +93,15 @@ signal = ca.Auraliser("room", list(binaural.values()), anechoic_sounds=[speech])
 multichannel file for an ambisonic decoder elsewhere. There is no ambisonic-to-binaural or stereo decoder: for headphones,
 simulate binaurally with `Hybrid`.
 
-`examples/office_hybrid.py` runs both methods on an office, with reverberation times and an auralisation. The Grasshopper components are in
-`src/compas_acoustics_ghpython/components`; rebuild their user objects with `invoke build-cpython-ghuser-components`.
+`examples/office_hybrid.py` runs both methods on an office, with reverberation times and an auralisation.
+
+## Grasshopper plugin development
+
+The plugin is `csharp/CompasAcoustics.sln`: build it with `invoke build-gha` (or `dotnet build`), test it with
+`dotnet test csharp/CompasAcoustics.sln` (set `COMPAS_ACOUSTICS_WORKER_PYTHON` to run the tests against a real worker).
+Each component takes its names, descriptions, ports and icon from `csharp/CompasAcoustics.Grasshopper/Components/Specs/<CA_name>/`.
+After a change to `src/compas_acoustics/pb/protobuf_defs/.../acoustics.proto`, run `invoke generate` (Python and C# bindings)
+and `python tests/pb_fixtures/generate.py` (the payloads the C# tests read).
 
 ## Materials library
 

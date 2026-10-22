@@ -35,7 +35,7 @@ def scene():
 def no_configured_worker(monkeypatch, tmp_path):
     monkeypatch.delenv("COMPAS_ACOUSTICS_WORKER_PYTHON", raising=False)
     monkeypatch.setattr(worker, "CONFIG", tmp_path / "worker.json")
-    monkeypatch.setattr(worker, "_PROXY", None)
+    monkeypatch.setattr(worker, "_CLIENT", None)
 
 
 @pytest.fixture(autouse=True)
@@ -55,14 +55,14 @@ def private_home(monkeypatch, tmp_path):
 @pytest.fixture
 def running_worker(monkeypatch):
     monkeypatch.setenv("COMPAS_ACOUSTICS_WORKER_PYTHON", WORKER_PYTHON)
-    proxy = worker.proxy()
-    yield proxy
-    proxy.stop_server()
+    client = worker.client()
+    yield client
+    client.stop()
 
 
 def test_without_a_worker_everything_stays_local():
     assert worker.worker_python() is None
-    assert worker.proxy() is None
+    assert worker.client() is None
 
 
 def test_the_config_file_names_the_worker(tmp_path):
@@ -70,53 +70,83 @@ def test_the_config_file_names_the_worker(tmp_path):
     assert worker.worker_python() == (WORKER_PYTHON or __file__)
 
 
-def call(service, name, token, *args):
-    return json.loads(service._dispatch(name, [json.dumps({"args": [token, *args], "kwargs": {}})]))
+def call(function, *args, token="secret", authorization=None, **kwargs):
+    """The service's answer to a POST of ``function``, decoded: (status, payload)."""
+    from compas_pb import pb_dump_bts
+    from compas_pb import pb_load_bts
+
+    from compas_acoustics.worker.service import dispatch
+
+    header = authorization if authorization is not None else f"Bearer {token}"
+    status, body = dispatch("secret", header, function, pb_dump_bts({"args": list(args), "kwargs": kwargs}))
+    answer = pb_load_bts(body)
+    return status, answer["result"] if status == 200 else answer
 
 
 def test_the_service_only_dispatches_the_worker_api():
-    from compas_acoustics.worker.service import WorkerService
-
-    service = WorkerService("secret")
-    refused = call(service, "json.dumps", "secret", 1)
-    assert refused["data"] is None and "not part of the compas_acoustics worker API" in refused["error"]
-    nested = call(service, "compas_acoustics.worker.api.json.dumps", "secret", 1)
-    assert nested["data"] is None and "not part of the compas_acoustics worker API" in nested["error"]
-    allowed = call(service, "compas_acoustics.worker.api.info", "secret")
-    assert allowed["error"] is None and allowed["data"]["compas_acoustics"] == compas_acoustics.__version__
-    assert allowed["data"]["fingerprint"] == worker.fingerprint()
+    for function in ("dumps", "json", "_identity", "warnings", "importlib"):
+        status, answer = call(function)
+        assert status == 404 and "not part of the compas_acoustics worker API" in answer["error"]
+    status, answer = call("info")
+    assert status == 200 and answer["compas_acoustics"] == compas_acoustics.__version__
+    assert answer["fingerprint"] == worker.fingerprint()
 
 
-@pytest.mark.parametrize("token", ["wrong", "", None, 1])
-def test_the_service_refuses_calls_without_the_token(token):
-    from compas_acoustics.worker.service import WorkerService
+def test_info_names_the_schema_compas_pb_and_the_speed_of_sound():
+    import compas_pb
 
-    refused = call(WorkerService("secret"), "compas_acoustics.worker.api.info", token)
-    assert refused["data"] is None and refused["error"] == "Unauthorised."
-    bare = json.loads(WorkerService("secret")._dispatch("compas_acoustics.worker.api.info", ['{"args": [], "kwargs": {}}']))
-    assert bare["data"] is None and bare["error"] == "Unauthorised."
+    import compas_acoustics.pb
+    from compas_acoustics import Defaults
+
+    _, answer = call("info")
+    assert answer["schema"] == compas_acoustics.pb.SCHEMA
+    assert answer["compas_pb"] == compas_pb.__version__
+    assert answer["speed_of_sound"] == Defaults().DEFAULT_SPEED_OF_SOUND
+
+
+@pytest.mark.parametrize("authorization", ["Bearer wrong", "Bearer ", "", "secret", "Basic secret"])
+def test_the_service_refuses_calls_without_the_token(authorization):
+    status, answer = call("info", authorization=authorization)
+    assert status == 401 and answer == {"error": "Unauthorised."}
+
+
+def test_a_body_that_is_not_a_compas_pb_payload_is_a_400():
+    from compas_pb import pb_load_bts
+
+    from compas_acoustics.worker.service import dispatch
+
+    status, body = dispatch("secret", "Bearer secret", "info", b"not protobuf")
+    assert status == 400 and "compas_pb" in pb_load_bts(body)["error"]
+
+
+def test_a_value_error_in_the_api_is_a_400_with_its_message():
+    status, answer = call("simulate", scene(), "nonsense", {})
+    assert status == 400 and answer["error"] == "Unknown method 'nonsense': 'hybrid' or 'pyroomacoustics'."
+
+
+def test_an_unexpected_error_is_a_500_with_a_traceback(monkeypatch):
+    from compas_acoustics.worker import api
+
+    def broken():
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(api, "info", broken)
+    status, answer = call("info")
+    assert status == 500 and "Traceback" in answer["error"] and answer["error"].rstrip().endswith("RuntimeError: boom")
+
+
+def test_results_travel_as_compas_pb_with_numpy_made_plain():
+    status, answer = call("simulate", scene(), "pyroomacoustics", {"image_source_order": 1, "ray_tracing": False})
+    assert status == 200
+    (attribute, responses), = answer["responses"].items()
+    ir = next(iter(responses.values()))
+    assert attribute == "pyroomacoustics" and ir.denormalized().ndim == 1
+    assert isinstance(answer["warnings"], list)
 
 
 def test_the_fingerprint_follows_the_sources(tmp_path):
     assert worker.fingerprint() == worker.fingerprint()
     assert len(worker.fingerprint()) == 64
-
-
-def test_the_api_reads_and_writes_only_in_worker_folders(tmp_path):
-    from compas_acoustics.worker import api
-
-    inside = worker._folder()
-    assert api._worker_folder(inside) == inside.resolve()
-    assert api._worker_file(inside / "a.wav") == inside.resolve() / "a.wav"
-    for outside in (tmp_path, tmp_path / "compas_acoustics_worker_x", Path.home(), inside / "nested", inside.parent):
-        with pytest.raises(ValueError, match="not a compas_acoustics worker folder"):
-            api._worker_folder(outside)
-    with pytest.raises(ValueError, match="not a compas_acoustics worker folder"):
-        api._worker_file(tmp_path / "a.wav")
-    with pytest.raises(ValueError, match="not a compas_acoustics worker folder"):
-        api.simulate(scene(), "pyroomacoustics", {}, None, str(tmp_path))
-    with pytest.raises(ValueError, match="not a compas_acoustics worker folder"):
-        api.analyse(str(tmp_path / "ir.wav"))
 
 
 def test_a_process_is_alive_until_it_exits():
@@ -134,13 +164,13 @@ def test_a_process_is_alive_until_it_exits():
 def test_stopping_the_running_workers_shuts_them_down_and_forgets_them(tmp_path):
     import threading
 
-    from compas.rpc import Server
+    from compas_acoustics.worker.service import WorkerService
 
-    server = Server(("127.0.0.1", 0))
+    server = WorkerService(("127.0.0.1", 0), "secret")
     thread = threading.Thread(target=server.serve_forever)
     thread.start()
-    (tmp_path / "1.json").write_text(json.dumps({"pid": 1, "port": server.server_address[1]}))
-    (tmp_path / "2.json").write_text(json.dumps({"pid": 2, "port": 1}))
+    (tmp_path / "1.json").write_text(json.dumps({"pid": 1, "port": server.server_address[1], "token": "secret"}))
+    (tmp_path / "2.json").write_text(json.dumps({"pid": 2, "port": 1, "token": "x"}))
     worker.stop_running_workers(tmp_path)
     thread.join(timeout=5)
     assert not thread.is_alive()
@@ -172,11 +202,18 @@ def test_the_service_listens_on_localhost_only(running_worker):
 
 @needs_worker
 def test_the_running_worker_refuses_a_caller_without_the_token(running_worker):
-    from xmlrpc.client import ServerProxy
+    import urllib.error
+    import urllib.request
 
-    server = ServerProxy(f"http://127.0.0.1:{running_worker.port}")
-    answer = json.loads(server.compas_acoustics.worker.api.info('{"args": [], "kwargs": {}}'))
-    assert answer["data"] is None and answer["error"] == "Unauthorised."
+    from compas_pb import pb_dump_bts
+
+    request = urllib.request.Request(f"http://127.0.0.1:{running_worker.port}/api/info", data=pb_dump_bts({"args": [], "kwargs": {}}),
+                                     method="POST", headers={"Content-Type": "application/x-protobuf"})
+    with pytest.raises(urllib.error.HTTPError) as refused:
+        urllib.request.urlopen(request, timeout=5)
+    assert refused.value.code == 401
+    with urllib.request.urlopen(f"http://127.0.0.1:{running_worker.port}/ping", timeout=5) as pong:
+        assert pong.status == 200
     assert running_worker.info()["compas_acoustics"] == compas_acoustics.__version__
 
 
@@ -187,7 +224,7 @@ def test_the_worker_records_itself_and_is_forgotten_when_stopped(running_worker)
     records = list(worker.WORKERS.glob("*.json"))
     mine = [json.loads(r.read_text()) for r in records]
     assert any(m["port"] == running_worker.port for m in mine)
-    running_worker.stop_server()
+    running_worker.stop()
     for _ in range(50):
         if not any(json.loads(r.read_text())["port"] == running_worker.port for r in worker.WORKERS.glob("*.json")):
             break
@@ -203,12 +240,12 @@ def test_the_worker_starts_without_the_clients_python_path(tmp_path, monkeypatch
     (poisoned / "__init__.py").write_text("raise ImportError('the client PYTHONPATH reached the worker')\n")
     monkeypatch.setenv("PYTHONPATH", str(tmp_path))
     monkeypatch.setenv("COMPAS_ACOUSTICS_WORKER_PYTHON", WORKER_PYTHON)
-    proxy = worker.proxy()
+    client = worker.client()
     try:
-        assert proxy.info()["compas_acoustics"] == compas_acoustics.__version__
+        assert client.info()["compas_acoustics"] == compas_acoustics.__version__
         assert os.environ["PYTHONPATH"] == str(tmp_path)
     finally:
-        proxy.stop_server()
+        client.stop()
 
 
 @needs_worker
@@ -250,77 +287,152 @@ def test_simulate_stores_every_hybrid_output(running_worker):
         assert ir.n_channels == 2 and ir.generation["output"] == "binaural" and ir.generation["hrtf"]
 
 
-def test_the_api_returns_the_responses_of_every_output_by_attribute(tmp_path, monkeypatch):
+def test_the_api_returns_the_responses_of_every_output_by_attribute():
     pytest.importorskip("pyFDN")
+    from compas_acoustics import ImpulseResponse
     from compas_acoustics.worker import api
 
-    monkeypatch.setattr(api, "_worker_folder", lambda path: Path(path))
-    result = api.simulate(scene(), "hybrid", {"tail": "eyring", "output": ["binaural", "ambisonic"]}, None, str(tmp_path))
-    assert list(result["responses"]) == ["hybrid_binaural", "hybrid"]
-    assert all(len(paths) == 1 for paths in result["responses"].values())
-    result = api.simulate(scene(), "pyroomacoustics", {"image_source_order": 1, "ray_tracing": False}, None, str(tmp_path))
+    result = api.simulate(scene(), "hybrid", {"tail": "eyring", "output": ["binaural", "ambisonic"]})
+    assert list(result["responses"]) == ["hybrid_binaural", "hybrid"] == result["formats"]
+    assert all(len(irs) == 1 for irs in result["responses"].values())
+    assert all(isinstance(ir, ImpulseResponse) for irs in result["responses"].values() for ir in irs.values())
+    result = api.simulate(scene(), "pyroomacoustics", {"image_source_order": 1, "ray_tracing": False})
     assert list(result["responses"]) == ["pyroomacoustics"]
 
 
-class FakeProxy:
+def test_references_reach_the_method_as_responses():
+    from compas_acoustics.simulation_methods import SimulationContext
+    from compas_acoustics.worker import api
+
+    s = scene()
+    reference = s.simulate(Pyroomacoustics(image_source_order=1, ray_tracing=False))
+    key = next(iter(reference))
+    assert key == SimulationContext.key(s.sources[0], s.receivers[0])
     seen = {}
-    fingerprint = None
 
-    def __init__(self, **kwargs):
-        type(self).seen = dict(kwargs, token=os.environ.get(worker.TOKEN_VARIABLE), parent=os.environ.get(worker.PARENT_VARIABLE),
-                               pythonpath=os.environ.get("PYTHONPATH"))
-        self.stopped = False
+    class Recording(Pyroomacoustics):
+        def __init__(self, reference=None, **kwargs):
+            seen["reference"] = reference
+            super().__init__(**kwargs)
 
-    def info(self, token):
-        return {"compas_acoustics": compas_acoustics.__version__, "fingerprint": self.fingerprint or worker.fingerprint()}
+    api.METHODS["recording"] = Recording
+    try:
+        api.simulate(s, "recording", {"image_source_order": 1, "ray_tracing": False}, reference)
+    finally:
+        del api.METHODS["recording"]
+    assert list(seen["reference"]) == [key]
+    np.testing.assert_array_equal(seen["reference"][key].denormalized(), reference[key].denormalized())
 
-    def stop_server(self):
-        self.stopped = True
+
+class FakeProcess:
+    def __init__(self):
+        self.killed = False
+
+    def poll(self):
+        return None
+
+    def kill(self):
+        self.killed = True
+
+    def wait(self, timeout=None):
+        return 0
+
+
+class FakeWorker:
+    """Stands in for the worker process and its HTTP service."""
+
+    def __init__(self):
+        self.spawned = []
+        self.version = compas_acoustics.__version__
+        self.fingerprint = None
+        self.pings_before_up = 0
+        self.shutdowns = 0
+
+    def spawn(self, python, port, env, log):
+        self.spawned.append({"python": python, "port": port, "env": dict(env)})
+        self.process = FakeProcess()
+        return self.process
+
+    def send(self, client, path, body=b"", authorize=True, headers=None):
+        from compas_pb import pb_dump_bts
+
+        if path == "/ping":
+            if self.pings_before_up:
+                self.pings_before_up -= 1
+                raise ConnectionRefusedError()
+            return 200, b"pong"
+        if path == "/shutdown":
+            self.shutdowns += 1
+            return 200, b""
+        assert path == "/api/info"
+        return 200, pb_dump_bts({"result": {"compas_acoustics": self.version, "fingerprint": self.fingerprint or worker.fingerprint()}})
 
 
 @pytest.fixture
-def fake_proxy(monkeypatch):
-    import compas.rpc
-
-    monkeypatch.setattr(compas.rpc, "Proxy", FakeProxy)
+def fake_worker(monkeypatch):
+    fake = FakeWorker()
+    monkeypatch.setattr(worker, "_spawn", fake.spawn)
+    monkeypatch.setattr(worker.Client, "_send", lambda self, path, body=b"", authorize=True, headers=None: fake.send(self, path, body, authorize))
+    monkeypatch.setattr(worker, "PING_SECONDS", 0)
     monkeypatch.setenv("COMPAS_ACOUSTICS_WORKER_PYTHON", __file__)
     monkeypatch.setattr(worker.atexit, "register", lambda *a, **k: None)
-    FakeProxy.fingerprint = None
-    return FakeProxy
+    return fake
 
 
-def test_a_cold_worker_gets_time_to_start(fake_proxy):
-    # The first start of a fresh environment imports the scientific stack uncached: 30 s measured, past compas.rpc's 10 s
-    assert worker.proxy() is not None
-    assert fake_proxy.seen["max_conn_attempts"] * 0.1 >= 60
+def test_a_cold_worker_gets_time_to_start(fake_worker):
+    # The first start of a fresh environment imports the scientific stack uncached: 30 s measured
+    assert worker.CONNECTION_ATTEMPTS * 0.1 >= 60
+    fake_worker.pings_before_up = 5
+    assert worker.client() is not None
 
 
-def test_each_session_starts_its_own_worker_on_a_free_port_with_a_token(fake_proxy, monkeypatch):
+def test_each_session_starts_its_own_worker_on_a_free_port_with_a_token(fake_worker, monkeypatch):
     monkeypatch.setenv("PYTHONPATH", "/rhino/site-packages")
-    first = worker.proxy()
-    seen = dict(fake_proxy.seen)
-    assert seen["port"] == first.port and 0 < seen["port"] < 65536 and seen["port"] != 1753
-    assert len(seen["token"]) == 32 and seen["parent"] == str(os.getpid())
-    assert seen["pythonpath"] is None
+    monkeypatch.setenv("PYTHONHOME", "/rhino/home")
+    first = worker.client()
+    seen = fake_worker.spawned[-1]
+    assert seen["port"] == first.port and 0 < seen["port"] < 65536
+    env = seen["env"]
+    assert len(env[worker.TOKEN_VARIABLE]) == 32 and env[worker.PARENT_VARIABLE] == str(os.getpid())
+    assert "PYTHONPATH" not in env and "PYTHONHOME" not in env
     assert os.environ["PYTHONPATH"] == "/rhino/site-packages"
     assert worker.TOKEN_VARIABLE not in os.environ and worker.PARENT_VARIABLE not in os.environ
-    worker._PROXY = None
-    worker.proxy()
-    assert fake_proxy.seen["token"] != seen["token"]
+    worker._CLIENT = None
+    worker.client()
+    assert fake_worker.spawned[-1]["env"][worker.TOKEN_VARIABLE] != env[worker.TOKEN_VARIABLE]
 
 
-def test_a_worker_with_other_sources_is_refused_and_stopped(fake_proxy):
-    fake_proxy.fingerprint = "0" * 64
+def test_a_worker_with_other_sources_is_refused_and_stopped(fake_worker):
+    fake_worker.fingerprint = "0" * 64
     with pytest.raises(RuntimeError, match="run the installer again"):
-        worker.proxy()
-    assert worker._PROXY is None
+        worker.client()
+    assert worker._CLIENT is None
+    assert fake_worker.shutdowns == 1
 
 
-def test_stop_stops_this_sessions_worker_once(fake_proxy):
-    started = worker.proxy()
+def test_a_worker_that_dies_while_starting_says_so(fake_worker, monkeypatch):
+    fake_worker.pings_before_up = 10**6
+    monkeypatch.setattr(FakeProcess, "poll", lambda self: 1)
+    with pytest.raises(RuntimeError, match="exited"):
+        worker.client()
+
+
+def test_stop_stops_this_sessions_worker_once(fake_worker):
+    worker.client()
     worker.stop()
-    assert started._proxy.stopped and worker._PROXY is None
+    assert fake_worker.shutdowns == 1 and worker._CLIENT is None
     worker.stop()
+    assert fake_worker.shutdowns == 1
+
+
+def test_an_error_answer_raises_a_worker_error_with_its_text(fake_worker, monkeypatch):
+    from compas_pb import pb_dump_bts
+
+    started = worker.client()
+    monkeypatch.setattr(worker.Client, "_send", lambda self, path, body=b"", authorize=True, headers=None: (400, pb_dump_bts({"error": "bad input"})))
+    with pytest.raises(worker.WorkerError, match="bad input") as error:
+        started.simulate(scene(), "x", {})
+    assert error.value.status == 400
 
 
 def test_the_worker_install_runs_its_python_without_the_callers_pythonpath(monkeypatch, tmp_path):
@@ -345,7 +457,7 @@ def response():
 
 @needs_sti
 def test_without_a_worker_the_analysis_stays_here(monkeypatch):
-    monkeypatch.setattr(worker, "proxy", lambda: pytest.fail("no worker is configured"))
+    monkeypatch.setattr(worker, "client", lambda: pytest.fail("no worker is configured"))
     analyser, messages = worker.analyse(response())
     assert messages == [] and np.isfinite(analyser.analysis_data["STI_overall"]) and np.isfinite(analyser.analysis_data["G_overall"])
 
@@ -366,21 +478,21 @@ def test_sti_and_g_come_from_the_worker_where_pyrato_cannot_compute_them(monkeyp
     monkeypatch.setattr(worker, "_pyrato_has_parameters", lambda: False)
     monkeypatch.setattr(analysis, "_STI_SUPPORTED", False)
     monkeypatch.setattr(worker, "worker_python", lambda: "python3.12")
-    paths = []
+    sent = []
 
-    def in_the_worker(path):
+    def in_the_worker(response):
         # the worker's own Python 3.12, with pyrato >= 1.0
-        paths.append(path)
+        sent.append(response)
         with monkeypatch.context() as there:
             there.setattr(analysis, "_STI_SUPPORTED", True)
-            return api.analyse(path)
+            return api.analyse(response)
 
-    monkeypatch.setattr(worker, "proxy", lambda: types.SimpleNamespace(analyse=in_the_worker))
+    monkeypatch.setattr(worker, "client", lambda: types.SimpleNamespace(analyse=in_the_worker))
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         analyser, messages = worker.analyse(ir)
     assert not [w for w in caught if "STI is not available" in str(w.message)]
-    assert len(paths) == 1 and api._worker_file(paths[0])
+    assert sent == [ir]
     for name in ("STI", "G"):
         assert analyser.analysis_data[name] == pytest.approx(here.analysis_data[name], abs=0.01)
         assert analyser.analysis_data[f"{name}_overall"] == pytest.approx(here.analysis_data[f"{name}_overall"], abs=0.01)
@@ -407,10 +519,10 @@ def test_the_worker_computes_only_sti_and_g(monkeypatch):
     from compas_acoustics import AcousticAnalyser
     from compas_acoustics.worker import api
 
-    path, _ = response().to_wav(worker._folder() / "ir.wav")
+    ir = response()
     for name in ("reverberation_times", "clarity_definition", "direct_to_reverberant_ratio", "center_time"):
         monkeypatch.setattr(AcousticAnalyser, name, lambda *args, **kwargs: pytest.fail("the client computes these itself"))
-    assert set(api.analyse(str(path))["analysis"]) == {"STI", "STI_overall", "G", "G_overall"}
+    assert set(api.analyse(ir)["analysis"]) == {"STI", "STI_overall", "G", "G_overall"}
 
 
 @pytest.mark.parametrize("settings, normalized", [({}, True), ({"normalize": True}, True), ({"normalize": False}, False)])
@@ -419,7 +531,7 @@ def test_responses_from_the_worker_keep_the_methods_normalize(monkeypatch, setti
 
     from compas_acoustics.worker import api
 
-    monkeypatch.setattr(worker, "proxy", lambda: types.SimpleNamespace(simulate=api.simulate))
+    monkeypatch.setattr(worker, "client", lambda: types.SimpleNamespace(simulate=api.simulate))
     s = scene()
     here = s.simulate(Pyroomacoustics(image_source_order=2, ray_tracing=False))
     there, _ = worker.simulate(s, "pyroomacoustics", dict(settings, image_source_order=2, ray_tracing=False))
@@ -441,3 +553,161 @@ def test_the_worker_installs_the_wheel_and_nothing_else(monkeypatch, tmp_path):
         installs = [command[5:] for command in calls if command[:3] == ["uv", "pip", "install"]]
         assert installs == [[f"compas_acoustics @ {(tmp_path / 'compas_acoustics.whl').resolve().as_uri()}"]]
 
+
+
+def test_an_empty_or_zero_result_still_travels(monkeypatch):
+    from compas_acoustics.worker import api
+
+    for value in ([], {}, 0, 0.0, None, ""):
+        monkeypatch.setattr(api, "info", lambda value=value: value)
+        status, answer = call("info")
+        assert status == 200 and answer == value
+
+
+# ---------------------------------------------------------------------------
+# Call ids, cancellation and progress (Grasshopper UI plan, Task 1)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def service():
+    """An in-process service on a free port, answering only the token ``secret``."""
+    import threading
+
+    from compas_acoustics.worker.service import WorkerService
+
+    server = WorkerService(("127.0.0.1", 0), "secret")
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    yield worker.Client(server.server_address[1], "secret")
+    server.shutdown()
+    server.server_close()
+
+
+def test_jobs_record_progress_and_cancel():
+    from compas_acoustics.worker import jobs
+
+    jobs.progress("outside a job")  # a no-op without a job
+    jobs.start("a")
+    try:
+        jobs.progress("x", 1, 3)
+        assert jobs.status("a") == {"stage": "x", "done": 1, "of": 3, "cancelled": False}
+        assert jobs.cancel("a") is True
+        with pytest.raises(jobs.Cancelled):
+            jobs.progress("y")
+        with pytest.raises(jobs.Cancelled):
+            jobs.check()
+    finally:
+        jobs.finish("a")
+    assert jobs.status("a") is None
+    assert jobs.cancel("a") is False
+
+
+def test_a_call_id_gets_progress_and_is_forgotten_after_the_answer(service, monkeypatch):
+    import threading
+    import time
+
+    from compas_acoustics.worker import api
+    from compas_acoustics.worker import jobs
+
+    release = threading.Event()
+
+    def slow():
+        jobs.progress("x", 1, 3)
+        release.wait(5)
+        return "done"
+
+    monkeypatch.setattr(api, "info", slow)
+    answer = {}
+    thread = threading.Thread(target=lambda: answer.setdefault("result", service.call("info", call_id="job-1")))
+    thread.start()
+    for _ in range(100):
+        if service.progress("job-1"):
+            break
+        time.sleep(0.02)
+    assert service.progress("job-1") == {"stage": "x", "done": 1, "of": 3, "cancelled": False}
+    release.set()
+    thread.join(5)
+    assert answer["result"] == "done"
+    assert service.progress("job-1") is None
+
+
+def test_a_cancelled_call_answers_499_and_stops_at_the_next_stage(service, monkeypatch):
+    import threading
+    import time
+
+    from compas_acoustics.worker import api
+    from compas_acoustics.worker import jobs
+
+    reached = []
+
+    def long():
+        for i in range(500):
+            jobs.progress("step", i, 500)
+            reached.append(i)
+            time.sleep(0.01)
+        return "finished"
+
+    monkeypatch.setattr(api, "info", long)
+    errors = []
+
+    def run():
+        try:
+            service.call("info", call_id="job-2")
+        except worker.WorkerError as e:
+            errors.append(e)
+
+    thread = threading.Thread(target=run)
+    thread.start()
+    while len(reached) < 5:
+        time.sleep(0.01)
+    assert service.cancel("job-2") is True
+    thread.join(5)
+    assert errors and errors[0].status == 499 and str(errors[0]) == "cancelled"
+    assert len(reached) < 500
+
+
+def test_cancel_of_an_unknown_id_is_false(service):
+    assert service.cancel("nobody") is False
+
+
+def test_progress_and_cancel_need_the_token(service):
+    status, _ = worker._request(service.port, "/cancel/x", token="wrong")
+    assert status == 401
+    status, _ = worker._request(service.port, "/progress/x", body=None, token="wrong")
+    assert status == 401
+
+
+def test_a_call_without_an_id_runs_as_before(service):
+    assert service.call("info")["compas_acoustics"] == compas_acoustics.__version__
+
+
+def recorded_stages(monkeypatch):
+    from compas_acoustics.worker import jobs
+
+    stages = []
+    monkeypatch.setattr(jobs, "progress", lambda stage, done=None, of=None: stages.append(stage))
+    return stages
+
+
+def test_the_hybrid_reports_its_stages(monkeypatch):
+    pytest.importorskip("pyFDN")
+    from compas_acoustics.simulation_methods import Hybrid
+
+    stages = recorded_stages(monkeypatch)
+    scene().simulate(Hybrid(tail="eyring", late_envelope=False))
+    assert [s for s in dict.fromkeys(stages)] == ["references", "image sources", "rendering"]
+
+
+def test_pyroomacoustics_reports_its_stages(monkeypatch):
+    stages = recorded_stages(monkeypatch)
+    scene().simulate(Pyroomacoustics(image_source_order=1, ray_tracing=False))
+    assert list(dict.fromkeys(stages)) == ["image sources", "responses"]
+
+
+def test_the_ray_field_reports_each_source(monkeypatch):
+    from compas_acoustics import RayField
+
+    stages = recorded_stages(monkeypatch)
+    RayField.from_scene(scene(), n_rays=5, max_reflection_order=1)
+    assert stages == ["tracing"]

@@ -1,0 +1,43 @@
+{
+    "name": "Deconstruct Parameter",
+    "nickname": "DeParam",
+    "category": "COMPAS Acoustics",
+    "subcategory": "03 Analysis",
+    "description": "Deconstruct acoustic parameters. Connect the parameters of Analyse Impulse Response and choose on the body which to take: all of them (a branch each), or one by name (EDT, T20, T30, C50, C80, D50, DRR, Ts, STI, G), which gives it as a parameter for Plot 2D or a panel, and its name, values, frequencies and overall value as plain lists.",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "parameters",
+                "description": "AcousticParameter (AP) objects, e.g. the parameters of Analyse Impulse Response.",
+                "optional": false,
+                "scriptParamAccess": 1,
+                "typeHintID": "ghdoc"
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "parameter",
+                "description": "The selected AcousticParameter (AP) object(s): connect Plot 2D to plot it, or a panel to print its values per band and overall value."
+            },
+            {
+                "name": "name",
+                "description": "Name of the acoustic parameter (one per parameter when select is all)."
+            },
+            {
+                "name": "values",
+                "description": "Values of the acoustic parameter, one per frequency band (one branch per parameter when select is all)."
+            },
+            {
+                "name": "overall",
+                "description": "Overall value of the acoustic parameter (one per parameter when select is all)."
+            },
+            {
+                "name": "frequencies",
+                "description": "Frequencies of the acoustic parameter."
+            }
+        ]
+    }
+}

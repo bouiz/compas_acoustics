@@ -1,4 +1,6 @@
 compas >=2.13, <3.0
+# Data types as protobuf messages (compas_acoustics.pb): the worker's wire format
+compas_pb >=1.2, <2.0
 pyroomacoustics >=0.10.1
 matplotlib >=3.10, <4.0; python_version >= "3.10"
 matplotlib >=3.7, <4.0; python_version < "3.10"

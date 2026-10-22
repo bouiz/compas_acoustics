@@ -296,11 +296,15 @@ class Hybrid(SimulationMethod):
             return {}
 
         _warn_if_the_search_is_slow(geometry, self.image_source_order)
+        from compas_acoustics.worker import jobs
+
+        jobs.progress("references")
         references, air_absorption, air, description = self._references(context)
         self.reference_rirs = references
 
         # With ray tracing on, pyroomacoustics' image damping holds prod sqrt(1 - s): the specular parts.
         # The same search in the room scattering 1 - s gives the scattered parts (complementary_scattering).
+        jobs.progress("image sources")
         rooms = [geometry.to_pra(fs, self.image_source_order, ray_tracing=self.scattering, air_absorption=False, air=air)]
         if self.scattering:
             rooms.append(complementary_scattering(geometry).to_pra(
@@ -358,6 +362,7 @@ class Hybrid(SimulationMethod):
             from compas_acoustics.hybrid.late import fdn_directions
             from compas_acoustics.simulation_methods.raytracing import directional_histograms
 
+            jobs.progress("directional histograms")
             grid = fdn_directions(self.sh_order, num_delays).cartesian
             grid = grid / np.linalg.norm(grid, axis=1, keepdims=True)
             tracer = Pyroomacoustics(ray_tracing=True)
@@ -384,6 +389,7 @@ class Hybrid(SimulationMethod):
                 else directivity_to_pra(source.directivity, source.direction)
             )
             for m, receiver in enumerate(context.receivers):
+                jobs.progress("rendering", s * len(context.receivers) + m, len(context.sources) * len(context.receivers))
                 key = context.key(source, receiver)
                 spec = Pair(
                     geometry=geometry,

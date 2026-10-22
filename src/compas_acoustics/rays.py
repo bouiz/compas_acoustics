@@ -466,8 +466,11 @@ class RayField(_PackageDtype, Data):
 
         distance_thres = _distance(time_thres * 1000.0) if time_thres is not None else None
 
+        from compas_acoustics.worker import jobs
+
         rays = []
-        for source_index, source in sim_sources:
+        for n, (source_index, source) in enumerate(sim_sources):
+            jobs.progress("tracing", n, len(sim_sources))
             source_position = np.asarray(source.position, dtype=float)
 
             for ray_index in range(directions.shape[0]):

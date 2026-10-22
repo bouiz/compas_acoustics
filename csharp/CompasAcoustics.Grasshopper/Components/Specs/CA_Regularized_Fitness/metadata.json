@@ -1,0 +1,42 @@
+{
+    "name": "Regularized Fitness",
+    "nickname": "Fitness",
+    "category": "COMPAS Acoustics",
+    "subcategory": "07 Optimization",
+    "description": "A loss function that combines the Mean Absolute Error (MAE) and Standard Deviation (STD) of a list of values with respect to a target value. \nMAE evaluates the Accuracy to the target, while STD evaluates the Consistency of the values. \nThe lower the fitness score, the better the fitness.",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "values",
+                "description": "A list of numerical values to evaluate.",
+                "optional": false,
+                "scriptParamAccess": 1,
+                "typeHintID": "float"
+            },
+            {
+                "name": "target",
+                "description": "The target value to compare against.",
+                "optional": false,
+                "scriptParamAccess": 0,
+                "typeHintID": "float"
+            },
+            {
+                "name": "k",
+                "description": "A regularization parameter that controls the weight of the STD in the loss function.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "float",
+                "default": 1.0
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "fitness",
+                "description": "The fitness score, a lower value indicates better fitness."
+            }
+        ]
+    }
+}

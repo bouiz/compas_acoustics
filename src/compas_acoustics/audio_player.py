@@ -1,5 +1,6 @@
 import os
 import platform
+import time
 import warnings
 
 from compas_acoustics.defaults import Defaults
@@ -27,6 +28,12 @@ class AudioPlayer:
         self.system = platform.system()
         self._active_player = None
         self.sound_type = None  # 'file', 'array' or None
+        # the array being played, as sent to the device, its rate, and where and when its stream started
+        self._signal = None
+        self._rate = None
+        self._started = None
+        self._paused_at = None
+        self._clock = time.monotonic
 
     @property
     def system(self):
@@ -73,7 +80,7 @@ class AudioPlayer:
         except Exception as e:
             warnings.warn(f"The audio devices could not be refreshed, playing on the device found at start: {e}")
 
-    def play_array(self, array, sampling_rate, normalize=True):
+    def play_array(self, array, sampling_rate, normalize=True, gain_db=0.0, start=0.0):
         """
         Play an audio signal represented as a numpy array.
 
@@ -86,9 +93,12 @@ class AudioPlayer:
         normalize : bool, optional
             Whether to scale the signal to a peak of 0.99. Disable it to play auralised
             signals at their rendered level. Default is True.
+        gain_db : float, optional
+            A gain applied after the normalisation, in dB. Default is 0.
+        start : float, optional
+            Where to start, in seconds from the beginning of the signal. Default is 0.
         """
         import numpy as np
-        import sounddevice as sd  # type: ignore
         self.stop()
 
         if sampling_rate is None:
@@ -100,21 +110,82 @@ class AudioPlayer:
             # A mono signal plays on both channels; a one-channel stream reaches only the left on many devices
             audio_data = np.repeat(audio_data.reshape(-1, 1), 2, axis=1)
 
-        max_val = np.max(np.abs(audio_data))
+        max_val = np.max(np.abs(audio_data)) if audio_data.size else 0.0
         if normalize and max_val > 0:
             audio_data = (audio_data / max_val) * 0.99  # Normalize to [-1, 1]
-        elif max_val > 1:
-            warnings.warn(f"The sound array peaks at {20 * np.log10(max_val):+.1f} dBFS and will clip.")
+        audio_data = audio_data * np.float32(10 ** (gain_db / 20))
+        peak = np.max(np.abs(audio_data)) if audio_data.size else 0.0
+        if peak > 1:
+            warnings.warn(f"The sound array peaks at {20 * np.log10(peak):+.1f} dBFS and will clip.")
 
-        self._refresh_devices(sd)
-        sd.check_output_settings(samplerate=sampling_rate)
-
-        sd.play(audio_data, sampling_rate)
-        self._active_player = sd
+        self._signal, self._rate = audio_data, sampling_rate
         self.sound_type = 'array'
+        self._start_stream(start)
 
+    def _start_stream(self, start):
+        """Play :attr:`_signal` from ``start`` seconds."""
+        import sounddevice as sd  # type: ignore
 
-    def play(self, sound, sampling_rate=None, normalize=True):
+        start = min(max(float(start), 0.0), self.duration)
+        self._started = (self._clock(), start)
+        self._paused_at = None
+        remaining = self._signal[int(round(start * self._rate)):]
+        if len(remaining) == 0:
+            return
+        self._refresh_devices(sd)
+        sd.check_output_settings(samplerate=self._rate)
+        sd.play(remaining, self._rate)
+        self._active_player = sd
+
+    @property
+    def duration(self):
+        """The length of the array last played, in seconds; 0 for a file or nothing."""
+        return len(self._signal) / self._rate if self._signal is not None else 0.0
+
+    @property
+    def paused(self):
+        return self._paused_at is not None
+
+    @property
+    def position(self):
+        """Where the array's playback is, in seconds: it runs with the clock while playing, and holds when paused."""
+        if self._paused_at is not None:
+            return self._paused_at
+        if self._started is None:
+            return 0.0
+        started_at, start = self._started
+        return min(start + (self._clock() - started_at), self.duration)
+
+    @property
+    def playing(self):
+        """Whether a sound is playing now."""
+        if self._active_player is None or self.paused:
+            return False
+        if self.sound_type == 'array':
+            try:
+                return bool(self._active_player.get_stream().active)
+            except Exception:
+                return False
+        if self.sound_type == 'file' and self.system == "Darwin":
+            return self._active_player.poll() is None
+        return self.sound_type == 'file'
+
+    def pause(self):
+        """Stop an array's playback and keep its position; :meth:`resume` plays on from it. A file stops."""
+        if self.sound_type != 'array' or self._signal is None or self.paused:
+            if self.sound_type == 'file':
+                self.stop()
+            return
+        position = self.position
+        self._stop_device()
+        self._paused_at = position
+
+    def resume(self):
+        """Play on from where :meth:`pause` stopped."""
+        if self.paused:
+            self._start_stream(self._paused_at)
+
+    def play(self, sound, sampling_rate=None, normalize=True, gain_db=0.0, start=0.0):
         """
         Play sound based on its type.
         
@@ -126,6 +197,8 @@ class AudioPlayer:
             The sample rate of the audio signal. Required if sound is a numpy.ndarray.
         normalize : bool, optional
             Whether to scale a numpy.ndarray sound to a peak of 0.99. Default is True.
+        gain_db, start : float, optional
+            For an array: the gain in dB and where to start, in seconds. A file plays whole, at its level.
 
         Raises
         ------
@@ -135,14 +208,20 @@ class AudioPlayer:
         if isinstance(sound, str):
             self.play_file(sound)
         elif hasattr(sound, "shape") and hasattr(sound, "ndim"):
-            self.play_array(sound, sampling_rate, normalize)
+            self.play_array(sound, sampling_rate, normalize, gain_db, start)
         else:
             raise TypeError(f"A sound is a file path or a numpy array, not {type(sound).__name__}.")
 
     def stop(self):
+        """Stop the playback and return to the beginning."""
+        self._stop_device()
+        self._started = None
+        self._paused_at = None
+
+    def _stop_device(self):
         if self._active_player is None:
             return
-        
+
         if self.sound_type == 'file':
             if self.system == "Windows":
                 try:

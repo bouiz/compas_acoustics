@@ -1,0 +1,45 @@
+{
+    "name": "Auralise",
+    "nickname": "Auralise",
+    "category": "COMPAS Acoustics",
+    "subcategory": "04 Auralisation",
+    "description": "Auralise the room scene by convolving the impulse responses with the source signals. The signals keep the format of their impulse responses: mono (Simulate Pyroomacoustics), binaural or ambisonic (Simulate Hybrid). Choose the level on the body: 'relative' (default) applies one gain to all signals of this run so the loudest peaks at -1 dBFS, keeping distance and level differences; 'individual' brings each signal to -1 dBFS; 'none' keeps the raw level and may clip. Save writes the signals as WAV files: choose a folder and a name (take.wav saves take_mic_0_0.wav, take_mic_0_1.wav, ...).",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "irs",
+                "description": "ImpulseResponse object(s) ",
+                "optional": true,
+                "scriptParamAccess": 2,
+                "typeHintID": "ghdoc"
+            },
+            {
+                "name": "anechoic_sounds",
+                "description": "Optional anechoic sound file(s), one per impulse response, paired by position in matching branches. If not provided, each impulse response uses the sound file of its Source.",
+                "optional": true,
+                "scriptParamAccess": 2,
+                "typeHintID": "ghdoc"
+            },
+            {
+                "name": "mix_sources",
+                "description": "If True, sum all sources heard at the same receiver into one signal per receiver (the full scene); their impulse responses must share one format. If False (default), output one signal per source and receiver.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "bool"
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "signals",
+                "description": "Auralised signal(s) in the format of their impulse responses, shaped (samples, channels). The Audio Player plays mono (on both channels) and binaural; ambisonic signals are for saving."
+            },
+            {
+                "name": "sampling_rate",
+                "description": "Sample rate of each auralised signal, in Hz."
+            }
+        ]
+    }
+}

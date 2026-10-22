@@ -1,0 +1,27 @@
+{
+    "name": "Worker",
+    "nickname": "Worker",
+    "category": "COMPAS Acoustics",
+    "subcategory": "06 Util",
+    "description": "The compas_acoustics worker, the Python that runs every simulation and analysis: its state, its Python, its version and whether its schema matches this plugin. Restart stops and starts it; Open log opens what it printed.",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [],
+        "outputParameters": [
+            {
+                "name": "python",
+                "description": "The worker's Python interpreter; empty when the installer has not run."
+            },
+            {
+                "name": "version",
+                "description": "The compas_acoustics version the running worker has; empty when it does not run."
+            },
+            {
+                "name": "running",
+                "description": "Whether the worker runs."
+            }
+        ]
+    }
+}

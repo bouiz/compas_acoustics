@@ -107,3 +107,95 @@ def test_a_failure_to_stop_is_a_warning(player, sounddevice):
     sounddevice.stop = lambda: (_ for _ in ()).throw(RuntimeError("stuck"))
     with pytest.warns(UserWarning, match="could not be stopped: stuck"):
         player.stop()
+
+
+# ---------------------------------------------------------------------------
+# Gain, start, pause, resume, position (Grasshopper UI plan, Task 2)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def stream(sounddevice):
+    """The fake sounddevice's stream: active from a play until a stop, or until the test ends it."""
+    state = types.SimpleNamespace(active=False)
+    play, stop = sounddevice.play, sounddevice.stop
+
+    def playing(data, rate):
+        play(data, rate)
+        state.active = True
+
+    def stopping():
+        stop()
+        state.active = False
+
+    sounddevice.play, sounddevice.stop = playing, stopping
+    sounddevice.get_stream = lambda: state
+    return state
+
+
+@pytest.fixture
+def clock(player):
+    now = types.SimpleNamespace(t=100.0)
+    player._clock = lambda: now.t
+    return now
+
+
+def ramp(seconds=2.0, rate=1000):
+    return np.linspace(-0.5, 0.5, int(seconds * rate)), rate
+
+
+def test_play_applies_gain_and_start(player, sounddevice, stream, clock):
+    samples, rate = ramp()
+    player.play(samples, rate, normalize=True, gain_db=-6.0206, start=0.5)
+    (data, played_rate), = sounddevice.played
+    assert played_rate == rate
+    assert np.max(np.abs(data)) == pytest.approx(0.99 / 2, rel=1e-3)
+    # the first half second is left out, both channels from one mono signal
+    assert data.shape == (1500, 2)
+    assert player.position == pytest.approx(0.5)
+
+
+def test_the_position_runs_with_the_clock_and_stops_at_the_end(player, stream, clock):
+    samples, rate = ramp()
+    player.play(samples, rate)
+    clock.t += 1.25
+    assert player.position == pytest.approx(1.25) and player.playing
+    clock.t += 5.0
+    assert player.position == pytest.approx(2.0)
+    stream.active = False
+    assert not player.playing
+
+
+def test_pause_keeps_the_position_and_resume_plays_on(player, sounddevice, stream, clock):
+    samples, rate = ramp()
+    player.play(samples, rate)
+    clock.t += 1.0
+    player.pause()
+    assert not player.playing and player.paused
+    clock.t += 3.0
+    assert player.position == pytest.approx(1.0)
+    player.resume()
+    data, _ = sounddevice.played[-1]
+    assert data.shape[0] == 1000 and player.playing
+    clock.t += 0.5
+    assert player.position == pytest.approx(1.5)
+
+
+def test_stop_resets_the_position(player, stream, clock):
+    samples, rate = ramp()
+    player.play(samples, rate)
+    clock.t += 1.0
+    player.stop()
+    assert player.position == 0.0 and not player.playing and not player.paused
+
+
+def test_a_start_past_the_end_plays_nothing(player, sounddevice, stream, clock):
+    samples, rate = ramp()
+    player.play(samples, rate, start=5.0)
+    assert sounddevice.played == [] and player.position == pytest.approx(2.0)
+
+
+def test_the_duration_is_known_after_a_play(player, stream, clock):
+    samples, rate = ramp(1.5)
+    player.play(samples, rate)
+    assert player.duration == pytest.approx(1.5)
