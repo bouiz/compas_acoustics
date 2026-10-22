@@ -6,6 +6,21 @@ from compas_acoustics.defaults import _PackageDtype
 
 __all__ = ['Source']
 
+# SPL values for a human speaker at 1m distance in dB per octave band, 63 Hz to 8 kHz, after
+# ANSI 3.5-1997. Methods for Calculation of the Speech Intelligibility Index. American National Standard.
+_VOICE_BANDS = [62.5, 125, 250, 500, 1000, 2000, 4000, 8000]
+_VOICE_SPL = {
+    "normal": [45.0, 55.0, 65.0, 69.0, 63.0, 55.8, 50.0, 44.0],
+    "raised": [48.0, 60.0, 70.0, 75.0, 72.0, 64.0, 57.0, 49.0],
+    "loud": [52.0, 64.0, 72.0, 80.0, 80.0, 73.0, 66.0, 55.0],
+    "shouting": [52.0, 65.0, 73.0, 84.0, 89.0, 82.0, 75.0, 64.0],
+}
+
+
+def _voice_spl(effort: str) -> list:
+    levels = dict(zip(_VOICE_BANDS, _VOICE_SPL[effort]))
+    return [levels[f] for f in Defaults().DEFAULT_FREQUENCY_BANDS]
+
 # directivity = ["bidirectional", "hypercardioid", "supercardioid", "cardioid", "omnidirectional", "custom",]
 
 class Source(_PackageDtype, Point):
@@ -145,15 +160,12 @@ class Source(_PackageDtype, Point):
         return source
     
     
-    # SPL values for a human speaker at 1m distance in dB after
-    # ANSI 3.5-1997. Methods for Calculation of the Speech Intelligibility Index. American National Standard.
-    
     @classmethod
     def voice_normal(cls, name: str, x:float, y:float, z:float):
         source = cls(name, x, y, z)
         source.description = "voice normal"
         source.directional = True
-        source.spl = [45.0, 55.0, 65.0, 69.0, 63.0, 55.8, 50.0, 44.0]
+        source.spl = _voice_spl("normal")
         return source
     
     
@@ -162,7 +174,7 @@ class Source(_PackageDtype, Point):
         source = cls(name, x, y, z)
         source.description = "voice raised"
         source.directional = True
-        source.spl = [48.0, 60.0, 70.0, 75.0, 72.0, 64.0, 57.0, 49.0]
+        source.spl = _voice_spl("raised")
         return source
     
     
@@ -171,7 +183,7 @@ class Source(_PackageDtype, Point):
         source = cls(name, x, y, z)
         source.description = "voice loud"
         source.directional = True
-        source.spl = [52.0, 64.0, 72.0, 80.0, 80.0, 73.0, 66.0, 55.0]
+        source.spl = _voice_spl("loud")
         return source
     
     
@@ -180,7 +192,7 @@ class Source(_PackageDtype, Point):
         source = cls(name, x, y, z)
         source.description = "voice shouting"
         source.directional = True
-        source.spl = [52.0, 65.0, 73.0, 84.0, 89.0, 82.0, 75.0, 64.0]
+        source.spl = _voice_spl("shouting")
         return source
     
     

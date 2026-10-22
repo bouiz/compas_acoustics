@@ -58,7 +58,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         {
             Assert.Equal(new[] { ("1", 1), ("2", 2), ("3", 3) }, Port("CA_Simulate_Hybrid", "sh_order").NamedValues);
             Assert.Equal(Enumerable.Range(0, 7).Select(i => (i.ToString(), i)), Port("CA_Simulate_Ray_Tracing", "ism_order").NamedValues);
-            Assert.Equal(new[] { 16000, 44100, 48000, 96000 }, Port("CA_Model", "sampling_rate").NamedValues.Select(v => v.value));
+            Assert.Equal(new[] { 44100, 48000, 96000 }, Port("CA_Model", "sampling_rate").NamedValues.Select(v => v.value));
             var hybrid = new SimulateHybridComponent();
             Assert.True(((Param_Integer)hybrid.Params.Input.Single(p => p.Name == "sh_order")).HasNamedValues);
             Assert.False(((Param_Integer)hybrid.Params.Input.Single(p => p.Name == "seed")).HasNamedValues);
