@@ -35,14 +35,11 @@ namespace CompasAcoustics.Grasshopper
 
         private IReadOnlyList<Control>? _controls;
 
-        /// <summary>Tail, Diffraction, ISM order, the method's own controls, the toggles, the method's own buttons, Run.</summary>
-        public override IReadOnlyList<Control> Controls => _controls ??= new Control[]
-            {
-                new DropdownControl("tail", HybridRun.Tails),
-                new DropdownControl("diffraction", HybridRun.Diffraction),
-                SimulateMonoComponent.IsmOrder,
-            }
+        /// <summary>ISM order, the method's own controls, Tail, Diffraction, the toggles, the method's own buttons, Run.</summary>
+        public override IReadOnlyList<Control> Controls => _controls ??= new Control[] { SimulateMonoComponent.IsmOrder }
             .Concat(MethodControls)
+            .Append(new DropdownControl("tail", HybridRun.Tails))
+            .Append(new DropdownControl("diffraction", HybridRun.Diffraction))
             .Append(new ToggleControl("late_envelope", "Late envelope", Inline: true))
             .Append(new ToggleControl("normalize", "Normalize", Inline: true))
             .Concat(MethodButtons)
@@ -54,6 +51,9 @@ namespace CompasAcoustics.Grasshopper
 
         /// <summary>The buttons of the method's own inputs, before Run (Binaural's HRTF set).</summary>
         protected virtual IEnumerable<Control> MethodButtons => Array.Empty<Control>();
+
+        /// <summary>The ambisonic order the method renders; null for one without (Binaural).</summary>
+        protected virtual int? ShOrder => null;
 
         private bool Has(string port) => Params.Input.Exists(p => p.Name == port);
 
@@ -78,7 +78,7 @@ namespace CompasAcoustics.Grasshopper
                 SetGraph(access, scene.Value.Guid);
                 return;
             }
-            var shOrder = Has("sh_order") ? Value<int>(access, "sh_order") : null;
+            var shOrder = ShOrder;
             var hrtf = Has("hrtf") ? Text(access, "hrtf") : null;
             var ismOrder = Value<int>(access, "ism_order");
             var diffraction = Text(access, "diffraction");
@@ -206,6 +206,12 @@ namespace CompasAcoustics.Grasshopper
         protected override string Method => "ambisonics";
         protected override string Output => "ambisonic_ir_graph";
 
-        protected override IEnumerable<Control> MethodControls => new Control[] { new SwitchControl("sh_order", new[] { "1", "2", "3" }, "1") };
+        // the component's own choice, not an input: 1 (the method's default) to 7
+        protected override IEnumerable<Control> MethodControls => new Control[]
+        {
+            new DropdownControl("sh_order", new[] { "1", "2", "3", "4", "5", "6", "7" }, "1", Title: "SH order"),
+        };
+
+        protected override int? ShOrder => int.Parse(Choice("sh_order"), System.Globalization.CultureInfo.InvariantCulture);
     }
 }

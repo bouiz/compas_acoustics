@@ -72,7 +72,7 @@ namespace CompasAcoustics.Grasshopper
         private readonly Func<double> _now;
         private bool _lastPlay;
         private State? _state;
-        // a stopped playback holds its frame until Play, or until the time input moves
+        // a paused playback holds its frame until Play, or until the time input moves
         private double? _held;
         private double? _heldTime;
         private double _lastEnd;
@@ -102,8 +102,8 @@ namespace CompasAcoustics.Grasshopper
         /// <param name="now">The clock, in seconds.</param>
         public Playback(Func<double> now) => _now = now;
 
-        /// <summary>Stop the animation where it is: the frame stays until Play starts over or the time input moves.</summary>
-        public void Stop()
+        /// <summary>Pause the animation where it is: the frame stays until Play goes on from it, Rewind, or the time input moves.</summary>
+        public void Pause()
         {
             if (_state == null)
                 return;
@@ -129,7 +129,9 @@ namespace CompasAcoustics.Grasshopper
             _lastPlay = play;
             if (pressed)
             {
-                _state = new State { Start = _now(), Offset = 0.0, Time = time, Speed = rate };
+                // on from a paused frame (the start after Rewind); from the start after the end or a scrub
+                var from = _held is double h && h < end && time == _heldTime ? h : 0.0;
+                _state = new State { Start = _now(), Offset = from, Time = time, Speed = rate };
                 _held = null;
             }
             if (_held != null && !pressed && time != _heldTime)

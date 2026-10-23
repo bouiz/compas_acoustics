@@ -27,8 +27,8 @@ namespace CompasAcoustics.Grasshopper.Tests
         public void TheControlPorts_AreTheInputsOfTheBodysControls_RunIncluded()
         {
             // run stays an input for loops and scripts that set it, hidden like the others
-            Assert.Equal(new[] { "tail", "diffraction", "ism_order", "late_envelope", "normalize", "hrtf", "run" }, new SimulateBinauralComponent().ControlPorts);
-            Assert.Equal(new[] { "tail", "diffraction", "ism_order", "sh_order", "late_envelope", "normalize", "run" }, new SimulateAmbisonicsComponent().ControlPorts);
+            Assert.Equal(new[] { "ism_order", "tail", "diffraction", "late_envelope", "normalize", "hrtf", "run" }, new SimulateBinauralComponent().ControlPorts);
+            Assert.Equal(new[] { "ism_order", "tail", "diffraction", "late_envelope", "normalize", "run" }, new SimulateAmbisonicsComponent().ControlPorts);
             Assert.Equal(new[] { "time", "speed", "play" }, new VisualiseBilliardComponent().ControlPorts);
             Assert.Empty(new AcousticObjectComponent().ControlPorts);
             Assert.True(new AcousticObjectComponent().IsChoice("role"));

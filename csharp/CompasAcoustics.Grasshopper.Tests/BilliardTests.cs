@@ -32,23 +32,25 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void Stop_HaltsThePlaybackWhereItIs_AndPlayStartsOver()
+        public void Pause_HaltsThePlaybackWhereItIs_AndPlayResumesFromThere()
         {
             var p = Make();
             _now = 0;
             p.Update(null, true, 5.0, Duration);
             _now = 1;
             Assert.True(p.Update(null, false, 5.0, Duration).Animating);
-            p.Stop();
+            p.Pause();
             _now = 4;
             var frame = p.Update(null, false, 5.0, Duration);
             Assert.Equal((5.0, false), (frame.T, frame.Animating));
             Assert.Equal("t = 5.0 ms", frame.Message);
-            // Play again: from the start
+            // Play again: on from the frame it held
             frame = p.Update(null, true, 5.0, Duration);
-            Assert.Equal((0.0, true), (frame.T, frame.Animating));
-            // moving the time slider after a stop scrubs
-            p.Stop();
+            Assert.Equal((5.0, true), (frame.T, frame.Animating));
+            _now = 5;
+            Assert.Equal(10.0, p.Update(null, false, 5.0, Duration).T);
+            // moving the time slider after a pause scrubs
+            p.Pause();
             Assert.Equal(12.0, p.Update(12.0, false, 5.0, Duration).T);
         }
 
@@ -65,13 +67,15 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal((0.0, true), (frame.T, frame.Animating));
             _now = 2;
             Assert.Equal(5.0, p.Update(null, false, 5.0, Duration).T);
-            p.Stop();
+            p.Pause();
             p.Rewind();
             _now = 5;
             frame = p.Update(null, false, 5.0, Duration);
             Assert.Equal((0.0, false), (frame.T, frame.Animating));
             Assert.True(p.Active);
             Assert.False(Make().Active);
+            // Play after Rewind: from the start
+            Assert.Equal((0.0, true), (p.Update(null, true, 5.0, Duration).T, true));
         }
 
         [Fact]
@@ -100,7 +104,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void ThePlayButton_ReadsStopWhilePlaying()
+        public void ThePlayButton_ReadsPauseWhilePlaying()
         {
             var p = Make();
             Assert.False(p.Running);
@@ -108,8 +112,8 @@ namespace CompasAcoustics.Grasshopper.Tests
             p.Update(null, true, 5.0, Duration);
             _now = 1;
             Assert.True(p.Running);
-            Assert.Equal("Stop", VisualiseBilliardComponent.PlayLabel(p));
-            p.Stop();
+            Assert.Equal("Pause", VisualiseBilliardComponent.PlayLabel(p));
+            p.Pause();
             Assert.False(p.Running);
             Assert.Equal("Play", VisualiseBilliardComponent.PlayLabel(p));
             // a playback that has reached its end is not running

@@ -143,6 +143,13 @@ namespace CompasAcoustics.Grasshopper
                 case SliderControl:
                     _down = box;
                     _dragged = box.Control is SliderControl slider ? Drag(slider, box.Bounds, e.CanvasLocation.X) : null;
+                    if (box.Control is SliderControl { Live: true } && port != null && _dragged is double start)
+                    {
+                        // one undo step for the whole drag, then the input follows the knob
+                        if (Component.OnPingDocument() != null)
+                            Component.RecordUndoEvent($"{port.Name}: drag");
+                        ControlState.Scrub(Component, port, Invariant(start));
+                    }
                     sender.Invalidate();
                     return GH_ObjectResponse.Capture;
             }
@@ -172,7 +179,10 @@ namespace CompasAcoustics.Grasshopper
         {
             if (_down?.Control is SliderControl slider)
             {
+                var before = _dragged;
                 _dragged = Drag(slider, _down.Bounds, e.CanvasLocation.X);
+                if (slider.Live && _dragged != before && _dragged is double value && Component.ControlPort(slider.Port) is { } live)
+                    ControlState.Scrub(Component, live, Invariant(value));
                 sender.Invalidate();
                 return GH_ObjectResponse.Handled;
             }
@@ -192,6 +202,10 @@ namespace CompasAcoustics.Grasshopper
                 else
                     ControlState.Press(Component, button.Port);
             }
+            else if (box.Control is SliderControl { Live: true })
+            {
+                // set at every step of the drag already
+            }
             else if (box.Control is SliderControl && _dragged is double value)
             {
                 var port = Component.ControlPort(box.Control.Port);
@@ -204,6 +218,8 @@ namespace CompasAcoustics.Grasshopper
             sender.Invalidate();
             return GH_ObjectResponse.Release;
         }
+
+        private static string Invariant(double value) => value.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
         private double Drag(SliderControl slider, RectangleF bounds, float x)
         {
@@ -251,6 +267,39 @@ namespace CompasAcoustics.Grasshopper
     internal static class Painter
     {
         private static Rectangle R(RectangleF r) => Rectangle.Round(r);
+
+        /// <summary>A transport glyph in the middle of ``box``: white, grey when the button cannot be pressed.</summary>
+        public static void DrawGlyph(Graphics g, RectangleF box, Glyph glyph, bool enabled)
+        {
+            if (glyph == Glyph.None)
+                return;
+            var size = Math.Min(box.Height, box.Width) * 0.45f;
+            var (cx, cy) = (box.Left + box.Width / 2, box.Top + box.Height / 2);
+            using var brush = new SolidBrush(enabled ? Color.White : Color.FromArgb(150, 150, 150));
+            var state = g.SmoothingMode;
+            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            switch (glyph)
+            {
+                case Glyph.Play:
+                    g.FillPolygon(brush, new[] { new PointF(cx - size * 0.45f, cy - size / 2), new PointF(cx - size * 0.45f, cy + size / 2), new PointF(cx + size * 0.55f, cy) });
+                    break;
+                case Glyph.Pause:
+                    g.FillRectangle(brush, cx - size / 2, cy - size / 2, size * 0.35f, size);
+                    g.FillRectangle(brush, cx + size * 0.15f, cy - size / 2, size * 0.35f, size);
+                    break;
+                case Glyph.Stop:
+                    g.FillRectangle(brush, cx - size * 0.4f, cy - size * 0.4f, size * 0.8f, size * 0.8f);
+                    break;
+                case Glyph.Rewind:
+                    // a bar, then two triangles pointing back to it
+                    var h = size / 2;
+                    g.FillRectangle(brush, cx - size * 0.75f, cy - h, size * 0.15f, size);
+                    g.FillPolygon(brush, new[] { new PointF(cx - size * 0.55f, cy), new PointF(cx, cy - h), new PointF(cx, cy + h) });
+                    g.FillPolygon(brush, new[] { new PointF(cx, cy), new PointF(cx + size * 0.55f, cy - h), new PointF(cx + size * 0.55f, cy + h) });
+                    break;
+            }
+            g.SmoothingMode = state;
+        }
 
         /// <summary>The input's name above its switch or dropdown.</summary>
         public static void DrawTitle(Graphics g, ControlBox box)
@@ -303,10 +352,13 @@ namespace CompasAcoustics.Grasshopper
                     capsule.Render(g, selected, locked, false);
                     break;
                 }
-                case ButtonControl:
+                case ButtonControl button:
                 {
-                    using var capsule = GH_Capsule.CreateTextCapsule(R(box.Bounds), R(box.Bounds), down ? GH_Palette.Grey : GH_Palette.Black, state.value, 2, 0);
+                    var glyph = button.Icon ? ControlLayout.GlyphOf(state.value) : Glyph.None;
+                    using var capsule = GH_Capsule.CreateTextCapsule(R(box.Bounds), R(box.Bounds), down ? GH_Palette.Grey : GH_Palette.Black,
+                        glyph == Glyph.None ? state.value : "", 2, 0);
                     capsule.Render(g, selected, locked, false);
+                    DrawGlyph(g, box.Bounds, glyph, true);
                     break;
                 }
                 case SliderControl slider:

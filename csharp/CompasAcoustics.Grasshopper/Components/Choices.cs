@@ -51,6 +51,9 @@ namespace CompasAcoustics.Grasshopper
         public (string title, string text) ControlTooltip(string name)
         {
             var text = "";
+            // a button of the component's own (Play, Rewind): what it does now
+            if (Controls.FirstOrDefault(c => c.Port == name) is ButtonControl button && CurrentSpec.Inputs.All(p => p.Name != name))
+                return (ButtonLabel(name) ?? button.Label, "");
             if (CurrentSpec.Inputs.FirstOrDefault(p => p.Name == name) is { } port)
                 text = port.Description;
             else if (Choices.TryGetValue(name, out var options) && options.Length > 0)
@@ -114,7 +117,13 @@ namespace CompasAcoustics.Grasshopper
         {
             if (_choices.TryGetValue(name, out var value))
                 return value;
-            if (Controls.OfType<SwitchControl>().FirstOrDefault(c => c.Port == name)?.Default is string preset)
+            var preset = Controls.FirstOrDefault(c => c.Port == name) switch
+            {
+                SwitchControl s => s.Default,
+                DropdownControl d => d.Default,
+                _ => null,
+            };
+            if (preset != null)
                 return preset;
             return Choices.TryGetValue(name, out var options) && options.Length > 0 ? options[0] : "";
         }

@@ -95,7 +95,9 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(new[] { "ambisonic_ir_graph" }, new SimulateAmbisonicsComponent().Params.Output.Select(p => p.Name));
             Assert.Contains("hrtf", new SimulateBinauralComponent().Params.Input.Select(p => p.Name));
             Assert.DoesNotContain("sh_order", new SimulateBinauralComponent().Params.Input.Select(p => p.Name));
-            Assert.Contains("sh_order", new SimulateAmbisonicsComponent().Params.Input.Select(p => p.Name));
+            // the SH order is a dropdown of Simulate Ambisonics, not an input
+            Assert.DoesNotContain("sh_order", new SimulateAmbisonicsComponent().Params.Input.Select(p => p.Name));
+            Assert.True(new SimulateAmbisonicsComponent().IsChoice("sh_order"));
             Assert.DoesNotContain("hrtf", new SimulateAmbisonicsComponent().Params.Input.Select(p => p.Name));
             Assert.All(new ComponentBase[] { new SimulateBinauralComponent(), new SimulateAmbisonicsComponent() },
                 c => Assert.DoesNotContain("output", c.Params.Input.Select(p => p.Name)));

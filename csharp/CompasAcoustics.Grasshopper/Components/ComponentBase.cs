@@ -118,7 +118,7 @@ namespace CompasAcoustics.Grasshopper
 
         private IEnumerable<IGH_PreviewObject> PreviewedOutputs => Params.Output.Where(PreviewsOutput).OfType<IGH_PreviewObject>();
 
-        /// <summary>The label a button shows now, when it changes (Play reads Stop while playing); null for its own.</summary>
+        /// <summary>The label a button shows now, when it changes (Play reads Pause while playing); null for its own.</summary>
         public virtual string? ButtonLabel(string port) => null;
 
         // Grasshopper draws a component that cannot preview in the dark "preview off" grey; every component here is drawn

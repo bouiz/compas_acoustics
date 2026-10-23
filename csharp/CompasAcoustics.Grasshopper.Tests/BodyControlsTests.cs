@@ -39,6 +39,21 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
+        public void AShownInput_LetsGoOfWhatItCollected_WhenTheBodySetsIt()
+        {
+            // expiring the component clears only its outputs: the input must expire itself, or the solve reads the old value
+            var reflections = new VisualiseReflectionsComponent();
+            var order = reflections.ControlPort("order")!;
+            ControlState.Choose(reflections, order, "1");
+            order.CollectData();
+            Assert.Equal(1, order.VolatileDataCount);
+            ControlState.ToggleMember(reflections, order, "3", new[] { "1" });
+            Assert.Equal(0, order.VolatileDataCount);
+            order.CollectData();
+            Assert.Equal(new[] { "1", "3" }, order.VolatileData.AllData(true).Select(g => g.ToString()));
+        }
+
+        [Fact]
         public void AHiddenInputOfAnyType_KeepsItsValue_ForTheSolveAndTheFile()
         {
             var mono = new SimulateMonoComponent();
@@ -144,8 +159,8 @@ namespace CompasAcoustics.Grasshopper.Tests
         public void TheControlPorts_FollowTheBody()
         {
             Assert.Equal(new[] { "ism_order", "ray_tracing", "absorb_air", "normalize" }, new SimulateMonoComponent().ControlPorts);
-            Assert.Equal(new[] { "tail", "diffraction", "ism_order", "late_envelope", "normalize", "hrtf", "run" }, new SimulateBinauralComponent().ControlPorts);
-            Assert.Equal(new[] { "tail", "diffraction", "ism_order", "sh_order", "late_envelope", "normalize", "run" }, new SimulateAmbisonicsComponent().ControlPorts);
+            Assert.Equal(new[] { "ism_order", "tail", "diffraction", "late_envelope", "normalize", "hrtf", "run" }, new SimulateBinauralComponent().ControlPorts);
+            Assert.Equal(new[] { "ism_order", "tail", "diffraction", "late_envelope", "normalize", "run" }, new SimulateAmbisonicsComponent().ControlPorts);
             Assert.Equal(new[] { "sampling_rate" }, new RoomSceneComponent().ControlPorts);
             Assert.Equal(new[] { "mix_sources" }, new AuraliseComponent().ControlPorts);
             Assert.Equal(new[] { "source_idx", "scattering", "order" }, new VisualiseRaysComponent().ControlPorts);
@@ -167,12 +182,19 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void Ambisonics_HasTheShOrderSwitch_AndBinauralTheHrtfButton()
+        public void Ambisonics_HasTheShOrderDropdown_AndBinauralTheHrtfButton()
         {
             var ambisonics = new SimulateAmbisonicsComponent();
-            var sh = ambisonics.Controls.OfType<SwitchControl>().Single();
-            Assert.Equal(("sh_order", "1"), (sh.Port, sh.Default));
-            Assert.Equal(new[] { "1", "2", "3" }, sh.Options);
+            var sh = ambisonics.Controls.OfType<DropdownControl>().Single(c => c.Port == "sh_order");
+            Assert.Equal(("sh_order", "1", "SH order"), (sh.Port, sh.Default, ControlLayout.Title(sh)));
+            Assert.Equal(new[] { "1", "2", "3", "4", "5", "6", "7" }, sh.Options);
+            // the component's own choice, not a hidden input
+            Assert.DoesNotContain("sh_order", ComponentSpec.Load("CA_Simulate_Ambisonics").Inputs.Select(p => p.Name));
+            Assert.True(ambisonics.IsChoice("sh_order"));
+            Assert.Equal("1", ambisonics.Choice("sh_order"));
+            ambisonics.SetChoice("sh_order", "5");
+            Assert.Equal("5", ((SimulateHybridComponent)RoundTrip(ambisonics)).Choice("sh_order"));
+            Assert.Empty(ambisonics.Controls.OfType<SwitchControl>());
             Assert.DoesNotContain(ambisonics.Controls, c => c.Port == "hrtf");
             var binaural = new SimulateBinauralComponent();
             Assert.Empty(binaural.Controls.OfType<SwitchControl>());
@@ -180,9 +202,37 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal("HRTF: KEMAR", binaural.ButtonLabel("hrtf"));
             ControlState.Choose(binaural, binaural.ControlPort("hrtf")!, "/sets/my_head.sofa");
             Assert.Equal("HRTF: my_head.sofa", binaural.ButtonLabel("hrtf"));
-            // Run last, after the controls
+            // Run last, set apart from the controls above it
             Assert.Equal("run", binaural.Controls[^1].Port);
             Assert.Equal("run", ambisonics.Controls[^1].Port);
+            foreach (var hybrid in new ComponentBase[] { binaural, ambisonics })
+            {
+                var boxes = ControlLayout.Arrange(hybrid.Controls, new RectangleF(0, 0, 150, 0));
+                Assert.Equal(ControlLayout.ButtonGap, boxes[^1].Bounds.Top - boxes[^2].Bounds.Bottom, 3);
+            }
+        }
+
+        [Fact]
+        public void TheHybridBodies_StartWithTheOrders_ThenTheTail()
+        {
+            Assert.Equal(new[] { "ism_order", "sh_order", "tail", "diffraction", "late_envelope", "normalize", "run" },
+                new SimulateAmbisonicsComponent().Controls.Select(c => c.Port));
+            Assert.Equal(new[] { "ism_order", "tail", "diffraction", "late_envelope", "normalize", "hrtf", "run" },
+                new SimulateBinauralComponent().Controls.Select(c => c.Port));
+        }
+
+        [Fact]
+        public void TogglesAndButtons_StandAsFarFromTheControlAbove_AsATitleDoes()
+        {
+            // Binaural: Diffraction, the toggles, HRTF..., Run, each the same gap below the one above
+            var binaural = new SimulateBinauralComponent();
+            var boxes = ControlLayout.Arrange(binaural.Controls, new RectangleF(0, 0, 150, 0));
+            RectangleF Of(string port) => boxes.Single(b => b.Control.Port == port).Bounds;
+            Assert.Equal(ControlLayout.ButtonGap, Of("late_envelope").Top - Of("diffraction").Bottom, 3);
+            Assert.Equal(ControlLayout.ButtonGap, Of("hrtf").Top - Of("late_envelope").Bottom, 3);
+            Assert.Equal(ControlLayout.ButtonGap, Of("run").Top - Of("hrtf").Bottom, 3);
+            // the gap a title leaves: the margin and the empty top of its row
+            Assert.Equal(10f, ControlLayout.ButtonGap);
         }
 
         [Fact]
@@ -263,6 +313,51 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(300.0, VisualiseBilliardComponent.Rate(1.0, 3000));
             Assert.Equal(600.0, VisualiseBilliardComponent.Rate(2.0, 3000));
             Assert.Equal(300.0, VisualiseBilliardComponent.Rate(null, 3000));
+        }
+
+        [Theory]
+        [InlineData(typeof(VisualiseRaysComponent))]
+        [InlineData(typeof(VisualiseBilliardComponent))]
+        public void PlayAndRewind_AreIconButtonsSideBySide_SetApartFromTheControlsAbove(Type type)
+        {
+            var component = (ComponentBase)Activator.CreateInstance(type)!;
+            var buttons = component.Controls.OfType<ButtonControl>().Where(b => b.Port is "play" or "rewind").ToList();
+            Assert.Equal(new[] { "play", "rewind" }, buttons.Select(b => b.Port));
+            Assert.All(buttons, b => Assert.True(b.Inline && b.Icon));
+            var boxes = ControlLayout.Arrange(component.Controls, new RectangleF(0, 0, 150, 0));
+            var (play, rewind) = (boxes.Single(b => b.Control.Port == "play"), boxes.Single(b => b.Control.Port == "rewind"));
+            Assert.Equal(play.Bounds.Top, rewind.Bounds.Top);
+            Assert.Equal(play.Bounds.Width, rewind.Bounds.Width, 3);
+            Assert.True(play.Bounds.Right <= rewind.Bounds.Left);
+            var above = boxes[boxes.IndexOf(play) - 1];
+            Assert.Equal(ControlLayout.ButtonGap, play.Bounds.Top - above.Bounds.Bottom, 3);
+        }
+
+        [Fact]
+        public void AnIconButton_DrawsTheGlyphOfWhatItReads()
+        {
+            // Play reads Stop while playing: its glyph follows
+            Assert.Equal(Glyph.Play, ControlLayout.GlyphOf("Play"));
+            Assert.Equal(Glyph.Stop, ControlLayout.GlyphOf("Stop"));
+            Assert.Equal(Glyph.Rewind, ControlLayout.GlyphOf("Rewind"));
+            Assert.Equal(Glyph.None, ControlLayout.GlyphOf("Save"));
+            Assert.Equal(("Rewind", ""), new VisualiseRaysComponent().ControlTooltip("rewind"));
+        }
+
+        [Fact]
+        public void TheBilliardsTime_FollowsTheKnobWhileItIsDragged()
+        {
+            var billiard = new VisualiseBilliardComponent();
+            var time = billiard.Controls.OfType<SliderControl>().Single();
+            Assert.True(time.Live);
+            Assert.False(new VisualiseRaysComponent().Controls.OfType<SliderControl>().Single().Live);
+            // each step of the drag sets the input and lets go of what it collected, without an undo step of its own
+            var port = billiard.ControlPort("time")!;
+            ControlState.Scrub(billiard, port, "12.5");
+            port.CollectData();
+            ControlState.Scrub(billiard, port, "40");
+            Assert.Equal(0, port.VolatileDataCount);
+            Assert.Equal(40.0, ControlState.Persistent(port));
         }
 
         [Fact]

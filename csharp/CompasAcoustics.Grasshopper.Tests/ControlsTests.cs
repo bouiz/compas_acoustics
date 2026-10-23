@@ -182,8 +182,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         {
             foreach (var hybrid in new SimulateHybridComponent[] { new SimulateBinauralComponent(), new SimulateAmbisonicsComponent() })
             {
-                // the SH order is Simulate Ambisonics' only switch
-                Assert.Equal(hybrid is SimulateAmbisonicsComponent ? new[] { "sh_order" } : new string[0], hybrid.Controls.OfType<SwitchControl>().Select(c => c.Port));
+                Assert.Empty(hybrid.Controls.OfType<SwitchControl>());
                 Assert.Equal(HybridRun.Tails, hybrid.Controls.OfType<DropdownControl>().Single(c => c.Port == "tail").Options);
                 Assert.Equal(HybridRun.Diffraction, hybrid.Controls.OfType<DropdownControl>().Single(c => c.Port == "diffraction").Options);
             }

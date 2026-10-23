@@ -25,8 +25,8 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>Not the outputs: the component draws its rays, paths or particles itself (Rays' curves would show every ray before Play).</summary>
         public override bool PreviewsOutput(IGH_Param output) => false;
 
-        /// <summary>What the Play button reads: Stop while the playback moves.</summary>
-        public static string PlayLabel(Playback playback) => playback.Running ? "Stop" : "Play";
+        /// <summary>What the Play button reads, and so the glyph it draws: Pause while the playback moves.</summary>
+        public static string PlayLabel(Playback playback) => playback.Running ? "Pause" : "Play";
 
         public override string Choice(string name) => name == PreviewSwitch.Port ? (Hidden ? "off" : "on") : base.Choice(name);
 
@@ -156,7 +156,7 @@ namespace CompasAcoustics.Grasshopper
         public override IReadOnlyList<Control> Controls { get; } = new Control[]
         {
             PreviewSwitch, SourceDropdown, new ToggleControl("scattering", "Scattering", Default: false),
-            new SliderControl("order", 1, 10, "", Step: 1), new ButtonControl("play", "Play"), new ButtonControl("rewind", "Rewind"),
+            new SliderControl("order", 1, 10, "", Step: 1), new ButtonControl("play", "Play", Inline: true, Icon: true), new ButtonControl("rewind", "Rewind", Inline: true, Icon: true),
         };
 
         /// <summary>The drawn order runs from 1 to the traced one: at its end, every traced order is drawn.</summary>
@@ -218,11 +218,11 @@ namespace CompasAcoustics.Grasshopper
                 var rays = RayGeometry.FromField(shown);
                 // nothing until Play: all rays at once are a blur; Play draws them as far as sound has travelled, Stop holds them
                 var speedOfSound = Worker.SpeedOfSound;
-                // one button: Play, and Stop while playing (it holds the rays where they are)
+                // one button: Play, and Pause while playing (it holds the rays where they are; Play goes on)
                 var play = Pressed("play");
                 if (play && _playback.Running)
                 {
-                    _playback.Stop();
+                    _playback.Pause();
                     play = false;
                 }
                 if (Pressed("rewind"))
@@ -282,9 +282,9 @@ namespace CompasAcoustics.Grasshopper
 
         public override IReadOnlyList<Control> Controls { get; } = new Control[]
         {
-            PreviewSwitch, new SliderControl("time", 0, 1000, "ms", Step: 0.1),
+            PreviewSwitch, new SliderControl("time", 0, 1000, "ms", Step: 0.1, Live: true),
             new DropdownControl("speed", new[] { "0.25", "0.5", "1", "2", "4" }, "1", new[] { "0.25x", "0.5x", "1x", "2x", "4x" }),
-            new ButtonControl("play", "Play"), new ButtonControl("rewind", "Rewind"),
+            new ButtonControl("play", "Play", Inline: true, Icon: true), new ButtonControl("rewind", "Rewind", Inline: true, Icon: true),
         };
 
         public override string? ButtonLabel(string port) => port == "play" ? PlayLabel(_playback) : null;
@@ -303,26 +303,33 @@ namespace CompasAcoustics.Grasshopper
             Worker.EnsureStarted();
             var speedOfSound = Worker.SpeedOfSound;
             var rays = RayGeometry.Specular(field.Value);
-            // one button: Play, and Stop while playing (it holds the particles where they are)
+            // one button: Play, and Pause while playing (it holds the particles where they are; Play goes on)
             var pressed = Pressed("play");
             if (pressed && _playback.Running)
             {
-                _playback.Stop();
+                _playback.Pause();
                 pressed = false;
             }
             if (Pressed("rewind"))
                 _playback.Rewind();
-            // Play on the body plays the whole field: the time the slider scrubbed to is let go
-            if (pressed && ControlPort("time") is { SourceCount: 0 } time)
-                ControlState.Assign(time, System.Array.Empty<string>());
+            // Play on the body plays the whole field: the time the slider scrubbed to is let go. A shown input has
+            // collected it for this solve already, so it is passed as none now and collected again on the next frame.
+            var letGo = pressed && ControlPort("time") is { SourceCount: 0 };
+            if (letGo)
+                ControlState.Assign(ControlPort("time")!, System.Array.Empty<string>());
             _durationMs = Particles.DurationMs(rays, speedOfSound);
-            var frame = _playback.Update(Value<double>(access, "time"), Value<bool>(access, "play") == true || pressed,
+            var frame = _playback.Update(letGo ? null : Value<double>(access, "time"), Value<bool>(access, "play") == true || pressed,
                 Rate(Value<double>(access, "speed"), _durationMs), _durationMs);
             _shownMs = frame.T;
             if (frame.Remark != null)
                 Remark(frame.Remark);
-            if (frame.Animating)
-                OnPingDocument()?.ScheduleSolution(FrameMs, document => ExpireSolution(false));
+            if (frame.Animating || letGo)
+                OnPingDocument()?.ScheduleSolution(FrameMs, document =>
+                {
+                    if (letGo && ControlPort("time") is { } time && !IsHidden(time))
+                        time.ExpireSolution(false);
+                    ExpireSolution(false);
+                });
             Message = frame.Message;
             var particles = Particles.At(rays, frame.T, speedOfSound);
             foreach (var (point, order) in particles)

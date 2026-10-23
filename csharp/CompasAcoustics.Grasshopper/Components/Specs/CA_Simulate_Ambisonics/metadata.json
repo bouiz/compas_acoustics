@@ -31,28 +31,6 @@
                 "typeHintID": "ghdoc"
             },
             {
-                "name": "sh_order",
-                "description": "Ambisonic order.",
-                "optional": true,
-                "scriptParamAccess": 0,
-                "typeHintID": "int",
-                "default": 1,
-                "namedValues": [
-                    [
-                        "1",
-                        1
-                    ],
-                    [
-                        "2",
-                        2
-                    ],
-                    [
-                        "3",
-                        3
-                    ]
-                ]
-            },
-            {
                 "name": "ism_order",
                 "description": "Highest image source order in the early field.",
                 "optional": true,

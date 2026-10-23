@@ -66,6 +66,9 @@ namespace CompasAcoustics.Grasshopper
     public sealed record PlayerBoxes(RectangleF Header, RectangleF Lanes, RectangleF Ruler, RectangleF PlayPause, RectangleF Stop,
         RectangleF Normalize, RectangleF Volume, RectangleF VolumeLabel);
 
+    /// <summary>What a press on the Audio Player lands on; None moves the component, as a press on its icon does.</summary>
+    public enum PlayerHit { None, PlayPause, Stop, Normalize, Volume, Lanes }
+
     public static class PlayerLayout
     {
         public const float Margin = 4;
@@ -113,6 +116,15 @@ namespace CompasAcoustics.Grasshopper
             var lanes = new RectangleF(wave.Left + Margin, header.Bottom + 2, width, Math.Max(ruler.Top - header.Bottom - 2, 10));
             return new PlayerBoxes(header, lanes, ruler, Button(0), Button(1), normalize, volume, volumeLabel);
         }
+
+        /// <summary>The control under ``point``: a button, the volume, the lanes (a seek); None for anything else.</summary>
+        public static PlayerHit Hit(PlayerBoxes boxes, PointF point) =>
+            boxes.PlayPause.Contains(point) ? PlayerHit.PlayPause
+            : boxes.Stop.Contains(point) ? PlayerHit.Stop
+            : boxes.Normalize.Contains(point) ? PlayerHit.Normalize
+            : boxes.Volume.Contains(point) ? PlayerHit.Volume
+            : !boxes.Lanes.IsEmpty && boxes.Lanes.Contains(point) ? PlayerHit.Lanes
+            : PlayerHit.None;
 
         public static double SeekTime(RectangleF lanes, float x, double duration) =>
             Math.Clamp((x - lanes.Left) / Math.Max(lanes.Width, 1), 0, 1) * duration;

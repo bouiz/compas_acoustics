@@ -41,9 +41,6 @@ namespace CompasAcoustics.Grasshopper
             Bounds = new RectangleF(b.X, b.Y, width, top + wave);
         }
 
-        /// <summary>The player's part of the component: the transport and the channels.</summary>
-        private RectangleF Body => _wave.IsEmpty ? _controls : RectangleF.Union(_controls, _wave);
-
         private PlayerBoxes Boxes => PlayerLayout.Arrange(_controls, _wave);
 
         protected override void RenderExtra(GH_Canvas canvas, Graphics g)
@@ -89,8 +86,8 @@ namespace CompasAcoustics.Grasshopper
             }
             // one button plays and pauses: it shows what a press does
             var playing = Player.Transport.State == TransportState.Playing;
-            DrawIconButton(g, boxes.PlayPause, playing ? Icon.Pause : Icon.Play, Player.CanPlay, _down == "playpause");
-            DrawIconButton(g, boxes.Stop, Icon.Stop, Player.CanPlay && Player.Transport.State != TransportState.Stopped, _down == "stop");
+            DrawIconButton(g, boxes.PlayPause, playing ? Glyph.Pause : Glyph.Play, Player.CanPlay, _down == "playpause");
+            DrawIconButton(g, boxes.Stop, Glyph.Stop, Player.CanPlay && Player.Transport.State != TransportState.Stopped, _down == "stop");
             // a toggle: dark when the signal is scaled to full level
             using (var norm = GH_Capsule.CreateTextCapsule(Rectangle.Round(boxes.Normalize), Rectangle.Round(boxes.Normalize),
                        Player.Normalize ? GH_Palette.Black : GH_Palette.White, "Normalize", 2, 0))
@@ -110,31 +107,11 @@ namespace CompasAcoustics.Grasshopper
             return peak > 0 ? 20 * Math.Log10(peak) : double.NegativeInfinity;
         }
 
-        private enum Icon { Play, Pause, Stop }
-
-        /// <summary>A capsule with the usual transport glyph: a triangle, two bars, a square.</summary>
-        private void DrawIconButton(Graphics g, RectangleF box, Icon icon, bool enabled, bool down)
+        /// <summary>A capsule with the usual transport glyph, as the Visualise components draw theirs.</summary>
+        private void DrawIconButton(Graphics g, RectangleF box, Glyph glyph, bool enabled, bool down)
         {
             DrawButton(g, box, "", enabled, down);
-            var size = Math.Min(box.Height, box.Width) * 0.45f;
-            var (cx, cy) = (box.Left + box.Width / 2, box.Top + box.Height / 2);
-            using var brush = new SolidBrush(enabled ? Color.White : Color.FromArgb(150, 150, 150));
-            var state = g.SmoothingMode;
-            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            switch (icon)
-            {
-                case Icon.Play:
-                    g.FillPolygon(brush, new[] { new PointF(cx - size * 0.45f, cy - size / 2), new PointF(cx - size * 0.45f, cy + size / 2), new PointF(cx + size * 0.55f, cy) });
-                    break;
-                case Icon.Pause:
-                    g.FillRectangle(brush, cx - size / 2, cy - size / 2, size * 0.35f, size);
-                    g.FillRectangle(brush, cx + size * 0.15f, cy - size / 2, size * 0.35f, size);
-                    break;
-                case Icon.Stop:
-                    g.FillRectangle(brush, cx - size * 0.4f, cy - size * 0.4f, size * 0.8f, size * 0.8f);
-                    break;
-            }
-            g.SmoothingMode = state;
+            Painter.DrawGlyph(g, box, glyph, enabled);
         }
 
         private void DrawButton(Graphics g, RectangleF box, string label, bool enabled, bool down)
@@ -144,8 +121,13 @@ namespace CompasAcoustics.Grasshopper
             capsule.Render(g, Selected, Owner.Locked, false);
         }
 
-        private string? ButtonAt(PlayerBoxes boxes, PointF p) =>
-            boxes.PlayPause.Contains(p) ? "playpause" : boxes.Stop.Contains(p) ? "stop" : boxes.Normalize.Contains(p) ? "normalize" : null;
+        private static string? ButtonAt(PlayerBoxes boxes, PointF p) => PlayerLayout.Hit(boxes, p) switch
+        {
+            PlayerHit.PlayPause => "playpause",
+            PlayerHit.Stop => "stop",
+            PlayerHit.Normalize => "normalize",
+            _ => null,
+        };
 
         protected override GH_ObjectResponse? RespondToExtraMouseDown(GH_Canvas sender, GH_CanvasMouseEvent e)
         {
@@ -155,29 +137,26 @@ namespace CompasAcoustics.Grasshopper
                 _resizing = true;
                 return GH_ObjectResponse.Capture;
             }
-            if (!Body.Contains(p))
-                return null;
             var boxes = Boxes;
-            if (ButtonAt(boxes, p) is string button)
+            switch (PlayerLayout.Hit(boxes, p))
             {
-                _down = button;
-                sender.Invalidate();
-                return GH_ObjectResponse.Capture;
+                case PlayerHit.PlayPause or PlayerHit.Stop or PlayerHit.Normalize:
+                    _down = ButtonAt(boxes, p);
+                    sender.Invalidate();
+                    return GH_ObjectResponse.Capture;
+                case PlayerHit.Volume:
+                    _dragging = true;
+                    _draggedGain = SliderValue(Volume, boxes.Volume, p.X);
+                    sender.Invalidate();
+                    return GH_ObjectResponse.Capture;
+                case PlayerHit.Lanes:
+                    Player.OnSeek(PlayerLayout.SeekTime(boxes.Lanes, p.X, Player.Transport.Duration));
+                    sender.Invalidate();
+                    return GH_ObjectResponse.Handled;
+                default:
+                    // the header, the gaps, the icon and the input names: Grasshopper's own press, which drags the component
+                    return null;
             }
-            if (boxes.Volume.Contains(p))
-            {
-                _dragging = true;
-                _draggedGain = SliderValue(Volume, boxes.Volume, p.X);
-                sender.Invalidate();
-                return GH_ObjectResponse.Capture;
-            }
-            if (!boxes.Lanes.IsEmpty && boxes.Lanes.Contains(p))
-            {
-                Player.OnSeek(PlayerLayout.SeekTime(boxes.Lanes, p.X, Player.Transport.Duration));
-                sender.Invalidate();
-                return GH_ObjectResponse.Handled;
-            }
-            return GH_ObjectResponse.Handled;
         }
 
         public override bool IsTooltipRegion(PointF canvasPoint) => Boxes.Normalize.Contains(canvasPoint) || base.IsTooltipRegion(canvasPoint);

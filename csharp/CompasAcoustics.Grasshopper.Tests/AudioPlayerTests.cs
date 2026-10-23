@@ -120,6 +120,24 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
+        public void APressActsOnlyOnTheButtonsTheVolumeAndTheLanes_ElsewhereItMovesTheComponent()
+        {
+            var wave = new RectangleF(10, Controls.Bottom, 430, PlayerLayout.WaveHeight(2, 44));
+            var boxes = PlayerLayout.Arrange(Controls, wave);
+            PointF Middle(RectangleF r) => new(r.Left + r.Width / 2, r.Top + r.Height / 2);
+            Assert.Equal(PlayerHit.PlayPause, PlayerLayout.Hit(boxes, Middle(boxes.PlayPause)));
+            Assert.Equal(PlayerHit.Stop, PlayerLayout.Hit(boxes, Middle(boxes.Stop)));
+            Assert.Equal(PlayerHit.Normalize, PlayerLayout.Hit(boxes, Middle(boxes.Normalize)));
+            Assert.Equal(PlayerHit.Volume, PlayerLayout.Hit(boxes, Middle(boxes.Volume)));
+            Assert.Equal(PlayerHit.Lanes, PlayerLayout.Hit(boxes, Middle(boxes.Lanes)));
+            // the header, the Volume label, the gaps, and the icon and input names left of the transport
+            Assert.Equal(PlayerHit.None, PlayerLayout.Hit(boxes, Middle(boxes.Header)));
+            Assert.Equal(PlayerHit.None, PlayerLayout.Hit(boxes, Middle(boxes.VolumeLabel)));
+            Assert.Equal(PlayerHit.None, PlayerLayout.Hit(boxes, new PointF(60, Controls.Top + 10)));
+            Assert.Equal(PlayerHit.None, PlayerLayout.Hit(boxes, new PointF(boxes.Stop.Right + 1, boxes.Stop.Top + 2)));
+        }
+
+        [Fact]
         public void SeekTime_MapsTheLaneWidthToTheDuration()
         {
             var lanes = new RectangleF(10, 0, 200, 50);

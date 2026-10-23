@@ -22,8 +22,14 @@ namespace CompasAcoustics.Grasshopper
     /// <summary>Several options lit at once, for a list input: none lit is ``Default``.</summary>
     public sealed record MultiSwitchControl(string Port, string[] Options, string[] Default) : Control(Port);
 
-    /// <summary>A trigger: a press runs the component once with ``Pressed(Port)`` true. ``Port`` need not be an input (``cancel``).</summary>
-    public sealed record ButtonControl(string Port, string Label) : Control(Port);
+    /// <summary>
+    /// A trigger: a press runs the component once with ``Pressed(Port)`` true. ``Port`` need not be an input (``cancel``).
+    /// ``Inline`` buttons that follow each other share one row; an ``Icon`` button draws the glyph of what it reads.
+    /// </summary>
+    public sealed record ButtonControl(string Port, string Label, bool Inline = false, bool Icon = false) : Control(Port);
+
+    /// <summary>The transport glyphs: a triangle, two bars, a square, a bar and two triangles back.</summary>
+    public enum Glyph { None, Play, Pause, Stop, Rewind }
 
     /// <summary>
     /// One button that switches on and off, dark when on: a bool input (``Default`` until chosen), or a choice the component
@@ -31,8 +37,12 @@ namespace CompasAcoustics.Grasshopper
     /// </summary>
     public sealed record ToggleControl(string Port, string Label, bool Inline = false, bool Default = true) : Control(Port);
 
-    /// <summary>A number from ``Min`` to ``Max`` in steps of ``Step``, dragged; a component may give the range itself (<see cref="ComponentBase.SliderRange"/>).</summary>
-    public sealed record SliderControl(string Port, double Min, double Max, string Unit, double Step = 0.1) : Control(Port);
+    /// <summary>
+    /// A number from ``Min`` to ``Max`` in steps of ``Step``, dragged; a component may give the range itself
+    /// (<see cref="ComponentBase.SliderRange"/>). ``Live``: the input follows the knob while it is dragged (Billiard's time),
+    /// else it is set when the knob is let go.
+    /// </summary>
+    public sealed record SliderControl(string Port, double Min, double Max, string Unit, double Step = 0.1, bool Live = false) : Control(Port);
 
     /// <summary>Where a control is drawn: its row, and for a switch the box of each option.</summary>
     /// <summary>``Title``: the row above a switch or dropdown that names its input; empty for a button.</summary>
@@ -47,8 +57,11 @@ namespace CompasAcoustics.Grasshopper
         public const float TitleHeight = 16;
         /// <summary>Between a title and its control.</summary>
         public const float TitleGap = 2;
-        /// <summary>Above a button that follows a titled control (Hybrid's Run, Auralise's Save): as far as the body is from the ports.</summary>
-        public const float ButtonGap = 8;
+        /// <summary>
+        /// Above a row without a title (toggles, buttons) that follows another control: as far as a title's words stand from
+        /// the control above it, its margin and the empty top of its row.
+        /// </summary>
+        public const float ButtonGap = 10;
 
         /// <summary>Whether a control has its title above it: switches, dropdowns and sliders; a button or toggle carries its label.</summary>
         public static bool HasTitle(Control control) => control is SwitchControl or DropdownControl or MultiSwitchControl or SliderControl;
@@ -75,8 +88,21 @@ namespace CompasAcoustics.Grasshopper
             return labels != null && i >= 0 && i < labels.Length ? labels[i] : value;
         }
 
+        private static bool IsInline(Control? control) => control is ToggleControl { Inline: true } or ButtonControl { Inline: true };
+
+        /// <summary>Whether ``control`` goes on the row of ``previous``: inline toggles with toggles, inline buttons with buttons.</summary>
         private static bool InRow(Control control, Control? previous) =>
-            control is ToggleControl { Inline: true } && previous is ToggleControl { Inline: true };
+            IsInline(control) && IsInline(previous) && control.GetType() == previous!.GetType();
+
+        /// <summary>The glyph an icon button draws for what it reads (Play reads Stop while playing); None for a word.</summary>
+        public static Glyph GlyphOf(string label) => label switch
+        {
+            "Play" => Glyph.Play,
+            "Pause" => Glyph.Pause,
+            "Stop" => Glyph.Stop,
+            "Rewind" => Glyph.Rewind,
+            _ => Glyph.None,
+        };
 
         public static float Height(IReadOnlyList<Control> controls) =>
             controls.Count == 0 ? 0 : Arrange(controls, new RectangleF(0, 0, 1, 0)).Max(b => b.Bounds.Bottom) + Margin;
@@ -91,12 +117,12 @@ namespace CompasAcoustics.Grasshopper
                 var control = controls[c];
                 if (InRow(control, previous))
                     continue;
-                if (control is ButtonControl && previous != null && HasTitle(previous))
+                if (previous != null && control is (ButtonControl or ToggleControl))
                     y += ButtonGap - Margin;
                 previous = control;
-                if (control is ToggleControl { Inline: true })
+                if (IsInline(control))
                 {
-                    // the toggles that follow share the row, side by side
+                    // the toggles, or the buttons, that follow share the row, side by side
                     var count = 1;
                     while (c + count < controls.Count && InRow(controls[c + count], controls[c + count - 1]))
                         count++;
@@ -242,9 +268,33 @@ namespace CompasAcoustics.Grasshopper
                 return;
             if (component.OnPingDocument() != null)
                 component.RecordUndoEvent($"{port.Name}: {string.Join(", ", values)}");
-            // set directly: a hidden port has no owner to expire, and the component solves again below
             Assign(port, values);
-            component.ExpireSolution(true);
+            Expire(component, port);
+        }
+
+        /// <summary>
+        /// A step of a live slider's drag: ``value`` becomes the port's own and the component solves again, without an undo
+        /// step (the drag records one when it starts).
+        /// </summary>
+        public static void Scrub(GH_Component component, IGH_Param port, string value)
+        {
+            if (Goo(port, value) == null)
+                return;
+            Assign(port, new[] { value });
+            Expire(component, port);
+        }
+
+        private static void Expire(GH_Component component, IGH_Param port)
+        {
+            // a shown input expires itself, and with it the component: expiring only the component clears only its
+            // outputs, and the input would keep what it collected. A hidden input is not wired to the component.
+            if (component is ComponentBase owner && owner.IsHidden(port))
+                component.ExpireSolution(true);
+            else
+            {
+                port.ExpireSolution(false);
+                component.ExpireSolution(true);
+            }
         }
 
         /// <summary>Make ``value`` the port's own value (empty clears it), as an undoable change, and recompute the component.</summary>
