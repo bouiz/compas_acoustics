@@ -41,8 +41,34 @@ namespace CompasAcoustics.Grasshopper.Tests
         public void Height_IsRowsTimesRowHeightPlusMargins()
         {
             var controls = new Control[] { new ButtonControl("run", "Run"), new SwitchControl("level", new[] { "a", "b" }) };
-            Assert.Equal(2 * ControlLayout.RowHeight + ControlLayout.TitleHeight + 3 * ControlLayout.Margin, ControlLayout.Height(controls));
+            Assert.Equal(2 * ControlLayout.RowHeight + ControlLayout.TitleHeight + ControlLayout.TitleGap + 3 * ControlLayout.Margin, ControlLayout.Height(controls));
             Assert.Equal(0, ControlLayout.Height(new Control[0]));
+        }
+
+        private static readonly Control[] Hybrid =
+        {
+            new DropdownControl("tail", new[] { "auto", "reference" }),
+            new SwitchControl("output", new[] { "binaural", "ambisonic", "both" }),
+            new ButtonControl("run", "Run"),
+        };
+
+        [Fact]
+        public void ATitle_SitsALittleAboveItsControl()
+        {
+            var boxes = ControlLayout.Arrange(Hybrid, Body);
+            Assert.True(ControlLayout.TitleGap >= 2);
+            Assert.All(boxes.Take(2), b => Assert.Equal(ControlLayout.TitleGap, b.Bounds.Top - b.Title.Bottom, 3));
+        }
+
+        [Fact]
+        public void AButtonAfterATitledControl_StandsApartAsTheBodyFromThePorts()
+        {
+            var boxes = ControlLayout.Arrange(Hybrid, Body);
+            Assert.True(ControlLayout.ButtonGap > ControlLayout.Margin);
+            Assert.Equal(ControlLayout.ButtonGap, boxes[2].Bounds.Top - boxes[1].Bounds.Bottom, 3);
+            // between two titled controls the usual margin
+            Assert.Equal(ControlLayout.Margin, boxes[1].Title.Top - boxes[0].Bounds.Bottom, 3);
+            Assert.Equal(boxes[2].Bounds.Bottom + ControlLayout.Margin - Body.Top, ControlLayout.Height(Hybrid), 3);
         }
 
         [Fact]

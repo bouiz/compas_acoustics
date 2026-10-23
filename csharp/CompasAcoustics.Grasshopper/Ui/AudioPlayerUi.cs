@@ -7,7 +7,8 @@ using Grasshopper.GUI.Canvas;
 
 namespace CompasAcoustics.Grasshopper
 {
-    /// <summary>The Audio Player's body: header, a lane per channel, ruler, playhead, transport and volume; resizable by its corner.</summary>
+    /// <summary>The Audio Player's body: the transport and volume right of the icon, and below the inputs a header, a lane per
+    /// channel, ruler and playhead across the whole component; resizable by its corner.</summary>
     public sealed class AudioPlayerUi : ComponentUi
     {
         private const float MinWidth = 180;
@@ -24,21 +25,26 @@ namespace CompasAcoustics.Grasshopper
 
         private AudioPlayerComponent Player => (AudioPlayerComponent)Owner;
 
-        private RectangleF _body;
+        private RectangleF _controls;
+        private RectangleF _wave;
 
         protected override void Layout()
         {
             base.Layout();
-            // the inputs and the icon on the left, the player to the right of the icon, as tall as the two need
+            // the inputs and the icon, the transport to their right; the channels below, across the whole width
             var b = Bounds;
-            var size = Player.BodySize;
-            Bounds = new RectangleF(b.X, b.Y, b.Width + size.Width, Math.Max(b.Height, size.Height));
-            _body = new RectangleF(b.Right, b.Y + (Bounds.Height - size.Height) / 2, size.Width, size.Height);
+            var top = Math.Max(b.Height, PlayerLayout.ControlsHeight);
+            var width = b.Width + Player.BodyWidth;
+            _controls = new RectangleF(b.Right, b.Y + (top - PlayerLayout.ControlsHeight) / 2, Player.BodyWidth, PlayerLayout.ControlsHeight);
+            var wave = Player.WaveHeight;
+            _wave = wave > 0 ? new RectangleF(b.X, b.Y + top, width, wave) : RectangleF.Empty;
+            Bounds = new RectangleF(b.X, b.Y, width, top + wave);
         }
 
-        private RectangleF Body => _body;
+        /// <summary>The player's part of the component: the transport and the channels.</summary>
+        private RectangleF Body => _wave.IsEmpty ? _controls : RectangleF.Union(_controls, _wave);
 
-        private PlayerBoxes Boxes => PlayerLayout.Arrange(Body, Player.Signal != null);
+        private PlayerBoxes Boxes => PlayerLayout.Arrange(_controls, _wave);
 
         protected override void RenderExtra(GH_Canvas canvas, Graphics g)
         {
@@ -93,8 +99,8 @@ namespace CompasAcoustics.Grasshopper
             var gain = _draggedGain ?? Player.GainDb;
             Painter.Draw(g, new ControlBox(Volume, boxes.Volume, Array.Empty<RectangleF>()),
                 (gain.ToString(System.Globalization.CultureInfo.InvariantCulture), false), Selected, Owner.Locked, false, _draggedGain);
-            // the resize grip
-            var corner = Body;
+            // the resize grip, at the component's corner
+            var corner = Bounds;
             g.DrawLine(Pens.Gray, corner.Right - Grip, corner.Bottom - 2, corner.Right - 2, corner.Bottom - Grip);
             g.DrawLine(Pens.Gray, corner.Right - Grip / 2, corner.Bottom - 2, corner.Right - 2, corner.Bottom - Grip / 2);
         }
@@ -144,16 +150,15 @@ namespace CompasAcoustics.Grasshopper
 
         protected override GH_ObjectResponse? RespondToExtraMouseDown(GH_Canvas sender, GH_CanvasMouseEvent e)
         {
-            var body = Body;
             var p = e.CanvasLocation;
-            if (!body.Contains(p))
-                return null;
-            var boxes = Boxes;
-            if (p.X > body.Right - Grip * 1.5f && p.Y > body.Bottom - Grip * 1.5f)
+            if (Bounds.Contains(p) && p.X > Bounds.Right - Grip * 1.5f && p.Y > Bounds.Bottom - Grip * 1.5f)
             {
                 _resizing = true;
                 return GH_ObjectResponse.Capture;
             }
+            if (!Body.Contains(p))
+                return null;
+            var boxes = Boxes;
             if (ButtonAt(boxes, p) is string button)
             {
                 _down = button;
@@ -194,13 +199,13 @@ namespace CompasAcoustics.Grasshopper
         {
             if (_resizing)
             {
-                // the width, and the lanes' height: the body's height shared by its channels
-                Player.BodyWidth = Math.Max(e.CanvasLocation.X - Body.Left, MinWidth);
+                // the width, and the lanes' height: the channels' height shared by them
+                Player.BodyWidth = Math.Max(e.CanvasLocation.X - _controls.Left, MinWidth);
                 // without a signal there are no lanes: only the width changes
-                if (Player.Signal != null)
+                if (!_wave.IsEmpty)
                 {
-                    var fixedHeight = PlayerLayout.BodyHeight(Player.Channels, 0);
-                    Player.LaneHeight = Math.Max((e.CanvasLocation.Y - Body.Top - fixedHeight) / Player.Channels, MinLaneHeight);
+                    var fixedHeight = PlayerLayout.WaveHeight(Player.Channels, 0);
+                    Player.LaneHeight = Math.Max((e.CanvasLocation.Y - _wave.Top - fixedHeight) / Player.Channels, MinLaneHeight);
                 }
                 ExpireLayout();
                 sender.Invalidate();

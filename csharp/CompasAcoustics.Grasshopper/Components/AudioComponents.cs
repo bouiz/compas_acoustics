@@ -232,13 +232,13 @@ namespace CompasAcoustics.Grasshopper
 
         public float BodyWidth { get; set; } = 240;
 
-        /// <summary>The height of one channel's lane; the body grows with the channels.</summary>
+        /// <summary>The height of one channel's lane; the component grows down with the channels.</summary>
         public float LaneHeight { get; set; } = 50;
 
         public int Channels => Signal == null ? 1 : Signal.Shape.Count > 1 ? Math.Max((int)Signal.Shape[1], 1) : 1;
 
-        /// <summary>The player beside the icon: the buttons and the volume, and the channels once a signal is there.</summary>
-        public SizeF BodySize => new(BodyWidth, Signal == null ? PlayerLayout.EmptyHeight : PlayerLayout.BodyHeight(Channels, LaneHeight));
+        /// <summary>The channels below the inputs, once a signal is there; 0 without one.</summary>
+        public float WaveHeight => Signal == null ? 0 : PlayerLayout.WaveHeight(Channels, LaneHeight);
 
         public bool CanPlay => Signal != null && Problem == null;
 
@@ -310,10 +310,10 @@ namespace CompasAcoustics.Grasshopper
                 // another signal: what plays stops
                 if (Transport.State != TransportState.Stopped)
                     Send(Transport.Stop());
-                var before = BodySize;
+                var before = WaveHeight;
                 Signal = signal;
-                // more or fewer channels, or a signal at all: the body grows or shrinks
-                if (BodySize != before)
+                // more or fewer channels, or a signal at all: the component grows or shrinks
+                if (WaveHeight != before)
                     Attributes?.ExpireLayout();
                 File = file;
                 Transport.Duration = signal == null || signal.SamplingRate == 0 || signal.Shape.Count == 0 ? 0 : signal.Shape[0] / (double)signal.SamplingRate;

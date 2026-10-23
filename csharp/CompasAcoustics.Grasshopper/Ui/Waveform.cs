@@ -77,33 +77,33 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>The row of the Volume label, above the slider.</summary>
         public const float VolumeLabelHeight = 11;
 
-        /// <summary>The body without a signal: the buttons and the volume.</summary>
-        public const float EmptyHeight = Margin + VolumeLabelHeight + TransportHeight + Margin;
+        /// <summary>The transport beside the icon, top right: the Volume label above the buttons and the slider.</summary>
+        public const float ControlsHeight = Margin + VolumeLabelHeight + TransportHeight + Margin;
 
-        /// <summary>The body's height for ``channels`` lanes of ``laneHeight`` each: more channels, a taller body.</summary>
-        public static float BodyHeight(int channels, float laneHeight)
+        /// <summary>The channels' height below the inputs, for ``channels`` lanes of ``laneHeight`` each: more channels, a taller component.</summary>
+        public static float WaveHeight(int channels, float laneHeight)
         {
             channels = Math.Max(channels, 1);
             var lanes = channels * laneHeight + (channels - 1) * Waveform.LaneGap;
-            return Margin + HeaderHeight + 2 + lanes + RulerHeight + Margin + VolumeLabelHeight + TransportHeight + Margin;
+            return HeaderHeight + 2 + lanes + RulerHeight + Margin;
         }
 
-        /// <summary>The boxes of the body; without a ``signal`` only the transport row (no header, lanes or ruler).</summary>
-        public static PlayerBoxes Arrange(RectangleF body, bool signal = true)
+        /// <summary>The boxes: the transport in ``controls``; the header, lanes and ruler across ``wave``, none when it is empty (no signal).</summary>
+        public static PlayerBoxes Arrange(RectangleF controls, RectangleF wave)
         {
-            var left = body.Left + Margin;
-            var width = body.Width - 2 * Margin;
-            var transportTop = body.Bottom - Margin - TransportHeight;
+            var left = controls.Left + Margin;
+            var transportTop = controls.Bottom - Margin - TransportHeight;
             RectangleF Button(int i) => new(left + i * (ButtonWidth + 2), transportTop, ButtonWidth, TransportHeight);
             var normalize = new RectangleF(left + 2 * (ButtonWidth + 2), transportTop, NormalizeWidth, TransportHeight);
             var volumeLeft = normalize.Right + 6;
-            var volume = new RectangleF(volumeLeft, transportTop, Math.Max(left + width - volumeLeft, 20), TransportHeight);
+            var volume = new RectangleF(volumeLeft, transportTop, Math.Max(controls.Right - Margin - volumeLeft, 20), TransportHeight);
             var volumeLabel = new RectangleF(volumeLeft, transportTop - VolumeLabelHeight, volume.Width, VolumeLabelHeight);
-            if (!signal)
+            if (wave.IsEmpty)
                 return new PlayerBoxes(RectangleF.Empty, RectangleF.Empty, RectangleF.Empty, Button(0), Button(1), normalize, volume, volumeLabel);
-            var header = new RectangleF(left, body.Top + Margin, width, HeaderHeight);
-            var ruler = new RectangleF(left, volumeLabel.Top - Margin - RulerHeight, width, RulerHeight);
-            var lanes = new RectangleF(left, header.Bottom + 2, width, Math.Max(ruler.Top - header.Bottom - 2, 10));
+            var width = wave.Width - 2 * Margin;
+            var header = new RectangleF(wave.Left + Margin, wave.Top, width, HeaderHeight);
+            var ruler = new RectangleF(wave.Left + Margin, wave.Bottom - Margin - RulerHeight, width, RulerHeight);
+            var lanes = new RectangleF(wave.Left + Margin, header.Bottom + 2, width, Math.Max(ruler.Top - header.Bottom - 2, 10));
             return new PlayerBoxes(header, lanes, ruler, Button(0), Button(1), normalize, volume, volumeLabel);
         }
 

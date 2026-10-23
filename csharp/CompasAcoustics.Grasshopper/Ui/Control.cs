@@ -36,6 +36,10 @@ namespace CompasAcoustics.Grasshopper
         public const float Margin = 3;
         /// <summary>The title row: Grasshopper's font for input and output names fits in it.</summary>
         public const float TitleHeight = 16;
+        /// <summary>Between a title and its control.</summary>
+        public const float TitleGap = 2;
+        /// <summary>Above a button that follows a titled control (Hybrid's Run, Auralise's Save): as far as the body is from the ports.</summary>
+        public const float ButtonGap = 8;
 
         /// <summary>Whether a control has its title above it: switches and dropdowns; a button carries its label.</summary>
         public static bool HasTitle(Control control) => control is SwitchControl or DropdownControl;
@@ -47,20 +51,24 @@ namespace CompasAcoustics.Grasshopper
             return name.Length == 0 ? name : char.ToUpperInvariant(name[0]) + name.Substring(1);
         }
 
-        public static float Height(IReadOnlyCollection<Control> controls) =>
-            controls.Count == 0 ? 0 : controls.Sum(c => RowHeight + (HasTitle(c) ? TitleHeight : 0)) + (controls.Count + 1) * Margin;
+        public static float Height(IReadOnlyList<Control> controls) =>
+            controls.Count == 0 ? 0 : Arrange(controls, new RectangleF(0, 0, 1, 0))[^1].Bounds.Bottom + Margin;
 
         public static List<ControlBox> Arrange(IReadOnlyList<Control> controls, RectangleF body)
         {
             var boxes = new List<ControlBox>();
             var y = body.Top + Margin;
+            Control? previous = null;
             foreach (var control in controls)
             {
+                if (control is ButtonControl && previous != null && HasTitle(previous))
+                    y += ButtonGap - Margin;
+                previous = control;
                 var title = RectangleF.Empty;
                 if (HasTitle(control))
                 {
                     title = new RectangleF(body.Left + Margin, y, body.Width - 2 * Margin, TitleHeight);
-                    y += TitleHeight;
+                    y += TitleHeight + TitleGap;
                 }
                 var row = new RectangleF(body.Left + Margin, y, body.Width - 2 * Margin, RowHeight);
                 var segments = Array.Empty<RectangleF>();

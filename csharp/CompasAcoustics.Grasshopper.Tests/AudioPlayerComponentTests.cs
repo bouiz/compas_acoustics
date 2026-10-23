@@ -128,12 +128,12 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void TheBody_GrowsWithTheChannels_AtOneLaneHeight()
+        public void TheChannels_GrowWithTheSignal_AtOneLaneHeight()
         {
             var player = new AudioPlayerComponent();
-            Assert.Equal(PlayerLayout.EmptyHeight, player.BodySize.Height);
+            Assert.Equal(0, player.WaveHeight);
             player.Load(Stereo(), null);
-            Assert.Equal(PlayerLayout.BodyHeight(2, player.LaneHeight), player.BodySize.Height);
+            Assert.Equal(PlayerLayout.WaveHeight(2, player.LaneHeight), player.WaveHeight);
         }
 
         [Fact]
@@ -197,7 +197,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             var back = new AudioPlayerComponent();
             back.Read(read);
             Assert.Equal(-12.0, back.GainDb);
-            Assert.Equal(300f, back.BodySize.Width);
+            Assert.Equal(300f, back.BodyWidth);
             Assert.Equal(36f, back.LaneHeight);
         }
     }

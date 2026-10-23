@@ -62,27 +62,29 @@ namespace CompasAcoustics.Grasshopper.Tests
 
     public class PlayerLayoutTests
     {
+        // the transport beside the icon, top right; the channels below, across the whole component
+        private static readonly RectangleF Controls = new(200, 100, 240, PlayerLayout.ControlsHeight);
+
         [Fact]
-        public void Arrange_PutsHeaderLanesRulerAndTransportInOrder()
+        public void Arrange_PutsTheTransportTopRight_AndTheChannelsFullWidthBelow()
         {
-            var boxes = PlayerLayout.Arrange(new RectangleF(10, 100, 240, 120));
-            Assert.True(boxes.Header.Bottom <= boxes.Lanes.Top);
-            Assert.True(boxes.Lanes.Bottom <= boxes.Ruler.Top);
-            Assert.True(boxes.Ruler.Bottom <= boxes.PlayPause.Top);
+            var wave = new RectangleF(10, Controls.Bottom, 430, PlayerLayout.WaveHeight(2, 44));
+            var boxes = PlayerLayout.Arrange(Controls, wave);
+            Assert.All(new[] { boxes.PlayPause, boxes.Stop, boxes.Normalize, boxes.Volume, boxes.VolumeLabel }, b => Assert.True(Controls.Contains(b)));
             Assert.True(boxes.PlayPause.Right <= boxes.Stop.Left && boxes.Stop.Right <= boxes.Normalize.Left && boxes.Normalize.Right <= boxes.Volume.Left);
-            Assert.True(boxes.Volume.Right <= 250 && boxes.PlayPause.Bottom <= 220);
-            Assert.Equal(240 - 2 * PlayerLayout.Margin, boxes.Lanes.Width, 3);
+            Assert.True(boxes.VolumeLabel.Bottom <= boxes.Volume.Top && boxes.VolumeLabel.Left == boxes.Volume.Left);
+            Assert.True(boxes.Header.Top >= wave.Top && boxes.Header.Bottom <= boxes.Lanes.Top && boxes.Lanes.Bottom <= boxes.Ruler.Top && boxes.Ruler.Bottom <= wave.Bottom);
+            Assert.Equal(wave.Left + PlayerLayout.Margin, boxes.Lanes.Left, 3);
+            Assert.Equal(wave.Width - 2 * PlayerLayout.Margin, boxes.Lanes.Width, 3);
+            Assert.Equal(boxes.Lanes.Width, boxes.Ruler.Width, 3);
         }
 
         [Fact]
         public void WithoutASignal_OnlyTheButtonsAndTheVolumeShow()
         {
-            var body = new RectangleF(10, 100, 240, PlayerLayout.EmptyHeight);
-            var boxes = PlayerLayout.Arrange(body, signal: false);
+            var boxes = PlayerLayout.Arrange(Controls, RectangleF.Empty);
             Assert.True(boxes.Lanes.IsEmpty && boxes.Header.IsEmpty && boxes.Ruler.IsEmpty);
-            Assert.True(body.Contains(boxes.PlayPause) && body.Contains(boxes.Volume) && body.Contains(boxes.VolumeLabel));
-            Assert.True(boxes.VolumeLabel.Bottom <= boxes.Volume.Top && boxes.VolumeLabel.Left == boxes.Volume.Left);
-            Assert.True(PlayerLayout.EmptyHeight < PlayerLayout.BodyHeight(1, 20));
+            Assert.True(Controls.Contains(boxes.PlayPause) && Controls.Contains(boxes.Volume) && Controls.Contains(boxes.VolumeLabel));
             // larger buttons than the 26 by 18 they were
             Assert.True(boxes.PlayPause.Width >= 32 && boxes.PlayPause.Height >= 22);
         }
@@ -91,12 +93,12 @@ namespace CompasAcoustics.Grasshopper.Tests
         [InlineData(1)]
         [InlineData(2)]
         [InlineData(4)]
-        public void EveryChannel_GetsTheLaneHeight_TheBodyGrowsWithThem(int channels)
+        public void EveryChannel_GetsTheLaneHeight_TheComponentGrowsDownWithThem(int channels)
         {
-            var body = new RectangleF(10, 100, 240, PlayerLayout.BodyHeight(channels, 44));
-            var lanes = Waveform.Lanes(PlayerLayout.Arrange(body).Lanes, channels);
+            var wave = new RectangleF(10, Controls.Bottom, 430, PlayerLayout.WaveHeight(channels, 44));
+            var lanes = Waveform.Lanes(PlayerLayout.Arrange(Controls, wave).Lanes, channels);
             Assert.All(lanes, lane => Assert.Equal(44f, lane.Height, 3));
-            Assert.Equal(44 + Waveform.LaneGap, PlayerLayout.BodyHeight(2, 44) - PlayerLayout.BodyHeight(1, 44), 3);
+            Assert.Equal(44 + Waveform.LaneGap, PlayerLayout.WaveHeight(2, 44) - PlayerLayout.WaveHeight(1, 44), 3);
         }
 
         [Fact]
