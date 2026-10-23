@@ -1,0 +1,3 @@
+# The BEM scattering solver (compas_acoustics.lab, method="bem"): mesh2scattering builds and runs NumCalc
+mesh2scattering >=1.0.5; python_version >= "3.11"
+trimesh; python_version >= "3.11"

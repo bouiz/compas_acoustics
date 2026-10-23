@@ -34,3 +34,13 @@ def test_a_star_import_needs_no_pyfdn_and_imports_no_hybrid_method():
         "assert 'compas_acoustics.simulation_methods.hybrid' not in sys.modules\n"
     )
     subprocess.run([sys.executable, "-c", code], check=True)
+
+
+def test_the_lab_imports_without_bem_dependencies():
+    code = (
+        "import sys\n"
+        "for name in ('mesh2scattering', 'trimesh', 'spharpy'):\n"
+        "    sys.modules[name] = None\n"
+        "import compas_acoustics.lab\n"
+    )
+    subprocess.run([sys.executable, "-c", code], check=True)
