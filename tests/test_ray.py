@@ -282,6 +282,18 @@ def test_a_cone_keeps_its_rays_and_weights_them_by_the_pattern():
     assert np.mean(_cosines(cardioid, (1, 0, 0))) > 0.1
 
 
+def test_a_ray_field_traces_each_ray_for_its_duration():
+    import inspect
+
+    field = RayField.from_scene(_directive_scene("omnidirectional"), n_rays=20, max_reflection_order=50, duration=0.02)
+    limit = C * 0.02
+    # a ray stops at the first reflection past its duration's distance
+    assert all(sum(ray.segment_lengths[:-1]) <= limit for ray in field)
+    assert any(ray.total_distance > 0.5 * limit for ray in field)
+    assert "duration" in inspect.signature(RayField.from_scene).parameters
+    assert "time_thres" not in inspect.signature(RayField.from_scene).parameters
+
+
 def test_particles_carry_the_reflection_order_they_have_reached():
     ray = Ray([[0, 0, 0], [10, 0, 0], [10, 10, 0], [0, 10, 0]], ray_index=0)
     field = RayField([ray])

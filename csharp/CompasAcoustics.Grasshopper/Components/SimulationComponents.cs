@@ -39,7 +39,7 @@ namespace CompasAcoustics.Grasshopper
             }
             var rayTracing = Value<bool>(access, "ray_tracing") ?? true;
             var settings = SimulationSettings.Mono(Value<int>(access, "ism_order"), rayTracing, Value<int>(access, "n_rays"),
-                Value<bool>(access, "absorb_air"), Value<double>(access, "energy_thres"), Value<double>(access, "time_thres"),
+                Value<bool>(access, "absorb_air"), Value<double>(access, "energy_thres"), Value<double>(access, "duration"),
                 Value<int>(access, "seed"), Value<bool>(access, "normalize"), out var ignored, out _);
             if (ignored.Length > 0)
                 Remark($"Ray tracing is off, so {string.Join(", ", ignored)} are not used.");

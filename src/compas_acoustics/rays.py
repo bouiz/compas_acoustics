@@ -373,7 +373,7 @@ class RayField(_PackageDtype, Data):
         max_reflection_order: int = 10,
         direction=None,
         angle: Optional[float] = None,
-        time_thres: Optional[float] = None,
+        duration: Optional[float] = None,
         energy_thres: Optional[float] = None,
         sources=None,
         include_scattering: bool = False,
@@ -410,9 +410,9 @@ class RayField(_PackageDtype, Data):
             When omitted, rays are emitted omnidirectionally. Requires ``angle``.
         angle : float, optional
             The half angle of the spotlight cone in degrees. Requires ``direction``.
-        time_thres : float, optional
-            Maximum travel time of a ray in seconds. Converted to a distance using
-            the speed of sound. When reached, the ray is stopped.
+        duration : float, optional
+            How long each ray is traced, in seconds, as the simulations' ``duration``: a ray stops at the first
+            reflection past the distance sound travels in that time.
         energy_thres : float, optional
             Energy threshold below which a ray is stopped (based on surface absorption).
         sources : list of :class:`compas_acoustics.Source`, optional
@@ -461,7 +461,7 @@ class RayField(_PackageDtype, Data):
         rng = np.random.default_rng(_seed(random_seed))
         cone = direction
 
-        distance_thres = _distance(time_thres * 1000.0) if time_thres is not None else None
+        distance_thres = _distance(duration * 1000.0) if duration is not None else None
 
         from compas_acoustics.worker import jobs
 

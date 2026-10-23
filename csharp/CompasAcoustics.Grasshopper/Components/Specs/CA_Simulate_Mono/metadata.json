@@ -101,7 +101,7 @@
                 "default": 1e-07
             },
             {
-                "name": "time_thres",
+                "name": "duration",
                 "description": "Length of the responses in seconds (default: 1.5 times the longest Eyring reverberation time, 0.5 to 12 s). Ray tracing only.",
                 "optional": true,
                 "scriptParamAccess": 0,

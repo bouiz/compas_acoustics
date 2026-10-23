@@ -271,7 +271,7 @@ class _HybridMethod(SimulationMethod):
         if length < MIN_REFERENCE_RT_FACTOR * rt:
             warnings.warn(
                 f"The reference of {key} is {length:.1f} s long, less than 2/3 of its reverberation time ({rt:.1f} s): the "
-                f"decay fit and the late envelope read a cut tail. Simulate the reference with time_thres (duration) of at "
+                f"decay fit and the late envelope read a cut tail. Simulate the reference with a duration of at "
                 f"least {DURATION_RT_FACTOR * rt:.1f} s.",
                 UserWarning,
                 stacklevel=3,

@@ -70,6 +70,8 @@ Nothing is kept under its old name. What replaces what:
 | Grasshopper: `ism_order` value list 0 to 6 | the ISM order slider, 0 to 10 |
 | Grasshopper: Simulate Ambisonics input `sh_order` (1 to 3) | the SH order dropdown on its body, 1 to 7 |
 | Grasshopper: Acoustic Scene input `sampling_rate` | the Sampling rate dropdown on its body (44.1, 48, 96 kHz) |
+| Grasshopper: Simulate Mono input `time_thres` | `duration`, the length of the responses, as `Mono(duration=)` names it |
+| `RayField.from_scene(time_thres=)` | `RayField.from_scene(duration=)` |
 | Grasshopper: Visualise Energy Map inputs `n_rays`, `image_source_order`, `seed` | fixed: the rays from the room's volume, order 1, seed 42; the input `spacing` meshes the surface given |
 
 The Grasshopper components are now a compiled plugin (`CompasAcoustics.gha`) instead of CPython script components: a definition saved

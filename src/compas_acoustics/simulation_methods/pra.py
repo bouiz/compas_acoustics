@@ -214,7 +214,7 @@ class Mono(SimulationMethod):
         if longest > 0.0 and length < MIN_RESPONSE_RT_FACTOR * longest:
             warnings.warn(
                 f"The responses are {length:.1f} s long, less than 2/3 of their reverberation time ({longest:.1f} s): T30 reads "
-                f"short and the hybrid's decay fit would be cut. Rerun with duration (time_thres) of at least "
+                f"short and the hybrid's decay fit would be cut. Rerun with a duration of at least "
                 f"{DURATION_RT_FACTOR * longest:.1f} s; the default buffer comes from Eyring, which this room's decay outruns.",
                 UserWarning,
                 stacklevel=4,

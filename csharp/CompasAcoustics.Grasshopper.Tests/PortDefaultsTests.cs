@@ -25,7 +25,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(1e-7, Port("CA_Simulate_Mono", "energy_thres").Default);
             Assert.Equal(1.0, Port("CA_Regularized_Fitness", "k").Default);
             Assert.Null(Port("CA_Simulate_Mono", "seed").Default);
-            Assert.Null(Port("CA_Simulate_Mono", "time_thres").Default);
+            Assert.Null(Port("CA_Simulate_Mono", "duration").Default);
             Assert.Null(Port("CA_Visualise_Billiard", "speed").Default);
         }
 

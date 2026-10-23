@@ -16,7 +16,7 @@ namespace CompasAcoustics.Grasshopper
         /// Without ray tracing its inputs are dropped and named in ``ignored``; with it, an empty seed draws a new one.
         /// </summary>
         public static Dictionary<string, object?> Mono(int? ismOrder, bool rayTracing, int? nRays, bool? absorbAir, double? energyThres,
-            double? timeThres, int? seed, bool? normalize, out string[] ignored, out int drawnSeed)
+            double? duration, int? seed, bool? normalize, out string[] ignored, out int drawnSeed)
         {
             var given = new Dictionary<string, object?>
             {
@@ -24,7 +24,7 @@ namespace CompasAcoustics.Grasshopper
                 ["n_rays"] = nRays is int rays ? (long)rays : null,
                 ["air_absorption"] = absorbAir ?? true,
                 ["energy_thres"] = energyThres,
-                ["duration"] = timeThres,
+                ["duration"] = duration,
                 ["seed"] = seed is int s ? (long)s : null,
                 ["normalize"] = normalize,
             };
