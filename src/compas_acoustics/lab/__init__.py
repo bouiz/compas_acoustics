@@ -13,12 +13,14 @@ from .coefficients import scattering_freefield
 from .grids import ReceiverGrid
 from .grids import SourceGrid
 from .grids import receiver_spacing
+from .sample import ScatteringSample
 
 __all__ = [
     "EXTENDED_BAND_RANGE",
     "ISO_BAND_RANGE",
     "THIRD_OCTAVE_CENTRES",
     "ReceiverGrid",
+    "ScatteringSample",
     "SourceGrid",
     "band_average",
     "fill_octaves",
