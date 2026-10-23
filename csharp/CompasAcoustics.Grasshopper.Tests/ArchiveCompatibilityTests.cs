@@ -64,9 +64,24 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
+        public void ASavedPyroomacousticsComponent_ReadsAsSimulateMono()
+        {
+            // a definition saved with Simulate Pyroomacoustics finds the component by its GUID and its ports by name
+            var mono = new SimulateMonoComponent();
+            Assert.Equal(new System.Guid("afb77a6d-dd01-5224-9ee0-70972dcbdbcf"), mono.ComponentGuid);
+            Assert.Equal(("Simulate Mono", "SimMono"), (mono.Name, mono.NickName));
+            Assert.Equal(new[] { "scene", "ism_order", "ray_tracing", "n_rays", "absorb_air", "energy_thres", "time_thres", "seed", "normalize" },
+                mono.Params.Input.Select(p => p.Name));
+            Assert.Equal(new[] { "mono_ir_graph" }, mono.Params.Output.Select(p => p.Name));
+            var (archive, read) = SaveThenRead(new SimulateMonoComponent(), new SimulateMonoComponent());
+            Assert.True(read);
+            Assert.Empty(Errors(archive));
+        }
+
+        [Fact]
         public void AComponentSavedNow_ReadsWithoutErrors()
         {
-            var (archive, read) = SaveThenRead(new SimulateHybridComponent(), new SimulateHybridComponent());
+            var (archive, read) = SaveThenRead(new SimulateBinauralComponent(), new SimulateBinauralComponent());
             Assert.True(read);
             Assert.Empty(Errors(archive));
         }

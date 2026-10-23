@@ -1,10 +1,10 @@
-"""Hybrid ambisonic room impulse responses: image sources driving a directional FDN.
+"""The hybrid engine: image sources driving a directional FDN, rendered binaural or ambisonic.
 
 Ported from hybrid-rir (gpapadimitri/hybrid-rir); every generated module names
 the upstream revision, :data:`UPSTREAM_REVISION`. Needs pyFDN and spharpy, which
-compas_acoustics requires on Python >= 3.11. Used through :class:`compas_acoustics.simulation_methods.Hybrid`, a
-simulation method (:mod:`compas_acoustics.simulation_methods`) for :meth:`compas_acoustics.Scene.simulate`;
-this package holds the DSP it is built on.
+compas_acoustics requires on Python >= 3.11. Used through :class:`compas_acoustics.Binaural` and
+:class:`compas_acoustics.Ambisonics`, simulation methods (:mod:`compas_acoustics.simulation_methods`) for
+:meth:`compas_acoustics.Scene.simulate`; this package holds the DSP they are built on.
 """
 
 import soundfile as _soundfile

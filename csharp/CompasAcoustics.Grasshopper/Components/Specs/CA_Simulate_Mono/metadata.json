@@ -1,9 +1,9 @@
 {
-    "name": "Simulate Pyroomacoustics",
-    "nickname": "SimRT",
+    "name": "Simulate Mono",
+    "nickname": "SimMono",
     "category": "COMPAS Acoustics",
     "subcategory": "02 Simulation",
-    "description": "Simulate room acoustics with pyroomacoustics: the image source method (ISM), plus ray tracing (RT) by default. Writes the responses to the impulse response graph under 'pyroomacoustics' and 'data'.",
+    "description": "Simulate mono room impulse responses with pyroomacoustics: the image source method (ISM), plus ray tracing (RT) by default. The reference of Simulate Binaural and Simulate Ambisonics. Writes the responses to the impulse response graph under 'mono' and 'data'.",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,
@@ -109,7 +109,7 @@
         "outputParameters": [
             {
                 "name": "mono_ir_graph",
-                "description": "IR graph of the mono responses (under 'pyroomacoustics'), for Deconstruct IR Graph or the reference of Simulate Hybrid."
+                "description": "IR graph of the mono responses (under 'mono'), for Deconstruct IR Graph or the reference of Simulate Binaural and Simulate Ambisonics."
             }
         ]
     }

@@ -14,26 +14,11 @@ Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, tests/test_late_hoa_d
 """
 
 import numpy as np
-import pyFDN
 import pytest
 import spharpy
 
-from compas_acoustics.hybrid.bands import BANDS
-from compas_acoustics.hybrid.late import MIN_DELAYS, ambisonic_output_matrix, default_num_delays, design_fdn
-from compas_acoustics.hybrid.target import RoomTarget
-
-
-def flat_target(rt=0.6):
-    return RoomTarget(
-        rt=np.full(BANDS.size, rt),
-        level=np.ones(BANDS.size),
-        bands=BANDS.copy(),
-        fs=48000.0,
-    )
-
-
-def delays_of(n):
-    return pyFDN.sample_delay_lengths(n, (500, 1500), coprime=True, rng=0)
+from compas_acoustics.hybrid.late import MIN_DELAYS, fdn_directions
+from compas_acoustics.hybrid.ambisonics import ambisonic_output_matrix, default_num_delays
 
 
 @pytest.mark.parametrize("sh_order", [0, 1, 2, 3])
@@ -55,15 +40,19 @@ def test_the_default_grows_with_the_ambisonic_order_above_the_floor():
     assert counts[-1] > counts[0]  # fourth order needs more than the 96 lines of the floor
 
 
-@pytest.mark.parametrize("sh_order", [1, 2, 3])
-def test_design_fdn_works_at_every_order_with_the_default_count(sh_order):
-    builds = design_fdn(
-        flat_target(), delays_of(default_num_delays(sh_order)), sh_order=sh_order
-    )
-    assert builds[0].C.shape[0] == (sh_order + 1) ** 2
+@pytest.mark.parametrize("sh_order", [1, 2, 3, 4])
+def test_the_output_matrix_works_at_every_order_with_the_default_count(sh_order):
+    count = default_num_delays(sh_order)
+    assert ambisonic_output_matrix(sh_order, fdn_directions(count)).shape == ((sh_order + 1) ** 2, count)
+
+
+def test_the_grid_depends_on_the_count_alone():
+    for sh_order in range(4):
+        grid = spharpy.samplings.equal_area(n_max=sh_order, n_points=96)
+        np.testing.assert_array_equal(grid.cartesian, fdn_directions(96).cartesian)
 
 
 def test_a_delay_count_that_cannot_support_the_order_raises():
     """The guard must not be softened into a silent substitution."""
-    with pytest.raises(ValueError, match="leaks|equal_area returned"):
-        design_fdn(flat_target(), delays_of(16), sh_order=2)
+    with pytest.raises(ValueError, match="leaks"):
+        ambisonic_output_matrix(2, fdn_directions(16))

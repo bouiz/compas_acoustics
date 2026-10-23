@@ -1,4 +1,4 @@
-"""Upstream hybrid-rir's room types and per-pair entry points, on this package.
+"""Upstream hybrid-rir's room types and its image source entry point, on this package.
 
 Lets upstream's own tests run against the port. Test-only. A test that needs
 something not ported (scattering, obstacle-free drive) is skipped by name with
@@ -82,12 +82,3 @@ def image_sources(spec, max_order):
     room.add_microphone(np.asarray(spec.receiver, dtype=float).reshape(3, 1))
     room.image_source_model()
     return early.image_sources(room, 0, 0, spec)
-
-
-def synthesize(spec, *, max_order=3, target=None, **kwargs):
-    from compas_acoustics.hybrid import synthesis
-    from compas_acoustics.hybrid.target import RoomTarget
-
-    if target is None:
-        target = RoomTarget.from_room(spec)  # upstream's default
-    return synthesis.synthesize(spec, image_sources(spec, max_order + 1), target, max_order=max_order, **kwargs)

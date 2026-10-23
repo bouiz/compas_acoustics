@@ -118,12 +118,16 @@ def rays(image, d, accent):
     _dot(d, 24, 68, 8, DARK)
 
 
-def hybrid(image, d, accent):
-    _line(d, [(12, 70), (30, 18), (46, 56)], accent)
-    _dot(d, 12, 70, 7, DARK)
-    for i, x in enumerate(range(54, 90, 8)):
-        h = 46 * math.exp(-0.45 * i)
-        _line(d, [(x, 84), (x, 84 - h)], DARK, W - 1)
+def binaural(image, d, accent):
+    _ring(d, 48, 48, 26, DARK)
+    _dot(d, 16, 48, 9, accent)
+    _dot(d, 80, 48, 9, accent)
+
+
+def ambisonics(image, d, accent):
+    for r in (14, 28, 42):
+        _ring(d, 48, 48, r, DARK, W - 2)
+    _dot(d, 48, 48, 6, accent)
 
 
 def graph(image, d, accent):
@@ -218,8 +222,9 @@ GLYPHS = {
     "CA_Plot_2D": chart,
     "CA_Receiver": receiver,
     "CA_Regularized_Fitness": target,
-    "CA_Simulate_Hybrid": hybrid,
-    "CA_Simulate_Ray_Tracing": rays,
+    "CA_Simulate_Ambisonics": ambisonics,
+    "CA_Simulate_Binaural": binaural,
+    "CA_Simulate_Mono": rays,
     "CA_Source": source,
     "CA_Visualise_Billiard": billiard,
     "CA_Visualise_Rays": fan,

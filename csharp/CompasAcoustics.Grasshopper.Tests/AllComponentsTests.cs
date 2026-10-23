@@ -67,8 +67,9 @@ namespace CompasAcoustics.Grasshopper.Tests
             ["ReceiverComponent"] = new[] { "receiver" },
             ["AcousticObjectComponent"] = new[] { "acoustic_object" },
             ["RoomSceneComponent"] = new[] { "scene" },
-            ["SimulatePyroomacousticsComponent"] = new[] { "mono_ir_graph" },
-            ["SimulateHybridComponent"] = new[] { "binaural_ir_graph", "ambisonic_ir_graph" },
+            ["SimulateMonoComponent"] = new[] { "mono_ir_graph" },
+            ["SimulateBinauralComponent"] = new[] { "binaural_ir_graph" },
+            ["SimulateAmbisonicsComponent"] = new[] { "ambisonic_ir_graph" },
             ["DeconstructIrGraphComponent"] = new[] { "edges" },
         };
 
@@ -88,6 +89,20 @@ namespace CompasAcoustics.Grasshopper.Tests
         {
             var guids = Components().Select(c => Make((string)c[0]).ComponentGuid).ToList();
             Assert.Equal(guids.Count, guids.Distinct().Count());
+        }
+
+        [Fact]
+        public void TheSimulateComponents_HaveOneOutputEach_NamedAfterTheirFormat()
+        {
+            Assert.Equal(new[] { "mono_ir_graph" }, new SimulateMonoComponent().Params.Output.Select(p => p.Name));
+            Assert.Equal(new[] { "binaural_ir_graph" }, new SimulateBinauralComponent().Params.Output.Select(p => p.Name));
+            Assert.Equal(new[] { "ambisonic_ir_graph" }, new SimulateAmbisonicsComponent().Params.Output.Select(p => p.Name));
+            Assert.Contains("hrtf", new SimulateBinauralComponent().Params.Input.Select(p => p.Name));
+            Assert.DoesNotContain("sh_order", new SimulateBinauralComponent().Params.Input.Select(p => p.Name));
+            Assert.Contains("sh_order", new SimulateAmbisonicsComponent().Params.Input.Select(p => p.Name));
+            Assert.DoesNotContain("hrtf", new SimulateAmbisonicsComponent().Params.Input.Select(p => p.Name));
+            Assert.All(new ComponentBase[] { new SimulateBinauralComponent(), new SimulateAmbisonicsComponent() },
+                c => Assert.DoesNotContain("output", c.Params.Input.Select(p => p.Name)));
         }
     }
 }

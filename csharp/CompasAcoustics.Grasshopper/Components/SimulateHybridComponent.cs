@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -8,13 +9,21 @@ using Grasshopper.Kernel;
 
 namespace CompasAcoustics.Grasshopper
 {
-    public sealed class SimulateHybridComponent : ComponentBase
+    /// <summary>
+    /// Simulate Binaural and Simulate Ambisonics: the hybrid engine in the worker, started by Run. A subclass names its method
+    /// and its output; the inputs only one of them has (``sh_order``, ``hrtf``) are read where the component has them.
+    /// </summary>
+    public abstract class SimulateHybridComponent : ComponentBase
     {
         private HybridRun.LastResult? _last;
 
-        public SimulateHybridComponent() : base("CA_Simulate_Hybrid") { }
-        protected override string SpecKey => "CA_Simulate_Hybrid";
-        public override Guid ComponentGuid => new Guid("875b3eae-1993-5cbb-b521-11f4cdcf4e78");
+        protected SimulateHybridComponent(string key) : base(key) { }
+
+        /// <summary>The worker's method name, which is also the graph attribute of its responses.</summary>
+        protected abstract string Method { get; }
+
+        /// <summary>The one output, an IR graph of the method's responses.</summary>
+        protected abstract string Output { get; }
 
         protected override IGH_Param? CreateParam(PortSpec port, bool input) => (input, port.Name) switch
         {
@@ -29,16 +38,13 @@ namespace CompasAcoustics.Grasshopper
         {
             new DropdownControl("tail", HybridRun.Tails),
             new DropdownControl("diffraction", HybridRun.Diffraction),
-            new SwitchControl("output", HybridRun.Outputs),
             new ButtonControl("run", "Run"),
         };
 
-        private void SetGraphs(IGH_DataAccess access, string sceneGuid, string[] formats)
-        {
-            var graphs = _last != null && _last.SceneGuid == sceneGuid ? _last.Graphs : new Dictionary<string, IrGraphGoo>();
-            access.SetData("binaural_ir_graph", formats.Contains("binaural") && graphs.TryGetValue("binaural", out var b) ? b : null);
-            access.SetData("ambisonic_ir_graph", formats.Contains("ambisonic") && graphs.TryGetValue("ambisonic", out var a) ? a : null);
-        }
+        private bool Has(string port) => Params.Input.Exists(p => p.Name == port);
+
+        private void SetGraph(IGH_DataAccess access, string sceneGuid) =>
+            access.SetData(Output, _last != null && _last.SceneGuid == sceneGuid ? _last.Graph : null);
 
         protected override void Solve(IGH_DataAccess access)
         {
@@ -48,52 +54,45 @@ namespace CompasAcoustics.Grasshopper
                 Warn("Input parameter 'scene' failed to collect data.");
                 return;
             }
-            var output = Text(access, "output");
-            string[] formats;
-            try
-            {
-                formats = HybridRun.Formats(output);
-            }
-            catch (ArgumentException e)
-            {
-                Error(e.Message);
-                return;
-            }
             var tail = Text(access, "tail");
             var reference = Item<IrGraphGoo>(access, "reference");
             // checked before 'run' so that it shows as soon as the tail is chosen, not only after pressing Run
             if (tail == "reference" && reference == null)
             {
-                Warn("tail 'reference' needs a reference: connect the mono_ir_graph of Simulate Pyroomacoustics to 'reference', or choose another tail.");
+                Warn("tail 'reference' needs a reference: connect the mono_ir_graph of Simulate Mono to 'reference', or choose another tail.");
                 Message = "connect a reference";
-                SetGraphs(access, scene.Value.Guid, formats);
+                SetGraph(access, scene.Value.Guid);
                 return;
             }
-            var shOrder = Value<int>(access, "sh_order");
+            var shOrder = Has("sh_order") ? Value<int>(access, "sh_order") : null;
+            var hrtf = Has("hrtf") ? Text(access, "hrtf") : null;
             var ismOrder = Value<int>(access, "ism_order");
             var diffraction = Text(access, "diffraction");
-            var hrtf = Text(access, "hrtf");
             var seed = Value<int>(access, "seed");
             Dictionary<string, object?> settings;
             Dictionary<string, ImpulseResponseData>? references;
             try
             {
-                settings = HybridRun.Settings(tail, shOrder, ismOrder, diffraction, Value<bool>(access, "late_envelope"), seed,
-                    Value<bool>(access, "normalize"), output, hrtf, reference, scene.SamplingRate, out references);
+                settings = HybridRun.Settings(tail, ismOrder, diffraction, Value<bool>(access, "late_envelope"), seed,
+                    Value<bool>(access, "normalize"), reference, scene.SamplingRate, out references);
             }
             catch (ArgumentException e)
             {
                 Error(e.Message);
                 return;
             }
+            if (shOrder is int sh)
+                settings["sh_order"] = (long)sh;
+            if (hrtf != null)
+                settings["hrtf"] = hrtf;
             var refs = references?.ToDictionary(kv => kv.Key, kv => (object?)kv.Value);
-            var args = new object?[] { scene.Value, "hybrid", settings, refs };
+            var args = new object?[] { scene.Value, Method, settings, refs };
             // a seed drawn for this solution is not a change of the inputs
             var keySettings = new Dictionary<string, object?>(settings);
             if (seed == null)
                 keySettings.Remove("seed");
-            var key = AsyncRuns.Key("simulate", new object?[] { scene.Value, "hybrid", keySettings, refs }, new Dictionary<string, object?>());
-            var request = new Background("simulate", args, new Dictionary<string, object?>(), new Context(scene, formats, settings["seed"], hrtf), key);
+            var key = AsyncRuns.Key("simulate", new object?[] { scene.Value, Method, keySettings, refs }, new Dictionary<string, object?>());
+            var request = new Background("simulate", args, new Dictionary<string, object?>(), new Context(scene, settings["seed"], hrtf), key);
             var shown = false;
             void Deliver(Outcome outcome, bool fresh)
             {
@@ -101,8 +100,8 @@ namespace CompasAcoustics.Grasshopper
                 ShowWarnings(result);
                 if (fresh)
                     Keep((Context)outcome.Context!, result);
-                ShowStatus(fresh ? RunMessage((Context)outcome.Context!) : HybridRun.Status(_last, scene.Value.Guid, formats, tail, shOrder, ismOrder, diffraction));
-                SetGraphs(access, scene.Value.Guid, formats);
+                ShowStatus(fresh ? RunMessage((Context)outcome.Context!) : HybridRun.Status(_last, scene.Value.Guid, tail, shOrder, ismOrder, diffraction));
+                SetGraph(access, scene.Value.Guid);
                 shown = true;
             }
             // the simulation can take minutes and Grasshopper recomputes on every upstream change, so it starts only when
@@ -113,14 +112,14 @@ namespace CompasAcoustics.Grasshopper
             {
                 if (!shown)
                 {
-                    ShowStatus(HybridRun.Status(_last, scene.Value.Guid, formats, tail, shOrder, ismOrder, diffraction));
-                    SetGraphs(access, scene.Value.Guid, formats);
+                    ShowStatus(HybridRun.Status(_last, scene.Value.Guid, tail, shOrder, ismOrder, diffraction));
+                    SetGraph(access, scene.Value.Guid);
                 }
                 if (decision.Interrupted)
                     ShowStatus("settings changed, press Run");
             }
             else if (!shown && decision.Kind != RunKind.Failed)
-                SetGraphs(access, scene.Value.Guid, formats);
+                SetGraph(access, scene.Value.Guid);
         }
 
         /// <summary>The message; while the settings differ from the last result, a warning colours the body.</summary>
@@ -131,7 +130,7 @@ namespace CompasAcoustics.Grasshopper
                 Warn("The settings differ from the last run: press Run to update the responses.");
         }
 
-        private sealed record Context(SceneGoo Scene, string[] Formats, object? Seed, string? Hrtf);
+        private sealed record Context(SceneGoo Scene, object? Seed, string? Hrtf);
 
         protected override bool RunsInBackground => true;
 
@@ -139,27 +138,43 @@ namespace CompasAcoustics.Grasshopper
         {
             await Task.Run(Worker.EnsureStarted, cancel).ConfigureAwait(false);
             if (!Worker.Hybrid)
-                throw new WorkerException("The hybrid method needs a worker with pyFDN: run the installer.");
+                throw new WorkerException($"{Name} needs a worker with pyFDN: run the installer.");
             return await base.Call(request, callId, cancel).ConfigureAwait(false);
         }
 
         private void Keep(Context context, IDictionary<string, object?> result)
         {
-            var responses = (IDictionary<string, object?>)result["responses"]!;
-            var graphs = new Dictionary<string, IrGraphGoo>();
-            foreach (var format in context.Formats)
-                if (responses.TryGetValue(HybridRun.Attributes[format], out var irs) && irs is IDictionary<string, object?> byKey)
-                    graphs[format] = IrGraphGoo.FromSimulation(context.Scene, HybridRun.Attributes[format], byKey);
-            var first = graphs.Values.SelectMany(g => g.Value.Responses).FirstOrDefault();
-            _last = new HybridRun.LastResult(context.Scene.Value.Guid, graphs, new Dictionary<string, object?>(first?.Generation ?? new Dictionary<string, object?>()));
+            var responses = (IDictionary<string, object?>)((IDictionary<string, object?>)result["responses"]!)[Method]!;
+            var graph = IrGraphGoo.FromSimulation(context.Scene, Method, responses);
+            var first = graph.Value.Responses.FirstOrDefault()?.Generation ?? new Dictionary<string, object?>();
+            _last = new HybridRun.LastResult(context.Scene.Value.Guid, graph, new Dictionary<string, object?>(first));
         }
 
         private string RunMessage(Context context)
         {
             var generation = _last?.Generation ?? new Dictionary<string, object?>();
-            generation.TryGetValue("tail", out var resolvedTail);
-            generation.TryGetValue("sh_order", out var resolvedOrder);
-            return $"{context.Scene.SamplingRate}Hz, hybrid, tail: {resolvedTail ?? "auto"}, order {resolvedOrder}, seed {context.Seed}{HybridRun.HrtfLabel(context.Hrtf, context.Formats)}";
+            generation.TryGetValue("tail", out var tail);
+            var order = generation.TryGetValue("sh_order", out var sh) ? $", order {sh}" : "";
+            var set = Has("hrtf") ? $", hrtf {(string.IsNullOrEmpty(context.Hrtf) ? "kemar" : Path.GetFileName(context.Hrtf))}" : "";
+            return $"{context.Scene.SamplingRate}Hz, {Method}, tail: {tail ?? "auto"}{order}, seed {context.Seed}{set}";
         }
+    }
+
+    public sealed class SimulateBinauralComponent : SimulateHybridComponent
+    {
+        public SimulateBinauralComponent() : base("CA_Simulate_Binaural") { }
+        protected override string SpecKey => "CA_Simulate_Binaural";
+        public override Guid ComponentGuid => new Guid("2c46c2f3-7b8b-43fd-ba7b-b249681d829b");
+        protected override string Method => "binaural";
+        protected override string Output => "binaural_ir_graph";
+    }
+
+    public sealed class SimulateAmbisonicsComponent : SimulateHybridComponent
+    {
+        public SimulateAmbisonicsComponent() : base("CA_Simulate_Ambisonics") { }
+        protected override string SpecKey => "CA_Simulate_Ambisonics";
+        public override Guid ComponentGuid => new Guid("5da5e5fc-80d6-4a8a-9170-91d3d3a3f94d");
+        protected override string Method => "ambisonics";
+        protected override string Output => "ambisonic_ir_graph";
     }
 }

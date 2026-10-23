@@ -1,9 +1,9 @@
 """An office, simulated two ways, compared and auralised.
 
 Loads examples/cut_without.obj (an open-plan office, 20 x 22 x 3.9 m), simulates it with pyroomacoustics
-(image sources and ray tracing) and with the hybrid method fitted to that result, plots the reverberation
-times of both and renders a binaural recording of speech. Needs Python >= 3.11, where compas_acoustics installs the hybrid
-method's packages:
+(the mono method: image sources and ray tracing) and with the hybrid engine fitted to that result, binaural and ambisonic, plots the
+reverberation times and renders speech in each format. Needs Python >= 3.11, where compas_acoustics installs the packages of
+the binaural and ambisonics methods:
 
     pip install -e .
     python examples/office_hybrid.py
@@ -47,27 +47,27 @@ scene.add_source(speaker)
 scene.add_receiver(listener)
 
 ########### the reference: image sources to order 3, then ray tracing
-scene.simulate(ca.Pyroomacoustics(image_source_order=3, ray_tracing=True, n_rays=100_000, duration=3.0, seed=42))
+scene.simulate(ca.Mono(image_source_order=3, ray_tracing=True, n_rays=100_000, duration=3.0, seed=42))
 
-########### the hybrid: image sources early, a feedback delay network late, fitted to the reference;
-# one run renders it ambisonic (stored under "hybrid") and binaural (under "hybrid_binaural")
-scene.simulate(ca.Hybrid("pyroomacoustics", sh_order=1, image_source_order=2, diffraction=True, seed=42,
-                         output=["ambisonic", "binaural"]))
+########### the hybrid engine: image sources early, a feedback delay network late, fitted to the reference; rendered
+# binaural (stored under "binaural") and ambisonic (under "ambisonics"), the same seed giving both the same late field
+scene.simulate(ca.Binaural("mono", image_source_order=2, diffraction=True, seed=42))
+scene.simulate(ca.Ambisonics("mono", sh_order=1, image_source_order=2, diffraction=True, seed=42))
 
-########### reverberation times of both; the analyser takes the hybrid's W channel (omnidirectional) of its four
+########### reverberation times; the analyser takes the W channel (omnidirectional) of the ambisonic response's four
 warnings.filterwarnings("ignore", message="Impulse response has 4 channels")
 # every method stores its responses on the scene under its own name
-ir_pra = scene.get_impulse_response(speaker, listener, attribute="pyroomacoustics")
-ir_hybrid = scene.get_impulse_response(speaker, listener, attribute="hybrid")
-ir_binaural = scene.get_impulse_response(speaker, listener, attribute="hybrid_binaural")
-results = {"pyroomacoustics": ca.AcousticAnalyser(ir_pra).analyse(), "hybrid": ca.AcousticAnalyser(ir_hybrid).analyse()}
+ir_mono = scene.get_impulse_response(speaker, listener, attribute="mono")
+ir_ambisonic = scene.get_impulse_response(speaker, listener, attribute="ambisonics")
+ir_binaural = scene.get_impulse_response(speaker, listener, attribute="binaural")
+results = {"mono": ca.AcousticAnalyser(ir_mono).analyse(), "ambisonics": ca.AcousticAnalyser(ir_ambisonic).analyse()}
 
 fig, axes = plt.subplots(1, 2, figsize=(10, 3.8), sharey=True)
 for ax, parameter in zip(axes, ("EDT", "T30")):
     for name, marker in zip(results, "os"):
         ax.semilogx(results[name]["freqs"], results[name][parameter], marker + "-", label=name)
     ax.set(title=parameter, xlabel="octave band (Hz)")
-    ax.set_xticks(results["hybrid"]["freqs"], [f"{f:g}" for f in results["hybrid"]["freqs"]])
+    ax.set_xticks(results["ambisonics"]["freqs"], [f"{f:g}" for f in results["ambisonics"]["freqs"]])
     ax.minorticks_off()
 axes[0].set(ylabel="time (s)", ylim=(0, None))
 axes[0].legend()
@@ -77,7 +77,7 @@ plt.savefig(OUTPUT / "office_reverberation_times.png", dpi=150)
 ########### auralisation: speech through each response, in its format: mono, binaural (an HRTF per path and per delay line)
 ########### and ambisonic ACN/SN3D, a multichannel file for an ambisonic decoder elsewhere
 speech = Path(ca.Defaults().ANECHOIC_SOUNDFILES_LIBRARY_PATH) / "female_speech.wav"
-for name, ir in (("pyroomacoustics", ir_pra), ("hybrid_binaural", ir_binaural), ("hybrid_ambisonic", ir_hybrid)):
+for name, ir in (("mono", ir_mono), ("binaural", ir_binaural), ("ambisonic", ir_ambisonic)):
     auraliser = ca.Auraliser("office", [ir], anechoic_sounds=[str(speech)])
     auraliser.export_convolved_sound(str(OUTPUT / f"office_speech_{name}.wav"))
 

@@ -20,14 +20,15 @@ conda activate your_env_name
 pip install -e ".[dev]"
 ```
 
-### Hybrid ambisonic method (Python >= 3.11)
+### Binaural and ambisonics methods (Python >= 3.11)
 
-The `Hybrid` simulation method (image sources, edge diffraction and a directional
-feedback delay network, ported from [hybrid-rir](https://github.com/gpapadimitri/hybrid-rir))
-needs pyFDN, spharpy and multislope, which `compas_acoustics` installs on Python 3.11 and
-newer; on Python 3.9 and 3.10 (Rhino 8) it leaves them out and the method is not available.
+The `Binaural` and `Ambisonics` simulation methods share one hybrid engine (image sources, edge
+diffraction and a directional feedback delay network, ported from
+[hybrid-rir](https://github.com/gpapadimitri/hybrid-rir)) and differ only in how they render it.
+They need pyFDN, spharpy and multislope, which `compas_acoustics` installs on Python 3.11 and
+newer; on Python 3.9 and 3.10 (Rhino 8) it leaves them out and the methods are not available.
 pyFDN brings flamo and with it PyTorch (about 0.5 GB on macOS, several GB with CUDA on Linux),
-which only pyFDN's training modules use; the hybrid method runs without them.
+which only pyFDN's training modules use; the methods run without them.
 
 ## Install in Rhino 8 / Grasshopper
 
@@ -82,8 +83,9 @@ scene.add_acoustic_objects(ca.AcousticObjectsLibrary.shoebox_room(8, 6, 3, mater
 scene.add_source(ca.Source("talker", 2, 2, 1.6))
 scene.add_receiver(ca.Receiver("listener", 6, 4, 1.2, direction=[-1, -0.5, 0]))
 
-mono = scene.simulate(ca.Pyroomacoustics(ray_tracing=True))   # image sources + ray tracing
-binaural = scene.simulate(ca.Hybrid())                         # binaural; output="ambisonic" for ambisonics; needs Python >= 3.11
+mono = scene.simulate(ca.Mono(ray_tracing=True))              # pyroomacoustics: image sources + ray tracing
+binaural = scene.simulate(ca.Binaural())                       # needs Python >= 3.11
+ambisonics = scene.simulate(ca.Ambisonics(sh_order=1))         # ACN/SN3D, for a decoder elsewhere
 
 speech = ca.Defaults().ANECHOIC_SOUNDFILES_LIBRARY_PATH + "/female_speech.wav"
 signal = ca.Auraliser("room", list(binaural.values()), anechoic_sounds=[speech]).convolve()   # (samples, 2)
@@ -91,9 +93,9 @@ signal = ca.Auraliser("room", list(binaural.values()), anechoic_sounds=[speech])
 
 `Auraliser` convolves and keeps the format of its responses: mono, binaural, or ambisonic ACN/SN3D (AmbiX) to save as a
 multichannel file for an ambisonic decoder elsewhere. There is no ambisonic-to-binaural or stereo decoder: for headphones,
-simulate binaurally with `Hybrid`.
+simulate with `Binaural`.
 
-`examples/office_hybrid.py` runs both methods on an office, with reverberation times and an auralisation.
+`examples/office_hybrid.py` runs the three methods on an office, with reverberation times and an auralisation.
 
 ## Grasshopper plugin development
 

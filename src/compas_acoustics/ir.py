@@ -123,6 +123,16 @@ class ImpulseResponse(_PackageDtype, Data):
 
 
     @property
+    def format(self):
+        """str : ``'mono'``, ``'binaural'`` (two channels, no ambisonic order) or ``'ambisonic'``."""
+        if self.n_channels == 1:
+            return "mono"
+        if self.n_channels == 2 and self.ambisonic_order is None:
+            return "binaural"
+        return "ambisonic"
+
+
+    @property
     def level_db(self):
         """float : The normalization factor in dB (20 log10 of the raw peak)."""
         return 20.0 * np.log10(self.normalization_factor)

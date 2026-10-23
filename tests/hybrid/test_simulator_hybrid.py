@@ -16,8 +16,8 @@ from compas_acoustics.room.diffuse import DiffuseFieldWarning
 from compas_acoustics.hybrid.diffraction import ShellEdgeWarning
 from compas_acoustics.hybrid.diffraction import diffraction_edges
 from compas_acoustics.hybrid.diffraction import enclosure_edges
-from compas_acoustics.simulation_methods import Hybrid
-from compas_acoustics.simulation_methods import Pyroomacoustics
+from compas_acoustics.simulation_methods import Ambisonics
+from compas_acoustics.simulation_methods import Mono
 from compas_acoustics.simulation_methods import SimulationContext
 from compas_acoustics.room.geometry import RoomGeometry
 from compas_acoustics.room.geometry import SurfaceMaterial
@@ -25,7 +25,7 @@ from compas_acoustics.room.geometry import SurfaceMaterial
 FS = 48000
 WALL = AcousticMaterial("wall", 0.2, 0.1)
 # These tests read the ambisonic output; the binaural one is tested in test_hybrid_outputs.py and test_binaural.py
-FAST = dict(image_source_order=2, duration=0.5, output="ambisonic")
+FAST = dict(image_source_order=2, duration=0.5)
 FAST_RT = dict(image_source_order=3, n_rays=2000, duration=1.0, seed=1)
 
 
@@ -43,7 +43,7 @@ def make(receivers=None, materials=WALL, leaves=6, panel=False):
 
 
 def references(scene, **kwargs):
-    return scene.simulate(Pyroomacoustics(ray_tracing=True, **dict(FAST_RT, **kwargs)))
+    return scene.simulate(Mono(ray_tracing=True, **dict(FAST_RT, **kwargs)))
 
 
 def uneven():
@@ -54,31 +54,31 @@ def uneven():
 # ------------------------------------------------------------ v1 Task 15 --
 def test_one_ambisonic_response_per_pair():
     scene = make([Receiver("a", 8.0, 4.0, 1.5), Receiver("b", 3.0, 6.0, 1.2, direction=[0, 1, 0])])
-    hybrid = Hybrid(references(scene), sh_order=1, **FAST)
+    hybrid = Ambisonics(references(scene), sh_order=1, **FAST)
     rirs = scene.simulate(hybrid)
     assert len(rirs) == 2
     for key, ir in rirs.items():
         assert ir.ir.shape == (int(0.5 * FS), 4)
         assert (ir.ambisonic_order, ir.normalization, ir.channel_order) == (1, "sn3d", "acn")
         assert ir.sampling_rate == FS
-        assert scene.get_impulse_response(ir.source, ir.receiver, attribute="hybrid") is ir
+        assert scene.get_impulse_response(ir.source, ir.receiver, attribute="ambisonics") is ir
         assert hybrid.results[key].normalization == "SN3D"
-    assert scene.impulse_responses("hybrid") == rirs
+    assert scene.impulse_responses("ambisonics") == rirs
 
 
 def test_the_mono_responses_stay_in_the_graph():
     scene = make()
     mono = references(scene)
-    scene.simulate(Hybrid(mono, **FAST))
+    scene.simulate(Ambisonics(mono, **FAST))
     (ir,) = mono.values()
     assert scene.get_impulse_response(ir.source, ir.receiver) is ir
-    assert scene.get_impulse_response(ir.source, ir.receiver, attribute="pyroomacoustics") is ir
+    assert scene.get_impulse_response(ir.source, ir.receiver, attribute="mono") is ir
     assert scene.impulse_responses("data") == mono
 
 
 def test_second_order_n3d_has_nine_channels():
     scene = make()
-    (ir,) = scene.simulate(Hybrid(references(scene), sh_order=2, normalization="N3D", **FAST)).values()
+    (ir,) = scene.simulate(Ambisonics(references(scene), sh_order=2, normalization="N3D", **FAST)).values()
     assert ir.ir.shape[1] == 9
     assert ir.normalization == "n3d"
 
@@ -89,7 +89,7 @@ def test_references_at_another_rate_raise():
     for ir in refs.values():
         ir.sampling_rate = 16000
     with pytest.raises(ValueError, match="sample rate"):
-        scene.simulate(Hybrid(refs, **FAST))
+        scene.simulate(Ambisonics(refs, **FAST))
 
 
 def test_a_multichannel_reference_raises():
@@ -98,34 +98,34 @@ def test_a_multichannel_reference_raises():
     for ir in refs.values():
         ir.ir = np.stack([ir.denormalized(), ir.denormalized()], axis=1)
     with pytest.raises(ValueError, match="mono"):
-        scene.simulate(Hybrid(refs, **FAST))
+        scene.simulate(Ambisonics(refs, **FAST))
 
 
 def test_references_missing_a_pair_raise():
     scene = make()
     with pytest.raises(ValueError, match="no response"):
-        scene.simulate(Hybrid({}, **FAST))
+        scene.simulate(Ambisonics({}, **FAST))
 
 
 def test_an_open_room_raises():
     with pytest.warns(UserWarning):
         scene = make(leaves=5)
         with pytest.raises(ValueError, match="close"):
-            scene.simulate(Hybrid({}, **FAST))
+            scene.simulate(Ambisonics({}, **FAST))
 
 
 def test_a_vertical_receiver_raises_before_any_work(monkeypatch):
     scene = make([Receiver("rec", 8.0, 4.0, 1.5, direction=[0, 0, 1])])
-    monkeypatch.setattr(Pyroomacoustics, "compute", lambda *a, **k: pytest.fail("worked first"))
+    monkeypatch.setattr(Mono, "compute", lambda *a, **k: pytest.fail("worked first"))
     with pytest.raises(ValueError, match="parallel"):
-        scene.simulate(Hybrid(**FAST))
+        scene.simulate(Ambisonics(**FAST))
 
 
 def test_a_fully_absorbing_surface_runs():
     window = AcousticMaterial("window", 1.0, 0.05)
     materials = {"floor": WALL, "ceiling": window, "left_wall": WALL, "right_wall": WALL, "front_wall": WALL, "back_wall": WALL}
     scene = make(materials=materials)
-    (ir,) = scene.simulate(Hybrid(references(scene), **FAST)).values()
+    (ir,) = scene.simulate(Ambisonics(references(scene), **FAST)).values()
     assert np.all(np.isfinite(ir.ir))
 
 
@@ -146,10 +146,10 @@ def test_diffraction_at_the_room_boundary_needs_no_obstacles():
     scene = l_room()
     assert RoomGeometry.from_scene(scene).is_closed
     refs = references(scene)
-    (off,) = scene.simulate(Hybrid(refs, diffraction=False, normalize=False, **FAST)).values()
+    (off,) = scene.simulate(Ambisonics(refs, diffraction=False, normalize=False, **FAST)).values()
     with warnings.catch_warnings():
         warnings.simplefilter("error", ShellEdgeWarning)
-        (on,) = scene.simulate(Hybrid(refs, diffraction=True, normalize=False, **FAST)).values()
+        (on,) = scene.simulate(Ambisonics(refs, diffraction=True, normalize=False, **FAST)).values()
     # the wall hides the direct sound, so the window starts at its geometric arrival
     start = int(np.linalg.norm(np.subtract(off.source.position, off.receiver.position)) / 343.0 * FS)
     window = slice(start, start + int(0.02 * FS))
@@ -209,8 +209,8 @@ def test_room_edges_are_not_searched_in_a_boundary_that_does_not_close():
 def test_diffraction_in_a_rectangular_room_changes_nothing():
     scene = make()
     refs = references(scene)
-    (off,) = scene.simulate(Hybrid(refs, diffraction=False, **FAST)).values()
-    (on,) = scene.simulate(Hybrid(refs, diffraction=True, **FAST)).values()
+    (off,) = scene.simulate(Ambisonics(refs, diffraction=False, **FAST)).values()
+    (on,) = scene.simulate(Ambisonics(refs, diffraction=True, **FAST)).values()
     np.testing.assert_allclose(on.ir[: int(0.1 * FS)], off.ir[: int(0.1 * FS)], atol=1e-12)
 
 
@@ -220,17 +220,17 @@ def test_references_not_from_a_package_scale_method_raise():
     for ir in refs.values():
         ir.generation = {}
     with pytest.raises(ValueError, match="package scale"):
-        scene.simulate(Hybrid(refs, **FAST))
+        scene.simulate(Ambisonics(refs, **FAST))
 
 
 def test_air_absorption_comes_from_the_references():
     scene = make()
     dry = references(scene, air_absorption=False)
-    hybrid = Hybrid(dry, **FAST)
+    hybrid = Ambisonics(dry, **FAST)
     (ir,) = scene.simulate(hybrid).values()
     assert ir.generation["air_absorption"] is False
     with pytest.raises(ValueError, match="air_absorption"):
-        scene.simulate(Hybrid(dry, air_absorption=True, **FAST))
+        scene.simulate(Ambisonics(dry, air_absorption=True, **FAST))
 
 
 def test_a_receiver_outside_the_room_raises():
@@ -238,22 +238,22 @@ def test_a_receiver_outside_the_room_raises():
     with pytest.warns(UserWarning, match="outside"):
         refs = references(scene)
     with pytest.warns(UserWarning, match="outside"), pytest.raises(ValueError, match="outside"):
-        scene.simulate(Hybrid(refs, **FAST))
+        scene.simulate(Ambisonics(refs, **FAST))
 
 
 def test_a_sampling_rate_too_low_for_the_8_khz_octave_raises():
     scene = make()
     scene.sampling_rate = 16000
     with pytest.raises(ValueError, match="22627"):
-        scene.simulate(Hybrid({}, **FAST))
+        scene.simulate(Ambisonics({}, **FAST))
 
 
 def test_the_seed_is_true_42_by_default_false_unseeded_or_an_int():
-    assert Hybrid().seed == 42 and Hybrid(seed=True).seed == 42 and Hybrid(seed=1).seed == 1
-    assert Hybrid(seed=False).seed is None and Hybrid(seed=None).seed is None
+    assert Ambisonics().seed == 42 and Ambisonics(seed=True).seed == 42 and Ambisonics(seed=1).seed == 1
+    assert Ambisonics(seed=False).seed is None and Ambisonics(seed=None).seed is None
 
     def response(**kwargs):
-        (ir,) = make().simulate(Hybrid(tail="eyring", **FAST, **kwargs)).values()
+        (ir,) = make().simulate(Ambisonics(tail="eyring", **FAST, **kwargs)).values()
         return ir
 
     default = response().denormalized()
@@ -269,10 +269,10 @@ def test_the_seed_is_true_42_by_default_false_unseeded_or_an_int():
 def test_decay_db_reaches_the_target():
     scene = make()
     refs = references(scene)
-    t30, t20 = Hybrid(refs, **FAST), Hybrid(refs, decay_db=20.0, **FAST)
+    t30, t20 = Ambisonics(refs, **FAST), Ambisonics(refs, decay_db=20.0, **FAST)
     scene.simulate(t30)
     scene.simulate(t20)
-    ((a,), (b,)) = ([r.target.rt for r in h.results.values()] for h in (t30, t20))
+    ((a,), (b,)) = ([r.core.target.rt for r in h.results.values()] for h in (t30, t20))
     assert not np.allclose(a, b)
 
 
@@ -282,7 +282,7 @@ def test_the_reference_is_on_the_scale_of_the_hybrid():
     refs = references(scene)
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        scene.simulate(Hybrid(refs, late_envelope=True, **FAST))
+        scene.simulate(Ambisonics(refs, late_envelope=True, **FAST))
     assert not [w for w in caught if "differs from the hybrid" in str(w.message)]
 
 
@@ -290,17 +290,17 @@ def test_diffraction_and_the_late_envelope_run():
     scene = make(panel=True)
     refs = references(scene)
     for options in (dict(diffraction=True), dict(late_envelope=True)):
-        (ir,) = scene.simulate(Hybrid(refs, **FAST, **options)).values()
+        (ir,) = scene.simulate(Ambisonics(refs, **FAST, **options)).values()
         assert np.all(np.isfinite(ir.ir))
 
 
 @pytest.mark.slow
 def test_the_w_channel_decays_at_the_target_rate():
     scene = make()
-    hybrid = Hybrid(references(scene, n_rays=20000), sh_order=1, image_source_order=3, output="ambisonic")
+    hybrid = Ambisonics(references(scene, n_rays=20000), sh_order=1, image_source_order=3)
     ((key, ir),) = scene.simulate(hybrid).items()
     rt_w = np.asarray(pyFDN.estimate_rt_bands(ir.denormalized()[:, 0], FS)[0])
-    target = hybrid.results[key].target.rt[:, 0]
+    target = hybrid.results[key].core.target.rt[:, 0]
     # 6 %: the 250 Hz band reads 4.2-5.1 % short with the envelope off, with its level step alone and with the
     # directional shares (seed True), and the 125 Hz band moves 5 % between seeds; the network, not the envelope
     np.testing.assert_allclose(rt_w[2:7], target[2:7], rtol=0.06)
@@ -311,7 +311,7 @@ def test_the_w_channel_decays_at_the_target_rate():
 def test_every_tail_meets_the_contract(assert_meets_contract, tail):
     scene = make()
     reference = references(scene) if tail == "reference" else None
-    hybrid = Hybrid(reference=reference, tail=tail, **FAST)
+    hybrid = Ambisonics(reference=reference, tail=tail, **FAST)
     rirs = scene.simulate(hybrid)
     assert_meets_contract(rirs, SimulationContext.from_scene(scene), hybrid)
     assert all(ir.generation["tail"] == tail for ir in rirs.values())
@@ -320,19 +320,19 @@ def test_every_tail_meets_the_contract(assert_meets_contract, tail):
 @pytest.mark.slow
 def test_no_reference_runs_its_own_ray_tracing():
     scene = make()
-    hybrid = Hybrid(**FAST)
+    hybrid = Ambisonics(**FAST)
     scene.simulate(hybrid)
     assert hybrid.tail == "ray_tracing"
     assert all(ir.generation["ray_tracing"] and ir.generation["n_rays"] == 20000 for ir in hybrid.reference_rirs.values())
-    assert "pyroomacoustics" not in scene.simulation_methods()  # not written to the graph
+    assert "mono" not in scene.simulation_methods()  # not written to the graph
 
 
 def test_a_graph_name_a_dict_and_a_method_give_the_same_result():
     scene = make()
     refs = references(scene)
-    by_name = scene.simulate(Hybrid(reference="pyroomacoustics", seed=0, **FAST))
-    by_dict = scene.simulate(Hybrid(reference=refs, seed=0, **FAST))
-    by_method = scene.simulate(Hybrid(reference=Pyroomacoustics(ray_tracing=True, **FAST_RT), seed=0, **FAST))
+    by_name = scene.simulate(Ambisonics(reference="mono", seed=0, **FAST))
+    by_dict = scene.simulate(Ambisonics(reference=refs, seed=0, **FAST))
+    by_method = scene.simulate(Ambisonics(reference=Mono(ray_tracing=True, **FAST_RT), seed=0, **FAST))
     for key in by_name:
         np.testing.assert_allclose(by_name[key].denormalized(), by_dict[key].denormalized())
         np.testing.assert_allclose(by_method[key].denormalized(), by_dict[key].denormalized())
@@ -340,8 +340,8 @@ def test_a_graph_name_a_dict_and_a_method_give_the_same_result():
 
 @pytest.mark.parametrize("kwargs", [
     {"tail": "reference"},
-    {"tail": "eyring", "reference": "pyroomacoustics"},
-    {"tail": "ray_tracing", "reference": "pyroomacoustics"},
+    {"tail": "eyring", "reference": "mono"},
+    {"tail": "ray_tracing", "reference": "mono"},
     {"tail": "eyring", "n_slopes": 2},
     {"tail": "eyring", "late_envelope": True},
     {"tail": "air"},
@@ -350,27 +350,27 @@ def test_a_graph_name_a_dict_and_a_method_give_the_same_result():
 ])
 def test_conflicting_settings_raise_at_construction(kwargs):
     with pytest.raises(ValueError):
-        Hybrid(**kwargs)
+        Ambisonics(**kwargs)
 
 
 def test_tail_defaults():
-    assert Hybrid().tail == "ray_tracing"
-    assert Hybrid(reference="pyroomacoustics").tail == "reference"
-    assert Hybrid().late_envelope and Hybrid(reference="data").late_envelope
-    assert not Hybrid(tail="eyring").late_envelope and not Hybrid(tail="sabine").late_envelope
-    assert not Hybrid(late_envelope=False).late_envelope
+    assert Ambisonics().tail == "ray_tracing"
+    assert Ambisonics(reference="mono").tail == "reference"
+    assert Ambisonics().late_envelope and Ambisonics(reference="data").late_envelope
+    assert not Ambisonics(tail="eyring").late_envelope and not Ambisonics(tail="sabine").late_envelope
+    assert not Ambisonics(late_envelope=False).late_envelope
 
 
 def test_eyring_in_an_uneven_room_warns():
     scene = make(materials=uneven())
     with pytest.warns(DiffuseFieldWarning):
-        scene.simulate(Hybrid(tail="eyring", **FAST))
+        scene.simulate(Ambisonics(tail="eyring", **FAST))
 
 
 def test_an_eyring_tail_takes_no_simulation(monkeypatch):
     scene = make()
-    monkeypatch.setattr(Pyroomacoustics, "compute", lambda *a, **k: pytest.fail("ran a reference"))
-    hybrid = Hybrid(tail="sabine", **FAST)
+    monkeypatch.setattr(Mono, "compute", lambda *a, **k: pytest.fail("ran a reference"))
+    hybrid = Ambisonics(tail="sabine", **FAST)
     (ir,) = scene.simulate(hybrid).values()
     assert hybrid.reference_rirs is None
     assert ir.generation["tail"] == "sabine" and ir.generation["air_absorption"] is True
@@ -378,32 +378,32 @@ def test_an_eyring_tail_takes_no_simulation(monkeypatch):
 
 def test_an_image_source_only_reference_warns():
     scene = make()
-    scene.simulate(Pyroomacoustics(image_source_order=3, ray_tracing=False))
+    scene.simulate(Mono(image_source_order=3, ray_tracing=False))
     with pytest.warns(UserWarning, match="no diffuse decay"):
-        scene.simulate(Hybrid(reference="pyroomacoustics", **FAST))
+        scene.simulate(Ambisonics(reference="mono", **FAST))
 
 
 def test_normalized_references_give_the_raw_level_result():
     scene = make()
     refs = references(scene)
-    normalized = scene.simulate(Hybrid(reference=refs, late_envelope=True, seed=0, **FAST))
+    normalized = scene.simulate(Ambisonics(reference=refs, late_envelope=True, seed=0, **FAST))
     for ir in refs.values():
         ir.normalized = False
-    raw = scene.simulate(Hybrid(reference=refs, late_envelope=True, seed=0, **FAST))
+    raw = scene.simulate(Ambisonics(reference=refs, late_envelope=True, seed=0, **FAST))
     for key in normalized:
         np.testing.assert_allclose(normalized[key].denormalized(), raw[key].denormalized())
 
 
 def test_btms_runs_in_the_simulator():
     scene = make(panel=True)
-    (ir,) = scene.simulate(Hybrid(tail="eyring", image_source_order=0, duration=0.2, diffraction="btms")).values()
+    (ir,) = scene.simulate(Ambisonics(tail="eyring", image_source_order=0, duration=0.2, diffraction="btms")).values()
     assert np.all(np.isfinite(ir.ir))
 
 
 # ---------------------------------------------------------- orientation --
 def early_field(direction):
     scene = make([Receiver("rec", 8.0, 4.0, 1.5, direction=direction)])
-    hybrid = Hybrid(tail="eyring", **FAST)
+    hybrid = Ambisonics(tail="eyring", **FAST)
     scene.simulate(hybrid)
     (result,) = hybrid.results.values()
     return result.early
@@ -422,7 +422,7 @@ def test_the_orientation_is_in_the_responses_metadata(tmp_path):
     from compas_acoustics import ImpulseResponse
 
     scene = make([Receiver("rec", 8.0, 4.0, 1.5, direction=[0, 1, 0])])
-    (ir,) = scene.simulate(Hybrid(tail="eyring", **FAST)).values()
+    (ir,) = scene.simulate(Ambisonics(tail="eyring", **FAST)).values()
     loaded = ImpulseResponse.from_wav(ir.to_wav(tmp_path / "h.wav")[0])
     np.testing.assert_allclose(loaded.receiver.rotation, ir.receiver.rotation, atol=1e-12)
     assert (loaded.ambisonic_order, loaded.normalization) == (1, "sn3d")
@@ -433,7 +433,7 @@ def test_a_receiver_next_to_a_fully_absorbing_ceiling_runs():
     sky = AcousticMaterial("sky", 1.0, 0.1)
     materials = {"floor": WALL, "ceiling": sky, "left_wall": WALL, "right_wall": WALL, "front_wall": WALL, "back_wall": WALL}
     scene = make([Receiver("rec", 8.0, 4.0, 3.9)], materials=materials)
-    (ir,) = scene.simulate(Hybrid(tail="eyring", duration=0.3)).values()
+    (ir,) = scene.simulate(Ambisonics(tail="eyring", duration=0.3)).values()
     assert np.all(np.isfinite(ir.ir))
 
 
@@ -480,7 +480,7 @@ def test_the_late_level_matches_an_exact_specular_room(dims, alpha, src, rec):
 
     levels = []
     for seed in range(4):
-        (ir,) = scene.simulate(Hybrid(reference=reference, seed=seed, output="ambisonic")).values()
+        (ir,) = scene.simulate(Ambisonics(reference=reference, seed=seed)).values()
         start = ir.direct_sound_index() + int(0.08 * FS)
         levels.append(10 * np.log10(late_energy(ir.denormalized()[:, 0], start) / late_energy(exact, start)))
     assert np.mean(levels) == pytest.approx(0.0, abs=2.0)
@@ -491,7 +491,7 @@ def test_the_medium_sets_the_hybrids_speed_and_air():
 
     air = AirConditions(temperature=0.0, humidity=20.0)
     scene = make()
-    (ir,) = scene.simulate(Hybrid(tail="eyring", air=air, **FAST)).values()
+    (ir,) = scene.simulate(Ambisonics(tail="eyring", air=air, **FAST)).values()
     assert ir.generation["air"] == air.to_dict()
     assert ir.generation["speed_of_sound"] == pytest.approx(air.speed_of_sound)
     distance = float(np.linalg.norm(np.subtract(ir.receiver.position, ir.source.position)))
@@ -507,12 +507,12 @@ def test_the_medium_comes_from_the_references():
     air = AirConditions(temperature=0.0)
     scene = make()
     refs = references(scene, air=air)
-    (ir,) = scene.simulate(Hybrid(refs, **FAST)).values()
+    (ir,) = scene.simulate(Ambisonics(refs, **FAST)).values()
     assert ir.generation["air"] == air.to_dict()
     with pytest.raises(ValueError, match="air"):
-        scene.simulate(Hybrid(refs, air=AirConditions(temperature=25.0), **FAST))
+        scene.simulate(Ambisonics(refs, air=AirConditions(temperature=25.0), **FAST))
     with pytest.raises(ValueError, match="air"):
-        scene.simulate(Hybrid(references(scene), air=air, **FAST))
+        scene.simulate(Ambisonics(references(scene), air=air, **FAST))
 
 
 def test_a_ray_tracing_tail_runs_its_reference_in_the_medium():
@@ -520,7 +520,7 @@ def test_a_ray_tracing_tail_runs_its_reference_in_the_medium():
 
     air = AirConditions(temperature=0.0)
     scene = make()
-    hybrid = Hybrid(tail="ray_tracing", air=air, **FAST)
+    hybrid = Ambisonics(tail="ray_tracing", air=air, **FAST)
     scene.simulate(hybrid)
     assert all(r.generation["air"] == air.to_dict() for r in hybrid.reference_rirs.values())
 
@@ -529,10 +529,10 @@ def test_without_a_medium_the_hybrid_and_its_reference_share_the_default():
     from compas_acoustics import AirConditions
 
     scene = make()
-    (ir,) = scene.simulate(Hybrid(tail="eyring", **FAST)).values()
+    (ir,) = scene.simulate(Ambisonics(tail="eyring", **FAST)).values()
     assert ir.generation["air"] == AirConditions().to_dict()
     assert ir.generation["speed_of_sound"] == pytest.approx(AirConditions().speed_of_sound)
-    (ir,) = scene.simulate(Hybrid(references(scene), **FAST)).values()
+    (ir,) = scene.simulate(Ambisonics(references(scene), **FAST)).values()
     assert ir.generation["air"] == AirConditions().to_dict()
 
 
@@ -551,13 +551,13 @@ class Missing(importlib.abc.MetaPathFinder):
             raise ImportError(name + " is not installed")
 sys.meta_path.insert(0, Missing())
 import compas_acoustics as ca
-from compas_acoustics.simulation_methods import Hybrid
+from compas_acoustics.simulation_methods import Ambisonics, Binaural
 s = ca.Scene("b")
 s.add_acoustic_objects(ca.AcousticObjectsLibrary.shoebox_room(6, 4, 3, materials=ca.AcousticMaterial("w", 0.2, 0.1)))
 s.add_source(ca.Source("s", 1.5, 1.5, 1.6))
 s.add_receiver(ca.Receiver("r", 4.5, 2.5, 1.2))
-(ir,) = s.simulate(Hybrid(tail="eyring", image_source_order=1, diffraction="udfa", output=["ambisonic", "binaural"])).values()
-(binaural,) = s.impulse_responses("hybrid_binaural").values()
+(binaural,) = s.simulate(Binaural(tail="eyring", image_source_order=1, diffraction="udfa")).values()
+(ir,) = s.simulate(Ambisonics(tail="eyring", image_source_order=1, diffraction="udfa")).values()
 print(binaural.n_channels)
 print(ir.n_channels)
 """
@@ -569,10 +569,10 @@ print(ir.n_channels)
 
 def test_the_hybrids_own_reference_has_the_methods_default_length_whatever_the_output_duration():
     """A ray-traced reference carries its full decay (1.5 x the longest Eyring RT) even when the output is cut short."""
-    from compas_acoustics.simulation_methods.raytracing import default_duration
+    from compas_acoustics.room.raytracing import default_duration
 
     scene = make()
-    hybrid = Hybrid(image_source_order=2, output="ambisonic", duration=0.3)
+    hybrid = Ambisonics(image_source_order=2, duration=0.3)
     scene.simulate(hybrid)
     g = SimulationContext.from_scene(scene).geometry
     expected = default_duration(g, air_absorption=True)
@@ -588,13 +588,13 @@ def test_a_reference_shorter_than_its_reverberation_time_warns():
     scene = make()
     short = references(scene, duration=0.2)
     with pytest.warns(UserWarning, match="less than 2/3 of its reverberation time"):
-        scene.simulate(Hybrid(short, **FAST))
+        scene.simulate(Ambisonics(short, **FAST))
     scene = make()
-    long_enough = references(scene, duration=None)  # the Pyroomacoustics default, 1.5 x the longest Eyring RT
+    long_enough = references(scene, duration=None)  # the Mono default, 1.5 x the longest Eyring RT
     with warnings.catch_warnings():
         warnings.simplefilter("error", UserWarning)
         warnings.filterwarnings("ignore", category=DiffuseFieldWarning)
-        scene.simulate(Hybrid(long_enough, **FAST))
+        scene.simulate(Ambisonics(long_enough, **FAST))
 
 
 def test_a_reference_of_two_thirds_of_its_reverberation_time_is_long_enough():
@@ -604,6 +604,6 @@ def test_a_reference_of_two_thirds_of_its_reverberation_time_is_long_enough():
     target = SimpleNamespace(rt=np.array([2.0, 2.5]))
     with warnings.catch_warnings():
         warnings.simplefilter("error", UserWarning)
-        Hybrid()._check_reference_length(1.9, target, 1.3, "rec, src")
+        Ambisonics()._check_reference_length(1.9, target, 1.3, "rec, src")
     with pytest.warns(UserWarning, match=r"less than 2/3 of its reverberation time \(2.5 s\).* at least 3.8 s"):
-        Hybrid()._check_reference_length(1.5, target, 1.3, "rec, src")
+        Ambisonics()._check_reference_length(1.5, target, 1.3, "rec, src")

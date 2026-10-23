@@ -61,7 +61,8 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(0.05, ir.Samples[1], 12);
             Assert.Equal(48000, ir.SamplingRate);
             var generation = (IDictionary<string, object?>)Serializer.UnpackAnyData(ir.Generation)!;
-            Assert.Equal("binaural", generation["output"]);
+            Assert.Equal("test", generation["method"]);
+            Assert.False(generation.ContainsKey("output"));
             Assert.Equal("src", ir.Source.Name);
         }
 
@@ -113,13 +114,13 @@ namespace CompasAcoustics.Grasshopper.Tests
             CompasPbRegistration.Ensure();
             var request = new Dictionary<string, object?>
             {
-                ["args"] = new List<object?> { new SourceData { Name = "s" }, "pyroomacoustics", 3L, 0.5, null },
+                ["args"] = new List<object?> { new SourceData { Name = "s" }, "mono", 3L, 0.5, null },
                 ["kwargs"] = new Dictionary<string, object?>(),
             };
             var back = (IDictionary<string, object?>)Serializer.Unpack(Serializer.Pack(request))!;
             var args = (IList<object?>)back["args"]!;
             Assert.IsType<SourceData>(args[0]);
-            Assert.Equal("pyroomacoustics", args[1]);
+            Assert.Equal("mono", args[1]);
             Assert.Equal(3L, args[2]);
             Assert.Equal(0.5, args[3]);
             Assert.Null(args[4]);

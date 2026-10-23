@@ -8,7 +8,7 @@ namespace CompasAcoustics.Grasshopper
 {
     public enum RunKind
     {
-        /// <summary>Nothing to run: the component waits (Simulate Hybrid before Run).</summary>
+        /// <summary>Nothing to run: the component waits (Simulate Binaural or Ambisonics before Run).</summary>
         Idle,
         /// <summary>Start a job for these inputs; ``Result`` is the last result, shown meanwhile.</summary>
         Start,
@@ -64,7 +64,7 @@ namespace CompasAcoustics.Grasshopper
             }
         }
 
-        /// <param name="start">Whether a request without a result starts a job (false: Simulate Hybrid until Run).</param>
+        /// <param name="start">Whether a request without a result starts a job (false: Simulate Binaural and Ambisonics until Run).</param>
         /// <param name="restart">Start a job even when these inputs have a result or were cancelled (Run pressed again).</param>
         public RunDecision Next(int iteration, string key, bool start, bool restart = false)
         {

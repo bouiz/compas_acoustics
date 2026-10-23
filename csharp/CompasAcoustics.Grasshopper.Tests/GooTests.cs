@@ -80,7 +80,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(48000, ir.SamplingRate);
             Assert.Equal(2, ir.Channels);
             Assert.Equal(4, ir.Samples);
-            Assert.True(ir.Binaural);
+            Assert.Equal("binaural", ir.Format);
             Assert.Equal("test", ir.Method);
             Assert.Equal(InteropTests.Guid(1), ir.SourceGuid);
             Assert.Equal(InteropTests.Guid(2), ir.ReceiverGuid);
@@ -95,11 +95,11 @@ namespace CompasAcoustics.Grasshopper.Tests
             ir.Source = scene.Value.Sources[0].Clone();
             ir.Receiver = scene.Value.Receivers[0].Clone();
             var key = $"{ir.Receiver.Guid}_{ir.Source.Guid}";
-            var graph = IrGraphGoo.FromSimulation(scene, "hybrid_binaural", new Dictionary<string, object?> { [key] = ir });
-            Assert.Equal("hybrid_binaural", graph.Value.Method);
+            var graph = IrGraphGoo.FromSimulation(scene, "binaural", new Dictionary<string, object?> { [key] = ir });
+            Assert.Equal("binaural", graph.Value.Method);
             Assert.Same(ir, graph.Value.Responses.Single().Value);
             Assert.Equal("src", graph.Value.Sources.Single().Value.Name);
-            Assert.Equal("hybrid_binaural: 1 response", graph.ToString());
+            Assert.Equal("binaural: 1 response", graph.ToString());
         }
 
         [Fact]
@@ -143,9 +143,9 @@ namespace CompasAcoustics.Grasshopper.Tests
         public void ImpulseResponseGoo_ReadsTheGenerationOfItsCurrentValue()
         {
             var ir = new ImpulseResponseGoo(Fixture<ImpulseResponseData>("ir"));
-            Assert.True(ir.Binaural);
+            Assert.Equal("binaural", ir.Format);
             Assert.True(ir.CastFrom(new ImpulseResponseData { Shape = { 1 } }));
-            Assert.False(ir.Binaural);
+            Assert.Equal("mono", ir.Format);
             Assert.Null(ir.Method);
         }
 

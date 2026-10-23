@@ -279,7 +279,7 @@ class Scene(_PackageDtype, Data):
         """Store ``ir`` on the source-receiver edge under ``attribute``.
 
         Each simulation method stores its responses under its own name
-        (``'pyroomacoustics'``, ``'hybrid'``, ``'hybrid_binaural'``); ``'data'``
+        (``'mono'``, ``'binaural'``, ``'ambisonics'``); ``'data'``
         holds the most recent mono response. An edge carries any number of them.
         """
         source_key = self._ir_node_key(source)
@@ -359,9 +359,7 @@ class Scene(_PackageDtype, Data):
     def simulate(self, method) -> dict:
         """Run a simulation method on the scene and store its responses on the IR graph.
 
-        The responses go on the graph under ``method.attribute``, the method's
-        name unless it renders several formats; a method's responses in further
-        formats from the same run (``method.extra_responses``) under theirs. A
+        The responses go on the graph under ``method.name``. A
         mono method's responses also go under ``'data'``, which the analysis and
         auralisation components read by default. Coplanar faces of the room are
         merged. The method runs at the scene's :attr:`sampling_rate`.
@@ -369,13 +367,13 @@ class Scene(_PackageDtype, Data):
         Parameters
         ----------
         method : :class:`~compas_acoustics.simulation_methods.SimulationMethod`
-            For example ``Pyroomacoustics(ray_tracing=True)`` or ``Hybrid()``.
+            For example ``Mono(ray_tracing=True)``, ``Binaural()`` or ``Ambisonics()``.
 
         Returns
         -------
         Dict[str, ImpulseResponse]
             One response per source-receiver pair inside the room, keyed
-            ``'<receiver guid>_<source guid>'``: those stored under ``method.attribute``.
+            ``'<receiver guid>_<source guid>'``.
         """
         from compas_acoustics.simulation_methods import SimulationContext
 
@@ -383,9 +381,7 @@ class Scene(_PackageDtype, Data):
         _log.info("Running %s at %s Hz on %d sources and %d receivers",
                   method.name, context.sampling_rate, len(context.sources), len(context.receivers))
         rirs = method.compute(context)
-        self.populate_ir_graph(rirs, attribute=method.attribute)
-        for attribute, responses in method.extra_responses.items():
-            self.populate_ir_graph(responses, attribute=attribute)
+        self.populate_ir_graph(rirs, attribute=method.name)
         if method.output == "mono":
             self.populate_ir_graph(rirs, attribute="data")
         return rirs

@@ -1,7 +1,7 @@
 """The decay the late field must reproduce.
 
 Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, src/room.py).
-``RoomTarget`` without ``from_ray_tracing`` (the Hybrid method runs its own
+``RoomTarget`` without ``from_ray_tracing`` (the binaural and ambisonics methods run their own
 reference instead); ``from_room`` takes its reverberation time from
 :func:`compas_acoustics.room.diffuse.predicted_rt`.
 """

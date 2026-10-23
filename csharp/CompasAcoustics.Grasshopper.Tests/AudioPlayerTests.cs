@@ -233,37 +233,50 @@ namespace CompasAcoustics.Grasshopper.Tests
 
     public class ImpulseResponseAudioTests
     {
-        private static ImpulseResponseData Ir(int channels, string output, int? order = null)
+        private static ImpulseResponseData Ir(int channels, int? order = null)
         {
             var ir = new ImpulseResponseData { SamplingRate = 48000 };
             ir.Samples.Add(Enumerable.Range(0, 4 * channels).Select(i => (double)i));
             ir.Shape.Add(new long[] { 4, channels });
-            ir.Generation = WorkerClient.Serializer.PackAsAnyData(new Dictionary<string, object?> { ["output"] = output });
+            ir.Generation = WorkerClient.Serializer.PackAsAnyData(new Dictionary<string, object?> { ["method"] = "test" });
             if (order is int o)
                 ir.AmbisonicOrder = o;
             return ir;
         }
 
+        [Theory]
+        [InlineData(1, null, "mono")]
+        [InlineData(1, 0, "mono")]
+        [InlineData(2, null, "binaural")]
+        [InlineData(4, 1, "ambisonic")]
+        [InlineData(4, null, "ambisonic")]
+        public void TheFormat_FollowsTheChannelsAndTheAmbisonicOrder(int channels, int? order, string format)
+        {
+            var goo = new ImpulseResponseGoo(Ir(channels, order));
+            Assert.Equal(format, goo.Format);
+            Assert.Equal(format, AudioPlayerComponent.Audio(goo).Format);
+        }
+
         [Fact]
         public void AnImpulseResponse_PlaysAsAudioOfItsFormat()
         {
-            var binaural = AudioPlayerComponent.Audio(new ImpulseResponseGoo(Ir(2, "binaural")));
+            var binaural = AudioPlayerComponent.Audio(new ImpulseResponseGoo(Ir(2)));
             Assert.Equal("binaural", binaural.Format);
             Assert.Equal(48000, binaural.SamplingRate);
             Assert.Equal(new long[] { 4, 2 }, binaural.Shape);
             Assert.Equal(Enumerable.Range(0, 8).Select(i => (double)i), binaural.Samples);
-            Assert.Equal("mono", AudioPlayerComponent.Audio(new ImpulseResponseGoo(Ir(1, "mono"))).Format);
-            Assert.Equal("ambisonic", AudioPlayerComponent.Audio(new ImpulseResponseGoo(Ir(4, "ambisonic", 1))).Format);
+            Assert.Equal("mono", AudioPlayerComponent.Audio(new ImpulseResponseGoo(Ir(1))).Format);
+            Assert.Equal("ambisonic", AudioPlayerComponent.Audio(new ImpulseResponseGoo(Ir(4, 1))).Format);
         }
 
         [Fact]
         public void TheSameImpulseResponse_GivesTheSameSignal_SoARecomputeDoesNotStopIt()
         {
             var player = new AudioPlayerComponent();
-            var ir = Ir(2, "binaural");
+            var ir = Ir(2);
             var first = player.SignalOf(new ImpulseResponseGoo(ir));
             Assert.Same(first, player.SignalOf(new ImpulseResponseGoo(ir)));
-            Assert.NotSame(first, player.SignalOf(new ImpulseResponseGoo(Ir(2, "binaural"))));
+            Assert.NotSame(first, player.SignalOf(new ImpulseResponseGoo(Ir(2))));
         }
     }
 }

@@ -62,8 +62,8 @@ namespace CompasAcoustics.Grasshopper.Tests
                 var scene = (SceneData)worker.Call("make_scene", objects, new List<object?> { source }, new List<object?> { receiver["receiver"] }, "room", 44100L)!;
                 Assert.Equal(6, scene.AcousticObjects.Count);
                 var settings = new Dictionary<string, object?> { ["image_source_order"] = 1L, ["ray_tracing"] = false };
-                var result = (IDictionary<string, object?>)worker.Call("simulate", scene, "pyroomacoustics", settings)!;
-                var responses = (IDictionary<string, object?>)((IDictionary<string, object?>)result["responses"]!)["pyroomacoustics"]!;
+                var result = (IDictionary<string, object?>)worker.Call("simulate", scene, "mono", settings)!;
+                var responses = (IDictionary<string, object?>)((IDictionary<string, object?>)result["responses"]!)["mono"]!;
                 var ir = (ImpulseResponseData)responses.Values.Single()!;
                 Assert.Equal(44100, ir.SamplingRate);
                 Assert.True(ir.Samples.Count > 1000);
@@ -147,7 +147,7 @@ namespace CompasAcoustics.Grasshopper.Tests
                 var scene = worker.Call("make_scene", objects, new List<object?> { source }, receivers, "room", 44100L);
                 var settings = new Dictionary<string, object?> { ["image_source_order"] = 8L, ["ray_tracing"] = false };
                 using var cancel = new System.Threading.CancellationTokenSource();
-                var call = worker.CallAsync("simulate", "cancel-test", new object?[] { scene, "pyroomacoustics", settings }, new Dictionary<string, object?>(), cancel.Token);
+                var call = worker.CallAsync("simulate", "cancel-test", new object?[] { scene, "mono", settings }, new Dictionary<string, object?>(), cancel.Token);
                 var watch = System.Diagnostics.Stopwatch.StartNew();
                 string? stage = null;
                 while (!call.IsCompleted && stage == null && watch.Elapsed < TimeSpan.FromSeconds(60))
@@ -170,7 +170,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [WorkerFact]
-        public void RealWorker_RunsTheHybridWithAPyroomacousticsReference()
+        public void RealWorker_RunsBinauralAndAmbisonicsWithAMonoReference()
         {
             var worker = RealWorker();
             try
@@ -179,18 +179,23 @@ namespace CompasAcoustics.Grasshopper.Tests
                 if (!worker.Hybrid)
                     return;
                 var scene = new SceneGoo(Shoebox(worker));
-                var mono = (IDictionary<string, object?>)worker.Call("simulate", scene.Value, "pyroomacoustics",
+                var mono = (IDictionary<string, object?>)worker.Call("simulate", scene.Value, "mono",
                     new Dictionary<string, object?> { ["image_source_order"] = 1L, ["ray_tracing"] = false })!;
-                var reference = IrGraphGoo.FromSimulation(scene, "pyroomacoustics",
-                    (IDictionary<string, object?>)((IDictionary<string, object?>)mono["responses"]!)["pyroomacoustics"]!);
-                var settings = HybridRun.Settings("reference", null, 1, null, null, 3, null, "both", null, reference, scene.SamplingRate, out var references);
-                var result = (IDictionary<string, object?>)worker.Call("simulate", scene.Value, "hybrid", settings,
-                    references!.ToDictionary(kv => kv.Key, kv => (object?)kv.Value))!;
-                var responses = (IDictionary<string, object?>)result["responses"]!;
-                var binaural = IrGraphGoo.FromSimulation(scene, "hybrid_binaural", (IDictionary<string, object?>)responses["hybrid_binaural"]!);
-                var ambisonic = IrGraphGoo.FromSimulation(scene, "hybrid", (IDictionary<string, object?>)responses["hybrid"]!);
+                var reference = IrGraphGoo.FromSimulation(scene, "mono",
+                    (IDictionary<string, object?>)((IDictionary<string, object?>)mono["responses"]!)["mono"]!);
+                var settings = HybridRun.Settings("reference", 1, null, null, 3, null, reference, scene.SamplingRate, out var references);
+                IrGraphGoo Run(string method, Dictionary<string, object?> given)
+                {
+                    var result = (IDictionary<string, object?>)worker.Call("simulate", scene.Value, method, given,
+                        references!.ToDictionary(kv => kv.Key, kv => (object?)kv.Value))!;
+                    var responses = (IDictionary<string, object?>)result["responses"]!;
+                    Assert.Equal(new[] { method }, responses.Keys);
+                    return IrGraphGoo.FromSimulation(scene, method, (IDictionary<string, object?>)responses[method]!);
+                }
+                var binaural = Run("binaural", settings);
+                var ambisonic = Run("ambisonics", new Dictionary<string, object?>(settings) { ["sh_order"] = 1L });
                 Assert.Equal(2, binaural.Value.Responses.Single().Channels);
-                Assert.True(binaural.Value.Responses.Single().Binaural);
+                Assert.Equal("binaural", binaural.Value.Responses.Single().Format);
                 Assert.Equal(4, ambisonic.Value.Responses.Single().Channels);
                 Assert.Equal("reference", ambisonic.Value.Responses.Single().Generation["tail"]);
             }
@@ -207,9 +212,9 @@ namespace CompasAcoustics.Grasshopper.Tests
             try
             {
                 var scene = new SceneGoo(Shoebox(worker));
-                var mono = (IDictionary<string, object?>)worker.Call("simulate", scene.Value, "pyroomacoustics",
+                var mono = (IDictionary<string, object?>)worker.Call("simulate", scene.Value, "mono",
                     new Dictionary<string, object?> { ["image_source_order"] = 2L, ["ray_tracing"] = false })!;
-                var ir = (ImpulseResponseData)((IDictionary<string, object?>)((IDictionary<string, object?>)mono["responses"]!)["pyroomacoustics"]!).Values.Single()!;
+                var ir = (ImpulseResponseData)((IDictionary<string, object?>)((IDictionary<string, object?>)mono["responses"]!)["mono"]!).Values.Single()!;
                 var result = (IDictionary<string, object?>)worker.Call("analysis", ir, "db")!;
                 var parameters = ((IEnumerable<object?>)result["parameters"]!).Cast<IDictionary<string, object?>>().Select(ParameterGoo.FromDictionary).ToList();
                 Assert.Contains(parameters, p => p.Value.Name == "T30" && p.Value.Values[0].Length == p.Value.Frequencies.Length);
@@ -240,9 +245,9 @@ namespace CompasAcoustics.Grasshopper.Tests
                 var source = worker.Call("make_source", "src", new List<object?> { 1.5, 1.5, 1.6 }, null, null, viola);
                 var receiver = ((IDictionary<string, object?>)worker.Call("make_receiver", "rec", new List<object?> { 5.0, 3.0, 1.5 })!)["receiver"];
                 var scene = worker.Call("make_scene", objects, new List<object?> { source }, new List<object?> { receiver }, "room", 16000L);
-                var mono = (IDictionary<string, object?>)worker.Call("simulate", scene, "pyroomacoustics",
+                var mono = (IDictionary<string, object?>)worker.Call("simulate", scene, "mono",
                     new Dictionary<string, object?> { ["image_source_order"] = 1L, ["ray_tracing"] = false })!;
-                var ir = (ImpulseResponseData)((IDictionary<string, object?>)((IDictionary<string, object?>)mono["responses"]!)["pyroomacoustics"]!).Values.Single()!;
+                var ir = (ImpulseResponseData)((IDictionary<string, object?>)((IDictionary<string, object?>)mono["responses"]!)["mono"]!).Values.Single()!;
                 var irs = new GH_Structure<ImpulseResponseGoo>();
                 irs.Append(new ImpulseResponseGoo(ir), new GH_Path(0, 2));
                 var groups = AuraliseGroups.FromTrees(irs, null, out var paths);

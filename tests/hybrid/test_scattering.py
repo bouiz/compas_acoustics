@@ -28,13 +28,14 @@ from compas_acoustics.hybrid.scattering import complementary_scattering
 from compas_acoustics.hybrid.scattering import scattering_decay_time
 from compas_acoustics.hybrid.scattering import scattering_weights
 from compas_acoustics.hybrid.scattering import smear
-from compas_acoustics.hybrid.synthesis import synthesize
+from compas_acoustics.hybrid.synthesis import prepare
+from compas_acoustics.hybrid.ambisonics import render_ambisonics
 from compas_acoustics.hybrid.target import RoomTarget
 from compas_acoustics.room.pra import receivers_to_pra_mic_array
 from compas_acoustics.room.pra import source_to_pra
 from compas_acoustics.room.geometry import RoomGeometry
 from compas_acoustics.room.geometry import pra_octave_grid
-from compas_acoustics.simulation_methods import Hybrid
+from compas_acoustics.simulation_methods import Ambisonics
 
 sys.path.insert(0, str(Path(__file__).parent / "data"))
 from hybrid_reference import reference_rir  # noqa: E402
@@ -186,7 +187,7 @@ def test_coupling_follows_razr():
     relpos = np.asarray(SMART["relpos"], dtype=float)[np.asarray(SMART["order"]) >= 1]
     razr_ratio = (np.linalg.norm(np.asarray(SMART["scattered_gains"]), axis=1).max()
                   / np.linalg.norm(np.asarray(SMART["specular_gains"]), axis=1).max())
-    directions = fdn_directions(1)
+    directions = fdn_directions()
     iss = ImageSourceSet(
         delay=np.linalg.norm(relpos, axis=1) / 343.0,
         gain=np.ones((relpos.shape[0], BANDS.size)),
@@ -206,8 +207,8 @@ def test_tap_is_heard_through_the_lines_attenuation_filters():
     """RAZR places a scattered part in a line ahead by the line's delay, so it passes the line's absorption
     filter before it is heard (oracle, line_filter): the tap equals driving that line one delay earlier."""
     spec = pair(scene(CASES[1], 0.1))
-    directions = fdn_directions(1)
-    builds = design_fdn(RoomTarget.from_room(spec, model="eyring"), [directional_delays(spec, directions)], sh_order=1)
+    directions = fdn_directions()
+    builds = design_fdn(RoomTarget.from_room(spec, model="eyring"), [directional_delays(spec, directions)])
     line = 3
     delay = int(np.asarray(builds[0].delays)[line])
     tap = np.zeros((6000, directions.csize))
@@ -219,38 +220,38 @@ def test_tap_is_heard_through_the_lines_attenuation_filters():
 
 def test_zero_scattering_changes_nothing():
     kwargs = dict(tail="eyring", image_source_order=2, duration=0.3, air_absorption=False)
-    off = next(iter(scene(CASES[0], 0.0).simulate(Hybrid(**kwargs)).values()))
-    on = next(iter(scene(CASES[0], 0.0).simulate(Hybrid(scattering=True, **kwargs)).values()))
+    off = next(iter(scene(CASES[0], 0.0).simulate(Ambisonics(**kwargs)).values()))
+    on = next(iter(scene(CASES[0], 0.0).simulate(Ambisonics(scattering=True, **kwargs)).values()))
     assert np.allclose(np.asarray(on.ir), np.asarray(off.ir), rtol=0.0, atol=1e-12 * np.abs(off.ir).max())
     assert on.generation["scattering"] is True
 
 
 def test_scattering_moves_energy_from_the_early_to_the_late_field():
     kwargs = dict(tail="eyring", image_source_order=2, duration=0.5, air_absorption=False)
-    off, on = Hybrid(**kwargs), Hybrid(scattering=True, **kwargs)
+    off, on = Ambisonics(**kwargs), Ambisonics(scattering=True, **kwargs)
     scene(CASES[0], CASES[0]["d"]).simulate(off)
     scene(CASES[0], CASES[0]["d"]).simulate(on)
     (a,), (b,) = off.results.values(), on.results.values()
     assert np.all(np.isfinite(b.rir))
     assert np.sum(b.early[:, 0] ** 2) < np.sum(a.early[:, 0] ** 2)
-    assert b.images.scattered is not None and b.images.wall is not None
+    assert b.core.images.scattered is not None and b.core.images.wall is not None
 
 
 def test_without_scattering_nothing_changes():
     """``scattering=False`` gives the response stored at 227725f (data/hybrid_reference.py), as the default does."""
     before = np.load(DATA / "hybrid_reference_227725f.npz")["rir"]
-    after = reference_rir(scattering=False, output="ambisonic")
+    after = reference_rir(scattering=False)
     assert np.any(after[-200:] != 0.0)  # the late field is inside the window
     np.testing.assert_allclose(after, before, rtol=0.0, atol=1e-12 * np.abs(before).max())
-    assert np.array_equal(reference_rir(output="ambisonic"), after)
+    assert np.array_equal(reference_rir(), after)
 
 
 def test_scattering_is_off_by_default():
-    hybrid = Hybrid(tail="eyring", image_source_order=1, duration=0.05)
+    hybrid = Ambisonics(tail="eyring", image_source_order=1, duration=0.05)
     (response,) = reference_scene().simulate(hybrid).values()
     assert response.generation["scattering"] is False
     (result,) = hybrid.results.values()
-    assert result.images.scattered is None
+    assert result.core.images.scattered is None
 
 
 def test_scattering_needs_the_scattered_parts():
@@ -258,22 +259,21 @@ def test_scattering_needs_the_scattered_parts():
     spec = pair(s)
     iss = image_sources(computed(spec.geometry, s, False), 0, 0, spec)
     with pytest.raises(ValueError, match="scattered"):
-        synthesize(spec, iss, RoomTarget.from_room(spec, model="eyring"), max_order=1, duration_s=0.2, scattering=True)
+        render_ambisonics(prepare(spec, iss, RoomTarget.from_room(spec, model="eyring"), max_order=1, duration_s=0.2, scattering=True))
 
 
-def test_synthesize_assembles_the_tap_from_the_scattered_parts_of_orders_one_to_the_last():
+def test_prepare_assembles_the_tap_from_the_scattered_parts_of_orders_one_to_the_last():
     """The late lines equal the network driven by the specular last order plus the tap built here from the public pieces."""
     from dataclasses import replace as replace_fields
 
     from compas_acoustics.hybrid.directional import directional_absorption_filters
     from compas_acoustics.hybrid.early import render_images
-    from compas_acoustics.hybrid.late import default_num_delays
 
     case, last, duration, speed, drive_gain = CASES[1], 2, 0.3, 331.0, 1.7
     spec, _, parts = split(case, 0.3)
     spec = replace_fields(spec, speed_of_sound=speed)
     target = RoomTarget.from_room(spec, model="eyring")
-    result = synthesize(spec, parts, target, max_order=last, duration_s=duration, scattering=True, drive_gain=drive_gain)
+    result = render_ambisonics(prepare(spec, parts, target, max_order=last, duration_s=duration, scattering=True, drive_gain=drive_gain))
 
     def subset(mask):
         xyz = parts.doa.cartesian[mask]
@@ -283,9 +283,9 @@ def test_synthesize_assembles_the_tap_from_the_scattered_parts_of_orders_one_to_
 
     def lines(tap_orders):
         n_samples = int(np.ceil(duration * FS))
-        directions = fdn_directions(1, default_num_delays(1))
+        directions = fdn_directions()
         delays = [directional_delays(spec, directions, rng=slope) for slope in range(target.n_slopes)]
-        builds = design_fdn(target, delays, sh_order=1, rng=0)
+        builds = design_fdn(target, delays, rng=0)
         driving = subset(parts.order == last)
         drive = render_images(driving, scattering_weights(driving.doa, directions, opposite=True), n_samples)
         reflected = subset(np.isin(parts.order, tap_orders))

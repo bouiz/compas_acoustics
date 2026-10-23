@@ -10,7 +10,7 @@ from compas_acoustics import AcousticObjectsLibrary
 from compas_acoustics import Receiver
 from compas_acoustics import Scene
 from compas_acoustics import Source
-from compas_acoustics.simulation_methods import Hybrid
+from compas_acoustics.simulation_methods import Binaural
 
 FS = 48000
 WALL = AcousticMaterial("wall", [0.1, 0.12, 0.15, 0.2, 0.25, 0.3, 0.35], 0.1)
@@ -35,16 +35,14 @@ def run(method, **kwargs):
     return result
 
 
-def test_the_result_keeps_the_early_images():
-    result = run(Hybrid(**FAST))
-    assert result.images is not None
-    assert result.images.order.max() == result.max_order
-    assert result.diffraction_paths == () and result.btms_contributions == ()
+def test_the_core_keeps_the_early_images():
+    core = run(Binaural(**FAST)).core
+    assert core.images.order.max() == core.max_order
+    assert core.diffraction_paths == () and core.btms_contributions == ()
 
 
-def test_the_result_keeps_the_diffracted_paths():
-    result = run(Hybrid(diffraction=True, **FAST), panel=True)
-    assert len(result.diffraction_paths) > 0
+def test_the_core_keeps_the_diffracted_paths():
+    assert len(run(Binaural(diffraction=True, **FAST), panel=True).core.diffraction_paths) > 0
 
 
 def test_the_nearest_measured_direction_is_picked():
@@ -75,121 +73,75 @@ def identity(n_dir=1):
     return HrtfSet(hrirs, np.tile([[1.0, 0.0, 0.0]], (n_dir, 1)), FS)
 
 
-@pytest.mark.parametrize("diffraction", [False, True])
+@pytest.mark.parametrize("diffraction", [False, True, pytest.param("btms", marks=pytest.mark.slow)])
 def test_with_a_transparent_hrtf_both_ears_hear_the_omnidirectional_early_part(diffraction):
-    """Same paths, same band interpolation, same delays and taper: the W channel exactly."""
-    from compas_acoustics.hybrid.binaural import render_early_binaural
+    """Same paths, same encoders, same band interpolation, delays and taper: the core's W exactly, BTMS included."""
+    from compas_acoustics.hybrid.binaural import render_binaural
+    from compas_acoustics.hybrid.ambisonics import render_ambisonics
 
-    result = run(Hybrid(diffraction=diffraction, **FAST), panel=diffraction)
-    ears = render_early_binaural(result, identity())
-    w = result.early[:, 0]
-    np.testing.assert_allclose(ears[:, 0], w, atol=1e-9 * np.max(np.abs(w)))
+    core = run(Binaural(diffraction=diffraction, **FAST), panel=bool(diffraction)).core
+    assert diffraction != "btms" or len(core.btms_contributions) > 0
+    ears = render_binaural(core, identity()).early
+    w = render_ambisonics(core).early[:, 0]
+    np.testing.assert_allclose(ears[:, 0], w, rtol=0, atol=1e-12 * np.max(np.abs(w)))
     np.testing.assert_array_equal(ears[:, 0], ears[:, 1])
 
 
-@pytest.mark.slow
-def test_with_a_transparent_hrtf_btms_paths_match_too():
-    from compas_acoustics.hybrid.binaural import render_early_binaural
-
-    result = run(Hybrid(diffraction="btms", **FAST), panel=True)
-    assert len(result.btms_contributions) > 0
-    w = result.early[:, 0]
-    # encode_btms's render_signals sums blocks whose band gains agree to 0.01 dB under the first one's gain;
-    # each path here keeps its own, so they may differ by that grouping: 10 ** (0.01 / 20) - 1 = 1.15e-3.
-    # Measured: 4e-5 (fixed air table) and 1.2e-4 (ISO 9613-1 at 20 C, 50 %) of the peak.
-    np.testing.assert_allclose(render_early_binaural(result, identity())[:, 0], w, atol=1.15e-3 * np.max(np.abs(w)))
-
-
-@pytest.mark.parametrize("diffraction", [False, True])
-def test_the_early_part_rendered_with_the_ambisonic_pass_equals_the_separate_rendering(diffraction):
-    """synthesize(hrtf=...) renders the ears from the same path spectra as the ambisonic channels; path by path it is
-    render_early_binaural, to rounding. BTMS keeps the separate rendering (its encoder groups gains)."""
-    from compas_acoustics.hybrid.binaural import DEFAULT_HRTF, HrtfSet, binaural_rir, render_early_binaural
-
-    method = Hybrid(diffraction=diffraction, output="binaural", **FAST)
-    result = run(method, panel=diffraction)
-    assert result.early_binaural is not None and result.early_hrtf is not None
-    separate = render_early_binaural(result, result.early_hrtf)
-    np.testing.assert_allclose(result.early_binaural, separate, rtol=0, atol=1e-12 * np.max(np.abs(separate)))
-    # another HRTF set falls back to the separate rendering
-    other = HrtfSet.from_sofa(DEFAULT_HRTF, FS)
-    np.testing.assert_allclose(binaural_rir(result, other), binaural_rir(result, result.early_hrtf), rtol=0,
-                               atol=1e-12 * np.max(np.abs(separate)))
-    ambisonic_only = run(Hybrid(diffraction=diffraction, output="ambisonic", **FAST), panel=diffraction)
-    assert ambisonic_only.early_binaural is None
-    np.testing.assert_allclose(ambisonic_only.early, result.early, rtol=0, atol=1e-12 * np.max(np.abs(result.early)))
-
-
-def direct_level(ears, result, ear):
+def direct_level(ears, core, ear):
     """Level in dB of the 2 ms after the direct sound arrives, at one ear."""
-    start = int(round(float(result.images.delay[result.images.order == 0][0]) * FS))
+    start = int(round(float(core.images.delay[core.images.order == 0][0]) * FS))
     return 10 * np.log10(np.sum(ears[start:start + 96, ear] ** 2))
 
 
 def test_a_source_on_the_left_is_louder_in_the_left_ear():
     from compas_acoustics.hybrid.binaural import DEFAULT_HRTF
-    from compas_acoustics.hybrid.binaural import HrtfSet, render_early_binaural
+    from compas_acoustics.hybrid.binaural import HrtfSet, render_binaural
 
     # The source is at (2, 4, 1.5); a receiver at (2, 1, 1.5) facing +x has it on its left (+y)
-    result = run(Hybrid(**FAST), receiver=Receiver("rec", 2.0, 1.0, 1.5))
-    ears = render_early_binaural(result, HrtfSet.from_sofa(DEFAULT_HRTF, FS))
-    assert direct_level(ears, result, 0) - direct_level(ears, result, 1) > 6.0
+    core = run(Binaural(**FAST), receiver=Receiver("rec", 2.0, 1.0, 1.5)).core
+    ears = render_binaural(core, HrtfSet.from_sofa(DEFAULT_HRTF, FS)).early
+    assert direct_level(ears, core, 0) - direct_level(ears, core, 1) > 6.0
 
 
 def test_the_ears_turn_with_the_receiver():
     from compas_acoustics.hybrid.binaural import DEFAULT_HRTF
-    from compas_acoustics.hybrid.binaural import HrtfSet, render_early_binaural
+    from compas_acoustics.hybrid.binaural import HrtfSet, render_binaural
 
     turned = Receiver("rec", 2.0, 1.0, 1.5, direction=[-1, 0, 0])
-    result = run(Hybrid(**FAST), receiver=turned)
-    ears = render_early_binaural(result, HrtfSet.from_sofa(DEFAULT_HRTF, FS))
-    assert direct_level(ears, result, 1) - direct_level(ears, result, 0) > 6.0
+    core = run(Binaural(**FAST), receiver=turned).core
+    ears = render_binaural(core, HrtfSet.from_sofa(DEFAULT_HRTF, FS)).early
+    assert direct_level(ears, core, 1) - direct_level(ears, core, 0) > 6.0
 
 
 def test_the_binaural_response_is_early_plus_each_line_through_its_hrir():
     from scipy.signal import fftconvolve
     from compas_acoustics.hybrid.binaural import DEFAULT_HRTF
-    from compas_acoustics.hybrid.binaural import HrtfSet, binaural_rir, render_early_binaural
+    from compas_acoustics.hybrid.binaural import HrtfSet, render_binaural
 
-    result = run(Hybrid(sh_order=1, **FAST))
+    core = run(Binaural(**FAST)).core
     hrtf = HrtfSet.from_sofa(DEFAULT_HRTF, FS)
-    n, lines = result.rir.shape[0], result.late_lines.shape[1]
-    late = sum(fftconvolve(result.late_lines[:, i:i + 1] / np.sqrt(lines), hrtf.hrirs[hrtf.nearest(result.line_directions[i])[0]].T,
+    result = render_binaural(core, hrtf)
+    n, lines = core.n_samples, result.late_lines.shape[1]
+    late = sum(fftconvolve(result.late_lines[:, i:i + 1] / np.sqrt(lines), hrtf.hrirs[hrtf.nearest(core.line_directions[i])[0]].T,
                            axes=0)[:n] for i in range(lines))
-    np.testing.assert_allclose(binaural_rir(result, hrtf), render_early_binaural(result, hrtf) + late, atol=1e-12)
+    assert result.rir.shape == (n, 2) and result.normalization is None and result.core is core
+    np.testing.assert_allclose(result.late, late, atol=1e-12)
+    np.testing.assert_allclose(result.rir, result.early + result.late, atol=0)
 
 
 def test_the_hrtf_must_be_at_the_simulations_rate():
     from compas_acoustics.hybrid.binaural import DEFAULT_HRTF
-    from compas_acoustics.hybrid.binaural import HrtfSet, render_early_binaural
+    from compas_acoustics.hybrid.binaural import HrtfSet, render_binaural
 
-    result = run(Hybrid(**FAST))
+    core = run(Binaural(**FAST)).core
     with pytest.raises(ValueError, match="sample rate"):
-        render_early_binaural(result, HrtfSet.from_sofa(DEFAULT_HRTF, 44100))
+        render_binaural(core, HrtfSet.from_sofa(DEFAULT_HRTF, 44100))
 
 
-def test_hybrid_returns_binaural_responses():
-    hybrid = Hybrid(output=["ambisonic", "binaural"], **FAST)
-    s = scene()
-    ambisonic = s.simulate(hybrid)
-    binaural = hybrid.extra_responses["hybrid_binaural"]
-    assert binaural.keys() == ambisonic.keys()
-    (ir,) = binaural.values()
-    assert ir.n_channels == 2 and ir.ambisonic_order is None
-    assert ir.generation["output"] == "binaural"
-    assert ir.generation["hrtf"] == "KEMAR_FreeFieldComp_48kHz.sofa"
-    assert ir.generation["method"] == "hybrid"
-    assert ir.denormalized().shape == (next(iter(ambisonic.values())).denormalized().shape[0], 2)
-
-
-def test_the_binaural_output_does_not_depend_on_sh_order():
-    """Every path and every line takes its own HRIR; the ambisonic order only sets the ambisonic output."""
-    (zero,) = scene().simulate(Hybrid(sh_order=0, seed=3, **FAST)).values()
-    (first,) = scene().simulate(Hybrid(sh_order=1, seed=3, **FAST)).values()
-    np.testing.assert_allclose(zero.denormalized(), first.denormalized(), atol=1e-12)
-
-
-def test_n3d_and_sn3d_give_the_same_binaural_response():
-    (a,) = scene().simulate(Hybrid(seed=3, **FAST)).values()
-    (b,) = scene().simulate(Hybrid(normalization="N3D", seed=3, **FAST)).values()
-    np.testing.assert_allclose(a.denormalized(), b.denormalized(), atol=1e-12)
+def test_binaural_returns_two_channel_responses_of_the_cores_length():
+    method = Binaural(**FAST)
+    (ir,) = scene().simulate(method).values()
+    assert ir.n_channels == 2 and ir.ambisonic_order is None and ir.format == "binaural"
+    assert ir.generation["hrtf"] == "KEMAR_FreeFieldComp_48kHz.sofa" and ir.generation["method"] == "binaural"
+    (result,) = method.results.values()
+    assert ir.denormalized().shape == (result.core.n_samples, 2)

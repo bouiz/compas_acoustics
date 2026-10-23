@@ -164,7 +164,7 @@ def stereo_response(**kwargs):
     rng = np.random.default_rng(0)
     raw = rng.normal(size=(64, 2)) * 0.01
     return ImpulseResponse("ir", Source("src", 1, 1, 1), Receiver("rec", 2, 2, 1), raw, 48000,
-                           generation={"method": "hybrid", "output": "binaural", "seed": np.int64(3), "band": np.float64(0.5),
+                           generation={"method": "binaural", "seed": np.int64(3), "band": np.float64(0.5),
                                        "orders": np.array([1, 2])},
                            **kwargs)
 
@@ -177,7 +177,7 @@ def test_a_response_round_trips_its_raw_samples_and_generation():
     assert loaded.denormalized().shape == (64, 2)
     assert np.array_equal(loaded.denormalized(), ir.denormalized())
     assert loaded.normalized is False and loaded.sampling_rate == 48000
-    assert loaded.generation == {"method": "hybrid", "output": "binaural", "seed": 3, "band": 0.5, "orders": [1, 2]}
+    assert loaded.generation == {"method": "binaural", "seed": 3, "band": 0.5, "orders": [1, 2]}
     assert loaded.source.guid == ir.source.guid and loaded.receiver.guid == ir.receiver.guid
     assert loaded.ambisonic_order is None and loaded.normalization is None and loaded.channel_order is None
     assert loaded.guid == ir.guid

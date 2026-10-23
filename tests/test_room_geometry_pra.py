@@ -120,7 +120,7 @@ def test_a_point_inside_a_closed_obstacle_is_outside_the_room():
 def test_a_receiver_in_a_pillar_is_left_out_with_a_warning():
     from compas_acoustics import Receiver
     from compas_acoustics import Source
-    from compas_acoustics.simulation_methods import Pyroomacoustics
+    from compas_acoustics.simulation_methods import Mono
 
     scene = Scene("pillar")
     scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(7, 5, 3, materials=WALL))
@@ -129,7 +129,7 @@ def test_a_receiver_in_a_pillar_is_left_out_with_a_warning():
     scene.add_receiver(Receiver("in_pillar", 3.5, 2.5, 1.5))
     scene.add_receiver(Receiver("free", 6, 4, 1.5))
     with pytest.warns(UserWarning, match="in_pillar"):
-        rirs = scene.simulate(Pyroomacoustics(image_source_order=2, ray_tracing=False))
+        rirs = scene.simulate(Mono(image_source_order=2, ray_tracing=False))
     assert [ir.receiver.name for ir in rirs.values()] == ["free"]
 
 
@@ -141,7 +141,7 @@ def test_an_open_panel_does_not_make_points_outside():
 def test_a_scene_of_obstacles_only_is_an_open_field():
     from compas_acoustics import Receiver
     from compas_acoustics import Source
-    from compas_acoustics.simulation_methods import Pyroomacoustics
+    from compas_acoustics.simulation_methods import Mono
 
     scene = Scene("field")
     for name, corners in (("a", [[0, 0, 0], [4, 0, 0], [4, 0, 3], [0, 0, 3]]), ("b", [[0, 0, 0], [0, 4, 0], [0, 4, 3], [0, 0, 3]])):
@@ -149,7 +149,7 @@ def test_a_scene_of_obstacles_only_is_an_open_field():
     scene.add_source(Source("s", 1, 1, 1.5))
     scene.add_receiver(Receiver("r", 3, 2, 1.5))
     with pytest.warns(UserWarning, match="no boundary surfaces"):
-        rirs = scene.simulate(Pyroomacoustics(image_source_order=2, ray_tracing=False))
+        rirs = scene.simulate(Mono(image_source_order=2, ray_tracing=False))
     assert len(rirs) == 1
 
 
@@ -195,7 +195,7 @@ def test_without_a_medium_the_room_is_in_the_default_medium():
 def test_a_warped_wall_simulates():
     from compas_acoustics import Receiver
     from compas_acoustics import Source
-    from compas_acoustics.simulation_methods import Pyroomacoustics
+    from compas_acoustics.simulation_methods import Mono
 
     scene = Scene("warped")
     for obj in AcousticObjectsLibrary.shoebox_room(7, 5, 3, materials=WALL):
@@ -207,7 +207,7 @@ def test_a_warped_wall_simulates():
         scene.add_acoustic_object(AcousticObject(mesh, WALL, name=obj.name))
     scene.add_source(Source("s", 1.5, 1.5, 1.6))
     scene.add_receiver(Receiver("r", 4.0, 2.0, 1.5))
-    rirs = scene.simulate(Pyroomacoustics(ray_tracing=False, image_source_order=2))
+    rirs = scene.simulate(Mono(ray_tracing=False, image_source_order=2))
     assert len(rirs) == 1
 
 

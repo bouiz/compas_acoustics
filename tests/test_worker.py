@@ -9,7 +9,7 @@ import pytest
 import compas_acoustics
 from compas_acoustics import AcousticMaterial
 from compas_acoustics import AcousticObjectsLibrary
-from compas_acoustics import Pyroomacoustics
+from compas_acoustics import Mono
 from compas_acoustics import Receiver
 from compas_acoustics import Scene
 from compas_acoustics import Source
@@ -119,9 +119,9 @@ def test_a_body_that_is_not_a_compas_pb_payload_is_a_400():
     assert status == 400 and "compas_pb" in pb_load_bts(body)["error"]
 
 
-def test_a_value_error_in_the_api_is_a_400_with_its_message():
-    status, answer = call("simulate", scene(), "nonsense", {})
-    assert status == 400 and answer["error"] == "Unknown method 'nonsense': 'hybrid' or 'pyroomacoustics'."
+def test_an_unknown_method_names_the_three_methods():
+    status, answer = call("simulate", scene(), "hybrid", {})
+    assert status == 400 and answer["error"] == "Unknown method 'hybrid': 'binaural', 'ambisonics' or 'mono'."
 
 
 def test_an_unexpected_error_is_a_500_with_a_traceback(monkeypatch):
@@ -136,11 +136,11 @@ def test_an_unexpected_error_is_a_500_with_a_traceback(monkeypatch):
 
 
 def test_results_travel_as_compas_pb_with_numpy_made_plain():
-    status, answer = call("simulate", scene(), "pyroomacoustics", {"image_source_order": 1, "ray_tracing": False})
+    status, answer = call("simulate", scene(), "mono", {"image_source_order": 1, "ray_tracing": False})
     assert status == 200
     (attribute, responses), = answer["responses"].items()
     ir = next(iter(responses.values()))
-    assert attribute == "pyroomacoustics" and ir.denormalized().ndim == 1
+    assert attribute == "mono" and ir.denormalized().ndim == 1
     assert isinstance(answer["warnings"], list)
 
 
@@ -251,8 +251,8 @@ def test_the_worker_starts_without_the_clients_python_path(tmp_path, monkeypatch
 @needs_worker
 def test_simulate_in_the_worker_matches_simulating_here(running_worker):
     s = scene()
-    here = s.simulate(Pyroomacoustics(image_source_order=2, ray_tracing=False))
-    there, messages = worker.simulate(s, "pyroomacoustics", {"image_source_order": 2, "ray_tracing": False})
+    here = s.simulate(Mono(image_source_order=2, ray_tracing=False))
+    there, messages = worker.simulate(s, "mono", {"image_source_order": 2, "ray_tracing": False})
     assert sorted(there) == sorted(here)
     for key in here:
         expected = here[key].denormalized()
@@ -262,42 +262,39 @@ def test_simulate_in_the_worker_matches_simulating_here(running_worker):
 
 
 @needs_worker
-def test_the_hybrid_runs_in_the_worker(running_worker):
+def test_ambisonics_runs_in_the_worker(running_worker):
     if not running_worker.info()["hybrid"]:
         pytest.skip("the worker has no pyFDN")
     s = scene()
-    rirs, _ = worker.simulate(s, "hybrid", {"tail": "eyring", "output": "ambisonic"})
+    rirs, _ = worker.simulate(s, "ambisonics", {"tail": "eyring"})
     ir = next(iter(rirs.values()))
     assert ir.ambisonic_order == 1 and ir.n_channels == 4
     assert ir.normalization is not None and ir.channel_order is not None
-    assert s.impulse_responses("hybrid")
+    assert s.impulse_responses("ambisonics") == rirs
 
 
 @needs_worker
-def test_simulate_stores_every_hybrid_output(running_worker):
+def test_binaural_runs_in_the_worker(running_worker):
     if not running_worker.info()["hybrid"]:
-        pytest.skip("the worker has no hybrid extra")
+        pytest.skip("the worker has no pyFDN")
     s = scene()
-    rirs, _ = worker.simulate(s, "hybrid", {"tail": "eyring", "output": ["ambisonic", "binaural"]})
-    assert {ir.n_channels for ir in rirs.values()} == {4}
-    assert {ir.n_channels for ir in s.impulse_responses("hybrid").values()} == {4}
-    binaural = s.impulse_responses("hybrid_binaural")
-    assert sorted(binaural) == sorted(rirs)
-    for ir in binaural.values():
-        assert ir.n_channels == 2 and ir.generation["output"] == "binaural" and ir.generation["hrtf"]
+    rirs, _ = worker.simulate(s, "binaural", {"tail": "eyring"})
+    assert s.impulse_responses("binaural") == rirs
+    for ir in rirs.values():
+        assert ir.n_channels == 2 and ir.format == "binaural" and ir.generation["hrtf"]
 
 
-def test_the_api_returns_the_responses_of_every_output_by_attribute():
+def test_the_api_returns_the_responses_under_the_methods_name():
     pytest.importorskip("pyFDN")
     from compas_acoustics import ImpulseResponse
     from compas_acoustics.worker import api
 
-    result = api.simulate(scene(), "hybrid", {"tail": "eyring", "output": ["binaural", "ambisonic"]})
-    assert list(result["responses"]) == ["hybrid_binaural", "hybrid"] == result["formats"]
-    assert all(len(irs) == 1 for irs in result["responses"].values())
-    assert all(isinstance(ir, ImpulseResponse) for irs in result["responses"].values() for ir in irs.values())
-    result = api.simulate(scene(), "pyroomacoustics", {"image_source_order": 1, "ray_tracing": False})
-    assert list(result["responses"]) == ["pyroomacoustics"]
+    for method in ("binaural", "ambisonics"):
+        result = api.simulate(scene(), method, {"tail": "eyring"})
+        assert list(result["responses"]) == [method] and "formats" not in result
+        assert all(isinstance(ir, ImpulseResponse) for ir in result["responses"][method].values())
+    result = api.simulate(scene(), "mono", {"image_source_order": 1, "ray_tracing": False})
+    assert list(result["responses"]) == ["mono"]
 
 
 def test_references_reach_the_method_as_responses():
@@ -305,12 +302,12 @@ def test_references_reach_the_method_as_responses():
     from compas_acoustics.worker import api
 
     s = scene()
-    reference = s.simulate(Pyroomacoustics(image_source_order=1, ray_tracing=False))
+    reference = s.simulate(Mono(image_source_order=1, ray_tracing=False))
     key = next(iter(reference))
     assert key == SimulationContext.key(s.sources[0], s.receivers[0])
     seen = {}
 
-    class Recording(Pyroomacoustics):
+    class Recording(Mono):
         def __init__(self, reference=None, **kwargs):
             seen["reference"] = reference
             super().__init__(**kwargs)
@@ -452,7 +449,7 @@ def test_the_worker_install_runs_its_python_without_the_callers_pythonpath(monke
 
 
 def response():
-    return next(iter(scene().simulate(Pyroomacoustics(image_source_order=2, ray_tracing=False)).values()))
+    return next(iter(scene().simulate(Mono(image_source_order=2, ray_tracing=False)).values()))
 
 
 @needs_sti
@@ -533,8 +530,8 @@ def test_responses_from_the_worker_keep_the_methods_normalize(monkeypatch, setti
 
     monkeypatch.setattr(worker, "client", lambda: types.SimpleNamespace(simulate=api.simulate))
     s = scene()
-    here = s.simulate(Pyroomacoustics(image_source_order=2, ray_tracing=False))
-    there, _ = worker.simulate(s, "pyroomacoustics", dict(settings, image_source_order=2, ray_tracing=False))
+    here = s.simulate(Mono(image_source_order=2, ray_tracing=False))
+    there, _ = worker.simulate(s, "mono", dict(settings, image_source_order=2, ray_tracing=False))
     for key, ir in there.items():
         assert ir.normalized is normalized
         np.testing.assert_allclose(ir.denormalized(), here[key].denormalized(), atol=1e-6 * np.max(np.abs(here[key].denormalized())))
@@ -692,16 +689,16 @@ def recorded_stages(monkeypatch):
 
 def test_the_hybrid_reports_its_stages(monkeypatch):
     pytest.importorskip("pyFDN")
-    from compas_acoustics.simulation_methods import Hybrid
+    from compas_acoustics.simulation_methods import Ambisonics
 
     stages = recorded_stages(monkeypatch)
-    scene().simulate(Hybrid(tail="eyring", late_envelope=False))
+    scene().simulate(Ambisonics(tail="eyring", late_envelope=False))
     assert [s for s in dict.fromkeys(stages)] == ["references", "image sources", "rendering"]
 
 
-def test_pyroomacoustics_reports_its_stages(monkeypatch):
+def test_mono_reports_its_stages(monkeypatch):
     stages = recorded_stages(monkeypatch)
-    scene().simulate(Pyroomacoustics(image_source_order=1, ray_tracing=False))
+    scene().simulate(Mono(image_source_order=1, ray_tracing=False))
     assert list(dict.fromkeys(stages)) == ["image sources", "responses"]
 
 

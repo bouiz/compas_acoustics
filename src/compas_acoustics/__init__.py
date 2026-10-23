@@ -15,15 +15,16 @@ from .rays import Ray, ScatteredRay, RayField
 from .rays import SpecularPath, SpecularReflections
 from .scene import Scene
 from .analyser import AcousticAnalyser
-from .simulation_methods import SimulationMethod, Pyroomacoustics
+from .simulation_methods import SimulationMethod, Mono
 from .auraliser import Auraliser
 from .audio_player import AudioPlayer
 from .fitness import regularized_fitness
 
 
 if TYPE_CHECKING:
-    # for editors and type checkers; at runtime Hybrid is imported on first use (see __getattr__)
-    from .simulation_methods.hybrid import Hybrid  # noqa: F401
+    # for editors and type checkers; at runtime they are imported on first use (see __getattr__)
+    from .simulation_methods.hybrid import Ambisonics  # noqa: F401
+    from .simulation_methods.hybrid import Binaural  # noqa: F401
 
 __author__ = ["Achilleas Xydis"]
 __copyright__ = "Gramazio Kohler Research"
@@ -49,7 +50,7 @@ __all__ = [
     'Scene',
     'AcousticAnalyser',
     'SimulationMethod',
-    'Pyroomacoustics',
+    'Mono',
     'Auraliser',
     'AudioPlayer',
     # 'Tools',
@@ -60,11 +61,11 @@ __all__ = [
 
 
 def __getattr__(name):
-    # The hybrid method needs pyFDN, which compas_acoustics requires on Python >= 3.11 only, so it is imported on first use
-    if name == "Hybrid":
+    # The binaural and ambisonics methods need pyFDN, which compas_acoustics requires on Python >= 3.11 only, so they are imported on first use
+    if name in ("Binaural", "Ambisonics"):
         try:
-            from .simulation_methods import Hybrid
+            from . import simulation_methods
+            return getattr(simulation_methods, name)
         except ImportError as error:
-            raise ImportError("compas_acoustics.Hybrid needs Python >= 3.11, where compas_acoustics installs pyFDN") from error
-        return Hybrid
+            raise ImportError(f"compas_acoustics.{name} needs Python >= 3.11, where compas_acoustics installs pyFDN") from error
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

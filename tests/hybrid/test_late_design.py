@@ -7,7 +7,8 @@ import spharpy
 from scipy.signal import sosfreqz
 
 from compas_acoustics.hybrid.bands import BANDS, N_BANDS
-from compas_acoustics.hybrid.late import ambisonic_output_matrix, design_fdn, render
+from compas_acoustics.hybrid.late import design_fdn, render
+from compas_acoustics.hybrid.ambisonics import ambisonic_output_matrix
 from compas_acoustics.hybrid.target import RoomTarget
 
 FS = 48000.0
@@ -66,10 +67,10 @@ def test_output_matrix_w_row_is_constant():
 
 
 def test_design_produces_a_valid_build():
-    (build,) = design_fdn(target_with(), delays_of(16), sh_order=1)
+    (build,) = design_fdn(target_with(), delays_of(16))
     assert isinstance(build, pyFDN.FDNBuild)
     assert build.A.shape == (16, 16)
-    assert build.C.shape == (4, 16)
+    assert build.C.shape == (1, 16) and np.allclose(build.C, 1 / np.sqrt(16))
     assert build.post_delay is not None
     assert build.post_output is None
 
@@ -160,12 +161,3 @@ def test_a_single_line_emerges_after_that_lines_delay():
     out = render(builds, drive) @ builds[0].C.T
     assert int(np.argmax(np.abs(out[:, 0]) > 1e-12)) == delays[3]
 
-
-def test_render_needs_the_same_slope_weight_on_every_channel():
-    from dataclasses import replace
-
-    (build,) = design_fdn(target_with(), delays_of(16))
-    sos = np.zeros((1, 6, build.C.shape[0]))
-    sos[0, 0], sos[0, 3] = np.arange(1.0, build.C.shape[0] + 1.0), 1.0
-    with pytest.raises(ValueError, match="every channel"):
-        render([replace(build, post_output=sos)], np.zeros((256, 16)))

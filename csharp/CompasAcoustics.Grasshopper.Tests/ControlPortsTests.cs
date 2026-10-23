@@ -18,7 +18,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.True(component.Write(chunk));
             var read = new GH_LooseChunk("component");
             read.Deserialize_Binary(chunk.Serialize_Binary());
-            var back = new SimulateHybridComponent();
+            var back = (GH_Component)System.Activator.CreateInstance(component.GetType())!;
             Assert.True(back.Read(read));
             return back;
         }
@@ -27,7 +27,8 @@ namespace CompasAcoustics.Grasshopper.Tests
         public void TheControlPorts_AreTheInputsOfTheBodysControls_RunIncluded()
         {
             // run stays an input for loops and scripts that set it, hidden like the others
-            Assert.Equal(new[] { "tail", "diffraction", "output", "run" }, new SimulateHybridComponent().ControlPorts);
+            Assert.Equal(new[] { "tail", "diffraction", "run" }, new SimulateBinauralComponent().ControlPorts);
+            Assert.Equal(new[] { "tail", "diffraction", "run" }, new SimulateAmbisonicsComponent().ControlPorts);
             Assert.Equal(new[] { "play" }, new VisualiseBilliardComponent().ControlPorts);
             Assert.Empty(new AcousticObjectComponent().ControlPorts);
             Assert.True(new AcousticObjectComponent().IsChoice("role"));
@@ -83,11 +84,11 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void HidingThem_RemovesThePorts_AndShowingPutsThemBackInTheirPlace()
         {
-            var hybrid = new SimulateHybridComponent();
+            var hybrid = new SimulateAmbisonicsComponent();
             var all = Inputs(hybrid);
             hybrid.ShowControlPorts(false);
             Assert.False(hybrid.ControlPortsShown);
-            Assert.Equal(all.Where(n => n != "tail" && n != "diffraction" && n != "output" && n != "run"), Inputs(hybrid));
+            Assert.Equal(all.Where(n => n != "tail" && n != "diffraction" && n != "run"), Inputs(hybrid));
             Assert.NotNull(hybrid.ControlPort("run"));
             Assert.NotNull(hybrid.ControlPort("tail"));
             hybrid.ShowControlPorts(true);
@@ -97,7 +98,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void AHiddenPort_KeepsTheValueTheBodyChooses()
         {
-            var hybrid = new SimulateHybridComponent();
+            var hybrid = new SimulateAmbisonicsComponent();
             hybrid.ShowControlPorts(false);
             ControlState.Choose(hybrid, hybrid.ControlPort("tail")!, "eyring");
             Assert.Equal("eyring", hybrid.HiddenValue("tail"));
@@ -108,17 +109,17 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void AWiredPort_StaysWhenTheOthersHide()
         {
-            var hybrid = new SimulateHybridComponent();
-            hybrid.ControlPort("output")!.AddSource(new Param_String());
+            var hybrid = new SimulateAmbisonicsComponent();
+            hybrid.ControlPort("tail")!.AddSource(new Param_String());
             hybrid.ShowControlPorts(false);
-            Assert.Contains("output", Inputs(hybrid));
-            Assert.DoesNotContain("tail", Inputs(hybrid));
+            Assert.Contains("tail", Inputs(hybrid));
+            Assert.DoesNotContain("diffraction", Inputs(hybrid));
         }
 
         [Fact]
         public void TheHiddenPortsAndTheirValues_AreSavedWithTheDocument()
         {
-            var hybrid = new SimulateHybridComponent();
+            var hybrid = new SimulateAmbisonicsComponent();
             hybrid.ShowControlPorts(false);
             ControlState.Choose(hybrid, hybrid.ControlPort("diffraction")!, "udfa");
             var back = (SimulateHybridComponent)RoundTrip(hybrid);
@@ -130,12 +131,12 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void AComponentSavedWithItsPortsShown_ReadsThemShown()
         {
-            var hybrid = new SimulateHybridComponent();
-            ControlState.Choose(hybrid, hybrid.ControlPort("output")!, "both");
+            var hybrid = new SimulateAmbisonicsComponent();
+            ControlState.Choose(hybrid, hybrid.ControlPort("tail")!, "sabine");
             var back = (SimulateHybridComponent)RoundTrip(hybrid);
             Assert.True(back.ControlPortsShown);
             Assert.Equal(Inputs(hybrid), Inputs(back));
-            Assert.Equal(("both", false), ControlState.Of(back.ControlPort("output")!, HybridRun.Outputs));
+            Assert.Equal(("sabine", false), ControlState.Of(back.ControlPort("tail")!, HybridRun.Tails));
         }
     }
 }

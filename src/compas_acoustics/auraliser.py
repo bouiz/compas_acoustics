@@ -31,9 +31,9 @@ class Auraliser:
     Each impulse response is convolved with its anechoic sound and the results are
     summed. The signal keeps the format of its impulse responses (:attr:`format`):
 
-    * ``'mono'``: one channel, e.g. from the ``Pyroomacoustics`` method.
-    * ``'binaural'``: two channels, ears left and right, e.g. the ``Hybrid`` method's
-      default output (or a dict entry with ``'binaural': True`` and two channels).
+    * ``'mono'``: one channel, e.g. from the ``Mono`` method.
+    * ``'binaural'``: two channels, ears left and right, e.g. from the ``Binaural`` method
+      (or a dict entry with ``'binaural': True`` and two channels).
     * ``'ambisonic'``: ACN/SN3D (AmbiX) channels, (order + 1)**2 of them, at the highest
       order present, to save as a multichannel file for an ambisonic decoder elsewhere.
       N3D responses are converted to SN3D.
@@ -84,7 +84,7 @@ class Auraliser:
     >>> scene.add_acoustic_objects(ca.AcousticObjectsLibrary.shoebox_room(6, 5, 3, materials=ca.AcousticMaterial("wall", 0.2, 0.1)))
     >>> scene.add_source(ca.Source("talker", 1.5, 1.5, 1.6, sound_file=sound))
     >>> scene.add_receiver(ca.Receiver("listener", 4.0, 3.0, 1.2))
-    >>> responses = scene.simulate(ca.Pyroomacoustics(ray_tracing=True, n_rays=2000, duration=0.5))
+    >>> responses = scene.simulate(ca.Mono(ray_tracing=True, n_rays=2000, duration=0.5))
     >>> auraliser = ca.Auraliser("office", list(responses.values()))
     >>> auraliser.format, auraliser.convolve().shape[1]
     ('mono', 1)
@@ -291,7 +291,7 @@ class Auraliser:
                 # The response's own convention, e.g. a hybrid response in N3D; ACN/SN3D when it states none
                 'channel_order': getattr(ir, 'channel_order', None) or 'acn',
                 'normalization': getattr(ir, 'normalization', None) or 'sn3d',
-                'binaural': (getattr(ir, 'generation', None) or {}).get('output') == 'binaural',
+                'binaural': getattr(ir, 'format', None) == 'binaural',
             }
         return converted
 

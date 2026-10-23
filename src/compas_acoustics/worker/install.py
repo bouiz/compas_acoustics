@@ -46,7 +46,7 @@ def install_worker(wheel, hybrid=False, home=WORKER_HOME, config=CONFIG, python_
     # On Python >= 3.11 compas_acoustics requires the hybrid method's packages too
     subprocess.run([uv, "pip", "install", "--python", str(python), "compas_acoustics @ {}".format(Path(wheel).resolve().as_uri())], check=True, env=env)
     # The first import of the scientific stack takes about 30 s; do it here, not on the first Grasshopper call
-    subprocess.run([str(python), "-c", "import compas_acoustics.simulation_methods as m; m.Hybrid" if hybrid else "import compas_acoustics.worker.api"], check=True, env=env)
+    subprocess.run([str(python), "-c", "import compas_acoustics.simulation_methods as m; m.Binaural" if hybrid else "import compas_acoustics.worker.api"], check=True, env=env)
     config.parent.mkdir(parents=True, exist_ok=True)
     config.write_text(json.dumps({"python": str(python), "hybrid": hybrid}))
     return python
@@ -55,7 +55,7 @@ def install_worker(wheel, hybrid=False, home=WORKER_HOME, config=CONFIG, python_
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--wheel", required=True)
-    parser.add_argument("--hybrid", action="store_true", help="check that the hybrid method imports (its packages come with compas_acoustics on Python >= 3.11)")
+    parser.add_argument("--hybrid", action="store_true", help="check that the binaural and ambisonics methods import (pyFDN comes with compas_acoustics on Python >= 3.11)")
     parser.add_argument("--home", default=str(WORKER_HOME))
     parser.add_argument("--config", default=str(CONFIG))
     args = parser.parse_args()

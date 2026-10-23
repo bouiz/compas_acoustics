@@ -190,7 +190,7 @@ namespace CompasAcoustics.Grasshopper
                     Warn(AuraliseGroups.ClipWarning(peak));
                 if (formats.Contains("ambisonic"))
                     Remark("Ambisonic signals (ACN/SN3D) cannot be played by the Audio Player. Save them as a multichannel file for an ambisonic decoder, " +
-                           "or simulate with Simulate Hybrid output binaural for headphone playback.");
+                           "or simulate with Simulate Binaural for headphone playback.");
                 access.SetDataTree(0, signals);
                 access.SetDataTree(1, rates);
             });
@@ -295,8 +295,7 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>The response's samples at its raw level, in its format (an ambisonic response cannot play here).</summary>
         internal static AudioData Audio(ImpulseResponseGoo ir)
         {
-            var format = ir.Value.HasAmbisonicOrder ? "ambisonic" : ir.Binaural || ir.Channels == 2 ? "binaural" : "mono";
-            var audio = new AudioData { SamplingRate = ir.SamplingRate, Format = format };
+            var audio = new AudioData { SamplingRate = ir.SamplingRate, Format = ir.Format };
             audio.Samples.Add(ir.Value.Samples);
             audio.Shape.Add(ir.Value.Shape);
             return audio;
@@ -321,7 +320,7 @@ namespace CompasAcoustics.Grasshopper
             var channels = signal == null ? 0 : signal.Shape.Count > 1 ? (int)signal.Shape[1] : 1;
             Problem = channels > 2
                 ? $"A {channels}-channel ambisonic signal cannot be played here. Save it with Auralise as a multichannel file for an ambisonic decoder, " +
-                  "or simulate with Simulate Hybrid output binaural for headphone playback."
+                  "or simulate with Simulate Binaural for headphone playback."
                 : null;
         }
 

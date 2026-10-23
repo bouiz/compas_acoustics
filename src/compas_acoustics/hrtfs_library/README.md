@@ -1,6 +1,6 @@
 # HRTF set
 
-The head-related transfer function set the `Auraliser` and `Hybrid(output="binaural")` use. The file carries its own
+The head-related transfer function set the `Binaural` method uses. The file carries its own
 licence in its SOFA metadata (`GLOBAL_License`); the notes below are copied from there.
 
 ## KEMAR_FreeFieldComp_48kHz.sofa

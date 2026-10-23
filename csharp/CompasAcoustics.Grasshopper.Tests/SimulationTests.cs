@@ -9,18 +9,18 @@ namespace CompasAcoustics.Grasshopper.Tests
     public class SimulationSettingsTests
     {
         [Fact]
-        public void Pyroomacoustics_LeavesUnsetInputsOutButAlwaysStatesAirAbsorption()
+        public void Mono_LeavesUnsetInputsOutButAlwaysStatesAirAbsorption()
         {
-            var settings = SimulationSettings.Pyroomacoustics(null, true, null, null, null, null, 7, null, out var ignored, out var seed);
+            var settings = SimulationSettings.Mono(null, true, null, null, null, null, 7, null, out var ignored, out var seed);
             Assert.Equal(new Dictionary<string, object?> { ["ray_tracing"] = true, ["air_absorption"] = true, ["seed"] = 7L }, settings);
             Assert.Empty(ignored);
             Assert.Equal(7, seed);
         }
 
         [Fact]
-        public void Pyroomacoustics_PassesGivenInputsUnderTheMethodsNames()
+        public void Mono_PassesGivenInputsUnderTheMethodsNames()
         {
-            var settings = SimulationSettings.Pyroomacoustics(2, true, 1000, false, 1e-6, 1.5, 3, false, out _, out _);
+            var settings = SimulationSettings.Mono(2, true, 1000, false, 1e-6, 1.5, 3, false, out _, out _);
             Assert.Equal(2L, settings["image_source_order"]);
             Assert.Equal(1000L, settings["n_rays"]);
             Assert.Equal(false, settings["air_absorption"]);
@@ -30,31 +30,31 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void Pyroomacoustics_WithoutRayTracing_DropsTheRayInputsAndNamesThem()
+        public void Mono_WithoutRayTracing_DropsTheRayInputsAndNamesThem()
         {
-            var settings = SimulationSettings.Pyroomacoustics(1, false, 500, null, null, null, 3, null, out var ignored, out _);
+            var settings = SimulationSettings.Mono(1, false, 500, null, null, null, 3, null, out var ignored, out _);
             Assert.Equal(new[] { "n_rays", "seed" }, ignored);
             Assert.False(settings.ContainsKey("n_rays") || settings.ContainsKey("seed"));
             Assert.Equal(false, settings["ray_tracing"]);
         }
 
         [Fact]
-        public void Pyroomacoustics_WithRayTracingAndNoSeed_DrawsOne()
+        public void Mono_WithRayTracingAndNoSeed_DrawsOne()
         {
-            var a = SimulationSettings.Pyroomacoustics(null, true, null, null, null, null, null, null, out _, out var first);
-            SimulationSettings.Pyroomacoustics(null, true, null, null, null, null, null, null, out _, out var second);
+            var a = SimulationSettings.Mono(null, true, null, null, null, null, null, null, out _, out var first);
+            SimulationSettings.Mono(null, true, null, null, null, null, null, null, out _, out var second);
             Assert.Equal((long)first, a["seed"]);
             Assert.InRange(first, 0, int.MaxValue);
             Assert.NotEqual(first, second);
         }
 
         [Fact]
-        public void Pyroomacoustics_Message_ShowsRateMethodOrderRaysAirAndSeed()
+        public void Mono_Message_ShowsRateMethodOrderRaysAirAndSeed()
         {
-            var settings = SimulationSettings.Pyroomacoustics(null, true, null, null, null, null, 5, null, out _, out _);
-            Assert.Equal("48000Hz, ISM + ray tracing, order=default, rays=default, air=True, seed=5", SimulationSettings.PyroomacousticsMessage(48000, settings));
-            settings = SimulationSettings.Pyroomacoustics(2, false, null, false, null, null, null, null, out _, out _);
-            Assert.Equal("44100Hz, ISM, order=2, rays=-, air=False, seed=-", SimulationSettings.PyroomacousticsMessage(44100, settings));
+            var settings = SimulationSettings.Mono(null, true, null, null, null, null, 5, null, out _, out _);
+            Assert.Equal("48000Hz, ISM + ray tracing, order=default, rays=default, air=True, seed=5", SimulationSettings.MonoMessage(48000, settings));
+            settings = SimulationSettings.Mono(2, false, null, false, null, null, null, null, out _, out _);
+            Assert.Equal("44100Hz, ISM, order=2, rays=-, air=False, seed=-", SimulationSettings.MonoMessage(44100, settings));
         }
     }
 
@@ -70,7 +70,7 @@ namespace CompasAcoustics.Grasshopper.Tests
                        {
                            Name = $"{source.Name}{receiver.Name}", Source = source.Value, Receiver = receiver.Value, Shape = { 1 }, Samples = { 0 },
                        })).ToList();
-            return new IrGraphGoo.Content("pyroomacoustics", s, r, irs);
+            return new IrGraphGoo.Content("mono", s, r, irs);
         }
 
         [Fact]

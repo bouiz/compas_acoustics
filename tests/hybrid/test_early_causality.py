@@ -20,7 +20,10 @@ import numpy as np
 import pyfar as pf
 import pytest
 
-from _compat import RoomSpec, synthesize
+from _compat import RoomSpec, image_sources
+from compas_acoustics.hybrid.synthesis import prepare
+from compas_acoustics.hybrid.ambisonics import render_ambisonics
+from compas_acoustics.hybrid.target import RoomTarget
 from compas_acoustics.hybrid.early import (
     _RADIATION_HIGHPASS_HZ,
     _RADIATION_HIGHPASS_ORDER,
@@ -82,7 +85,7 @@ def test_diffraction_adds_nothing_before_the_direct_sound_could_arrive(model):
     # around the corner the wall hides the direct sound, and no diffracted path is shorter than it
     spec = RoomSpec(geometry=l_room(), source=np.array(SOURCE), receiver=np.array(RECEIVER),
                     air_absorption=False, speed_of_sound=C)
-    off = synthesize(spec, max_order=1, duration_s=0.2).early[:, 0]
-    on = synthesize(spec, max_order=1, duration_s=0.2, diffraction=model).early[:, 0]
+    off = render_ambisonics(prepare(spec, image_sources(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2)).early[:, 0]
+    on = render_ambisonics(prepare(spec, image_sources(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction=model)).early[:, 0]
     hidden = int(np.linalg.norm(np.subtract(SOURCE, RECEIVER)) / C * FS)
     assert before_arrival_db(on - off, hidden) < -50.0

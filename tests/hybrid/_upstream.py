@@ -131,8 +131,9 @@ def write(path, text):
 # Where a name that upstream's tests import from hybrid_rir lives here. Names
 # from a submodule other than room map to the same submodule of
 # compas_acoustics.hybrid; _compat stands in for upstream's room types and
-# its per-pair entry points, so their tests run against the port unchanged.
-COMPAT = {"Material", "MeshGeometry", "RoomSpec", "ShoeboxGeometry", "image_sources", "synthesize"}
+# its image source search. Upstream's synthesize has no stand-in: the ported
+# tests call prepare and render_ambisonics.
+COMPAT = {"Material", "MeshGeometry", "RoomSpec", "ShoeboxGeometry", "image_sources"}
 TOP_LEVEL = {
     "BANDS": "compas_acoustics.hybrid.bands",
     "BAND_EDGES": "compas_acoustics.hybrid.bands",

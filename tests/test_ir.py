@@ -102,19 +102,19 @@ def test_from_wav_without_metadata_uses_the_wav_as_raw(tmp_path):
 def test_simulate_normalizes_and_records_generation(normalize):
     from compas_acoustics import AcousticObjectsLibrary
     from compas_acoustics import Scene
-    from compas_acoustics.simulation_methods import Pyroomacoustics
+    from compas_acoustics.simulation_methods import Mono
 
     scene = Scene("room")
     scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(10, 8, 4))
     scene.add_source(Source("s", 2, 4, 1.5))
     scene.add_receiver(Receiver("near", 3, 4, 1.5))
     scene.add_receiver(Receiver("mid", 5, 4, 1.5))
-    rirs = scene.simulate(Pyroomacoustics(image_source_order=2, normalize=normalize, ray_tracing=False))
+    rirs = scene.simulate(Mono(image_source_order=2, normalize=normalize, ray_tracing=False))
 
     by_receiver = {ir.receiver.name: ir for ir in rirs.values()}
     for ir in by_receiver.values():
         assert ir.normalized is normalize
-        expected = {"method": "pyroomacoustics", "scale": "package", "ray_tracing": False, "image_source_order": 2, "scene": "room"}
+        expected = {"method": "mono", "scale": "package", "ray_tracing": False, "image_source_order": 2, "scene": "room"}
         assert expected.items() <= ir.generation.items()
         assert np.max(np.abs(ir.ir)) == pytest.approx(1.0 if normalize else ir.normalization_factor)
     # The raw level keeps the distance: the nearer receiver is louder
@@ -125,14 +125,14 @@ def test_simulate_normalizes_and_records_generation(normalize):
 def test_simulated_impulse_responses_use_the_requested_sampling_rate(sampling_rate):
     from compas_acoustics import AcousticObjectsLibrary
     from compas_acoustics import Scene
-    from compas_acoustics.simulation_methods import Pyroomacoustics
+    from compas_acoustics.simulation_methods import Mono
 
     scene = Scene("room", sampling_rate=sampling_rate)
     scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(10, 8, 4))
     scene.add_source(Source("s", 2, 4, 1.5))
     scene.add_receiver(Receiver("r", 5, 4, 1.5))
     # Air absorption above 16 kHz used to fail on a 7- vs 8-band mismatch
-    rirs = scene.simulate(Pyroomacoustics(image_source_order=2, air_absorption=True, ray_tracing=False))
+    rirs = scene.simulate(Mono(image_source_order=2, air_absorption=True, ray_tracing=False))
     assert all(ir.sampling_rate == sampling_rate for ir in rirs.values())
 
 
@@ -187,3 +187,16 @@ def test_a_source_at_the_receiver_has_onset_zero():
     ir = ImpulseResponse("k", Source("s", 0, 0, 0), Receiver("r", 0, 0, 0), np.ones(10), 48000,
                          generation={"scale": "package"})
     assert ir.direct_sound_index() == 0
+
+
+@pytest.mark.parametrize("channels, order, expected", [
+    (1, None, "mono"), (1, 0, "mono"), (2, None, "binaural"), (4, 1, "ambisonic"), (4, None, "ambisonic"), (9, 2, "ambisonic")])
+def test_the_format_follows_the_channels_and_the_ambisonic_order(channels, order, expected):
+    data = np.ones((8, channels)) if channels > 1 else np.ones(8)
+    assert make_ir(data, ambisonic_order=order).format == expected
+
+
+def test_a_two_channel_wav_is_binaural(tmp_path):
+    ir = make_ir(np.ones((8, 2)) * 0.5)
+    wav, _ = ir.to_wav(str(tmp_path / "ears.wav"))
+    assert ImpulseResponse.from_wav(wav, ir.source, ir.receiver).format == "binaural"

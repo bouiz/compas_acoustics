@@ -10,9 +10,9 @@ using Rhino.Geometry;
 namespace CompasAcoustics.Grasshopper
 {
     /// <summary>
-    /// The responses of one simulation output, with the scene's sources and receivers: what Simulate Pyroomacoustics and
-    /// Simulate Hybrid output and Deconstruct IR Graph takes. ``Method`` names the graph attribute the responses belong to,
-    /// e.g. ``pyroomacoustics``, ``hybrid`` (ambisonic) or ``hybrid_binaural``.
+    /// The responses of one simulation, with the scene's sources and receivers: what Simulate Mono, Simulate Binaural and
+    /// Simulate Ambisonics output and Deconstruct IR Graph takes. ``Method`` names the graph attribute the responses belong to:
+    /// ``mono``, ``binaural`` or ``ambisonics``.
     /// </summary>
     public sealed class IrGraphGoo : GH_Goo<IrGraphGoo.Content>, IGH_PreviewData
     {

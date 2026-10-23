@@ -11,10 +11,11 @@ namespace CompasAcoustics.Grasshopper.Tests
         private static PortSpec Port(string component, string port) => ComponentSpec.Load(component).Inputs.Single(p => p.Name == port);
 
         [Theory]
-        [InlineData("CA_Simulate_Ray_Tracing", "ism_order", 3)]
-        [InlineData("CA_Simulate_Ray_Tracing", "n_rays", 20000)]
-        [InlineData("CA_Simulate_Hybrid", "sh_order", 1)]
-        [InlineData("CA_Simulate_Hybrid", "ism_order", 3)]
+        [InlineData("CA_Simulate_Mono", "ism_order", 3)]
+        [InlineData("CA_Simulate_Mono", "n_rays", 20000)]
+        [InlineData("CA_Simulate_Ambisonics", "sh_order", 1)]
+        [InlineData("CA_Simulate_Ambisonics", "ism_order", 3)]
+        [InlineData("CA_Simulate_Binaural", "ism_order", 3)]
         [InlineData("CA_Visualise_Rays", "n_rays", 500)]
         [InlineData("CA_Visualise_Rays", "max_order", 10)]
         [InlineData("CA_Model", "sampling_rate", 48000)]
@@ -23,10 +24,10 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void Specs_DeclareTheNumberDefaultsOfThePlan()
         {
-            Assert.Equal(1e-7, Port("CA_Simulate_Ray_Tracing", "energy_thres").Default);
+            Assert.Equal(1e-7, Port("CA_Simulate_Mono", "energy_thres").Default);
             Assert.Equal(1.0, Port("CA_Regularized_Fitness", "k").Default);
-            Assert.Null(Port("CA_Simulate_Ray_Tracing", "seed").Default);
-            Assert.Null(Port("CA_Simulate_Ray_Tracing", "time_thres").Default);
+            Assert.Null(Port("CA_Simulate_Mono", "seed").Default);
+            Assert.Null(Port("CA_Simulate_Mono", "time_thres").Default);
             Assert.Null(Port("CA_Visualise_Billiard", "speed").Default);
         }
 
@@ -44,7 +45,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void AComponent_ShowsItsDefaultOnThePort()
         {
-            var component = new SimulatePyroomacousticsComponent();
+            var component = new SimulateMonoComponent();
             var ism = Assert.IsType<Param_Integer>(component.Params.Input.Single(p => p.Name == "ism_order"));
             Assert.Equal(3, ism.PersistentData.AllData(true).OfType<GH_Integer>().Single().Value);
             var energy = Assert.IsType<Param_Number>(component.Params.Input.Single(p => p.Name == "energy_thres"));
@@ -56,10 +57,10 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void NamedValues_AreDeclaredAndOnThePort()
         {
-            Assert.Equal(new[] { ("1", 1), ("2", 2), ("3", 3) }, Port("CA_Simulate_Hybrid", "sh_order").NamedValues);
-            Assert.Equal(Enumerable.Range(0, 7).Select(i => (i.ToString(), i)), Port("CA_Simulate_Ray_Tracing", "ism_order").NamedValues);
+            Assert.Equal(new[] { ("1", 1), ("2", 2), ("3", 3) }, Port("CA_Simulate_Ambisonics", "sh_order").NamedValues);
+            Assert.Equal(Enumerable.Range(0, 7).Select(i => (i.ToString(), i)), Port("CA_Simulate_Mono", "ism_order").NamedValues);
             Assert.Equal(new[] { 44100, 48000, 96000 }, Port("CA_Model", "sampling_rate").NamedValues.Select(v => v.value));
-            var hybrid = new SimulateHybridComponent();
+            var hybrid = new SimulateAmbisonicsComponent();
             Assert.True(((Param_Integer)hybrid.Params.Input.Single(p => p.Name == "sh_order")).HasNamedValues);
             Assert.False(((Param_Integer)hybrid.Params.Input.Single(p => p.Name == "seed")).HasNamedValues);
         }

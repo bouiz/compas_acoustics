@@ -1,9 +1,9 @@
 {
-    "name": "Simulate Hybrid",
-    "nickname": "SimHybrid",
+    "name": "Simulate Ambisonics",
+    "nickname": "SimAmbi",
     "category": "COMPAS Acoustics",
     "subcategory": "02 Simulation",
-    "description": "Simulate hybrid impulse responses, binaural and/or ambisonic from one run: image sources, optional edge diffraction around obstacles and at the edges of the room's boundary that open wider than 180 deg, and a directional feedback delay network tail. Needs Python >= 3.11 (in Rhino 8: the worker) and a closed room. Writes the responses to the impulse response graph under 'hybrid_binaural' and 'hybrid'.",
+    "description": "Simulate ambisonic room impulse responses (ACN, SN3D): image sources, optional edge diffraction around obstacles and at the edges of the room's boundary that open wider than 180 deg, and a directional feedback delay network tail. Needs the worker (Python >= 3.11) and a closed room. Writes the responses to the impulse response graph under 'ambisonics'.",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,
@@ -25,7 +25,7 @@
             },
             {
                 "name": "reference",
-                "description": "Optional reference for the tail: connect the mono_ir_graph output of Simulate Pyroomacoustics (the wire also makes Grasshopper run the ray tracing first).",
+                "description": "Optional reference for the tail: connect the mono_ir_graph output of Simulate Mono (the wire also makes Grasshopper run the ray tracing first).",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "ghdoc"
@@ -106,7 +106,7 @@
             },
             {
                 "name": "seed",
-                "description": "Seed of the feedback matrices and delay jitter. Empty (default): a new random seed each run, shown in the component's message. A number: the same scene gives the same responses.",
+                "description": "Seed of the feedback matrices and delay jitter; the same seed gives Simulate Binaural and Simulate Ambisonics the same late field. Empty (default): a new random seed each run, shown in the component's message. A number: the same scene gives the same responses.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "int"
@@ -119,22 +119,8 @@
                 "typeHintID": "bool"
             },
             {
-                "name": "output",
-                "description": "The formats rendered from one run: binaural (default), ambisonic, or both. A value list is added when it is not connected.",
-                "optional": true,
-                "scriptParamAccess": 0,
-                "typeHintID": "str"
-            },
-            {
-                "name": "hrtf",
-                "description": "HRTF set of the binaural format. Empty: KEMAR (default). Connect a File Path to a .sofa file to use your own HRTF set; the component's message names the set in use. Not used by ambisonic.",
-                "optional": true,
-                "scriptParamAccess": 0,
-                "typeHintID": "str"
-            },
-            {
                 "name": "run",
-                "description": "Press to simulate. The hybrid takes seconds to minutes and Grasshopper recomputes on every upstream change, so it runs only when this is true; a button is added when it is not connected. Without it, the responses already on the scene's graph are passed on.",
+                "description": "Press to simulate. The simulation takes seconds to minutes and Grasshopper recomputes on every upstream change, so it runs only when this is true; a button is added when it is not connected. Without it, the responses already on the scene's graph are passed on.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "bool"
@@ -142,12 +128,8 @@
         ],
         "outputParameters": [
             {
-                "name": "binaural_ir_graph",
-                "description": "IR graph of the binaural responses (under 'hybrid_binaural'), for Deconstruct IR Graph; empty unless output is binaural or both."
-            },
-            {
                 "name": "ambisonic_ir_graph",
-                "description": "IR graph of the ambisonic responses (under 'hybrid'), for Deconstruct IR Graph; empty unless output is ambisonic or both."
+                "description": "IR graph of the ambisonic responses (under 'ambisonics'), for Deconstruct IR Graph and Auralise; decode them elsewhere."
             }
         ]
     }

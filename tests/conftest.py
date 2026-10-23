@@ -31,7 +31,7 @@ def _assert_meets_contract(rirs, context, method, direct_sound=True):
         # 4. the channel convention
         if method.output == "mono":
             assert ir.n_channels == 1 and ir.ambisonic_order is None, f"{key}: not mono"
-        elif ir.generation.get("output") == "binaural":
+        elif method.output == "binaural":
             assert ir.n_channels == 2 and ir.ambisonic_order is None, f"{key}: not two ears"
         else:
             assert ir.ambisonic_order is not None, f"{key}: no ambisonic order"

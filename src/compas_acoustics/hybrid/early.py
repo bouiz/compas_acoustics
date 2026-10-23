@@ -244,16 +244,13 @@ def encode(
     n_samples: int,
     *,
     normalization: str = "NM",
-    extra_weights: np.ndarray | None = None,
 ) -> np.ndarray:
     """Encode an image source set to an ambisonic impulse response.
 
     ACN channels, N3D by default (spharpy ``"NM"``: a unit plane wave gives
-    W = 1), the normalization the package computes in; :func:`synthesize`
-    converts once at the end. ``extra_weights``, (M, K), adds K output
-    channels after the ambisonic ones, each image weighted by its row, so a
-    renderer that needs the images on other channels (the binaural one, per
-    HRIR) gets them from the same pass over the images.
+    W = 1), the normalization the package computes in;
+    :func:`~compas_acoustics.hybrid.ambisonics.render_ambisonics` converts once
+    at the end.
 
     Each image's eight band gains are interpolated onto the FFT grid in
     log-frequency and decibels, giving a smooth magnitude response; the
@@ -274,15 +271,13 @@ def encode(
     # An empty set is a legitimate input, not an error: the driven-FDN path
     # renders the orders below the driving one, and at max_order=0 there are
     # none. spharpy cannot take an empty coordinate set, so answer first.
-    n_extra = 0 if extra_weights is None else np.asarray(extra_weights).shape[1]
     if np.asarray(iss.delay).size == 0:
-        return np.zeros((n_samples, (sh_order + 1) ** 2 + n_extra), dtype=float)
+        return np.zeros((n_samples, (sh_order + 1) ** 2), dtype=float)
 
     sh = spharpy.spherical.spherical_harmonic_basis_real(
         sh_order, iss.doa, normalization=normalization, channel_convention="ACN"
     )  # (M, n_ch)
-    weights = sh if extra_weights is None else np.hstack([sh, np.asarray(extra_weights, dtype=float)])
-    return render_images(iss, weights, n_samples)
+    return render_images(iss, sh, n_samples)
 
 
 def render_images(

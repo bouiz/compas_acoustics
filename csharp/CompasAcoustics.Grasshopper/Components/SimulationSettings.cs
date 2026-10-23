@@ -5,7 +5,7 @@ using System.Linq;
 
 namespace CompasAcoustics.Grasshopper
 {
-    /// <summary>The settings Simulate Pyroomacoustics passes to the method, and its message.</summary>
+    /// <summary>The settings Simulate Mono passes to the mono method (pyroomacoustics), and its message.</summary>
     public static class SimulationSettings
     {
         // inputs that only apply with ray tracing, by the method's names
@@ -15,7 +15,7 @@ namespace CompasAcoustics.Grasshopper
         /// Unset inputs are left out so that the method's own defaults apply; air absorption is always stated (default on).
         /// Without ray tracing its inputs are dropped and named in ``ignored``; with it, an empty seed draws a new one.
         /// </summary>
-        public static Dictionary<string, object?> Pyroomacoustics(int? ismOrder, bool rayTracing, int? nRays, bool? absorbAir, double? energyThres,
+        public static Dictionary<string, object?> Mono(int? ismOrder, bool rayTracing, int? nRays, bool? absorbAir, double? energyThres,
             double? timeThres, int? seed, bool? normalize, out string[] ignored, out int drawnSeed)
         {
             var given = new Dictionary<string, object?>
@@ -47,7 +47,7 @@ namespace CompasAcoustics.Grasshopper
             return settings;
         }
 
-        public static string PyroomacousticsMessage(int samplingRate, IReadOnlyDictionary<string, object?> settings)
+        public static string MonoMessage(int samplingRate, IReadOnlyDictionary<string, object?> settings)
         {
             var rayTracing = settings.TryGetValue("ray_tracing", out var rt) && rt is true;
             string Get(string key, string fallback) => settings.TryGetValue(key, out var v) && v != null ? Show(v) : fallback;

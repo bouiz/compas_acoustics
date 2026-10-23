@@ -8,8 +8,8 @@ from compas_acoustics import AcousticMaterial
 from compas_acoustics import AcousticObjectsLibrary
 from compas_acoustics import Scene
 from compas_acoustics.hybrid.late import fdn_directions
-from compas_acoustics.simulation_methods.raytracing import DirectionalHistogram
-from compas_acoustics.simulation_methods.raytracing import directional_histograms
+from compas_acoustics.room.raytracing import DirectionalHistogram
+from compas_acoustics.room.raytracing import directional_histograms
 from compas_acoustics.room.geometry import RoomGeometry
 from compas_acoustics.room.geometry import pra_octave_grid
 
@@ -25,7 +25,7 @@ def geometry(absorption=0.15, scattering=0.0):
 
 
 def grid():
-    unit = fdn_directions(1).cartesian
+    unit = fdn_directions().cartesian
     return unit / np.linalg.norm(unit, axis=1, keepdims=True)
 
 
@@ -187,7 +187,7 @@ def asymmetric_scene(direction=None):
 
 def late_level_by_x(result, a=0.15, b=0.6):
     """Mean late energy in dB of the lines facing -x minus those facing +x, in the receiver's frame."""
-    x = result.line_directions[:, 0]
+    x = result.core.line_directions[:, 0]
     e = np.sum(result.late_lines[int(a * FS):int(b * FS)] ** 2, axis=0)
     return 10 * np.log10(e[x < -0.5].mean() / e[x > 0.5].mean())
 
@@ -200,10 +200,10 @@ def test_the_back_wall_is_at_x_zero():
 
 
 def test_the_directional_envelope_quietens_the_lines_facing_the_absorbing_wall():
-    kwargs = dict(tail="ray_tracing", duration=0.8, directional_absorption=False, output="ambisonic")
-    plain = ca.Hybrid(late_envelope=False, **kwargs)
+    kwargs = dict(tail="ray_tracing", duration=0.8, directional_absorption=False)
+    plain = ca.Ambisonics(late_envelope=False, **kwargs)
     asymmetric_scene().simulate(plain)
-    directional = ca.Hybrid(late_envelope=True, **kwargs)
+    directional = ca.Ambisonics(late_envelope=True, **kwargs)
     ir = next(iter(asymmetric_scene().simulate(directional).values()))
     assert ir.generation["late_envelope"] is True
     (before,), (after,) = plain.results.values(), directional.results.values()
@@ -213,31 +213,31 @@ def test_the_directional_envelope_quietens_the_lines_facing_the_absorbing_wall()
 
 def test_the_histogram_follows_the_receivers_orientation():
     """Facing -x, the absorbing wall is in front: the quiet lines are now those at +x of the receiver's frame."""
-    kwargs = dict(tail="ray_tracing", duration=0.8, directional_absorption=False, output="ambisonic", late_envelope=True)
-    turned = ca.Hybrid(**kwargs)
+    kwargs = dict(tail="ray_tracing", duration=0.8, directional_absorption=False, late_envelope=True)
+    turned = ca.Ambisonics(**kwargs)
     asymmetric_scene(direction=[-1, 0, 0]).simulate(turned)
     (result,) = turned.results.values()
     assert late_level_by_x(result) > 1.5
 
 
 def test_the_envelope_is_on_by_default_and_needs_a_reference():
-    assert ca.Hybrid().late_envelope is True
+    assert ca.Ambisonics().late_envelope is True
     with pytest.raises(ValueError, match="late_envelope"):
-        ca.Hybrid(tail="eyring", late_envelope=True)
+        ca.Ambisonics(tail="eyring", late_envelope=True)
 
 
 def test_the_lines_total_energy_does_not_change_with_the_shares():
     """The shares keep the lines' total energy: the full envelope and the level step alone agree, window by window."""
-    kwargs = dict(tail="ray_tracing", duration=0.8, directional_absorption=False, output="ambisonic")
-    hy = ca.Hybrid(late_envelope=True, **kwargs)
+    kwargs = dict(tail="ray_tracing", duration=0.8, directional_absorption=False)
+    hy = ca.Ambisonics(late_envelope=True, **kwargs)
     asymmetric_scene().simulate(hy)
     (res,) = hy.results.values()
     key = next(iter(hy.reference_rirs))
     reference = np.asarray(hy.reference_rirs[key].denormalized(), dtype=float)
     from compas_acoustics.hybrid.envelope import shape_late
-    C = res.builds[0].C
+    C = res.core.builds[0].C
     # the lines' energy in 100 ms windows against the level step alone on the unshaped lines of the same network
-    plain = ca.Hybrid(late_envelope=False, **kwargs)
+    plain = ca.Ambisonics(late_envelope=False, **kwargs)
     asymmetric_scene().simulate(plain)
     (raw,) = plain.results.values()
     omni_only = shape_late(raw.late_lines, raw.early[:, 0], raw.late_lines @ C[0], reference, FS)

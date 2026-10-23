@@ -110,22 +110,22 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void Choice_RoundTripsThroughThePortsPersistentData()
         {
-            var hybrid = new SimulateHybridComponent();
-            var port = hybrid.Params.Input.Single(p => p.Name == "output");
-            ControlState.Choose(hybrid, port, "ambisonic");
+            var binaural = new SimulateBinauralComponent();
+            var port = binaural.Params.Input.Single(p => p.Name == "tail");
+            ControlState.Choose(binaural, port, "eyring");
             var chunk = new GH_LooseChunk("component");
-            Assert.True(hybrid.Write(chunk));
+            Assert.True(binaural.Write(chunk));
             var read = new GH_LooseChunk("component");
             read.Deserialize_Binary(chunk.Serialize_Binary());
-            var back = new SimulateHybridComponent();
+            var back = new SimulateBinauralComponent();
             Assert.True(back.Read(read));
-            Assert.Equal(("ambisonic", false), ControlState.Of(back.Params.Input.Single(p => p.Name == "output"), HybridRun.Outputs));
+            Assert.Equal(("eyring", false), ControlState.Of(back.Params.Input.Single(p => p.Name == "tail"), HybridRun.Tails));
         }
 
         [Fact]
         public void Press_IsReadOnceThenCleared()
         {
-            var hybrid = new SimulateHybridComponent();
+            var hybrid = new SimulateAmbisonicsComponent();
             ControlState.Press(hybrid, "run");
             Assert.True(hybrid.Pressed("run"));
             Assert.False(hybrid.Pressed("play"));
@@ -135,7 +135,8 @@ namespace CompasAcoustics.Grasshopper.Tests
 
         public static IEnumerable<object[]> FormerInputObjects() => new[]
         {
-            new object[] { typeof(SimulateHybridComponent), new[] { "tail", "diffraction", "output", "run" } },
+            new object[] { typeof(SimulateBinauralComponent), new[] { "tail", "diffraction", "run" } },
+            new object[] { typeof(SimulateAmbisonicsComponent), new[] { "tail", "diffraction", "run" } },
             new object[] { typeof(AuraliseComponent), new[] { "level" } },
             new object[] { typeof(DeconstructParameterComponent), new[] { "select" } },
             new object[] { typeof(AcousticObjectComponent), new[] { "role" } },
@@ -168,10 +169,10 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void AControlsTooltip_IsItsInputsDescription()
         {
-            var hybrid = new SimulateHybridComponent();
+            var hybrid = new SimulateBinauralComponent();
             var (title, text) = hybrid.ControlTooltip("diffraction");
             Assert.Equal("diffraction", title);
-            Assert.Equal(ComponentSpec.Load("CA_Simulate_Hybrid").Inputs.Single(p => p.Name == "diffraction").Description, text);
+            Assert.Equal(ComponentSpec.Load("CA_Simulate_Binaural").Inputs.Single(p => p.Name == "diffraction").Description, text);
             // a choice without an input: its options
             Assert.Equal(("level", "none, relative or individual"), new AuraliseComponent().ControlTooltip("level"));
         }
@@ -179,9 +180,12 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void ChoiceControls_OfferTheComponentsOptions()
         {
-            var hybrid = new SimulateHybridComponent();
-            Assert.Equal(HybridRun.Outputs, hybrid.Controls.OfType<SwitchControl>().Single(c => c.Port == "output").Options);
-            Assert.Equal(HybridRun.Tails, hybrid.Controls.OfType<DropdownControl>().Single(c => c.Port == "tail").Options);
+            foreach (var hybrid in new SimulateHybridComponent[] { new SimulateBinauralComponent(), new SimulateAmbisonicsComponent() })
+            {
+                Assert.Empty(hybrid.Controls.OfType<SwitchControl>());
+                Assert.Equal(HybridRun.Tails, hybrid.Controls.OfType<DropdownControl>().Single(c => c.Port == "tail").Options);
+                Assert.Equal(HybridRun.Diffraction, hybrid.Controls.OfType<DropdownControl>().Single(c => c.Port == "diffraction").Options);
+            }
         }
     }
 }

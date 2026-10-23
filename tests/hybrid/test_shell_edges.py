@@ -9,7 +9,10 @@ from itertools import pairwise
 import numpy as np
 import pytest
 
-from _compat import RoomSpec, synthesize
+from _compat import RoomSpec, image_sources
+from compas_acoustics.hybrid.synthesis import prepare
+from compas_acoustics.hybrid.ambisonics import render_ambisonics
+from compas_acoustics.hybrid.target import RoomTarget
 from compas_acoustics.hybrid.diffraction import (
     TWO_PI,
     Edge,
@@ -403,9 +406,9 @@ def test_a_rotated_room_diffracts_as_the_axis_aligned_room(source, receiver):
 
 def test_a_rectangular_room_has_no_room_edges_and_diffraction_changes_nothing():
     spec = spec_of(prism_room([(0, 0), (8, 0), (8, 6), (0, 6)]), [2.0, 2.0, 1.5], [6.0, 4.0, 1.7])
-    off = synthesize(spec, max_order=1, duration_s=0.2)
+    off = render_ambisonics(prepare(spec, image_sources(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2))
     for model in (True, "btms"):
-        on = synthesize(spec, max_order=1, duration_s=0.2, diffraction=model)
+        on = render_ambisonics(prepare(spec, image_sources(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction=model))
         np.testing.assert_array_equal(on.rir, off.rir)
 
 
@@ -421,7 +424,7 @@ def test_the_field_is_continuous_across_a_room_corner_shadow_boundary():
     for flag in (False, True):
         for x in (3.495, 3.505):
             spec = spec_of(prism_room(L_OUTLINE), S_L, [x, 4.5, 1.5])
-            rir = synthesize(spec, max_order=1, duration_s=0.2, diffraction=flag).early
+            rir = render_ambisonics(prepare(spec, image_sources(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction=flag)).early
             levels[flag, x] = window_db(rir, float(np.linalg.norm(spec.receiver - spec.source)), spec.fs)
     assert abs(levels[False, 3.505] - levels[False, 3.495]) > 6.0
     assert abs(levels[True, 3.505] - levels[True, 3.495]) < 0.5

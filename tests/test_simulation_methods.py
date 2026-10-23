@@ -4,7 +4,7 @@ import pytest
 from compas_acoustics import AcousticMaterial
 from compas_acoustics import AcousticObjectsLibrary
 from compas_acoustics import ImpulseResponse
-from compas_acoustics import Pyroomacoustics
+from compas_acoustics import Mono
 from compas_acoustics import Receiver
 from compas_acoustics import Scene
 from compas_acoustics import Source
@@ -161,13 +161,13 @@ def test_a_rate_that_is_not_a_positive_whole_number_raises(rate):
 
 
 def traced_responses(**kwargs):
-    method = Pyroomacoustics(ray_tracing=True, n_rays=2000, duration=0.5, **kwargs)
+    method = Mono(ray_tracing=True, n_rays=2000, duration=0.5, **kwargs)
     return {ir.receiver.name: ir.denormalized() for ir in scene().simulate(method).values()}
 
 
 def test_the_seed_is_true_42_by_default_false_unseeded_or_an_int():
-    assert Pyroomacoustics().seed == 42 and Pyroomacoustics(seed=True).seed == 42 and Pyroomacoustics(seed=7).seed == 7
-    assert Pyroomacoustics(seed=False).seed is None and Pyroomacoustics(seed=None).seed is None
+    assert Mono().seed == 42 and Mono(seed=True).seed == 42 and Mono(seed=7).seed == 7
+    assert Mono(seed=False).seed is None and Mono(seed=None).seed is None
     default, again, explicit, other = traced_responses(), traced_responses(), traced_responses(seed=42), traced_responses(seed=7)
     unseeded, unseeded_again = traced_responses(seed=False), traced_responses(seed=False)
     for name in default:
@@ -178,14 +178,14 @@ def test_the_seed_is_true_42_by_default_false_unseeded_or_an_int():
 
 
 def test_an_unseeded_run_records_no_seed():
-    method = Pyroomacoustics(ray_tracing=True, n_rays=2000, duration=0.5, seed=False)
+    method = Mono(ray_tracing=True, n_rays=2000, duration=0.5, seed=False)
     assert all(ir.generation["seed"] is None for ir in scene().simulate(method).values())
 
 
 @pytest.mark.parametrize("seed", [1.5, "42"])
 def test_a_seed_that_is_not_a_bool_or_an_int_raises(seed):
     with pytest.raises(ValueError, match="seed"):
-        Pyroomacoustics(seed=seed)
+        Mono(seed=seed)
 
 
 def test_a_scene_without_receivers_returns_nothing():

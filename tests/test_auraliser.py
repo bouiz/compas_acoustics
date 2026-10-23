@@ -979,6 +979,6 @@ def test_binaural_impulse_response_objects_are_recognised(tmp_path):
 
     sound = write_sound(tmp_path / "s.wav", np.array([1.0, 0.0]))
     ir = ImpulseResponse("ir_b", Source("a", 1, 0, 0, sound_file=sound), Receiver("r", 0, 0, 0),
-                         np.ones((8, 2)), sampling_rate_default, generation={"output": "binaural"})
+                         np.ones((8, 2)), sampling_rate_default)
     a = Auraliser("room1", [ir])
     assert a.impulse_responses["ir_b"]["binaural"] is True and a.format == "binaural"

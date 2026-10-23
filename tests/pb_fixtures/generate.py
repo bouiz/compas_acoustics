@@ -62,7 +62,7 @@ def scene():
 def ir():
     raw = np.array([[1.0, 0.5], [0.5, 0.25], [0.25, 0.125], [0.0, -0.5]]) * 0.1
     return _identified(ImpulseResponse("ir", source(), receiver(), raw, 48000, normalized=True,
-                                       generation={"method": "test", "output": "binaural"}), 6)
+                                       generation={"method": "test"}), 6)
 
 
 def rayfield():

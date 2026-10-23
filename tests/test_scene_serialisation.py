@@ -11,7 +11,7 @@ from compas_acoustics import AcousticMaterial
 from compas_acoustics import AcousticObjectsLibrary
 from compas_acoustics import Auraliser
 from compas_acoustics import MaterialsLibrary
-from compas_acoustics import Pyroomacoustics
+from compas_acoustics import Mono
 from compas_acoustics import RayField
 from compas_acoustics import Receiver
 from compas_acoustics import Scene
@@ -47,8 +47,8 @@ def test_a_scene_survives_json():
 def test_a_round_tripped_scene_simulates_the_same():
     original = scene()
     copy = json_loads(json_dumps(original))
-    a = original.simulate(Pyroomacoustics(image_source_order=2, ray_tracing=False))
-    b = copy.simulate(Pyroomacoustics(image_source_order=2, ray_tracing=False))
+    a = original.simulate(Mono(image_source_order=2, ray_tracing=False))
+    b = copy.simulate(Mono(image_source_order=2, ray_tracing=False))
     assert sorted(a) == sorted(b)
     for key in a:
         np.testing.assert_allclose(b[key].denormalized(), a[key].denormalized())
@@ -61,7 +61,7 @@ def test_the_sampling_rate_survives_the_round_trip():
 
 def traced_response():
     s = scene()
-    return next(iter(s.simulate(Pyroomacoustics(ray_tracing=True, n_rays=1000, duration=0.5)).values()))
+    return next(iter(s.simulate(Mono(ray_tracing=True, n_rays=1000, duration=0.5)).values()))
 
 
 def test_an_impulse_response_survives_json():
@@ -71,7 +71,7 @@ def test_an_impulse_response_survives_json():
     np.testing.assert_array_equal(copy.ir, original.ir)
     assert (copy.name, copy.sampling_rate, copy.normalized) == (original.name, original.sampling_rate, original.normalized)
     assert (copy.source.name, copy.receiver.name) == (original.source.name, original.receiver.name)
-    assert copy.generation["method"] == "pyroomacoustics" and copy.generation["seed"] == 42
+    assert copy.generation["method"] == "mono" and copy.generation["seed"] == 42
 
 
 def test_an_ambisonic_impulse_response_keeps_its_convention():

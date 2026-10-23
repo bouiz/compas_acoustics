@@ -167,7 +167,7 @@ from compas_acoustics.pb.types import Audio  # noqa: E402
 VIOLA = str(Path(compas_acoustics.__file__).parent / "anechoic_soundfiles_library" / "viola.wav")
 
 
-def decay(channels=1, seconds=0.6, rt=0.5, rate=48000, seed=0, level=1.0, output=None, source=None, receiver=None):
+def decay(channels=1, seconds=0.6, rt=0.5, rate=48000, seed=0, level=1.0, source=None, receiver=None):
     """An exponentially decaying noise response with a direct sound."""
     rng = np.random.default_rng(seed)
     n = int(seconds * rate)
@@ -178,7 +178,7 @@ def decay(channels=1, seconds=0.6, rt=0.5, rate=48000, seed=0, level=1.0, output
     source = source or Source("src", 1, 1, 1.5)
     source._sound_file = VIOLA
     return ImpulseResponse("ir", source, receiver or Receiver("rec", 4, 3, 1.5), raw if channels > 1 else raw[:, 0], rate,
-                           generation={"method": "test", "output": output} if output else {"method": "test"})
+                           generation={"method": "test"})
 
 
 def test_analysis_gives_every_parameter_with_its_units_and_the_two_curves():
@@ -198,7 +198,7 @@ def test_analysis_gives_every_parameter_with_its_units_and_the_two_curves():
 
 
 def test_analysis_of_a_binaural_response_plots_both_ears():
-    result = call("analysis", decay(channels=2, output="binaural"))
+    result = call("analysis", decay(channels=2))
     assert result["time"]["channels"] == ["left", "right"] and len(result["time"]["values"]) == 2
     assert result["time"]["title"] == "Impulse Response (left, right)"
 
@@ -260,7 +260,7 @@ def test_auralise_takes_the_given_sounds():
 
 def test_auralise_refuses_mixed_formats_at_one_receiver():
     receiver = Receiver("rec", 4, 3, 1.5)
-    irs = [decay(receiver=receiver), decay(channels=2, output="binaural", receiver=receiver, source=Source("b", 2, 1, 1.5))]
+    irs = [decay(receiver=receiver), decay(channels=2, receiver=receiver, source=Source("b", 2, 1, 1.5))]
     with pytest.raises(ValueError, match="mix responses of one format"):
         api.auralise([group(irs)], mix_sources=True)
 

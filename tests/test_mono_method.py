@@ -9,11 +9,12 @@ from compas_acoustics import AcousticObjectsLibrary
 from compas_acoustics import Receiver
 from compas_acoustics import Scene
 from compas_acoustics import Source
-from compas_acoustics.simulation_methods import Pyroomacoustics
+from compas_acoustics.simulation_methods import Mono
 from compas_acoustics.simulation_methods import SimulationContext
-from compas_acoustics.simulation_methods.raytracing import OPEN_ROOM_DURATION
-from compas_acoustics.simulation_methods.raytracing import default_duration
-from compas_acoustics.simulation_methods.raytracing import ray_traced_rirs
+from compas_acoustics.room.raytracing import OPEN_ROOM_DURATION
+from compas_acoustics.room.raytracing import default_duration
+from compas_acoustics.room.raytracing import image_source_rirs
+from compas_acoustics.room.raytracing import ray_traced_rirs
 from compas_acoustics.room.diffuse import DiffuseFieldWarning
 from compas_acoustics.room.geometry import RoomGeometry
 
@@ -141,10 +142,10 @@ def simulator(receiver=None, materials=WALL, leaves=6):
 
 def test_ray_tracing_returns_mono_responses_at_48_khz():
     scene = simulator()
-    rirs = scene.simulate(Pyroomacoustics(image_source_order=2, ray_tracing=True, n_rays=2000, seed=1, duration=0.5))
+    rirs = scene.simulate(Mono(image_source_order=2, ray_tracing=True, n_rays=2000, seed=1, duration=0.5))
     (ir,) = rirs.values()
     assert ir.ir.shape == (24000,)
-    expected = {"method": "pyroomacoustics", "scale": "package", "ray_tracing": True, "air_absorption": True, "image_source_order": 2}
+    expected = {"method": "mono", "scale": "package", "ray_tracing": True, "air_absorption": True, "image_source_order": 2}
     assert expected.items() <= ir.generation.items()
     assert ir.sampling_rate == FS
     assert scene.impulse_responses("data") == rirs
@@ -153,13 +154,13 @@ def test_ray_tracing_returns_mono_responses_at_48_khz():
 
 def test_a_vertical_receiver_still_ray_traces():
     scene = simulator(receiver=Receiver("rec", *RECEIVER, direction=[0, 0, 1]))
-    assert len(scene.simulate(Pyroomacoustics(image_source_order=1, ray_tracing=True, n_rays=500, duration=0.2))) == 1
+    assert len(scene.simulate(Mono(image_source_order=1, ray_tracing=True, n_rays=500, duration=0.2))) == 1
 
 
 def test_an_open_scene_still_ray_traces():
     with pytest.warns(UserWarning):
         scene = simulator(leaves=5)
-        rirs = scene.simulate(Pyroomacoustics(image_source_order=1, ray_tracing=True, n_rays=500, duration=0.2))
+        rirs = scene.simulate(Mono(image_source_order=1, ray_tracing=True, n_rays=500, duration=0.2))
     assert all(np.all(np.isfinite(ir.ir)) for ir in rirs.values())
 
 
@@ -168,14 +169,14 @@ def test_an_open_scene_still_ray_traces():
 def test_both_modes_meet_the_contract(assert_meets_contract, ray_tracing):
     scene = simulator()
     options = {"n_rays": 2000, "duration": 0.4, "seed": 1} if ray_tracing else {}
-    method = Pyroomacoustics(image_source_order=2, ray_tracing=ray_tracing, **options)
+    method = Mono(image_source_order=2, ray_tracing=ray_tracing, **options)
     assert_meets_contract(scene.simulate(method), SimulationContext.from_scene(scene), method)
 
 
 def test_ism_and_ray_tracing_share_the_direct_sound():
     scene = simulator()
-    (ism,) = scene.simulate(Pyroomacoustics(image_source_order=2, air_absorption=False, ray_tracing=False)).values()
-    (traced,) = scene.simulate(Pyroomacoustics(image_source_order=2, air_absorption=False, ray_tracing=True,
+    (ism,) = scene.simulate(Mono(image_source_order=2, air_absorption=False, ray_tracing=False)).values()
+    (traced,) = scene.simulate(Mono(image_source_order=2, air_absorption=False, ray_tracing=True,
                                         n_rays=2000, duration=0.4, seed=1)).values()
     n = ism.direct_sound_index()
     assert n == traced.direct_sound_index()
@@ -187,15 +188,15 @@ def test_ism_and_ray_tracing_share_the_direct_sound():
 
 def test_ray_tracing_settings_without_ray_tracing_raise():
     with pytest.raises(ValueError, match="n_rays"):
-        Pyroomacoustics(ray_tracing=False, n_rays=1000)
+        Mono(ray_tracing=False, n_rays=1000)
     with pytest.raises(ValueError, match="duration"):
-        Pyroomacoustics(ray_tracing=False, duration=0.5)
-    Pyroomacoustics(ray_tracing=False, n_rays=20000)  # the default, given explicitly, is fine
+        Mono(ray_tracing=False, duration=0.5)
+    Mono(ray_tracing=False, n_rays=20000)  # the default, given explicitly, is fine
 
 
 def test_image_sources_need_no_scattering():
     scene = simulator(materials=AcousticMaterial("bare", 0.2))
-    assert len(scene.simulate(Pyroomacoustics(image_source_order=2, ray_tracing=False))) == 1
+    assert len(scene.simulate(Mono(image_source_order=2, ray_tracing=False))) == 1
 
 
 def test_default_duration_follows_the_predicted_rt():
@@ -212,7 +213,7 @@ def test_a_source_outside_the_room_warns_and_prints_nothing(capsys):
     scene = simulator()
     scene.add_source(Source("outside", 9.0, 1.5, 1.6))
     with pytest.warns(UserWarning, match="outside"):
-        rirs = scene.simulate(Pyroomacoustics(image_source_order=1, ray_tracing=True, n_rays=500, duration=0.2))
+        rirs = scene.simulate(Mono(image_source_order=1, ray_tracing=True, n_rays=500, duration=0.2))
     assert len(rirs) == 1
     assert capsys.readouterr().out == ""
 
@@ -231,13 +232,13 @@ def test_a_slow_image_source_search_warns_before_it_starts(monkeypatch):
     from compas.geometry import Frame
 
     from compas_acoustics import AcousticObject
-    from compas_acoustics.simulation_methods import Pyroomacoustics as Method
+    from compas_acoustics.simulation_methods import Mono as Method
 
     scene = simulator()
     for i in range(3):
         scene.add_acoustic_object(AcousticObject(Mesh.from_shape(Box(0.8, 0.8, 1.0, Frame([2.0 + 1.5 * i, 4.0, 0.5]))), WALL,
                                                  name=f"box{i}", role="obstacle"))
-    monkeypatch.setattr(Method, "_image_sources", lambda *a, **k: pytest.fail("searched"))
+    monkeypatch.setattr("compas_acoustics.simulation_methods.pra.image_source_rirs", lambda *a, **k: pytest.fail("searched"))
     with pytest.warns(UserWarning, match="image source search over 42 faces"), pytest.raises(pytest.fail.Exception):
         scene.simulate(Method(image_source_order=6, ray_tracing=False))
 
@@ -265,11 +266,11 @@ def test_a_response_shorter_than_its_reverberation_time_warns():
     """The buffer comes from Eyring; a room whose decay outruns it (a furnished office read 2 s against Eyring's 0.64 s) warns."""
     scene = simulator()
     with pytest.warns(UserWarning, match="less than 2/3 of their reverberation time"):
-        scene.simulate(Pyroomacoustics(duration=0.15, n_rays=2000, seed=1))
+        scene.simulate(Mono(duration=0.15, n_rays=2000, seed=1))
     with warnings.catch_warnings():
         warnings.simplefilter("error", UserWarning)
         warnings.filterwarnings("ignore", category=DiffuseFieldWarning)
-        scene.simulate(Pyroomacoustics(n_rays=2000, seed=1))
+        scene.simulate(Mono(n_rays=2000, seed=1))
 
 
 def _decay_response(reverberation_time, seconds, seed=0, fs=48000):
@@ -286,6 +287,21 @@ def test_a_response_of_two_thirds_of_its_reverberation_time_is_long_enough():
     """ODEON's rule: T30's fit ends 35 dB down, at 0.58 of the reverberation time; cut at 0.76 it reads 0.7 % short."""
     with warnings.catch_warnings():
         warnings.simplefilter("error", UserWarning)
-        Pyroomacoustics._warn_if_cut_short({"k": _decay_response(2.5, 1.9)}, 48000)
+        Mono._warn_if_cut_short({"k": _decay_response(2.5, 1.9)}, 48000)
     with pytest.warns(UserWarning, match="less than 2/3 of their reverberation time"):
-        Pyroomacoustics._warn_if_cut_short({"k": _decay_response(2.5, 1.5)}, 48000)
+        Mono._warn_if_cut_short({"k": _decay_response(2.5, 1.5)}, 48000)
+
+
+def test_the_image_source_backend_is_what_the_method_returns_without_ray_tracing():
+    """Both pyroomacoustics paths live side by side in room.raytracing; the method only wraps them."""
+    from compas_acoustics.room.pra import source_to_pra
+
+    scene = Scene("is")
+    scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(7, 5, 3, materials=WALL))
+    scene.add_source(Source("s", *SOURCE))
+    scene.add_receiver(Receiver("r", *RECEIVER))
+    (ir,) = scene.simulate(Mono(image_source_order=2, ray_tracing=False, normalize=False)).values()
+    context = SimulationContext.from_scene(scene)
+    ((raw,),) = image_source_rirs(context.geometry, [source_to_pra(s) for s in context.sources], RECEIVER.reshape(3, 1), FS,
+                                  max_order=2, air_absorption=True)
+    np.testing.assert_array_equal(raw, ir.denormalized())

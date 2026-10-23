@@ -1,4 +1,4 @@
-"""The ambisonic feedback delay network: one delay line per direction.
+"""The directional feedback delay network: one delay line per direction.
 
 Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, src/late.py).
 The free paths read the faces of a RoomGeometry.
@@ -21,75 +21,6 @@ from .pair import Pair
 from .target import RoomTarget
 
 
-def ambisonic_output_matrix(
-    sh_order: int,
-    directions: pf.Coordinates,
-    *,
-    normalization: str = "NM",
-    max_leakage: float = 0.05,
-) -> np.ndarray:
-    """Output matrix C mapping delay lines to ambisonic channels.
-
-    Column ``i`` is the spherical harmonic vector of direction ``i``, so each
-    delay line radiates from its own direction and the late field is diffuse in
-    expectation. Scaled by ``1 / sqrt(N)`` so total output energy does not grow
-    with the number of delay lines.
-
-    ``normalization="NM"`` is spharpy's audio N3D (a unit plane wave gives
-    W = 1), not the physics "N3D", which keeps the 1/sqrt(4 pi). The package
-    computes in N3D: its basis is orthonormal, so ``C @ C.T`` of an ideal grid
-    is a multiple of the identity and the leakage below compares like with
-    like across orders. In SN3D the diagonal falls as 1 / (2n + 1) per order.
-
-    The diffuse-field assumption only holds if ``C @ C.T`` is diagonal: its
-    off-diagonal entries are the cross-correlation between ambisonic channels,
-    and a large one means the late field carries a directional bias rather than
-    being isotropic. That depends entirely on how well the direction grid
-    supports ``sh_order``, so it is measured here rather than assumed.
-    Measured: a default ``spiral_points`` grid of 16 directions leaks 21.5 per
-    cent -- about -13 dB of channel cross-talk -- while ``equal_area`` at the
-    same size leaks 2e-14 per cent.
-    """
-    sh = spharpy.spherical.spherical_harmonic_basis_real(
-        sh_order, directions, normalization=normalization, channel_convention="ACN"
-    )
-    C = sh.T / np.sqrt(sh.shape[0])
-
-    gram = C @ C.T
-    off_diagonal = gram - np.diag(np.diag(gram))
-    leakage = np.max(np.abs(off_diagonal)) / np.mean(np.abs(np.diag(gram)))
-    if leakage > max_leakage:
-        raise ValueError(
-            f"direction grid leaks {leakage:.1%} between ambisonic channels, "
-            f"above the {max_leakage:.0%} limit: it does not support sh_order="
-            f"{sh_order}. Leave num_delays unset to have default_num_delays"
-            f"({sh_order}) pick a count that works, or pass a better grid."
-        )
-    return C
-
-
-@cache
-def fdn_directions(sh_order: int, num_delays: int | None = None) -> pf.Coordinates:
-    """The direction each delay line radiates from, shape (num_delays,).
-
-    One grid, used three times: :func:`ambisonic_output_matrix` turns it into
-    ``C``, the image sources are routed onto it, and :func:`directional_delays`
-    reads the room along it. They must be the same grid, so this is the only
-    place it is constructed.
-    """
-    if num_delays is None:
-        num_delays = default_num_delays(sh_order)
-    directions = spharpy.samplings.equal_area(n_max=sh_order, n_points=num_delays)
-    if directions.cshape[0] != num_delays:
-        raise ValueError(
-            f"equal_area returned {directions.cshape[0]} directions for "
-            f"num_delays={num_delays}; the output matrix needs exactly one "
-            f"direction per delay line. Leave num_delays unset to have "
-            f"default_num_delays({sh_order}) choose a count that works."
-        )
-    return directions
-
-
 #: Fewest delay lines at any ambisonic order. Kirsch, Wendt and van de Par (2023, Secs. 1.2
 #: and 3.3) ran their network with 96 lines whatever the number of rendered directions, so that
 #: the tail's spectro-temporal character does not change with the count and the recurrent
@@ -101,38 +32,18 @@ def fdn_directions(sh_order: int, num_delays: int | None = None) -> pf.Coordinat
 MIN_DELAYS = 96
 
 
-def default_num_delays(sh_order: int, minimum: int | None = None) -> int:
-    """Smallest workable number of delay lines for an ambisonic order.
+@cache
+def fdn_directions(num_delays: int = MIN_DELAYS) -> pf.Coordinates:
+    """The direction each delay line radiates from, an equal-area grid of ``num_delays`` points.
 
-    ``num_delays`` and ``sh_order`` are coupled twice: the direction grid must
-    hold exactly one point per delay line, and it must support the order well
-    enough for :func:`ambisonic_output_matrix` to accept its channel leakage.
-    A fixed 16 satisfied both only at first order -- second order leaked 7.8
-    per cent, and at third order ``equal_area`` returns 17 points when asked
-    for 16, so the network could not be built at all.
-
-    Searched rather than computed, because the counts that satisfy both
-    conditions are irregular: 20, 23, 24, 27, 28 ... at second order. The
-    search starts at ``4 (N + 1) ** 2``: more lines than the order strictly
-    needs, for echo density, and never below ``minimum`` (:data:`MIN_DELAYS`
-    when None), so 96 lines at orders 0 to 3 and 100 at fourth order.
+    One grid, used four times: the image sources are routed onto it,
+    :func:`directional_delays` reads the room along it, the directional
+    histogram bins the rays on it, and a renderer gives each line its direction
+    (:func:`~compas_acoustics.hybrid.ambisonics.ambisonic_output_matrix`, or an HRIR). They must be the same grid,
+    so this is the only place it is constructed. The grid depends on the count
+    alone; whether it carries an ambisonic order is the output matrix's check.
     """
-    if sh_order < 0:
-        raise ValueError("sh_order must be non-negative")
-    start = max(MIN_DELAYS if minimum is None else minimum, 4 * (sh_order + 1) ** 2)
-    for num_delays in range(start, 4 * start + 1):
-        directions = spharpy.samplings.equal_area(n_max=sh_order, n_points=num_delays)
-        if directions.cshape[0] != num_delays:
-            continue
-        try:
-            ambisonic_output_matrix(sh_order, directions)
-        except ValueError:
-            continue
-        return num_delays
-    raise ValueError(  # pragma: no cover - no order in range hits this
-        f"no equal_area grid between {start} and {4 * start} points supports "
-        f"sh_order={sh_order}; pass num_delays explicitly"
-    )
+    return spharpy.samplings.equal_area(n_max=0, n_points=num_delays)
 
 
 def _nearest_coprime(targets: np.ndarray, tolerance: float = 0.03) -> np.ndarray:
@@ -215,17 +126,18 @@ def design_fdn(
     target: RoomTarget,
     delays: np.ndarray | Sequence[np.ndarray],
     *,
-    sh_order: int = 1,
     matrix: str = "orthogonal",
     dc_factor: float = 1.0,
     nyquist_factor: float = 0.5,
     rng: int = 0,
 ) -> list[pyFDN.FDNBuild]:
-    """Design one ambisonic FDN per decay slope of ``target``.
+    """Design one FDN per decay slope of ``target``, with one output: the lines' omnidirectional sum.
 
     ``delays`` is one array of lengths in samples, one per delay line, shared
-    by every slope, or one such array per slope. The number of lines sets the
-    direction grid (:func:`fdn_directions`), which gives the output matrix.
+    by every slope, or one such array per slope. The output matrix ``C`` is the
+    W row of every ambisonic output matrix, ``1 / sqrt(N)`` for each line: what
+    the late envelope compares with its reference. A renderer projects the
+    lines (:func:`render`) itself.
     Each slope's attenuation filters follow ``target.rt`` for that slope, and
     its feedback matrix is seeded ``rng + slope``.
 
@@ -249,8 +161,7 @@ def design_fdn(
     num_delays = delays.shape[1]
     if num_delays < 1:
         raise ValueError("delays must hold at least one length")
-    directions = fdn_directions(sh_order, num_delays)
-    C = ambisonic_output_matrix(sh_order, directions)
+    C = np.full((1, num_delays), 1.0 / np.sqrt(num_delays))
 
     weights_db = None
     if n_slopes > 1:
@@ -289,9 +200,7 @@ def design_fdn(
         if weights_db is not None:
             db = weights_db[:, slope]
             sos = pyFDN.gain_to_geq(np.concatenate(([db[0]], db, [db[-1]])), target.fs)
-            build = replace(
-                build, post_output=np.repeat(sos[:, :, np.newaxis], C.shape[0], axis=2)
-            )
+            build = replace(build, post_output=sos[:, :, np.newaxis])
         builds.append(build)
     return builds
 
@@ -311,7 +220,7 @@ def render(
     after ``line_eq`` and the slope weights, summed over the slope networks.
     The ambisonic late field is the result times ``C.T`` (every build's ``C``
     is the same); a binaural renderer filters each line with the HRIR of its
-    direction instead (:func:`compas_acoustics.hybrid.binaural.binaural_rir`).
+    direction instead (:func:`compas_acoustics.hybrid.binaural.render_binaural`).
 
     ``line_eq``, an SOS bank of shape ``(n_sections, 6, num_delays)``, filters
     each line on its way out, after the feedback is taken, so it colours what
@@ -320,8 +229,8 @@ def render(
     sits (Kirsch et al. 2023). ``pyFDN.process_dss`` filters either inside the
     loop (``post_delay``) or after its output matrix (``post_output``), so the
     lines are rendered through an identity output matrix and filtered here.
-    A build's ``post_output``, the slope weight of :func:`design_fdn`, must be
-    the same filter on every channel; it is then applied to every line.
+    A build's ``post_output``, the slope weight of :func:`design_fdn` on its one
+    output, is applied to every line.
 
     ``tap``, the same shape, enters each line skipping its delay: it passes
     the line's attenuation filters and is then heard at once from the line
@@ -352,10 +261,6 @@ def render(
                 f"drive must have one column per delay line: got {n_delays} "
                 f"columns for a network of {np.asarray(build.delays).size}"
             )
-        if build.post_output is not None:
-            sos = np.asarray(build.post_output, dtype=float)
-            if not np.array_equal(sos, np.broadcast_to(sos[:, :, :1], sos.shape)):
-                raise ValueError("post_output must be the same filter on every channel to be applied per line")
     if tap is not None:
         tap = np.asarray(tap, dtype=float)
         if tap.shape != drive.shape:

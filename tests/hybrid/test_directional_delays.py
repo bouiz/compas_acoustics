@@ -23,7 +23,7 @@ def spec(direction=(1, 0, 0)):
 
 
 def test_each_line_is_the_shoebox_free_path_along_it():
-    directions = fdn_directions(1)
+    directions = fdn_directions()
     unit = directions.cartesian / np.linalg.norm(directions.cartesian, axis=1, keepdims=True)
     expected = 1.0 / (np.abs(unit) / DIMS).sum(axis=1) / 343.0 * FS
     delays = directional_delays(spec(), directions, spread=0.0)
@@ -37,7 +37,7 @@ def test_a_turned_receiver_reads_the_room_along_its_own_axes():
 
 
 def test_the_mean_free_path_is_cauchys():
-    directions = fdn_directions(3)
+    directions = fdn_directions()
     delays = directional_delays(spec(), directions, spread=0.0)
     mean_free_path = 4.0 * DIMS.prod() / (2.0 * (DIMS[0] * DIMS[1] + DIMS[0] * DIMS[2] + DIMS[1] * DIMS[2]))
     assert np.mean(delays) == pytest.approx(mean_free_path / 343.0 * FS, rel=0.1)

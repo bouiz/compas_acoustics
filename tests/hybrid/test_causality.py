@@ -1,4 +1,4 @@
-"""Nothing is heard before it arrives, through ``Scene.simulate(Hybrid(...))``.
+"""Nothing is heard before it arrives, through ``Scene.simulate(Ambisonics(...))``.
 
 compas-owned (not ported). The DSP is pinned by the ported test_early_causality.py;
 this runs the same L-shaped room through the scene, the room geometry and the method.
@@ -12,7 +12,7 @@ from compas.datastructures import Mesh
 
 from compas_acoustics import AcousticMaterial
 from compas_acoustics import AcousticObject
-from compas_acoustics import Hybrid
+from compas_acoustics import Ambisonics
 from compas_acoustics import Receiver
 from compas_acoustics import Scene
 from compas_acoustics import Source
@@ -45,7 +45,7 @@ def test_diffraction_adds_nothing_before_the_direct_sound_could_arrive(model):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         for diffraction in (False, model):
-            (responses[diffraction],) = scene.simulate(Hybrid(tail="eyring", duration=0.5, image_source_order=2,
+            (responses[diffraction],) = scene.simulate(Ambisonics(tail="eyring", duration=0.5, image_source_order=2,
                                                               diffraction=diffraction, seed=1, normalize=False)).values()
     diffracted = responses[model].ir[:, 0] - responses[False].ir[:, 0]
     hidden = int(np.linalg.norm(np.subtract(SOURCE, RECEIVER)) / responses[model].generation["speed_of_sound"] * FS)

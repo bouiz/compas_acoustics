@@ -1,8 +1,8 @@
 """Diffuse-field prediction of a room's reverberation: Sabine and Eyring through pyrato.
 
-Used for the length of a ray-traced simulation (:func:`compas_acoustics.simulation_methods.raytracing.default_duration`)
-and, in the hybrid method, for a decay target that needs no reference response
-(``Hybrid(tail="eyring")``). Base package: pyrato only, no pyFDN.
+Used for the length of a ray-traced simulation (:func:`compas_acoustics.room.raytracing.default_duration`)
+and, in the binaural and ambisonics methods, for a decay target that needs no reference response
+(``tail="eyring"`` of :class:`~compas_acoustics.Binaural` and :class:`~compas_acoustics.Ambisonics`). Base package: pyrato only, no pyFDN.
 
 ``DiffuseFieldWarning`` through ``_warn_if_not_diffuse`` and ``_air_absorption_coefficient``:
 Ported from hybrid-rir (gpapadimitri/hybrid-rir @ 8a70661, src/room.py). Two warning texts name this package's API instead of upstream's.
@@ -119,9 +119,9 @@ def _warn_if_not_diffuse(geometry: Geometry, model: str) -> None:
             f"variation up to {uniformity[uneven].max():.2f}, warning above "
             f"{_UNEVEN_CV}). Measured against a ray tracer, the predicted "
             f"reverberation time is then up to 47 % low, and the synthesised "
-            f"T30 with it. Hybrid(tail='ray_tracing') simulates the decay "
+            f"T30 with it. tail='ray_tracing' (Binaural, Ambisonics) simulates the decay "
             f"from this same geometry instead and lands within 4 %; "
-            f"Hybrid(reference=...) fits it (RoomTarget.from_rir) to a response you already have.",
+            f"reference=... fits it (RoomTarget.from_rir) to a response you already have.",
             DiffuseFieldWarning,
             stacklevel=3,
         )
@@ -136,8 +136,8 @@ def _warn_if_not_diffuse(geometry: Geometry, model: str) -> None:
             f"the mean absorption, but the spread of reflection order at a "
             f"given path length makes the real decay slower: measured 18 to "
             f"31 % slower than predicted, for every scattering coefficient "
-            f"tested. Use Hybrid(tail='ray_tracing'), which needs the same "
-            f"geometry and no measurement, or Hybrid(reference=...) "
+            f"tested. Use tail='ray_tracing' (Binaural, Ambisonics), which needs the same "
+            f"geometry and no measurement, or reference=... "
             f"(RoomTarget.from_rir) if you have a response already.",
             DiffuseFieldWarning,
             stacklevel=3,

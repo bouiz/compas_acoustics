@@ -1,4 +1,4 @@
-"""The pyroomacoustics simulation method: image sources, optionally with the ray tracer."""
+"""The mono simulation method on pyroomacoustics: image sources, optionally with the ray tracer."""
 
 from __future__ import annotations
 
@@ -7,16 +7,14 @@ from typing import Optional
 from typing import Union
 
 import numpy as np
-import pyroomacoustics as pra
 
 from compas_acoustics.ir import ImpulseResponse
 from compas_acoustics.room.air import AirConditions
 from compas_acoustics.room.air import air_or_default
-from compas_acoustics.room.geometry import pra_octave_grid
 from compas_acoustics.room.pra import source_to_pra
-from compas_acoustics.simulation_methods.raytracing import DURATION_RT_FACTOR
-from compas_acoustics.simulation_methods.raytracing import _on_package_scale
-from compas_acoustics.simulation_methods.raytracing import ray_traced_rirs
+from compas_acoustics.room.raytracing import DURATION_RT_FACTOR
+from compas_acoustics.room.raytracing import image_source_rirs
+from compas_acoustics.room.raytracing import ray_traced_rirs
 
 from .base import DEFAULT_SEED
 from .base import SimulationContext
@@ -24,7 +22,7 @@ from .base import SimulationMethod
 from .base import _seed
 from .base import _warn_if_the_search_is_slow
 
-__all__ = ['Pyroomacoustics']
+__all__ = ['Mono']
 
 # A ray-traced response must last this many times its own longest T30, or it warns. ODEON's rule: T30's fit ends 35 dB
 # down, at 0.58 of the reverberation time, and an ideal decay cut at 2/3 of it reads T30 2.4 % short (0.7 % at 0.76,
@@ -32,13 +30,13 @@ __all__ = ['Pyroomacoustics']
 MIN_RESPONSE_RT_FACTOR = 2.0 / 3.0
 
 
-class Pyroomacoustics(SimulationMethod):
+class Mono(SimulationMethod):
     """pyroomacoustics: image sources up to ``image_source_order``, plus ray tracing if ``ray_tracing``.
 
     There is no separate image-source method: like pyroomacoustics itself, this
     runs the image source model, and adds the stochastic ray tracer for
     everything past ``image_source_order`` when ``ray_tracing`` is True. The
-    ray tracer is hybrid-rir's (:mod:`compas_acoustics.simulation_methods.raytracing`).
+    ray tracer is hybrid-rir's (:mod:`compas_acoustics.room.raytracing`).
 
     Parameters
     ----------
@@ -66,7 +64,7 @@ class Pyroomacoustics(SimulationMethod):
         Length of the ray-traced responses in seconds; by default 1.5 times the
         longest Eyring reverberation time, within 0.5 to 12 s, with a warning when
         the prediction exceeds the cap (10 s for a scene that does not close a
-        volume). A response that is the reference of :class:`Hybrid` must outlast
+        volume). A response that is the reference of :class:`Binaural` or :class:`Ambisonics` must outlast
         its reverberation time: the hybrid warns when it does not. Without ray
         tracing the responses have their natural length.
     receiver_radius : float, default=0.5
@@ -92,20 +90,20 @@ class Pyroomacoustics(SimulationMethod):
     >>> scene.add_acoustic_objects(ca.AcousticObjectsLibrary.shoebox_room(6, 5, 3, materials=ca.AcousticMaterial("wall", 0.2, 0.1)))
     >>> scene.add_source(ca.Source("talker", 1.5, 1.5, 1.6))
     >>> scene.add_receiver(ca.Receiver("listener", 4.0, 3.0, 1.2))
-    >>> responses = scene.simulate(ca.Pyroomacoustics(image_source_order=2, ray_tracing=False))
+    >>> responses = scene.simulate(ca.Mono(image_source_order=2, ray_tracing=False))
     >>> ir = next(iter(responses.values()))
     >>> ir.sampling_rate, ir.n_channels, ir.generation["method"]
-    (48000, 1, 'pyroomacoustics')
+    (48000, 1, 'mono')
 
     Ray tracing, on by default, adds the late reflections; the seed makes a run repeatable.
 
-    >>> responses = scene.simulate(ca.Pyroomacoustics(n_rays=2000, duration=0.5))
+    >>> responses = scene.simulate(ca.Mono(n_rays=2000, duration=0.5))
     >>> ir = next(iter(responses.values()))
     >>> ir.ir.shape, ir.generation["seed"]
     ((24000,), 42)
     """
 
-    name = "pyroomacoustics"
+    name = "mono"
     output = "mono"
 
     _RAY_TRACING_DEFAULTS = {
@@ -180,7 +178,8 @@ class Pyroomacoustics(SimulationMethod):
                 air=self.air,
             )
         else:
-            responses = self._image_sources(context.geometry, sources, mic_positions, fs)
+            responses = image_source_rirs(context.geometry, sources, mic_positions, fs, max_order=self.image_source_order,
+                                          air_absorption=self.air_absorption, air=self.air)
 
         generation = dict(self.generation, scene=getattr(context.scene, "name", None))
         rirs = {}
@@ -201,7 +200,7 @@ class Pyroomacoustics(SimulationMethod):
     def _warn_if_cut_short(rirs: dict, fs: int) -> None:
         """Warn when a response ends before 2/3 of its own reverberation time: the buffer comes from Eyring, which a
         non-diffuse room (an absorbing ceiling over hard walls) can underestimate several times over, and a
-        response that is cut reads T30 short and, as the reference of :class:`Hybrid`, truncates its decay fit."""
+        response that is cut reads T30 short and, as the reference of :class:`Binaural` or :class:`Ambisonics`, truncates its decay fit."""
         from compas_acoustics.analyser import AcousticAnalyser
 
         longest, length = 0.0, 0.0
@@ -220,18 +219,3 @@ class Pyroomacoustics(SimulationMethod):
                 UserWarning,
                 stacklevel=4,
             )
-
-    def _image_sources(self, geometry, sources, mic_positions, fs) -> list:
-        """Image-source responses ``[mic][source]`` on the package scale, at their natural length."""
-        with pra_octave_grid():
-            room = geometry.to_pra(fs, self.image_source_order, air_absorption=self.air_absorption, air=self.air)
-            for source in sources:
-                room.add_soundsource(source)
-            room.add_microphone_array(pra.MicrophoneArray(mic_positions, fs))
-            room.image_source_model()
-            room.compute_rir()
-        latency = pra.constants.get("frac_delay_length") // 2
-        return [
-            [_on_package_scale(room.rir[m][s], latency, len(room.rir[m][s]) - latency) for s in range(len(sources))]
-            for m in range(mic_positions.shape[1])
-        ]

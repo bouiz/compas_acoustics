@@ -1,15 +1,17 @@
-"""The hybrid ambisonic room impulse response of one source-receiver pair.
+"""The hybrid room impulse response of one source-receiver pair: its format-neutral core.
 
 Ported by hand from hybrid-rir (gpapadimitri/hybrid-rir, src/synthesis.py, at
 4b42bfd: the btms branch included). The image
 source search moved to the caller, which runs one search for every source and
-receiver of a scene: ``iss`` holds the pair's images up to ``max_order``.
+receiver of a scene: ``iss`` holds the pair's images up to ``max_order``. Upstream's ``synthesize`` is split into
+:func:`prepare` (paths and delay lines) and a renderer: :mod:`compas_acoustics.hybrid.ambisonics` or
+:mod:`compas_acoustics.hybrid.binaural`.
 Upstream's obstacle-free drive is not ported; its scattering is replaced by
-surface scattering after Ewert et al. (2025) as RAZR 0.96.3 implements it. ``HybridResult`` also
+surface scattering after Ewert et al. (2025) as RAZR 0.96.3 implements it. ``HybridCore`` also
 keeps the early paths (images, UDFA paths, BTMS contributions), which upstream does not.
 
 Deliberately different from upstream: the network is driven by the last
-rendered order into the opposite line (see :func:`synthesize`, step 3), after
+rendered order into the opposite line (see :func:`prepare`, step 3), after
 Wendt et al. (2014), RAZR and Ewert et al. (2025). Checked against the measured
 responses of BRAS CR2 (Aspoeck et al.) and against RAZR on exact shoeboxes.
 """
@@ -25,24 +27,21 @@ import numpy as np
 import pyfar as pf
 import pyFDN
 
-from compas_acoustics.simulation_methods.raytracing import DirectionalHistogram
+from compas_acoustics.room.raytracing import DirectionalHistogram
 
 from .diffraction import BtmsContribution
 from .diffraction import DiffractionPath
 from .diffraction import btms_paths
 from .diffraction import diffraction_paths
-from .diffraction import encode_btms
-from .diffraction import encode_diffraction
 from .directional import directional_absorption_filters
 from .early import ImageSourceSet
-from .early import encode
 from .early import render_images
 from .scattering import scattering_decay_time
 from .scattering import scattering_weights
 from .scattering import smear
 from .envelope import shape_late
 from .envelope import shape_late_directional
-from .late import default_num_delays
+from .late import MIN_DELAYS
 from .late import design_fdn
 from .late import directional_delays
 from .late import fdn_directions
@@ -52,70 +51,82 @@ from .target import RoomTarget
 
 
 @dataclass(frozen=True)
-class HybridResult:
-    """A synthesised response and everything needed to reproduce it."""
+class HybridCore:
+    """The hybrid of one pair before it has a format: its early paths and its delay lines.
 
-    rir: np.ndarray  # (n, (sh_order + 1) ** 2), ACN, in ``normalization``
-    early: np.ndarray
-    late: np.ndarray  # late_lines @ C.T, in ``normalization``
-    builds: list[pyFDN.FDNBuild]
-    target: RoomTarget
-    max_order: int
-    driving_images: int
-    drive_gain: float
+    The early paths are left to the renderer, which evaluates each once (UDFA's
+    transfer functions are the expensive part). The late envelope compares the
+    lines with the omnidirectional early field, which every renderer has as its
+    first channel, so it is applied there through :meth:`shaped_lines`.
+    """
+
+    spec: Pair
+    n_samples: int
     fs: float
-    normalization: str  # "SN3D" or "N3D", audio convention (W = 1 for a unit plane wave)
-    # The early paths, for renderers that need each path rather than its encoding (compas_acoustics.hybrid.binaural)
-    images: ImageSourceSet | None = None  # orders 0 .. max_order
-    diffraction_paths: tuple[DiffractionPath, ...] = ()
-    btms_contributions: tuple[BtmsContribution, ...] = ()
-    # The late field before the output matrix, for renderers that need each line's direction (compas_acoustics.hybrid.binaural)
-    late_lines: np.ndarray | None = None  # (n, num_delays), each line as heard from its direction
-    line_directions: np.ndarray | None = None  # (num_delays, 3), unit vectors in the receiver's frame
-    # The early part at the two ears, rendered in the same pass over the paths as ``early`` when
-    # ``synthesize`` was given the HRTF set (``early_hrtf``), so no path is evaluated twice
-    early_binaural: np.ndarray | None = None  # (n, 2)
-    early_hrtf: object | None = None
+    max_order: int
+    target: RoomTarget
+    images: ImageSourceSet  # orders 0 .. max_order
+    diffraction_paths: tuple[DiffractionPath, ...]
+    btms_contributions: tuple[BtmsContribution, ...]
+    builds: list[pyFDN.FDNBuild]
+    lines: np.ndarray  # (n, num_delays), each line as heard from its direction, before the late envelope
+    line_directions: np.ndarray  # (num_delays, 3), unit vectors in the receiver's frame
+    late_envelope: np.ndarray | None
+    directional_envelope: DirectionalHistogram | None
+    drive_gain: float
+    driving_images: int
+
+    def shaped_lines(self, early_w: np.ndarray) -> np.ndarray:
+        """The lines after the late envelope, given ``early_w``, the omnidirectional (N3D W) early field."""
+        if self.late_envelope is None:
+            return self.lines
+        w = self.builds[0].C[0]
+        if self.directional_envelope is not None:
+            return shape_late_directional(self.lines, early_w, self.lines @ w, self.late_envelope, self.directional_envelope, self.fs)
+        return shape_late(self.lines, early_w, self.lines @ w, self.late_envelope, self.fs)
 
 
-def synthesize(
+@dataclass(frozen=True)
+class HybridResult:
+    """A rendered response of a :class:`HybridCore`, in the renderer's format."""
+
+    core: HybridCore
+    rir: np.ndarray  # (n, channels): ACN in ``normalization``, or the two ears
+    early: np.ndarray
+    late: np.ndarray
+    late_lines: np.ndarray  # (n, num_delays), the shaped lines the late field was rendered from
+    normalization: str | None  # "SN3D" or "N3D" (W = 1 for a unit plane wave); None for the ears
+
+
+def prepare(
     spec: Pair,
     iss: ImageSourceSet,
     target: RoomTarget,
     *,
     max_order: int,
-    sh_order: int = 1,
     duration_s: float | None = None,
-    num_delays: int | None = None,
+    num_delays: int = MIN_DELAYS,
     drive_gain: float | None = None,
     directional_absorption: bool = True,
     late_envelope: np.ndarray | None = None,
     directional_envelope: DirectionalHistogram | None = None,
     diffraction: bool | Literal["udfa", "btms"] = False,
-    normalization: Literal["SN3D", "N3D"] = "SN3D",
     rng: int = 0,
     scattering: bool = False,
-    hrtf=None,
-) -> HybridResult:
-    """Synthesise a hybrid ambisonic room impulse response.
+) -> HybridCore:
+    """The format-neutral part of the hybrid for one pair: its early paths and its delay lines.
 
-    With ``hrtf`` (a :class:`~compas_acoustics.hybrid.binaural.HrtfSet`) the early
-    part at the two ears is rendered in the same pass over the images and
-    diffracted paths as the ambisonic one and kept as ``early_binaural``, which
-    :func:`~compas_acoustics.hybrid.binaural.binaural_rir` then takes instead of
-    evaluating every path again. BTMS contributions keep their separate
-    rendering: their encoder sums paths whose band gains agree to 0.01 dB under
-    one gain, which the per-path binaural rendering does not.
+    A renderer turns the core into a response: :func:`~compas_acoustics.hybrid.ambisonics.render_ambisonics`, or
+    :func:`compas_acoustics.hybrid.binaural.render_binaural`. After Wendt, van de
+    Par and Ewert (2014) and Kirsch et al. (2021, 2023):
 
-    After Wendt, van de Par and Ewert (2014) and Kirsch et al. (2021, 2023),
-    with ambisonic output:
-
-    1. Images up to ``max_order``, encoded at their directions of arrival, are
-       the early field. Images of higher orders in ``iss`` are ignored.
-    2. An FDN with one delay line per direction of an equal-area grid; its
-       output matrix holds the spherical harmonics of those directions, its
-       attenuation filters follow ``target.rt``, and each line is the room's
-       free path along its direction (:func:`directional_delays`).
+    1. Images up to ``max_order`` (and, with ``diffraction``, diffracted paths)
+       are the early field, kept path by path for the renderer. Images of
+       higher orders in ``iss`` are ignored.
+    2. An FDN with one delay line per direction of an equal-area grid of
+       ``num_delays`` points (:func:`fdn_directions`); its attenuation filters
+       follow ``target.rt``, and each line is the room's free path along its
+       direction (:func:`directional_delays`).
     3. The images of order ``max_order``, the last order rendered, also enter
        the network, each spread over the delay lines of the hemisphere opposite
        its direction of arrival, weighted by the cosine to each line
@@ -132,19 +143,18 @@ def synthesize(
        reference, and the extra order costs one more order of image source
        search.
     4. Each line's output is weighted with the reflection of the boundary in its
-       direction (``directional_absorption``), and early field and network
-       output are summed. The lines are kept (``late_lines``, with
-       ``line_directions``): the ambisonic late field is their projection
-       through the output matrix, and a binaural renderer filters each with
-       the HRIR of its direction instead
-       (:func:`compas_acoustics.hybrid.binaural.binaural_rir`).
+       direction (``directional_absorption``). The lines are kept
+       (``late_lines``, with ``line_directions``): the ambisonic late field is
+       their projection through the output matrix, the binaural one each line
+       through the HRIR of its direction.
 
     ``drive_gain`` defaults to ``sqrt(num_delays)``. ``late_envelope`` is an
     omnidirectional reference on the package scale, normally the pair's
     ray-traced response; the network output is attenuated per band to follow
     its late energy (Vorlaender 2020, Sec. 11.9), every line by the gains of the
-    late field's W channel. ``directional_envelope``, a
-    :class:`~compas_acoustics.simulation_methods.raytracing.DirectionalHistogram` binned on the
+    lines' W against the early field's W; the renderer applies it
+    (:meth:`HybridCore.shaped_lines`), since W is its first channel. ``directional_envelope``, a
+    :class:`~compas_acoustics.room.raytracing.DirectionalHistogram` binned on the
     lines' directions in room coordinates (their grid turned by the receiver's
     rotation), then gives the lines the rays' distribution over directions
     (:func:`~compas_acoustics.hybrid.envelope.shape_late_directional`, RAVEN's
@@ -175,11 +185,7 @@ def synthesize(
     input placed one delay early is. The specular drive takes the same rule
     with the opposite hemisphere (step 3), so both inputs enter as RAZR's
     smart mapping places them.
-    Everything is computed in N3D; ``normalization`` sets the output, SN3D
-    (AmbiX) or N3D, both with W = 1 for a unit plane wave.
     """
-    if normalization not in ("SN3D", "N3D"):
-        raise ValueError(f"normalization must be 'SN3D' or 'N3D', not {normalization!r}")
     model = {False: None, True: "udfa", "udfa": "udfa", "btms": "btms"}.get(diffraction, "invalid")
     if model == "invalid":
         raise ValueError(f"diffraction must be False, True, 'udfa' or 'btms', not {diffraction!r}")
@@ -191,42 +197,28 @@ def synthesize(
         raise ValueError(f"duration_s must be positive, got {duration_s!r}")
     n_samples = int(np.ceil(duration_s * spec.fs))
 
-    if num_delays is None:
-        num_delays = default_num_delays(sh_order)
-    directions = fdn_directions(sh_order, num_delays)
+    directions = fdn_directions(num_delays)
     delays = [
         directional_delays(spec, directions, rng=rng + slope)
         for slope in range(target.n_slopes)
     ]
-    builds = design_fdn(target, delays, sh_order=sh_order, rng=rng)
+    builds = design_fdn(target, delays, rng=rng)
     if drive_gain is None:
         drive_gain = float(np.sqrt(num_delays))
 
-    early_set = _select(iss, iss.order <= max_order)
     paths, contributions = (), ()
     if model == "udfa":
         paths = tuple(diffraction_paths(spec, max_order=min(max_order, 1)))
     elif model == "btms":
         contributions = tuple(btms_paths(spec, max_order=min(max_order, 1)))
+    if directional_envelope is not None:
+        if late_envelope is None:
+            raise ValueError("directional_envelope needs late_envelope, the omni reference that sets the level")
+        if directional_envelope.energy.shape[0] != num_delays:
+            raise ValueError(
+                f"the directional histogram holds {directional_envelope.energy.shape[0]} directions; the network has {num_delays} lines"
+            )
 
-    # One pass per path for both outputs: the ambisonic channels and, per measured HRIR direction, a
-    # channel summing the paths it is nearest to, which the ears then hear through that HRIR
-    n_ch = (sh_order + 1) ** 2
-    groups = extra_images = extra_paths = None
-    if hrtf is not None and model != "btms":
-        from .binaural import hrir_groups
-
-        # an empty Coordinates set has no cartesian (pyfar raises)
-        image_doa = (np.asarray(early_set.doa.cartesian, dtype=float).reshape(-1, 3)
-                     if np.asarray(early_set.delay).size else np.zeros((0, 3)))
-        path_doa = np.array([p.doa for p in paths], dtype=float).reshape(-1, 3)
-        if image_doa.shape[0] + path_doa.shape[0]:
-            groups, onehot = hrir_groups(hrtf, np.vstack([image_doa, path_doa]))
-            extra_images, extra_paths = onehot[:image_doa.shape[0]], onehot[image_doa.shape[0]:]
-        else:
-            groups, extra_images, extra_paths = np.zeros(0, dtype=int), np.zeros((0, 0)), np.zeros((0, 0))
-
-    early = encode(early_set, sh_order, n_samples, extra_weights=extra_images)
     driving_set = _select(iss, iss.order == max_order)
     if driving_set.delay.size == 0:
         warnings.warn(
@@ -236,15 +228,6 @@ def synthesize(
             UserWarning,
             stacklevel=2,
         )
-    if model == "udfa":
-        early = early + encode_diffraction(list(paths), sh_order, n_samples, spec.fs, extra_weights=extra_paths)
-    elif model == "btms":
-        early = early + encode_btms(list(contributions), sh_order, n_samples, spec.fs)
-    early_binaural = None
-    if groups is not None:
-        from .binaural import render_groups
-
-        early, early_binaural = early[:, :n_ch], render_groups(early[:, n_ch:], groups, hrtf, n_samples)
     drive = render_images(
         driving_set, scattering_weights(driving_set.doa, directions, opposite=True), n_samples
     )
@@ -269,49 +252,23 @@ def synthesize(
                 scattering_decay_time(free_path, spec.speed_of_sound),
                 spec.fs,
             ) * drive_gain
-    lines = render(builds, drive * drive_gain, tap=tap, line_eq=line_eq)
-    C = builds[0].C
-    if directional_envelope is not None:
-        if late_envelope is None:
-            raise ValueError("directional_envelope needs late_envelope, the omni reference that sets the level")
-        if directional_envelope.energy.shape[0] != num_delays:
-            raise ValueError(
-                f"the directional histogram holds {directional_envelope.energy.shape[0]} directions; the network has {num_delays} lines"
-            )
-        lines = shape_late_directional(lines, early[:, 0], lines @ C[0], late_envelope, directional_envelope, spec.fs)
-    elif late_envelope is not None:
-        lines = shape_late(lines, early[:, 0], lines @ C[0], late_envelope, spec.fs)
-
-    early, late = (_from_n3d(x, normalization) for x in (early, lines @ C.T))
-    unit = directions.cartesian / np.linalg.norm(directions.cartesian, axis=1, keepdims=True)
-    return HybridResult(
-        rir=early + late,
-        early=early,
-        late=late,
-        builds=builds,
-        target=target,
-        max_order=max_order,
-        driving_images=int(driving_set.delay.size),
-        drive_gain=float(drive_gain),
+    return HybridCore(
+        spec=spec,
+        n_samples=n_samples,
         fs=spec.fs,
-        normalization=normalization,
-        images=early_set,
+        max_order=max_order,
+        target=target,
+        images=_select(iss, iss.order <= max_order),
         diffraction_paths=paths,
         btms_contributions=contributions,
-        late_lines=lines,
-        line_directions=unit,
-        early_binaural=early_binaural,
-        early_hrtf=hrtf if early_binaural is not None else None,
+        builds=builds,
+        lines=render(builds, drive * drive_gain, tap=tap, line_eq=line_eq),
+        line_directions=directions.cartesian / np.linalg.norm(directions.cartesian, axis=1, keepdims=True),
+        late_envelope=late_envelope,
+        directional_envelope=directional_envelope,
+        drive_gain=float(drive_gain),
+        driving_images=int(driving_set.delay.size),
     )
-
-
-def _from_n3d(x: np.ndarray, normalization: str) -> np.ndarray:
-    """ACN channels on the last axis, from N3D to ``normalization``: SN3D is
-    N3D / sqrt(2n + 1) per order n, so W is untouched."""
-    if normalization == "N3D":
-        return x
-    order = np.floor(np.sqrt(np.arange(x.shape[-1]))).astype(int)
-    return x / np.sqrt(2 * order + 1)
 
 
 def _select(iss: ImageSourceSet, mask: np.ndarray) -> ImageSourceSet:

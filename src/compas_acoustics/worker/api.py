@@ -38,18 +38,14 @@ __all__ = [
 def _method_class(name):
     if name in METHODS:
         return METHODS[name]
-    if name == "hybrid":
-        from compas_acoustics.simulation_methods import Hybrid
+    if name in ("binaural", "ambisonics", "mono"):
+        from compas_acoustics import simulation_methods
 
-        return Hybrid
-    if name == "pyroomacoustics":
-        from compas_acoustics.simulation_methods import Pyroomacoustics
-
-        return Pyroomacoustics
-    raise ValueError(f"Unknown method {name!r}: 'hybrid' or 'pyroomacoustics'.")
+        return getattr(simulation_methods, name.capitalize())
+    raise ValueError(f"Unknown method {name!r}: 'binaural', 'ambisonics' or 'mono'.")
 
 
-#: Further simulation methods by name, besides ``hybrid`` and ``pyroomacoustics``
+#: Further simulation methods by name, besides ``binaural``, ``ambisonics`` and ``mono``
 METHODS = {}
 
 
@@ -83,7 +79,7 @@ def simulate(scene, method, settings, references=None):
     ----------
     scene : :class:`compas_acoustics.Scene`
     method : str
-        ``'hybrid'`` or ``'pyroomacoustics'``.
+        ``'binaural'``, ``'ambisonics'`` or ``'mono'``.
     settings : dict
         The method's keyword arguments.
     references : dict, optional
@@ -92,9 +88,8 @@ def simulate(scene, method, settings, references=None):
     Returns
     -------
     dict
-        ``{"responses": {attribute: {key: ImpulseResponse}}, "formats": [attribute], "warnings": [str]}``: every format of
-        the run under the graph attribute it is stored under; ``formats`` lists the attributes in order, the method's own
-        first (compas_pb's dicts do not keep their order).
+        ``{"responses": {name: {key: ImpulseResponse}}, "warnings": [str]}``: the responses under the method's name, the
+        graph attribute they are stored under.
     """
     method_class = _method_class(method)
     settings = dict(settings or {})
@@ -104,8 +99,7 @@ def simulate(scene, method, settings, references=None):
         warnings.simplefilter("always")
         method = method_class(**settings)
         rirs = scene.simulate(method)
-    formats = {method.attribute: rirs, **getattr(method, "extra_responses", {})}
-    return {"responses": {attribute: dict(irs) for attribute, irs in formats.items()}, "formats": list(formats), "warnings": _messages(caught)}
+    return {"responses": {method.name: dict(rirs)}, "warnings": _messages(caught)}
 
 
 def analyse(ir):
@@ -258,8 +252,8 @@ def _plotted_channels(ir):
 
     data = ir.denormalized()
     data = data[:, np.newaxis] if data.ndim == 1 else data
-    if (ir.generation or {}).get("output") == "binaural":
-        return data[:, :2], ["left", "right"]
+    if ir.format == "binaural":
+        return data, ["left", "right"]
     if data.shape[1] > 1:
         return data[:, :1], ["W"]
     return data, []
@@ -325,14 +319,6 @@ LEVELS = ["relative", "individual", "none"]
 HEADROOM_DB = -1.0
 
 
-def _ir_format(ir):
-    """'binaural', 'ambisonic' or 'mono', as the impulse response was simulated."""
-    if (ir.generation or {}).get("output") == "binaural":
-        return "binaural"
-    raw = ir.denormalized()
-    return "ambisonic" if raw.ndim == 2 and raw.shape[1] > 1 else "mono"
-
-
 def auralise(groups, level="relative", mix_sources=False, save_folder=None, save_name=None):
     """Convolve impulse responses with anechoic sounds, per receiver, as Auralise does.
 
@@ -376,7 +362,7 @@ def auralise(groups, level="relative", mix_sources=False, save_folder=None, save
             for idx, (ir, sound) in enumerate(zip(irs, sounds)):
                 receiver_id = str(ir.receiver.guid)
                 sub_key = f"source_{idx}"
-                formats[sub_key] = _ir_format(ir)
+                formats[sub_key] = ir.format
                 # Auralise at the raw level so level differences between impulse responses are kept
                 raw = ir.denormalized()
                 data = raw[:, np.newaxis] if raw.ndim == 1 else raw
@@ -387,7 +373,7 @@ def auralise(groups, level="relative", mix_sources=False, save_folder=None, save
                     "ambisonic_order": int(round(np.sqrt(data.shape[1]))) - 1 if order is None else int(order),
                     "channel_order": getattr(ir, "channel_order", None) or "acn",
                     "normalization": getattr(ir, "normalization", None) or "sn3d",
-                    "binaural": (ir.generation or {}).get("output") == "binaural",
+                    "binaural": ir.format == "binaural",
                 }
                 sound_groups.setdefault(receiver_id, {})[sub_key] = {"filepath": sound or ir.source.sound_file}
             for r, receiver_id in enumerate(ir_groups):
@@ -445,7 +431,7 @@ def play(sound, normalize=True, gain_db=0.0, start=0.0):
     if isinstance(sound, Audio):
         if sound.channels > 2:
             raise ValueError("A {}-channel ambisonic signal cannot be played here. Save it with Auralise as a multichannel file for an "
-                             "ambisonic decoder, or simulate with Simulate Hybrid output binaural for headphone playback.".format(sound.channels))
+                             "ambisonic decoder, or simulate with Simulate Binaural for headphone playback.".format(sound.channels))
         args = (sound.samples, sound.sampling_rate, normalize is not False, float(gain_db or 0.0), float(start or 0.0))
     elif isinstance(sound, str):
         if not os.path.exists(sound):

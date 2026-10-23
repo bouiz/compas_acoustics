@@ -81,21 +81,21 @@ def test_mono_and_ambisonic_responses_share_an_edge():
     scene = shoebox_scene()
     mono, ambisonic = response(scene, np.zeros(10)), response(scene, np.zeros((10, 4)))
     scene.populate_ir_graph([mono])
-    scene.populate_ir_graph([ambisonic], attribute="hybrid")
+    scene.populate_ir_graph([ambisonic], attribute="ambisonics")
     source, receiver = scene.sources[0], scene.receivers[0]
     assert scene.get_impulse_response(source, receiver) is mono
-    assert scene.get_impulse_response(source, receiver, attribute="hybrid") is ambisonic
+    assert scene.get_impulse_response(source, receiver, attribute="ambisonics") is ambisonic
 
 
 def test_repopulating_one_attribute_leaves_the_other():
     scene = shoebox_scene()
     first, ambisonic, second = response(scene, np.zeros(10)), response(scene, np.zeros((10, 4))), response(scene, np.ones(10))
     scene.populate_ir_graph([first])
-    scene.populate_ir_graph([ambisonic], attribute="hybrid")
+    scene.populate_ir_graph([ambisonic], attribute="ambisonics")
     scene.populate_ir_graph([second])
     source, receiver = scene.sources[0], scene.receivers[0]
     assert scene.get_impulse_response(source, receiver) is second
-    assert scene.get_impulse_response(source, receiver, attribute="hybrid") is ambisonic
+    assert scene.get_impulse_response(source, receiver, attribute="ambisonics") is ambisonic
 
 
 def test_an_edge_without_responses_is_removed():

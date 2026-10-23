@@ -6,7 +6,10 @@ Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, tests/test_envelope.p
 import numpy as np
 import pytest
 
-from _compat import Material, RoomSpec, ShoeboxGeometry, synthesize
+from _compat import Material, RoomSpec, ShoeboxGeometry, image_sources
+from compas_acoustics.hybrid.synthesis import prepare
+from compas_acoustics.hybrid.ambisonics import render_ambisonics
+from compas_acoustics.hybrid.target import RoomTarget
 from compas_acoustics.hybrid.envelope import envelope_gains, octave_band_split, shape_late
 
 FS = 48000.0
@@ -129,16 +132,16 @@ def shoebox():
 
 def test_without_a_reference_nothing_changes():
     spec = shoebox()
-    default = synthesize(spec, max_order=2, duration_s=0.5)
-    none = synthesize(spec, max_order=2, duration_s=0.5, late_envelope=None)
+    default = render_ambisonics(prepare(spec, image_sources(spec, 3), RoomTarget.from_room(spec), max_order=2, duration_s=0.5))
+    none = render_ambisonics(prepare(spec, image_sources(spec, 3), RoomTarget.from_room(spec), max_order=2, duration_s=0.5, late_envelope=None))
     np.testing.assert_array_equal(default.rir, none.rir)
 
 
 def test_a_reference_shapes_only_the_late_field():
     spec = shoebox()
-    plain = synthesize(spec, max_order=2, duration_s=0.5)
+    plain = render_ambisonics(prepare(spec, image_sources(spec, 3), RoomTarget.from_room(spec), max_order=2, duration_s=0.5))
     reference = plain.early[:, 0] + 0.5 * plain.late[:, 0]
-    shaped = synthesize(spec, max_order=2, duration_s=0.5, late_envelope=reference)
+    shaped = render_ambisonics(prepare(spec, image_sources(spec, 3), RoomTarget.from_room(spec), max_order=2, duration_s=0.5, late_envelope=reference))
     np.testing.assert_array_equal(shaped.early, plain.early)
     np.testing.assert_allclose(shaped.rir, shaped.early + shaped.late)
     assert np.sum(shaped.late ** 2) < np.sum(plain.late ** 2)

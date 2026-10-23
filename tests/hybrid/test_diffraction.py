@@ -1,7 +1,7 @@
 """Obstacle edges, diffraction paths and their visibility, rendering, and
 
 Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, tests/test_diffraction.py).
-diffraction in synthesize."""
+diffraction in prepare and render_ambisonics."""
 
 import warnings
 
@@ -10,7 +10,10 @@ import pyfar as pf
 import pytest
 
 from compas_acoustics.hybrid.early import ImageSourceSet, encode
-from _compat import RoomSpec, image_sources, synthesize
+from _compat import RoomSpec, image_sources
+from compas_acoustics.hybrid.synthesis import prepare
+from compas_acoustics.hybrid.ambisonics import render_ambisonics
+from compas_acoustics.hybrid.target import RoomTarget
 from compas_acoustics.hybrid.btms import element_grid, wedge1st_ir, wedge2nd_ir
 from compas_acoustics.hybrid.diffraction import (
     DiffractionPath,
@@ -415,8 +418,8 @@ def window_db(rir, r):
 def test_diffraction_off_changes_nothing_and_on_adds_the_paths():
     spec = RoomSpec(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]),
                     receiver=np.array([8.0, 4.0, 3.0]), air_absorption=False)
-    off = synthesize(spec, max_order=1, duration_s=0.2, normalization="N3D")
-    on = synthesize(spec, max_order=1, duration_s=0.2, diffraction=True, normalization="N3D")
+    off = render_ambisonics(prepare(spec, image_sources(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2), normalization="N3D")
+    on = render_ambisonics(prepare(spec, image_sources(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction=True), normalization="N3D")
     n = off.early.shape[0]
     added = encode_diffraction(diffraction_paths(spec, max_order=1), 1, n, spec.fs)
     np.testing.assert_allclose(on.early - off.early, added, atol=1e-12)
@@ -430,7 +433,7 @@ def test_the_field_is_continuous_across_the_panel_shadow_boundary():
         for z in (3.495, 3.505):
             spec = RoomSpec(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]),
                             receiver=np.array([8.0, 4.0, z]), air_absorption=False)
-            rir = synthesize(spec, max_order=1, duration_s=0.2, diffraction=flag).early
+            rir = render_ambisonics(prepare(spec, image_sources(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction=flag)).early
             levels[flag, z] = window_db(rir, float(np.linalg.norm(spec.receiver - spec.source)))
     assert abs(levels[False, 3.505] - levels[False, 3.495]) > 6.0
     assert abs(levels[True, 3.505] - levels[True, 3.495]) < 0.5
@@ -761,16 +764,16 @@ def test_second_order_between_collinear_edges_is_skipped_without_a_warning():
 def test_true_and_udfa_are_the_same_model():
     spec = RoomSpec(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]),
                     receiver=np.array([8.0, 4.0, 3.0]), air_absorption=False)
-    a = synthesize(spec, max_order=1, duration_s=0.2, diffraction=True)
-    b = synthesize(spec, max_order=1, duration_s=0.2, diffraction="udfa")
+    a = render_ambisonics(prepare(spec, image_sources(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction=True))
+    b = render_ambisonics(prepare(spec, image_sources(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction="udfa"))
     np.testing.assert_array_equal(a.rir, b.rir)
 
 
 def test_btms_mode_adds_exactly_the_btms_field():
     spec = RoomSpec(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]),
                     receiver=np.array([8.0, 4.0, 3.0]), air_absorption=False)
-    off = synthesize(spec, max_order=1, duration_s=0.2, normalization="N3D")
-    on = synthesize(spec, max_order=1, duration_s=0.2, diffraction="btms", normalization="N3D")
+    off = render_ambisonics(prepare(spec, image_sources(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2), normalization="N3D")
+    on = render_ambisonics(prepare(spec, image_sources(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction="btms"), normalization="N3D")
     added = encode_btms(btms_paths(spec, max_order=1), 1, off.early.shape[0], spec.fs)
     np.testing.assert_allclose(on.early - off.early, added, atol=1e-12)
     np.testing.assert_array_equal(on.late, off.late)
@@ -780,7 +783,7 @@ def test_an_unknown_diffraction_model_is_refused():
     spec = RoomSpec(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]),
                     receiver=np.array([8.0, 4.0, 3.0]))
     with pytest.raises(ValueError, match="diffraction"):
-        synthesize(spec, max_order=0, duration_s=0.1, diffraction="btm")
+        render_ambisonics(prepare(spec, image_sources(spec, 1), RoomTarget.from_room(spec), max_order=0, duration_s=0.1, diffraction="btm"))
 
 
 def edverify_plate():
@@ -870,7 +873,7 @@ def test_a_receiver_on_a_zone_boundary_gets_half_the_geometric_sound():
 
     def at_100_hz(receiver):
         spec = RoomSpec(geometry=panel_room(), source=s, receiver=receiver, air_absorption=False)
-        w = synthesize(spec, max_order=0, duration_s=0.1, diffraction="btms").early[:, 0]
+        w = render_ambisonics(prepare(spec, image_sources(spec, 1), RoomTarget.from_room(spec), max_order=0, duration_s=0.1, diffraction="btms")).early[:, 0]
         return abs(np.sum(w * np.exp(-2j * np.pi * 100.0 * np.arange(w.size) / spec.fs)))
 
     spec = RoomSpec(geometry=panel_room(), source=s, receiver=r, air_absorption=False)

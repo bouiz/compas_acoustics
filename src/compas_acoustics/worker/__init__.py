@@ -1,6 +1,6 @@
 """Run compas_acoustics in a second interpreter, the worker, and call it over HTTP with compas_pb payloads.
 
-Rhino 8 runs CPython 3.9, where the hybrid method and pyrato's STI and G are not available. The worker is a local
+Rhino 8 runs CPython 3.9, where the binaural and ambisonics methods and pyrato's STI and G are not available. The worker is a local
 HTTP service (:mod:`compas_acoustics.worker.service`) in another Python with compas_acoustics installed (see
 :mod:`compas_acoustics.worker.install`); :func:`client` starts it on first use, and the Grasshopper plugin starts its own.
 Arguments and results travel as compas_pb messages (:mod:`compas_acoustics.pb`): scenes, responses and audio included.
@@ -264,10 +264,10 @@ def stop_running_workers(workers=None):
 
 
 def simulate(scene, method, settings, references=None):
-    """Run ``method`` (``"hybrid"`` or ``"pyroomacoustics"``) with ``settings`` on ``scene`` in the worker.
+    """Run ``method`` (``"binaural"``, ``"ambisonics"`` or ``"mono"``) with ``settings`` on ``scene`` in the worker.
 
-    The responses are stored on ``scene.ir_graph`` as :meth:`Scene.simulate` stores them, at the scene's ``sampling_rate``:
-    under the method's attribute, and every further format of the run under its own (the hybrid with both outputs).
+    The responses are stored on ``scene.ir_graph`` as :meth:`Scene.simulate` stores them, at the scene's ``sampling_rate``,
+    under the method's name.
 
     Parameters
     ----------
@@ -277,22 +277,19 @@ def simulate(scene, method, settings, references=None):
     Returns
     -------
     tuple of (dict, list of str)
-        The responses of the first format by key, as :meth:`Scene.simulate` returns them, and the messages of the UserWarnings
+        The responses by key, as :meth:`Scene.simulate` returns them, and the messages of the UserWarnings
         raised in the worker.
     """
     from compas_acoustics.simulation_methods import SimulationContext
 
     result = client().simulate(scene, method, settings, references or None)
     pairs = {SimulationContext.key(s, r): (s, r) for s in scene.sources for r in scene.receivers}
-    stored = {}
-    for attribute in result["formats"]:
-        stored[attribute] = {}
-        for key, ir in result["responses"][attribute].items():
-            # the worker's copies of the source and receiver are replaced by the scene's own
-            ir.source, ir.receiver = pairs[key]
-            scene.add_impulse_response(ir.source, ir.receiver, ir, attribute=attribute)
-            stored[attribute][key] = ir
-    return next(iter(stored.values()), {}), result["warnings"]
+    ((attribute, responses),) = result["responses"].items()
+    for key, ir in responses.items():
+        # the worker's copies of the source and receiver are replaced by the scene's own
+        ir.source, ir.receiver = pairs[key]
+        scene.add_impulse_response(ir.source, ir.receiver, ir, attribute=attribute)
+    return responses, result["warnings"]
 
 
 #: The parameters that need pyrato >= 1.0, which Rhino 8's Python 3.9 cannot install

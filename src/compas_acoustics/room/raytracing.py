@@ -1,12 +1,12 @@
-"""Ray-traced monaural room impulse responses: image sources plus ray tracing.
+"""pyroomacoustics runs on a room: monaural responses from image sources alone or with ray tracing, and the rays' energy per direction.
 
-Ported by hand from hybrid-rir (gpapadimitri/hybrid-rir, src/room.py:
-``RoomSpec.ray_traced_rir``, ``_trace_rays`` and
-``_default_simulation_duration``) to trace every source and microphone of a
-scene in one room, without pyFDN: this is the response the Grasshopper
-components use.
+The backend of :class:`~compas_acoustics.simulation_methods.Mono` (:func:`image_source_rirs`,
+:func:`ray_traced_rirs`) and of the binaural and ambisonics methods (their reference run, their directional histograms
+and the length of both, :func:`default_duration`). The ray tracing is ported by hand from hybrid-rir
+(gpapadimitri/hybrid-rir, src/room.py: ``RoomSpec.ray_traced_rir``, ``_trace_rays`` and
+``_default_simulation_duration``) to trace every source and microphone of a scene in one room, without pyFDN.
 
-pyroomacoustics runs in its hybrid mode: specular reflections up to
+With ray tracing pyroomacoustics runs in its hybrid mode: specular reflections up to
 ``max_order`` from the image source model, everything later from a stochastic
 ray tracer that also carries the scattered energy. Responses are returned on
 the package scale, spreading ``1 / (4 pi r)`` and the direct sound on its
@@ -25,17 +25,18 @@ from typing import Sequence
 import numpy as np
 import pyroomacoustics as pra
 
-from compas_acoustics.room.diffuse import predicted_rt
-from compas_acoustics.room.geometry import SYNTHESIS_BANDS
-from compas_acoustics.room.geometry import RoomGeometry
-from compas_acoustics.room.geometry import pra_octave_grid
+from .diffuse import predicted_rt
+from .geometry import SYNTHESIS_BANDS
+from .geometry import RoomGeometry
+from .geometry import pra_octave_grid
 
-__all__ = ['MIN_RAYS', 'OPEN_ROOM_DURATION', 'MAX_DURATION', 'DURATION_RT_FACTOR', 'DirectionalHistogram', 'default_duration', 'directional_histograms', 'ray_traced_rirs']
+__all__ = ['MIN_RAYS', 'OPEN_ROOM_DURATION', 'MAX_DURATION', 'DURATION_RT_FACTOR', 'DirectionalHistogram', 'default_duration', 'directional_histograms',
+           'image_source_rirs', 'ray_traced_rirs']
 
 # Floor on pyroomacoustics' own ray count, applied only with n_rays=None.
 MIN_RAYS = 50_000
 # A response lasts this many times the longest Eyring RT, clipped to the range below, in seconds, for the
-# pyroomacoustics method and for the runs the hybrid makes itself. ODEON asks for at least 2/3 of the longest RT
+# mono method and for the runs the hybrid makes itself. ODEON asks for at least 2/3 of the longest RT
 # and RAZR takes 1.0 (op.len_rt_factor); 1.5 keeps T30 where Eyring underestimates the decay by 18 to 31 %
 # (diffuse.py). Measured over five shoeboxes: the hybrid's response is identical at 1.5, 2.0 and 2.5 (nothing
 # reads past 1.5), and 1.0 moves T30 at 125 Hz by 9 to 20 %. Where a room outruns Eyring altogether (a furnished
@@ -83,6 +84,25 @@ def default_duration(geometry: RoomGeometry, air_absorption: bool, speed_of_soun
 def _on_package_scale(rir, latency: int, n_samples: int) -> np.ndarray:
     rir = np.asarray(rir, dtype=float)[latency:] / (4.0 * np.pi)
     return np.pad(rir, (0, max(0, n_samples - rir.size)))[:n_samples]
+
+
+def image_source_rirs(geometry: RoomGeometry, sources, mic_positions, fs: int, *, max_order: int, air_absorption: bool = True,
+                      air=None) -> List[List[np.ndarray]]:
+    """Image-source responses of every source at every microphone, ``[mic][source]``, on the package scale, at their
+    natural length. The arguments are those of :func:`ray_traced_rirs`."""
+    mic_positions = np.asarray(mic_positions, dtype=float).reshape(3, -1)
+    with pra_octave_grid():
+        room = geometry.to_pra(fs, max_order, air_absorption=air_absorption, air=air)
+        for source in sources:
+            room.add_soundsource(source)
+        room.add_microphone_array(pra.MicrophoneArray(mic_positions, fs))
+        room.image_source_model()
+        room.compute_rir()
+    latency = pra.constants.get("frac_delay_length") // 2
+    return [
+        [_on_package_scale(room.rir[m][s], latency, len(room.rir[m][s]) - latency) for s in range(len(sources))]
+        for m in range(mic_positions.shape[1])
+    ]
 
 
 def ray_traced_rirs(

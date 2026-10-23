@@ -42,7 +42,8 @@ namespace CompasAcoustics.Grasshopper
         }
 
         public string? Method => Generation.TryGetValue("method", out var method) ? method as string : null;
-        public bool Binaural => Generation.TryGetValue("output", out var output) && output as string == "binaural";
+        /// <summary>``mono``, ``binaural`` (two channels, no ambisonic order) or ``ambisonic``, as ``ImpulseResponse.format``.</summary>
+        public string Format => Value == null ? "" : Channels == 1 ? "mono" : Channels == 2 && Value?.HasAmbisonicOrder != true ? "binaural" : "ambisonic";
 
         public override string ToString() => Value == null ? "Null ImpulseResponse" : $"IR {SourceName} -> {ReceiverName}, {Channels} ch, {SamplingRate} Hz";
 

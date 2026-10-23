@@ -31,7 +31,7 @@ def test_a_downward_ray_hits_the_floor():
 
 
 def test_the_line_facing_the_floor_is_the_most_absorbing():
-    directions = fdn_directions(1)
+    directions = fdn_directions()
     alpha = scanned_absorption(spec(), directions)
     assert alpha.shape == (directions.cshape[0], 8)
     assert np.all((alpha >= 0.1 - 1e-12) & (alpha <= 0.6 + 1e-12))
@@ -40,7 +40,7 @@ def test_the_line_facing_the_floor_is_the_most_absorbing():
 
 
 def test_turning_the_receiver_about_z_keeps_the_floor_below():
-    directions = fdn_directions(1)
+    directions = fdn_directions()
     down = int(np.argmin(directions.cartesian[:, 2]))
     np.testing.assert_allclose(
         scanned_absorption(spec((0, 1, 0)), directions)[down], scanned_absorption(spec(), directions)[down]
@@ -48,6 +48,6 @@ def test_turning_the_receiver_about_z_keeps_the_floor_below():
 
 
 def test_one_filter_bank_per_line():
-    directions = fdn_directions(1)
+    directions = fdn_directions()
     sos = directional_absorption_filters(spec(), directions)
     assert sos.shape[1:] == (6, directions.cshape[0])

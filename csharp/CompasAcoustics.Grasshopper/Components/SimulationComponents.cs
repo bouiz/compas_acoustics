@@ -10,10 +10,10 @@ using Rhino.Geometry;
 
 namespace CompasAcoustics.Grasshopper
 {
-    public sealed class SimulatePyroomacousticsComponent : ComponentBase
+    public sealed class SimulateMonoComponent : ComponentBase
     {
-        public SimulatePyroomacousticsComponent() : base("CA_Simulate_Ray_Tracing") { }
-        protected override string SpecKey => "CA_Simulate_Ray_Tracing";
+        public SimulateMonoComponent() : base("CA_Simulate_Mono") { }
+        protected override string SpecKey => "CA_Simulate_Mono";
         public override Guid ComponentGuid => new Guid("afb77a6d-dd01-5224-9ee0-70972dcbdbcf");
 
         protected override IGH_Param? CreateParam(PortSpec port, bool input) =>
@@ -28,7 +28,7 @@ namespace CompasAcoustics.Grasshopper
                 return;
             }
             var rayTracing = Value<bool>(access, "ray_tracing") ?? true;
-            var settings = SimulationSettings.Pyroomacoustics(Value<int>(access, "ism_order"), rayTracing, Value<int>(access, "n_rays"),
+            var settings = SimulationSettings.Mono(Value<int>(access, "ism_order"), rayTracing, Value<int>(access, "n_rays"),
                 Value<bool>(access, "absorb_air"), Value<double>(access, "energy_thres"), Value<double>(access, "time_thres"),
                 Value<int>(access, "seed"), Value<bool>(access, "normalize"), out var ignored, out _);
             if (ignored.Length > 0)
@@ -38,17 +38,17 @@ namespace CompasAcoustics.Grasshopper
             var keySettings = new Dictionary<string, object?>(settings);
             if (seed == null)
                 keySettings.Remove("seed");
-            var request = new Background("simulate", new object?[] { scene.Value, "pyroomacoustics", settings, null }, new Dictionary<string, object?>(),
-                (scene, settings), AsyncRuns.Key("simulate", new object?[] { scene.Value, "pyroomacoustics", keySettings, null }, new Dictionary<string, object?>()));
+            var request = new Background("simulate", new object?[] { scene.Value, "mono", settings, null }, new Dictionary<string, object?>(),
+                (scene, settings), AsyncRuns.Key("simulate", new object?[] { scene.Value, "mono", keySettings, null }, new Dictionary<string, object?>()));
             RunInBackground(access, request, (outcome, _) =>
             {
                 var (ran, used) = ((SceneGoo, Dictionary<string, object?>))outcome.Context!;
                 var result = (IDictionary<string, object?>)outcome.Result!;
                 // points outside the room, open rooms, mergeable faces, a slow image source search
                 ShowWarnings(result);
-                Status(SimulationSettings.PyroomacousticsMessage(ran.SamplingRate, used));
-                var responses = (IDictionary<string, object?>)((IDictionary<string, object?>)result["responses"]!)["pyroomacoustics"]!;
-                access.SetData(0, IrGraphGoo.FromSimulation(ran, "pyroomacoustics", responses));
+                Status(SimulationSettings.MonoMessage(ran.SamplingRate, used));
+                var responses = (IDictionary<string, object?>)((IDictionary<string, object?>)result["responses"]!)["mono"]!;
+                access.SetData(0, IrGraphGoo.FromSimulation(ran, "mono", responses));
             });
         }
 

@@ -15,9 +15,10 @@ from compas_acoustics.hybrid.diffraction import diffraction_paths
 from compas_acoustics.hybrid.diffraction import encode_btms
 from compas_acoustics.hybrid.early import image_sources
 from compas_acoustics.hybrid.pair import Pair
-from compas_acoustics.hybrid.synthesis import synthesize
+from compas_acoustics.hybrid.synthesis import prepare
+from compas_acoustics.hybrid.ambisonics import render_ambisonics
 from compas_acoustics.hybrid.target import RoomTarget
-from compas_acoustics.simulation_methods.raytracing import ray_traced_rirs
+from compas_acoustics.room.raytracing import ray_traced_rirs
 from compas_acoustics.room.geometry import RoomGeometry
 from compas_acoustics.room.geometry import SurfaceMaterial
 
@@ -75,11 +76,8 @@ def test_synthesis_matches_upstream(panel):
     room.add_microphone(RECEIVER.reshape(3, 1))
     room.image_source_model()
     spec = Pair(g, SOURCE, RECEIVER, np.eye(3), FS)
-    ours = synthesize(
-        spec, image_sources(room, 0, 0, spec),
-        RoomTarget(rt=np.full(8, 0.6), level=np.ones(8), bands=BANDS.copy(), fs=FS),
-        max_order=3, duration_s=0.4, diffraction=panel,
-    )
+    target = RoomTarget(rt=np.full(8, 0.6), level=np.ones(8), bands=BANDS.copy(), fs=FS)
+    ours = render_ambisonics(prepare(spec, image_sources(room, 0, 0, spec), target, max_order=3, duration_s=0.4, diffraction=panel))
     theirs = hybrid_rir.synthesize(
         upstream_spec(g), max_order=3, duration_s=0.4, diffraction=panel,
         target=hybrid_rir.RoomTarget(rt=np.full(8, 0.6), level=np.ones(8), bands=hybrid_rir.BANDS.copy(), fs=FS),
@@ -96,7 +94,7 @@ def test_btms_matches_upstream():
     room.image_source_model()
     spec = Pair(g, SOURCE, RECEIVER, np.eye(3), FS)
     target = RoomTarget(rt=np.full(8, 0.6), level=np.ones(8), bands=BANDS.copy(), fs=FS)
-    ours = synthesize(spec, image_sources(room, 0, 0, spec), target, max_order=0, duration_s=0.3, diffraction="btms")
+    ours = render_ambisonics(prepare(spec, image_sources(room, 0, 0, spec), target, max_order=0, duration_s=0.3, diffraction="btms"))
     theirs = hybrid_rir.synthesize(
         upstream_spec(g), max_order=0, duration_s=0.3, diffraction="btms",
         target=hybrid_rir.RoomTarget(rt=np.full(8, 0.6), level=np.ones(8), bands=hybrid_rir.BANDS.copy(), fs=FS),
@@ -105,16 +103,16 @@ def test_btms_matches_upstream():
 
 
 def test_the_eyring_tail_matches_upstreams_default_target():
-    """Without a target, upstream's synthesize uses RoomTarget.from_room: Hybrid(tail="eyring")."""
+    """Without a target, upstream's synthesize uses RoomTarget.from_room: Ambisonics(tail="eyring")."""
     from compas_acoustics import Receiver
     from compas_acoustics import Source
-    from compas_acoustics.simulation_methods import Hybrid
+    from compas_acoustics.simulation_methods import Ambisonics
 
     scene = Scene("parity")
     scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(10, 8, 4, materials=WALL))
     scene.add_source(Source("s", *SOURCE))
     scene.add_receiver(Receiver("r", *RECEIVER))
-    hybrid = Hybrid(tail="eyring", duration=0.4, normalize=False)
+    hybrid = Ambisonics(tail="eyring", duration=0.4, normalize=False)
     scene.simulate(hybrid)
     (ours,) = hybrid.results.values()
     theirs = hybrid_rir.synthesize(upstream_spec(RoomGeometry.from_scene(scene)), max_order=3, duration_s=0.4)

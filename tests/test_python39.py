@@ -22,3 +22,15 @@ def test_importing_the_package_does_not_import_the_hybrid_method():
         "assert 'compas_acoustics.simulation_methods.hybrid' not in sys.modules\n"
     )
     subprocess.run([sys.executable, "-c", code], check=True)
+
+
+def test_a_star_import_needs_no_pyfdn_and_imports_no_hybrid_method():
+    code = (
+        "import sys\n"
+        "for name in ('spharpy', 'pyFDN', 'multislope'):\n"
+        "    sys.modules[name] = None\n"
+        "from compas_acoustics import *\n"
+        "from compas_acoustics.simulation_methods import *\n"
+        "assert 'compas_acoustics.simulation_methods.hybrid' not in sys.modules\n"
+    )
+    subprocess.run([sys.executable, "-c", code], check=True)

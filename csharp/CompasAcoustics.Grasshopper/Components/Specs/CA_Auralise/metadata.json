@@ -3,7 +3,7 @@
     "nickname": "Auralise",
     "category": "COMPAS Acoustics",
     "subcategory": "04 Auralisation",
-    "description": "Auralise the room scene by convolving the impulse responses with the source signals. The signals keep the format of their impulse responses: mono (Simulate Pyroomacoustics), binaural or ambisonic (Simulate Hybrid). Choose the level on the body: 'relative' (default) applies one gain to all signals of this run so the loudest peaks at -1 dBFS, keeping distance and level differences; 'individual' brings each signal to -1 dBFS; 'none' keeps the raw level and may clip. Save writes the signals as WAV files: choose a folder and a name (take.wav saves take_mic_0_0.wav, take_mic_0_1.wav, ...).",
+    "description": "Auralise the room scene by convolving the impulse responses with the source signals. The signals keep the format of their impulse responses: mono (Simulate Mono), binaural (Simulate Binaural) or ambisonic (Simulate Ambisonics). Choose the level on the body: 'relative' (default) applies one gain to all signals of this run so the loudest peaks at -1 dBFS, keeping distance and level differences; 'individual' brings each signal to -1 dBFS; 'none' keeps the raw level and may clip. Save writes the signals as WAV files: choose a folder and a name (take.wav saves take_mic_0_0.wav, take_mic_0_1.wav, ...).",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,

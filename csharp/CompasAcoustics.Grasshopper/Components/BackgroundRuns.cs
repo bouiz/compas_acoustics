@@ -79,7 +79,7 @@ namespace CompasAcoustics.Grasshopper
             return decision;
         }
 
-        /// <summary>The call itself; Simulate Hybrid first checks that the worker has pyFDN.</summary>
+        /// <summary>The call itself; Simulate Binaural and Simulate Ambisonics first check that the worker has pyFDN.</summary>
         protected virtual Task<object?> Call(Background request, string callId, CancellationToken cancel) =>
             Worker.CallAsync(request.Function, callId, request.Args, request.Kwargs, cancel);
 

@@ -64,7 +64,7 @@ The directional envelope
 Schroeder and Vorlaender 2007, Sec. 2.2: the detection sphere divided into
 "directivity groups", each ray's energy added to the group of its time and
 direction of arrival; Schroeder 2011, Sec. 5.3.4), which pyroomacoustics keeps
-per receiver direction (:func:`compas_acoustics.simulation_methods.raytracing.directional_histograms`).
+per receiver direction (:func:`compas_acoustics.room.raytracing.directional_histograms`).
 RAVEN shapes the level of each time slot with the omni energy spectral density
 and uses the directional histogram only as the distribution of directions the
 impulses of that slot are allotted to, one distribution for all bands. Here
@@ -282,7 +282,7 @@ def smooth_over_directions(energy: np.ndarray, directions: np.ndarray) -> np.nda
 def directional_shares(histogram, lines: np.ndarray, fs: float) -> np.ndarray:
     """The factor on every delay line that gives the lines the rays' distribution over directions, (n, n_lines).
 
-    ``histogram`` is a :class:`~compas_acoustics.simulation_methods.raytracing.DirectionalHistogram`
+    ``histogram`` is a :class:`~compas_acoustics.room.raytracing.DirectionalHistogram`
     whose directions are the lines', in the same order; ``lines`` are the
     network's lines as heard, (n, n_lines); both start at the emission. Per
     time slot, ``p_i`` is direction ``i``'s share of the rays' energy summed
