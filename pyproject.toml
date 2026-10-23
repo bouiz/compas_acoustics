@@ -75,6 +75,7 @@ compas_acoustics = [
 [tool.pytest.ini_options]
 minversion = "6.0"
 testpaths = ["tests", "src/compas_acoustics"]
+pythonpath = ["tests/lab"]
 python_files = ["test_*.py", "*_test.py", "test.py"]
 addopts = [
     "-ra",

@@ -24,6 +24,7 @@ from compas_acoustics.defaults import _PackageDtype
 __all__ = ["ScatteringSample"]
 
 _WELD = 1e-6  # m
+_VERTICAL = 1e-9  # m, the xy distance under which outline points are taken to lie on one vertical
 _SYMMETRIES = ("none", "rotational")
 _OUTLINE = "the relief must have exactly one closed outline (found {}): fill its holes and join its parts"
 
@@ -138,12 +139,11 @@ class ScatteringSample(_PackageDtype, Data):
         if (counts == 1).any():
             sample, reference, depth = _close(V, T, baseplate)
         else:
-            V = V - [0.0, 0.0, V[:, 2].min()]
-            if _signed_volume(V, T) < 0:
-                T = T[:, ::-1]
+            V = V - [0.0, 0.0, V[:, 2].min() + baseplate]
+            T = _orient(V, T)
+            sample = _to_body(V, T, "sample")
             depth = float(V[:, 2].max())
-            sample = _to_mesh(V, T)
-            reference = _flat_body(V[_bottom_loop(V, T), :2], baseplate)
+            reference = _flat_body(V[_bottom_loop(V, T, -baseplate), :2], baseplate)
         diameter = _outline_diameter(reference)
         return cls(sample, reference, "as_drawn", diameter, None, depth, feature_size, symmetry, baseplate, _warnings(depth, diameter))
 
@@ -287,23 +287,50 @@ def _close(V, T, baseplate):
     if len(loops) != 1:
         raise ValueError(_OUTLINE.format(len(loops)))
     V = V - [0.0, 0.0, V[:, 2].min()]
-    loop = loops[0]
-    sample = _to_mesh(*_walls_and_bottom(V, T, loop, baseplate))
-    return sample, _flat_body(V[loop, :2], baseplate), float(V[:, 2].max())
+    columns = _columns(V, loops[0])
+    sample = _to_body(*_walls_and_bottom(V, T, columns, baseplate), "sample")
+    return sample, _flat_body(np.array([V[c[0], :2] for c in columns]), baseplate), float(V[:, 2].max())
 
 
-def _walls_and_bottom(V, T, loop, baseplate):
-    """Add vertical walls from ``loop`` (in its triangles' direction) down to ``z = −baseplate`` and a bottom facing −z."""
-    n, m = len(V), len(loop)
-    low = V[loop].copy()
+def _columns(V, loop):
+    """Split an outline loop into columns: runs of consecutive vertices with the same xy, where a vertical face meets the rim."""
+    xy = V[loop, :2]
+    new = np.linalg.norm(xy - np.roll(xy, 1, axis=0), axis=1) > _VERTICAL
+    if new.sum() < 3:
+        raise ValueError(_OUTLINE.format("an outline with no area"))
+    start = np.flatnonzero(new)[0]
+    loop, new = np.roll(loop, -start), np.roll(new, -start)
+    columns = np.split(loop, np.flatnonzero(new)[1:])
+    for column in columns:
+        dz = np.diff(V[column, 2])
+        if not ((dz > 0).all() or (dz < 0).all()):
+            raise ValueError("a vertical face meets the outline more than once at xy {}; move the rim off it".format(V[column[0], :2]))
+    return columns
+
+
+def _walls_and_bottom(V, T, columns, baseplate):
+    """Add vertical walls from the outline ``columns`` (in its triangles' direction) down to ``z = −baseplate`` and a bottom facing −z.
+
+    Each wall spans two neighbouring columns and is fanned from its bottom corners, so it has no zero-area triangles.
+    A column that rises along the outline belongs to the wall after it, one that falls to the wall before it.
+    """
+    n, m = len(V), len(columns)
+    low = np.array([V[c[0]] for c in columns])
     low[:, 2] = -baseplate
-    a, b = loop, np.roll(loop, -1)
-    a2, b2 = n + np.arange(m), n + np.roll(np.arange(m), -1)
-    walls = np.vstack([np.column_stack([b, a, a2]), np.column_stack([b, a2, b2])])
+    walls = []
+    for i in range(m):
+        left, right = columns[i], columns[(i + 1) % m]
+        upper_left = left[::-1] if V[left[-1], 2] > V[left[0], 2] else left[-1:]
+        upper_right = right[::-1] if V[right[-1], 2] < V[right[0], 2] else right[:1]
+        bottom_left, bottom_right = n + i, n + (i + 1) % m
+        p = [bottom_right, *upper_right]
+        walls += [[bottom_left, p[j], p[j + 1]] for j in range(len(p) - 1)]
+        q = [*upper_left, bottom_left]
+        walls += [[p[-1], q[j], q[j + 1]] for j in range(len(q) - 1)]
     extra, cap = _cap(low[:, :2])
     extra = np.column_stack([extra, np.full(len(extra), -baseplate)]).reshape(-1, 3)
     bottom = (n + cap)[:, ::-1]
-    return np.vstack([V, low, extra]), np.vstack([T, walls, bottom])
+    return np.vstack([V, low, extra]), np.vstack([T, np.array(walls, dtype=int), bottom])
 
 
 def _flat_body(outline, baseplate):
@@ -312,7 +339,18 @@ def _flat_body(outline, baseplate):
         outline = outline[::-1]
     extra, cap = _cap(outline)
     top = np.column_stack([np.vstack([outline, extra.reshape(-1, 2)]), np.zeros(len(outline) + len(extra))])
-    return _to_mesh(*_walls_and_bottom(top, cap, np.arange(len(outline)), baseplate))
+    return _to_body(*_walls_and_bottom(top, cap, [[i] for i in range(len(outline))], baseplate), "reference")
+
+
+def _to_body(V, T, what):
+    """A closed, outward-oriented mesh: raises ``ValueError`` unless every edge is used by exactly two triangles, once each way."""
+    _, counts = _edge_counts(T)
+    directed = T[:, [0, 1, 1, 2, 2, 0]].reshape(-1, 2)
+    if (counts != 2).any() or len(np.unique(directed, axis=0)) < len(directed):
+        raise ValueError("the {} is not a closed, consistently oriented body ({} edges not shared by two faces); check the relief".format(what, int((counts != 2).sum())))
+    if _signed_volume(V, T) < 0:
+        T = T[:, ::-1]
+    return _to_mesh(V, T)
 
 
 def _cap(outline):
@@ -328,18 +366,22 @@ def _cap(outline):
     da, db = a - centroid, b - centroid
     if (da[:, 0] * db[:, 1] - da[:, 1] * db[:, 0] > 1e-12 * abs(area)).all():
         return centroid[None, :], np.column_stack([np.full(m, m), np.arange(m), np.roll(np.arange(m), -1)])
-    cap = np.array(earclip_polygon(Polygon([[x, y, 0.0] for x, y in outline])), dtype=int)
+    cap = np.array(earclip_polygon(Polygon([[x, y, 0.0] for x, y in outline])), dtype=int).reshape(-1, 3)
+    if len(cap) != m - 2:
+        raise ValueError("the outline could not be triangulated ({} triangles for {} points); is it self-intersecting?".format(len(cap), m))
     p = outline[cap]
     flip = np.cross(p[:, 1] - p[:, 0], p[:, 2] - p[:, 0]) < 0
     cap[flip] = cap[flip][:, ::-1]
     return np.zeros((0, 2)), cap
 
 
-def _bottom_loop(V, T):
-    """The outline of a closed mesh's lowest faces: those at z = 0 that face −z."""
+def _bottom_loop(V, T, z):
+    """The outline of a closed mesh's lowest faces: those at ``z`` that face −z."""
+    if _signed_volume(V, T) < 0:
+        T = T[:, ::-1]
     p = V[T]
     normals = np.cross(p[:, 1] - p[:, 0], p[:, 2] - p[:, 0])
-    lowest = (np.abs(p[:, :, 2]) < _WELD).all(axis=1) & (normals[:, 2] < 0)
+    lowest = (np.abs(p[:, :, 2] - z) < _WELD).all(axis=1) & (normals[:, 2] < 0)
     if not lowest.any():
         raise ValueError("a closed mesh needs a flat bottom at its lowest point, to outline its reference")
     loops = _boundary_loops(T[lowest])
