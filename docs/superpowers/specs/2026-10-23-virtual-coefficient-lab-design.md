@@ -1,6 +1,6 @@
 # Virtual Coefficient Lab — design
 
-Status: design approved 2026-10-23 (brainstorming). Branch: `feat/coefficient-lab`.
+Status: design approved 2026-10-23 (brainstorming). Branch: `feat/coefficient-lab` (from `up/hybrid-split`).
 Sources: ISO 354:2003, ISO 17497-1:2004, ISO 17497-2:2012, Vorländer & Mommertz (2000), Heimes & Vorländer (2025)
 with its scripts (Zenodo 15673498: `1.3_calculate_s_d.py`, `1.5_random_scattering.py`, `utils.py`).
 
@@ -64,8 +64,8 @@ room simulations ("design loop").
   ray-cast shadow test using the existing geometry tools. The reference disc is computed the same way, so edge terms
   largely cancel in the correlation, as the paper notes for p₀/p₁. Vectorised numpy, chunked over receivers.
 - **Turntable solver.**
-  - **Responses:** coherent responses only. It uses pyroomacoustics image sources with `ray_tracing=False` and a high
-    `image_source_order` (`simulation_methods/pra.py:35`, `_image_sources`), because the ray-traced tail is random-sign
+  - **Responses:** coherent responses only. It uses the `Mono` method (`simulation_methods/pra.py:33`) with `ray_tracing=False` and a high
+    `image_source_order`, because the ray-traced tail is random-sign
     and identical across positions with a fixed seed (see the exploration notes).
   - **Rotation:** the sample is rotated in n steps (default 72, ISO 17497-1 §7.3). The responses are averaged per
     source/mic pair before backward integration.
@@ -108,9 +108,9 @@ Each sub-project gets its own implementation plan. They are built in this order:
 ### B. Absorption room (Python): `src/compas_acoustics/lab/absorption.py`
 - `ReverberationChamber`: about 200 m³, non-rectangular-ratio box, wall α tuned to stay within ISO 354 Table 1,
   high wall scattering to stand in for diffusers (Annex A), and source/mic placement satisfying §7.1.2–7.1.4.
-- `measure_absorption(sample, materials, chamber, air, n_repeats)`: runs `Pyroomacoustics` (`simulation_methods/pra.py:35`)
+- `measure_absorption(sample, materials, chamber, air, n_repeats)`: runs `Mono` (`simulation_methods/pra.py:33`)
   empty (T₁) and with the sample as an obstacle on the floor (T₂). `seed` varies per repeat. T20 comes from
-  `AcousticAnalyser.reverberation_times()` (`analyser.py:371`); c and m come from `AirConditions` (`room/air.py:19`). The ISO 354 inverse formula is new.
+  `AcousticAnalyser.reverberation_times()` (`analyser.py:385`); c and m come from `AirConditions` (`room/air.py:19`). The ISO 354 inverse formula is new.
   Output: an `AbsorptionResult` with α_s or A_obj per band; ±2σ (ISO 17497-1 A.3) is added in V2.
 - The hybrid/FDN method is not used here, because its tail is statistical.
 - `lab/turntable.py`: `measure_scattering(sample, chamber, n_positions=72, ...)`. It reuses `ReverberationChamber`
@@ -154,7 +154,7 @@ boundary as a **compas_pb message**.
 - The mesh2scattering / NumCalc dependency stays in the worker's Python environment (3.11+). The C# side only sees messages.
 - New components (each with a spec in `Components/Specs/CA_<Name>/metadata.json` plus icon, a `ComponentBase` class, and an entry in `SpecCoverageTests`):
   - **Scattering Sample**: mode (disc / as drawn), diameter, symmetry; previews the sample, the reference and the source/receiver hemispheres.
-  - **Scattering Lab**: method (`bem` / `kirchhoff` / `turntable`), frequency range, quality preset, output folder; runs in the background. Outputs: the result (V1); 1/3-octave s and s(θ) as Parameter curves (`_parameter`, `api.py:249`) (V2); the SOFA path (V3).
+  - **Scattering Lab**: method (`bem` / `kirchhoff` / `turntable`), frequency range, quality preset, output folder; runs in the background. Outputs: the result (V1); 1/3-octave s and s(θ) as Parameter curves (`_parameter`, `api.py:253`) (V2); the SOFA path (V3).
   - **Absorption Lab**: sample, materials, chamber settings, air; outputs the absorption result (V1), α_s or A_obj curves with uncertainty (V2).
   - **Lab Material**: combines α and s into an `AcousticMaterial` and optionally writes library JSON.
   - **Polar Preview**: per band and incidence direction, the reflected-level polar response as a coloured mesh balloon (V1); an s_d mode as in the paper's Fig. 10 (V3).
@@ -177,7 +177,7 @@ boundary as a **compas_pb message**.
 - NumCalc pressures are cached in mesh2scattering's own project and output files. This is internal only: no public SOFA API.
 
 **V2: curves and angle dependence**
-- Exposes the one-third-octave α_s and s and the s(θ,φ) per incidence direction as Parameter curves (`_parameter`, `api.py:249`) for Plot 2D.
+- Exposes the one-third-octave α_s and s and the s(θ,φ) per incidence direction as Parameter curves (`_parameter`, `api.py:253`) for Plot 2D.
 - Adds the ±2σ uncertainty for α (ISO 17497-1 A.3) and the BEM convergence diagnostics.
 - Extends the Scattering Lab and Absorption Lab outputs. No new solver work.
 
