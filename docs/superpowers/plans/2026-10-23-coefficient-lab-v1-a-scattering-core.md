@@ -20,9 +20,16 @@ Sub-projects B (absorption chamber + turntable) and C (Grasshopper/compas_pb) ge
 - Serialisable classes subclass `_PackageDtype` + `compas.data.Data` and are exported from `compas_acoustics/__init__.py` (dtype `compas_acoustics/<Class>`).
 - Long steps report through `compas_acoustics.worker.jobs.progress(stage, done, of)` (the pattern in `energy_map.py:261`). It is a no-op outside a worker job and raises `jobs.Cancelled` on cancel.
 - Bands:
-  - Simulation and output use one-third octaves with nominal centres 125 … 8000 Hz, 19 bands. The exact centres are `1000·10**(n/10)` for n = −9…9.
+  - One-third octaves with nominal centres **100 … 5000 Hz by default** (`ISO_BAND_RANGE = (100, 5000)`, 18 bands; ISO 354 §5, ISO 17497-1/-2 §5).
+    The **optional extension** is `EXTENDED_BAND_RANGE = (100, 8000)` (20 bands), beyond the standards. Any `band_range` must lie within 100…8000.
+    The exact centres are `1000·10**(n/10)` (n = −10…9 for 100…8000).
   - Each band is simulated at 3 frequencies, `fc·2**(-1/9)`, `fc`, `fc·2**(1/9)`, and band values are their arithmetic mean (Heimes eq. 11; ISO 17497-2 §7.4.4 asks for ≥ 3 points per band).
-  - Octave values (7 bands, 125 … 8000, `Defaults._DEFAULT_FREQUENCY_BANDS`) are the mean of the one-third-octave values inside each octave. The 125 Hz and 8 kHz octaves average the two available bands (100 Hz and 10 kHz are not simulated). **This deviates from a strict 3-band fold; review it.**
+  - Octave values are the mean of the one-third-octave values inside each octave (ISO 354 §8.3 / ISO 11654). The default range gives complete octaves 125…4000.
+    The extended range adds an 8 kHz octave from 6300 and 8000 only (10 kHz is not simulated).
+  - The material input needs all 7 octaves (`Defaults._DEFAULT_FREQUENCY_BANDS`, 125…8000). An octave that was not simulated takes the nearest simulated octave's value (in the default range: 8 kHz ← 4 kHz). The result's warnings say so.
+  - Warning texts (exact):
+    - `"bands above 5000 Hz are beyond ISO 354 and ISO 17497 (100-5000 Hz)"` when the range goes above 5000
+    - `"the {f} Hz octave was not simulated; the material takes the {g} Hz value"` per filled octave
 - Default source preset for `measure_scattering` is `"standard"` (97 sources), not the spec's Heimes grid (`"fine"`, 864 sources): the fine grid makes BEM runs ~9× longer and the Kirchhoff method no longer fast. **Deviation from the spec; review it.**
 - Correlation (Heimes eq. 3): `s = 1 − |Σ p₁ p₀* w|² / (Σ|p₁|² w · Σ|p₀|² w)`, summed over receivers.
 - Random incidence (Paris): `s_rand = Σ wᵢ sᵢ`. The weights are `wᵢ = (sin²θ_hi − sin²θ_lo)/n_az(ring)` per colatitude ring, so they sum to 1.
@@ -67,7 +74,7 @@ Record in the findings note:
 
 - [ ] **Step 3: Time it at 8 kHz**
 
-Use the same disc at d = 0.8 m, edge `343/(8000·6)` m, one frequency of 8000 Hz, one source, 3000 receivers. Record the element count, wall time and peak RAM (`/usr/bin/time -l`).
+Use the same disc at d = 0.8 m and time two frequencies, the default range's top (5400 Hz, edge `343/(5400·6)` m) and the extension's top (8600 Hz), each with one source and 3000 receivers. Record the element count, wall time and peak RAM (`/usr/bin/time -l`).
 Expected: numbers to put in the findings note. Task 7's default `max_elements` and the "overnight" estimate come from them.
 
 - [ ] **Step 4: Commit the findings note only**
@@ -88,24 +95,34 @@ git commit -m "Lab spike: NumCalc on macOS, mesh2scattering project layout and t
 
 **Interfaces:**
 - Produces:
-  - `THIRD_OCTAVE_CENTRES: tuple[int, ...]`: the nominal centres 125…8000 (19 values).
-  - `third_octave_centres(band_range=(125, 8000)) -> tuple[np.ndarray, np.ndarray]`: (nominal, exact) for the bands within the range.
-  - `simulation_frequencies(band_range=(125, 8000)) -> np.ndarray`: 3 per band, ascending, shape `(3·n_bands,)`.
+  - `THIRD_OCTAVE_CENTRES: tuple[int, ...]`: all supported nominal centres 100…8000 (20 values).
+  - `ISO_BAND_RANGE = (100, 5000)`, `EXTENDED_BAND_RANGE = (100, 8000)`.
+  - `third_octave_centres(band_range=ISO_BAND_RANGE) -> tuple[np.ndarray, np.ndarray]`: (nominal, exact) for the bands within the range; `ValueError` outside 100…8000.
+  - `simulation_frequencies(band_range=ISO_BAND_RANGE) -> np.ndarray`: 3 per band, ascending, shape `(3·n_bands,)`.
   - `band_average(values: np.ndarray) -> np.ndarray`: the last axis has length 3·n_bands → n_bands (mean of each consecutive triple).
-  - `fold_to_octaves(values: np.ndarray, nominal: np.ndarray) -> np.ndarray`: last axis one-third octaves → 7 octave bands. NaN for an octave with no band inside the range.
+  - `fold_to_octaves(values: np.ndarray, nominal: np.ndarray) -> tuple[list[int], np.ndarray]`: last axis one-third octaves → (the octave centres with at least one band, their means).
+  - `fill_octaves(octaves: list[int], values: np.ndarray) -> tuple[np.ndarray, list[tuple[int, int]]]`: the 7 material octaves, missing ones from the nearest simulated octave, plus the `(filled, source)` pairs.
 
 - [ ] **Step 1: Write the failing tests**
 
 ```python
-def test_nominal_centres_cover_125_to_8000():
+def test_default_is_the_iso_range_100_to_5000():
     nominal, exact = third_octave_centres()
-    assert list(nominal) == [125, 160, 200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3150, 4000, 5000, 6300, 8000]
-    assert np.allclose(exact, 1000 * 10 ** (np.arange(-9, 10) / 10))
+    assert list(nominal) == [100, 125, 160, 200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3150, 4000, 5000]
+    assert np.allclose(exact, 1000 * 10 ** (np.arange(-10, 8) / 10))
+
+def test_extended_range_reaches_8000():
+    nominal, _ = third_octave_centres(EXTENDED_BAND_RANGE)
+    assert list(nominal[-3:]) == [5000, 6300, 8000] and len(nominal) == 20
+
+def test_range_outside_100_to_8000_raises():
+    with pytest.raises(ValueError, match="100.*8000"):
+        third_octave_centres((100, 10000))
 
 def test_three_frequencies_per_band_inside_the_band():
     f = simulation_frequencies()
     _, exact = third_octave_centres()
-    assert f.shape == (57,)
+    assert f.shape == (54,)
     assert np.allclose(f[1::3], exact)
     assert np.allclose(f[0::3], exact * 2 ** (-1 / 9)) and np.allclose(f[2::3], exact * 2 ** (1 / 9))
 
@@ -113,14 +130,21 @@ def test_band_average_is_mean_of_triples():
     v = np.arange(6.0)
     assert np.allclose(band_average(v), [1.0, 4.0])
 
-def test_fold_to_octaves_uses_available_thirds_at_the_edges():
+def test_default_range_folds_to_complete_octaves_125_to_4000():
     nominal, _ = third_octave_centres()
-    values = np.arange(19.0)  # value i for band i
-    octaves = fold_to_octaves(values, nominal)
-    assert octaves.shape == (7,)
-    assert octaves[0] == pytest.approx((0 + 1) / 2)      # 125 octave: 125, 160 (100 not simulated)
-    assert octaves[1] == pytest.approx((2 + 3 + 4) / 3)  # 250 octave: 200, 250, 315
-    assert octaves[6] == pytest.approx((17 + 18) / 2)    # 8000 octave: 6300, 8000
+    octaves, values = fold_to_octaves(np.arange(18.0), nominal)  # value i for band i
+    assert octaves == [125, 250, 500, 1000, 2000, 4000]
+    assert values[0] == pytest.approx((0 + 1 + 2) / 3)     # 125 octave: 100, 125, 160
+    assert values[5] == pytest.approx((15 + 16 + 17) / 3)  # 4000 octave: 3150, 4000, 5000
+
+def test_extended_range_adds_an_8000_octave_from_two_bands():
+    nominal, _ = third_octave_centres(EXTENDED_BAND_RANGE)
+    octaves, values = fold_to_octaves(np.arange(20.0), nominal)
+    assert octaves[-1] == 8000 and values[-1] == pytest.approx((18 + 19) / 2)  # 6300, 8000 (10 kHz not simulated)
+
+def test_fill_octaves_takes_the_nearest_simulated_octave():
+    filled, pairs = fill_octaves([125, 250, 500, 1000, 2000, 4000], np.arange(6.0))
+    assert np.allclose(filled, [0, 1, 2, 3, 4, 5, 5]) and pairs == [(8000, 4000)]
 ```
 
 Add to `tests/test_python39.py`:
@@ -594,8 +618,9 @@ Behaviour:
 def test_splits_group_simulation_frequencies_by_octave():
     f = simulation_frequencies()
     splits = plan_splits(f)
-    assert len(splits) == 7 and sum(len(s) for s in splits) == 57
-    assert len(splits[0]) == 6 and len(splits[1]) == 9 and len(splits[-1]) == 6
+    assert len(splits) == 6 and all(len(s) == 9 for s in splits)  # default: complete octaves 125-4000
+    ext = plan_splits(simulation_frequencies(EXTENDED_BAND_RANGE))
+    assert len(ext) == 7 and len(ext[-1]) == 6                      # extended: an 8 kHz split from 6300 and 8000
     assert np.all(np.diff(np.concatenate(splits)) > 0)
 
 def test_element_estimate_scales_with_area():
@@ -679,14 +704,16 @@ git commit -m "Lab: BEM solver over mesh2scattering/NumCalc, octave splits meshe
   - `ScatteringResult(_PackageDtype, Data)` with attributes:
     - `name`, `method`
     - `bands: list[int]` (nominal one-third octaves) and `s_bands: list[float]`
-    - `octave_bands: list[int]` (the 7 bands) and `s_octaves: list[float]`
+    - `octave_bands: list[int]` (the simulated octaves: 125…4000 by default, 125…8000 extended) and `s_octaves: list[float]`
+    - `filled_octaves: list[int]` (material octaves taken from a neighbour)
     - `s_angle: np.ndarray (n_src, n_bands)`
     - `source_colatitude`, `source_azimuth`, `source_weights`
     - `receiver_directions: np.ndarray (n_rec, 3)`
-    - `polar_sample_db` and `polar_reference_db: np.ndarray (n_src, 7, n_rec)` (float32)
+    - `polar_sample_db` and `polar_reference_db: np.ndarray (n_src, len(octave_bands), n_rec)` (float32)
     - `warnings: list[str]`, `generation: dict`
-  - Its property `scattering_coefficients -> list[float]` gives the 7 octave values, the input sub-project B's material step uses.
-  - `measure_scattering(sample: ScatteringSample, method: str = "kirchhoff", preset: str = "standard", band_range=(125, 8000), air: AirConditions | None = None, name: str | None = None, **solver_options) -> ScatteringResult`.
+  - Its property `scattering_coefficients -> list[float]` gives the 7 material octaves (125…8000, via `fill_octaves`), the input sub-project B's material step uses.
+  - `measure_scattering(sample: ScatteringSample, method: str = "kirchhoff", preset: str = "standard", band_range=ISO_BAND_RANGE, air: AirConditions | None = None, name: str | None = None, **solver_options) -> ScatteringResult`.
+    Pass `band_range=EXTENDED_BAND_RANGE` for the extension to 8 kHz.
     - Supported methods: `{"kirchhoff", "bem"}`, otherwise `ValueError` naming them (sub-project B adds `"turntable"`).
     - c comes from `(air or AirConditions()).speed_of_sound`.
 
@@ -695,7 +722,7 @@ Pipeline:
 2. `pressures = solver.solve(...)`. Non-finite values → `RuntimeError` naming the method.
 3. `s_f = scattering_freefield(p.sample, p.reference, rec.weights)` gives shape (n_src, n_f). Then `s_angle = band_average(s_f)`, `s_bands = random_incidence(s_angle, src)` and `s_octaves = fold_to_octaves(s_bands, nominal)`.
 4. Polar levels: per octave band, take the mean of |p|² over the simulation frequencies inside that octave. Convert to dB relative to the reference's maximum at the same source and band.
-5. `warnings = sample.warnings + solver.warnings(...)`. Also re-emit each one through `warnings.warn` so the worker's `_messages` collects them.
+5. `warnings = sample.warnings + solver.warnings(...)`, plus the band warnings from Global Constraints (beyond ISO; filled octaves). Also re-emit each one through `warnings.warn` so the worker's `_messages` collects them.
 6. `generation = {"method", "preset", "band_range", "c", "receivers": n, "sources": n, **pressures.generation}`.
 
 - [ ] **Step 1: Write the failing tests**
@@ -713,11 +740,19 @@ class FakeSolver(ScatteringSolver):
 def test_shapes_and_bands(monkeypatch):
     monkeypatch.setattr(scattering, "_solver", lambda method, **kw: FakeSolver())
     r = measure_scattering(ScatteringSample.disc(flat_tile(), diameter=0.4), method="kirchhoff", preset="survey")
-    assert r.bands == list(THIRD_OCTAVE_CENTRES) and len(r.s_bands) == 19
-    assert r.octave_bands == [125, 250, 500, 1000, 2000, 4000, 8000] and len(r.scattering_coefficients) == 7
-    assert r.s_angle.shape == (13, 19) and r.polar_sample_db.shape[:2] == (13, 7)
+    assert r.bands == list(THIRD_OCTAVE_CENTRES[:18]) and len(r.s_bands) == 18  # default: ISO 100-5000
+    assert r.octave_bands == [125, 250, 500, 1000, 2000, 4000] and len(r.scattering_coefficients) == 7
+    assert r.filled_octaves == [8000] and r.scattering_coefficients[6] == r.scattering_coefficients[5]
+    assert any("8000 Hz octave was not simulated" in w for w in r.warnings)
+    assert r.s_angle.shape == (13, 18) and r.polar_sample_db.shape[:2] == (13, 6)
     assert np.allclose(r.s_octaves, 0.0, atol=1e-9)  # identical pressures -> no scattering
     assert np.isclose(r.polar_reference_db.max(axis=2), 0.0).all()
+
+def test_extended_range_simulates_8000_and_warns_beyond_iso(monkeypatch):
+    monkeypatch.setattr(scattering, "_solver", lambda method, **kw: FakeSolver())
+    r = measure_scattering(ScatteringSample.disc(flat_tile(), diameter=0.4), preset="survey", band_range=EXTENDED_BAND_RANGE)
+    assert r.bands[-1] == 8000 and r.octave_bands[-1] == 8000 and r.filled_octaves == []
+    assert any("beyond ISO" in w for w in r.warnings)
 
 def test_unknown_method_names_the_supported_ones():
     with pytest.raises(ValueError, match="kirchhoff.*bem"):
@@ -783,6 +818,7 @@ git commit -m "Lab: measure_scattering (kirchhoff or bem) returning a Scattering
 - Download `results_simulation_optimal.zip` from https://zenodo.org/records/15673498 (CC BY 4.0) into a directory outside the repo.
 - Set `HEIMES_RESULTS=<extracted folder>`. The tests read `sine.scattering.sofa` (s per incidence angle, from `1.4_calc_scattering_from_s_d.py`) and `sine.scattering_rand.sofa`.
 - The simulated sample: `sine` with Λ = 80 mm, n = 10, d = 0.8 m for Λ/λ ≤ 2 (script `0.1_simulate_optimal.py`), h = 0.051/2.5 m, c = 346.18 m/s.
+- Run with `band_range=EXTENDED_BAND_RANGE`. Λ/λ = 0.5…2 is 2.2…8.7 kHz for this sample, and the default 5 kHz top stops at Λ/λ ≈ 1.2.
 
 - [ ] **Step 1: Write the slow, opt-in tests**
 

@@ -15,7 +15,10 @@ room simulations ("design loop").
 
 ### What you said
 - Purpose: design-loop coefficients for parametric surfaces.
-- Scale: mixed (panels to facade relief); one-third octaves 125 Hz–8 kHz.
+- Scale: mixed (panels to facade relief).
+- Bands: one-third octaves **100 Hz–5 kHz by default** (the range of ISO 354 §5, ISO 17497-1 §5 and ISO 17497-2 §5),
+  with an **optional extension to 8 kHz** (beyond the standards). Decided 2026-10-24 after the cost comparison:
+  relative BEM cost 0.41 (default) vs 1.00 (extended) for a 0.8 m disc.
 - Solver: BEM for scattering, the existing ray tracer for absorption.
 - Scattering method chosen per run, trading accuracy for speed: **BEM** (accurate, hours), **Kirchhoff**
   (fast, seconds to minutes) or the **ray-traced turntable** (virtual ISO 17497-1, valid only for large features).
@@ -29,8 +32,11 @@ room simulations ("design loop").
 ### Assumptions
 - The scattering sample is computed **sound-hard** (rigid BEM). Absorption comes only from the ray-traced ISO 354
   room using the materials assigned to the geometry. ISO 17497-1 §6.3.4 limits samples to α_s ≤ 0.5 anyway; above that the lab warns.
-- One-third-octave results fold into the 7 octave bands by arithmetic mean of 3, as in ISO 354 §8.3 / ISO 11654.
-  That makes them usable as `AcousticMaterial` input; the full one-third-octave data stays in the result and in the SOFA file.
+- One-third-octave results fold into octave bands by arithmetic mean of 3, as in ISO 354 §8.3 / ISO 11654. The default
+  range gives complete octaves 125 Hz–4 kHz. `AcousticMaterial` needs 7 octaves (125 Hz–8 kHz), so the 8 kHz octave is:
+  - default range: the 4 kHz octave's value, with a warning that it was not simulated;
+  - extended range: the mean of the 6.3 kHz and 8 kHz bands (10 kHz is not simulated), with a beyond-ISO warning.
+  The full one-third-octave data stays in the result and in the SOFA file.
 - The s_base check and the ±2σ turntable uncertainty from ISO 17497-1 belong to the reverberation-room method, which
   we are **not** using for s. For the BEM I use convergence checks instead (receiver resolution, Embrechts eq. 6;
   frequency points per band). These come in V2, together with the ±2σ uncertainty for α (ray-traced repeats, ISO 17497-1 Annex A.3).
@@ -43,7 +49,8 @@ room simulations ("design loop").
 | s(θ,φ) | Mommertz correlation, Heimes eq. 3 | `1 − |Σ p₁ p₀* w|² / (Σ|p₁|²w · Σ|p₀|²w)` over the receiver hemisphere; p₀ = flat reference with the same footprint |
 | s_d(θS,φS,θR,φR) | Heimes eq. 5; `1.3_calculate_s_d.py` | Same correlation, with p₀ = the reference at incidence (θR, φR+π); specular cell = 1 − s |
 | random-incidence s | Paris / `1.5_random_scattering.py` | `1/π ∬ s(θ,φ) cos²θ sinφ dθ dφ` over incidence (cos²θ weighting); sources weighted sin(colatitude) |
-| band values | Heimes eq. 11 | ≥ 3 frequency points per 1/3 band (simulate on a 1/9-octave grid), arithmetic mean |
+| band range | ISO 354 §5; ISO 17497-1 §5; ISO 17497-2 §5, §6.3.3 | 1/3 octaves 100–5000 Hz by default; optional extension to 8000 Hz, flagged as beyond ISO |
+| band values | Heimes eq. 11; ISO 17497-2 §7.4.4 | ≥ 3 frequency points per 1/3 band (simulate on a 1/9-octave grid), arithmetic mean |
 | α_s | ISO 354 eq. 8–9 | `A_T = 55.3V(1/(c₂T₂) − 1/(c₁T₁)) − 4V(m₂−m₁)`; α_s = A_T/S, or A_obj = A_T/n for single objects |
 | room and setup checks | ISO 354 §6, §7 | V ≥ 150 m³ (default ≈ 200), l_max < 1.9 V^⅓, A₁ ≤ Table 1, sample 10–12 m² ≥ 1 m from edges and not parallel to them, ≥ 2 sources × ≥ 3 mics (≥ 12 decays), T20 evaluated −5 to −25 dB |
 | receiver grid | Heimes §3; Embrechts eq. 6 | pyfar equal-area grid with Voronoi weights, z > 0, far field (r ≫ d); Δθ ≤ 50λ/d degrees at the highest frequency |
@@ -193,6 +200,7 @@ Rhino mesh → Scattering Sample → (sample, reference, grids) → Scattering L
 (or [`turntable`: chamber T₁–T₄ → α_spec, α_s → s]) → ScatteringResult (+ SOFA in V3) → Lab Material ← AbsorptionResult ← Absorption Lab (ray tracer T₁/T₂) → AcousticMaterial → existing Room/Scene simulation.
 
 ## Error handling
+- Bands above 5 kHz (extended range) and an 8 kHz octave filled from 4 kHz (default range) produce warnings.
 - Unmet ISO checks (h > d/16, sample outside 10–12 m², A₁ above Table 1, too few decays, α_s > 0.5 for s) produce **warnings**, not errors, via the existing `_messages` → `ShowWarnings` path.
 - A missing NumCalc binary or Python < 3.11 for mesh2scattering gives a clear error with setup instructions. The lab extra is optional and does not affect Rhino's 3.9 environment, because the worker is a separate process.
 - An estimated element count above the configured limit gives a warning plus a suggested split or a smaller diameter, before launch.
