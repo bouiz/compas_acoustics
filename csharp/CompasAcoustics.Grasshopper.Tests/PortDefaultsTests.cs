@@ -17,7 +17,6 @@ namespace CompasAcoustics.Grasshopper.Tests
         [InlineData("CA_Simulate_Binaural", "ism_order", 3)]
         [InlineData("CA_Visualise_Rays", "n_rays", 500)]
         [InlineData("CA_Visualise_Rays", "max_order", 10)]
-        [InlineData("CA_Model", "sampling_rate", 48000)]
         public void Specs_DeclareTheIntegerDefaultsOfThePlan(string component, string port, int value) => Assert.Equal(value, Port(component, port).Default);
 
         [Fact]
@@ -57,7 +56,6 @@ namespace CompasAcoustics.Grasshopper.Tests
         public void NamedValues_AreDeclaredAndOnThePort()
         {
             Assert.Equal(Enumerable.Range(0, 11).Select(i => (i.ToString(), i)), Port("CA_Simulate_Mono", "ism_order").NamedValues);
-            Assert.Equal(new[] { 44100, 48000, 96000 }, Port("CA_Model", "sampling_rate").NamedValues.Select(v => v.value));
             var hybrid = new SimulateAmbisonicsComponent();
             Assert.True(((Param_Integer)hybrid.Params.Input.Single(p => p.Name == "ism_order")).HasNamedValues);
             Assert.False(((Param_Integer)hybrid.Params.Input.Single(p => p.Name == "seed")).HasNamedValues);

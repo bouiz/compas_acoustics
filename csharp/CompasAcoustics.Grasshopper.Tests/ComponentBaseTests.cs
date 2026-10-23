@@ -17,7 +17,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal("Scene", model.Nickname);
             Assert.Equal("01 Model", model.Subcategory);
             Assert.Equal(GH_Exposure.primary, model.Exposure);
-            Assert.Equal(new[] { "objects", "sources", "receivers", "name", "sampling_rate" }, model.Inputs.Select(i => i.Name).ToArray());
+            Assert.Equal(new[] { "objects", "sources", "receivers", "name" }, model.Inputs.Select(i => i.Name).ToArray());
             var objects = model.Inputs[0];
             Assert.Equal(GH_ParamAccess.list, objects.Access);
             Assert.True(objects.Flatten);

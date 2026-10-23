@@ -20,13 +20,38 @@ from scipy.spatial import cKDTree
 from compas_acoustics.defaults import Defaults
 from compas_acoustics.defaults import _PackageDtype
 
-__all__ = ["EnergyMap"]
+__all__ = ["EnergyMap", "map_rays"]
 
 # The image sources cover the direct sound and at least the first reflections: with order 0 the ray tracer logs the
 # direct path as well (libroom's simul_ray logs a hit once ``specular_counter >= ism_order``), which would count it twice
 MIN_IMAGE_SOURCE_ORDER = 1
 # Broadband frames of the time animation, in seconds: three of the rays' 4 ms bins
 FRAME_S = 0.012
+# The rays' hits expected at every point over the response, after Vorlaender (2008) Eq. 11.12 with the response length
+# for the histogram bin. Two runs of different seeds left every point within 0.5 dB of each other at 16000, in rooms of
+# 105, 1440 and 12000 m3 (4000: up to 0.8 dB; an image source order of 2 gained nothing), 2026-10-23.
+MAP_HITS = 16000
+MIN_MAP_RAYS = 20000
+# a bound on the time of a very large hall
+MAX_MAP_RAYS = 250000
+# pyroomacoustics' receiver sphere, the microphones' of directional_histograms
+_RECEIVER_RADIUS = 0.5
+# The rays' receivers: one per cell of this size, their energy interpolated to the map's points. pyroomacoustics checks
+# every receiver for every ray segment, so a run costs rays times receivers; the rays' late energy varies slowly, and a
+# receiver sphere of 0.5 m resolves nothing finer anyway. The image sources stay exact at every point.
+RAY_SPACING = 1.0
+# the ray receivers around a point whose energy it takes, weighted by the inverse square of the distance
+_NEIGHBOURS = 4
+
+
+def map_rays(volume: float, duration: float) -> int:
+    """The rays per source that give every point of a map ``MAP_HITS`` hits, from 20000 to 250000.
+
+    A ray of length ``c T`` crosses a receiver sphere of radius ``r`` about ``c T pi r^2 / V`` times in a diffuse field.
+    """
+    c = Defaults().DEFAULT_SPEED_OF_SOUND
+    n = math.ceil(MAP_HITS * volume / (math.pi * _RECEIVER_RADIUS ** 2 * c * duration))
+    return int(min(max(n, MIN_MAP_RAYS), MAX_MAP_RAYS))
 
 
 class EnergyMap(_PackageDtype, Data):
@@ -108,8 +133,8 @@ class EnergyMap(_PackageDtype, Data):
         return np.arange(count) * per * self.bin_size, levels
 
     @classmethod
-    def from_scene(cls, scene, points, source_index=None, n_rays=20000, image_source_order=MIN_IMAGE_SOURCE_ORDER,
-                   duration=None, air_absorption=True, seed=True) -> "EnergyMap":
+    def from_scene(cls, scene, points, source_index=None, n_rays=None, image_source_order=MIN_IMAGE_SOURCE_ORDER,
+                   duration=None, air_absorption=True, seed=True, ray_spacing=RAY_SPACING) -> "EnergyMap":
         """The energy map of ``scene``'s sources at ``points``.
 
         Parameters
@@ -119,8 +144,8 @@ class EnergyMap(_PackageDtype, Data):
             The points, in the room's coordinates.
         source_index : int, optional
             One source by its index in ``scene.sources``; by default every source, their energies added.
-        n_rays : int, default=20000
-            Rays per source.
+        n_rays : int, optional
+            Rays per source; by default :func:`map_rays` of the room's volume and the response's length.
         image_source_order : int, default=1
             Image sources up to this order for every point, the rays past it. At least 1.
         duration : float, optional
@@ -129,14 +154,17 @@ class EnergyMap(_PackageDtype, Data):
         air_absorption : bool, default=True
         seed : bool or int, default=True
             The rays' seed: True seeds with 42, an int with that value, False leaves them unseeded.
+        ray_spacing : float, optional
+            The rays are traced to one receiver per cell of this size, the point of the cell nearest its centre, and
+            their energy is interpolated to the other points; None traces them to every point.
 
         Points outside the room, or inside a closed obstacle, are left out with one ``UserWarning``.
         The ray tracer is pyroomacoustics', whose scattering over-estimates the late energy with high scattering
         coefficients (up to about 3 dB at s 0.6 to 1).
         """
         from compas_acoustics.room.geometry import RoomGeometry
-        from compas_acoustics.simulation_methods.base import _seed
         from compas_acoustics.room.raytracing import default_duration
+        from compas_acoustics.simulation_methods.base import _seed
 
         if image_source_order < MIN_IMAGE_SOURCE_ORDER:
             raise ValueError(f"image_source_order must be {MIN_IMAGE_SOURCE_ORDER} or more, got {image_source_order!r}")
@@ -159,16 +187,58 @@ class EnergyMap(_PackageDtype, Data):
             duration = default_duration(geometry, air_absorption)
         bands = np.asarray(Defaults().DEFAULT_FREQUENCY_BANDS, dtype=float)
 
+        if n_rays is None:
+            n_rays = map_rays(geometry.volume, duration)
         fs = int(scene.sampling_rate)
-        rays = _ray_energy(geometry, sources, points[inside], fs, image_source_order, duration, n_rays, air_absorption, _seed(seed), bands)
-        early = _image_source_energy(geometry, sources, points[inside], fs, image_source_order, air_absorption, bands, rays.shape[2], _BIN_SIZE)
+        mapped = points[inside]
+        receivers = mapped if ray_spacing is None else _ray_receivers(mapped, ray_spacing)
+        rays = _ray_energy(geometry, sources, receivers, fs, image_source_order, duration, n_rays, air_absorption, _seed(seed), bands)
+        if receivers is not mapped:
+            rays = _interpolate(receivers, rays, mapped)
+        early = _image_source_energy(geometry, sources, mapped, fs, image_source_order, air_absorption, bands, rays.shape[2], _BIN_SIZE)
         energy = np.zeros((len(points), len(bands), rays.shape[2]))
         energy[inside] = rays + early
-        return cls(points, inside, bands, _BIN_SIZE, energy)
+        result = cls(points, inside, bands, _BIN_SIZE, energy)
+        # the rays traced, for a caller's message; not data of the map
+        result.n_rays = int(n_rays)
+        return result
 
 
 # directional_histograms' bin, which the image sources share
 _BIN_SIZE = 0.004
+
+
+def _ray_receivers(points: np.ndarray, spacing: float) -> np.ndarray:
+    """One point per cell of ``spacing``: the point of the cell nearest the mean of the cell's points, in their order."""
+    if not len(points):
+        return points
+    cells = np.floor(points / spacing).astype(np.int64)
+    _, cell = np.unique(cells, axis=0, return_inverse=True)
+    cell = np.asarray(cell).reshape(-1)
+    chosen = []
+    for c in range(cell.max() + 1):
+        members = np.flatnonzero(cell == c)
+        centre = points[members].mean(axis=0)
+        chosen.append(members[np.argmin(np.linalg.norm(points[members] - centre, axis=1))])
+    return points[np.sort(chosen)]
+
+
+def _interpolate(receivers: np.ndarray, energy: np.ndarray, points: np.ndarray) -> np.ndarray:
+    """The energy at ``points`` (n, 3) from the receivers' (r, b, bins): the nearest receivers' by inverse squared distance."""
+    if not len(points):
+        return np.zeros((0,) + energy.shape[1:])
+    k = min(_NEIGHBOURS, len(receivers))
+    distance, index = cKDTree(receivers).query(points, k=k)
+    distance = np.asarray(distance, dtype=float).reshape(len(points), k)
+    index = np.asarray(index).reshape(len(points), k)
+    with np.errstate(divide="ignore"):
+        weights = 1.0 / distance ** 2
+    # a point on a receiver takes the receiver's energy alone
+    exact = distance[:, 0] < 1e-9
+    weights[exact] = 0.0
+    weights[exact, 0] = 1.0
+    weights /= weights.sum(axis=1, keepdims=True)
+    return np.einsum("nk,nkbt->nbt", weights, energy[index])
 
 
 def _level_weights(source, bands) -> np.ndarray:

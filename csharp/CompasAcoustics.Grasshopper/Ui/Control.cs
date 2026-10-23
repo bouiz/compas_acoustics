@@ -40,9 +40,9 @@ namespace CompasAcoustics.Grasshopper
     /// <summary>
     /// A number from ``Min`` to ``Max`` in steps of ``Step``, dragged; a component may give the range itself
     /// (<see cref="ComponentBase.SliderRange"/>). ``Live``: the input follows the knob while it is dragged (Billiard's time),
-    /// else it is set when the knob is let go.
+    /// else it is set when the knob is let go. ``Title`` replaces the input's name above it.
     /// </summary>
-    public sealed record SliderControl(string Port, double Min, double Max, string Unit, double Step = 0.1, bool Live = false) : Control(Port);
+    public sealed record SliderControl(string Port, double Min, double Max, string Unit, double Step = 0.1, bool Live = false, string? Title = null) : Control(Port);
 
     /// <summary>Where a control is drawn: its row, and for a switch the box of each option.</summary>
     /// <summary>``Title``: the row above a switch or dropdown that names its input; empty for a button.</summary>
@@ -69,8 +69,13 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>The title of a control: a dropdown's own, else its input's name, capitalised, ``time_scale`` as ``Time scale``.</summary>
         public static string Title(Control control)
         {
-            if (control is DropdownControl { Title: string title })
-                return title;
+            switch (control)
+            {
+                case DropdownControl { Title: string title }:
+                    return title;
+                case SliderControl { Title: string title }:
+                    return title;
+            }
             var name = control.Port.Replace('_', ' ');
             return name.Length == 0 ? name : char.ToUpperInvariant(name[0]) + name.Substring(1);
         }

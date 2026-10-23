@@ -19,10 +19,8 @@ namespace CompasAcoustics.Grasshopper
         protected override IGH_Param? CreateParam(PortSpec port, bool input) =>
             input && port.Name == "scene" ? new Param_Scene() : !input ? new Param_IrGraph() : null;
 
-        /// <summary>The image source orders the simulations offer, 0 to 10.</summary>
-        internal static readonly string[] IsmOrders = Enumerable.Range(0, 11).Select(i => i.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToArray();
-
-        internal static DropdownControl IsmOrder => new("ism_order", IsmOrders, "3", Title: "ISM order");
+        /// <summary>The image source order of the simulations: whole orders from 0 to 10, set when the knob is let go (a run follows).</summary>
+        internal static SliderControl IsmOrder => new("ism_order", 0, 10, "", Step: 1, Title: "ISM order");
 
         public override IReadOnlyList<Control> Controls { get; } = new Control[]
         {

@@ -544,30 +544,28 @@ def ray_field(scene, source_index=None, n_rays=500, max_order=10, direction=None
     return {"field": field, "shown": shown, "seed": seed, "warnings": _messages(caught)}
 
 
-def energy_map(scene, points, source_index=None, n_rays=20000, image_source_order=1, seed=None):
+def energy_map(scene, points, source_index=None):
     """The sound pressure level of the scene's sources over ``points``, as Visualise Energy Map colours it.
+
+    The settings are fixed, as Pachyderm's mapping fixes its own: the image sources up to order 1, the rays of
+    :func:`compas_acoustics.energy_map.map_rays`, seeded with 42, so that the same scene gives the same map.
 
     Returns
     -------
     dict
-        ``{"bands": [Hz], "inside": [bool], "spl": [[dB per band] per point], "spl_a": [dB(A) per point], "seed": int,
-        "warnings": [str]}``: NaN for a point outside the room (:class:`compas_acoustics.EnergyMap`). No ``seed`` draws one.
+        ``{"bands": [Hz], "inside": [bool], "spl": [[dB per band] per point], "spl_a": [dB(A) per point], "n_rays": int,
+        "warnings": [str]}``: NaN for a point outside the room (:class:`compas_acoustics.EnergyMap`).
     """
-    import random
-
     from compas_acoustics import EnergyMap
 
     count = len(scene.sources)
     if source_index is not None and not 0 <= source_index < count:
         raise ValueError(_index_message("source", source_index, count))
-    seed = random.randrange(2**31) if seed is None else int(seed)
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        result = EnergyMap.from_scene(scene, points, source_index=None if source_index is None else int(source_index),
-                                      n_rays=20000 if n_rays is None else int(n_rays),
-                                      image_source_order=1 if image_source_order is None else int(image_source_order), seed=seed)
+        result = EnergyMap.from_scene(scene, points, source_index=None if source_index is None else int(source_index), seed=True)
     return {"bands": result.bands.tolist(), "inside": [bool(v) for v in result.inside], "spl": result.spl().tolist(),
-            "spl_a": result.spl_a().tolist(), "seed": seed, "warnings": _messages(caught)}
+            "spl_a": result.spl_a().tolist(), "n_rays": result.n_rays, "warnings": _messages(caught)}
 
 
 def specular_reflections(scene, orders=None, source_index=None, receiver_index=None):

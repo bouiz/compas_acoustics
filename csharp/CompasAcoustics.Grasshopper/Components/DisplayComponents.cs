@@ -5,6 +5,7 @@ using System.Linq;
 using CompasAcoustics.Pb;
 using Grasshopper.Kernel;
 using Grasshopper.Kernel.Parameters;
+using Grasshopper.Kernel.Types;
 using Rhino.Geometry;
 
 namespace CompasAcoustics.Grasshopper
@@ -368,14 +369,14 @@ namespace CompasAcoustics.Grasshopper
         public override IReadOnlyList<Control> Controls { get; } = new Control[]
         {
             PreviewSwitch,
-            new DropdownControl("band", new[] { "", "0", "1", "2", "3", "4", "5", "6" }, "", new[] { "A-weighted" }.Concat(Bands).ToArray()),
+            new DropdownControl("frequency_bands", new[] { "", "0", "1", "2", "3", "4", "5", "6" }, "", new[] { "Full (A-weighted)" }.Concat(Bands).ToArray()),
             SourceDropdown,
         };
 
         protected override IGH_Param? CreateParam(PortSpec port, bool input) => (input, port.Name) switch
         {
             (true, "scene") => new Param_Scene(),
-            (true, "mesh") => new Param_Mesh(),
+            (true, "mesh") => new Param_Geometry(),
             (true, "range") => new Param_Interval(),
             (false, "mesh") => new Param_Mesh(),
             (false, "values") => new Param_Number(),
@@ -395,36 +396,38 @@ namespace CompasAcoustics.Grasshopper
                 Warn("Input parameter 'scene' failed to collect data.");
                 return;
             }
-            Mesh? mesh = null;
-            if (!access.GetData("mesh", ref mesh) || mesh == null || mesh.Faces.Count == 0)
+            var spacing = Value<double>(access, "spacing") ?? 0.25;
+            if (spacing <= 0)
             {
-                Warn("Input parameter 'mesh' failed to collect data.");
+                Warn("Input parameter 'spacing' must be positive.");
+                return;
+            }
+            var mesh = SurfaceMesh(Item<IGH_Goo>(access, "mesh")?.ScriptVariable(), spacing);
+            if (mesh == null || mesh.Faces.Count == 0)
+            {
+                Warn("Input parameter 'mesh' failed to collect data: connect a mesh, a surface or a Brep.");
                 return;
             }
             SetIndexOptions("source_idx", scene.Value.Sources.Select(x => x.Name));
-            var band = Value<int>(access, "band");
+            var band = Value<int>(access, "frequency_bands");
             if (band is int b && (b < 0 || b >= Bands.Length))
             {
-                Warn($"Input parameter 'band' must be 0 to {Bands.Length - 1}; empty for the A-weighted level.");
+                Warn($"Input parameter 'frequency_bands' must be 0 to {Bands.Length - 1}; empty for the full, A-weighted level.");
                 return;
             }
             var range = Value<Interval>(access, "range");
-            var corners = mesh.Vertices.ToPoint3dArray();
-            var faceCorners = mesh.Faces.Select(f => f.IsQuad ? new[] { f.A, f.B, f.C, f.D } : new[] { f.A, f.B, f.C }).ToArray();
+            // a point every 'spacing': the faces of the mesh given (a plane of one face) split into grids
+            var (corners, faceCorners) = EnergyMapColours.Subdivide(mesh.Vertices.ToPoint3dArray(),
+                mesh.Faces.Select(f => f.IsQuad ? new[] { f.A, f.B, f.C, f.D } : new[] { f.A, f.B, f.C }).ToArray(), spacing);
             var centres = EnergyMapColours.FaceCentres(corners, faceCorners);
-            var kwargs = new Dictionary<string, object?>
-            {
-                ["source_index"] = Value<int>(access, "source_idx") is int s ? (long)s : null,
-                ["n_rays"] = (long)(Value<int>(access, "n_rays") ?? 20000),
-                ["image_source_order"] = (long)(Value<int>(access, "image_source_order") ?? 1),
-                ["seed"] = Value<int>(access, "seed") is int seed ? (long)seed : null,
-            };
+            // the image source order, the rays and their seed are the worker's: the same scene gives the same map
+            var kwargs = new Dictionary<string, object?> { ["source_index"] = Value<int>(access, "source_idx") is int s ? (long)s : null };
             var points = centres.Select(c => (object?)MeshConversion.Xyz(c)).ToList();
             // the mesh travels with its result: while a changed mesh runs, the last map is drawn on the mesh it was made for
             RunInBackground(access, new Background("energy_map", new object?[] { scene.Value, points }, kwargs, (mesh, corners, faceCorners)), (outcome, _) =>
             {
                 var result = (IDictionary<string, object?>)outcome.Result!;
-                var (mapped, vertices, faces) = ((Mesh, Point3d[], int[][]))outcome.Context!;
+                var (_, vertices, faces) = ((Mesh, Point3d[], int[][]))outcome.Context!;
                 // points outside the room
                 ShowWarnings(result);
                 var level = band is int index
@@ -434,28 +437,56 @@ namespace CompasAcoustics.Grasshopper
                 var label = band is int i ? Bands[i] : "dB(A)";
                 var colours = level.Select(v => EnergyMapColours.Of(v, scale.low, scale.high)).ToArray();
                 _drawn = Coloured(vertices, faces, colours);
-                Box = mapped.GetBoundingBox(true);
-                Message = string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0} {1:0.0} to {2:0.0} dB, seed={3}", label, scale.low, scale.high, result["seed"]);
+                Box = BoxOf(vertices);
+                Status(string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0} {1:0.0} to {2:0.0} dB", label, scale.low, scale.high),
+                    string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0} {1:0.0} to {2:0.0} dB\n{3} points, {4} rays per source",
+                        label, scale.low, scale.high, faces.Length, result["n_rays"]));
                 access.SetData("mesh", _drawn);
                 access.SetDataList("values", level);
                 access.SetDataList("colours", colours);
             });
         }
 
+        /// <summary>The analysis surface as a mesh: a mesh as it is, a surface or Brep meshed with faces no larger than ``spacing``.</summary>
+        private static Mesh? SurfaceMesh(object? geometry, double spacing)
+        {
+            Brep? brep = geometry switch
+            {
+                Brep b => b,
+                Surface surface => surface.ToBrep(),
+                _ => null,
+            };
+            if (geometry is Mesh given)
+                return given;
+            if (brep == null)
+                return null;
+            var parameters = new MeshingParameters { MaximumEdgeLength = spacing, MinimumEdgeLength = spacing / 10, JaggedSeams = true, SimplePlanes = false };
+            var meshes = Mesh.CreateFromBrep(brep, parameters);
+            if (meshes == null || meshes.Length == 0)
+                return null;
+            var joined = new Mesh();
+            joined.Append(meshes);
+            return joined;
+        }
+
         private static double[] Numbers(object? list) => ((IEnumerable<object?>)list!).Select(v => Convert.ToDouble(v, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
 
         private static double[][] Rows(object? list) => ((IEnumerable<object?>)list!).Select(Numbers).ToArray();
 
-        /// <summary>The mesh with every face its own vertices, so that each face takes its colour whole.</summary>
+        /// <summary>
+        /// The mesh with every face its own vertices, so that each face takes its colour whole, lifted a centimetre off the
+        /// surface it was made from (<see cref="EnergyMapColours.Offset"/>) so that the two do not flicker.
+        /// </summary>
         private static Mesh Coloured(Point3d[] vertices, int[][] faces, Color[] colours)
         {
             var mesh = new Mesh();
             for (var f = 0; f < faces.Length; f++)
             {
                 var first = mesh.Vertices.Count;
+                var lift = EnergyMapColours.Offset(faces[f].Select(v => vertices[v]).ToArray());
                 foreach (var v in faces[f])
                 {
-                    mesh.Vertices.Add(vertices[v]);
+                    mesh.Vertices.Add(vertices[v] + lift);
                     mesh.VertexColors.Add(colours[f]);
                 }
                 if (faces[f].Length == 4)

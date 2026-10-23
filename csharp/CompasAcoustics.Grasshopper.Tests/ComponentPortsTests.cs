@@ -20,7 +20,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         {
             var probe = new Probe();
             Assert.Equal("Acoustic Scene", probe.Name);
-            Assert.Equal(new[] { "objects", "sources", "receivers", "name", "sampling_rate" }, probe.Params.Input.Select(p => p.Name).ToArray());
+            Assert.Equal(new[] { "objects", "sources", "receivers", "name" }, probe.Params.Input.Select(p => p.Name).ToArray());
             Assert.Equal(GH_ParamAccess.list, probe.Params.Input[0].Access);
             Assert.Equal(GH_DataMapping.Flatten, probe.Params.Input[0].DataMapping);
             Assert.True(probe.Params.Input[3].Optional);

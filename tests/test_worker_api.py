@@ -490,8 +490,8 @@ def _map_scene():
 def test_energy_map_gives_levels_per_point_without_frames():
     import math
 
-    result = call("energy_map", _map_scene(), [[4, 3, 1.2], [3, 2, 1.2], [100, 0, 0]], n_rays=1000, seed=3)
-    assert result["seed"] == 3 and len(result["spl_a"]) == 3 and len(result["spl"]) == 3 and len(result["spl"][0]) == 7
+    result = call("energy_map", _map_scene(), [[4, 3, 1.2], [3, 2, 1.2], [100, 0, 0]])
+    assert len(result["spl_a"]) == 3 and len(result["spl"]) == 3 and len(result["spl"][0]) == 7
     assert result["bands"] == [125.0, 250.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0]
     assert result["inside"] == [True, True, False]
     assert math.isnan(result["spl_a"][2]) and all(math.isnan(v) for v in result["spl"][2])
@@ -501,9 +501,22 @@ def test_energy_map_gives_levels_per_point_without_frames():
     assert any("1 of 3 points" in w for w in result["warnings"])
 
 
-def test_energy_map_draws_a_seed_without_one():
+def test_energy_map_fixes_its_rays_seed_and_image_source_order():
+    from compas_acoustics.energy_map import map_rays
+    from compas_acoustics.room.geometry import RoomGeometry
+    from compas_acoustics.room.raytracing import default_duration
+
     assert "energy_map" in api.__all__
-    assert isinstance(call("energy_map", _map_scene(), [[4, 3, 1.2]], n_rays=500)["seed"], int)
+    scene = _map_scene()
+    result = call("energy_map", scene, [[4, 3, 1.2]])
+    geometry = RoomGeometry.from_scene(scene)
+    assert result["n_rays"] == map_rays(geometry.volume, default_duration(geometry, True))
+    # the same map every run: a map has no setting to tune but its grid
+    assert "seed" not in result
+    assert result["spl_a"] == call("energy_map", scene, [[4, 3, 1.2]])["spl_a"]
+    for removed in ("n_rays", "image_source_order", "seed"):
+        with pytest.raises(TypeError):
+            api.energy_map(scene, [[4, 3, 1.2]], **{removed: 1})
 
 
 def test_energy_map_rejects_a_source_index_out_of_range():

@@ -143,13 +143,17 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void TheIsmOrder_IsADropdownFrom0To10_On_EverySimulation()
+        public void TheIsmOrder_IsASliderOfWholeOrdersFrom0To10_OnEverySimulation()
         {
             foreach (var simulation in new ComponentBase[] { new SimulateMonoComponent(), new SimulateBinauralComponent(), new SimulateAmbisonicsComponent() })
             {
-                var ism = simulation.Controls.OfType<DropdownControl>().Single(c => c.Port == "ism_order");
-                Assert.Equal(Orders, ism.Options);
+                var ism = simulation.Controls.OfType<SliderControl>().Single(c => c.Port == "ism_order");
+                Assert.Equal((0.0, 10.0, 1.0, false), (ism.Min, ism.Max, ism.Step, ism.Live));
                 Assert.Equal("ISM order", ControlLayout.Title(ism));
+                Assert.DoesNotContain(simulation.Controls, c => c is DropdownControl { Port: "ism_order" });
+                // it shows the input's own value, 3 until moved
+                Assert.Equal(3, ControlState.Persistent(simulation.ControlPort("ism_order")!));
+                Assert.Equal(7.0, ComponentUi.SliderValue(ism, new RectangleF(0, 0, 100, 20), 66));
                 Assert.Equal(3, ComponentSpec.Load(simulation is SimulateMonoComponent ? "CA_Simulate_Mono" : simulation is SimulateBinauralComponent ? "CA_Simulate_Binaural" : "CA_Simulate_Ambisonics")
                     .Inputs.Single(p => p.Name == "ism_order").Default);
             }
@@ -161,24 +165,31 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(new[] { "ism_order", "ray_tracing", "absorb_air", "normalize" }, new SimulateMonoComponent().ControlPorts);
             Assert.Equal(new[] { "ism_order", "tail", "diffraction", "late_envelope", "normalize", "hrtf", "run" }, new SimulateBinauralComponent().ControlPorts);
             Assert.Equal(new[] { "ism_order", "tail", "diffraction", "late_envelope", "normalize", "run" }, new SimulateAmbisonicsComponent().ControlPorts);
-            Assert.Equal(new[] { "sampling_rate" }, new RoomSceneComponent().ControlPorts);
+            Assert.Empty(new RoomSceneComponent().ControlPorts);
             Assert.Equal(new[] { "mix_sources" }, new AuraliseComponent().ControlPorts);
             Assert.Equal(new[] { "source_idx", "scattering", "order" }, new VisualiseRaysComponent().ControlPorts);
             Assert.Equal(new[] { "source_idx", "receiver_idx", "order" }, new VisualiseReflectionsComponent().ControlPorts);
             Assert.Equal(new[] { "time", "speed", "play" }, new VisualiseBilliardComponent().ControlPorts);
-            Assert.Equal(new[] { "band", "source_idx" }, new VisualiseEnergyMapComponent().ControlPorts);
+            Assert.Equal(new[] { "frequency_bands", "source_idx" }, new VisualiseEnergyMapComponent().ControlPorts);
             Assert.Equal(new[] { "source_idx", "receiver_idx" }, new DeconstructIrGraphComponent().ControlPorts);
             Assert.Equal(new[] { "sound_file" }, new SourceComponent().ControlPorts);
             Assert.Equal(new[] { "category" }, new ConstructMaterialComponent().ControlPorts);
         }
 
         [Fact]
-        public void TheSamplingRate_IsASwitchOfThreeRates_ShownInKilohertz()
+        public void TheSamplingRate_IsADropdownOfThreeRates_TheScenesOwnChoice()
         {
-            var rate = new RoomSceneComponent().Controls.OfType<SwitchControl>().Single();
+            var scene = new RoomSceneComponent();
+            var rate = scene.Controls.OfType<DropdownControl>().Single();
             Assert.Equal(new[] { "44100", "48000", "96000" }, rate.Options);
             Assert.Equal(new[] { "44.1 kHz", "48 kHz", "96 kHz" }, rate.Options.Select(o => ControlLayout.Label(rate, o)));
             Assert.Equal("48000", rate.Default);
+            // not an input: the component holds it, and saves it
+            Assert.DoesNotContain("sampling_rate", ComponentSpec.Load("CA_Model").Inputs.Select(p => p.Name));
+            Assert.True(scene.IsChoice("sampling_rate"));
+            Assert.Equal("48000", scene.Choice("sampling_rate"));
+            scene.SetChoice("sampling_rate", "96000");
+            Assert.Equal("96000", ((RoomSceneComponent)RoundTrip(scene)).Choice("sampling_rate"));
         }
 
         [Fact]
@@ -265,9 +276,10 @@ namespace CompasAcoustics.Grasshopper.Tests
         {
             var map = new VisualiseEnergyMapComponent();
             Assert.DoesNotContain(map.Controls, c => c is ButtonControl);
-            var band = map.Controls.OfType<DropdownControl>().Single(c => c.Port == "band");
+            var band = map.Controls.OfType<DropdownControl>().Single(c => c.Port == "frequency_bands");
+            Assert.Equal("Frequency bands", ControlLayout.Title(band));
             Assert.Equal(new[] { "", "0", "1", "2", "3", "4", "5", "6" }, band.Options);
-            Assert.Equal(new[] { "A-weighted", "125 Hz", "250 Hz", "500 Hz", "1 kHz", "2 kHz", "4 kHz", "8 kHz" }, band.Options.Select(o => ControlLayout.Label(band, o)));
+            Assert.Equal(new[] { "Full (A-weighted)", "125 Hz", "250 Hz", "500 Hz", "1 kHz", "2 kHz", "4 kHz", "8 kHz" }, band.Options.Select(o => ControlLayout.Label(band, o)));
             Assert.DoesNotContain("Play", ComponentSpec.Load("CA_Visualise_Energy_Map").Description);
         }
 

@@ -133,9 +133,10 @@ namespace CompasAcoustics.Grasshopper
 
         public override bool PreviewOffByDefault => true;
 
+        // the scene's own choice, not an input: every simulation of the scene runs at it
         public override IReadOnlyList<Control> Controls { get; } = new Control[]
         {
-            new SwitchControl("sampling_rate", new[] { "44100", "48000", "96000" }, "48000", new[] { "44.1 kHz", "48 kHz", "96 kHz" }),
+            new DropdownControl("sampling_rate", new[] { "44100", "48000", "96000" }, "48000", new[] { "44.1 kHz", "48 kHz", "96 kHz" }),
         };
 
         protected override IGH_Param? CreateParam(PortSpec port, bool input) => (input, port.Name) switch
@@ -176,8 +177,8 @@ namespace CompasAcoustics.Grasshopper
             }
             if (objects.Count < given.Count)
                 Warn($"{given.Count - objects.Count} of the {given.Count} objects are not acoustic objects (empty or invalid) and are left out.");
-            var rate = Value<int>(access, "sampling_rate");
-            var scene = (SceneData)Worker.Call("make_scene", objects, sources, receivers, Text(access, "name"), rate is int r ? (long)r : null)!;
+            var rate = long.Parse(Choice("sampling_rate"), System.Globalization.CultureInfo.InvariantCulture);
+            var scene = (SceneData)Worker.Call("make_scene", objects, sources, receivers, Text(access, "name"), rate)!;
             var goo = new SceneGoo(scene);
             var room = goo.Preview;
             var (shown, full) = MessageText.Scene(room?.Volume ?? 0, room?.Area ?? 0,

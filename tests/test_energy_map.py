@@ -26,6 +26,60 @@ def shoebox(dims, alpha, scattering, sources, spl=80.0):
     return scene
 
 
+def test_the_rays_give_every_point_its_target_of_hits_within_a_floor_and_a_cap():
+    import math
+
+    from compas_acoustics.energy_map import MAP_HITS
+    from compas_acoustics.energy_map import MAX_MAP_RAYS
+    from compas_acoustics.energy_map import MIN_MAP_RAYS
+    from compas_acoustics.energy_map import map_rays
+
+    c = Defaults().DEFAULT_SPEED_OF_SOUND
+    # Vorlaender (2008) Eq. 11.12 over the response length: a ray of length cT crosses a sphere of radius 0.5 m cT pi r^2 / V times
+    assert map_rays(12000.0, 5.0) == math.ceil(MAP_HITS * 12000.0 / (math.pi * 0.25 * c * 5.0))
+    assert MAP_HITS == 16000
+    assert map_rays(105.0, 0.8) == MIN_MAP_RAYS == 20000
+    assert map_rays(1e6, 1.0) == MAX_MAP_RAYS == 250000
+
+
+def test_the_rays_are_traced_to_one_receiver_per_metre_cell_of_the_map():
+    from compas_acoustics import energy_map
+
+    traced = []
+    real = energy_map._ray_energy
+
+    def spy(geometry, sources, mics, *args, **kwargs):
+        traced.append(len(mics))
+        return real(geometry, sources, mics, *args, **kwargs)
+
+    scene = shoebox((6.0, 5.0, 3.0), 0.3, 0.1, [(1.5, 1.5, 1.6)])
+    # a 0.25 m grid over 4 by 3 m: 16 by 12 points, 4 by 3 cells of 1 m
+    points = [[1.0 + 0.25 * i + 0.125, 1.0 + 0.25 * j + 0.125, 1.2] for i in range(16) for j in range(12)]
+    energy_map._ray_energy = spy
+    try:
+        m = EnergyMap.from_scene(scene, points, n_rays=2000, seed=1)
+    finally:
+        energy_map._ray_energy = real
+    assert traced == [12]
+    assert np.isfinite(m.spl_a()).all()
+
+
+def test_the_ray_energy_is_the_receivers_at_a_receiver_and_weighted_between():
+    from compas_acoustics.energy_map import _interpolate
+
+    receivers = np.array([[0.0, 0.0, 0.0], [2.0, 0.0, 0.0]])
+    energy = np.array([[[1.0]], [[3.0]]])
+    out = _interpolate(receivers, energy, np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [2.0, 0.0, 0.0]]))
+    assert out[:, 0, 0] == pytest.approx([1.0, 2.0, 3.0])
+
+
+def test_points_a_metre_or_more_apart_are_each_their_own_receiver():
+    from compas_acoustics.energy_map import _ray_receivers
+
+    points = np.array([[0.5, 0.5, 1.2], [1.5, 0.5, 1.2], [2.5, 0.5, 1.2]])
+    assert _ray_receivers(points, 1.0).tolist() == points.tolist()
+
+
 def test_direct_sound_alone_gives_the_free_field_level():
     scene = shoebox((20.0, 20.0, 10.0), 0.99, 0.0, [(10.0, 10.0, 5.0)])
     m = EnergyMap.from_scene(scene, [[12.0, 10.0, 5.0]], n_rays=2000, air_absorption=False)

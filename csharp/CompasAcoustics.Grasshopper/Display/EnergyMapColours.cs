@@ -40,6 +40,83 @@ namespace CompasAcoustics.Grasshopper
                 return sum / face.Length;
             }).ToArray();
 
+        /// <summary>
+        /// The faces split into grids until no edge is longer than ``spacing``: a quad into quads, a triangle into triangles,
+        /// so the map has a point every ``spacing`` metres whatever the mesh it was given (a plane of one face).
+        /// </summary>
+        public static (Point3d[] corners, int[][] faces) Subdivide(IReadOnlyList<Point3d> vertices, IReadOnlyList<int[]> faces, double spacing)
+        {
+            var corners = new List<Point3d>();
+            var split = new List<int[]>();
+            int Steps(params double[] lengths) => Math.Max(1, (int)Math.Ceiling(lengths.Max() / spacing - 1e-9));
+            int Add(Point3d p)
+            {
+                corners.Add(p);
+                return corners.Count - 1;
+            }
+            foreach (var face in faces)
+            {
+                var v = face.Select(i => vertices[i]).ToArray();
+                if (v.Length == 4)
+                {
+                    var (a, b, c, d) = (v[0], v[1], v[2], v[3]);
+                    var nu = Steps(a.DistanceTo(b), d.DistanceTo(c));
+                    var nv = Steps(a.DistanceTo(d), b.DistanceTo(c));
+                    var grid = new int[nu + 1, nv + 1];
+                    for (var i = 0; i <= nu; i++)
+                        for (var j = 0; j <= nv; j++)
+                        {
+                            double u = (double)i / nu, w = (double)j / nv;
+                            // bilinear: the face's own shape, flat or not
+                            var p = (1 - u) * (1 - w) * a + u * (1 - w) * b + u * w * c + (1 - u) * w * d;
+                            grid[i, j] = Add(new Point3d(p.X, p.Y, p.Z));
+                        }
+                    for (var i = 0; i < nu; i++)
+                        for (var j = 0; j < nv; j++)
+                            split.Add(new[] { grid[i, j], grid[i + 1, j], grid[i + 1, j + 1], grid[i, j + 1] });
+                }
+                else if (v.Length == 3)
+                {
+                    var (a, b, c) = (v[0], v[1], v[2]);
+                    var n = Steps(a.DistanceTo(b), b.DistanceTo(c), c.DistanceTo(a));
+                    var grid = new int[n + 1, n + 1];
+                    for (var i = 0; i <= n; i++)
+                        for (var j = 0; i + j <= n; j++)
+                            grid[i, j] = Add(a + (b - a) * ((double)i / n) + (c - a) * ((double)j / n));
+                    for (var i = 0; i < n; i++)
+                        for (var j = 0; i + j < n; j++)
+                        {
+                            split.Add(new[] { grid[i, j], grid[i + 1, j], grid[i, j + 1] });
+                            if (i + j < n - 1)
+                                split.Add(new[] { grid[i + 1, j], grid[i + 1, j + 1], grid[i, j + 1] });
+                        }
+                }
+            }
+            return (corners.ToArray(), split.ToArray());
+        }
+
+        /// <summary>How far the map is drawn off its surface, in metres: enough not to flicker with the surface it came from.</summary>
+        public const double Lift = 0.01;
+
+        /// <summary>A face's lift: along its normal, turned upward on a floor or ceiling (|z| over 0.5), as wound on a wall.</summary>
+        public static Vector3d Offset(IReadOnlyList<Point3d> face)
+        {
+            // Newell's normal
+            var normal = Vector3d.Zero;
+            for (var i = 0; i < face.Count; i++)
+            {
+                Point3d a = face[i], b = face[(i + 1) % face.Count];
+                normal += new Vector3d((a.Y - b.Y) * (a.Z + b.Z), (a.Z - b.Z) * (a.X + b.X), (a.X - b.X) * (a.Y + b.Y));
+            }
+            var length = normal.Length;
+            if (length < 1e-12)
+                return new Vector3d(0, 0, Lift);
+            normal /= length;
+            if (Math.Abs(normal.Z) > 0.5 && normal.Z < 0)
+                normal = -normal;
+            return normal * Lift;
+        }
+
         private static Color Hsv(double hue, double saturation, double value)
         {
             var c = value * saturation;

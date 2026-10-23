@@ -125,21 +125,17 @@ def binaural(image, d, accent):
 
 
 def ambisonics(image, d, accent):
-    # the zonal spherical harmonic of order 2 (ACN 6): the lobes of |P2(cos t)| along the vertical axis in accent, and
-    # the ring of the other sign around the waist in dark, a torus seen a little from above
-    def lobe(start, stop):
-        points = [(48, 48)]
-        for i in range(61):
-            t = start + (stop - start) * i / 60
-            r = 44 * abs(3 * math.cos(t) ** 2 - 1) / 2
-            points.append((48 + r * math.sin(t), 48 - r * math.cos(t)))
-        d.polygon(points, fill=accent)
-
-    edge = math.acos(1 / math.sqrt(3))
-    lobe(-edge, edge)
-    lobe(math.pi - edge, math.pi + edge)
-    d.ellipse((8, 38, 88, 58), fill=DARK)
-    d.ellipse((34, 44, 62, 52), fill=accent)
+    # the Ambisonic logo: an outer circle, four of half its radius on its axes and one at its centre, filled even-odd
+    # (AmbisonicLogo.svg: radius 116.5 of a 233 box, the small circles 58.1 at 58.1 from the centre)
+    scale = 92 / 233
+    circles = [(0, 0, 116.5), (-58.4, 0, 58.1), (58.5, 0, 58.3), (0, 58.4, 58.1), (0, -58.4, 58.1), (0, 0, 58.3)]
+    fill = DARK
+    for y in range(S):
+        for x in range(S):
+            u, v = (x + 0.5 - 48) / scale, (y + 0.5 - 48) / scale
+            inside = sum(1 for cx, cy, r in circles if (u - cx) ** 2 + (v - cy) ** 2 <= r * r)
+            if inside % 2:
+                image.putpixel((x, y), fill)
 
 
 def graph(image, d, accent):

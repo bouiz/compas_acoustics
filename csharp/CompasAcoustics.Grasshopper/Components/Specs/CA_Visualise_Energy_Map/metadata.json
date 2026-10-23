@@ -3,7 +3,7 @@
     "nickname": "EnergyMap",
     "category": "COMPAS Acoustics",
     "subcategory": "05 Display",
-    "description": "Colour a mesh by the sound pressure level of the scene's sources: one point per face centre, the direct sound and image sources up to image_source_order, and pyroomacoustics' rays past it, with each source's level at 1 m (Source spl). Blue is the lowest level, red the highest; a face outside the room or inside an obstacle is grey. The ray tracer over-estimates the late energy of surfaces that scatter strongly (up to about 3 dB at scattering 0.6 to 1). The Preview button shows or hides the drawing.",
+    "description": "Colour a surface by the sound pressure level of the scene's sources: the surface is meshed into faces no larger than spacing, one point per face centre, and each point gets the direct sound and the first-order image sources, and pyroomacoustics' rays past them, enough rays for every point to stay within about 0.5 dB from run to run (more in larger rooms), with each source's level at 1 m (Source spl). Blue is the lowest level, red the highest; a face outside the room or inside an obstacle is grey. The ray tracer over-estimates the late energy of surfaces that scatter strongly (up to about 3 dB at scattering 0.6 to 1). The Preview button shows or hides the drawing.",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,
@@ -18,10 +18,18 @@
             },
             {
                 "name": "mesh",
-                "description": "The analysis surface, for instance a plane at ear height: one point per face centre.",
+                "description": "The analysis surface: a mesh, a surface or a Brep, for instance a plane at ear height. It is meshed into faces no larger than spacing, one point per face centre.",
                 "optional": false,
                 "scriptParamAccess": 0,
-                "typeHintID": "mesh"
+                "typeHintID": "geometrybase"
+            },
+            {
+                "name": "spacing",
+                "description": "The largest edge of the map's faces, in metres: one point every spacing, 0.25 m unless given (Pachyderm's mapping uses 0.5 m). The rays are traced on a 1 m grid whatever the spacing, so a finer map costs little more.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "float",
+                "default": 0.25
             },
             {
                 "name": "source_idx",
@@ -31,24 +39,8 @@
                 "typeHintID": "int"
             },
             {
-                "name": "n_rays",
-                "description": "Rays per source.",
-                "optional": true,
-                "scriptParamAccess": 0,
-                "typeHintID": "int",
-                "default": 20000
-            },
-            {
-                "name": "image_source_order",
-                "description": "Image sources up to this order at every point, the rays past it; at least 1. Higher orders are slower in furnished rooms.",
-                "optional": true,
-                "scriptParamAccess": 0,
-                "typeHintID": "int",
-                "default": 1
-            },
-            {
-                "name": "band",
-                "description": "Index of one octave band, 0 (125 Hz) to 6 (8 kHz). Empty (default): the A-weighted level of all bands.",
+                "name": "frequency_bands",
+                "description": "One octave band, 0 (125 Hz) to 6 (8 kHz). Empty: the full level of all bands, A-weighted.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "int"
@@ -59,13 +51,6 @@
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "interval"
-            },
-            {
-                "name": "seed",
-                "description": "Seed of the rays. Empty (default): a new seed each run, shown in the message.",
-                "optional": true,
-                "scriptParamAccess": 0,
-                "typeHintID": "int"
             }
         ],
         "outputParameters": [

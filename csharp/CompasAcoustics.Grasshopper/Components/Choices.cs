@@ -74,6 +74,7 @@ namespace CompasAcoustics.Grasshopper
                 ToggleControl => Choice(name),
                 SwitchControl s => s.Default ?? (declared != null ? Convert.ToString(declared, System.Globalization.CultureInfo.InvariantCulture) : s.Options.FirstOrDefault()),
                 DropdownControl d => d.Default ?? (declared != null ? Convert.ToString(declared, System.Globalization.CultureInfo.InvariantCulture) : null),
+                SliderControl => declared != null ? Convert.ToString(declared, System.Globalization.CultureInfo.InvariantCulture) : null,
                 _ => null,
             };
             return value == null || control == null ? null : ControlLayout.Label(control, value);
