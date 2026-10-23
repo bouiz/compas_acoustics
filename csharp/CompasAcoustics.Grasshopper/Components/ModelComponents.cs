@@ -102,7 +102,10 @@ namespace CompasAcoustics.Grasshopper
             }
             var obj = (AcousticObjectData)Worker.Call("make_acoustic_object", geometry, material.Value, Text(access, "name"),
                 Text(access, "role") ?? Roles[0])!;
-            access.SetData(0, new AcousticObjectGoo(obj));
+            var result = new AcousticObjectGoo(obj);
+            if (result.Preview is { Faces.Length: > 0 } preview)
+                Status(MessageText.Object(preview.Area));
+            access.SetData(0, result);
         }
     }
 
@@ -155,7 +158,10 @@ namespace CompasAcoustics.Grasshopper
             var rate = Value<int>(access, "sampling_rate");
             var scene = (SceneData)Worker.Call("make_scene", objects, sources, receivers, Text(access, "name"), rate is int r ? (long)r : null)!;
             var goo = new SceneGoo(scene);
-            Status(MessageText.Scene(scene.AcousticObjects.Count, scene.Sources.Count, scene.Receivers.Count, scene.SamplingRate, goo.Preview?.Volume ?? 0));
+            var room = goo.Preview;
+            var (shown, full) = MessageText.Scene(room?.Volume ?? 0, room?.Area ?? 0,
+                scene.AcousticObjects.Count, scene.Sources.Count, scene.Receivers.Count, scene.SamplingRate);
+            Status(shown, full);
             access.SetData(0, goo);
         }
     }

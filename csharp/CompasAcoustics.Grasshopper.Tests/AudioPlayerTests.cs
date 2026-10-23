@@ -71,8 +71,15 @@ namespace CompasAcoustics.Grasshopper.Tests
             var wave = new RectangleF(10, Controls.Bottom, 430, PlayerLayout.WaveHeight(2, 44));
             var boxes = PlayerLayout.Arrange(Controls, wave);
             Assert.All(new[] { boxes.PlayPause, boxes.Stop, boxes.Normalize, boxes.Volume, boxes.VolumeLabel }, b => Assert.True(Controls.Contains(b)));
-            Assert.True(boxes.PlayPause.Right <= boxes.Stop.Left && boxes.Stop.Right <= boxes.Normalize.Left && boxes.Normalize.Right <= boxes.Volume.Left);
-            Assert.True(boxes.VolumeLabel.Bottom <= boxes.Volume.Top && boxes.VolumeLabel.Left == boxes.Volume.Left);
+            // Play/Pause and Stop on top, Norm below as wide as the two, the volume to their right centred on both rows
+            Assert.True(boxes.PlayPause.Right <= boxes.Stop.Left && boxes.PlayPause.Top == boxes.Stop.Top);
+            Assert.True(boxes.Normalize.Top >= boxes.PlayPause.Bottom);
+            Assert.Equal((boxes.PlayPause.Left, boxes.Stop.Right), (boxes.Normalize.Left, boxes.Normalize.Right));
+            Assert.True(boxes.Volume.Left >= boxes.Stop.Right && boxes.VolumeLabel.Left == boxes.Volume.Left);
+            Assert.True(boxes.VolumeLabel.Bottom <= boxes.Volume.Top);
+            Assert.Equal((boxes.PlayPause.Top + boxes.Normalize.Bottom) / 2, (boxes.VolumeLabel.Top + boxes.Volume.Bottom) / 2, 3);
+            // the Volume label in the font of the input names, as a control's title
+            Assert.Equal(ControlLayout.TitleHeight, boxes.VolumeLabel.Height);
             Assert.True(boxes.Header.Top >= wave.Top && boxes.Header.Bottom <= boxes.Lanes.Top && boxes.Lanes.Bottom <= boxes.Ruler.Top && boxes.Ruler.Bottom <= wave.Bottom);
             Assert.Equal(wave.Left + PlayerLayout.Margin, boxes.Lanes.Left, 3);
             Assert.Equal(wave.Width - 2 * PlayerLayout.Margin, boxes.Lanes.Width, 3);
@@ -99,6 +106,17 @@ namespace CompasAcoustics.Grasshopper.Tests
             var lanes = Waveform.Lanes(PlayerLayout.Arrange(Controls, wave).Lanes, channels);
             Assert.All(lanes, lane => Assert.Equal(44f, lane.Height, 3));
             Assert.Equal(44 + Waveform.LaneGap, PlayerLayout.WaveHeight(2, 44) - PlayerLayout.WaveHeight(1, 44), 3);
+        }
+
+        [Fact]
+        public void TheNormalizeButton_SaysWhatTheInputSaid_AndItsDefault()
+        {
+            // the description of the normalize input it replaces, with the button's default
+            Assert.Equal("normalize", PlayerLayout.NormalizeTooltip.title);
+            Assert.Contains("full level before playing", PlayerLayout.NormalizeTooltip.text);
+            Assert.Contains("rendered level", PlayerLayout.NormalizeTooltip.text);
+            Assert.Contains("(default off)", PlayerLayout.NormalizeTooltip.text);
+            Assert.False(new AudioPlayerComponent().Normalize);
         }
 
         [Fact]

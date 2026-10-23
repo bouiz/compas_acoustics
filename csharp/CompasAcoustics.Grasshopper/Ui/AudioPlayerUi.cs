@@ -51,9 +51,8 @@ namespace CompasAcoustics.Grasshopper
             var boxes = Boxes;
             var signal = Player.Signal;
             using var small = new Font(FontFamily.GenericSansSerif, 6f);
-            using var label = new Font(FontFamily.GenericSansSerif, 7f);
             var channels = Player.Channels;
-            g.DrawString("Volume", label, Brushes.Black, boxes.VolumeLabel.Left, boxes.VolumeLabel.Top - 1);
+            g.DrawString("Volume", global::Grasshopper.Kernel.GH_FontServer.StandardAdjusted, Brushes.Black, boxes.VolumeLabel.Left, boxes.VolumeLabel.Top);
             if (signal != null)
             {
                 var header = Player.Problem ?? Waveform.Header(signal.Format, channels, signal.SamplingRate, Player.Transport.Duration, Peak(signal));
@@ -94,7 +93,7 @@ namespace CompasAcoustics.Grasshopper
             DrawIconButton(g, boxes.Stop, Icon.Stop, Player.CanPlay && Player.Transport.State != TransportState.Stopped, _down == "stop");
             // a toggle: dark when the signal is scaled to full level
             using (var norm = GH_Capsule.CreateTextCapsule(Rectangle.Round(boxes.Normalize), Rectangle.Round(boxes.Normalize),
-                       Player.Normalize ? GH_Palette.Black : GH_Palette.White, "Norm", 2, 0))
+                       Player.Normalize ? GH_Palette.Black : GH_Palette.White, "Normalize", 2, 0))
                 norm.Render(g, Selected, Owner.Locked, false);
             var gain = _draggedGain ?? Player.GainDb;
             Painter.Draw(g, new ControlBox(Volume, boxes.Volume, Array.Empty<RectangleF>()),
@@ -179,6 +178,19 @@ namespace CompasAcoustics.Grasshopper
                 return GH_ObjectResponse.Handled;
             }
             return GH_ObjectResponse.Handled;
+        }
+
+        public override bool IsTooltipRegion(PointF canvasPoint) => Boxes.Normalize.Contains(canvasPoint) || base.IsTooltipRegion(canvasPoint);
+
+        public override void SetupTooltip(PointF canvasPoint, GH_TooltipDisplayEventArgs e)
+        {
+            if (Boxes.Normalize.Contains(canvasPoint))
+            {
+                (e.Title, e.Text) = PlayerLayout.NormalizeTooltip;
+                e.Description = "";
+                return;
+            }
+            base.SetupTooltip(canvasPoint, e);
         }
 
         public override GH_ObjectResponse RespondToMouseDoubleClick(GH_Canvas sender, GH_CanvasMouseEvent e)

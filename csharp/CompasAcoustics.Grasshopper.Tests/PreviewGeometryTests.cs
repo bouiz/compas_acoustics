@@ -95,18 +95,18 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void Scene_LabelHasVolumeAndArea()
+        public void Scene_PreviewsItsObjects_WithoutALabel_AndMeasuresVolumeAndSurface()
         {
+            // its name, volume and area written over the room were clutter: the Scene component's message gives them
             var preview = PreviewGeometry.Scene(Room());
+            Assert.Equal(6, preview.Objects.Count);
+            Assert.Null(typeof(ScenePreview).GetProperty("Label"));
             Assert.Equal(105, preview.Volume, 9);
             Assert.Equal(142, preview.Area, 9);
-            Assert.Equal("room, V 105 m3, S 142 m2", preview.Label);
-            Assert.Equal(new Point3d(3.5, 2.5, 1.5), preview.LabelAt);
-            Assert.Equal(6, preview.Objects.Count);
         }
 
         [Fact]
-        public void Scene_ObstaclesAreFlagged_AndLeftOutOfVolumeAndArea()
+        public void Scene_ObstaclesAreFlagged_AndLeftOutOfVolumeAndSurface()
         {
             var preview = PreviewGeometry.Scene(Room(obstacle: true));
             Assert.Equal(105, preview.Volume, 9);
@@ -147,9 +147,54 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Null(typeof(ScenePreview).GetProperty("Sources"));
             Assert.Null(typeof(ScenePreview).GetProperty("Receivers"));
             var graph = new DeconstructIrGraphComponent();
-            Assert.Equal(new[] { "edges" }, graph.Params.Output.Where(graph.PreviewsOutput).Select(p => p.Name));
+            // nor its source-to-receiver edges: an output to wire on, not to see over the room
+            Assert.Empty(graph.Params.Output.Where(graph.PreviewsOutput).Select(p => p.Name));
             var source = new SourceComponent();
             Assert.All(source.Params.Output, p => Assert.True(source.PreviewsOutput(p)));
+        }
+
+        private static AcousticObjectData Meshed(double[][] vertices, params int[][] faces)
+        {
+            var mesh = new MeshData();
+            mesh.Vertices.Add(vertices.SelectMany(v => v));
+            foreach (var face in faces)
+            {
+                mesh.FaceSizes.Add((uint)face.Length);
+                mesh.FaceVertices.Add(face.Select(i => (uint)i));
+            }
+            return new AcousticObjectData { Mesh = mesh, Role = "boundary" };
+        }
+
+        private static readonly double[][] LFloor =
+            { new double[] { 0, 0, 0 }, new double[] { 2, 0, 0 }, new double[] { 2, 1, 0 }, new double[] { 1, 1, 0 }, new double[] { 1, 2, 0 }, new double[] { 0, 2, 0 } };
+
+        [Fact]
+        public void APlanarSurface_PreviewsItsOutline_NotItsTriangulation()
+        {
+            // an L-shaped floor in four triangles: its six sides, none of the three diagonals
+            var floor = PreviewGeometry.Object(Meshed(LFloor, new[] { 0, 1, 2 }, new[] { 0, 2, 3 }, new[] { 0, 3, 4 }, new[] { 0, 4, 5 }));
+            Assert.Equal(6, floor.Edges.Length);
+            Assert.Equal(3.0, floor.Area, 9);
+            Assert.Equal(8.0, floor.Edges.Sum(e => e.Length), 9);
+        }
+
+        [Fact]
+        public void UnweldedTriangles_StillHideTheirDiagonal()
+        {
+            // a quad as two triangles with their own copies of the shared corners, as Rhino meshes come
+            var v = new[] { new double[] { 0, 0, 0 }, new double[] { 1, 0, 0 }, new double[] { 1, 1, 0 }, new double[] { 0, 0, 0 }, new double[] { 1, 1, 0 }, new double[] { 0, 1, 0 } };
+            var quad = PreviewGeometry.Object(Meshed(v, new[] { 0, 1, 2 }, new[] { 3, 4, 5 }));
+            Assert.Equal(4, quad.Edges.Length);
+            Assert.DoesNotContain(quad.Edges, e => Math.Abs(e.Length - Math.Sqrt(2)) < 1e-9);
+        }
+
+        [Fact]
+        public void AFold_IsAnEdge()
+        {
+            // two faces at a right angle sharing a side: that side is drawn
+            var v = new[] { new double[] { 0, 0, 0 }, new double[] { 1, 0, 0 }, new double[] { 1, 1, 0 }, new double[] { 0, 1, 0 }, new double[] { 1, 0, 1 }, new double[] { 1, 1, 1 } };
+            var fold = PreviewGeometry.Object(Meshed(v, new[] { 0, 1, 2, 3 }, new[] { 1, 4, 5, 2 }));
+            Assert.Equal(7, fold.Edges.Length);
         }
 
         [Fact]
@@ -187,14 +232,11 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void IrGraphPreview_DrawsALinePerPairWithItsNames()
+        public void AnIrGraph_DrawsNothing()
         {
-            var scene = new SceneGoo(Room());
-            var ir = new ImpulseResponseData { Source = scene.Value.Sources[0], Receiver = scene.Value.Receivers[0], SamplingRate = 44100 };
-            var graph = new IrGraphGoo(new IrGraphGoo.Content("pyroomacoustics", scene.Sources, scene.Receivers, new[] { new ImpulseResponseGoo(ir) }));
-            var pair = Assert.Single(PreviewGeometry.Graph(graph.Value));
-            Assert.Equal(new Line(new Point3d(1.5, 1.5, 1.6), new Point3d(5, 3, 1.5)), pair.Line);
-            Assert.Equal("src -> rec", pair.Label);
+            // a line and a label per source and receiver pair was clutter over the room
+            Assert.False(typeof(global::Grasshopper.Kernel.IGH_PreviewData).IsAssignableFrom(typeof(IrGraphGoo)));
+            Assert.False(typeof(global::Grasshopper.Kernel.IGH_PreviewObject).IsAssignableFrom(typeof(Param_IrGraph)));
         }
     }
 }

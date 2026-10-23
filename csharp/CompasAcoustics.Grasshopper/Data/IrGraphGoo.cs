@@ -14,29 +14,8 @@ namespace CompasAcoustics.Grasshopper
     /// Simulate Ambisonics output and Deconstruct IR Graph takes. ``Method`` names the graph attribute the responses belong to:
     /// ``mono``, ``binaural`` or ``ambisonics``.
     /// </summary>
-    public sealed class IrGraphGoo : GH_Goo<IrGraphGoo.Content>, IGH_PreviewData
+    public sealed class IrGraphGoo : GH_Goo<IrGraphGoo.Content>
     {
-        private (Content of, List<PairPreview> pairs)? _preview;
-
-        /// <summary>A line from each source to each receiver, built once for each content.</summary>
-        public IReadOnlyList<PairPreview> Preview => Value == null ? new List<PairPreview>()
-            : (_preview is { } p && ReferenceEquals(p.of, Value) ? p : (_preview = (Value, PreviewGeometry.Graph(Value))).Value).pairs;
-
-        public BoundingBox ClippingBox
-        {
-            get
-            {
-                var box = BoundingBox.Empty;
-                foreach (var pair in Preview)
-                    box.Union(pair.Line.BoundingBox);
-                return box;
-            }
-        }
-
-        public void DrawViewportWires(GH_PreviewWireArgs args) => PreviewDrawing.Graph(args.Pipeline, Preview, args.Color, args.Thickness);
-
-        public void DrawViewportMeshes(GH_PreviewMeshArgs args) { }
-
         public sealed record Content(string Method, IReadOnlyList<SourceGoo> Sources, IReadOnlyList<ReceiverGoo> Receivers,
             IReadOnlyList<ImpulseResponseGoo> Responses);
 

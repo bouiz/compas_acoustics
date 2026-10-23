@@ -73,12 +73,17 @@ namespace CompasAcoustics.Grasshopper
         public const float RulerHeight = 10;
         public const float TransportHeight = 24;
         public const float ButtonWidth = 34;
-        public const float NormalizeWidth = 42;
-        /// <summary>The row of the Volume label, above the slider.</summary>
-        public const float VolumeLabelHeight = 11;
+        /// <summary>The Normalize button's tooltip: the description of the ``normalize`` input it replaced, with its default.</summary>
+        public static readonly (string title, string text) NormalizeTooltip = ("normalize",
+            "Whether to scale the signal to full level before playing (default off). Leave it off to hear auralised signals at their rendered level.");
 
-        /// <summary>The transport beside the icon, top right: the Volume label above the buttons and the slider.</summary>
-        public const float ControlsHeight = Margin + VolumeLabelHeight + TransportHeight + Margin;
+        /// <summary>Between the Play/Stop row and the Norm row.</summary>
+        public const float RowGap = 3;
+        /// <summary>The row of the Volume label, above the slider: a control title's, in the font of the input names.</summary>
+        public const float VolumeLabelHeight = ControlLayout.TitleHeight;
+
+        /// <summary>The transport beside the icon, top right: Play/Pause and Stop, Norm below them, the volume to their right.</summary>
+        public const float ControlsHeight = Margin + TransportHeight + RowGap + TransportHeight + Margin;
 
         /// <summary>The channels' height below the inputs, for ``channels`` lanes of ``laneHeight`` each: more channels, a taller component.</summary>
         public static float WaveHeight(int channels, float laneHeight)
@@ -92,12 +97,14 @@ namespace CompasAcoustics.Grasshopper
         public static PlayerBoxes Arrange(RectangleF controls, RectangleF wave)
         {
             var left = controls.Left + Margin;
-            var transportTop = controls.Bottom - Margin - TransportHeight;
-            RectangleF Button(int i) => new(left + i * (ButtonWidth + 2), transportTop, ButtonWidth, TransportHeight);
-            var normalize = new RectangleF(left + 2 * (ButtonWidth + 2), transportTop, NormalizeWidth, TransportHeight);
+            var top = controls.Top + Margin;
+            RectangleF Button(int i) => new(left + i * (ButtonWidth + 2), top, ButtonWidth, TransportHeight);
+            var normalize = new RectangleF(left, top + TransportHeight + RowGap, 2 * ButtonWidth + 2, TransportHeight);
+            // the label and the slider, centred on the two rows of buttons
             var volumeLeft = normalize.Right + 6;
-            var volume = new RectangleF(volumeLeft, transportTop, Math.Max(controls.Right - Margin - volumeLeft, 20), TransportHeight);
-            var volumeLabel = new RectangleF(volumeLeft, transportTop - VolumeLabelHeight, volume.Width, VolumeLabelHeight);
+            var labelTop = (top + normalize.Bottom) / 2 - (VolumeLabelHeight + TransportHeight) / 2;
+            var volumeLabel = new RectangleF(volumeLeft, labelTop, Math.Max(controls.Right - Margin - volumeLeft, 20), VolumeLabelHeight);
+            var volume = new RectangleF(volumeLeft, volumeLabel.Bottom, volumeLabel.Width, TransportHeight);
             if (wave.IsEmpty)
                 return new PlayerBoxes(RectangleF.Empty, RectangleF.Empty, RectangleF.Empty, Button(0), Button(1), normalize, volume, volumeLabel);
             var width = wave.Width - 2 * Margin;

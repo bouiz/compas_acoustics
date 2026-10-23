@@ -19,10 +19,20 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void SceneMessage_Format()
+        public void AcousticObjectMessage_ShowsItsSurface()
         {
-            Assert.Equal("6 objects, 1 source, 2 receivers, 48 kHz, V 105 m3", MessageText.Scene(6, 1, 2, 48000, 105.2));
-            Assert.Equal("1 object, 2 sources, 1 receiver, 44.1 kHz, V 0 m3", MessageText.Scene(1, 2, 1, 44100, 0));
+            Assert.Equal("S 12.3 m2", MessageText.Object(12.34));
+            Assert.Equal("S 0.6 m2", MessageText.Object(0.6));
+            Assert.Equal("S 245 m2", MessageText.Object(245.04));
+        }
+
+        [Fact]
+        public void SceneMessage_ShowsTheVolumeAndSurface_TheTooltipWhatItHolds()
+        {
+            var (shown, full) = MessageText.Scene(105.2, 142, 6, 1, 2, 48000);
+            Assert.Equal("V 105 m3, S 142 m2", shown);
+            Assert.Equal("V 105 m3, S 142 m2\n6 objects, 1 source, 2 receivers, 48 kHz", full);
+            Assert.Equal("V 1786 m3, S 1279 m2", MessageText.Scene(1786.4, 1279.2, 1, 2, 1, 44100).shown);
         }
 
         [Fact]

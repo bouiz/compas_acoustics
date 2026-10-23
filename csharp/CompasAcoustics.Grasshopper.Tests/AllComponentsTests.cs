@@ -67,10 +67,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             ["ReceiverComponent"] = new[] { "receiver" },
             ["AcousticObjectComponent"] = new[] { "acoustic_object" },
             ["RoomSceneComponent"] = new[] { "scene" },
-            ["SimulateMonoComponent"] = new[] { "mono_ir_graph" },
-            ["SimulateBinauralComponent"] = new[] { "binaural_ir_graph" },
-            ["SimulateAmbisonicsComponent"] = new[] { "ambisonic_ir_graph" },
-            ["DeconstructIrGraphComponent"] = new[] { "edges" },
         };
 
         [Theory]

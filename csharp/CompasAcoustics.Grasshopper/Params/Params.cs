@@ -17,22 +17,6 @@ namespace CompasAcoustics.Grasshopper
         public override GH_Exposure Exposure => GH_Exposure.hidden;
     }
 
-    /// <summary>A parameter whose data draw in the viewport wherever they flow (IR graphs), with the preview toggle.</summary>
-    public abstract class PreviewParam<T> : CompasAcousticsParam<T>, IGH_PreviewObject where T : class, IGH_Goo
-    {
-        protected PreviewParam(string name, string nickname, string description) : base(name, nickname, description) { }
-
-        public bool Hidden { get; set; }
-
-        public bool IsPreviewCapable => true;
-
-        public Rhino.Geometry.BoundingBox ClippingBox => Preview_ComputeClippingBox();
-
-        public void DrawViewportWires(IGH_PreviewArgs args) => Preview_DrawWires(args);
-
-        public void DrawViewportMeshes(IGH_PreviewArgs args) => Preview_DrawMeshes(args);
-    }
-
     /// <summary>
     /// A parameter of model data (sources, receivers, acoustic objects, scenes): it draws them itself, with the component's
     /// preview toggle; Grasshopper's generic parameters, which only draw IGH_PreviewData, pass them through without drawing.
@@ -111,7 +95,7 @@ namespace CompasAcoustics.Grasshopper
         public override Guid ComponentGuid => new Guid("01777b71-1eef-5db4-ab66-df91dac8014b");
     }
 
-    public sealed class Param_IrGraph : PreviewParam<IrGraphGoo>
+    public sealed class Param_IrGraph : CompasAcousticsParam<IrGraphGoo>
     {
         public Param_IrGraph() : base("IR Graph", "IRG", "The impulse responses of a simulation output, per source and receiver.") { }
 

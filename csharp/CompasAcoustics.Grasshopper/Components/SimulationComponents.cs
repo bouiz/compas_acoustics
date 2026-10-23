@@ -71,8 +71,8 @@ namespace CompasAcoustics.Grasshopper
             _ => null,
         };
 
-        /// <summary>Only the edges: the sources and receivers are drawn by their own components.</summary>
-        public override bool PreviewsOutput(IGH_Param output) => output.Name == "edges";
+        /// <summary>Nothing: the sources and receivers are drawn by their own components, the edges are an output to wire on.</summary>
+        public override bool PreviewsOutput(IGH_Param output) => false;
 
         protected override void Solve(IGH_DataAccess access)
         {

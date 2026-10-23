@@ -33,12 +33,9 @@ namespace CompasAcoustics.Grasshopper
             pipeline.Draw2dText(receiver.Label, color, receiver.Centre + new Vector3d(0, 0, PreviewGeometry.HeadRadius), false, LabelHeight);
         }
 
-        public static void SceneWires(DisplayPipeline pipeline, ScenePreview scene, Color color, int thickness)
-        {
+        public static void SceneWires(DisplayPipeline pipeline, ScenePreview scene, Color color, int thickness) =>
             // the sources and receivers are drawn by their own components, under their own preview toggles
             ObjectWires(pipeline, scene.Objects, color, thickness);
-            pipeline.Draw2dText(scene.Label, color, scene.LabelAt, true, LabelHeight);
-        }
 
         /// <summary>The objects' edges: obstacles in orange, the others in the preview colour.</summary>
         public static void ObjectWires(DisplayPipeline pipeline, IEnumerable<ObjectPreview> objects, Color color, int thickness)
@@ -48,17 +45,7 @@ namespace CompasAcoustics.Grasshopper
                 var edge = o.Obstacle ? ObstacleEdge : color;
                 if (o.Polyline != null)
                     pipeline.DrawPolyline(o.Polyline, edge, thickness);
-                foreach (var face in o.Faces)
-                    pipeline.DrawPolyline(face.Append(face[0]).Select(i => o.Vertices[i]), edge, thickness);
-            }
-        }
-
-        public static void Graph(DisplayPipeline pipeline, IEnumerable<PairPreview> pairs, Color color, int thickness)
-        {
-            foreach (var pair in pairs)
-            {
-                pipeline.DrawLine(pair.Line, color, thickness);
-                pipeline.Draw2dText(pair.Label, color, pair.Line.PointAt(0.5), true, LabelHeight);
+                pipeline.DrawLines(o.Edges, edge, thickness);
             }
         }
 

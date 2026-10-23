@@ -15,12 +15,16 @@ namespace CompasAcoustics.Grasshopper
     /// <summary>A receiver: a head, a sphere with its ears on the sides, its facing and up (a source is a loudspeaker).</summary>
     public sealed record ReceiverPreview(Point3d Centre, Line Facing, Line Up, Point3d LeftEar, Point3d RightEar, Vector3d EarAxis, string Label);
 
-    /// <summary>One acoustic object: its mesh (or its polyline), its shade, whether it is an obstacle.</summary>
-    public sealed record ObjectPreview(Point3d[] Vertices, int[][] Faces, Polyline? Polyline, bool Obstacle);
+    /// <summary>One acoustic object: its mesh (or its polyline), the edges drawn of it, whether it is an obstacle.</summary>
+    public sealed record ObjectPreview(Point3d[] Vertices, int[][] Faces, Polyline? Polyline, bool Obstacle, Line[] Edges)
+    {
+        /// <summary>The surface of its faces (0 for a polyline).</summary>
+        public double Area => Faces.Sum(face => Enumerable.Range(1, Math.Max(face.Length - 2, 0))
+            .Sum(i => Vector3d.CrossProduct(Vertices[face[i]] - Vertices[face[0]], Vertices[face[i + 1]] - Vertices[face[0]]).Length / 2));
+    }
 
-    public sealed record ScenePreview(IReadOnlyList<ObjectPreview> Objects, string Label, Point3d LabelAt, double Volume, double Area, BoundingBox Box);
-
-    public sealed record PairPreview(Line Line, string Label);
+    /// <summary>A scene: its objects, and the room's volume and surface (its boundary, obstacles left out) for the Scene component's message.</summary>
+    public sealed record ScenePreview(IReadOnlyList<ObjectPreview> Objects, BoundingBox Box, double Volume, double Area);
 
     /// <summary>What the goo draw in the viewport, as plain geometry (the drawing itself is in <see cref="PreviewDrawing"/>).</summary>
     public static class PreviewGeometry
@@ -121,62 +125,71 @@ namespace CompasAcoustics.Grasshopper
             if (o.GeometryCase == AcousticObjectData.GeometryOneofCase.Mesh)
             {
                 var (vertices, faces) = Mesh(o.Mesh);
-                return new ObjectPreview(vertices, faces, null, obstacle);
+                return new ObjectPreview(vertices, faces, null, obstacle, Edges(vertices, faces));
             }
             var polyline = o.GeometryCase == AcousticObjectData.GeometryOneofCase.Polyline ? new Polyline(MeshConversion.Points(o.Polyline.Points)) : null;
-            return new ObjectPreview(Array.Empty<Point3d>(), Array.Empty<int[]>(), polyline, obstacle);
+            return new ObjectPreview(Array.Empty<Point3d>(), Array.Empty<int[]>(), polyline, obstacle, Array.Empty<Line>());
         }
 
-        public static ScenePreview Scene(SceneData scene)
+        /// <summary>Two faces meeting at less than this angle (cosine of 1 degree) are one surface: their side is not an edge.</summary>
+        private const double Coplanar = 0.99985;
+
+        /// <summary>
+        /// The edges of a mesh as Rhino draws a surface's: the sides of one face only (the outline) and the folds between two,
+        /// not the sides shared by faces of one plane (the triangulation). Corners are matched by position to the micrometre,
+        /// as a Rhino mesh's faces often have their own copies of them.
+        /// </summary>
+        public static Line[] Edges(Point3d[] vertices, int[][] faces)
         {
-            var objects = new List<ObjectPreview>();
-            var box = BoundingBox.Empty;
-            double volume = 0, area = 0;
-            var boundary = BoundingBox.Empty;
-            foreach (var o in scene.AcousticObjects)
+            (long, long, long) Key(Point3d p) => ((long)Math.Round(p.X * 1e6), (long)Math.Round(p.Y * 1e6), (long)Math.Round(p.Z * 1e6));
+            var sides = new Dictionary<((long, long, long), (long, long, long)), (Line line, List<Vector3d> normals)>();
+            foreach (var face in faces.Where(f => f.Length >= 3))
             {
-                var preview = Object(o);
-                var obstacle = preview.Obstacle;
-                objects.Add(preview);
-                if (o.GeometryCase == AcousticObjectData.GeometryOneofCase.Mesh)
+                // Newell's normal, robust for a polygon of any size
+                var normal = Vector3d.Zero;
+                for (var i = 0; i < face.Length; i++)
                 {
-                    var (vertices, faces) = (preview.Vertices, preview.Faces);
-                    foreach (var v in vertices)
-                        box.Union(v);
-                    if (obstacle)
-                        continue;
-                    foreach (var v in vertices)
-                        boundary.Union(v);
-                    foreach (var face in faces)
-                        for (var i = 1; i + 1 < face.Length; i++)
-                        {
-                            Point3d p0 = vertices[face[0]], p1 = vertices[face[i]], p2 = vertices[face[i + 1]];
-                            var cross = Vector3d.CrossProduct(p1 - p0, p2 - p0);
-                            area += cross.Length / 2;
-                            // divergence theorem: the signed volume of the tetrahedron with the origin
-                            volume += new Vector3d(p0) * Vector3d.CrossProduct(new Vector3d(p1), new Vector3d(p2)) / 6;
-                        }
+                    Point3d a = vertices[face[i]], b = vertices[face[(i + 1) % face.Length]];
+                    normal += new Vector3d((a.Y - b.Y) * (a.Z + b.Z), (a.Z - b.Z) * (a.X + b.X), (a.X - b.X) * (a.Y + b.Y));
                 }
-                else if (o.GeometryCase == AcousticObjectData.GeometryOneofCase.Polyline)
+                normal = normal.Length > 0 ? normal / normal.Length : normal;
+                for (var i = 0; i < face.Length; i++)
                 {
-                    foreach (var v in preview.Polyline!)
-                    {
-                        box.Union(v);
-                        if (!obstacle)
-                            boundary.Union(v);
-                    }
+                    Point3d a = vertices[face[i]], b = vertices[face[(i + 1) % face.Length]];
+                    var (ka, kb) = (Key(a), Key(b));
+                    if (ka == kb)
+                        continue;
+                    var key = ka.CompareTo(kb) < 0 ? (ka, kb) : (kb, ka);
+                    if (!sides.TryGetValue(key, out var side))
+                        sides[key] = side = (new Line(a, b), new List<Vector3d>());
+                    side.normals.Add(normal);
                 }
             }
-            volume = Math.Abs(volume);
-            var label = string.Format(CultureInfo.InvariantCulture, "{0}, V {1:0} m3, S {2:0} m2", scene.Name, volume, area);
-            var at = boundary.IsValid ? boundary.Center : box.IsValid ? box.Center : Point3d.Origin;
-            return new ScenePreview(objects, label, at, volume, area, box);
+            return sides.Values.Where(s => s.normals.Count != 2 || Math.Abs(s.normals[0] * s.normals[1]) < Coplanar).Select(s => s.line).ToArray();
         }
 
-        /// <summary>A line from the source to the receiver of each response.</summary>
-        public static List<PairPreview> Graph(IrGraphGoo.Content graph) =>
-            graph.Responses.Where(r => r.Value?.Source != null && r.Value.Receiver != null)
-                .Select(r => new PairPreview(new Line(Points.Of(r.Value.Source.Point), Points.Of(r.Value.Receiver.Point)), $"{r.SourceName} -> {r.ReceiverName}"))
-                .ToList();
+        /// <summary>The scene's objects (its sources and receivers are drawn by their own components), and the room's volume
+        /// and surface from its boundary.</summary>
+        public static ScenePreview Scene(SceneData scene)
+        {
+            var objects = scene.AcousticObjects.Select(Object).ToList();
+            var box = BoundingBox.Empty;
+            double volume = 0;
+            foreach (var o in objects)
+            {
+                foreach (var v in o.Polyline ?? (IEnumerable<Point3d>)o.Vertices)
+                    box.Union(v);
+                if (o.Obstacle)
+                    continue;
+                foreach (var face in o.Faces)
+                    for (var i = 1; i + 1 < face.Length; i++)
+                    {
+                        Point3d p0 = o.Vertices[face[0]], p1 = o.Vertices[face[i]], p2 = o.Vertices[face[i + 1]];
+                        // divergence theorem: the signed volume of the tetrahedron with the origin
+                        volume += new Vector3d(p0) * Vector3d.CrossProduct(new Vector3d(p1), new Vector3d(p2)) / 6;
+                    }
+            }
+            return new ScenePreview(objects, box, Math.Abs(volume), objects.Where(o => !o.Obstacle).Sum(o => o.Area));
+        }
     }
 }
