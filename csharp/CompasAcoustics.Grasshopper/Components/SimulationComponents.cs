@@ -19,6 +19,18 @@ namespace CompasAcoustics.Grasshopper
         protected override IGH_Param? CreateParam(PortSpec port, bool input) =>
             input && port.Name == "scene" ? new Param_Scene() : !input ? new Param_IrGraph() : null;
 
+        /// <summary>The image source orders the simulations offer, 0 to 10.</summary>
+        internal static readonly string[] IsmOrders = Enumerable.Range(0, 11).Select(i => i.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+
+        internal static DropdownControl IsmOrder => new("ism_order", IsmOrders, "3", Title: "ISM order");
+
+        public override IReadOnlyList<Control> Controls { get; } = new Control[]
+        {
+            IsmOrder,
+            new ToggleControl("ray_tracing", "Ray tracing", Inline: true), new ToggleControl("absorb_air", "Air", Inline: true),
+            new ToggleControl("normalize", "Normalize", Inline: true),
+        };
+
         protected override void Solve(IGH_DataAccess access)
         {
             var scene = Item<SceneGoo>(access, "scene");
@@ -71,6 +83,12 @@ namespace CompasAcoustics.Grasshopper
             _ => null,
         };
 
+        public override IReadOnlyList<Control> Controls { get; } = new Control[]
+        {
+            new DropdownControl("source_idx", new[] { "" }, "", new[] { "All" }, "Source"),
+            new DropdownControl("receiver_idx", new[] { "" }, "", new[] { "All" }, "Receiver"),
+        };
+
         /// <summary>Nothing: the sources and receivers are drawn by their own components, the edges are an output to wire on.</summary>
         public override bool PreviewsOutput(IGH_Param output) => false;
 
@@ -83,8 +101,8 @@ namespace CompasAcoustics.Grasshopper
                 return;
             }
             Message = graph.Value.Method;
-            SceneIndices.Apply(this, "source_idx", graph.Value.Sources.Select(x => x.Name));
-            SceneIndices.Apply(this, "receiver_idx", graph.Value.Receivers.Select(x => x.Name));
+            SetIndexOptions("source_idx", graph.Value.Sources.Select(x => x.Name));
+            SetIndexOptions("receiver_idx", graph.Value.Receivers.Select(x => x.Name));
             var branches = IrGraphGrouping.Group(graph.Value, List<int>(access, "source_idx"), List<int>(access, "receiver_idx"), Warn);
             var irs = new DataTree<ImpulseResponseGoo>();
             var sources = new DataTree<SourceGoo>();

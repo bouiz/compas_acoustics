@@ -58,7 +58,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         public void NamedValues_AreDeclaredAndOnThePort()
         {
             Assert.Equal(new[] { ("1", 1), ("2", 2), ("3", 3) }, Port("CA_Simulate_Ambisonics", "sh_order").NamedValues);
-            Assert.Equal(Enumerable.Range(0, 7).Select(i => (i.ToString(), i)), Port("CA_Simulate_Mono", "ism_order").NamedValues);
+            Assert.Equal(Enumerable.Range(0, 11).Select(i => (i.ToString(), i)), Port("CA_Simulate_Mono", "ism_order").NamedValues);
             Assert.Equal(new[] { 44100, 48000, 96000 }, Port("CA_Model", "sampling_rate").NamedValues.Select(v => v.value));
             var hybrid = new SimulateAmbisonicsComponent();
             Assert.True(((Param_Integer)hybrid.Params.Input.Single(p => p.Name == "sh_order")).HasNamedValues);

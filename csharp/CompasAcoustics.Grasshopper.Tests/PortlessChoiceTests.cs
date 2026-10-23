@@ -24,7 +24,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         {
             Assert.Equal(new[] { "ir" }, Names(ComponentSpec.Load("CA_Analyse_IR").Inputs));
             Assert.DoesNotContain("level", Names(ComponentSpec.Load("CA_Auralise").Inputs));
-            Assert.Equal(new[] { "audio", "sampling_rate" }, Names(ComponentSpec.Load("CA_Audio_Player").Inputs));
+            Assert.Equal(new[] { "audio" }, Names(ComponentSpec.Load("CA_Audio_Player").Inputs));
             Assert.Equal(new[] { "particles" }, Names(ComponentSpec.Load("CA_Visualise_Billiard").Outputs));
             Assert.DoesNotContain("role", Names(ComponentSpec.Load("CA_Acoustic_Object").Inputs));
             Assert.DoesNotContain("select", Names(ComponentSpec.Load("CA_Deconstruct_IR").Inputs));
@@ -38,7 +38,8 @@ namespace CompasAcoustics.Grasshopper.Tests
             // none, relative, individual from left to right; relative the default
             Assert.Equal(new[] { "none", "relative", "individual" }, auralise.Controls.OfType<SwitchControl>().Single(c => c.Port == "level").Options);
             Assert.Equal("relative", auralise.Choice("level"));
-            Assert.Empty(auralise.ControlPorts);
+            // level is the component's own; mix_sources an input its toggle sets
+            Assert.Equal(new[] { "mix_sources" }, auralise.ControlPorts);
             auralise.SetChoice("level", "none");
             var back = new AuraliseComponent();
             Assert.True(back.Read(Saved(auralise)));

@@ -19,6 +19,9 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>The drawing on and off on the body: the component's preview, as its right-click menu sets it.</summary>
         protected static readonly ToggleControl PreviewSwitch = new("preview", "Preview");
 
+        /// <summary>The source of a ``source_idx`` input: All, or one of the wired scene's.</summary>
+        protected static readonly DropdownControl SourceDropdown = new("source_idx", new[] { "" }, "", new[] { "All" }, "Source");
+
         /// <summary>Not the outputs: the component draws its rays, paths or particles itself (Rays' curves would show every ray before Play).</summary>
         public override bool PreviewsOutput(IGH_Param output) => false;
 
@@ -96,7 +99,11 @@ namespace CompasAcoustics.Grasshopper
 
         protected override bool RunsInBackground => true;
 
-        public override IReadOnlyList<Control> Controls { get; } = new Control[] { PreviewSwitch };
+        public override IReadOnlyList<Control> Controls { get; } = new Control[]
+        {
+            PreviewSwitch, SourceDropdown, new DropdownControl("receiver_idx", new[] { "" }, "", new[] { "All" }, "Receiver"),
+            new MultiSwitchControl("order", new[] { "0", "1", "2", "3", "4" }, new[] { "1" }),
+        };
 
         protected override void Solve(IGH_DataAccess access)
         {
@@ -106,8 +113,8 @@ namespace CompasAcoustics.Grasshopper
                 Warn("Input parameter 'scene' failed to collect data.");
                 return;
             }
-            SceneIndices.Apply(this, "source_idx", scene.Value.Sources.Select(x => x.Name));
-            SceneIndices.Apply(this, "receiver_idx", scene.Value.Receivers.Select(x => x.Name));
+            SetIndexOptions("source_idx", scene.Value.Sources.Select(x => x.Name));
+            SetIndexOptions("receiver_idx", scene.Value.Receivers.Select(x => x.Name));
             var orders = List<int>(access, "order").Select(o => (object?)(long)o).ToList();
             var source = Value<int>(access, "source_idx");
             var receiver = Value<int>(access, "receiver_idx");
@@ -144,11 +151,16 @@ namespace CompasAcoustics.Grasshopper
         private const int FrameMs = 33;
         private readonly Dictionary<int, List<Line>> _drawn = new();
         private readonly Playback _playback = new(() => System.Diagnostics.Stopwatch.GetTimestamp() / (double)System.Diagnostics.Stopwatch.Frequency);
+        private int _maxOrder = 10;
 
         public override IReadOnlyList<Control> Controls { get; } = new Control[]
         {
-            PreviewSwitch, new ButtonControl("play", "Play"), new ButtonControl("rewind", "Rewind"),
+            PreviewSwitch, SourceDropdown, new ToggleControl("scattering", "Scattering", Default: false),
+            new SliderControl("order", 1, 10, "", Step: 1), new ButtonControl("play", "Play"), new ButtonControl("rewind", "Rewind"),
         };
+
+        /// <summary>The drawn order runs from 1 to the traced one: at its end, every traced order is drawn.</summary>
+        public override (double min, double max) SliderRange(SliderControl slider) => slider.Port == "order" ? (1, Math.Max(_maxOrder, 1)) : base.SliderRange(slider);
 
         public VisualiseRaysComponent() : base("CA_Visualise_Rays") { }
 
@@ -179,8 +191,9 @@ namespace CompasAcoustics.Grasshopper
                 Warn("Input parameter 'scene' failed to collect data.");
                 return;
             }
-            SceneIndices.Apply(this, "source_idx", scene.Value.Sources.Select(x => x.Name));
+            SetIndexOptions("source_idx", scene.Value.Sources.Select(x => x.Name));
             var maxOrder = Value<int>(access, "max_order") ?? 10;
+            _maxOrder = maxOrder;
             var order = Value<int>(access, "order");
             var direction = Value<Vector3d>(access, "direction");
             var kwargs = new Dictionary<string, object?>
@@ -250,8 +263,18 @@ namespace CompasAcoustics.Grasshopper
         private const float ParticleRadius = 4;
         private readonly Dictionary<int, List<Point3d>> _drawn = new();
         private readonly Playback _playback = new(() => System.Diagnostics.Stopwatch.GetTimestamp() / (double)System.Diagnostics.Stopwatch.Frequency);
+        private double _durationMs;
+        private double? _shownMs;
 
         public VisualiseBilliardComponent() : base("CA_Visualise_Billiard") { }
+
+        /// <summary>The playback speed, in ms of sound per second: ``factor`` (default 1) of the whole field in 10 s.</summary>
+        public static double Rate(double? factor, double durationMs) => (factor ?? 1.0) * durationMs / 10.0;
+
+        public override (double min, double max) SliderRange(SliderControl slider) => slider.Port == "time" ? (0, Math.Round(_durationMs, 1)) : base.SliderRange(slider);
+
+        /// <summary>The time slider follows the frame shown, as playback moves it.</summary>
+        public override double? SliderShown(SliderControl slider) => slider.Port == "time" ? _shownMs : null;
         protected override string SpecKey => "CA_Visualise_Billiard";
         public override Guid ComponentGuid => new Guid("1dd7e727-b816-578f-8eaa-253a9a153829");
 
@@ -259,7 +282,9 @@ namespace CompasAcoustics.Grasshopper
 
         public override IReadOnlyList<Control> Controls { get; } = new Control[]
         {
-            PreviewSwitch, new ButtonControl("play", "Play"), new ButtonControl("rewind", "Rewind"),
+            PreviewSwitch, new SliderControl("time", 0, 1000, "ms", Step: 0.1),
+            new DropdownControl("speed", new[] { "0.25", "0.5", "1", "2", "4" }, "1", new[] { "0.25x", "0.5x", "1x", "2x", "4x" }),
+            new ButtonControl("play", "Play"), new ButtonControl("rewind", "Rewind"),
         };
 
         public override string? ButtonLabel(string port) => port == "play" ? PlayLabel(_playback) : null;
@@ -287,8 +312,13 @@ namespace CompasAcoustics.Grasshopper
             }
             if (Pressed("rewind"))
                 _playback.Rewind();
-            var frame = _playback.Update(Value<double>(access, "time"), Value<bool>(access, "play") == true || pressed, Value<double>(access, "speed"),
-                Particles.DurationMs(rays, speedOfSound));
+            // Play on the body plays the whole field: the time the slider scrubbed to is let go
+            if (pressed && ControlPort("time") is { SourceCount: 0 } time)
+                ControlState.Assign(time, System.Array.Empty<string>());
+            _durationMs = Particles.DurationMs(rays, speedOfSound);
+            var frame = _playback.Update(Value<double>(access, "time"), Value<bool>(access, "play") == true || pressed,
+                Rate(Value<double>(access, "speed"), _durationMs), _durationMs);
+            _shownMs = frame.T;
             if (frame.Remark != null)
                 Remark(frame.Remark);
             if (frame.Animating)
@@ -320,21 +350,20 @@ namespace CompasAcoustics.Grasshopper
     /// <summary>A mesh coloured by the sound pressure level of the scene's sources at its face centres (the worker's energy_map).</summary>
     public sealed class VisualiseEnergyMapComponent : DisplayComponent
     {
-        private const int FrameMs = 33;
         private static readonly string[] Bands = { "125 Hz", "250 Hz", "500 Hz", "1 kHz", "2 kHz", "4 kHz", "8 kHz" };
         private Mesh? _drawn;
-        private readonly Playback _playback = new(() => System.Diagnostics.Stopwatch.GetTimestamp() / (double)System.Diagnostics.Stopwatch.Frequency);
 
         public VisualiseEnergyMapComponent() : base("CA_Visualise_Energy_Map") { }
         protected override string SpecKey => "CA_Visualise_Energy_Map";
         public override Guid ComponentGuid => new Guid("a0fc70ee-6c93-5bb3-b30d-315b8e4530cf");
 
+        // a static map: switched on, it shows the levels; the energy arriving over time was not worth watching
         public override IReadOnlyList<Control> Controls { get; } = new Control[]
         {
-            PreviewSwitch, new ButtonControl("play", "Play"), new ButtonControl("rewind", "Rewind"),
+            PreviewSwitch,
+            new DropdownControl("band", new[] { "", "0", "1", "2", "3", "4", "5", "6" }, "", new[] { "A-weighted" }.Concat(Bands).ToArray()),
+            SourceDropdown,
         };
-
-        public override string? ButtonLabel(string port) => port == "play" ? PlayLabel(_playback) : null;
 
         protected override IGH_Param? CreateParam(PortSpec port, bool input) => (input, port.Name) switch
         {
@@ -365,7 +394,7 @@ namespace CompasAcoustics.Grasshopper
                 Warn("Input parameter 'mesh' failed to collect data.");
                 return;
             }
-            SceneIndices.Apply(this, "source_idx", scene.Value.Sources.Select(x => x.Name));
+            SetIndexOptions("source_idx", scene.Value.Sources.Select(x => x.Name));
             var band = Value<int>(access, "band");
             if (band is int b && (b < 0 || b >= Bands.Length))
             {
@@ -394,37 +423,9 @@ namespace CompasAcoustics.Grasshopper
                 var level = band is int index
                     ? Rows(result["spl"]).Select(row => row[index]).ToArray()
                     : Numbers(result["spl_a"]);
-                var times = Numbers(result["times"]);
-                var frames = Rows(result["frames"]);
-                var pressed = Pressed("play");
-                if (pressed && _playback.Running)
-                {
-                    _playback.Stop();
-                    pressed = false;
-                }
-                if (Pressed("rewind"))
-                    _playback.Rewind();
-                var frame = _playback.Update(null, pressed, null, times.Length == 0 ? 0.0 : times[^1] * 1000.0);
-                if (frame.Animating)
-                    OnPingDocument()?.ScheduleSolution(FrameMs, document => ExpireSolution(false));
-                double[] shown;
-                (double low, double high) scale;
-                string label;
-                if (_playback.Active && times.Length > 0)
-                {
-                    // the energy arriving: every frame on one scale, so the colours show it grow and decay
-                    var at = EnergyMapColours.FrameAt(times, frame.T);
-                    shown = frames.Select(row => row[at]).ToArray();
-                    scale = EnergyMapColours.Range(frames.SelectMany(row => row), range);
-                    label = frame.Message + ", broadband";
-                }
-                else
-                {
-                    shown = level;
-                    scale = EnergyMapColours.Range(level, range);
-                    label = band is int i ? Bands[i] : "dB(A)";
-                }
-                var colours = shown.Select(v => EnergyMapColours.Of(v, scale.low, scale.high)).ToArray();
+                var scale = EnergyMapColours.Range(level, range);
+                var label = band is int i ? Bands[i] : "dB(A)";
+                var colours = level.Select(v => EnergyMapColours.Of(v, scale.low, scale.high)).ToArray();
                 _drawn = Coloured(vertices, faces, colours);
                 Box = mapped.GetBoundingBox(true);
                 Message = string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0} {1:0.0} to {2:0.0} dB, seed={3}", label, scale.low, scale.high, result["seed"]);

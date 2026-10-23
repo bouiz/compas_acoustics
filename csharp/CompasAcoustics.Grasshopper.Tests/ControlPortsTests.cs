@@ -27,9 +27,9 @@ namespace CompasAcoustics.Grasshopper.Tests
         public void TheControlPorts_AreTheInputsOfTheBodysControls_RunIncluded()
         {
             // run stays an input for loops and scripts that set it, hidden like the others
-            Assert.Equal(new[] { "tail", "diffraction", "run" }, new SimulateBinauralComponent().ControlPorts);
-            Assert.Equal(new[] { "tail", "diffraction", "run" }, new SimulateAmbisonicsComponent().ControlPorts);
-            Assert.Equal(new[] { "play" }, new VisualiseBilliardComponent().ControlPorts);
+            Assert.Equal(new[] { "tail", "diffraction", "ism_order", "late_envelope", "normalize", "hrtf", "run" }, new SimulateBinauralComponent().ControlPorts);
+            Assert.Equal(new[] { "tail", "diffraction", "ism_order", "sh_order", "late_envelope", "normalize", "run" }, new SimulateAmbisonicsComponent().ControlPorts);
+            Assert.Equal(new[] { "time", "speed", "play" }, new VisualiseBilliardComponent().ControlPorts);
             Assert.Empty(new AcousticObjectComponent().ControlPorts);
             Assert.True(new AcousticObjectComponent().IsChoice("role"));
             Assert.Empty(new WorkerComponent().ControlPorts);
@@ -42,8 +42,8 @@ namespace CompasAcoustics.Grasshopper.Tests
             var dropdown = source.Controls.OfType<DropdownControl>().Single();
             Assert.Equal("directivity", dropdown.Port);
             Assert.Equal(new[] { "omnidirectional", "cardioid", "supercardioid", "hypercardioid", "bidirectional" }, dropdown.Options);
-            // no input: a choice of the component
-            Assert.Empty(source.ControlPorts);
+            // no input: a choice of the component; the sound file's button sets an input
+            Assert.Equal(new[] { "sound_file" }, source.ControlPorts);
             Assert.True(source.IsChoice("directivity"));
             Assert.DoesNotContain("directivity", ComponentSpec.Load("CA_Source").Inputs.Select(p => p.Name));
             Assert.DoesNotContain("CA_Directivity", ComponentSpec.Names());
@@ -98,7 +98,8 @@ namespace CompasAcoustics.Grasshopper.Tests
             var all = Inputs(hybrid);
             hybrid.ShowControlPorts(false);
             Assert.False(hybrid.ControlPortsShown);
-            Assert.Equal(all.Where(n => n != "tail" && n != "diffraction" && n != "run"), Inputs(hybrid));
+            Assert.Equal(all.Where(n => !hybrid.ControlPorts.Contains(n)), Inputs(hybrid));
+            Assert.Equal(new[] { "scene", "reference", "seed" }, Inputs(hybrid));
             Assert.NotNull(hybrid.ControlPort("run"));
             Assert.NotNull(hybrid.ControlPort("tail"));
             hybrid.ShowControlPorts(true);

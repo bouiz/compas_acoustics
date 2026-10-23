@@ -487,7 +487,7 @@ def _map_scene():
     return scene
 
 
-def test_energy_map_gives_levels_per_point_and_frames():
+def test_energy_map_gives_levels_per_point_without_frames():
     import math
 
     result = call("energy_map", _map_scene(), [[4, 3, 1.2], [3, 2, 1.2], [100, 0, 0]], n_rays=1000, seed=3)
@@ -496,7 +496,8 @@ def test_energy_map_gives_levels_per_point_and_frames():
     assert result["inside"] == [True, True, False]
     assert math.isnan(result["spl_a"][2]) and all(math.isnan(v) for v in result["spl"][2])
     assert 60 < result["spl_a"][0] < 90
-    assert len(result["frames"]) == 3 and len(result["frames"][0]) == len(result["times"])
+    # a static map: the frames of the energy arriving are not sent
+    assert "frames" not in result and "times" not in result
     assert any("1 of 3 points" in w for w in result["warnings"])
 
 

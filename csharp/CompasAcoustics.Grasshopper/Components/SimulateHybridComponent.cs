@@ -33,13 +33,27 @@ namespace CompasAcoustics.Grasshopper
             _ => null,
         };
 
-        // no control on hrtf: empty is KEMAR, and a File Path connected there is the user's own SOFA set
-        public override IReadOnlyList<Control> Controls { get; } = new Control[]
-        {
-            new DropdownControl("tail", HybridRun.Tails),
-            new DropdownControl("diffraction", HybridRun.Diffraction),
-            new ButtonControl("run", "Run"),
-        };
+        private IReadOnlyList<Control>? _controls;
+
+        /// <summary>Tail, Diffraction, ISM order, the method's own controls, the toggles, the method's own buttons, Run.</summary>
+        public override IReadOnlyList<Control> Controls => _controls ??= new Control[]
+            {
+                new DropdownControl("tail", HybridRun.Tails),
+                new DropdownControl("diffraction", HybridRun.Diffraction),
+                SimulateMonoComponent.IsmOrder,
+            }
+            .Concat(MethodControls)
+            .Append(new ToggleControl("late_envelope", "Late envelope", Inline: true))
+            .Append(new ToggleControl("normalize", "Normalize", Inline: true))
+            .Concat(MethodButtons)
+            .Append(new ButtonControl("run", "Run"))
+            .ToList();
+
+        /// <summary>The controls of the method's own inputs, after the ISM order (Ambisonics' SH order).</summary>
+        protected virtual IEnumerable<Control> MethodControls => Array.Empty<Control>();
+
+        /// <summary>The buttons of the method's own inputs, before Run (Binaural's HRTF set).</summary>
+        protected virtual IEnumerable<Control> MethodButtons => Array.Empty<Control>();
 
         private bool Has(string port) => Params.Input.Exists(p => p.Name == port);
 
@@ -167,6 +181,21 @@ namespace CompasAcoustics.Grasshopper
         public override Guid ComponentGuid => new Guid("2c46c2f3-7b8b-43fd-ba7b-b249681d829b");
         protected override string Method => "binaural";
         protected override string Output => "binaural_ir_graph";
+
+        // empty is KEMAR; the button chooses the user's own SOFA set, and a File Path wired to hrtf wins
+        protected override IEnumerable<Control> MethodButtons => new Control[] { new ButtonControl("hrtf", "HRTF...") };
+
+        public override bool HandlesButton(string port) => port == "hrtf";
+
+        public override void OnButton(string port)
+        {
+            if (port == "hrtf")
+                FileButtons.Choose(this, port, "HRTF set of the binaural responses", "SOFA HRTF set", ".sofa");
+        }
+
+        public override string? ButtonLabel(string port) => port == "hrtf" ? FileButtons.Label(this, port, "HRTF: ", "HRTF: KEMAR") : null;
+
+        protected override void AppendMenu(System.Windows.Forms.ToolStripDropDown menu) => FileButtons.AppendClear(this, menu, "hrtf", "Use KEMAR");
     }
 
     public sealed class SimulateAmbisonicsComponent : SimulateHybridComponent
@@ -176,5 +205,7 @@ namespace CompasAcoustics.Grasshopper
         public override Guid ComponentGuid => new Guid("5da5e5fc-80d6-4a8a-9170-91d3d3a3f94d");
         protected override string Method => "ambisonics";
         protected override string Output => "ambisonic_ir_graph";
+
+        protected override IEnumerable<Control> MethodControls => new Control[] { new SwitchControl("sh_order", new[] { "1", "2", "3" }, "1") };
     }
 }

@@ -3,7 +3,7 @@
     "nickname": "EnergyMap",
     "category": "COMPAS Acoustics",
     "subcategory": "05 Display",
-    "description": "Colour a mesh by the sound pressure level of the scene's sources: one point per face centre, the direct sound and image sources up to image_source_order, and pyroomacoustics' rays past it, with each source's level at 1 m (Source spl). Blue is the lowest level, red the highest; a face outside the room or inside an obstacle is grey. Press Play to watch the energy arrive over time, in 12 ms frames; Rewind goes back to the start. The ray tracer over-estimates the late energy of surfaces that scatter strongly (up to about 3 dB at scattering 0.6 to 1). The Preview button shows or hides the drawing.",
+    "description": "Colour a mesh by the sound pressure level of the scene's sources: one point per face centre, the direct sound and image sources up to image_source_order, and pyroomacoustics' rays past it, with each source's level at 1 m (Source spl). Blue is the lowest level, red the highest; a face outside the room or inside an obstacle is grey. The ray tracer over-estimates the late energy of surfaces that scatter strongly (up to about 3 dB at scattering 0.6 to 1). The Preview button shows or hides the drawing.",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,

@@ -45,15 +45,6 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void TheFrameShown_IsTheLastOneStartedByTheTime()
-        {
-            var times = new[] { 0.0, 0.012, 0.024 };
-            Assert.Equal(0, EnergyMapColours.FrameAt(times, 0.0));
-            Assert.Equal(1, EnergyMapColours.FrameAt(times, 13.0));
-            Assert.Equal(2, EnergyMapColours.FrameAt(times, 1000.0));
-        }
-
-        [Fact]
         public void TheComponent_TakesAMeshAndColoursIt()
         {
             var spec = ComponentSpec.Load("CA_Visualise_Energy_Map");

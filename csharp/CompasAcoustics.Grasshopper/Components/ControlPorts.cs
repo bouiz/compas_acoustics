@@ -28,9 +28,9 @@ namespace CompasAcoustics.Grasshopper
         private readonly Dictionary<string, IGH_Param> _hidden = new();
         private bool _layoutRead;
 
-        /// <summary>The inputs that a control on the body sets: switches, dropdowns, and buttons with an input (Run, Play).</summary>
+        /// <summary>The inputs that a control on the body sets: every control on an input, buttons included (Run, Play).</summary>
         public IReadOnlyList<string> ControlPorts =>
-            Controls.Where(c => c is SwitchControl or DropdownControl or ButtonControl).Select(c => c.Port).Where(n => CurrentSpec.Inputs.Any(p => p.Name == n)).ToList();
+            Controls.Select(c => c.Port).Where(n => CurrentSpec.Inputs.Any(p => p.Name == n)).Distinct().ToList();
 
         public bool ControlPortsShown { get; private set; } = true;
 
@@ -39,9 +39,28 @@ namespace CompasAcoustics.Grasshopper
 
         public bool IsHidden(IGH_Param port) => _hidden.ContainsValue(port);
 
-        /// <summary>The value the body chose for the hidden input ``name``; null when it is not hidden or has none.</summary>
+        /// <summary>The value the body chose for the hidden input ``name`` (the first, for a list), as text; null when it is not hidden or has none.</summary>
         public string? HiddenValue(string name) =>
-            _hidden.TryGetValue(name, out var port) && ControlState.Persistent(port) is string value && value.Length > 0 ? value : null;
+            _hidden.TryGetValue(name, out var port) && ControlState.PersistentAll(port).FirstOrDefault() is string value && value.Length > 0 ? value : null;
+
+        /// <summary>
+        /// The hidden input ``name``'s value for a solve: null when it is not hidden, has none, or holds its declared default
+        /// (the method's own, as for an unconnected input).
+        /// </summary>
+        internal T? HiddenAs<T>(string name) where T : struct
+        {
+            if (!_hidden.TryGetValue(name, out var port) || ControlState.Persistent(port) is not { } stored)
+                return null;
+            var value = (T)Convert.ChangeType(stored, typeof(T), System.Globalization.CultureInfo.InvariantCulture);
+            var declared = CurrentSpec.Inputs.FirstOrDefault(p => p.Name == name)?.Default;
+            return PortDefaults.Untouched(0, declared, value) ? null : value;
+        }
+
+        /// <summary>Every value of the hidden list input ``name``.</summary>
+        internal List<T> HiddenList<T>(string name) =>
+            _hidden.TryGetValue(name, out var port)
+                ? ControlState.PersistentAll(port).Select(v => (T)Convert.ChangeType(v, typeof(T), System.Globalization.CultureInfo.InvariantCulture)).ToList()
+                : new List<T>();
 
         /// <summary>Show or hide the control inputs (a wired one stays), and solve again.</summary>
         public void ShowControlPorts(bool show)
@@ -94,9 +113,9 @@ namespace CompasAcoustics.Grasshopper
             {
                 writer.SetBoolean(ShownKey, ControlPortsShown);
                 writer.SetString(HiddenKey, string.Join("\n", _hidden.Keys));
-                foreach (var name in _hidden.Keys)
-                    if (HiddenValue(name) is string value)
-                        writer.SetString(ValueKey + name, value);
+                foreach (var (name, port) in _hidden)
+                    if (ControlState.PersistentAll(port) is { Length: > 0 } values)
+                        writer.SetString(ValueKey + name, string.Join("\n", values));
             }
             return base.Write(writer);
         }
@@ -156,11 +175,8 @@ namespace CompasAcoustics.Grasshopper
             SetControlPorts(reader.GetBoolean(ShownKey), hidden);
             var read = ReadParameters(reader);
             foreach (var name in hidden)
-                if (reader.ItemExists(ValueKey + name) && _hidden.TryGetValue(name, out var port) && port is GH_PersistentParam<GH_String> text)
-                {
-                    text.PersistentData.Clear();
-                    text.PersistentData.Append(new GH_String(reader.GetString(ValueKey + name)));
-                }
+                if (reader.ItemExists(ValueKey + name) && _hidden.TryGetValue(name, out var port))
+                    ControlState.Assign(port, reader.GetString(ValueKey + name).Split('\n'));
             return read;
         }
     }

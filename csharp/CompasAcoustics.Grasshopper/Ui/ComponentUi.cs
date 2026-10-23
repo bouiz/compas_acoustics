@@ -51,7 +51,8 @@ namespace CompasAcoustics.Grasshopper
             {
                 if (!box.Title.IsEmpty)
                     Painter.DrawTitle(graphics, box);
-                Painter.Draw(graphics, box, Value(box), Selected, Owner.Locked, ReferenceEquals(box, _down), _dragged);
+                var range = box.Control is SliderControl slider ? Component.SliderRange(slider) : ((double, double)?)null;
+                Painter.Draw(graphics, box, Value(box), Selected, Owner.Locked, ReferenceEquals(box, _down), ReferenceEquals(box, _down) ? _dragged : null, range);
             }
             RenderExtra(canvas, graphics);
         }
@@ -62,16 +63,47 @@ namespace CompasAcoustics.Grasshopper
         private (string value, bool wired) Value(ControlBox box)
         {
             var port = Component.ControlPort(box.Control.Port);
-            return box.Control switch
+            var c = System.Globalization.CultureInfo.InvariantCulture;
+            switch (box.Control)
             {
-                SwitchControl s when port != null => ControlState.Of(port, s.Options),
-                DropdownControl d when port != null => ControlState.Of(port, d.Options),
-                SwitchControl or DropdownControl when Component.IsChoice(box.Control.Port) => (Component.Choice(box.Control.Port), false),
-                SliderControl when port != null => (Convert.ToString(ControlState.Persistent(port) ?? 0.0, System.Globalization.CultureInfo.InvariantCulture)!, port.SourceCount > 0),
-                ButtonControl b => (Component.ButtonLabel(b.Port) ?? b.Label, port != null && port.SourceCount > 0),
-                ToggleControl t => (Component.Choice(t.Port), false),
-                _ => ("", false),
-            };
+                case SwitchControl s when port != null:
+                    return ControlState.Of(port, s.Options, s.Default);
+                case DropdownControl d when port != null:
+                {
+                    var (value, wired) = ControlState.Of(port, Component.OptionsOf(d).values, d.Default);
+                    return (DropdownText(d, value), wired);
+                }
+                case SwitchControl or DropdownControl when Component.IsChoice(box.Control.Port):
+                    var choice = Component.Choice(box.Control.Port);
+                    return (box.Control is DropdownControl dd ? DropdownText(dd, choice) : choice, false);
+                case MultiSwitchControl m when port != null:
+                    return (string.Join("\n", ControlState.Members(port, m.Default)), port.SourceCount > 0);
+                case SliderControl slider when port != null:
+                {
+                    var (min, max) = Component.SliderRange(slider);
+                    var shown = Component.SliderShown(slider) ?? (ControlState.Persistent(port) is { } v ? Convert.ToDouble(v, c) : max);
+                    return (Convert.ToString(Math.Clamp(shown, min, Math.Max(min, max)), c)!, port.SourceCount > 0);
+                }
+                case ButtonControl b:
+                    return (Component.ButtonLabel(b.Port) ?? b.Label, port != null && port.SourceCount > 0);
+                case ToggleControl t when port != null:
+                {
+                    var (on, wired) = ControlState.Toggle(port, t.Default);
+                    return (on ? "on" : "off", wired);
+                }
+                case ToggleControl t:
+                    return (Component.Choice(t.Port), false);
+                default:
+                    return ("", false);
+            }
+        }
+
+        /// <summary>What a dropdown reads for ``value``: its label among the options offered now, else the first's ("All").</summary>
+        private string DropdownText(DropdownControl dropdown, string value)
+        {
+            var (values, labels) = Component.OptionsOf(dropdown);
+            var i = Array.IndexOf(values, value);
+            return i >= 0 ? labels[i] : value.Length == 0 && labels.Length > 0 ? labels[0] : ControlLayout.Label(dropdown, value);
         }
 
         public override GH_ObjectResponse RespondToMouseDown(GH_Canvas sender, GH_CanvasMouseEvent e)
@@ -96,6 +128,13 @@ namespace CompasAcoustics.Grasshopper
                 case DropdownControl d when port != null || Component.IsChoice(d.Port):
                     OpenMenu(sender, e, d, port);
                     return GH_ObjectResponse.Handled;
+                case MultiSwitchControl m when segment >= 0 && port != null:
+                    ControlState.ToggleMember(Component, port, m.Options[segment], m.Default);
+                    return GH_ObjectResponse.Handled;
+                case ToggleControl t when port != null:
+                    ControlState.Choose(Component, port, ControlState.Toggle(port, t.Default).on ? "False" : "True");
+                    sender.Invalidate();
+                    return GH_ObjectResponse.Handled;
                 case ToggleControl t:
                     Component.SetChoice(t.Port, Component.Choice(t.Port) == "on" ? "off" : "on");
                     sender.Invalidate();
@@ -103,7 +142,7 @@ namespace CompasAcoustics.Grasshopper
                 case ButtonControl:
                 case SliderControl:
                     _down = box;
-                    _dragged = box.Control is SliderControl slider ? SliderValue(slider, box.Bounds, e.CanvasLocation.X) : null;
+                    _dragged = box.Control is SliderControl slider ? Drag(slider, box.Bounds, e.CanvasLocation.X) : null;
                     sender.Invalidate();
                     return GH_ObjectResponse.Capture;
             }
@@ -133,7 +172,7 @@ namespace CompasAcoustics.Grasshopper
         {
             if (_down?.Control is SliderControl slider)
             {
-                _dragged = SliderValue(slider, _down.Bounds, e.CanvasLocation.X);
+                _dragged = Drag(slider, _down.Bounds, e.CanvasLocation.X);
                 sender.Invalidate();
                 return GH_ObjectResponse.Handled;
             }
@@ -166,22 +205,35 @@ namespace CompasAcoustics.Grasshopper
             return GH_ObjectResponse.Release;
         }
 
-        public static double SliderValue(SliderControl slider, RectangleF bounds, float x)
+        private double Drag(SliderControl slider, RectangleF bounds, float x)
+        {
+            var (min, max) = Component.SliderRange(slider);
+            return SliderValue(slider, min, max, bounds, x);
+        }
+
+        public static double SliderValue(SliderControl slider, RectangleF bounds, float x) => SliderValue(slider, slider.Min, slider.Max, bounds, x);
+
+        /// <summary>The value under ``x`` on a slider from ``min`` to ``max``, in its steps.</summary>
+        public static double SliderValue(SliderControl slider, double min, double max, RectangleF bounds, float x)
         {
             var t = Math.Clamp((x - bounds.Left) / Math.Max(bounds.Width, 1), 0, 1);
-            return Math.Round(slider.Min + t * (slider.Max - slider.Min), 1);
+            var value = min + t * (max - min);
+            var step = slider.Step > 0 ? slider.Step : 0.1;
+            return Math.Clamp(Math.Round(Math.Round((value - min) / step) * step + min, 6), min, Math.Max(min, max));
         }
 
         private void OpenMenu(GH_Canvas sender, GH_CanvasMouseEvent e, DropdownControl dropdown, IGH_Param? port)
         {
-            var current = port != null ? ControlState.Of(port, dropdown.Options).value : Component.Choice(dropdown.Port);
+            var (values, labels) = Component.OptionsOf(dropdown);
+            var current = port != null ? ControlState.Of(port, values, dropdown.Default).value : Component.Choice(dropdown.Port);
             var menu = new ContextMenuStrip();
             // the input's name heads its options
             menu.Items.Add(new ToolStripMenuItem(dropdown.Port) { Enabled = false });
             menu.Items.Add(new ToolStripSeparator());
-            foreach (var option in dropdown.Options)
+            for (var i = 0; i < values.Length; i++)
             {
-                var item = new ToolStripMenuItem(option) { Checked = option == current };
+                var option = values[i];
+                var item = new ToolStripMenuItem(labels[i]) { Checked = option == current };
                 item.Click += (s, a) =>
                 {
                     if (port != null)
@@ -208,7 +260,8 @@ namespace CompasAcoustics.Grasshopper
             g.DrawString(ControlLayout.Title(box.Control), GH_FontServer.StandardAdjusted, Brushes.Black, box.Title, format);
         }
 
-        public static void Draw(Graphics g, ControlBox box, (string value, bool wired) state, bool selected, bool locked, bool down, double? dragged)
+        public static void Draw(Graphics g, ControlBox box, (string value, bool wired) state, bool selected, bool locked, bool down, double? dragged,
+            (double min, double max)? range = null)
         {
             switch (box.Control)
             {
@@ -217,10 +270,21 @@ namespace CompasAcoustics.Grasshopper
                     {
                         var chosen = s.Options[i] == state.value;
                         var palette = chosen ? (state.wired ? GH_Palette.Grey : GH_Palette.Black) : GH_Palette.White;
-                        using var capsule = GH_Capsule.CreateTextCapsule(R(box.Segments[i]), R(box.Segments[i]), palette, s.Options[i], 2, 0);
+                        using var capsule = GH_Capsule.CreateTextCapsule(R(box.Segments[i]), R(box.Segments[i]), palette, ControlLayout.Label(s, s.Options[i]), 2, 0);
                         capsule.Render(g, selected, locked, false);
                     }
                     break;
+                case MultiSwitchControl m:
+                {
+                    var lit = state.value.Split('\n');
+                    for (var i = 0; i < m.Options.Length; i++)
+                    {
+                        var palette = lit.Contains(m.Options[i]) ? (state.wired ? GH_Palette.Grey : GH_Palette.Black) : GH_Palette.White;
+                        using var capsule = GH_Capsule.CreateTextCapsule(R(box.Segments[i]), R(box.Segments[i]), palette, m.Options[i], 2, 0);
+                        capsule.Render(g, selected, locked, false);
+                    }
+                    break;
+                }
                 case DropdownControl:
                 {
                     using var capsule = GH_Capsule.CreateTextCapsule(R(box.Bounds), R(box.Bounds), state.wired ? GH_Palette.Grey : GH_Palette.White,
@@ -233,9 +297,9 @@ namespace CompasAcoustics.Grasshopper
                 }
                 case ToggleControl toggle:
                 {
-                    // dark when on
-                    using var capsule = GH_Capsule.CreateTextCapsule(R(box.Bounds), R(box.Bounds), state.value == "on" ? GH_Palette.Black : GH_Palette.White,
-                        toggle.Label, 2, 0);
+                    // dark when on, grey when a wire sets it
+                    var palette = state.value == "on" ? (state.wired ? GH_Palette.Grey : GH_Palette.Black) : GH_Palette.White;
+                    using var capsule = GH_Capsule.CreateTextCapsule(R(box.Bounds), R(box.Bounds), palette, toggle.Label, 2, 0);
                     capsule.Render(g, selected, locked, false);
                     break;
                 }
@@ -247,8 +311,9 @@ namespace CompasAcoustics.Grasshopper
                 }
                 case SliderControl slider:
                 {
-                    var value = dragged ?? (double.TryParse(state.value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : slider.Min);
-                    var t = (float)((value - slider.Min) / Math.Max(slider.Max - slider.Min, 1e-9));
+                    var (min, max) = range ?? (slider.Min, slider.Max);
+                    var value = dragged ?? (double.TryParse(state.value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : min);
+                    var t = Math.Clamp((float)((value - min) / Math.Max(max - min, 1e-9)), 0f, 1f);
                     var track = box.Bounds;
                     var mid = track.Top + track.Height / 2;
                     using var pen = new Pen(Color.FromArgb(120, 120, 120), 2);
@@ -256,7 +321,8 @@ namespace CompasAcoustics.Grasshopper
                     var knobX = track.Left + 4 + t * (track.Width - 8);
                     g.FillEllipse(state.wired ? Brushes.Gray : Brushes.Black, knobX - 5, mid - 5, 10, 10);
                     using var font = new Font(FontFamily.GenericSansSerif, 6f);
-                    g.DrawString(string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0:0.0} {1}", value, slider.Unit), font, Brushes.Black, track.Left + 2, track.Top);
+                    g.DrawString(string.Format(System.Globalization.CultureInfo.InvariantCulture, slider.Step >= 1 ? "{0:0} {1}" : "{0:0.0} {1}", value, slider.Unit).Trim(),
+                        font, Brushes.Black, track.Left + 2, track.Top);
                     break;
                 }
             }

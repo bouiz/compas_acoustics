@@ -40,16 +40,6 @@ namespace CompasAcoustics.Grasshopper
                 return sum / face.Length;
             }).ToArray();
 
-        /// <summary>The frame shown at ``timeMs``: the last whose start (``times``, in seconds) it has reached.</summary>
-        public static int FrameAt(IReadOnlyList<double> times, double timeMs)
-        {
-            var index = 0;
-            for (var i = 0; i < times.Count; i++)
-                if (times[i] * 1000.0 <= timeMs + 1e-9)
-                    index = i;
-            return index;
-        }
-
         private static Color Hsv(double hue, double saturation, double value)
         {
             var c = value * saturation;

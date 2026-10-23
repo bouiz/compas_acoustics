@@ -550,10 +550,8 @@ def energy_map(scene, points, source_index=None, n_rays=20000, image_source_orde
     Returns
     -------
     dict
-        ``{"bands": [Hz], "inside": [bool], "spl": [[dB per band] per point], "spl_a": [dB(A) per point],
-        "times": [s], "frames": [[dB per frame] per point], "seed": int, "warnings": [str]}``: NaN for a point
-        outside the room, -inf in a frame before any energy arrives (:class:`compas_acoustics.EnergyMap`). No ``seed``
-        draws one.
+        ``{"bands": [Hz], "inside": [bool], "spl": [[dB per band] per point], "spl_a": [dB(A) per point], "seed": int,
+        "warnings": [str]}``: NaN for a point outside the room (:class:`compas_acoustics.EnergyMap`). No ``seed`` draws one.
     """
     import random
 
@@ -568,10 +566,8 @@ def energy_map(scene, points, source_index=None, n_rays=20000, image_source_orde
         result = EnergyMap.from_scene(scene, points, source_index=None if source_index is None else int(source_index),
                                       n_rays=20000 if n_rays is None else int(n_rays),
                                       image_source_order=1 if image_source_order is None else int(image_source_order), seed=seed)
-    times, frames = result.frames()
     return {"bands": result.bands.tolist(), "inside": [bool(v) for v in result.inside], "spl": result.spl().tolist(),
-            "spl_a": result.spl_a().tolist(), "times": times.tolist(), "frames": frames.tolist(), "seed": seed,
-            "warnings": _messages(caught)}
+            "spl_a": result.spl_a().tolist(), "seed": seed, "warnings": _messages(caught)}
 
 
 def specular_reflections(scene, orders=None, source_index=None, receiver_index=None):

@@ -38,19 +38,9 @@ namespace CompasAcoustics.Grasshopper
             sourceCount == 0 && declared != null && Equals(Convert.ChangeType(declared, value.GetType(), CultureInfo.InvariantCulture), value);
     }
 
-    /// <summary>The named values of a ``source_idx`` or ``receiver_idx`` port: the indices of the connected scene, with their names.</summary>
+    /// <summary>The named values of a ``source_idx`` or ``receiver_idx`` port: the indices of the connected scene, with their names (<see cref="ComponentBase.SetIndexOptions"/>).</summary>
     public static class SceneIndices
     {
         public static List<(string name, int value)> Of(IEnumerable<string> names) => names.Select((name, i) => ($"{i}: {name}", i)).ToList();
-
-        /// <summary>Offer the indices of ``names`` on the integer port ``port`` of ``component``.</summary>
-        public static void Apply(GH_Component component, string port, IEnumerable<string> names)
-        {
-            if (component.Params.Input.Find(p => p.Name == port) is not Param_Integer integer)
-                return;
-            integer.ClearNamedValues();
-            foreach (var (name, value) in Of(names))
-                integer.AddNamedValue(name, value);
-        }
     }
 }

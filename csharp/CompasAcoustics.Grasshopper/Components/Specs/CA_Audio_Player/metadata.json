@@ -15,13 +15,6 @@
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "ghdoc"
-            },
-            {
-                "name": "sampling_rate",
-                "description": "Not used: an audio signal from Auralise carries its sample rate, and a file its own. Kept so that existing wires stay.",
-                "optional": true,
-                "scriptParamAccess": 0,
-                "typeHintID": "int"
             }
         ],
         "outputParameters": []

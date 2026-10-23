@@ -161,6 +161,15 @@ namespace CompasAcoustics.Grasshopper
 
         protected override IGH_Param? CreateParam(PortSpec port, bool input) => input ? null : new Param_Material();
 
+        /// <summary>The library's categories, as <c>compas_acoustics.MaterialCategory</c> names them; Other the default.</summary>
+        internal static readonly string[] Categories =
+        {
+            "Concrete", "Masonry", "Stone & Tiles", "Plaster & Gypsum", "Wood", "Glass", "Metal", "Floor Coverings",
+            "Textiles & Curtains", "Seating", "Audience", "Absorbers", "Other",
+        };
+
+        public override IReadOnlyList<Control> Controls { get; } = new Control[] { new DropdownControl("category", Categories, "Other") };
+
         protected override void Solve(IGH_DataAccess access)
         {
             _shown = null;

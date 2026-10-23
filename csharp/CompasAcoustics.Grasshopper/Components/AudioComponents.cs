@@ -89,7 +89,8 @@ namespace CompasAcoustics.Grasshopper
 
         public override IReadOnlyList<Control> Controls { get; } = new Control[]
         {
-            new SwitchControl("level", Levels, Default: "relative"), new ButtonControl("save", "Save"),
+            new SwitchControl("level", Levels, Default: "relative"), new ToggleControl("mix_sources", "Mix sources", Default: false),
+            new ButtonControl("save", "Save"),
         };
 
         // the last solution's request, which Save renders again into the chosen files

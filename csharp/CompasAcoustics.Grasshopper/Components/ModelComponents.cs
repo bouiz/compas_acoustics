@@ -21,7 +21,22 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>The source's directivity patterns, the first the default.</summary>
         internal static readonly string[] Directivities = { "omnidirectional", "cardioid", "supercardioid", "hypercardioid", "bidirectional" };
 
-        public override IReadOnlyList<Control> Controls { get; } = new Control[] { new DropdownControl("directivity", Directivities) };
+        public override IReadOnlyList<Control> Controls { get; } = new Control[]
+        {
+            new DropdownControl("directivity", Directivities), new ButtonControl("sound_file", "Sound file..."),
+        };
+
+        public override bool HandlesButton(string port) => port == "sound_file";
+
+        public override void OnButton(string port)
+        {
+            if (port == "sound_file")
+                FileButtons.Choose(this, port, "Sound file of the source", "Audio", ".wav", ".flac", ".aiff", ".aif", ".ogg", ".mp3");
+        }
+
+        public override string? ButtonLabel(string port) => port == "sound_file" ? FileButtons.Label(this, port, "Sound: ", "Sound file...") : null;
+
+        protected override void AppendMenu(System.Windows.Forms.ToolStripDropDown menu) => FileButtons.AppendClear(this, menu, "sound_file", "Clear sound file");
 
         protected override void Solve(IGH_DataAccess access)
         {
@@ -117,6 +132,11 @@ namespace CompasAcoustics.Grasshopper
         public override Guid ComponentGuid => new Guid("63ac4b6f-5c00-50a5-973f-6337bd1f2b11");
 
         public override bool PreviewOffByDefault => true;
+
+        public override IReadOnlyList<Control> Controls { get; } = new Control[]
+        {
+            new SwitchControl("sampling_rate", new[] { "44100", "48000", "96000" }, "48000", new[] { "44.1 kHz", "48 kHz", "96 kHz" }),
+        };
 
         protected override IGH_Param? CreateParam(PortSpec port, bool input) => (input, port.Name) switch
         {

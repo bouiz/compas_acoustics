@@ -173,8 +173,8 @@ namespace CompasAcoustics.Grasshopper.Tests
             var (title, text) = hybrid.ControlTooltip("diffraction");
             Assert.Equal("diffraction", title);
             Assert.Equal(ComponentSpec.Load("CA_Simulate_Binaural").Inputs.Single(p => p.Name == "diffraction").Description, text);
-            // a choice without an input: its options
-            Assert.Equal(("level", "none, relative or individual"), new AuraliseComponent().ControlTooltip("level"));
+            // a choice without an input: its options, and its default
+            Assert.Equal(("level", "none, relative or individual (default relative)"), new AuraliseComponent().ControlTooltip("level"));
         }
 
         [Fact]
@@ -182,7 +182,8 @@ namespace CompasAcoustics.Grasshopper.Tests
         {
             foreach (var hybrid in new SimulateHybridComponent[] { new SimulateBinauralComponent(), new SimulateAmbisonicsComponent() })
             {
-                Assert.Empty(hybrid.Controls.OfType<SwitchControl>());
+                // the SH order is Simulate Ambisonics' only switch
+                Assert.Equal(hybrid is SimulateAmbisonicsComponent ? new[] { "sh_order" } : new string[0], hybrid.Controls.OfType<SwitchControl>().Select(c => c.Port));
                 Assert.Equal(HybridRun.Tails, hybrid.Controls.OfType<DropdownControl>().Single(c => c.Port == "tail").Options);
                 Assert.Equal(HybridRun.Diffraction, hybrid.Controls.OfType<DropdownControl>().Single(c => c.Port == "diffraction").Options);
             }

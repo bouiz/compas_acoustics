@@ -248,9 +248,9 @@ namespace CompasAcoustics.Grasshopper
         /// </summary>
         protected T? Value<T>(IGH_DataAccess access, string name) where T : struct
         {
-            // a hidden input has no wire and no data: a button's press is read with Pressed
+            // a hidden input has no wire: the body's value (a button's press is read with Pressed)
             if (_hidden.ContainsKey(name))
-                return null;
+                return HiddenAs<T>(name);
             var value = default(T);
             if (!access.GetData(name, ref value))
                 return null;
@@ -270,8 +270,10 @@ namespace CompasAcoustics.Grasshopper
             return access.GetData(name, ref value) && !string.IsNullOrEmpty(value) ? value : null;
         }
 
-        protected static List<T> List<T>(IGH_DataAccess access, string name)
+        protected List<T> List<T>(IGH_DataAccess access, string name)
         {
+            if (_hidden.ContainsKey(name))
+                return HiddenList<T>(name);
             var values = new List<T>();
             access.GetDataList(name, values);
             return values;

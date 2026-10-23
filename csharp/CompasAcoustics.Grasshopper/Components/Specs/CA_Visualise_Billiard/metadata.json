@@ -32,7 +32,7 @@
             },
             {
                 "name": "speed",
-                "description": "Milliseconds of sound per second of playback (default: the whole ray field in 10 s).",
+                "description": "Playback speed, a factor of the default, which plays the whole ray field in 10 s: 0.5 is half as fast, 2 twice.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "float"
