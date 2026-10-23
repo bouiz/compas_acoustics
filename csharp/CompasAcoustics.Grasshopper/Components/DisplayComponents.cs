@@ -439,8 +439,10 @@ namespace CompasAcoustics.Grasshopper
                 _drawn = Coloured(vertices, faces, colours);
                 Box = BoxOf(vertices);
                 Status(string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0} {1:0.0} to {2:0.0} dB", label, scale.low, scale.high),
-                    string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0} {1:0.0} to {2:0.0} dB\n{3} points, {4} rays per source",
-                        label, scale.low, scale.high, faces.Length, result["n_rays"]));
+                    string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0} {1:0.0} to {2:0.0} dB\n{3} points{4}",
+                        label, scale.low, scale.high, faces.Length,
+                        // a worker installed before the ray count was its own does not say it
+                        result.TryGetValue("n_rays", out var rays) && rays != null ? $", {rays} rays per source" : ""));
                 access.SetData("mesh", _drawn);
                 access.SetDataList("values", level);
                 access.SetDataList("colours", colours);
