@@ -12,7 +12,7 @@ from compas_acoustics.defaults import Defaults
 __all__ = ["AcousticAnalyser", "frequency_response", "time_response"]
 
 # Row order used throughout the class
-_PARAM_NAMES = ['EDT', 'T20', 'T30', 'C50', 'C80', 'D50', 'DRR', 'Ts', 'STI', 'G']
+_PARAM_NAMES = ['EDT', 'T20', 'T30', 'C50', 'C80', 'D50', 'DRR', 'Ts', 'STI', 'G', 'SPL', 'LF', 'LFC']
 
 # Single-number values of EDT, T20, T30, C50, C80, D50 and Ts average the 500 and 1000 Hz octaves
 # (ISO 3382-1:2009 Table A.1; C50 is a function of D50 and takes its bands)
@@ -61,6 +61,18 @@ _GEOMETRIC_SEARCH_LEAD = 0.001
 
 # Floor of the levels of time_response and frequency_response, in dB below the peak
 _RESPONSE_FLOOR_DB = 100.0
+
+# Early lateral energy fractions (ISO 3382-1:2009 Annex A; Barron and Marshall 1981, Kleiner 1989, as Bradley 1994
+# states them): the figure-of-eight 5-80 ms over the omni 0-80 ms after the direct sound, in seconds. Single numbers
+# average 125-1000 Hz (ISO 3382-1 Table A.1).
+_LATERAL_WINDOW = (0.005, 0.080)
+_LATERAL_EARLY_LIMIT = 0.080
+_LATERAL_BANDS = [125, 250, 500, 1000]
+# Without a source and receiver, the direct sound's direction is its first-order intensity over this long, in seconds
+_LATERAL_DOA_WINDOW = 0.001
+
+# A-weighting at the octave centres, in dB (IEC 61672-1:2013 Table 3)
+_A_WEIGHTS = {125: -16.1, 250: -8.6, 500: -3.2, 1000: 0.0, 2000: 1.2, 4000: 1.0, 8000: -1.1}
 
 
 @lru_cache(maxsize=None)
@@ -228,6 +240,8 @@ class AcousticAnalyser:
         generation = getattr(ir, 'generation', None) or {}
         self._package_scale = generation.get('scale') == 'package'
         self.onset = ir.direct_sound_index() if self._package_scale else None
+        # the response as given: the spatial parameters need its channels, source and receiver
+        self._response = ir
         self._ir = self._as_mono_array(ir)
 
     def _on_package_scale(self, ir=None):
@@ -709,6 +723,132 @@ class AcousticAnalyser:
             'G_overall': round(float(np.mean([values[f] for f in _STRENGTH_BANDS])), 2),
         }
 
+    def sound_pressure_level(self, source_spl=None, impulse_response=None, strength=None) -> dict:
+        """Compute the sound pressure level per octave band from the source's level at 1 m and G.
+
+        ``Lp = spl + G - 20 dB`` per band: on the package scale the free field at 10 m, G's reference, is 20 dB below
+        the free field at 1 m, where ``spl`` is given (:attr:`compas_acoustics.Source.spl`). ``'SPL_overall'`` is the
+        A-weighted total of the bands (IEC 61672-1 weights at the band centres), ``'SPL_total'`` the unweighted one.
+
+        Parameters
+        ----------
+        source_spl : float or list of float, optional
+            The source's level at 1 m on its axis, per band of :attr:`frequency_bands` or one value for all. Default:
+            the ``spl`` of the response's source.
+        impulse_response : ImpulseResponse, optional
+            A package-scale response; default is the analyser's own.
+        strength : dict, optional
+            G as :meth:`sound_strength` returns it, when already computed.
+
+        Returns
+        -------
+        dict
+            ``'freqs'``, ``'SPL'`` per band in dB, ``'SPL_overall'`` in dB(A) and ``'SPL_total'`` in dB. NaN, with a
+            warning, for a response without its absolute level (not on the package scale) or without a level.
+        """
+        response = self._response if impulse_response is None else impulse_response
+        freqs = list(self.frequency_bands)
+        nan = {'freqs': freqs, 'SPL': [np.nan] * len(freqs), 'SPL_overall': np.nan, 'SPL_total': np.nan}
+        if source_spl is None:
+            source_spl = getattr(getattr(response, 'source', None), 'spl', None)
+        if source_spl is None:
+            warnings.warn("SPL needs the source's level at 1 m: pass source_spl or a response whose source has one.")
+            return nan
+        level = np.broadcast_to(np.asarray(source_spl, dtype=float).reshape(-1), (len(freqs),)) if np.size(source_spl) in (1, len(freqs)) else None
+        if level is None:
+            raise ValueError(f"source_spl must be one value or one per band ({len(freqs)}), got {np.size(source_spl)}.")
+        if strength is None:
+            if not self._on_package_scale(response):
+                warnings.warn("SPL needs a response on the package scale (a simulated one), which keeps its absolute level.")
+                return nan
+            strength = self.sound_strength(impulse_response=None if impulse_response is None else impulse_response)
+        g = np.asarray(strength['G'], dtype=float)
+        spl = level + g - 20.0
+        weights = np.array([_A_WEIGHTS.get(f, np.nan) for f in freqs])
+        with np.errstate(divide='ignore'):
+            total = 10.0 * np.log10(np.nansum(10.0 ** (spl / 10.0))) if np.any(np.isfinite(spl)) else np.nan
+            weighted = 10.0 * np.log10(np.nansum(10.0 ** ((spl + weights) / 10.0))) if np.any(np.isfinite(spl + weights)) else np.nan
+        return {'freqs': freqs, 'SPL': [round(float(v), 2) for v in spl], 'SPL_overall': round(float(weighted), 2),
+                'SPL_total': round(float(total), 2)}
+
+    def lateral_fraction(self, impulse_response=None) -> dict:
+        """Compute the early lateral energy fractions LF (J_LF) and LFC (J_LFC) per octave band.
+
+        ISO 3382-1:2009 Annex A: J_LF is the figure-of-eight energy 5-80 ms after the direct sound over the
+        omnidirectional energy 0-80 ms; J_LFC takes ``|p_L p|`` in place of ``p_L^2`` in the numerator (Kleiner
+        1989), a cosine weighting of the lateral arrivals where J_LF weights them by the cosine squared (Bradley 1994).
+        The figure-of-eight is the first-order dipole of an ambisonic response, with unit gain on its axis, the axis
+        horizontal in the receiver frame and perpendicular to the source direction, so that its null faces the source.
+        The source direction is the geometric one when the response carries its source and receiver, else the
+        direct sound's first-order intensity. Windows are cut from the broadband signals before octave filtering, as
+        for C80, so the whole direct sound stays in the denominator.
+
+        Parameters
+        ----------
+        impulse_response : ImpulseResponse, optional
+            An ambisonic response, ACN, SN3D or N3D. Default is the analyser's own response.
+
+        Returns
+        -------
+        dict
+            ``'freqs'``, ``'LF'`` and ``'LFC'`` per band in :attr:`frequency_bands`, and ``'LF_overall'`` and
+            ``'LFC_overall'``, the mean of 125-1000 Hz. NaN for a response that is not ambisonic.
+        """
+        response = self._response if impulse_response is None else impulse_response
+        freqs = list(self.frequency_bands)
+        nan = {'freqs': freqs, 'LF': [np.nan] * len(freqs), 'LFC': [np.nan] * len(freqs), 'LF_overall': np.nan, 'LFC_overall': np.nan}
+        if getattr(response, 'ambisonic_order', None) is None or not hasattr(response, 'denormalized'):
+            return nan
+        channels = _channels_first(response.denormalized())
+        if channels.shape[0] < 4:
+            return nan
+        w, y, z, x = channels[:4]
+        if (getattr(response, 'normalization', None) or 'sn3d').lower() == 'n3d':
+            x, y, z = (c / np.sqrt(3.0) for c in (x, y, z))
+
+        fs = self.sampling_rate
+        if self._on_package_scale(response):
+            onset = response.direct_sound_index()
+        else:
+            onset = self._direct_sound_onset(w)
+        source = getattr(response, 'source', None)
+        receiver = getattr(response, 'receiver', None)
+        if source is not None and receiver is not None:
+            direction = np.asarray(receiver.rotation).T @ (np.asarray(source.position, dtype=float) - np.asarray(receiver.position, dtype=float))
+        else:
+            stop = onset + max(1, int(round(_LATERAL_DOA_WINDOW * fs)))
+            direction = np.array([np.sum(w[onset:stop] * c[onset:stop]) for c in (x, y, z)])
+        axis = np.cross([0.0, 0.0, 1.0], direction)
+        norm = np.linalg.norm(axis)
+        # a source straight above or below the receiver: the receiver's own lateral (y) axis
+        axis = axis / norm if norm > 1e-9 * max(np.linalg.norm(direction), 1e-300) else np.array([0.0, 1.0, 0.0])
+        lateral = axis[0] * x + axis[1] * y + axis[2] * z
+
+        bands = list(dict.fromkeys(freqs + _LATERAL_BANDS))
+        start, stop = (onset + int(round(t * fs)) for t in _LATERAL_WINDOW)
+        end = onset + int(round(_LATERAL_EARLY_LIMIT * fs))
+        omni_early = self._band_signals(w[onset:end], bands)
+        omni_lateral = self._band_signals(w[start:stop], bands)
+        lateral_early = self._band_signals(lateral[start:stop], bands)
+
+        lf, lfc = {}, {}
+        for f in bands:
+            total = float(np.sum(omni_early[f] ** 2))
+            lf[f] = float(np.sum(lateral_early[f] ** 2)) / total if total > 0 else np.nan
+            lfc[f] = float(np.sum(np.abs(lateral_early[f] * omni_lateral[f]))) / total if total > 0 else np.nan
+        return {
+            'freqs': freqs,
+            'LF': [round(lf[f], 3) for f in freqs],
+            'LFC': [round(lfc[f], 3) for f in freqs],
+            'LF_overall': round(float(np.nanmean([lf[f] for f in _LATERAL_BANDS])), 3),
+            'LFC_overall': round(float(np.nanmean([lfc[f] for f in _LATERAL_BANDS])), 3),
+        }
+
+    def _band_signals(self, segment, bands) -> dict:
+        """Octave-band signals of a time segment, filtered after windowing and padded so the filters ring out."""
+        padded = np.concatenate([np.asarray(segment, dtype=float), np.zeros(int(_FILTER_TAIL * self.sampling_rate))])
+        return {f: self._filter_impulse_response(padded, f) for f in bands}
+
     # Methods
 
     def _sti_and_strength(self, ir=None) -> dict:
@@ -748,13 +888,22 @@ class AcousticAnalyser:
         finally:
             self._bands_from_onset = None
         sti_and_strength = self._sti_and_strength(ir)
+        # the lateral fractions and SPL need the channels, source and receiver of the response, not its mono array
+        response = self._response if ir is self.ir else ir
+        lateral = self.lateral_fraction(response)
+        level = getattr(getattr(response, 'source', None), 'spl', None)
+        if level is not None and not all(np.isnan(np.asarray(sti_and_strength['G'], dtype=float))):
+            spl = self.sound_pressure_level(level, strength={'G': sti_and_strength['G']})
+        else:
+            spl = {'SPL': [np.nan] * len(self.frequency_bands), 'SPL_overall': np.nan}
 
         freqs = list(self.frequency_bands)
 
         param_vectors = {
             'EDT': rt['EDT'], 'T20': rt['T20'], 'T30': rt['T30'],
             'C50': clarity['C50'], 'C80': clarity['C80'], 'D50': clarity['D50'],
-            'DRR': drr['DRR'], 'Ts': ct['Ts'], 'STI': sti_and_strength['STI'], 'G': sti_and_strength['G']
+            'DRR': drr['DRR'], 'Ts': ct['Ts'], 'STI': sti_and_strength['STI'], 'G': sti_and_strength['G'],
+            'SPL': spl['SPL'], 'LF': lateral['LF'], 'LFC': lateral['LFC'],
         }
 
         result = {'freqs': freqs}
@@ -765,6 +914,10 @@ class AcousticAnalyser:
                 overall = sti_and_strength[f'{param}_overall']
             elif param == 'DRR':
                 overall = drr['DRR_overall']
+            elif param in ('LF', 'LFC'):
+                overall = lateral[f'{param}_overall']
+            elif param == 'SPL':
+                overall = spl['SPL_overall']
             else:
                 idx = [freqs.index(f) for f in _SINGLE_NUMBER_BANDS]
                 overall = round(float(np.nanmean(vals[idx])), 2)
@@ -829,6 +982,9 @@ class AcousticAnalyser:
             'D50': 'Percentage',
             'Ts': 'Time (s)',
             'G': 'dB',
+            'SPL': 'dB',
+            'LF': 'Fraction (0-1)',
+            'LFC': 'Fraction (0-1)',
         }
         
         for param in parameters:

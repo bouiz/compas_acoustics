@@ -11,7 +11,7 @@ namespace CompasAcoustics.Grasshopper
     /// <summary>Which parameters Deconstruct Parameter gives: all, or the one named by ``select``.</summary>
     public static class DeconstructParameter
     {
-        public static readonly string[] Names = { "EDT", "T20", "T30", "C50", "C80", "D50", "DRR", "Ts", "STI", "G" };
+        public static readonly string[] Names = { "EDT", "T20", "T30", "C50", "C80", "D50", "DRR", "Ts", "STI", "G", "SPL", "LF", "LFC" };
 
         // first item is the default
         public static readonly string[] Options = new[] { "all" }.Concat(Names).ToArray();

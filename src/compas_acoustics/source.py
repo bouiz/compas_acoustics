@@ -1,3 +1,6 @@
+import numbers
+
+import numpy as np
 from compas.geometry import Point
 from compas.geometry import Vector
 
@@ -24,7 +27,14 @@ def _voice_spl(effort: str) -> list:
 # directivity = ["bidirectional", "hypercardioid", "supercardioid", "cardioid", "omnidirectional", "custom",]
 
 class Source(_PackageDtype, Point):
-    
+    """A sound source: position, directivity and facing, an optional sound file, and its level.
+
+    ``spl`` is the source's level: the sound pressure level on its axis at 1 m in free field, per octave band
+    125 Hz to 8 kHz, in dB re 20 uPa (the voice presets give ANSI S3.5's levels of a talker). On the package scale,
+    where the direct sound is ``1 / (4 pi r)`` with gain 1 on the axis of every directivity, a response then reads
+    ``Lp = spl + G - 20 dB`` per band, G re the free field at 10 m (:meth:`AcousticAnalyser.sound_pressure_level`).
+    """
+
     def __init__(self, name: str, x: float, y: float, z: float, directivity: str = None, direction: Vector = None, sound_file: str = None):
         super().__init__(x, y, z)
         self.name = name
@@ -99,14 +109,14 @@ class Source(_PackageDtype, Point):
     
     @spl.setter
     def spl(self, spl):
-        if isinstance(spl, int) or isinstance(spl, float):
-            spl = [spl] * Defaults().NUMBER_OF_FREQUENCY_BANDS
-        elif isinstance(spl, list) or isinstance(spl, tuple):
-            if len(spl) != Defaults().NUMBER_OF_FREQUENCY_BANDS:
-                raise ValueError(f"SPL must be a list of {Defaults().NUMBER_OF_FREQUENCY_BANDS} float values corresponding to frequency bands.")
-            else:
-                spl = list(spl)
-        self._spl = spl
+        count = Defaults().NUMBER_OF_FREQUENCY_BANDS
+        # any iterable: Grasshopper passes System.Collections.Generic.List[Double]
+        values = [float(spl)] if isinstance(spl, numbers.Real) else [float(v) for v in np.asarray(list(spl), dtype=float).reshape(-1)]
+        if len(values) == 1:
+            values = values * count
+        if len(values) != count:
+            raise ValueError(f"SPL must be one value or a list of {count} float values corresponding to frequency bands.")
+        self._spl = values
 
         
     @property

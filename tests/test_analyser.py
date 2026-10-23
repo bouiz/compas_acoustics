@@ -597,3 +597,147 @@ def test_the_time_response_ends_with_its_decay():
     # the Schroeder curve of an exponential decay falls as its level: 60 dB at 1 s, plus 5 %
     assert times[-1] == pytest.approx(1.05, abs=0.01)
     assert len(time_response(ir, fs)[0]) == len(ir)
+
+
+# ---------------------------------------------------------------- lateral energy fraction (ISO 3382-1 Annex A) --
+
+def _ambisonic(arrivals, source=(0.0, 0.0, 0.0), receiver=(2.0, 0.0, 0.0), facing=(-1.0, 0.0, 0.0), n3d=False, fs=48000):
+    """A first-order ACN ambisonic response on the package scale; each arrival ``(time_s, amplitude, doa)``, doa a unit
+    vector in the receiver frame, adds ``amplitude * [1, y, z, x]`` (SN3D; N3D: first order times sqrt(3))."""
+    from compas_acoustics import ImpulseResponse, Receiver, Source
+
+    data = np.zeros((fs, 4))
+    gain = np.sqrt(3.0) if n3d else 1.0
+    for t, a, (x, y, z) in arrivals:
+        data[int(round(t * fs))] += a * np.array([1.0, gain * y, gain * z, gain * x])
+    return ImpulseResponse("lf", Source("s", *source), Receiver("r", *receiver, direction=list(facing)), data, fs,
+                           generation={"scale": "package"}, ambisonic_order=1, normalization="n3d" if n3d else "sn3d",
+                           channel_order="acn")
+
+
+def _direct_time(distance=2.0):
+    return distance / Defaults().DEFAULT_SPEED_OF_SOUND
+
+
+@pytest.mark.parametrize("n3d", [False, True])
+def test_lateral_fraction_of_one_lateral_reflection(n3d):
+    ir = _ambisonic([(_direct_time(), 1.0, (1, 0, 0)), (0.02, 0.5, (0, 1, 0))], n3d=n3d)
+    lf = AcousticAnalyser(ir).lateral_fraction()
+    assert lf["LF"][3] == pytest.approx(0.2, abs=0.01)
+    assert lf["LF"] == pytest.approx([0.2] * 7, abs=0.03)
+    assert lf["LFC"][3] == pytest.approx(0.2, abs=0.01)
+    assert lf["LF_overall"] == pytest.approx(0.2, abs=0.02)
+
+
+def test_lateral_fraction_weights_by_cos_squared():
+    ir = _ambisonic([(_direct_time(), 1.0, (1, 0, 0)), (0.02, 0.5, (np.sqrt(0.5), np.sqrt(0.5), 0))])
+    lf = AcousticAnalyser(ir).lateral_fraction()
+    assert lf["LF"][3] == pytest.approx(0.125 / 1.25, abs=0.01)
+    assert lf["LFC"][3] == pytest.approx(0.5 * 0.5 * np.sqrt(0.5) / 1.25, abs=0.01)
+
+
+def test_lateral_fraction_ignores_lateral_energy_before_5_ms_and_after_80_ms():
+    t0 = _direct_time()
+    ir = _ambisonic([(t0, 1.0, (1, 0, 0)), (t0 + 0.003, 0.5, (0, 1, 0)), (t0 + 0.09, 0.5, (0, 1, 0))])
+    assert AcousticAnalyser(ir).lateral_fraction()["LF"][3] == pytest.approx(0.0, abs=0.01)
+
+
+def test_lateral_fraction_with_the_source_overhead_uses_the_receivers_y_axis():
+    ir = _ambisonic([(_direct_time(), 1.0, (0, 0, 1)), (0.02, 0.5, (0, 1, 0))], receiver=(0.0, 0.0, -2.0), facing=(1.0, 0.0, 0.0))
+    assert AcousticAnalyser(ir).lateral_fraction()["LF"][3] == pytest.approx(0.2, abs=0.01)
+
+
+def test_lateral_fraction_of_an_occluded_pair_takes_the_axis_from_geometry():
+    t0 = _direct_time()
+    ir = _ambisonic([(t0 + 0.010, 0.5, (0, 1, 0)), (t0 + 0.020, 0.5, (1, 0, 0))])
+    assert AcousticAnalyser(ir).lateral_fraction()["LF"][3] == pytest.approx(0.25 / 0.5, abs=0.02)
+
+
+def test_lateral_fraction_is_nan_for_mono_and_binaural():
+    from compas_acoustics import ImpulseResponse, Receiver, Source
+
+    mono = make_ir()
+    binaural = ImpulseResponse("b", Source("s", 0, 0, 0), Receiver("r", 2, 0, 0), np.column_stack([mono, mono]), 48000,
+                               generation={"scale": "package"})
+    for ir in (mono, binaural):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            lf = AcousticAnalyser(ir).lateral_fraction()
+        assert np.all(np.isnan(lf["LF"])) and np.all(np.isnan(lf["LFC"]))
+        assert np.isnan(lf["LF_overall"]) and np.isnan(lf["LFC_overall"])
+
+
+def test_lateral_fraction_matches_the_ita_toolbox_ratios():
+    import json
+    from pathlib import Path
+
+    oracle = json.loads((Path(__file__).parent / "data" / "ita_lateral" / "ita_lf_cases.json").read_text())
+    t0 = _direct_time()
+    ours = {name: AcousticAnalyser(_ambisonic([(t0, 1.0, (1, 0, 0)), (t0 + 0.020, 0.5, (c, np.sqrt(1 - c * c), 0))])).lateral_fraction()
+            for name, c in (("lateral", 0.0), ("oblique", np.sqrt(0.5)))}
+    for key in ("LF", "LFC"):
+        ita = np.asarray(oracle["oblique"][key]) / np.asarray(oracle["lateral"][key])
+        assert np.asarray(ours["oblique"][key]) / np.asarray(ours["lateral"][key]) == pytest.approx(ita, abs=0.02)
+
+
+def test_analyse_holds_lf_for_an_ambisonic_response():
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        data = AcousticAnalyser(_ambisonic([(_direct_time(), 1.0, (1, 0, 0)), (0.02, 0.5, (0, 1, 0))])).analyse()
+    assert data["LF_overall"] == pytest.approx(0.2, abs=0.02)
+    assert data["LFC_overall"] == pytest.approx(0.2, abs=0.02)
+    assert len(data["LF"]) == len(data["freqs"])
+
+
+def test_analyse_of_a_mono_response_has_nan_lf():
+    data = AcousticAnalyser(make_ir()).analyse()
+    assert np.isnan(data["LF_overall"]) and np.isnan(data["LFC_overall"])
+    assert _PARAM_NAMES[-2:] == ["LF", "LFC"]
+
+
+# ---------------------------------------------------------------- sound pressure level from the source's level at 1 m --
+
+A_WEIGHTS = [-16.1, -8.6, -3.2, 0.0, 1.2, 1.0, -1.1]
+
+
+def _free_field(distance=2.0, spl=80.0, fs=48000):
+    from compas_acoustics import ImpulseResponse, Receiver, Source
+
+    source = Source("s", 0, 0, 0)
+    source.spl = spl
+    data = np.zeros(fs)
+    data[int(round(distance / Defaults().DEFAULT_SPEED_OF_SOUND * fs))] = 1.0 / (4 * np.pi * distance)
+    return ImpulseResponse("ff", source, Receiver("r", distance, 0, 0), data, fs, generation={"scale": "package"})
+
+
+@pytest.mark.skipif(not _PYRATO_PARAMETERS, reason="SPL comes from G, which needs pyrato >= 1.0")
+def test_free_field_spl_falls_6_db_per_doubling_from_the_level_at_1_m():
+    spl = AcousticAnalyser(_free_field()).sound_pressure_level()
+    assert spl["SPL"] == pytest.approx([80 - 6.02] * 7, abs=0.1)
+    assert spl["SPL_total"] == pytest.approx(80 - 6.02 + 10 * np.log10(7), abs=0.1)
+
+
+@pytest.mark.skipif(not _PYRATO_PARAMETERS, reason="SPL comes from G, which needs pyrato >= 1.0")
+def test_spl_overall_is_the_a_weighted_total():
+    spl = AcousticAnalyser(_free_field()).sound_pressure_level()
+    expected = 10 * np.log10(sum(10 ** ((80 - 6.02 + a) / 10) for a in A_WEIGHTS))
+    assert spl["SPL_overall"] == pytest.approx(expected, abs=0.1)
+
+
+@pytest.mark.skipif(not _PYRATO_PARAMETERS, reason="SPL comes from G, which needs pyrato >= 1.0")
+def test_spl_takes_a_given_level_over_the_sources():
+    spl = AcousticAnalyser(_free_field(spl=80.0)).sound_pressure_level(source_spl=90.0)
+    assert spl["SPL"][3] == pytest.approx(90 - 6.02, abs=0.1)
+
+
+def test_spl_of_a_response_without_absolute_level_is_nan_and_warns():
+    with pytest.warns(UserWarning, match="package scale"):
+        spl = AcousticAnalyser(make_ir()).sound_pressure_level(source_spl=80)
+    assert np.all(np.isnan(spl["SPL"])) and np.isnan(spl["SPL_overall"])
+
+
+@pytest.mark.skipif(not _PYRATO_PARAMETERS, reason="SPL comes from G, which needs pyrato >= 1.0")
+def test_analyse_holds_spl():
+    data = AcousticAnalyser(_free_field()).analyse()
+    assert data["SPL"][3] == pytest.approx(80 - 6.02, abs=0.1)
+    assert "SPL" in _PARAM_NAMES and _PARAM_NAMES.index("SPL") == _PARAM_NAMES.index("G") + 1

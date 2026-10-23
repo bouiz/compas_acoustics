@@ -130,7 +130,7 @@ def test_every_class_is_stored_under_the_package_whatever_its_module():
     import compas_acoustics as ca
 
     classes = [c for _, c in inspect.getmembers(ca, inspect.isclass) if issubclass(c, Data)]
-    assert len(classes) == 11
+    assert len(classes) == 12
     for cls in classes:
         assert cls.__dtype__.fget(object.__new__(cls)) == "compas_acoustics/" + cls.__name__
     scene = ca.Scene("dtype")

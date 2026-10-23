@@ -48,7 +48,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void Options_AreAllThenEveryParameterName()
         {
-            Assert.Equal(new[] { "all", "EDT", "T20", "T30", "C50", "C80", "D50", "DRR", "Ts", "STI", "G" }, DeconstructParameter.Options);
+            Assert.Equal(new[] { "all", "EDT", "T20", "T30", "C50", "C80", "D50", "DRR", "Ts", "STI", "G", "SPL", "LF", "LFC" }, DeconstructParameter.Options);
         }
     }
 

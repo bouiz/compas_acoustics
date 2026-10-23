@@ -27,8 +27,9 @@ namespace CompasAcoustics.Grasshopper
         {
             var position = Value<Point3d>(access, "position") ?? Point3d.Origin;
             var direction = Value<Vector3d>(access, "direction") ?? Vector3d.XAxis;
+            var spl = List<double>(access, "spl");
             var source = (SourceData)Worker.Call("make_source", Text(access, "name"), MeshConversion.Xyz(position), MeshConversion.Xyz(direction),
-                Text(access, "directivity"), Text(access, "sound_file"))!;
+                Text(access, "directivity"), Text(access, "sound_file"), spl.Count == 0 ? null : spl.Cast<object?>().ToList())!;
             access.SetData(0, new SourceGoo(source));
         }
     }

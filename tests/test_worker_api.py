@@ -184,8 +184,10 @@ def decay(channels=1, seconds=0.6, rt=0.5, rate=48000, seed=0, level=1.0, output
 def test_analysis_gives_every_parameter_with_its_units_and_the_two_curves():
     result = call("analysis", decay())
     names = [p["name"] for p in result["parameters"]]
-    # STI and G are left out where they cannot be computed (pyrato < 1.0; G needs the simulation's level)
-    assert [n for n in api.PARAMETERS if n not in ("STI", "G")] == [n for n in names if n not in ("STI", "G")]
+    # STI and G are left out where they cannot be computed (pyrato < 1.0; G needs the simulation's level), LF and LFC
+    # for a response that is not ambisonic
+    optional = ("STI", "G", "SPL", "LF", "LFC")
+    assert [n for n in api.PARAMETERS if n not in optional] == [n for n in names if n not in optional]
     t30 = next(p for p in result["parameters"] if p["name"] == "T30")
     assert t30["title"] == "Reverberation Time (T30)" and t30["x_unit"] == "Frequency (Hz)" and t30["y_unit"] == "Time (s)"
     assert t30["x_scale"] == "bands" and len(t30["values"]) == 1 and len(t30["values"][0]) == len(t30["frequencies"])
@@ -459,3 +461,50 @@ def test_sound_samples_reads_a_file_as_audio(tmp_path):
     assert audio.samples.shape == (20, 2) and np.allclose(audio.samples, 0.25, atol=1e-4)
     with pytest.raises(ValueError, match="does not exist"):
         api.sound_samples(str(tmp_path / "none.wav"))
+
+
+def test_the_worker_leaves_lf_out_for_a_mono_response():
+    names = [p["name"] for p in call("analysis", decay())["parameters"]]
+    assert "LF" not in names and "LFC" not in names
+    assert list(api.PARAMETERS)[-2:] == ["LF", "LFC"]
+    assert api.PARAMETERS["LF"] == ("Lateral Energy Fraction (LF)", "Frequency (Hz)", "Fraction (0-1)")
+
+
+def test_make_source_takes_the_level_at_1_m():
+    assert call("make_source", "s", [0, 0, 0], spl=[65.0]).spl == [65.0] * 7
+    assert call("make_source", "s", [0, 0, 0], spl=list(range(60, 67))).spl == [60.0, 61.0, 62.0, 63.0, 64.0, 65.0, 66.0]
+    assert call("make_source", "s", [0, 0, 0]).spl == Source("x", 0, 0, 0).spl
+
+
+def _map_scene():
+    from compas_acoustics import AcousticMaterial, AcousticObjectsLibrary, Scene
+
+    scene = Scene("map")
+    scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(6, 5, 3, materials=AcousticMaterial("m", 0.3, 0.1)))
+    source = Source("s", 1.5, 1.5, 1.6)
+    source.spl = 80.0
+    scene.add_source(source)
+    return scene
+
+
+def test_energy_map_gives_levels_per_point_and_frames():
+    import math
+
+    result = call("energy_map", _map_scene(), [[4, 3, 1.2], [3, 2, 1.2], [100, 0, 0]], n_rays=1000, seed=3)
+    assert result["seed"] == 3 and len(result["spl_a"]) == 3 and len(result["spl"]) == 3 and len(result["spl"][0]) == 7
+    assert result["bands"] == [125.0, 250.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0]
+    assert result["inside"] == [True, True, False]
+    assert math.isnan(result["spl_a"][2]) and all(math.isnan(v) for v in result["spl"][2])
+    assert 60 < result["spl_a"][0] < 90
+    assert len(result["frames"]) == 3 and len(result["frames"][0]) == len(result["times"])
+    assert any("1 of 3 points" in w for w in result["warnings"])
+
+
+def test_energy_map_draws_a_seed_without_one():
+    assert "energy_map" in api.__all__
+    assert isinstance(call("energy_map", _map_scene(), [[4, 3, 1.2]], n_rays=500)["seed"], int)
+
+
+def test_energy_map_rejects_a_source_index_out_of_range():
+    with pytest.raises(ValueError, match="source"):
+        api.energy_map(_map_scene(), [[4, 3, 1.2]], source_index=5)

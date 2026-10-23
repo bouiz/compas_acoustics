@@ -192,6 +192,15 @@ def billiard(image, d, accent):
     _dot(d, 53, 46, 12, accent)
 
 
+def energy_map(image, d, accent):
+    for i in range(4):
+        for j in range(4):
+            fade = max(0.2, math.exp(-0.6 * math.hypot(i - 1, j - 1)))
+            x, y = 12 + 18 * i, 12 + 18 * j
+            d.rectangle((x, y, x + 18, y + 18), fill=accent[:3] + (int(255 * fade),))
+    d.rectangle((10, 10, 86, 86), outline=DARK, width=W - 2)
+
+
 def gear(image, d, accent):
     teeth = []
     for i in range(16):
@@ -222,6 +231,7 @@ GLYPHS = {
     "CA_Simulate_Ray_Tracing": rays,
     "CA_Source": source,
     "CA_Visualise_Billiard": billiard,
+    "CA_Visualise_Energy_Map": energy_map,
     "CA_Visualise_Rays": fan,
     "CA_Visualise_Reflections": reflections,
     "CA_Worker": gear,

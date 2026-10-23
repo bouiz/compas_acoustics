@@ -49,3 +49,24 @@ def test_the_sound_file_path_survives_json(tmp_path):
 
 def test_a_source_faces_x_by_default():
     assert list(Source("s", 0, 0, 0).direction) == [1.0, 0.0, 0.0]
+
+
+def test_spl_accepts_any_iterable_and_one_value_for_every_band():
+    s = Source("s", 0, 0, 0)
+    s.spl = np.array([60.0])
+    assert s.spl == [60.0] * 7
+    s.spl = (v for v in range(70, 77))
+    assert s.spl == [70.0, 71.0, 72.0, 73.0, 74.0, 75.0, 76.0]
+    s.spl = 65
+    assert s.spl == [65.0] * 7
+
+
+def test_spl_rejects_a_wrong_number_of_bands():
+    with pytest.raises(ValueError, match="7"):
+        Source("s", 0, 0, 0).spl = [60.0, 61.0]
+
+
+def test_spl_survives_json():
+    s = Source("s", 0, 0, 0)
+    s.spl = [60.0, 61.0, 62.0, 63.0, 64.0, 65.0, 66.0]
+    assert json_loads(json_dumps(s)).spl == s.spl

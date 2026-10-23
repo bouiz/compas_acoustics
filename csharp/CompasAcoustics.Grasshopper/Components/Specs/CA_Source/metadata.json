@@ -36,6 +36,13 @@
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "str"
+            },
+            {
+                "name": "spl",
+                "description": "The source's level: the sound pressure level on its axis at 1 m in free field, in dB, per octave band 125 Hz to 8 kHz (7 values) or one value for every band. Empty: 120 dB. Analyse IR's SPL reads from it.",
+                "optional": true,
+                "scriptParamAccess": 1,
+                "typeHintID": "float"
             }
         ],
         "outputParameters": [

@@ -20,7 +20,7 @@
         "outputParameters": [
             {
                 "name": "parameters",
-                "description": "List of acoustic parameters ('EDT', 'T20', 'T30', 'C50', 'C80', 'D50', 'DRR', 'Ts', 'STI', with its modulation transfer index per band, and 'G'; G only for a simulated response)."
+                "description": "List of acoustic parameters ('EDT', 'T20', 'T30', 'C50', 'C80', 'D50', 'DRR', 'Ts', 'STI', with its modulation transfer index per band, 'G', 'SPL', 'LF' and 'LFC'; G and SPL (the sound pressure level from the source's level at 1 m, overall A-weighted) only for a simulated response, LF and LFC, the early lateral energy fractions, only for an ambisonic one)."
             },
             {
                 "name": "time",

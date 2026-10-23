@@ -49,6 +49,16 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
+        public void TheSource_TakesItsLevelAsAnOptionalListAfterTheSoundFile()
+        {
+            var inputs = ComponentSpec.Load("CA_Source").Inputs;
+            Assert.Equal(new[] { "position", "name", "direction", "sound_file", "spl" }, inputs.Select(p => p.Name));
+            var spl = inputs.Last();
+            Assert.True(spl.Optional);
+            Assert.Equal(global::Grasshopper.Kernel.GH_ParamAccess.list, spl.Access);
+        }
+
+        [Fact]
         public void APreviewOffByDefault_IsOffInADocumentSavedBeforeIt_AndKeepsWhatIsSavedSince()
         {
             // saved before: Grasshopper's own Hidden (false) and no word of ours

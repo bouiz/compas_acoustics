@@ -1,0 +1,86 @@
+{
+    "name": "Visualise Energy Map",
+    "nickname": "EnergyMap",
+    "category": "COMPAS Acoustics",
+    "subcategory": "05 Display",
+    "description": "Colour a mesh by the sound pressure level of the scene's sources: one point per face centre, the direct sound and image sources up to image_source_order, and pyroomacoustics' rays past it, with each source's level at 1 m (Source spl). Blue is the lowest level, red the highest; a face outside the room or inside an obstacle is grey. Press Play to watch the energy arrive over time, in 12 ms frames; Rewind goes back to the start. The ray tracer over-estimates the late energy of surfaces that scatter strongly (up to about 3 dB at scattering 0.6 to 1). The Preview button shows or hides the drawing.",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "scene",
+                "description": "Room scene object.",
+                "optional": false,
+                "scriptParamAccess": 0,
+                "typeHintID": "ghdoc"
+            },
+            {
+                "name": "mesh",
+                "description": "The analysis surface, for instance a plane at ear height: one point per face centre.",
+                "optional": false,
+                "scriptParamAccess": 0,
+                "typeHintID": "mesh"
+            },
+            {
+                "name": "source_idx",
+                "description": "Index of one source, in the order of the scene's sources. Empty (default): every source, their energies added.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "int"
+            },
+            {
+                "name": "n_rays",
+                "description": "Rays per source.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "int",
+                "default": 20000
+            },
+            {
+                "name": "image_source_order",
+                "description": "Image sources up to this order at every point, the rays past it; at least 1. Higher orders are slower in furnished rooms.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "int",
+                "default": 1
+            },
+            {
+                "name": "band",
+                "description": "Index of one octave band, 0 (125 Hz) to 6 (8 kHz). Empty (default): the A-weighted level of all bands.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "int"
+            },
+            {
+                "name": "range",
+                "description": "The levels in dB the colours run between. Empty (default): the lowest and highest level on the mesh.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "interval"
+            },
+            {
+                "name": "seed",
+                "description": "Seed of the rays. Empty (default): a new seed each run, shown in the message.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "int"
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "mesh",
+                "description": "The mesh with each face in the colour of its level."
+            },
+            {
+                "name": "values",
+                "description": "The level of each face in dB (dB(A) without a band); NaN outside the room."
+            },
+            {
+                "name": "colours",
+                "description": "The colour of each face."
+            }
+        ]
+    }
+}

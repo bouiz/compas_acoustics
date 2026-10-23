@@ -109,13 +109,13 @@ namespace CompasAcoustics.Grasshopper
         private static readonly HashSet<string> ReverberationTimes = new() { "EDT", "T20", "T30" };
 
         /// <summary>
-        /// The y range a parameter always has, whatever its values: STI is an index from 0 to 1, a reverberation time
-        /// starts at 0.
+        /// The y range a parameter always has, whatever its values: STI is an index and LF and LFC are fractions from 0 to
+        /// 1, a reverberation time starts at 0.
         /// </summary>
         private static double[]? FixedTicks(ParameterGoo.Content p, out bool integral)
         {
             integral = false;
-            if (p.Name == "STI")
+            if (p.Name is "STI" or "LF" or "LFC")
                 return Ticks.Linear(0, 1, out integral);
             var values = p.Values.Length > 0 ? p.Values[0].Where(double.IsFinite).ToArray() : Array.Empty<double>();
             if (ReverberationTimes.Contains(p.Name) && values.Length > 0 && values.Max() > 0)
