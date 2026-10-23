@@ -66,7 +66,8 @@ room simulations ("design loop").
 | `"turntable"` | virtual ISO 17497-1 in the ISO 354 chamber of sub-project B: T₁–T₄, rotating sample, phase-locked averaging | minutes to an hour (n positions × source/mic pairs) | features ≫ λ (upper bands, large relief) | all diffraction below the feature scale |
 
 - **Kirchhoff solver.** For plane-wave incidence k̂ᵢ and far-field direction k̂ₛ,
-  `p(k̂ₛ) ∝ Σ_facets lit (n·(k̂ᵢ − k̂ₛ)) ∫_T e^{jk(k̂ᵢ−k̂ₛ)·x} dS`. The triangle phase integral is evaluated in closed
+  `p(k̂ₛ) ∝ Σ_facets lit (n·(k̂ᵢ − k̂ₛ)) ∫_T e^{jk(k̂ᵢ−k̂ₛ)·x} dS` (the Beckmann form, chosen 2026-10-24 over the rigid
+  n·k̂ₛ form: same cost, reciprocal, which V3's s_d reciprocity check needs; s differs by ≤ 0.02 on the sine surface). The triangle phase integral is evaluated in closed
   form (Gordon's formula), so the mesh does not need λ/6 refinement. Illumination comes from n·k̂ᵢ < 0, with an optional
   ray-cast shadow test using the existing geometry tools. The reference disc is computed the same way, so edge terms
   largely cancel in the correlation, as the paper notes for p₀/p₁. Vectorised numpy, chunked over receivers.
@@ -98,9 +99,11 @@ Each sub-project gets its own implementation plan. They are built in this order:
   baseplate. `ScatteringSample.as_drawn(mesh)` keeps the mesh as given. Both build the matching flat reference
   (same outline) and run the checks (h ≤ d/16, element count estimate per frequency range, closed baseplate).
   The geometry is COMPAS `Mesh`.
-- `grids.py`: source hemisphere (default: colatitude 1.26°…88.74° in 2.52° steps × azimuth step, collapsed when a symmetry
-  is declared; ISO 17497-2 Table 1 13-point survey as a "quick" preset), receiver grid (above), 1/9-octave
-  frequency grid with frequency-range splits.
+- `grids.py`: source presets `survey` (ISO 17497-2 Table 1, 13), `standard` (colatitude 0–80° step 10° × azimuth 30°, 97) and
+  `fine` (Heimes: colatitude 1.26°…88.74° step 2.52° × azimuth 15°, 864), collapsed to azimuth 0 when the sample is
+  rotationally symmetric. **Default depends on the method** (decided 2026-10-24): `kirchhoff` → `fine`, `bem` → `standard`
+  (the fine grid makes BEM ~9× longer). Comparisons between methods pass the same preset explicitly. Also: the receiver grid (above),
+  1/9-octave frequency grid with frequency-range splits.
 - `solvers/kirchhoff.py`: the fast free-field solver (above), with no extra dependencies.
 - `solvers/bem.py`: NumCalc backend via `mesh2scattering` (`write_scattering_project_numcalc`, `manage_numcalc`,
   `output.write_pressure`). Plane-wave incidence on sample and reference, a background subprocess with progress and cancel,

@@ -30,7 +30,7 @@ Sub-projects B (absorption chamber + turntable) and C (Grasshopper/compas_pb) ge
   - Warning texts (exact):
     - `"bands above 5000 Hz are beyond ISO 354 and ISO 17497 (100-5000 Hz)"` when the range goes above 5000
     - `"the {f} Hz octave was not simulated; the material takes the {g} Hz value"` per filled octave
-- Default source preset for `measure_scattering` is `"standard"` (97 sources), not the spec's Heimes grid (`"fine"`, 864 sources): the fine grid makes BEM runs ~9× longer and the Kirchhoff method no longer fast. **Deviation from the spec; review it.**
+- Default source preset depends on the method: `kirchhoff` → `"fine"` (864 sources), `bem` → `"standard"` (97). `preset=None` selects it; an explicit preset overrides it. Comparisons between methods pass the same preset.
 - Correlation (Heimes eq. 3): `s = 1 − |Σ p₁ p₀* w|² / (Σ|p₁|² w · Σ|p₀|² w)`, summed over receivers.
 - Random incidence (Paris): `s_rand = Σ wᵢ sᵢ`. The weights are `wᵢ = (sin²θ_hi − sin²θ_lo)/n_az(ring)` per colatitude ring, so they sum to 1.
 - Receiver spacing: `min(5°, 50·λ_min/d)` degrees (ISO 17497-2 §6.2.2; Embrechts eq. 6, Heimes eq. 6), where d is the sample's footprint diameter.
@@ -476,10 +476,11 @@ git commit -m "Lab: ScatteringSample, a tile cropped to a disc or a mesh as draw
 Pressure formula (rigid physical optics; the surface field is 2pᵢ and ∂p/∂n = 0), for source direction û, receiver direction r̂ and k = 2πf/c:
 
 ```
-p(r̂) = (j k / 2π) · Σ_{faces with n̂·û > 0} (n̂·r̂) · I_T(q),   q = −k (û + r̂)
+p(r̂) = (j k / 4π) · Σ_{faces with n̂·û > 0} n̂·(û + r̂) · I_T(q),   q = −k (û + r̂)
 ```
 
-- This uses the rigid (Neumann) obliquity factor n̂·r̂ instead of the spec's Beckmann form n̂·(k̂ᵢ − k̂ₛ). Both are equal at the specular direction, and the correlation is insensitive to the common factor. The docstring says so.
+- This is the spec's Beckmann form: with k̂ᵢ = −û and k̂ₛ = r̂, n̂·(k̂ᵢ − k̂ₛ) = −n̂·(û + r̂). The 1/4π prefactor gives the same amplitude as the rigid form at the specular direction.
+  The form is reciprocal (swapping û and r̂ leaves the integrand unchanged), and the docstring says so. The rigid n̂·r̂ form was ruled out: in the throwaway comparison it broke reciprocity by ~20 % and changed s by ≤ 0.02.
 - Faces of both closed bodies count, rim walls included, so the rim terms of sample and reference match.
 - With `shadowing=True`, a face also needs its centroid's ray towards û to hit no other face (vectorised Möller–Trumbore).
 
@@ -545,6 +546,15 @@ def test_sine_surface_scatters_above_the_first_grating_lobe():
     p = KirchhoffSolver().solve(s, src, rec, f, c)
     s_low, s_high = scattering_freefield(p.sample, p.reference, rec.weights)[0]
     assert s_low < 0.2 and s_high > 0.4
+
+def test_reciprocal_when_every_face_is_lit_from_both_directions():
+    # gentle sine (slopes < 15 deg) so that the lit set is the same for both directions
+    s = ScatteringSample.disc(sine_tile(period=0.2, depth=0.01), diameter=0.6)
+    u1 = SourceGrid(np.array([40.0]), np.array([0.0])); u2 = SourceGrid(np.array([20.0]), np.array([200.0]))
+    f = np.array([2000.0])
+    p12 = KirchhoffSolver().solve(s, u1, ReceiverGrid(u2.directions, np.ones(1), 10.0), f, 343.0).sample[0, 0, 0]
+    p21 = KirchhoffSolver().solve(s, u2, ReceiverGrid(u1.directions, np.ones(1), 10.0), f, 343.0).sample[0, 0, 0]
+    assert p12 == pytest.approx(p21, rel=1e-9)
 
 def test_warns_below_the_feature_scale():
     s = ScatteringSample.disc(sine_tile(period=0.0708, depth=0.0204), diameter=0.8, period=(0.0708, 0.05))
@@ -712,13 +722,13 @@ git commit -m "Lab: BEM solver over mesh2scattering/NumCalc, octave splits meshe
     - `polar_sample_db` and `polar_reference_db: np.ndarray (n_src, len(octave_bands), n_rec)` (float32)
     - `warnings: list[str]`, `generation: dict`
   - Its property `scattering_coefficients -> list[float]` gives the 7 material octaves (125…8000, via `fill_octaves`), the input sub-project B's material step uses.
-  - `measure_scattering(sample: ScatteringSample, method: str = "kirchhoff", preset: str = "standard", band_range=ISO_BAND_RANGE, air: AirConditions | None = None, name: str | None = None, **solver_options) -> ScatteringResult`.
+  - `measure_scattering(sample: ScatteringSample, method: str = "kirchhoff", preset: str | None = None, band_range=ISO_BAND_RANGE, air: AirConditions | None = None, name: str | None = None, **solver_options) -> ScatteringResult`.
     Pass `band_range=EXTENDED_BAND_RANGE` for the extension to 8 kHz.
     - Supported methods: `{"kirchhoff", "bem"}`, otherwise `ValueError` naming them (sub-project B adds `"turntable"`).
     - c comes from `(air or AirConditions()).speed_of_sound`.
 
 Pipeline:
-1. Frequencies come from `simulation_frequencies(band_range)`. Receivers are `ReceiverGrid.hemisphere(receiver_spacing(sample.diameter, f.max(), c), radius=10·sample.diameter)`. Sources are `SourceGrid.preset(preset, sample.symmetry)`.
+1. Frequencies come from `simulation_frequencies(band_range)`. Receivers are `ReceiverGrid.hemisphere(receiver_spacing(sample.diameter, f.max(), c), radius=10·sample.diameter)`. Sources are `SourceGrid.preset(preset or DEFAULT_PRESETS[method], sample.symmetry)`, with `DEFAULT_PRESETS = {"kirchhoff": "fine", "bem": "standard"}` in `scattering.py`. `generation["preset"]` records the preset actually used.
 2. `pressures = solver.solve(...)`. Non-finite values → `RuntimeError` naming the method.
 3. `s_f = scattering_freefield(p.sample, p.reference, rec.weights)` gives shape (n_src, n_f). Then `s_angle = band_average(s_f)`, `s_bands = random_incidence(s_angle, src)` and `s_octaves = fold_to_octaves(s_bands, nominal)`.
 4. Polar levels: per octave band, take the mean of |p|² over the simulation frequencies inside that octave. Convert to dB relative to the reference's maximum at the same source and band.
@@ -753,6 +763,13 @@ def test_extended_range_simulates_8000_and_warns_beyond_iso(monkeypatch):
     r = measure_scattering(ScatteringSample.disc(flat_tile(), diameter=0.4), preset="survey", band_range=EXTENDED_BAND_RANGE)
     assert r.bands[-1] == 8000 and r.octave_bands[-1] == 8000 and r.filled_octaves == []
     assert any("beyond ISO" in w for w in r.warnings)
+
+def test_default_preset_depends_on_the_method(monkeypatch):
+    monkeypatch.setattr(scattering, "_solver", lambda method, **kw: FakeSolver())
+    sample = ScatteringSample.disc(flat_tile(), diameter=0.4)
+    assert measure_scattering(sample, method="kirchhoff", band_range=(1000, 1000)).generation["preset"] == "fine"
+    assert measure_scattering(sample, method="bem", band_range=(1000, 1000)).generation["preset"] == "standard"
+    assert measure_scattering(sample, method="bem", preset="survey", band_range=(1000, 1000)).generation["preset"] == "survey"
 
 def test_unknown_method_names_the_supported_ones():
     with pytest.raises(ValueError, match="kirchhoff.*bem"):
@@ -841,7 +858,7 @@ def test_bem_matches_heimes_random_incidence():
             assert abs(ours[ratio] - s_ref) <= 0.1
 
 def test_kirchhoff_gap_to_bem_is_recorded():
-    gap = kirchhoff_vs_bem_gap()                     # max |s_kirchhoff - s_bem| per octave on the sine sample
+    gap = kirchhoff_vs_bem_gap()                     # max |s_kirchhoff - s_bem| per octave on the sine sample, both with preset="standard"
     print(json.dumps(gap))                           # pasted into KirchhoffSolver's docstring (Step 3)
     assert all(np.isfinite(v) for v in gap.values())
 ```
