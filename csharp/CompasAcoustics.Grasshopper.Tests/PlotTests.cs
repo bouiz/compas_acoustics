@@ -147,6 +147,17 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(chart.Plot.Bottom, ChartLayout.Y(chart, 0), 3);
         }
 
+        [Theory]
+        [InlineData("LF")]
+        [InlineData("LFC")]
+        public void LateralFractions_RunFromZeroToOne(string name)
+        {
+            var lf = new ParameterGoo.Content(name, name, "Frequency (Hz)", "Fraction (0-1)", "bands", Octaves,
+                new[] { new[] { 0.15, 0.18, 0.2, 0.22, 0.2, 0.19, 0.18 } }, 0.19, Array.Empty<string>());
+            var chart = ChartLayout.Build(lf, Area);
+            Assert.Equal((0.0, 1.0), (chart.YLow, chart.YHigh));
+        }
+
         [Fact]
         public void TheStripsHeader_IsOnlyTheOverallValue()
         {

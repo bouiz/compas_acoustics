@@ -153,6 +153,11 @@ the same names, inputs and outputs.
 * Added the Worker component (state, Python, version and schema, Restart, Open log), "Open worker log" in every component's menu, the worker's log file, and message strips of at most 40 characters with the whole text in the tooltip; Acoustic Scene's message counts objects, sources, receivers, the rate and the volume.
 * Added one generated icon set for the components (`tools/icons.py`).
 * Added the worker routes `POST /cancel/<call id>` and `GET /progress/<call id>` and the request header `X-Call-Id` (`compas_acoustics.worker.jobs`); a cancelled call answers 499.
+* Added LF and LFC (ISO 3382-1 early lateral energy fractions) to `AcousticAnalyser.analyse()`, Analyse IR and Deconstruct Parameter, from the first-order channels of an ambisonic response.
+* Added `Source.spl` as the source's level (SPL on axis at 1 m, per band; one value or seven) and SPL per band with its A-weighted total to `AcousticAnalyser` (`sound_pressure_level`, `analyse`) and Analyse IR.
+* Added the `spl` input to the Grasshopper Source component (the source's level at 1 m per band, or one value).
+* Added `EnergyMap` (`compas_acoustics.EnergyMap`): the SPL of a scene's sources over many points, per band, A-weighted and over time, from pyroomacoustics' ray tracer with a microphone per point plus first-order image sources, and the worker's `energy_map`.
+* Added the Visualise Energy Map component: a mesh coloured by the A-weighted or one band's SPL at its face centres, with Play/Rewind to show the energy arriving over time.
 
 ### Changed
 

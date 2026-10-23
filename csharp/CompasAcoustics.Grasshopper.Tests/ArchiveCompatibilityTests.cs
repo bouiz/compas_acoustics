@@ -57,7 +57,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             var (archive, read) = SaveThenRead(old, fresh);
             Assert.True(read);
             Assert.Empty(Errors(archive));
-            Assert.Equal(new[] { "position", "name", "direction", "sound_file" }, fresh.Params.Input.Select(p => p.Name));
+            Assert.Equal(new[] { "position", "name", "direction", "sound_file", "spl" }, fresh.Params.Input.Select(p => p.Name));
             Assert.True(fresh.Params.Input.Single(p => p.Name == "sound_file").VolatileDataCount == 0
                         && ((Param_String)fresh.Params.Input.Single(p => p.Name == "sound_file")).PersistentData.IsEmpty);
             Assert.Equal(old.Params.Input.Single(p => p.Name == "sound_file").InstanceGuid, fresh.Params.Input.Single(p => p.Name == "sound_file").InstanceGuid);

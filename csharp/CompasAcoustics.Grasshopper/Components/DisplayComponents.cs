@@ -314,3 +314,156 @@ namespace CompasAcoustics.Grasshopper
         }
     }
 }
+
+namespace CompasAcoustics.Grasshopper
+{
+    /// <summary>A mesh coloured by the sound pressure level of the scene's sources at its face centres (the worker's energy_map).</summary>
+    public sealed class VisualiseEnergyMapComponent : DisplayComponent
+    {
+        private const int FrameMs = 33;
+        private static readonly string[] Bands = { "125 Hz", "250 Hz", "500 Hz", "1 kHz", "2 kHz", "4 kHz", "8 kHz" };
+        private Mesh? _drawn;
+        private readonly Playback _playback = new(() => System.Diagnostics.Stopwatch.GetTimestamp() / (double)System.Diagnostics.Stopwatch.Frequency);
+
+        public VisualiseEnergyMapComponent() : base("CA_Visualise_Energy_Map") { }
+        protected override string SpecKey => "CA_Visualise_Energy_Map";
+        public override Guid ComponentGuid => new Guid("a0fc70ee-6c93-5bb3-b30d-315b8e4530cf");
+
+        public override IReadOnlyList<Control> Controls { get; } = new Control[]
+        {
+            PreviewSwitch, new ButtonControl("play", "Play"), new ButtonControl("rewind", "Rewind"),
+        };
+
+        public override string? ButtonLabel(string port) => port == "play" ? PlayLabel(_playback) : null;
+
+        protected override IGH_Param? CreateParam(PortSpec port, bool input) => (input, port.Name) switch
+        {
+            (true, "scene") => new Param_Scene(),
+            (true, "mesh") => new Param_Mesh(),
+            (true, "range") => new Param_Interval(),
+            (false, "mesh") => new Param_Mesh(),
+            (false, "values") => new Param_Number(),
+            (false, "colours") => new Param_Colour(),
+            _ => null,
+        };
+
+        protected override void Clear() => _drawn = null;
+
+        protected override bool RunsInBackground => true;
+
+        protected override void Solve(IGH_DataAccess access)
+        {
+            var scene = Item<SceneGoo>(access, "scene");
+            if (scene?.Value == null)
+            {
+                Warn("Input parameter 'scene' failed to collect data.");
+                return;
+            }
+            Mesh? mesh = null;
+            if (!access.GetData("mesh", ref mesh) || mesh == null || mesh.Faces.Count == 0)
+            {
+                Warn("Input parameter 'mesh' failed to collect data.");
+                return;
+            }
+            SceneIndices.Apply(this, "source_idx", scene.Value.Sources.Select(x => x.Name));
+            var band = Value<int>(access, "band");
+            if (band is int b && (b < 0 || b >= Bands.Length))
+            {
+                Warn($"Input parameter 'band' must be 0 to {Bands.Length - 1}; empty for the A-weighted level.");
+                return;
+            }
+            var range = Value<Interval>(access, "range");
+            var corners = mesh.Vertices.ToPoint3dArray();
+            var faceCorners = mesh.Faces.Select(f => f.IsQuad ? new[] { f.A, f.B, f.C, f.D } : new[] { f.A, f.B, f.C }).ToArray();
+            var centres = EnergyMapColours.FaceCentres(corners, faceCorners);
+            var kwargs = new Dictionary<string, object?>
+            {
+                ["source_index"] = Value<int>(access, "source_idx") is int s ? (long)s : null,
+                ["n_rays"] = (long)(Value<int>(access, "n_rays") ?? 20000),
+                ["image_source_order"] = (long)(Value<int>(access, "image_source_order") ?? 1),
+                ["seed"] = Value<int>(access, "seed") is int seed ? (long)seed : null,
+            };
+            var points = centres.Select(c => (object?)MeshConversion.Xyz(c)).ToList();
+            // the mesh travels with its result: while a changed mesh runs, the last map is drawn on the mesh it was made for
+            RunInBackground(access, new Background("energy_map", new object?[] { scene.Value, points }, kwargs, (mesh, corners, faceCorners)), (outcome, _) =>
+            {
+                var result = (IDictionary<string, object?>)outcome.Result!;
+                var (mapped, vertices, faces) = ((Mesh, Point3d[], int[][]))outcome.Context!;
+                // points outside the room
+                ShowWarnings(result);
+                var level = band is int index
+                    ? Rows(result["spl"]).Select(row => row[index]).ToArray()
+                    : Numbers(result["spl_a"]);
+                var times = Numbers(result["times"]);
+                var frames = Rows(result["frames"]);
+                var pressed = Pressed("play");
+                if (pressed && _playback.Running)
+                {
+                    _playback.Stop();
+                    pressed = false;
+                }
+                if (Pressed("rewind"))
+                    _playback.Rewind();
+                var frame = _playback.Update(null, pressed, null, times.Length == 0 ? 0.0 : times[^1] * 1000.0);
+                if (frame.Animating)
+                    OnPingDocument()?.ScheduleSolution(FrameMs, document => ExpireSolution(false));
+                double[] shown;
+                (double low, double high) scale;
+                string label;
+                if (_playback.Active && times.Length > 0)
+                {
+                    // the energy arriving: every frame on one scale, so the colours show it grow and decay
+                    var at = EnergyMapColours.FrameAt(times, frame.T);
+                    shown = frames.Select(row => row[at]).ToArray();
+                    scale = EnergyMapColours.Range(frames.SelectMany(row => row), range);
+                    label = frame.Message + ", broadband";
+                }
+                else
+                {
+                    shown = level;
+                    scale = EnergyMapColours.Range(level, range);
+                    label = band is int i ? Bands[i] : "dB(A)";
+                }
+                var colours = shown.Select(v => EnergyMapColours.Of(v, scale.low, scale.high)).ToArray();
+                _drawn = Coloured(vertices, faces, colours);
+                Box = mapped.GetBoundingBox(true);
+                Message = string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0} {1:0.0} to {2:0.0} dB, seed={3}", label, scale.low, scale.high, result["seed"]);
+                access.SetData("mesh", _drawn);
+                access.SetDataList("values", level);
+                access.SetDataList("colours", colours);
+            });
+        }
+
+        private static double[] Numbers(object? list) => ((IEnumerable<object?>)list!).Select(v => Convert.ToDouble(v, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+
+        private static double[][] Rows(object? list) => ((IEnumerable<object?>)list!).Select(Numbers).ToArray();
+
+        /// <summary>The mesh with every face its own vertices, so that each face takes its colour whole.</summary>
+        private static Mesh Coloured(Point3d[] vertices, int[][] faces, Color[] colours)
+        {
+            var mesh = new Mesh();
+            for (var f = 0; f < faces.Length; f++)
+            {
+                var first = mesh.Vertices.Count;
+                foreach (var v in faces[f])
+                {
+                    mesh.Vertices.Add(vertices[v]);
+                    mesh.VertexColors.Add(colours[f]);
+                }
+                if (faces[f].Length == 4)
+                    mesh.Faces.AddFace(first, first + 1, first + 2, first + 3);
+                else
+                    mesh.Faces.AddFace(first, first + 1, first + 2);
+            }
+            mesh.Normals.ComputeNormals();
+            return mesh;
+        }
+
+        public override void DrawViewportMeshes(IGH_PreviewArgs args)
+        {
+            base.DrawViewportMeshes(args);
+            if (_drawn != null)
+                args.Display.DrawMeshFalseColors(_drawn);
+        }
+    }
+}

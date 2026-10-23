@@ -33,6 +33,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             ["CA_Simulate_Mono"] = "SimulateMonoComponent",
             ["CA_Source"] = "SourceComponent",
             ["CA_Visualise_Billiard"] = "VisualiseBilliardComponent",
+            ["CA_Visualise_Energy_Map"] = "VisualiseEnergyMapComponent",
             ["CA_Visualise_Rays"] = "VisualiseRaysComponent",
             ["CA_Visualise_Reflections"] = "VisualiseReflectionsComponent",
             ["CA_Worker"] = "WorkerComponent",

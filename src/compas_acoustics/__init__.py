@@ -15,6 +15,7 @@ from .rays import Ray, ScatteredRay, RayField
 from .rays import SpecularPath, SpecularReflections
 from .scene import Scene
 from .analyser import AcousticAnalyser
+from .energy_map import EnergyMap
 from .simulation_methods import SimulationMethod, Mono
 from .auraliser import Auraliser
 from .audio_player import AudioPlayer
@@ -49,6 +50,7 @@ __all__ = [
     'SpecularReflections',
     'Scene',
     'AcousticAnalyser',
+    'EnergyMap',
     'SimulationMethod',
     'Mono',
     'Auraliser',

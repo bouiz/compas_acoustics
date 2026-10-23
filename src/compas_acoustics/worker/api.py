@@ -25,6 +25,7 @@ __all__ = [
     "play",
     "stop",
     "ray_field",
+    "energy_map",
     "specular_reflections",
     "regularized_fitness",
     "sound_info",
@@ -146,15 +147,21 @@ def make_material(name, absorption, scattering=None, category=None):
 DIRECTIVITIES = ["bidirectional", "hypercardioid", "supercardioid", "cardioid", "omnidirectional"]
 
 
-def make_source(name, position, direction=None, directivity=None, sound_file=None):
-    """A :class:`Source` with the defaults of the Source component: ``my_source``, facing +x, omnidirectional."""
+def make_source(name, position, direction=None, directivity=None, sound_file=None, spl=None):
+    """A :class:`Source` with the defaults of the Source component: ``my_source``, facing +x, omnidirectional.
+
+    ``spl``, the source's level on its axis at 1 m per band (one value for every band), keeps the default when None.
+    """
     from compas_acoustics import Source
 
     directivity = directivity or "omnidirectional"
     if directivity not in DIRECTIVITIES:
         raise ValueError("Input parameter 'directivity' is not valid.")
-    return Source(name or "my_source", *(position if position is not None else [0, 0, 0]), directivity=directivity,
-                  direction=list(direction) if direction is not None else [1, 0, 0], sound_file=sound_file or None)
+    source = Source(name or "my_source", *(position if position is not None else [0, 0, 0]), directivity=directivity,
+                    direction=list(direction) if direction is not None else [1, 0, 0], sound_file=sound_file or None)
+    if spl is not None and len(list(spl)) > 0:
+        source.spl = spl
+    return source
 
 
 def make_receiver(name, position=None, direction=None, frame=None):
@@ -232,6 +239,9 @@ PARAMETERS = {
     "Ts": ("Center Time (Ts)", "Frequency (Hz)", "Time (s)"),
     "STI": ("Speech Transmission Index (STI)", "Frequency (Hz)", "Index (0-1)"),
     "G": ("Sound Strength (G)", "Frequency (Hz)", "dB"),
+    "SPL": ("Sound Pressure Level (SPL), overall A-weighted", "Frequency (Hz)", "dB"),
+    "LF": ("Lateral Energy Fraction (LF)", "Frequency (Hz)", "Fraction (0-1)"),
+    "LFC": ("Lateral Energy Fraction, cosine (LFC)", "Frequency (Hz)", "Fraction (0-1)"),
 }
 TIME_SCALES = ["db", "linear"]
 # The frequency axis of a frequency response
@@ -297,7 +307,7 @@ def analysis(ir, time_scale="db"):
         parameters = []
         for name, (title, x_unit, y_unit) in PARAMETERS.items():
             values = [float(v) for v in data[name]]
-            if name in ("STI", "G") and all(math.isnan(v) for v in values):
+            if name in ("STI", "G", "SPL", "LF", "LFC") and all(math.isnan(v) for v in values):
                 continue
             parameters.append(_parameter(name, title, x_unit, y_unit, "bands", bands, [values], data[f"{name}_overall"]))
         samples, channels = _plotted_channels(ir)
@@ -532,6 +542,36 @@ def ray_field(scene, source_index=None, n_rays=500, max_order=10, direction=None
         )
     shown = field if order is None else field.truncated(reflection_order=int(order))
     return {"field": field, "shown": shown, "seed": seed, "warnings": _messages(caught)}
+
+
+def energy_map(scene, points, source_index=None, n_rays=20000, image_source_order=1, seed=None):
+    """The sound pressure level of the scene's sources over ``points``, as Visualise Energy Map colours it.
+
+    Returns
+    -------
+    dict
+        ``{"bands": [Hz], "inside": [bool], "spl": [[dB per band] per point], "spl_a": [dB(A) per point],
+        "times": [s], "frames": [[dB per frame] per point], "seed": int, "warnings": [str]}``: NaN for a point
+        outside the room, -inf in a frame before any energy arrives (:class:`compas_acoustics.EnergyMap`). No ``seed``
+        draws one.
+    """
+    import random
+
+    from compas_acoustics import EnergyMap
+
+    count = len(scene.sources)
+    if source_index is not None and not 0 <= source_index < count:
+        raise ValueError(_index_message("source", source_index, count))
+    seed = random.randrange(2**31) if seed is None else int(seed)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        result = EnergyMap.from_scene(scene, points, source_index=None if source_index is None else int(source_index),
+                                      n_rays=20000 if n_rays is None else int(n_rays),
+                                      image_source_order=1 if image_source_order is None else int(image_source_order), seed=seed)
+    times, frames = result.frames()
+    return {"bands": result.bands.tolist(), "inside": [bool(v) for v in result.inside], "spl": result.spl().tolist(),
+            "spl_a": result.spl_a().tolist(), "times": times.tolist(), "frames": frames.tolist(), "seed": seed,
+            "warnings": _messages(caught)}
 
 
 def specular_reflections(scene, orders=None, source_index=None, receiver_index=None):
