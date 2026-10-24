@@ -2,13 +2,15 @@
 
 Per source direction, parallel rays aimed at uniformly random points of the reference's footprint are reflected specularly off the rigid
 sample and, with the same rays, off the rigid reference (the flat footprint or a proxy), and leave upward into one cell of a receiver
-hemisphere grid. Energy is conserved by construction: what does not leave upward is counted as lost. There is no phase and no
+hemisphere grid. Every ray is either binned or counted as lost, and the two are counted separately. There is no phase and no
 diffraction: the rim and any wave effect are ignored, and the frequency dependence is not computed but imposed afterwards by
 :func:`heuristic_s`, in the form of ``AcousticMaterial.scattering_coefficients_from_depth``, from the depth of the relief.
 
-The object is treated as mounted in a rigid infinite baffle at z = 0 (the objects of the lab are mounted on a wall, floor or ceiling): a ray
-travelling downward that meets no face above z = 0 is reflected specularly on the plane z = 0, which counts as one bounce. A ray that leaves
-upward is binned; one that leaves exactly along the horizon, or is still bouncing after ``max_bounces``, is lost.
+The object is treated as mounted in a rigid infinite baffle at z = 0 (the objects of the lab are mounted on a wall, floor or ceiling), outside
+its footprint: a ray travelling downward that reaches z = 0 before any face, at a point outside the footprint (the xy projection of the reference's
+flat bottom face), is reflected specularly on the plane, which counts as one bounce. Inside the footprint there is no baffle: a ray reflects off
+whatever face it meets, below z = 0 included (the bottom of a closed mesh lies below z = 0). A ray that leaves upward is binned; one that leaves
+exactly along the horizon, leaves downward, or is still bouncing after ``max_bounces`` is lost.
 """
 
 from dataclasses import dataclass
@@ -23,6 +25,8 @@ __all__ = ["GeometricResponse", "geometric_response", "heuristic_s", "scattering
 
 _BOTTOM = 0.999  # a triangle with a normal z below minus this is part of a flat bottom face
 _BELOW = -1e-9  # a hit lower than this (m) is below the baffle; the double-precision hit points on z = 0 are within 1e-15 of it
+_EDGE = 1e-12  # relative to the footprint's size squared: the tolerance of the point-in-footprint test, which includes the edge
+_CHUNK = 2_000_000  # rays x footprint triangles tested at once
 _MARGIN = 0.05  # the rays start this fraction of the bodies' height range above the tallest vertex
 
 
@@ -119,7 +123,9 @@ def geometric_response(sample, sources, bin_deg=10.0, n_rays=50000, max_bounces=
     The bodies are treated as mounted in a rigid baffle at z = 0 (module docstring), for the sample and the reference alike.
     """
     reference = sample.reference
-    launch = _launch_points(reference, sample.baseplate, n_rays, seed)
+    corners, twice = _bottom_triangles(reference, sample.baseplate)
+    launch = _launch_points(corners, twice, n_rays, seed)
+    footprint = corners[:, :, :2]
     sample_caster = RayCaster(sample.sample)
     reference_caster = RayCaster(reference)
     z = np.array([vertex[2] for body in (sample.sample, reference) for vertex in (body.vertex_coordinates(v) for v in body.vertices())])
@@ -135,14 +141,14 @@ def geometric_response(sample, sources, bin_deg=10.0, n_rays=50000, max_bounces=
     lost_reference = np.zeros(n_sources)
     for i, u in enumerate(directions):
         start = launch + u * ((z_top + margin) / u[2])
-        e_sample[i], lost_sample[i] = _trace(sample_caster, start, -u, tree, len(grid.weights), max_bounces)
-        e_reference[i], lost_reference[i] = _trace(reference_caster, start, -u, tree, len(grid.weights), max_bounces)
+        e_sample[i], lost_sample[i] = _trace(sample_caster, footprint, start, -u, tree, len(grid.weights), max_bounces)
+        e_reference[i], lost_reference[i] = _trace(reference_caster, footprint, start, -u, tree, len(grid.weights), max_bounces)
     depth = _depth(sample_caster, reference_caster, launch, z_top + margin)
     return GeometricResponse(grid.directions, grid.weights, e_sample, e_reference, lost_sample, lost_reference, depth)
 
 
-def _launch_points(reference, baseplate, n_rays, seed):
-    """``n_rays`` points (x, y, 0) uniform over the reference's flat bottom face, area-weighted by triangle."""
+def _bottom_triangles(reference, baseplate):
+    """The triangles of the reference's flat bottom face (normal −z, all vertices at z = −baseplate): corners (m, 3, 3) and twice their areas (m,)."""
     vertices, faces = reference.to_vertices_and_faces(triangulated=True)
     vertices = np.asarray(vertices, dtype=float)
     triangles = vertices[np.asarray(faces, dtype=int)]
@@ -153,10 +159,13 @@ def _launch_points(reference, baseplate, n_rays, seed):
     bottom = (normal_z < -_BOTTOM) & (np.abs(triangles[:, :, 2] + baseplate) < tolerance).all(axis=1)
     if not bottom.any():
         raise ValueError("the reference has no flat bottom face at z = -baseplate to launch the rays from")
-    corners = triangles[bottom]
-    area = twice[bottom]
+    return triangles[bottom], twice[bottom]
+
+
+def _launch_points(corners, twice, n_rays, seed):
+    """``n_rays`` points (x, y, 0) uniform over the triangles ``corners``, area-weighted by triangle."""
     rng = np.random.default_rng(seed)
-    which = rng.choice(len(corners), size=n_rays, p=area / area.sum())
+    which = rng.choice(len(corners), size=n_rays, p=twice / twice.sum())
     r1 = np.sqrt(rng.random(n_rays))
     r2 = rng.random(n_rays)
     a, b, c = corners[which, 0], corners[which, 1], corners[which, 2]
@@ -165,11 +174,33 @@ def _launch_points(reference, baseplate, n_rays, seed):
     return points
 
 
-def _trace(caster, origins, direction, tree, n_bins, max_bounces):
+def _inside(footprint, points):
+    """Whether each of ``points`` (k, 2) lies in the footprint, the union of the triangles ``footprint`` (m, 3, 2), edges included.
+
+    A point is in a triangle when the three cross products of its edges with the vector to the point share a sign (orientation does not matter),
+    up to ``_EDGE`` times the footprint's size squared.
+    """
+    tolerance = _EDGE * float(np.ptp(footprint.reshape(-1, 2), axis=0).max()) ** 2
+    a, b, c = footprint[:, 0], footprint[:, 1], footprint[:, 2]
+    inside = np.zeros(len(points), dtype=bool)
+    step = max(_CHUNK // len(footprint), 1)
+    for start in range(0, len(points), step):
+        p = points[start : start + step, None, :]
+        d1 = (b[:, 0] - a[:, 0]) * (p[..., 1] - a[:, 1]) - (b[:, 1] - a[:, 1]) * (p[..., 0] - a[:, 0])
+        d2 = (c[:, 0] - b[:, 0]) * (p[..., 1] - b[:, 1]) - (c[:, 1] - b[:, 1]) * (p[..., 0] - b[:, 0])
+        d3 = (a[:, 0] - c[:, 0]) * (p[..., 1] - c[:, 1]) - (a[:, 1] - c[:, 1]) * (p[..., 0] - c[:, 0])
+        low = np.minimum(np.minimum(d1, d2), d3)
+        high = np.maximum(np.maximum(d1, d2), d3)
+        inside[start : start + step] = ((low >= -tolerance) | (high <= tolerance)).any(axis=1)
+    return inside
+
+
+def _trace(caster, footprint, origins, direction, tree, n_bins, max_bounces):
     """Bounce the rays, all with the same first ``direction``; return the energy fraction per cell and the lost fraction.
 
-    The body is mounted in a rigid baffle at z = 0: a ray travelling downward that meets no face above z = 0 (it misses, or its first face
-    lies below the baffle) is reflected specularly on the plane z = 0. That counts as a bounce, like a reflection off a face.
+    Outside ``footprint`` (triangles (m, 3, 2) in xy) the body is mounted in a rigid baffle at z = 0: a ray travelling downward that reaches
+    z = 0 before its first face (it misses, or the face is below the plane), at a point outside the footprint, is reflected specularly on the
+    plane. That counts as a bounce, like a reflection off a face. Inside the footprint a ray reflects off the face it hits, whatever its height.
     The binned and the lost rays are counted separately, so that their sum is a check.
     """
     n_rays = len(origins)
@@ -184,14 +215,18 @@ def _trace(caster, origins, direction, tree, n_bins, max_bounces):
         triangle, point = caster.first_hits(origins, directions, exclude)
         dz = directions[:, 2]
         hit = triangle >= 0
-        # a downward ray whose first face is below the baffle meets the baffle first
-        ground = (dz < 0) & (~hit | (point[:, 2] < _BELOW))
+        # a downward ray from at or above the plane meets it before its first face if it has none or the face is below the plane
+        ground = (dz < 0) & (origins[:, 2] >= _BELOW) & (~hit | (point[:, 2] < _BELOW))
+        if ground.any():
+            g = np.flatnonzero(ground)
+            t_ground = np.maximum(-origins[g, 2] / dz[g], 0.0)
+            crossing = origins[g, :2] + t_ground[:, None] * directions[g, :2]
+            ground[g] = ~_inside(footprint, crossing)
         face = hit & ~ground
         up = ~hit & (dz > 0)
         if up.any():
             binned += np.bincount(tree.query(directions[up])[1], minlength=n_bins)
-        flat = ~hit & (dz == 0)  # leaves along the horizon, neither up nor down
-        lost += int(flat.sum())
+        lost += int((~hit & ~up & ~ground).sum())  # leaves along the horizon or downward
         again = face | ground
         if bounce == max_bounces:
             lost += int(again.sum())

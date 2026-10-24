@@ -10,6 +10,8 @@ from compas_acoustics.lab import ReceiverGrid
 from compas_acoustics.lab import ScatteringSample
 from compas_acoustics.lab import SourceGrid
 from compas_acoustics.lab.raycast import RayCaster
+from compas_acoustics.lab.geometric import _bottom_triangles
+from compas_acoustics.lab.geometric import _inside
 from compas_acoustics.lab.geometric import _trace
 from compas_acoustics.lab.geometric import geometric_response
 from compas_acoustics.lab.geometric import heuristic_s
@@ -180,11 +182,14 @@ def _box(top=0.2, bottom=-0.1):
     return Mesh.from_vertices_and_faces(vertices, faces)
 
 
-def _exit(start, direction, max_bounces=4):
-    """Trace one ray off the box; return the cell directions, the energy per cell and the lost fraction."""
+def _exit(start, direction, max_bounces=4, body=None, footprint=None):
+    """Trace one ray off a body (the box by default, its footprint the unit square); return the cell directions, the energy per cell and the lost fraction."""
     grid = ReceiverGrid.hemisphere(10.0, 1.0)
+    if footprint is None:
+        footprint = np.array([[[0, 0], [1, 0], [1, 1]], [[0, 0], [1, 1], [0, 1]]], dtype=float)
     d = np.asarray(direction, dtype=float)
-    energy, lost = _trace(RayCaster(_box()), np.array([start], dtype=float), d / np.linalg.norm(d), cKDTree(grid.directions), len(grid.weights), max_bounces)
+    caster = RayCaster(_box() if body is None else body)
+    energy, lost = _trace(caster, footprint, np.array([start], dtype=float), d / np.linalg.norm(d), cKDTree(grid.directions), len(grid.weights), max_bounces)
     return grid.directions, energy, lost
 
 
@@ -201,17 +206,73 @@ def test_a_ray_reflected_downward_by_a_wall_bounces_on_the_baffle_and_leaves_upw
     assert lost == 1.0 and energy.sum() == 0.0
 
 
-def test_a_ray_that_would_hit_a_wall_below_the_baffle_meets_the_baffle_first():
+def test_a_ray_whose_first_face_is_below_the_baffle_outside_the_footprint_meets_the_baffle_first():
     pytest.importorskip("embreex")
-    # a 45 degree ray from (2, 0.5, 0.9) crosses z = 0 at x = 1.1, 0.1 east of the wall: there it is reflected to (-1, 0, +1)/sqrt2, meets the wall at
-    # z = 0.1 and is reflected to (+1, 0, +1)/sqrt2: colatitude 45, azimuth 0 (two bounces; the wall below z = 0 is never reached)
+    # a 45 degree ray from (2, 0.5, 0.95) would meet the east wall x = 1 at z = -0.05, but it crosses z = 0 at x = 1.05, 0.05 outside the footprint
+    # (the unit square): there it is reflected to (-1, 0, +1)/sqrt2, meets the wall at z = 0.05 and is reflected to (+1, 0, +1)/sqrt2:
+    # colatitude 45, azimuth 0 (two bounces; with one it is lost)
     s = np.sqrt(0.5)
-    directions, energy, lost = _exit([2.0, 0.5, 0.9], [-s, 0.0, -s])
+    directions, energy, lost = _exit([2.0, 0.5, 0.95], [-s, 0.0, -s])
     assert lost == 0.0 and energy.sum() == pytest.approx(1.0, abs=1e-12)
     assert np.argmax(energy) == np.argmax(directions @ [s, 0.0, s])
+    _, energy, lost = _exit([2.0, 0.5, 0.95], [-s, 0.0, -s], max_bounces=1)
+    assert lost == 1.0 and energy.sum() == 0.0
+
+
+def test_the_footprint_test_includes_its_edge_and_nothing_beyond():
+    pytest.importorskip("embreex")
+    disc = ScatteringSample.disc(flat_tile(), 0.4)
+    corners, _ = _bottom_triangles(disc.reference, disc.baseplate)
+    footprint = corners[:, :, :2]
+    outline = footprint.reshape(-1, 2)
+    centre = outline.mean(axis=0)
+    corner = outline[np.linalg.norm(outline - centre, axis=1).argmax()]  # an outline vertex, the polygon's farthest point along its direction
+    radius = np.linalg.norm(corner - centre)
+    direction = (corner - centre) / radius
+    points = np.array([centre + (radius - 1e-6) * direction, centre + radius * direction, centre + (radius + 1e-6) * direction, centre])
+    assert _inside(footprint, points).tolist() == [True, True, False, True]
+
+
+def test_the_baffle_is_only_outside_the_footprint():
+    pytest.importorskip("embreex")
+    # the wedge as drawn (baseplate 0.1): top z = 0.1 - 0.2 x, below the plane z = 0 for x > 0.5, bottom at z = -0.1, footprint the unit square
+    sample = ScatteringSample.as_drawn(_wedge(), baseplate=0.1)
+    corners, _ = _bottom_triangles(sample.reference, sample.baseplate)
+    footprint = corners[:, :, :2]
+    s = np.sqrt(0.5)
+    # crossing z = 0 at x = 0.9, inside: the ray meets the slope at x = 1/1.2, z = -0.0667, below the plane, and reflects off it as drawn:
+    # n = (0.2, 0, 1)/1.0198, d' = d - 2 (d.n) n = (-0.3807, 0, 0.9249)
+    directions, energy, lost = _exit([1.9, 0.5, 1.0], [-s, 0.0, -s], body=sample.sample, footprint=footprint)
+    assert lost == 0.0 and energy.sum() == pytest.approx(1.0, abs=1e-12)
+    assert np.argmax(energy) == np.argmax(directions @ [-0.3807, 0.0, 0.9249])
+    # crossing at x = 1.2, outside: the baffle reflects it to (-1, 0, 1)/sqrt2, which clears the wedge
+    directions, energy, lost = _exit([2.2, 0.5, 1.0], [-s, 0.0, -s], body=sample.sample, footprint=footprint)
+    assert lost == 0.0 and energy.sum() == pytest.approx(1.0, abs=1e-12)
+    assert np.argmax(energy) == np.argmax(directions @ [-s, 0.0, s])
 
 
 def test_a_ray_that_never_leaves_the_horizontal_is_lost():
     pytest.importorskip("embreex")
     _, energy, lost = _exit([2.0, 0.5, 0.15], [-1.0, 0.0, 0.0], max_bounces=4)  # reflects off the east wall to +x, d_z = 0: neither up nor down
     assert lost == 1.0 and energy.sum() == 0.0
+
+
+def _wedge():
+    """A closed prism with a sloped top: z = 0.2 (1 - x) over the unit square, a knife edge at x = 1."""
+    vertices = [[0, 0, 0], [1, 0, 0], [0, 0, 0.2], [0, 1, 0], [1, 1, 0], [0, 1, 0.2]]
+    faces = [[0, 3, 4, 1], [0, 2, 5, 3], [1, 4, 5, 2], [0, 1, 2], [3, 5, 4]]
+    return Mesh.from_vertices_and_faces(vertices, faces)
+
+
+@pytest.mark.parametrize("baseplate", [0.01, 0.1])
+def test_a_sloped_face_in_the_baseplate_band_inside_the_footprint_reflects_as_drawn(baseplate):
+    pytest.importorskip("embreex")
+    # a closed mesh as drawn has its lowest point at z = -baseplate, so part of its slope is below z = 0; the baffle is only outside the footprint
+    sample = ScatteringSample.as_drawn(_wedge(), baseplate=baseplate)
+    response = geometric_response(sample, SourceGrid.preset("survey"), n_rays=5000)
+    colatitude = np.degrees(np.arccos(np.clip(response.directions[:, 2], -1.0, 1.0)))
+    energy = response.sample[0]
+    # normal incidence on a slope of 0.2 leaves at 2 atan(0.2) = 22.6 degrees; the 10 degree cells are within +-5 degrees of it
+    assert energy[np.abs(colatitude - 22.6) < 6.0].sum() > 0.99
+    assert energy[colatitude < 5.0].sum() == 0.0
+    assert response.lost_sample[0] == 0.0

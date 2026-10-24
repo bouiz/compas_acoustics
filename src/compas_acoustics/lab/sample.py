@@ -146,7 +146,8 @@ class ScatteringSample(_PackageDtype, Data):
         """A relief as drawn, closed on a baseplate unless it is closed already (Heimes & Vorländer §3.2).
 
         An open relief is walled down to ``z = −baseplate`` and closed by a bottom, like :meth:`disc`.
-        A closed mesh is used as it is, its lowest point moved to z = 0; its reference is the outline of its bottom, flat at z = 0.
+        A closed mesh is used as it is, its lowest point moved to z = −baseplate (so its bottom ``baseplate`` lies below z = 0);
+        its reference is the outline of its bottom, flat at z = 0.
 
         Parameters
         ----------
