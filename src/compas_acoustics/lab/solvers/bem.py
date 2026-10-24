@@ -7,7 +7,8 @@ pressure at the receivers, the input of the correlation method (Heimes & Vorlän
   ``elements_per_wavelength`` (6) elements per wavelength: the edge is :math:`c / (6 f_{max})`.
 - **Size check.** An estimate of the element count, the body's area over the area of an equilateral triangle of that edge, is checked
   before anything is written or imported: above ``max_elements`` the solver warns, above ten times that it stops. A model left in
-  millimetres has 10⁶ times the elements.
+  millimetres has 10⁶ times the elements. The remeshed body is typically 2-2.5 times the estimate, so its own count is checked
+  against ten times ``max_elements`` again before its project is written.
 - **Cache.** The projects live in ``<cache_dir>/<key>/split_<k>/{sample,reference}``, the key a hash of the geometry, the directions,
   the frequencies, c and the edges. ``manage_numcalc`` skips finished steps but checks no geometry, so the key decides what is reused:
   an interrupted run resumes, a changed one starts in a new folder.
@@ -52,7 +53,10 @@ _TOO_BIG = (
     "the BEM mesh of the {body} would have about {n:,} elements at {f:.0f} Hz (edge {edge:.3g} m), more than 10 x max_elements = {limit:,}; "
     "is the model in millimetres? Use a smaller diameter or the Kirchhoff method"
 )
-_BIG = "the BEM mesh of the {body} has about {n:,} elements at {f:.0f} Hz, above max_elements = {limit:,}; this is slow: use a smaller diameter or the Kirchhoff method"
+_BIG = (
+    "the BEM mesh of the {body} has about {n:,} elements at {f:.0f} Hz, above max_elements = {limit:,} "
+    "(the remeshed body is typically 2-2.5 x the area estimate); this is slow: use a smaller diameter or the Kirchhoff method"
+)
 
 
 def plan_splits(frequencies, nominal_octaves=Defaults._DEFAULT_FREQUENCY_BANDS) -> List[np.ndarray]:
@@ -489,6 +493,8 @@ class BemSolver(ScatteringSolver):
         from mesh2scattering import input as m2s_input
 
         V, F = _remesh(getattr(sample, title), edge)
+        if len(F) > 10 * self.max_elements:  # the estimate passed, but the remeshed body is larger than it: refuse before writing
+            raise ValueError(_TOO_BIG.format(body=title, n=len(F), f=frequencies.max(), edge=edge, limit=10 * self.max_elements))
         if len(F) > self.max_elements:
             warnings.warn(_BIG.format(body=title, n=len(F), f=frequencies.max(), limit=self.max_elements), stacklevel=3)
         period = sample.period or (0.0, 0.0)

@@ -49,6 +49,22 @@ def test_element_estimate_far_above_limit_raises(tmp_path):
     assert not any(tmp_path.iterdir())  # nothing written
 
 
+def test_remeshed_body_far_above_limit_raises_before_writing(tmp_path, monkeypatch):
+    pytest.importorskip("mesh2scattering")
+    import compas_acoustics.lab.solvers.bem as bem
+
+    # the estimate (27 elements per body) is below 10 x 5 = 50, the mesh handed to the project (about 590 faces) is not
+    monkeypatch.setattr(bem, "_remesh", lambda mesh, edge: bem._arrays(mesh))
+    sample = ScatteringSample.disc(flat_tile(), diameter=0.3)
+    assert estimate_elements(sample.sample, 343.0 / (500.0 * 6)) <= 50
+    with pytest.warns(UserWarning, match="max_elements"):
+        with pytest.raises(ValueError, match="elements"):
+            BemSolver(cache_dir=str(tmp_path), numcalc_path="NumCalc", max_elements=5).solve(
+                sample, SourceGrid.preset("survey", "rotational"), ReceiverGrid.hemisphere(5.0, 10.0), np.array([500.0]), 343.0
+            )
+    assert not any(tmp_path.iterdir())  # nothing written
+
+
 def test_missing_mesh2scattering_names_the_extra(tmp_path, monkeypatch):
     monkeypatch.setitem(sys.modules, "mesh2scattering", None)
     with pytest.raises(ImportError, match=r"compas_acoustics\[lab\]"):
