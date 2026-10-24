@@ -15,6 +15,7 @@ from .coefficients import scattering_freefield
 from .grids import ReceiverGrid
 from .grids import SourceGrid
 from .grids import receiver_spacing
+from .material import lab_material
 from .results import ScatteringResult
 from .sample import ScatteringSample
 from .scattering import DEFAULT_PRESETS
@@ -33,6 +34,7 @@ __all__ = [
     "diffusion_coefficient",
     "fill_octaves",
     "fold_to_octaves",
+    "lab_material",
     "measure_scattering",
     "normalised_diffusion",
     "random_incidence",

@@ -322,3 +322,28 @@ def test_a_relief_on_a_backing_thicker_than_the_baseplate_has_a_mean_far_above_i
     assert default.height_mean == pytest.approx(0.099, abs=0.002) and default.height_mean > 2 * default.height_spread > 0
     remedy = geometric_response(ScatteringSample.as_drawn(backing, baseplate=0.1), sources, n_rays=5000)
     assert remedy.height_mean == pytest.approx(0.0091, abs=0.001) and remedy.height_mean < 2 * remedy.height_spread
+
+
+def test_a_cancelled_job_stops_the_geometric_run():
+    pytest.importorskip("embreex")
+    from compas_acoustics.worker import jobs
+
+    sample = ScatteringSample.disc(flat_tile(), 0.4)
+    jobs.start("c1")
+    try:
+        jobs.cancel("c1")
+        with pytest.raises(jobs.Cancelled):
+            geometric_response(sample, SourceGrid.preset("survey"), n_rays=2000)
+    finally:
+        jobs.finish("c1")
+
+
+def test_the_geometric_run_reports_progress_per_source(monkeypatch):
+    pytest.importorskip("embreex")
+    from compas_acoustics.worker import jobs
+
+    calls = []
+    monkeypatch.setattr(jobs, "progress", lambda stage, done=None, of=None: calls.append((stage, done, of)))
+    sources = SourceGrid.preset("survey")
+    geometric_response(ScatteringSample.disc(flat_tile(), 0.4), sources, n_rays=500)
+    assert calls == [("geometric", i, sources.n) for i in range(sources.n)]

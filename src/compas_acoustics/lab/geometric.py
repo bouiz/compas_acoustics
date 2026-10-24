@@ -185,6 +185,8 @@ def geometric_response(sample, sources, bin_deg=10.0, n_rays=50000, max_bounces=
     margin = _MARGIN * max(z_top - z_low, 1e-9)
     grid = ReceiverGrid.hemisphere(bin_deg, 1.0)
     tree = cKDTree(grid.directions)
+    from compas_acoustics.worker import jobs  # inside the function: the lab imports without the worker's dependencies
+
     directions = sources.directions
     n_sources = len(directions)
     e_sample = np.zeros((n_sources, len(grid.weights)))
@@ -192,6 +194,7 @@ def geometric_response(sample, sources, bin_deg=10.0, n_rays=50000, max_bounces=
     lost_sample = np.zeros(n_sources)
     lost_reference = np.zeros(n_sources)
     for i, u in enumerate(directions):
+        jobs.progress("geometric", i, n_sources)  # a worker cancel raises jobs.Cancelled here, between two sources
         start = launch + u * ((z_top + margin) / u[2])
         e_sample[i], lost_sample[i] = _trace(sample_caster, footprint, start, -u, tree, len(grid.weights), max_bounces)
         e_reference[i], lost_reference[i] = _trace(reference_caster, footprint, start, -u, tree, len(grid.weights), max_bounces)

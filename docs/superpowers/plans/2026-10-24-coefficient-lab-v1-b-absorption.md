@@ -354,6 +354,8 @@ git commit -m "Lab: measure_absorption, ISO 354 absorption of a sample in the sc
 
 ### Task 5: `lab_material`
 
+> Note (2026-10-24): lab/material.py exists (C plan Task 2) with these rules for numbers and materials; this task adds the AbsorptionResult branch and its data_origin, and its first test now needs method="kirchhoff" passed explicitly (the default is geometric).
+
 **Files:**
 - Create: `src/compas_acoustics/lab/material.py`
 - Modify: `src/compas_acoustics/lab/__init__.py`
