@@ -173,6 +173,14 @@ Each sub-project gets its own implementation plan. They are built in this order:
 - The hybrid/FDN method is not used here, because its tail is statistical.
 
 ### C. Grasshopper integration: C# components, compas_pb data exchange
+
+**C as planned on 2026-10-24** (`docs/superpowers/plans/2026-10-24-coefficient-lab-c-grasshopper.md`), before B is built:
+- **Components first:** Scattering Sample, Scattering Lab, Polar Preview and Lab Material. Lab Material takes α as numbers or from a material, and s from the lab. The Absorption Lab component, `ReverberationChamberData` and `AbsorptionResultData` follow B.
+- **Messages:** only `ScatteringSampleData` and `ScatteringResultData`, each mirroring its class's `__data__`, with arrays as `ArrayData` (values plus shape). The method settings travel as a kwargs dict, as `simulate`'s settings do, so there is no `LabGridData` or `ScatteringSettingsData`. The polar levels stay in the result's arrays, and a worker function `polar_balloon` turns one source and octave into a coloured mesh, instead of a `PolarResponseData` per balloon.
+- **Runs:** `geometric` runs as soon as its inputs change; `kirchhoff` and `bem` run only on the Run button (minutes to hours).
+- **Worker environment:** the installer's worker environment installs `compas_acoustics[lab]`, so trimesh, embreex and mesh2scattering are there. NumCalc for BEM stays a separate setup step.
+- **Units:** Rhino geometry is taken in metres, as the other components take it. The sample's existing "model in millimetres?" warning stands.
+
 The pattern follows the existing plugin. There are no CPython/GhPython components:
 **C# `ComponentBase` components** call the **Python worker** over its local HTTP API, and every lab object crosses the
 boundary as a **compas_pb message**.
