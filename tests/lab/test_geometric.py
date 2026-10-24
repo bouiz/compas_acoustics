@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 from compas.datastructures import Mesh
+from lab_shapes import bumped_box
 from lab_shapes import flat_tile
 from lab_shapes import sawtooth_tile
 from lab_shapes import v_groove_tile
@@ -282,3 +283,20 @@ def test_a_sloped_face_in_the_baseplate_band_inside_the_footprint_reflects_as_dr
     assert energy[np.abs(colatitude - 22.6) < 6.0].sum() > 0.99
     assert energy[colatitude < 5.0].sum() == 0.0
     assert response.lost_sample[0] == 0.0
+
+
+def test_a_mounted_box_has_its_height_as_depth():
+    pytest.importorskip("embreex")
+    # uniform height over the footprint: 2 sigma of the height difference is 0, its mean is the height (0.5 m box, its bottom 0.01 m below z = 0)
+    sample = ScatteringSample.as_drawn(bumped_box(size=1.0, thickness=0.5, bump=0.0))
+    response = geometric_response(sample, SourceGrid.preset("survey"), n_rays=2000)
+    assert response.depth == pytest.approx(0.49, abs=1e-9)
+
+
+@pytest.mark.parametrize(
+    "options, name",
+    [({"n_rays": 0}, "n_rays"), ({"n_rays": 2.5}, "n_rays"), ({"max_bounces": 0}, "max_bounces"), ({"bin_deg": 0.0}, "bin_deg"), ({"bin_deg": 91.0}, "bin_deg")],
+)
+def test_the_options_are_checked(options, name):
+    with pytest.raises(ValueError, match=name):
+        geometric_response(ScatteringSample.disc(flat_tile(), 0.4), SourceGrid.preset("survey"), **options)

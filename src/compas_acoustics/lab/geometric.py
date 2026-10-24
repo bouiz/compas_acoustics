@@ -4,7 +4,9 @@ Per source direction, parallel rays aimed at uniformly random points of the refe
 sample and, with the same rays, off the rigid reference (the flat footprint or a proxy), and leave upward into one cell of a receiver
 hemisphere grid. Every ray is either binned or counted as lost, and the two are counted separately. There is no phase and no
 diffraction: the rim and any wave effect are ignored, and the frequency dependence is not computed but imposed afterwards by
-:func:`heuristic_s`, in the form of ``AcousticMaterial.scattering_coefficients_from_depth``, from the depth of the relief.
+:func:`heuristic_s`, in the form of ``AcousticMaterial.scattering_coefficients_from_depth``, from the depth of the relief: ``h = max(2 σ, |mean|)``
+of the height difference between the sample and the reference over the footprint, so a relief gets twice its standard deviation and an object of
+uniform height over its footprint (a box, a cylinder, a flat-topped panel) its height.
 
 The object is treated as mounted in a rigid infinite baffle at z = 0 (the objects of the lab are mounted on a wall, floor or ceiling), outside
 its footprint: a ray travelling downward that reaches z = 0 before any face, at a point outside the footprint (the xy projection of the reference's
@@ -36,14 +38,16 @@ What the numbers show: the heuristic follows the rise of s with frequency but si
 by about 0.19 at 2 and 4 kHz, the octaves where s is large. Below 500 Hz both are near 0. Kirchhoff itself warns that its s is unreliable
 below 4327 Hz for this sample (features of 0.08 m smaller than the wavelength), so the lower octaves are not a clean reference; at 4 kHz,
 where the features are about as large as the wavelength, the gap is the least ambiguous one, and it is an over-estimate. Open question for the owner: the
-depth of the curve is ``h = 2 σ`` of the height difference; whether that factor, or the curve's form, should be changed is not settled by
+depth of the curve is ``h = 2 σ`` of the height difference for a relief like this one (the depth is ``max(2 σ, |mean|)``; here 2 σ = 0.0142 m and
+|mean| = 0.0102 m, so the table holds for the later definition too); whether that factor, or the curve's form, should be changed is not settled by
 this one sample against one approximate method (the BEM, or Heimes's s, would be the better reference), and nothing was changed here.
 
 Validity limits. The method has no phase: grating lobes, notches and phase-grating diffusers (periodic relief whose scattering is an interference effect)
 are invisible to it. It has no diffraction (the rim, edges, the
 shadow zone) and no cavity resonance, and a relief much smaller than the wavelength still gets the geometric s_max, reduced only by
 the depth curve. The frequency dependence is that curve, a heuristic, not computed. The object is taken as mounted in a rigid baffle at
-z = 0: a free-standing object is not represented. Directions are binned in cells of ``bin_deg``: a facet tilted by less than about half a
+z = 0: a free-standing object is not represented. The rays are aimed only at the footprint, so for a tall object at oblique incidence the rays
+that would strike its sides from outside the footprint are not traced. Directions are binned in cells of ``bin_deg``: a facet tilted by less than about half a
 bin from the reference's reflection counts as specular, so s_max is blind to slopes below that angle. A warning is raised only
 when the lost fraction exceeds 1 % for some source (of the sample or the reference); up to 1 % goes unreported and enters s_max as one extra bin.
 """
@@ -82,7 +86,7 @@ class GeometricResponse:
         It is counted separately from the cells, so ``sample.sum(axis=1) + lost_sample`` is 1 as a check.
         Pass it on as one more bin when comparing the two (see :func:`scattering_share`).
     depth : float
-        ``2 σ`` of the height difference between sample and reference over the footprint, in m.
+        ``max(2 σ, |mean|)`` of the height difference between sample and reference over the footprint, in m.
     """
 
     directions: np.ndarray
@@ -139,11 +143,11 @@ def geometric_response(sample, sources, bin_deg=10.0, n_rays=50000, max_bounces=
     sample : :class:`~compas_acoustics.lab.ScatteringSample`
     sources : :class:`~compas_acoustics.lab.SourceGrid`
     bin_deg : float, optional
-        Spacing of the receiver cells (``ReceiverGrid.hemisphere``).
+        Spacing of the receiver cells (``ReceiverGrid.hemisphere``), in degrees: more than 0, at most 90.
     n_rays : int, optional
-        Rays per source; each carries ``1 / n_rays`` of the energy.
+        Rays per source, at least 1; each carries ``1 / n_rays`` of the energy.
     max_bounces : int, optional
-        A ray is reflected at most this many times (on a face or on the baffle plane z = 0); one that would be reflected once more is lost.
+        A ray is reflected at most this many times (on a face or on the baffle plane z = 0), at least once; one that would be reflected once more is lost.
     seed : int, optional
         Seed of the footprint points, which are the same for the sample, the reference and every source.
 
@@ -151,12 +155,20 @@ def geometric_response(sample, sources, bin_deg=10.0, n_rays=50000, max_bounces=
     -------
     :class:`GeometricResponse`
 
+    Raises
+    ------
+    ValueError
+        If ``n_rays`` or ``max_bounces`` is not an integer of at least 1, or ``bin_deg`` is not in (0, 90].
+    ImportError
+        If ``trimesh`` or its Embree backend is missing (:class:`~compas_acoustics.lab.raycast.RayCaster`).
+
     Notes
     -----
     The footprint points are drawn from the flat bottom face of the reference (its triangles with normal −z at z = −baseplate),
     area-weighted, and the rays are aimed at their xy position at z = 0. A ray starts above both bodies and travels along −û.
     The bodies are treated as mounted in a rigid baffle at z = 0 (module docstring), for the sample and the reference alike.
     """
+    _check_options(bin_deg, n_rays, max_bounces)
     reference = sample.reference
     corners, twice = _bottom_triangles(reference, sample.baseplate)
     launch = _launch_points(corners, twice, n_rays, seed)
@@ -180,6 +192,15 @@ def geometric_response(sample, sources, bin_deg=10.0, n_rays=50000, max_bounces=
         e_reference[i], lost_reference[i] = _trace(reference_caster, footprint, start, -u, tree, len(grid.weights), max_bounces)
     depth = _depth(sample_caster, reference_caster, launch, z_top + margin)
     return GeometricResponse(grid.directions, grid.weights, e_sample, e_reference, lost_sample, lost_reference, depth)
+
+
+def _check_options(bin_deg, n_rays, max_bounces):
+    """Raise ``ValueError``, naming the option, unless ``n_rays`` and ``max_bounces`` are integers ≥ 1 and ``0 < bin_deg ≤ 90``."""
+    for name, value in (("n_rays", n_rays), ("max_bounces", max_bounces)):
+        if isinstance(value, bool) or not isinstance(value, (int, np.integer)) or value < 1:
+            raise ValueError("{} must be an integer of at least 1, not {!r}".format(name, value))
+    if not 0.0 < float(bin_deg) <= 90.0:
+        raise ValueError("bin_deg must be more than 0 and at most 90 degrees, not {!r}".format(bin_deg))
 
 
 def _bottom_triangles(reference, baseplate):
@@ -291,7 +312,11 @@ def _trace(caster, footprint, origins, direction, tree, n_bins, max_bounces):
 
 
 def _depth(sample_caster, reference_caster, launch, height):
-    """``2 σ`` of the difference between the heights where straight-down rays from ``height`` first hit the sample and the reference."""
+    """The depth ``h = max(2 σ, |mean|)`` of the difference z between the heights where straight-down rays from ``height`` first hit the sample and the reference.
+
+    ``2 σ`` is the depth of a relief (``2 H / sqrt(12)`` = 0.577 H for a sawtooth of height H, 0.707 H for a sine, against a mean of 0.5 H); the mean
+    is the height of an object of uniform height over its footprint (a box, a cylinder, a flat-topped panel), whose σ is 0.
+    """
     start = launch + [0.0, 0.0, height]
     down = np.tile([0.0, 0.0, -1.0], (len(launch), 1))
     t_sample, p_sample = sample_caster.first_hits(start, down)
@@ -299,4 +324,5 @@ def _depth(sample_caster, reference_caster, launch, height):
     both = (t_sample >= 0) & (t_reference >= 0)
     if not both.any():
         return 0.0
-    return float(2.0 * np.std(p_sample[both, 2] - p_reference[both, 2]))
+    z = p_sample[both, 2] - p_reference[both, 2]
+    return float(max(2.0 * np.std(z), abs(np.mean(z))))

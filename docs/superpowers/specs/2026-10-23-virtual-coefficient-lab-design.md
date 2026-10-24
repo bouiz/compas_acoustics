@@ -108,15 +108,20 @@ sample share one outline. In the room model the material goes on the proxy's fac
 points of the reference's flat bottom face (the same points for the sample and the reference), aimed at z = 0. The object is **mounted in a rigid baffle
 at z = 0 outside the footprint**: a downward ray reaching z = 0 outside the footprint reflects specularly there and counts as a bounce; inside the footprint
 it reflects off whatever face it hits. Rays reflect specularly up to `max_bounces` and leave upward into one cell of the receiver grid
-(`ReceiverGrid.hemisphere(bin_deg)`, default 10°; the Voronoi weights are the cells' solid angles), so energy is conserved by construction. A ray that
-exits along the horizon is binned into the nearest cell; `lost` is only the rays still bouncing after `max_bounces` (warned above 1 %).
+(`ReceiverGrid.hemisphere(bin_deg)`, default 10°; the Voronoi weights are the cells' solid angles). A ray that exits along the horizon is binned into the
+nearest cell; `lost` is only the rays still bouncing after `max_bounces` (warned above 1 %). The binned and the lost rays are counted separately, so
+binned + lost = 1 is a check, not an assumption. The rays are aimed only at the footprint, so for a tall object at oblique incidence the rays that would
+strike its sides from outside the footprint are not traced.
 - Geometric scattering share `s_max(û) = 1 − Σ_bins min(E_sample, E_reference)` over the energy fractions per cell **plus the lost fraction as one extra bin** (1 − the share in the specular cell for a flat reference).
-- Depth `h = 2·σ_z`, σ_z the standard deviation over the footprint points of the height difference between the sample's and the reference's top surfaces.
+- Depth `h = max(2·σ_z, |mean_z|)`, z the height difference between the sample's and the reference's top surfaces at the footprint points, σ_z its
+  standard deviation: a relief gets 2σ (0.577 H for a sawtooth of height H, 0.707 H for a sine, against a mean of 0.5 H), an object of uniform height over
+  its footprint (a box, a cylinder, a flat-topped panel, σ_z = 0) its height. A depth curve below 0.5 at the highest band while the mean s_max exceeds 0.05
+  is warned about (s close to 0 although the rays scatter).
 - `s(û, f) = s_max(û)·(1 − exp(−(k h)²))`, k = 2πf/c (the form of `AcousticMaterial.scattering_coefficients_from_depth`, with s_max and h taken from the geometry), evaluated at each band's exact centre. The result is labelled heuristic (`generation["heuristic"]`, a warning).
 - The polar levels are the cells' energy per steradian, the same at every octave. The rim is not diffracted; the flat-reference correlation cancels it for `kirchhoff` and `bem`, not here.
 - `geometric` is the default method of `measure_scattering` and needs `trimesh` (ideally with `embreex`; Python >= 3.11, the `lab` extra); `method="kirchhoff"` works without it. The method's accuracy against Kirchhoff and its validity limits are recorded in the module docstring of `lab/geometric.py` ("Accuracy record").
 
-**Open design choices:** the depth factor (`h = 2·σ_z`; the accuracy record shows the curve above Kirchhoff by up to 0.19 at 2 and 4 kHz on the Heimes sine, not settled by one sample), the bin width (10°), and how d is averaged over random incidence.
+**Open design choices:** the depth factor (`h = max(2·σ_z, |mean_z|)`, 2σ for a relief; the accuracy record shows the curve above Kirchhoff by up to 0.19 at 2 and 4 kHz on the Heimes sine, not settled by one sample), the bin width (10°), and how d is averaged over random incidence.
 
 **Diffusion coefficient.** Every method also returns d (ISO 17497-2 eq. 6 on the intensities at the receivers, weighted by the cells' solid angles) and the
 normalised d_n = (d − d_ref)/(1 − d_ref) per band and octave; random incidence uses the same Paris weights as s.

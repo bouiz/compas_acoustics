@@ -20,6 +20,7 @@ import numpy as np
 __all__ = ["RayCaster"]
 
 _INSTALL_HINT = "ray casting needs trimesh and an Embree backend; install them with: pip install compas_acoustics[lab]"
+_NO_EMBREE = "ray casting needs trimesh's Embree backend, which is missing (trimesh would fall back to rtree, much slower); install it with: pip install embreex"
 
 
 class RayCaster:
@@ -39,14 +40,17 @@ class RayCaster:
     Raises
     ------
     ImportError
-        If ``trimesh`` or its ray backend is missing.
+        If ``trimesh`` or its Embree backend (``embreex``) is missing.
     """
 
     def __init__(self, body):
         try:
             import trimesh
+            import trimesh.ray
         except ImportError as error:
             raise ImportError(_INSTALL_HINT) from error
+        if not trimesh.ray.has_embree:
+            raise ImportError(_NO_EMBREE)
         vertices, faces = body.to_vertices_and_faces(triangulated=True)
         self._vertices = np.asarray(vertices, dtype=float)
         self._faces = np.asarray(faces, dtype=int).reshape(-1, 3)

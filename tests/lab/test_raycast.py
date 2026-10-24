@@ -168,3 +168,10 @@ def test_throughput_is_recorded():
     rate = n / (time.perf_counter() - start)
     print("\nthroughput: {:.3g} rays/s over {} faces".format(rate, len(sphere.faces)))
     assert (triangle >= 0).all()
+
+
+def test_a_missing_embree_backend_names_embreex(monkeypatch):
+    trimesh_ray = pytest.importorskip("trimesh.ray")
+    monkeypatch.setattr(trimesh_ray, "has_embree", False)  # trimesh would fall back to rtree, slow, and ask for it on the first cast
+    with pytest.raises(ImportError, match="pip install embreex"):
+        RayCaster(_box())

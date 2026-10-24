@@ -51,8 +51,15 @@ _SLOW = (
 _UNCONVERGED = "bem: NumCalc did not converge for the {bodies} at {frequencies} Hz; s in the {octaves} Hz octaves is unreliable"
 _HEURISTIC = (
     "geometric: s is frequency-modelled from the geometry (heuristic: s_max·(1 − exp(−(k·h)²)) from specular rays, with no phase and no "
-    "diffraction); use kirchhoff or bem for the physics (an sbr method is planned)"
+    "diffraction), and d and the polar levels are the same at every frequency and depend on bin_deg; use kirchhoff or bem for the physics "
+    "(an sbr method is planned)"
 )
+_SHALLOW = (
+    "geometric: the object's depth h = {depth:.3g} m is small against the wavelength at {frequency:.0f} Hz: the heuristic returns s close to 0 "
+    "although the rays scatter (mean s_max {s_max:.2f}); use kirchhoff or bem"
+)
+_SHALLOW_CURVE = 0.5  # the depth curve at the top band below which, with a mean s_max above _SHALLOW_S_MAX, the geometric method warns
+_SHALLOW_S_MAX = 0.05
 _LOST = (
     "geometric: up to {percent:.1f} % of the rays of a source are lost, still bouncing after max_bounces = {bounces}; lost energy of only one of "
     "the sample and the reference counts as scattering; a larger max_bounces loses fewer"
@@ -250,6 +257,15 @@ def _correlation(sample, method, sources, preview, band_range, nominal, exact, c
     )
 
 
+def _shallow(s_max, depth, nominal, exact, c):
+    """The warning when the depth curve at the highest band, ``1 − exp(−(k h)²)``, is below 0.5 while the mean s_max exceeds 0.05; else None."""
+    curve = 1.0 - np.exp(-((2.0 * np.pi * float(exact[-1]) * depth / c) ** 2))
+    mean = float(np.mean(s_max))
+    if curve < _SHALLOW_CURVE and mean > _SHALLOW_S_MAX:
+        return _SHALLOW.format(depth=depth, frequency=float(nominal[-1]), s_max=mean)
+    return None
+
+
 def _geometric(sample, sources, preview, nominal, exact, c, solver_options):
     """The geometric method: specular rays binned on the hemisphere, s_max from the histograms' overlap, s(f) and d from the geometry."""
     try:
@@ -279,11 +295,13 @@ def _geometric(sample, sources, preview, nominal, exact, c, solver_options):
     lost = float(max(response.lost_sample.max(), response.lost_reference.max()))
     max_bounces = options.arguments["max_bounces"]
     messages = [_HEURISTIC]
+    shallow = _shallow(s_max, response.depth, nominal, exact, c)
+    if shallow:
+        messages.append(shallow)
     if lost > _LOST_LIMIT:
         messages.append(_LOST.format(percent=100.0 * lost, bounces=max_bounces))
     generation = {
         "heuristic": True,
-        "reference": sample.reference_kind,
         "n_rays": options.arguments["n_rays"],
         "bin_deg": options.arguments["bin_deg"],
         "max_bounces": max_bounces,
@@ -325,6 +343,7 @@ def _result(sample, measured, method, preset, band_range, c, sources, preview, n
         "c": c,
         "receivers": len(measured.receiver_directions),
         "sources": sources.n,
+        "reference": sample.reference_kind,
     }
     generation.update(measured.generation)
     return ScatteringResult(
@@ -363,10 +382,12 @@ def measure_scattering(sample, method="geometric", preset=None, band_range=ISO_B
       ``n_rays`` specular rays per source, aimed at the footprint, reflect off the rigid sample and the rigid reference (mounted in a baffle
       at z = 0) and are binned on a receiver hemisphere of ``bin_deg`` cells. ``s_max`` per source is one minus the overlap of the two
       energy histograms, the lost fraction (rays still bouncing after ``max_bounces``) counted as one more bin;
-      the per-band ``s = s_max·(1 − exp(−(k h)²))`` is imposed at each band's exact centre, with ``h`` twice the standard deviation of the
-      relief over the reference. There is no phase and no diffraction: no rim, no cavity resonance. d comes from the cells' energy per
-      steradian and is the same at every band, as are the polar levels. The result is marked ``generation["heuristic"]`` and warned about;
-      more than 1 % lost rays for any source is warned about too.
+      the per-band ``s = s_max·(1 − exp(−(k h)²))`` is imposed at each band's exact centre, with ``h = max(2 σ, |mean|)`` of the height
+      difference between the sample and the reference over the footprint (a relief: twice its standard deviation; a box: its height).
+      There is no phase and no diffraction: no rim, no cavity resonance. d comes from the cells' energy per steradian and is the same at
+      every band, as are the polar levels; both depend on ``bin_deg``. The result is marked ``generation["heuristic"]`` and warned about;
+      more than 1 % lost rays for any source is warned about too, and so is a depth curve below 0.5 at the highest band while the mean
+      s_max exceeds 0.05 (s close to 0 although the rays scatter).
     - ``"kirchhoff"``: physical optics, the correlation coefficient below.
     - ``"bem"``: the boundary element method (mesh2scattering/NumCalc, needs Python ≥ 3.11 and the ``lab`` extra), the same correlation.
 

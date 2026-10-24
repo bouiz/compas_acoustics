@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 from compas import json_dumps
 from compas import json_loads
+from lab_shapes import bumped_box
 from lab_shapes import flat_tile
 from lab_shapes import flat_tile_with_zero_area_face
 from lab_shapes import sawtooth_tile
@@ -203,6 +204,10 @@ def test_geometric_is_the_default_method():
     assert scattering.measure_scattering.__defaults__[0] == "geometric"
 
 
+def heuristic_warning(result):
+    return next(w for w in result.warnings if w.startswith("geometric: s is frequency-modelled"))
+
+
 def test_geometric_flat_disc_scatters_nothing():
     pytest.importorskip("embreex")
     with warnings.catch_warnings(record=True) as caught:
@@ -215,6 +220,7 @@ def test_geometric_flat_disc_scatters_nothing():
     advice = re.search(r"use (.+?) for the physics", next(w for w in r.warnings if "heuristic" in w)).group(1)
     recommended = re.split(r",\s*|\s+or\s+", advice)
     assert recommended and set(recommended) <= set(scattering.METHODS), recommended
+    assert "bin_deg" in heuristic_warning(r) and "every frequency" in heuristic_warning(r)  # d and the polar levels
     assert not any("lost" in w for w in r.warnings) and r.generation["lost"] == 0.0
     assert r.generation["reference"] == "flat" and r.generation["n_rays"] == 2000 and r.generation["receivers"] == len(r.receiver_directions)
     # the specular cell holds everything: 0 dB there, -300 dB (empty) elsewhere, the same at every octave
@@ -231,6 +237,7 @@ def test_geometric_sawtooth_rises_with_frequency():
     assert len(r.scattering_coefficients) == 7 and r.s_angle.shape == (97, 18) and r.d_angle.shape == (97, 18)
     assert np.allclose(r.d_angle, r.d_angle[:, :1])  # d is the same at every band
     assert r.generation["depth"] == pytest.approx(0.0105, abs=0.001)
+    assert not any("small against the wavelength" in w for w in r.warnings)  # the depth curve is 0.61 at 5 kHz
 
 
 def test_geometric_runs_in_seconds():
@@ -296,3 +303,36 @@ def test_geometric_without_trimesh_names_the_way_out(monkeypatch):
 def test_geometric_rejects_an_unknown_option():
     with pytest.raises(TypeError, match="workers"):
         measure_scattering(ScatteringSample.disc(flat_tile(), 0.4), method="geometric", workers=2)
+
+
+def test_geometric_mounted_box_scatters_at_high_frequency():
+    pytest.importorskip("embreex")
+    # a box of uniform height: before the depth took the mean height difference, h was 0 and s was 0 in every octave although s_max is 0.27-0.94
+    r = measure_scattering(ScatteringSample.as_drawn(bumped_box(size=1.0, thickness=0.5, bump=0.0)), method="geometric", preset="survey", n_rays=5000)
+    assert r.generation["depth"] == pytest.approx(0.49, abs=1e-9)
+    assert r.s_octaves[-1] > 0.3 and not any("small against the wavelength" in w for w in r.warnings)
+
+
+def test_geometric_warns_when_the_depth_curve_hides_the_scattering():
+    pytest.importorskip("embreex")
+    # the sawtooth (h = 0.0105 m, mean s_max about 1) up to 1 kHz only: the depth curve at the top band is 1 - exp(-(k h)^2) = 0.04
+    with pytest.warns(UserWarning, match="small against the wavelength"):
+        r = measure_scattering(ScatteringSample.disc(sawtooth_tile(), 0.4), method="geometric", preset="survey", band_range=(100, 1000), n_rays=2000)
+    message = next(w for w in r.warnings if "small against the wavelength" in w)
+    assert "1000 Hz" in message and "use kirchhoff or bem" in message
+
+
+def test_the_reference_kind_is_recorded_for_every_method(monkeypatch):
+    monkeypatch.setattr(scattering, "_solver", lambda method, **kw: FakeSolver())
+    proxy = ScatteringSample.as_drawn(bumped_box(), reference=bumped_box(bump=0.0))
+    assert measure_scattering(proxy, method="kirchhoff", preset="survey", band_range=(1000, 1000)).generation["reference"] == "proxy"
+    flat = ScatteringSample.disc(flat_tile(), 0.4)
+    assert measure_scattering(flat, method="bem", preset="survey", band_range=(1000, 1000)).generation["reference"] == "flat"
+
+
+def test_geometric_without_embree_names_embreex_and_kirchhoff(monkeypatch):
+    trimesh_ray = pytest.importorskip("trimesh.ray")
+    monkeypatch.setattr(trimesh_ray, "has_embree", False)
+    with pytest.raises(ImportError, match="embreex") as raised:
+        measure_scattering(ScatteringSample.disc(flat_tile(), 0.4), method="geometric", preset="survey", n_rays=10)
+    assert 'pass method="kirchhoff" to run without it' in str(raised.value)
