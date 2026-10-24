@@ -156,4 +156,18 @@ namespace CompasAcoustics.Grasshopper
 
         public override Guid ComponentGuid => new Guid("37788fab-7cfa-5e9a-9d1e-62bc1efeae50");
     }
+
+    public sealed class Param_ScatteringSample : OwnPreviewParam<ScatteringSampleGoo>
+    {
+        public Param_ScatteringSample() : base("Scattering Sample", "Sample", "A surface sample for the scattering lab, with its reference.") { }
+
+        public override Guid ComponentGuid => new Guid("63b9bad1-3835-5f3c-bb45-c2e3b64b96ec");
+    }
+
+    public sealed class Param_ScatteringResult : CompasAcousticsParam<ScatteringResultGoo>
+    {
+        public Param_ScatteringResult() : base("Scattering Result", "Result", "The scattering coefficients of a sample, from the scattering lab.") { }
+
+        public override Guid ComponentGuid => new Guid("6f521d78-33a5-5839-b636-49a3528a1470");
+    }
 }

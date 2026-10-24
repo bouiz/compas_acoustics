@@ -104,7 +104,7 @@ namespace CompasAcoustics.Grasshopper
             return edges.ToArray();
         }
 
-        private static (Point3d[] vertices, int[][] faces) Mesh(MeshData mesh)
+        internal static (Point3d[] vertices, int[][] faces) MeshOf(MeshData mesh)
         {
             var vertices = MeshConversion.Points(mesh.Vertices);
             var faces = new int[mesh.FaceSizes.Count][];
@@ -124,7 +124,7 @@ namespace CompasAcoustics.Grasshopper
             var obstacle = o.Role == "obstacle";
             if (o.GeometryCase == AcousticObjectData.GeometryOneofCase.Mesh)
             {
-                var (vertices, faces) = Mesh(o.Mesh);
+                var (vertices, faces) = MeshOf(o.Mesh);
                 return new ObjectPreview(vertices, faces, null, obstacle, Edges(vertices, faces));
             }
             var polyline = o.GeometryCase == AcousticObjectData.GeometryOneofCase.Polyline ? new Polyline(MeshConversion.Points(o.Polyline.Points)) : null;
