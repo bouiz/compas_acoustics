@@ -631,8 +631,11 @@ BAND_RANGES = ["iso", "extended"]
 BALLOON_BODIES = ["sample", "reference"]
 
 
-def make_scattering_sample(mesh, mode="as_drawn", diameter=None, reference=None, baseplate=0.01, symmetry="none", period=None, name=None):
+def make_scattering_sample(mesh, mode="as_drawn", diameter=None, reference=None, baseplate=0.01, symmetry="none", period=None, name=None, frame=None):
     """A :class:`ScatteringSample` of a relief, as the Scattering Sample component makes it.
+
+    The lab measures a relief that lies on the world XY plane, its mounting surface at z = 0 and the sound coming from +z; give ``frame``
+    for an object that lies elsewhere.
 
     Parameters
     ----------
@@ -651,6 +654,10 @@ def make_scattering_sample(mesh, mode="as_drawn", diameter=None, reference=None,
     period : sequence of float, optional
         The tile period (x, y) in m of the ``'disc'`` mode; the tile's bounding box when None or empty.
     name : str, optional
+    frame : :class:`compas.geometry.Frame`, optional
+        The mounting plane of the object: its origin on the mounting surface and its Z axis pointing out into the room, where the sound
+        comes from. ``mesh`` and ``reference`` are moved from it to the world XY plane before anything else. None when the object lies
+        on the world XY plane facing +z.
 
     Returns
     -------
@@ -659,8 +666,12 @@ def make_scattering_sample(mesh, mode="as_drawn", diameter=None, reference=None,
     Raises
     ------
     ValueError
-        For an unknown mode, a disc without a diameter, or a ``period`` that is not 2 numbers.
+        For an unknown mode, a disc without a diameter, a ``period`` that is not 2 numbers, a ``frame`` that is not a frame, or an object
+        whose footprint on the XY plane has no area.
     """
+    from compas.geometry import Frame
+    from compas.geometry import Transformation
+
     from compas_acoustics.lab import ScatteringSample
 
     mode = mode or SAMPLE_MODES[0]
@@ -668,6 +679,12 @@ def make_scattering_sample(mesh, mode="as_drawn", diameter=None, reference=None,
         raise ValueError(f"mode is 'as_drawn' or 'disc', not {mode!r}")
     symmetry = symmetry or "none"
     baseplate = 0.01 if baseplate is None else baseplate
+    if frame is not None:
+        if not isinstance(frame, Frame):
+            raise ValueError(f"frame is the mounting plane as a Frame, not {type(frame).__name__}")
+        to_world = Transformation.from_frame_to_frame(frame, Frame.worldXY())
+        mesh = mesh.transformed(to_world)
+        reference = reference.transformed(to_world) if reference is not None else None
     if mode == "disc":
         if diameter is None:
             raise ValueError("a disc sample needs a diameter")
@@ -839,4 +856,7 @@ def lab_material(name, absorption, result=None, category=None):
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         material = make_lab_material(name, absorption, scattering=result, category=category or None)
-    return {"material": material, "warnings": _messages(caught)}
+    messages = _messages(caught)
+    if result is not None and result.generation.get("heuristic"):
+        messages.append("s comes from the heuristic geometric method: use kirchhoff or bem for a measurement")
+    return {"material": material, "warnings": messages}

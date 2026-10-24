@@ -42,5 +42,7 @@ def test_the_lab_imports_without_bem_dependencies():
         "for name in ('mesh2scattering', 'trimesh', 'spharpy'):\n"
         "    sys.modules[name] = None\n"
         "import compas_acoustics.lab\n"
+        "import compas_acoustics.pb.conversions\n"
+        "import compas_acoustics.worker.api\n"
     )
     subprocess.run([sys.executable, "-c", code], check=True)

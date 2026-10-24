@@ -670,7 +670,7 @@ def test_lab_material_from_the_lab_result():
     assert isinstance(material, AcousticMaterial) and material.name == "my panel"
     assert list(material.absorption_coefficients) == pytest.approx([0.1, 0.1, 0.2, 0.2, 0.3, 0.3, 0.3])
     assert list(material.scattering_coefficients) == pytest.approx(result.scattering_coefficients)
-    assert out["warnings"] == []
+    assert [w for w in out["warnings"] if "heuristic" not in w] == []
     clipped = call("lab_material", "x", [1.5], category="")
     assert any("clipped" in w for w in clipped["warnings"])
 
@@ -686,3 +686,99 @@ def test_lab_material_takes_its_absorption_from_a_material():
 def test_lab_material_refuses_a_missing_absorption(absorption):
     with pytest.raises(ValueError, match="absorption is required: 1 or 7 values, or a material to take them from"):
         api.lab_material("x", absorption)
+
+
+# ---------------------------------------------------------------------------
+# The coefficient lab: the orientation of the object (final review, I1)
+# ---------------------------------------------------------------------------
+
+
+def _closed_box(x=1.2, y=0.8, z=0.3):
+    from compas.geometry import Box
+
+    return Mesh.from_shape(Box(x, y, z, Frame([x / 2, y / 2, z / 2], [1, 0, 0], [0, 1, 0])))
+
+
+def _on_the_wall(mesh):
+    """``mesh`` turned 90 degrees about X and moved: what lay on the floor now stands on a wall at y = 4, facing -y, and the frame of that wall."""
+    from compas.geometry import Rotation
+    from compas.geometry import Translation
+
+    turn = Rotation.from_axis_and_angle([1, 0, 0], np.pi / 2, point=[0, 0, 0]).concatenated(Translation.from_vector([2, 4, 1.0]))
+    return mesh.transformed(turn), Frame([2, 4, 1.0], [1, 0, 0], [0, 0, 1])
+
+
+def _wavy_panel(n=13):
+    """An open relief panel, 0.6 m square, z = 0.04 sin(2 pi x / 0.2)."""
+    xs = np.linspace(-0.3, 0.3, n)
+    vertices = [[xs[i], xs[j], 0.04 * np.sin(2 * np.pi * xs[i] / 0.2)] for j in range(n) for i in range(n)]
+    faces = [[j * n + i, j * n + i + 1, (j + 1) * n + i + 1, (j + 1) * n + i] for j in range(n - 1) for i in range(n - 1)]
+    return Mesh.from_vertices_and_faces(vertices, faces)
+
+
+def test_a_frame_crosses_the_wire_to_the_worker():
+    frame = Frame([2, 4, 1.0], [1, 0, 0], [0, 0, 1])
+    sample = call("make_scattering_sample", _on_the_wall(_closed_box())[0], frame=frame)
+    assert sample.diameter == pytest.approx(np.hypot(1.2, 0.8))
+
+
+def test_a_box_on_a_wall_is_the_box_on_the_floor_when_its_frame_is_given():
+    floor = call("make_scattering_sample", _closed_box())
+    wall_mesh, frame = _on_the_wall(_closed_box())
+    wall = call("make_scattering_sample", wall_mesh, frame=frame)
+    assert wall.diameter == pytest.approx(floor.diameter)
+    assert wall.structural_depth == pytest.approx(floor.structural_depth)
+    results = [api.run_scattering_lab(s, "geometric", preset="survey", settings={"n_rays": 2000}) for s in (floor, wall)]
+    assert results[1]["scattering_coefficients"] == pytest.approx(results[0]["scattering_coefficients"], abs=1e-3)
+
+
+def test_the_reference_is_turned_with_the_mesh():
+    from lab_shapes import bumped_box
+
+    from compas.geometry import Rotation
+    from compas.geometry import Translation
+
+    turn = Rotation.from_axis_and_angle([1, 0, 0], np.pi / 2, point=[0, 0, 0]).concatenated(Translation.from_vector([2, 4, 1.0]))
+    frame = Frame([2, 4, 1.0], [1, 0, 0], [0, 0, 1])
+    floor = api.make_scattering_sample(bumped_box(), reference=bumped_box(bump=0))
+    wall = api.make_scattering_sample(bumped_box().transformed(turn), reference=bumped_box(bump=0).transformed(turn), frame=frame)
+    assert wall.reference_kind == floor.reference_kind == "proxy"
+    assert wall.structural_depth == pytest.approx(floor.structural_depth)
+
+
+def test_a_disc_tile_is_turned_with_its_frame():
+    from lab_shapes import sine_tile
+
+    tile = sine_tile(0.1, 0.01)
+    wall_tile, frame = _on_the_wall(tile)
+    floor = api.make_scattering_sample(tile, mode="disc", diameter=0.4, period=[0.1, 0.05])
+    wall = api.make_scattering_sample(wall_tile, mode="disc", diameter=0.4, period=[0.1, 0.05], frame=frame)
+    assert wall.structural_depth == pytest.approx(floor.structural_depth)
+
+
+def test_the_world_xy_frame_changes_nothing():
+    plain_sample = api.make_scattering_sample(_closed_box())
+    framed = api.make_scattering_sample(_closed_box(), frame=Frame.worldXY())
+    assert framed.diameter == plain_sample.diameter and framed.structural_depth == plain_sample.structural_depth
+    assert framed.sample.number_of_faces() == plain_sample.sample.number_of_faces()
+
+
+def test_a_frame_that_is_not_a_frame_is_a_readable_error():
+    with pytest.raises(ValueError, match="frame"):
+        api.make_scattering_sample(_closed_box(), frame=[0, 0, 1])
+
+
+def test_a_relief_lying_on_the_wrong_plane_is_told_to_lie_on_xy():
+    wall_mesh, frame = _on_the_wall(_wavy_panel())
+    with pytest.raises(ValueError, match="the footprint has no area: lay the object on the XY plane"):
+        api.make_scattering_sample(wall_mesh)
+    # given its plane it is a sample as any other
+    assert api.make_scattering_sample(wall_mesh, frame=frame).diameter == pytest.approx(api.make_scattering_sample(_wavy_panel()).diameter)
+
+
+def test_lab_material_flags_a_heuristic_scattering_and_not_a_measured_one():
+    geometric = call("lab_material", "heuristic", [0.1], result=_geometric_result())
+    assert any("heuristic geometric method: use kirchhoff or bem for a measurement" in w for w in geometric["warnings"])
+    measured = _geometric_result()
+    measured.generation = {"method": "kirchhoff", "preset": "survey"}
+    assert api.lab_material("measured", [0.1], result=measured)["warnings"] == []

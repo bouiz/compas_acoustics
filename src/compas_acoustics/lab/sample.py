@@ -274,7 +274,18 @@ def _clean(mesh):
     for face in mesh.faces():
         ids = [index[key] for key in mesh.face_vertices(face)]
         T.extend([ids[0], ids[i], ids[i + 1]] for i in range(1, len(ids) - 1))
-    return _weld(V, np.array(T, dtype=int).reshape(-1, 3))
+    V, T = _weld(V, np.array(T, dtype=int).reshape(-1, 3))
+    _require_footprint(V, T)
+    return V, T
+
+
+def _require_footprint(V, T):
+    """Raise if the triangles project to no area on the xy plane: the object lies on another plane than the lab's."""
+    p = V[T]
+    cross = np.cross(p[:, 1] - p[:, 0], p[:, 2] - p[:, 0])
+    surface = np.linalg.norm(cross, axis=1).sum()
+    if not np.abs(cross[:, 2]).sum() > 1e-9 * surface:
+        raise ValueError("the footprint has no area: lay the object on the XY plane (Z up) or pass its mounting plane")
 
 
 def _weld(V, T, tolerance=_WELD):
