@@ -14,6 +14,18 @@ pressure at the receivers, the input of the correlation method (Heimes & Vorlän
   an interrupted run resumes, a changed one starts in a new folder.
 - **Run.** Each split runs in a child process (``python -m compas_acoustics.lab.solvers._numcalc``), polled every 2 s for progress;
   cancelling the job kills it and its NumCalc instances, and the finished steps stay on disk.
+- **Convergence.** Every step's ``NC<N>-<N>.out`` is read (:func:`parse_convergence`): a step that hit NumCalc's iteration cap or ended
+  with a relative residual above 1e-6 is warned about and listed in ``generation["unconverged"]``. mesh2scattering's report marks such
+  steps as converged, so it is not trusted.
+
+Known limitation (2026-10-24): on Heimes & Vorländer's sine surface (d = 0.8 m, Λ = 80 mm, 10 mm baseplate) the CGS solves do not
+converge below about 700 Hz. Every sample step of the 125, 250 and 500 Hz octaves stopped at the cap of 250 iterations, with final
+residuals from 2.6e-5 up to 11; at 125 Hz the reference's steps did too (residuals up to 4.4 and 183 for the two source angles), while
+from the 250 Hz octave on the reference converged in 20-26 iterations to about 1e-10, and from 735 Hz on both bodies converge (under 100
+iterations, about 1e-10). The pressures of those steps are wrong (sample-to-reference energy ratios of 0.003 to 100, where about 1 is
+expected). The cause is not settled: suspected are the single-level FMM and CGS/ILU settings at low frequency, and element shape (the
+remeshed sample keeps the tile's facets as edges grow, aspect L²/A up to about 930 in the 125 Hz split, against about 32 for the
+reference). Not fixed here; check ``generation["unconverged"]`` before trusting low bands.
 
 mesh2scattering needs Python ≥ 3.11 and is imported only inside the functions that need it, so this module imports on Python 3.9.
 
@@ -30,6 +42,7 @@ import hashlib
 import io
 import math
 import os
+import re
 import subprocess
 import sys
 import warnings
@@ -42,13 +55,19 @@ from compas_acoustics.defaults import Defaults
 from .base import Pressures
 from .base import ScatteringSolver
 
-__all__ = ["BemSolver", "cache_key", "estimate_elements", "plan_splits"]
+__all__ = ["BemSolver", "cache_key", "estimate_elements", "parse_convergence", "plan_splits"]
 
 _INSTALL = 'the BEM solver needs Python >= 3.11 and mesh2scattering >= 1.0.5: pip install "compas_acoustics[lab]"'
 _GRID = "receivers"
 _BODIES = ("sample", "reference")
 _POLL = 2.0  # s
 _FLAT = math.cos(1e-3)  # faces within 1 mrad (0.06°) of each other count as one plane for the flips and collapses
+_MAX_RESIDUAL = 1e-6  # the final relative residual of NumCalc's CGS solve above which a step counts as unconverged
+_SOLVER_LINE = re.compile(r"number of iterations\s*=\s*(\d+)\s*,\s*relative error\s*=\s*(\S+)")
+_CAPPED = "Maximum number of iterations is reached"
+_UNCONVERGED = (
+    "bem: NumCalc did not converge for the {body} at {frequencies} Hz (iteration cap reached or final residual > 1e-6, worst {residual:.3g}); s at those frequencies is unreliable"
+)
 _TOO_BIG = (
     "the BEM mesh of the {body} would have about {n:,} elements at {f:.0f} Hz (edge {edge:.3g} m), more than 10 x max_elements = {limit:,}; "
     "is the model in millimetres? Use a smaller diameter or the Kirchhoff method"
@@ -352,6 +371,56 @@ def _finished(source_folder, step):
         return "End time:" in handle.read()
 
 
+def parse_convergence(text):
+    """The iterative solve of one NumCalc step from the text of its ``NC<N>-<N>.out``.
+
+    NumCalc writes ``CGS solver: number of iterations = 250, relative error = 0.0813976`` after the solve and, when it stopped at its
+    iteration cap, ``Warning: Maximum number of iterations is reached!`` before it. mesh2scattering's report marks such steps as
+    converged, so this is read from the output itself.
+
+    Parameters
+    ----------
+    text : str
+        The content of the step's ``.out`` file.
+
+    Returns
+    -------
+    tuple or None
+        ``(iterations, residual, converged)``, converged meaning the cap was not reached and the residual is at most 1e-6; ``None``
+        when the file holds no iterative-solver line (a direct solve, or an unfinished step).
+    """
+    matches = _SOLVER_LINE.findall(text)
+    if not matches:
+        return None
+    iterations, residual = matches[-1]
+    try:
+        residual = float(residual)
+    except ValueError:
+        residual = float("nan")
+    converged = _CAPPED not in text and bool(residual <= _MAX_RESIDUAL)
+    return int(iterations), residual, converged
+
+
+def _unconverged(project, body, n_sources, frequencies):
+    """The unconverged steps of one finished project, one entry per frequency (the worst source): body, frequency, iterations, residual."""
+    worst = {}
+    for s in range(n_sources):
+        folder = os.path.join(project, "NumCalc", "source_{}".format(s + 1))
+        for i, f in enumerate(frequencies):
+            path = os.path.join(folder, "NC{0}-{0}.out".format(i + 1))
+            if not os.path.isfile(path):
+                continue
+            with open(path, "r", encoding="utf8", errors="replace") as handle:
+                parsed = parse_convergence(handle.read())
+            if parsed is None or parsed[2]:
+                continue
+            iterations, residual, _ = parsed
+            key = float(f)
+            if key not in worst or not (residual <= worst[key]["residual"]):
+                worst[key] = {"body": body, "frequency": key, "iterations": iterations, "residual": residual}
+    return [worst[k] for k in sorted(worst)]
+
+
 def _kill_tree(process):
     """Kill a child process and everything it started (its NumCalc instances)."""
     import psutil
@@ -454,6 +523,7 @@ class BemSolver(ScatteringSolver):
         radius = self.radius(sample, ordered.max(), c)
         pressures = {body: [] for body in _BODIES}
         elements = []
+        unconverged = []
         for k, (split, edge) in enumerate(zip(splits, edges)):
             folder = os.path.join(root, "split_{}".format(k + 1))
             counts = {}
@@ -463,6 +533,14 @@ class BemSolver(ScatteringSolver):
             self._run(folder, numcalc_path, "bem: split {}/{}".format(k + 1, len(splits)), sources.n, len(split))
             for body in _BODIES:
                 pressures[body].append(self._read(os.path.join(folder, body), body, sources, receivers, radius, split))
+                unconverged.extend(_unconverged(os.path.join(folder, body), body, sources.n, split))
+
+        for body in _BODIES:
+            entries = [u for u in unconverged if u["body"] == body]
+            if entries:
+                listed = ", ".join("{:.0f}".format(u["frequency"]) for u in entries)
+                worst = max((u["residual"] for u in entries), key=lambda r: r if r == r else float("inf"))
+                warnings.warn(_UNCONVERGED.format(body=body, frequencies=listed, residual=worst), stacklevel=2)
 
         # back to the order of the frequencies given
         order = np.argsort(frequencies, kind="stable")
@@ -478,6 +556,7 @@ class BemSolver(ScatteringSolver):
             "edge": edges,
             "radius": radius,
             "cache": root,
+            "unconverged": unconverged,
         }
         return Pressures(out["sample"], out["reference"], frequencies, generation)
 

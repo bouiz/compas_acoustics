@@ -1,6 +1,9 @@
+import os
 import subprocess
 import sys
 import time
+import types
+import warnings
 
 import numpy as np
 import pytest
@@ -117,3 +120,71 @@ def test_bem_sine_surface_scatters_above_the_first_grating_lobe(tmp_path):
     t0 = time.perf_counter()
     BemSolver(cache_dir=str(tmp_path)).solve(s, src, rec, f, 343.0)
     assert time.perf_counter() - t0 < 30
+
+
+_CONVERGED_OUT = """Step 1, Frequency = 735.45 Hz
+Sum of nonzeros of the FMBEM matrices ................. = 1866552
+
+
+CGS solver: number of iterations = 90, relative error = 3.76489e-10
+
+End time: 24/10/2026 3:11:2
+"""
+
+_CAPPED_OUT = """Step 1, Frequency = 92.59 Hz
+Sum of nonzeros of the FMBEM matrices ................. = 1866552
+Warning: Maximum number of iterations is reached!
+
+
+CGS solver: number of iterations = 250, relative error = 0.0813976
+
+End time: 24/10/2026 3:9:23
+"""
+
+
+def test_parse_convergence_reads_numcalc_output():
+    from compas_acoustics.lab.solvers.bem import parse_convergence
+
+    assert parse_convergence(_CONVERGED_OUT) == (90, pytest.approx(3.76489e-10), True)
+    assert parse_convergence(_CAPPED_OUT) == (250, pytest.approx(0.0813976), False)
+    # below the cap but with a residual above 1e-6
+    assert parse_convergence(_CONVERGED_OUT.replace("3.76489e-10", "2.6e-05"))[2] is False
+    assert parse_convergence(_CONVERGED_OUT.replace("3.76489e-10", "nan"))[2] is False
+    assert parse_convergence("Step 1, Frequency = 92.59 Hz\n") is None
+
+
+def test_unconverged_steps_are_warned_and_recorded(tmp_path, monkeypatch):
+    import compas_acoustics.lab.solvers.bem as bem
+
+    sample = ScatteringSample.disc(flat_tile(), diameter=0.3)
+    sources = SourceGrid([0.0, 30.0], [0.0, 0.0])
+    receivers = ReceiverGrid.hemisphere(10.0, 10.0)
+    frequencies = np.array([400.0, 500.0])  # one split, NumCalc steps 1 and 2
+
+    def write(self, project, title, sample, sources, receivers, split, edge, radius, c):
+        for s in range(sources.n):
+            folder = os.path.join(project, "NumCalc", "source_{}".format(s + 1))
+            os.makedirs(folder, exist_ok=True)
+            for step in (1, 2):
+                capped = title == "sample" and step == 2 and s == 1  # the sample at 500 Hz, second source only
+                with open(os.path.join(folder, "NC{0}-{0}.out".format(step)), "w") as handle:
+                    handle.write(_CAPPED_OUT if capped else _CONVERGED_OUT)
+        return 10
+
+    monkeypatch.setattr(bem, "_require", lambda: types.SimpleNamespace(__version__="test"))
+    monkeypatch.setattr(bem.BemSolver, "_numcalc", lambda self: "NumCalc")
+    monkeypatch.setattr(bem.BemSolver, "_write", write)
+    monkeypatch.setattr(bem.BemSolver, "_run", lambda self, *args: None)
+
+    def read(self, project, title, sources, receivers, radius, split):
+        return np.ones((sources.n, len(receivers.weights), len(split)), dtype=complex)
+
+    monkeypatch.setattr(bem.BemSolver, "_read", read)
+    with pytest.warns(UserWarning, match=r"did not converge for the sample at 500 Hz"):
+        p = BemSolver(cache_dir=str(tmp_path)).solve(sample, sources, receivers, frequencies, 343.0)
+    assert p.generation["unconverged"] == [{"body": "sample", "frequency": 500.0, "iterations": 250, "residual": pytest.approx(0.0813976)}]
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
+        monkeypatch.setattr(bem, "parse_convergence", lambda text: (30, 1e-10, True))
+        assert BemSolver(cache_dir=str(tmp_path)).solve(sample, sources, receivers, frequencies, 343.0).generation["unconverged"] == []

@@ -176,14 +176,20 @@ class KirchhoffSolver(ScatteringSolver):
     ========  ==========  ==========================================================================
     octave    max |Δs|    note
     ========  ==========  ==========================================================================
-    125 Hz    (0.466)     not a Kirchhoff error: the BEM sample runs did not converge below ~700 Hz
-    250 Hz    (0.315)     as above (NumCalc stopped at 250 iterations, residuals up to 10)
-    500 Hz    (0.227)     as above; Kirchhoff gives s ≤ 0.01 here, which is the physical expectation
+    125 Hz    (0.466)     not a Kirchhoff error: the BEM runs did not converge below ~700 Hz
+    250 Hz    (0.315)     as above (see below)
+    500 Hz    (0.227)     as above; Kirchhoff gives s ≤ 0.015 here, the physical expectation
     1 kHz     0.022
     2 kHz     0.209       Λ/λ ≈ 0.37…0.58: Kirchhoff misses the onset of the first grating lobe
     4 kHz     0.247       one-third octaves up to 0.335 (3150 Hz, 31.5°); Kirchhoff lower than BEM
     8 kHz     0.115
     ========  ==========  ==========================================================================
+
+    The bracketed octaves are BEM failures: below about 700 Hz the BEM runs did not converge, the sample in the 125, 250 and 500 Hz
+    octaves and at 125 Hz also the reference (every step stopped at NumCalc's cap of 250 iterations, final residuals 2.6e-5…11 for the
+    sample and 0.024…183 for the reference); see :class:`~compas_acoustics.lab.solvers.bem.BemSolver`. The BEM itself sits 0.03–0.10
+    below Heimes & Vorländer's s in 11 of the 12 checked one-third octaves (Λ/λ ≥ 0.5, both angles), so Kirchhoff's error against an independent
+    reference is likely larger than the gap stated here.
 
     So for Λ/λ ≳ 0.4 expect Kirchhoff's s to be off by up to about 0.25 per octave (0.33 per one-third octave), mostly too low, and use
     BEM where that matters. Reproduce with the Zenodo 15673498 results (see ``tests/lab/test_validation_heimes.py``)::

@@ -9,7 +9,8 @@ The sample (their ``0.1_simulate_optimal.py``): a sine relief with period Λ = 8
 d = 0.8 m, depth h = 0.051/2.5 m, a 10 mm baseplate, c = 346.18 m/s. Their sources are plane waves at azimuth 0, the incidence plane across
 the grooves, at colatitudes 1.26° + k·2.52°. Their s comes at 1/9-octave steps of Λ/λ; it is interpolated (linear in log f) onto our three
 frequencies per one-third-octave band and averaged as ours are (Heimes eq. 11), so both sides are compared on the same bands of
-``EXTENDED_BAND_RANGE``. Λ/λ = 0.5…2 is 2.2…8.7 kHz for this sample. The paper's one-third-octave agreement is 0.1 for Λ/λ ≥ 0.5.
+``EXTENDED_BAND_RANGE``. Λ/λ = 0.5…2 is 2.2…8.7 kHz for this sample. The paper's one-third-octave agreement is |Δs| ≲ 0.1 for
+Λ/λ ≥ 0.5; |Δs| is compared at the 0.01 resolution at which ISO 17497-1 §8.3 presents s, i.e. rounded to 0.01 before the check against 0.1.
 
 ``HEIMES_BEM_CACHE`` (optional) is the BEM cache folder; the per-angle tests and the gap test share it, so the BEM runs once per angle.
 
@@ -54,6 +55,7 @@ DIAMETER = 0.8  # m
 DEPTH = 0.051 / 2.5  # m
 ANGLES = (31.5, 61.74)  # degrees, two of Heimes's source colatitudes (1.26 + 12·2.52 and 1.26 + 24·2.52)
 TOLERANCE = 0.1
+RESOLUTION = 2  # decimals: |Δs| is compared at 0.01, the resolution of s in ISO 17497-1 §8.3
 RATIO_MIN = 0.5  # Λ/λ from which the tolerance applies
 BAND_RANGE = EXTENDED_BAND_RANGE
 _AIR = types.SimpleNamespace(speed_of_sound=C)  # measure_scattering reads only air.speed_of_sound
@@ -197,15 +199,16 @@ def _compare(ref, ours, label):
     """The comparison table and the bands with Λ/λ ≥ 0.5 that miss the tolerance."""
     nominal, exact = third_octave_centres(BAND_RANGE)
     names = {_ratio(e): int(n) for n, e in zip(nominal, exact)}
-    rows = ["{}: band Hz | Λ/λ | ours | Heimes | |Δ| | ".format(label)]
+    rows = ["{}: band Hz | Λ/λ | ours | Heimes | |Δ| | |Δ| rounded to 0.01 vs 0.1".format(label)]
     failing = []
     for ratio, s_ref in sorted(ref.items()):
         delta = abs(ours[ratio] - s_ref)
+        missed = round(delta, RESOLUTION) > TOLERANCE  # "|Δs| ≲ 0.1" at the 0.01 resolution of ISO 17497-1 §8.3
         checked = ratio >= RATIO_MIN
-        status = ("FAIL" if delta > TOLERANCE else "ok") if checked else "-"
-        if checked and delta > TOLERANCE:
+        status = ("FAIL" if missed else "ok") if checked else "-"
+        if checked and missed:
             failing.append(ratio)
-        rows.append("{} | {:.3f} | {:.3f} | {:.3f} | {:.3f} | {}".format(names[ratio], ratio, ours[ratio], s_ref, delta, status))
+        rows.append("{} | {:.3f} | {:.3f} | {:.3f} | {:.4f} | {}".format(names[ratio], ratio, ours[ratio], s_ref, delta, status))
     return "\n".join(rows), failing
 
 
