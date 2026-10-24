@@ -85,3 +85,17 @@ def flat_tile_with_zero_area_face(size=0.1):
     h = size / 2
     vertices = [[0, 0, 0], [size, 0, 0], [size, size, 0], [0, size, 0], [h, 0, 0]]
     return Mesh.from_vertices_and_faces(vertices, [[2, 3, 0, 4, 1], [1, 4, 0]])
+
+
+def v_groove_tile(period=0.04, width=0.05):
+    """One period of ``z = |x − period/2|`` as two quads along x, ``width`` deep in y: a 90° groove, ridges at the tile edges at z = period/2."""
+    h = period / 2
+    vertices = [[0, 0, h], [h, 0, 0], [period, 0, h], [0, width, h], [h, width, 0], [period, width, h]]
+    return Mesh.from_vertices_and_faces(vertices, [[0, 1, 4, 3], [1, 2, 5, 4]])
+
+
+def sawtooth_tile(period=0.05, slope_deg=20.0, width=0.05):
+    """One period of a sawtooth: a slanted quad rising ``period·tan(slope)`` over x in [0, period], and a vertical riser back down at x = period."""
+    rise = period * np.tan(np.radians(slope_deg))
+    vertices = [[0, 0, 0], [period, 0, rise], [period, width, rise], [0, width, 0], [period, 0, 0], [period, width, 0]]
+    return Mesh.from_vertices_and_faces(vertices, [[0, 1, 2, 3], [1, 4, 5, 2]])

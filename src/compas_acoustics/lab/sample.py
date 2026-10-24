@@ -26,6 +26,7 @@ __all__ = ["ScatteringSample"]
 _WELD = 1e-6  # m
 _VERTICAL = 1e-9  # m, the xy distance under which outline points are taken to lie on one vertical
 _SYMMETRIES = ("none", "rotational")
+_PROXY_WARNING = "the reference is a user proxy: s is the share of the sample's reflection the proxy does not reproduce, not the ISO 17497 coefficient"
 _OUTLINE = "the relief must have exactly one closed outline (found {}): fill its holes and join its parts"
 
 
@@ -52,9 +53,25 @@ class ScatteringSample(_PackageDtype, Data):
         The thickness in m of the plate below z = 0 that closes both bodies.
     warnings : list of str
         Problems found: ISO 17497-1 §6.3.2's depth limit ``h ≤ d/16``, or a size that suggests millimetres.
+    reference_kind : {"flat", "proxy"}
+        Whether the reference is the flat footprint or a user-given proxy mesh.
     """
 
-    def __init__(self, sample, reference, mode, diameter, period=None, structural_depth=0.0, feature_size=None, symmetry="none", baseplate=0.01, warnings=None, name=None):
+    def __init__(
+        self,
+        sample,
+        reference,
+        mode,
+        diameter,
+        period=None,
+        structural_depth=0.0,
+        feature_size=None,
+        symmetry="none",
+        baseplate=0.01,
+        warnings=None,
+        name=None,
+        reference_kind="flat",
+    ):
         super().__init__(name=name)
         if symmetry not in _SYMMETRIES:
             raise ValueError("unknown symmetry {!r}; valid symmetries are 'none', 'rotational'".format(symmetry))
@@ -68,6 +85,7 @@ class ScatteringSample(_PackageDtype, Data):
         self.symmetry = symmetry
         self.baseplate = float(baseplate)
         self.warnings = list(warnings or [])
+        self.reference_kind = reference_kind
 
     @property
     def __data__(self):
@@ -82,6 +100,7 @@ class ScatteringSample(_PackageDtype, Data):
             "symmetry": self.symmetry,
             "baseplate": self.baseplate,
             "warnings": self.warnings,
+            "reference_kind": self.reference_kind,
         }
 
     @classmethod
@@ -123,29 +142,82 @@ class ScatteringSample(_PackageDtype, Data):
         return cls(sample, reference, "disc", diameter, period, depth, feature_size, symmetry, baseplate, _warnings(depth, diameter))
 
     @classmethod
-    def as_drawn(cls, mesh, baseplate=0.01, symmetry="none", feature_size=None):
+    def as_drawn(cls, mesh, baseplate=0.01, symmetry="none", feature_size=None, reference=None):
         """A relief as drawn, closed on a baseplate unless it is closed already (Heimes & Vorländer §3.2).
 
         An open relief is walled down to ``z = −baseplate`` and closed by a bottom, like :meth:`disc`.
         A closed mesh is used as it is, its lowest point moved to z = 0; its reference is the outline of its bottom, flat at z = 0.
 
+        Parameters
+        ----------
+        mesh : :class:`compas.datastructures.Mesh`
+            The detailed relief.
+        baseplate : float, optional
+        symmetry : {"none", "rotational"}, optional
+        feature_size : float, optional
+        reference : :class:`compas.datastructures.Mesh`, optional
+            A proxy to use as the reference instead of the flat footprint: the simplified mesh the room model will carry the scattering coefficient on.
+            It must be open when ``mesh`` is open and closed when ``mesh`` is closed, share its outline, and is placed with the same z shift as ``mesh``.
+            ``s`` then measures the share of the relief's reflection that the proxy does not reproduce.
+
         Raises
         ------
         ValueError
-            If the relief has not exactly one closed outline, or a closed mesh has no flat bottom.
+            If the relief has not exactly one closed outline, or a closed mesh has no flat bottom,
+            or the proxy is open where the relief is closed (or the other way round) or has another outline.
         """
         V, T = _clean(mesh)
         _, counts = _edge_counts(T)
-        if (counts == 1).any():
-            sample, reference, depth = _close(V, T, baseplate)
+        is_open = bool((counts == 1).any())
+        if is_open:
+            floor = float(V[:, 2].min())
+            sample, flat, depth = _close(V, T, baseplate)
         else:
-            V = V - [0.0, 0.0, V[:, 2].min() + baseplate]
+            floor = float(V[:, 2].min() + baseplate)
+            V = V - [0.0, 0.0, floor]
             T = _orient(V, T)
             sample = _to_body(V, T, "sample")
             depth = float(V[:, 2].max())
-            reference = _flat_body(V[_bottom_loop(V, T, -baseplate), :2], baseplate)
-        diameter = _outline_diameter(reference)
-        return cls(sample, reference, "as_drawn", diameter, None, depth, feature_size, symmetry, baseplate, _warnings(depth, diameter))
+            flat = _flat_body(V[_bottom_loop(V, T, -baseplate), :2], baseplate)
+        diameter = _outline_diameter(flat)
+        warnings = _warnings(depth, diameter)
+        if reference is None:
+            return cls(sample, flat, "as_drawn", diameter, None, depth, feature_size, symmetry, baseplate, warnings)
+        proxy = _proxy(reference, is_open, floor, baseplate)
+        _same_outline(sample, proxy, diameter)
+        warnings.append(_PROXY_WARNING)
+        return cls(sample, proxy, "as_drawn", diameter, None, depth, feature_size, symmetry, baseplate, warnings, reference_kind="proxy")
+
+
+def _proxy(mesh, sample_is_open, floor, baseplate):
+    """A proxy mesh as a closed body, moved by the sample's z shift and closed as the sample was."""
+    V, T = _clean(mesh)
+    _, counts = _edge_counts(T)
+    proxy_is_open = bool((counts == 1).any())
+    if proxy_is_open != sample_is_open:
+        raise ValueError(
+            "the sample is {} but the proxy is {}: give a proxy of the same kind, both open reliefs or both closed meshes".format(
+                "open" if sample_is_open else "closed", "open" if proxy_is_open else "closed"
+            )
+        )
+    if proxy_is_open:
+        return _close(V, T, baseplate, floor, "reference")[0]
+    V = V - [0.0, 0.0, floor]
+    return _to_body(V, _orient(V, T), "reference")
+
+
+def _same_outline(sample, proxy, diameter):
+    """Raise ``ValueError`` unless the xy bounding boxes of two bodies agree within 1e-3 of the diameter."""
+    boxes = []
+    for body in (sample, proxy):
+        xy = np.array([body.vertex_coordinates(v)[:2] for v in body.vertices()])
+        boxes.append(np.concatenate([xy.min(axis=0), xy.max(axis=0)]))
+    if np.abs(boxes[0] - boxes[1]).max() > 1e-3 * diameter:
+        raise ValueError(
+            "the proxy's outline (bounding box {}) differs from the sample's ({})".format(
+                np.array2string(boxes[1], precision=4, separator=", "), np.array2string(boxes[0], precision=4, separator=", ")
+            )
+        )
 
 
 def _clean(mesh):
@@ -277,8 +349,8 @@ def _orient(V, T):
     return T
 
 
-def _close(V, T, baseplate):
-    """Close a relief: lowest point at z = 0, walls from its one outline down to ``z = −baseplate`` and a bottom.
+def _close(V, T, baseplate, floor=None, what="sample"):
+    """Close a relief: ``floor`` (by default its lowest point) at z = 0, walls from its one outline down to ``z = −baseplate`` and a bottom.
 
     Returns the sample, its flat reference and the structural depth (ISO 17497-1 §6.3.2; Heimes & Vorländer §3.2).
     """
@@ -286,9 +358,9 @@ def _close(V, T, baseplate):
     loops = _boundary_loops(T)
     if len(loops) != 1:
         raise ValueError(_OUTLINE.format(len(loops)))
-    V = V - [0.0, 0.0, V[:, 2].min()]
+    V = V - [0.0, 0.0, V[:, 2].min() if floor is None else floor]
     columns = _columns(V, loops[0])
-    sample = _to_body(*_walls_and_bottom(V, T, columns, baseplate), "sample")
+    sample = _to_body(*_walls_and_bottom(V, T, columns, baseplate), what)
     return sample, _flat_body(np.array([V[c[0], :2] for c in columns]), baseplate), float(V[:, 2].max())
 
 
