@@ -671,6 +671,8 @@ def make_scattering_sample(mesh, mode="as_drawn", diameter=None, reference=None,
     if mode == "disc":
         if diameter is None:
             raise ValueError("a disc sample needs a diameter")
+        if not diameter > 0:
+            raise ValueError(f"diameter is a positive length in m, not {diameter!r}")
         period = list(period) if period is not None else []
         if period and len(period) != 2:
             raise ValueError(f"period is 2 numbers, the tile's x and y, not {len(period)}")
@@ -777,6 +779,8 @@ def polar_balloon(result, preview=0, octave=1000, body="sample", radius=1.0, flo
     if not floor_db < 0:
         raise ValueError(f"floor_db is a negative level in dB, not {floor_db!r}")
     radius = 1.0 if radius is None else float(radius)
+    if not radius > 0:
+        raise ValueError(f"radius is a positive length, not {radius!r}")
 
     polar = result.polar_sample_db if body == "sample" else result.polar_reference_db
     levels = np.asarray(polar[preview, result.octave_bands.index(octave)], dtype=float)

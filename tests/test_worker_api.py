@@ -564,6 +564,14 @@ def test_a_disc_without_a_diameter_is_refused():
         api.make_scattering_sample(_flat_quad(), mode="disc")
 
 
+@pytest.mark.parametrize("diameter", [0, -1, float("nan")])
+def test_a_disc_with_a_diameter_that_is_not_positive_is_refused(diameter):
+    from lab_shapes import flat_tile
+
+    with pytest.raises(ValueError, match="diameter is a positive length in m, not"):
+        call("make_scattering_sample", flat_tile(), mode="disc", diameter=diameter)
+
+
 def test_an_unknown_sample_mode_is_refused():
     with pytest.raises(ValueError, match="mode is 'as_drawn' or 'disc', not 'tiled'"):
         api.make_scattering_sample(_flat_quad(), mode="tiled")
@@ -641,6 +649,18 @@ def test_polar_balloon_refuses_an_octave_that_was_not_simulated():
         api.polar_balloon(result, body="both")
     with pytest.raises(ValueError, match="preview"):
         api.polar_balloon(result, preview=len(result.polar_source_indices))
+
+
+@pytest.mark.parametrize("radius", [0, -1, float("nan")])
+def test_polar_balloon_refuses_a_radius_that_is_not_positive(radius):
+    with pytest.raises(ValueError, match="radius is a positive length, not"):
+        call("polar_balloon", _geometric_result(), radius=radius)
+
+
+@pytest.mark.parametrize("floor_db", [0, 5.0])
+def test_polar_balloon_refuses_a_floor_that_is_not_negative(floor_db):
+    with pytest.raises(ValueError, match="floor_db is a negative level in dB, not"):
+        call("polar_balloon", _geometric_result(), floor_db=floor_db)
 
 
 def test_lab_material_from_the_lab_result():
