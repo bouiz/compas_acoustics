@@ -165,6 +165,30 @@ class KirchhoffSolver(ScatteringSolver):
         Also leave out a lit face when the ray from its centroid towards the source hits another face of the same body.
     chunk : int, optional
         The receivers evaluated at once. The faces are taken in blocks of about 10⁶ / ``chunk``, so memory stays near 100 MB.
+
+    Notes
+    -----
+    **Known accuracy** (measured 2026-10-24). Against :class:`~compas_acoustics.lab.solvers.bem.BemSolver` on Heimes & Vorländer's
+    simulated sine surface (Λ = 80 mm across x, h = 0.051/2.5 m, d = 0.8 m, c = 346.18 m/s), one plane wave each at colatitude 31.5° and
+    61.74°, azimuth 0 (the incidence plane across the grooves), ``EXTENDED_BAND_RANGE``, the same receivers for both methods. The max over
+    the two angles of |s_kirchhoff − s_bem| per octave (the octave value, the mean of its one-third-octave bands):
+
+    ========  ==========  ==========================================================================
+    octave    max |Δs|    note
+    ========  ==========  ==========================================================================
+    125 Hz    (0.466)     not a Kirchhoff error: the BEM sample runs did not converge below ~700 Hz
+    250 Hz    (0.315)     as above (NumCalc stopped at 250 iterations, residuals up to 10)
+    500 Hz    (0.227)     as above; Kirchhoff gives s ≤ 0.01 here, which is the physical expectation
+    1 kHz     0.022
+    2 kHz     0.209       Λ/λ ≈ 0.37…0.58: Kirchhoff misses the onset of the first grating lobe
+    4 kHz     0.247       one-third octaves up to 0.335 (3150 Hz, 31.5°); Kirchhoff lower than BEM
+    8 kHz     0.115
+    ========  ==========  ==========================================================================
+
+    So for Λ/λ ≳ 0.4 expect Kirchhoff's s to be off by up to about 0.25 per octave (0.33 per one-third octave), mostly too low, and use
+    BEM where that matters. Reproduce with the Zenodo 15673498 results (see ``tests/lab/test_validation_heimes.py``)::
+
+        HEIMES_RESULTS=<folder> HEIMES_BEM_CACHE=<cache> python -m pytest tests/lab/test_validation_heimes.py -v -s -k gap
     """
 
     name = "kirchhoff"
