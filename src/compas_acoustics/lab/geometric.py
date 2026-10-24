@@ -44,8 +44,8 @@ are invisible to it. It has no diffraction (the rim, edges, the
 shadow zone) and no cavity resonance, and a relief much smaller than the wavelength still gets the geometric s_max, reduced only by
 the depth curve. The frequency dependence is that curve, a heuristic, not computed. The object is taken as mounted in a rigid baffle at
 z = 0: a free-standing object is not represented. Directions are binned in cells of ``bin_deg``: a facet tilted by less than about half a
-bin from the reference's reflection counts as specular, so s_max is blind to slopes below that angle. Only the first 1 % of lost
-rays is warned about: a smaller loss goes unreported, and it is compared as one bin like any cell.
+bin from the reference's reflection counts as specular, so s_max is blind to slopes below that angle. A warning is raised only
+when the lost fraction exceeds 1 % for some source (of the sample or the reference); up to 1 % goes unreported and enters s_max as one extra bin.
 """
 
 from dataclasses import dataclass
