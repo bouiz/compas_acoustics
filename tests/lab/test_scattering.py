@@ -1,3 +1,4 @@
+import time
 import warnings
 
 import numpy as np
@@ -6,7 +7,9 @@ from compas import json_dumps
 from compas import json_loads
 from lab_shapes import flat_tile
 from lab_shapes import flat_tile_with_zero_area_face
+from lab_shapes import sawtooth_tile
 from lab_shapes import sine_tile
+from lab_shapes import v_groove_tile
 
 from compas_acoustics.lab import scattering
 from compas_acoustics.lab.bands import EXTENDED_BAND_RANGE
@@ -54,7 +57,7 @@ def test_shapes_and_bands(monkeypatch):
 
 def test_extended_range_simulates_8000_and_warns_beyond_iso(monkeypatch):
     monkeypatch.setattr(scattering, "_solver", lambda method, **kw: FakeSolver())
-    r = measure_scattering(ScatteringSample.disc(flat_tile(), diameter=0.4), preset="survey", band_range=EXTENDED_BAND_RANGE)
+    r = measure_scattering(ScatteringSample.disc(flat_tile(), diameter=0.4), method="kirchhoff", preset="survey", band_range=EXTENDED_BAND_RANGE)
     assert r.bands[-1] == 8000 and r.octave_bands[-1] == 8000 and r.filled_octaves == []
     assert any("beyond ISO" in w for w in r.warnings)
 
@@ -76,7 +79,7 @@ def test_warnings_are_also_emitted(monkeypatch):
     monkeypatch.setattr(scattering, "_solver", lambda method, **kw: FakeSolver())
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        r = measure_scattering(ScatteringSample.disc(flat_tile(), diameter=0.4), preset="survey", band_range=(4000, 4000))
+        r = measure_scattering(ScatteringSample.disc(flat_tile(), diameter=0.4), method="kirchhoff", preset="survey", band_range=(4000, 4000))
     assert "the 8000 Hz octave was not simulated; the material takes the 4000 Hz value" in r.warnings
     assert r.filled_octaves == [125, 250, 500, 1000, 2000, 8000]
     assert set(r.warnings) <= {str(w.message) for w in caught}
@@ -85,23 +88,23 @@ def test_warnings_are_also_emitted(monkeypatch):
 def test_non_finite_pressures_raise_naming_the_method(monkeypatch):
     monkeypatch.setattr(scattering, "_solver", lambda method, **kw: NanSolver())
     with pytest.raises(RuntimeError, match="kirchhoff"):
-        measure_scattering(ScatteringSample.disc(flat_tile(), diameter=0.4), preset="survey", band_range=(1000, 1000))
+        measure_scattering(ScatteringSample.disc(flat_tile(), diameter=0.4), method="kirchhoff", preset="survey", band_range=(1000, 1000))
 
 
 def test_kirchhoff_end_to_end_sine_beats_flat():
-    flat = measure_scattering(ScatteringSample.disc(flat_tile(), diameter=0.4), preset="survey", band_range=(4000, 4000))
-    sine = measure_scattering(ScatteringSample.disc(sine_tile(0.0708, 0.0204), diameter=0.4), preset="survey", band_range=(4000, 4000))
+    flat = measure_scattering(ScatteringSample.disc(flat_tile(), diameter=0.4), method="kirchhoff", preset="survey", band_range=(4000, 4000))
+    sine = measure_scattering(ScatteringSample.disc(sine_tile(0.0708, 0.0204), diameter=0.4), method="kirchhoff", preset="survey", band_range=(4000, 4000))
     assert max(flat.s_bands) < 0.05 and sine.s_bands[-1] > 0.3
 
 
 def test_result_has_no_nan_with_degenerate_faces():
     tile = flat_tile_with_zero_area_face()
-    r = measure_scattering(ScatteringSample.disc(tile, diameter=0.4), preset="survey", band_range=(500, 1000))
+    r = measure_scattering(ScatteringSample.disc(tile, diameter=0.4), method="kirchhoff", preset="survey", band_range=(500, 1000))
     assert np.isfinite(r.s_bands).all()
 
 
 def test_result_round_trips_through_json():
-    r = measure_scattering(ScatteringSample.disc(flat_tile(), diameter=0.3), preset="survey", band_range=(500, 1000))
+    r = measure_scattering(ScatteringSample.disc(flat_tile(), diameter=0.3), method="kirchhoff", preset="survey", band_range=(500, 1000))
     t = json_loads(json_dumps(r))
     assert isinstance(t, ScatteringResult) and np.allclose(t.s_angle, r.s_angle) and t.generation["method"] == "kirchhoff"
     assert t.polar_source_indices == r.polar_source_indices and t.unconverged_octaves == r.unconverged_octaves == []
@@ -136,19 +139,19 @@ def test_unconverged_steps_reach_the_warnings_and_mark_their_octaves(monkeypatch
 def test_polar_levels_are_kept_for_the_preview_sources_only(monkeypatch):
     monkeypatch.setattr(scattering, "_solver", lambda method, **kw: FakeSolver())
     sample = ScatteringSample.disc(flat_tile(), diameter=0.4)
-    r = measure_scattering(sample, preset="standard", band_range=(1000, 1000))
+    r = measure_scattering(sample, method="kirchhoff", preset="standard", band_range=(1000, 1000))
     assert r.s_angle.shape[0] == 97 and len(r.polar_source_indices) == 13 and r.polar_sample_db.shape == (13, 1, len(r.receiver_directions))
     survey = SourceGrid.preset("survey")
     used = np.column_stack([r.source_colatitude, r.source_azimuth])[r.polar_source_indices]
     assert sorted(map(tuple, used)) == sorted(zip(survey.colatitude, survey.azimuth))  # "standard" holds the survey directions
     rotational = ScatteringSample.disc(flat_tile(), diameter=0.4, symmetry="rotational")
     assert preview_sources(SourceGrid.preset("fine", "rotational"), "rotational") == [0, 11, 23]  # 1.26°, 28.98°, 59.22°: nearest 0°, 30°, 60°
-    assert measure_scattering(rotational, preset="standard", band_range=(1000, 1000)).polar_source_indices == [0, 3, 6]
+    assert measure_scattering(rotational, method="kirchhoff", preset="standard", band_range=(1000, 1000)).polar_source_indices == [0, 3, 6]
 
 
 def test_batched_kirchhoff_gives_the_unbatched_result(monkeypatch):
     sample = ScatteringSample.disc(sine_tile(0.0708, 0.0204), diameter=0.3)
-    whole = measure_scattering(sample, preset="survey", band_range=(2000, 2000), workers=1)
+    whole = measure_scattering(sample, method="kirchhoff", preset="survey", band_range=(2000, 2000), workers=1)
     monkeypatch.setattr(scattering, "_BATCH_BYTES", 1)  # one source per batch
     calls = []
     original = KirchhoffSolver.solve_batches
@@ -158,7 +161,7 @@ def test_batched_kirchhoff_gives_the_unbatched_result(monkeypatch):
         return original(self, *args, **kwargs)
 
     monkeypatch.setattr(KirchhoffSolver, "solve_batches", spy)
-    batched = measure_scattering(sample, preset="survey", band_range=(2000, 2000), workers=1)
+    batched = measure_scattering(sample, method="kirchhoff", preset="survey", band_range=(2000, 2000), workers=1)
     assert calls == [1]
     assert np.array_equal(batched.s_angle, whole.s_angle) and batched.s_bands == whole.s_bands
     assert np.array_equal(batched.polar_sample_db, whole.polar_sample_db) and np.array_equal(batched.polar_reference_db, whole.polar_reference_db)
@@ -172,10 +175,80 @@ class SlowSolver(FakeSolver):
 def test_a_long_run_is_warned_about_before_it_starts(monkeypatch):
     monkeypatch.setattr(scattering, "_solver", lambda method, **kw: SlowSolver())
     with pytest.warns(UserWarning, match=r"kirchhoff: this run takes about 2.0 h \(13 sources x 3 frequencies"):
-        measure_scattering(ScatteringSample.disc(flat_tile(), diameter=0.4), preset="survey", band_range=(1000, 1000))
+        measure_scattering(ScatteringSample.disc(flat_tile(), diameter=0.4), method="kirchhoff", preset="survey", band_range=(1000, 1000))
 
 
 def test_classes_are_exported_from_the_package():
     import compas_acoustics
 
     assert compas_acoustics.ScatteringResult is ScatteringResult and compas_acoustics.ScatteringSample is ScatteringSample
+
+
+def test_the_correlation_methods_return_d(monkeypatch):
+    with monkeypatch.context() as patched:
+        patched.setattr(scattering, "_solver", lambda method, **kw: FakeSolver())
+        same = measure_scattering(ScatteringSample.disc(flat_tile(), diameter=0.4), method="kirchhoff", preset="survey")
+    assert np.allclose(same.d_octaves, 0.0, atol=1e-9)  # sample == reference -> d_n = 0
+    assert same.d_angle.shape == same.s_angle.shape and len(same.d_bands) == len(same.bands) and len(same.d_octaves) == len(same.octave_bands)
+    sine = measure_scattering(ScatteringSample.disc(sine_tile(0.0708, 0.0204), diameter=0.4), method="kirchhoff", preset="survey", band_range=(2000, 4000))
+    assert np.isfinite(sine.d_angle).all()
+    # measured 2026-10-24: d_octaves 0.0093 (2 kHz), 0.0175 (4 kHz); d_n may be negative in general (a sample less uniform than its reference)
+    assert all(0.0 <= d <= 1.0 for d in sine.d_octaves) and max(sine.d_octaves) > 0.0
+
+
+def test_geometric_is_the_default_method():
+    assert scattering.METHODS[0] == "geometric" and scattering.DEFAULT_PRESETS["geometric"] == "standard"
+    assert scattering.measure_scattering.__defaults__[0] == "geometric"
+
+
+def test_geometric_flat_disc_scatters_nothing():
+    pytest.importorskip("embreex")
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        r = measure_scattering(ScatteringSample.disc(flat_tile(), 0.4), method="geometric", n_rays=2000)
+    assert np.allclose(r.s_octaves, 0.0, atol=1e-9) and np.allclose(r.d_octaves, 0.0, atol=1e-9)
+    assert r.method == "geometric" and r.generation["heuristic"] is True and r.generation["preset"] == "standard"
+    assert any("heuristic" in w for w in r.warnings) and set(r.warnings) <= {str(w.message) for w in caught}
+    assert not any("lost" in w for w in r.warnings) and r.generation["lost"] == 0.0
+    assert r.generation["reference"] == "flat" and r.generation["n_rays"] == 2000 and r.generation["receivers"] == len(r.receiver_directions)
+    # the specular cell holds everything: 0 dB there, -300 dB (empty) elsewhere, the same at every octave
+    assert r.polar_sample_db.shape == (13, len(r.octave_bands), len(r.receiver_directions))
+    assert np.allclose(r.polar_sample_db.max(axis=2), 0.0) and np.array_equal(r.polar_sample_db, r.polar_reference_db)
+    assert (r.polar_sample_db == -300.0).sum(axis=2).min() == len(r.receiver_directions) - 1
+    assert np.array_equal(r.polar_sample_db[:, :1].repeat(len(r.octave_bands), axis=1), r.polar_sample_db)
+
+
+def test_geometric_sawtooth_rises_with_frequency():
+    pytest.importorskip("embreex")
+    r = measure_scattering(ScatteringSample.disc(sawtooth_tile(), 0.4), method="geometric", n_rays=5000)
+    assert np.all(np.diff(r.s_octaves) >= 0) and r.s_octaves[0] < 0.01 and r.s_octaves[-1] > 0.3
+    assert len(r.scattering_coefficients) == 7 and r.s_angle.shape == (97, 18) and r.d_angle.shape == (97, 18)
+    assert np.allclose(r.d_angle, r.d_angle[:, :1])  # d is the same at every band
+    assert r.generation["depth"] == pytest.approx(0.0105, abs=0.001)
+
+
+def test_geometric_runs_in_seconds():
+    pytest.importorskip("embreex")
+    start = time.perf_counter()
+    measure_scattering(ScatteringSample.disc(sawtooth_tile(), 0.4), method="geometric", preset="standard", n_rays=5000)
+    assert time.perf_counter() - start < 20.0
+
+
+def test_geometric_deep_cavity_warns_about_lost_rays():
+    pytest.importorskip("embreex")
+    with pytest.warns(UserWarning, match="lost"):
+        r = measure_scattering(ScatteringSample.disc(v_groove_tile(), 0.4), method="geometric", preset="survey", n_rays=2000, max_bounces=1)
+    assert any("lost" in w for w in r.warnings) and r.generation["lost"] > 0.01 and r.generation["max_bounces"] == 1
+
+
+def test_geometric_with_a_proxy_marks_the_result():
+    pytest.importorskip("embreex")
+    body = ScatteringSample.disc(sawtooth_tile(), 0.4).sample
+    r = measure_scattering(ScatteringSample.as_drawn(body, reference=body), method="geometric", preset="survey", n_rays=2000)
+    assert any("proxy" in w for w in r.warnings) and r.generation["reference"] == "proxy"
+    assert np.allclose(r.s_octaves, 0.0, atol=1e-9)  # a body against itself: what is lost is lost in both, and cancels
+
+
+def test_geometric_rejects_an_unknown_option():
+    with pytest.raises(TypeError, match="workers"):
+        measure_scattering(ScatteringSample.disc(flat_tile(), 0.4), method="geometric", workers=2)
