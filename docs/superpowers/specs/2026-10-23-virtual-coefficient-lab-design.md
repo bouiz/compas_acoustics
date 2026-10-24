@@ -112,12 +112,17 @@ Each sub-project gets its own implementation plan. They are built in this order:
 - `results.py`: `ScatteringResult` (1/3-octave s, s(θ,φ), s_d, metadata). Serialises under the package dtype like the other classes.
 
 ### B. Absorption room (Python): `src/compas_acoustics/lab/absorption.py`
-- `ReverberationChamber`: about 200 m³, non-rectangular-ratio box, wall α tuned to stay within ISO 354 Table 1,
-  high wall scattering to stand in for diffusers (Annex A), and source/mic placement satisfying §7.1.2–7.1.4.
-- `measure_absorption(sample, materials, chamber, air, n_repeats)`: runs `Mono` (`simulation_methods/pra.py:33`)
-  empty (T₁) and with the sample as an obstacle on the floor (T₂). `seed` varies per repeat. T20 comes from
-  `AcousticAnalyser.reverberation_times()` (`analyser.py:385`); c and m come from `AirConditions` (`room/air.py:19`). The ISO 354 inverse formula is new.
-  Output: an `AbsorptionResult` with α_s or A_obj per band; ±2σ (ISO 17497-1 A.3) is added in V2.
+- `ReverberationChamber`: an ISO 354 shoebox (7.4 × 5.8 × 4.6 m, V = 197.4 m³, shape and ratio rules §6.1.2) **scaled to the sample**:
+  all lengths × k = √(S / 11 m²) with S the sample's footprint area, because decay times and areas scale with length but α does not,
+  and in a full-size chamber a 0.5 m² sample changes the decay (~1.5 %) less than the ray tracer's seed-to-seed spread (~4 %).
+  Walls α 0.025, s 0.3 (the diffusers of Annex A), 2 sources × 6 microphones = 12 decays placed to §7.1.2–7.1.4 (seeded, deterministic).
+- `measure_absorption(sample, material, chamber, air, n_repeats, n_rays, ...)`: runs `Mono` (`simulation_methods/pra.py:33`, ray tracing)
+  empty (T₁) and with the sample as an obstacle on the floor (T₂), the same seed for both of a repeat. T20 per **octave** comes from
+  `AcousticAnalyser.reverberation_times()` (the engine's materials are octave-wise, so third-octave decay times carry no extra
+  information); the ISO 354 formulas (eq. 5–9) are in `lab/iso354.py`. Output: an `AbsorptionResult` with α_s per octave and the
+  intermediate T₁, T₂, A₁, A_T; the 8000 Hz octave is flagged as beyond ISO 354. ±2σ (ISO 17497-1 A.3) is added in V2.
+- `lab/material.py`: `lab_material(name, absorption, scattering=None)` → `AcousticMaterial` (7 octaves, clipped to [0, 1] with a warning,
+  NaN refused), the Python side of the Lab Material component.
 - The hybrid/FDN method is not used here, because its tail is statistical.
 
 ### C. Grasshopper integration: C# components, compas_pb data exchange
