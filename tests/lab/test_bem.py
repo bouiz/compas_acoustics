@@ -105,6 +105,31 @@ def test_remesh_keeps_the_body_closed_and_near_the_area_estimate():
         assert len(F) < 3 * estimate_elements(body, edge)
 
 
+def test_every_split_is_remeshed_and_checked_before_any_project_is_written_or_run(tmp_path, monkeypatch):
+    import compas_acoustics.lab.solvers.bem as bem
+
+    sample = ScatteringSample.disc(flat_tile(), diameter=0.3)
+    frequencies = np.array([500.0, 4000.0])  # two splits; only the top one's remeshed body is too large
+    calls = []
+
+    def remesh(mesh, edge):
+        V, F = bem._arrays(mesh)
+        return V, (np.repeat(F, 1000, axis=0) if edge < 343.0 / (1000.0 * 6) else F)
+
+    monkeypatch.setattr(bem, "_require", lambda: types.SimpleNamespace(__version__="test"))
+    monkeypatch.setattr(bem.BemSolver, "_numcalc", lambda self: "NumCalc")
+    monkeypatch.setattr(bem, "_remesh", remesh)
+    monkeypatch.setattr(bem.BemSolver, "_write", lambda self, *args: calls.append("write"))
+    monkeypatch.setattr(bem.BemSolver, "_run", lambda self, *args: calls.append("run"))
+    solver = BemSolver(cache_dir=str(tmp_path), max_elements=10_000)
+    assert estimate_elements(sample.sample, 343.0 / (4000.0 * 6)) < 100_000  # the estimate passes
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        with pytest.raises(ValueError, match="sample.*elements at 4"):
+            solver.solve(sample, SourceGrid.preset("survey", "rotational"), ReceiverGrid.hemisphere(10.0, 10.0), frequencies, 343.0)
+    assert calls == [] and not any(tmp_path.iterdir())  # nothing written or run, not even the 500 Hz split
+
+
 @pytest.mark.slow
 def test_bem_sine_surface_scatters_above_the_first_grating_lobe(tmp_path):
     pytest.importorskip("mesh2scattering")
@@ -149,7 +174,8 @@ def test_parse_convergence_reads_numcalc_output():
     assert parse_convergence(_CAPPED_OUT) == (250, pytest.approx(0.0813976), False)
     # below the cap but with a residual above 1e-6
     assert parse_convergence(_CONVERGED_OUT.replace("3.76489e-10", "2.6e-05"))[2] is False
-    assert parse_convergence(_CONVERGED_OUT.replace("3.76489e-10", "nan"))[2] is False
+    assert parse_convergence(_CONVERGED_OUT.replace("3.76489e-10", "nan")) == (90, None, False)  # None, not NaN: strict JSON
+    assert parse_convergence(_CONVERGED_OUT.replace("3.76489e-10", "-nan(ind)")) == (90, None, False)
     assert parse_convergence("Step 1, Frequency = 92.59 Hz\n") is None
 
 
@@ -161,7 +187,7 @@ def test_unconverged_steps_are_warned_and_recorded(tmp_path, monkeypatch):
     receivers = ReceiverGrid.hemisphere(10.0, 10.0)
     frequencies = np.array([400.0, 500.0])  # one split, NumCalc steps 1 and 2
 
-    def write(self, project, title, sample, sources, receivers, split, edge, radius, c):
+    def write(self, project, title, sample, sources, receivers, split, edge, radius, c, mesh):
         for s in range(sources.n):
             folder = os.path.join(project, "NumCalc", "source_{}".format(s + 1))
             os.makedirs(folder, exist_ok=True)
@@ -173,6 +199,7 @@ def test_unconverged_steps_are_warned_and_recorded(tmp_path, monkeypatch):
 
     monkeypatch.setattr(bem, "_require", lambda: types.SimpleNamespace(__version__="test"))
     monkeypatch.setattr(bem.BemSolver, "_numcalc", lambda self: "NumCalc")
+    monkeypatch.setattr(bem.BemSolver, "_mesh", lambda self, *args: None)
     monkeypatch.setattr(bem.BemSolver, "_write", write)
     monkeypatch.setattr(bem.BemSolver, "_run", lambda self, *args: None)
 

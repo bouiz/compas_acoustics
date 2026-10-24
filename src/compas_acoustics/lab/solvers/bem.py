@@ -8,7 +8,7 @@ pressure at the receivers, the input of the correlation method (Heimes & Vorlän
 - **Size check.** An estimate of the element count, the body's area over the area of an equilateral triangle of that edge, is checked
   before anything is written or imported: above ``max_elements`` the solver warns, above ten times that it stops. A model left in
   millimetres has 10⁶ times the elements. The remeshed body is typically 2-2.5 times the estimate, so its own count is checked
-  against ten times ``max_elements`` again before its project is written.
+  against ten times ``max_elements`` again: every split's bodies are remeshed and checked before the first project is written or run.
 - **Cache.** The projects live in ``<cache_dir>/<key>/split_<k>/{sample,reference}``, the key a hash of the geometry, the directions,
   the frequencies, c and the edges. ``manage_numcalc`` skips finished steps but checks no geometry, so the key decides what is reused:
   an interrupted run resumes, a changed one starts in a new folder.
@@ -25,7 +25,11 @@ from the 250 Hz octave on the reference converged in 20-26 iterations to about 1
 iterations, about 1e-10). The pressures of those steps are wrong (sample-to-reference energy ratios of 0.003 to 100, where about 1 is
 expected). The cause is not settled: suspected are the single-level FMM and CGS/ILU settings at low frequency, and element shape (the
 remeshed sample keeps the tile's facets as edges grow, aspect L²/A up to about 930 in the 125 Hz split, against about 32 for the
-reference). Not fixed here; check ``generation["unconverged"]`` before trusting low bands.
+reference). Not fixed here; check ``generation["unconverged"]`` (and ``ScatteringResult.unconverged_octaves``) before trusting low bands.
+
+Known offset (2026-10-24): where the solves converge, this BEM's s sits 0.03-0.10 below Heimes & Vorländer's published s (Zenodo
+15673498) in 11 of the 12 checked one-third octaves (Λ/λ ≥ 0.5, per angle at colatitude 31.5° and 61.74°, azimuth 0; the per-angle
+validation in ``tests/lab/test_validation_heimes.py``). The cause is not settled; treat BEM's s as up to about 0.1 low there.
 
 mesh2scattering needs Python ≥ 3.11 and is imported only inside the functions that need it, so this module imports on Python 3.9.
 
@@ -66,7 +70,7 @@ _MAX_RESIDUAL = 1e-6  # the final relative residual of NumCalc's CGS solve above
 _SOLVER_LINE = re.compile(r"number of iterations\s*=\s*(\d+)\s*,\s*relative error\s*=\s*(\S+)")
 _CAPPED = "Maximum number of iterations is reached"
 _UNCONVERGED = (
-    "bem: NumCalc did not converge for the {body} at {frequencies} Hz (iteration cap reached or final residual > 1e-6, worst {residual:.3g}); s at those frequencies is unreliable"
+    "bem: NumCalc did not converge for the {body} at {frequencies} Hz (iteration cap reached or final residual > 1e-6, worst {residual}); s at those frequencies is unreliable"
 )
 _TOO_BIG = (
     "the BEM mesh of the {body} would have about {n:,} elements at {f:.0f} Hz (edge {edge:.3g} m), more than 10 x max_elements = {limit:,}; "
@@ -387,7 +391,8 @@ def parse_convergence(text):
     -------
     tuple or None
         ``(iterations, residual, converged)``, converged meaning the cap was not reached and the residual is at most 1e-6; ``None``
-        when the file holds no iterative-solver line (a direct solve, or an unfinished step).
+        when the file holds no iterative-solver line (a direct solve, or an unfinished step). A residual that does not parse as a
+        finite number is ``None`` (so ``generation["unconverged"]`` stays valid JSON) and counts as unconverged.
     """
     matches = _SOLVER_LINE.findall(text)
     if not matches:
@@ -396,9 +401,18 @@ def parse_convergence(text):
     try:
         residual = float(residual)
     except ValueError:
-        residual = float("nan")
-    converged = _CAPPED not in text and bool(residual <= _MAX_RESIDUAL)
+        residual = None
+    if residual is not None and not math.isfinite(residual):
+        residual = None
+    converged = _CAPPED not in text and residual is not None and residual <= _MAX_RESIDUAL
     return int(iterations), residual, converged
+
+
+def _worse(residual, than):
+    """Whether a residual is worse than another; ``None`` (unparseable) is the worst."""
+    if than is None:
+        return False
+    return residual is None or residual > than
 
 
 def _unconverged(project, body, n_sources, frequencies):
@@ -416,7 +430,7 @@ def _unconverged(project, body, n_sources, frequencies):
                 continue
             iterations, residual, _ = parsed
             key = float(f)
-            if key not in worst or not (residual <= worst[key]["residual"]):
+            if key not in worst or _worse(residual, worst[key]["residual"]):
                 worst[key] = {"body": body, "frequency": key, "iterations": iterations, "residual": residual}
     return [worst[k] for k in sorted(worst)]
 
@@ -450,6 +464,10 @@ class BemSolver(ScatteringSolver):
 
     The setup follows Heimes & Vorländer §3.2 and App. A: both bodies closed on the baseplate, unit plane waves travelling along −û,
     receivers on a hemisphere in the far field. See the module docstring for the splits, the cache and the run.
+
+    Known limitations (2026-10-24, Heimes & Vorländer's sine surface, d = 0.8 m; module docstring): below about 700 Hz the iterative
+    solves do not converge and those bands are wrong (``generation["unconverged"]``); where they converge, s sits 0.03-0.10 below
+    Heimes & Vorländer's in 11 of the 12 checked one-third octaves (Λ/λ ≥ 0.5, per angle at 31.5° and 61.74°).
 
     Parameters
     ----------
@@ -524,11 +542,17 @@ class BemSolver(ScatteringSolver):
         pressures = {body: [] for body in _BODIES}
         elements = []
         unconverged = []
+        # every split's bodies are remeshed and checked before the first project is written or run
+        meshes = []
+        for k, (split, edge) in enumerate(zip(splits, edges)):
+            folder = os.path.join(root, "split_{}".format(k + 1))
+            meshes.append({body: self._mesh(os.path.join(folder, body), body, sample, split, edge) for body in _BODIES})
         for k, (split, edge) in enumerate(zip(splits, edges)):
             folder = os.path.join(root, "split_{}".format(k + 1))
             counts = {}
             for body in _BODIES:
-                counts[body] = self._write(os.path.join(folder, body), body, sample, sources, receivers, split, edge, radius, c)
+                counts[body] = self._write(os.path.join(folder, body), body, sample, sources, receivers, split, edge, radius, c, meshes[k][body])
+            meshes[k] = None
             elements.append(counts)
             self._run(folder, numcalc_path, "bem: split {}/{}".format(k + 1, len(splits)), sources.n, len(split))
             for body in _BODIES:
@@ -539,7 +563,8 @@ class BemSolver(ScatteringSolver):
             entries = [u for u in unconverged if u["body"] == body]
             if entries:
                 listed = ", ".join("{:.0f}".format(u["frequency"]) for u in entries)
-                worst = max((u["residual"] for u in entries), key=lambda r: r if r == r else float("inf"))
+                residuals = [u["residual"] for u in entries]
+                worst = "unparseable" if None in residuals else "{:.3g}".format(max(residuals))
                 warnings.warn(_UNCONVERGED.format(body=body, frequencies=listed, residual=worst), stacklevel=2)
 
         # back to the order of the frequencies given
@@ -560,22 +585,43 @@ class BemSolver(ScatteringSolver):
         }
         return Pressures(out["sample"], out["reference"], frequencies, generation)
 
-    def _write(self, project, title, sample, sources, receivers, frequencies, edge, radius, c):
-        """Write one NumCalc project unless its ``parameters.json`` (written last) exists; return its element count."""
+    @staticmethod
+    def _written(project):
+        """The element count of a project already written (its ``parameters.json``, written last, exists), else None."""
         elements_file = os.path.join(project, "ObjectMeshes", "Reference", "Elements.txt")
         if os.path.isfile(os.path.join(project, "parameters.json")) and os.path.isfile(elements_file):
             with open(elements_file) as handle:
                 return int(handle.readline().split()[0])
+        return None
+
+    def _mesh(self, project, title, sample, frequencies, edge):
+        """The remeshed body of a project not yet written, checked against ``max_elements``; None if the project is in the cache.
+
+        Raises
+        ------
+        ValueError
+            If the remeshed body has more than ten times ``max_elements``: the estimate passed, but the mesh is larger than it.
+        """
+        if self._written(project) is not None:
+            return None
+        V, F = _remesh(getattr(sample, title), edge)
+        if len(F) > 10 * self.max_elements:
+            raise ValueError(_TOO_BIG.format(body=title, n=len(F), f=frequencies.max(), edge=edge, limit=10 * self.max_elements))
+        if len(F) > self.max_elements:
+            warnings.warn(_BIG.format(body=title, n=len(F), f=frequencies.max(), limit=self.max_elements), stacklevel=4)
+        return V, F
+
+    def _write(self, project, title, sample, sources, receivers, frequencies, edge, radius, c, mesh):
+        """Write one NumCalc project from its remeshed body ``(V, F)`` (:meth:`_mesh`) unless it is written; return its element count."""
+        written = self._written(project)
+        if written is not None:
+            return written
 
         import pyfar as pf
         import trimesh
         from mesh2scattering import input as m2s_input
 
-        V, F = _remesh(getattr(sample, title), edge)
-        if len(F) > 10 * self.max_elements:  # the estimate passed, but the remeshed body is larger than it: refuse before writing
-            raise ValueError(_TOO_BIG.format(body=title, n=len(F), f=frequencies.max(), edge=edge, limit=10 * self.max_elements))
-        if len(F) > self.max_elements:
-            warnings.warn(_BIG.format(body=title, n=len(F), f=frequencies.max(), limit=self.max_elements), stacklevel=3)
+        V, F = mesh
         period = sample.period or (0.0, 0.0)
         if title == "sample":
             surface = m2s_input.SurfaceDescription(
