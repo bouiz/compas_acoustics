@@ -47,8 +47,15 @@ namespace CompasAcoustics.Grasshopper
                 Warn("Input parameter 'reference' is not a mesh, Brep, surface or SubD with faces.");
                 return;
             }
+            var plane = Value<Plane>(access, "plane");
+            if (plane is Plane unusable && !unusable.IsValid)
+            {
+                Warn("Input parameter 'plane' is not a valid plane.");
+                return;
+            }
             var (args, kwargs, problem) = LabRequests.Sample(mesh, Text(access, "mode") ?? Modes[0], Value<double>(access, "diameter"), reference,
-                Value<double>(access, "baseplate"), Text(access, "symmetry"), Text(access, "name"));
+                Value<double>(access, "baseplate"), Text(access, "symmetry"), Text(access, "name"),
+                plane is Plane given ? MeshConversion.ToFrameData(given) : null);
             if (problem != null)
             {
                 Warn(problem);
@@ -110,7 +117,7 @@ namespace CompasAcoustics.Grasshopper
             // the wave methods take minutes to hours and Grasshopper recomputes on every upstream change: they start on Run,
             // a press with unchanged inputs runs again; until then the outputs of the last run stay
             var pressed = Value<bool>(access, "run") == true || Pressed("run");
-            var decision = RunInBackground(access, new Background("run_scattering_lab", args, kwargs, sample),
+            var decision = RunInBackground(access, new Background("run_scattering_lab", args, kwargs, sample, Key: LabRequests.RunKey(args, kwargs)),
                 (outcome, _) =>
                 {
                     var answer = (IDictionary<string, object?>)outcome.Result!;
@@ -127,8 +134,10 @@ namespace CompasAcoustics.Grasshopper
             if (decision.Kind == RunKind.Idle)
             {
                 Remark("Press Run: kirchhoff and bem take minutes to hours.");
-                if (!delivered)
-                    Status("press Run");
+                var notice = LabResults.StaleNotice(delivered, decision.Interrupted);
+                if (notice != null)
+                    Warn(notice);
+                Status(delivered ? LabResults.StaleStatus : "press Run");
             }
         }
     }

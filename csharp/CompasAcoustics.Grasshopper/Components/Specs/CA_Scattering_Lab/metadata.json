@@ -68,17 +68,17 @@
             },
             {
                 "name": "scattering",
-                "description": "Scattering coefficient of the 7 octave bands, 125 to 8000 Hz.",
+                "description": "Scattering coefficient of the 7 material octave bands, 125 to 8000 Hz (an octave that was not simulated is filled from the nearest one). Pairs with the bands of Lab Material, not with diffusion.",
                 "typeHintID": "float"
             },
             {
                 "name": "diffusion",
-                "description": "Diffusion coefficient of the simulated octave bands; empty when the result has none.",
+                "description": "Normalised diffusion coefficient d_n = (d - d_ref) / (1 - d_ref) (ISO 17497-2) of each simulated octave band, which can be negative; empty when the result has none. It pairs with 'octaves' (6 bands with the ISO range), not with 'scattering'.",
                 "typeHintID": "float"
             },
             {
                 "name": "octaves",
-                "description": "The simulated octave bands, in Hz.",
+                "description": "The simulated octave bands, in Hz; one value of 'diffusion' for each.",
                 "typeHintID": "int"
             }
         ]

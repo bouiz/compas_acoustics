@@ -11,7 +11,7 @@ namespace CompasAcoustics.Grasshopper
     public static class LabRequests
     {
         /// <summary>
-        /// The mesh of a Rhino geometry: a mesh as is; a Brep, surface or SubD meshed with
+        /// The mesh of a Rhino geometry: a mesh as is; a Brep, surface, SubD, box or extrusion meshed with
         /// <see cref="MeshingParameters.QualityRenderMesh"/> and joined; null for anything else (and for a geometry that meshes to nothing).
         /// </summary>
         public static MeshData? MeshOf(object? geometry)
@@ -20,8 +20,10 @@ namespace CompasAcoustics.Grasshopper
             {
                 Mesh m => m,
                 Brep brep => Meshed(brep),
+                Extrusion extrusion => Meshed(extrusion.ToBrep()),
                 Surface surface => Meshed(surface.ToBrep()),
                 SubD subd => Meshed(subd.ToBrep()),
+                Box box => Meshed(box.ToBrep()),
                 _ => null,
             };
             return mesh == null || mesh.Faces.Count == 0 ? null : MeshConversion.ToMeshData(mesh);
@@ -38,11 +40,12 @@ namespace CompasAcoustics.Grasshopper
         }
 
         /// <summary>
-        /// The call of <c>make_scattering_sample</c>: the mesh and the mode as arguments, every input that is set as a keyword;
+        /// The call of <c>make_scattering_sample</c>: the mesh and the mode as arguments, every input that is set as a keyword
+        /// (<paramref name="frame"/>, the mounting plane, as <c>frame</c>);
         /// <c>problem</c> says why the inputs cannot make a sample, and then there is no call to make.
         /// </summary>
         public static (object?[] args, Dictionary<string, object?> kwargs, string? problem) Sample(MeshData mesh, string mode, double? diameter,
-            MeshData? reference, double? baseplate, string? symmetry, string? name)
+            MeshData? reference, double? baseplate, string? symmetry, string? name, FrameData? frame)
         {
             var kwargs = new Dictionary<string, object?>();
             if (diameter is double d)
@@ -55,6 +58,8 @@ namespace CompasAcoustics.Grasshopper
                 kwargs["symmetry"] = symmetry;
             if (!string.IsNullOrEmpty(name))
                 kwargs["name"] = name;
+            if (frame != null)
+                kwargs["frame"] = frame;
             var problem = mode == "disc" && diameter == null ? "A disc sample needs 'diameter'."
                 : mode == "disc" && reference != null ? "'reference' is used in as_drawn mode only."
                 : null;
@@ -90,6 +95,22 @@ namespace CompasAcoustics.Grasshopper
                 : !string.IsNullOrEmpty(cacheDir) && method != "bem" ? "'cache_dir' is used by bem only."
                 : null;
             return (new object?[] { sample, method }, kwargs, problem);
+        }
+
+        /// <summary>
+        /// The key of a <c>run_scattering_lab</c> call: a hash of the call with the sample's guid cleared, because every solution of
+        /// Scattering Sample makes a sample with a new guid and the same geometry must keep its run (or its result).
+        /// </summary>
+        public static string RunKey(object?[] args, IDictionary<string, object?> kwargs)
+        {
+            var keyed = (object?[])args.Clone();
+            if (keyed.Length > 0 && keyed[0] is ScatteringSampleData sample)
+            {
+                var clone = sample.Clone();
+                clone.Guid = "";
+                keyed[0] = clone;
+            }
+            return AsyncRuns.Key("run_scattering_lab", keyed, kwargs);
         }
 
         /// <summary>The preview sources of a result as its Polar Preview dropdown lists them: <c>θ 30°, φ 0°</c>, the colatitude and azimuth in degrees.</summary>

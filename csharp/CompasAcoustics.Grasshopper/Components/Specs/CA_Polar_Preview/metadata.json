@@ -42,7 +42,7 @@
             },
             {
                 "name": "radius",
-                "description": "The radius of a direction at 0 dB, in model units.",
+                "description": "The radius of a direction at 0 dB, in metres.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "float",

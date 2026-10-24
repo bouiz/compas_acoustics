@@ -338,7 +338,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             {
                 // a flat 1 m x 1 m quad, as drawn: it scatters nothing
                 var quad = Quad(new[] { 0.0, 0.0, 0.0 }, new[] { 0.0, 1.0, 0.0 }, new[] { 1.0, 1.0, 0.0 }, new[] { 1.0, 0.0, 0.0 });
-                var (sampleArgs, sampleKwargs, sampleProblem) = LabRequests.Sample(quad, "as_drawn", null, null, null, null, null);
+                var (sampleArgs, sampleKwargs, sampleProblem) = LabRequests.Sample(quad, "as_drawn", null, null, null, null, null, null);
                 Assert.Null(sampleProblem);
                 var sample = Assert.IsType<ScatteringSampleData>(worker.Call("make_scattering_sample", sampleArgs, sampleKwargs));
 
@@ -382,10 +382,37 @@ namespace CompasAcoustics.Grasshopper.Tests
             try
             {
                 var quad = Quad(new[] { 0.0, 0.0, 0.0 }, new[] { 0.0, 1.0, 0.0 }, new[] { 1.0, 1.0, 0.0 }, new[] { 1.0, 0.0, 0.0 });
-                var (args, kwargs, _) = LabRequests.Sample(quad, "disc", 0.0, null, null, null, null);
+                var (args, kwargs, _) = LabRequests.Sample(quad, "disc", 0.0, null, null, null, null, null);
                 var error = Assert.Throws<WorkerException>(() => worker.Call("make_scattering_sample", args, kwargs));
                 Assert.Contains("diameter", error.Message);
                 Assert.Equal(400, error.Status);
+            }
+            finally
+            {
+                worker.Stop();
+            }
+        }
+
+        [WorkerFact]
+        public void RealWorker_AMountingPlaneTurnsAWallSampleOntoXY()
+        {
+            var worker = RealWorker();
+            try
+            {
+                // a 1 m x 1 m quad on the wall y = 4, facing -y
+                var wall = Quad(new[] { 1.0, 4.0, 1.0 }, new[] { 2.0, 4.0, 1.0 }, new[] { 2.0, 4.0, 2.0 }, new[] { 1.0, 4.0, 2.0 });
+                var (args, kwargs, _) = LabRequests.Sample(wall, "as_drawn", null, null, null, null, null, null);
+                var error = Assert.Throws<WorkerException>(() => worker.Call("make_scattering_sample", args, kwargs));
+                Assert.Contains("the footprint has no area", error.Message);
+                var frame = new FrameData
+                {
+                    Point = new PointData { X = 1, Y = 4, Z = 1 },
+                    Xaxis = new VectorData { X = 1, Y = 0, Z = 0 },
+                    Yaxis = new VectorData { X = 0, Y = 0, Z = 1 },
+                };
+                var (framedArgs, framedKwargs, _) = LabRequests.Sample(wall, "as_drawn", null, null, null, null, null, frame);
+                var sample = Assert.IsType<ScatteringSampleData>(worker.Call("make_scattering_sample", framedArgs, framedKwargs));
+                Assert.Equal(Math.Sqrt(2), sample.Diameter, 6);
             }
             finally
             {

@@ -3,7 +3,7 @@
     "nickname": "Sample",
     "category": "COMPAS Acoustics",
     "subcategory": "08 Lab",
-    "description": "A surface sample for the virtual scattering lab: a relief mesh, a Brep, a surface or a SubD, as drawn or as a tile repeated over a disc, with the flat reference it is measured against. Meters.",
+    "description": "A surface sample for the virtual scattering lab: a relief mesh, a Brep, a surface or a SubD, as drawn or as a tile repeated over a disc, with the flat reference it is measured against. The object lies on the World XY plane facing +Z (the direction the sound comes from), unless the 'plane' input gives its mounting plane. Meters.",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,
@@ -11,7 +11,7 @@
         "inputParameters": [
             {
                 "name": "geometry",
-                "description": "The relief: a mesh, Brep, surface or SubD. In disc mode, the tile to repeat.",
+                "description": "The relief: a mesh, Brep, surface or SubD. In disc mode, the tile to repeat. It lies on XY, +Z facing the sound, unless 'plane' is given.",
                 "optional": false,
                 "scriptParamAccess": 0,
                 "typeHintID": "geometrybase"
@@ -33,7 +33,7 @@
             },
             {
                 "name": "reference",
-                "description": "Optional. As-drawn mode only: a mesh, Brep, surface or SubD to take as the reference instead of the flat footprint of the relief.",
+                "description": "Optional. As-drawn mode only: a mesh, Brep, surface or SubD to take as the reference instead of the flat footprint of the relief. It lies on XY, +Z facing the sound, unless 'plane' is given.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "geometrybase"
@@ -60,6 +60,13 @@
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "str"
+            },
+            {
+                "name": "plane",
+                "description": "Mounting plane of the object: its origin on the mounting surface and its Z axis pointing out into the room, where the sound comes from. Leave empty when the object already lies on the World XY plane facing +Z.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "plane"
             }
         ],
         "outputParameters": [

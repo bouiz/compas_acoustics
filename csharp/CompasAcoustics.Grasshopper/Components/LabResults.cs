@@ -26,6 +26,18 @@ namespace CompasAcoustics.Grasshopper
         private static IEnumerable<double> Numbers(object? list) =>
             list is IEnumerable<object?> items ? items.Select(v => Convert.ToDouble(v, CultureInfo.InvariantCulture)) : Enumerable.Empty<double>();
 
+        /// <summary>The strip of a wave-method Lab whose inputs changed since its last run, whose outputs are still the last run's.</summary>
+        public const string StaleStatus = "inputs changed, press Run";
+
+        /// <summary>
+        /// What the Lab warns when its outputs are not those of its inputs: the outputs are the last run's (<paramref name="delivered"/>),
+        /// or a run was stopped because the inputs changed (<paramref name="interrupted"/>). Null when nothing is stale.
+        /// </summary>
+        public static string? StaleNotice(bool delivered, bool interrupted) =>
+            interrupted ? "The inputs changed while a run was going: it was stopped; press Run to start it again."
+            : delivered ? "The inputs differ from the last run: the outputs are the last run's; press Run to update."
+            : null;
+
         /// <summary>The strip of a result: its method and the range of its scattering coefficients, as <c>geometric, s 0.00–0.44</c>.</summary>
         public static string Summary(ScatteringResultData result) =>
             result.SOctaves.Count == 0

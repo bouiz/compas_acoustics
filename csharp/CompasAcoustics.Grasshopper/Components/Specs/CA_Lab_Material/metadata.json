@@ -3,7 +3,7 @@
     "nickname": "LabMat",
     "category": "COMPAS Acoustics",
     "subcategory": "08 Lab",
-    "description": "An AcousticMaterial from an absorption and a lab result, for the faces of the proxy in the room model: the flat stand-in for the detailed surface. Put it on the proxy only, never also on the detailed mesh, or the surface counts twice.",
+    "description": "An AcousticMaterial from an absorption and a lab result, for the faces of the proxy in the room model: the proxy (or the flat footprint) that stands in for the detailed surface. Put it on the proxy only, never also on the detailed mesh, or the surface counts twice.",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,

@@ -15,32 +15,32 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void Sample_DiscWithoutDiameter_IsAProblem()
         {
-            var (_, _, problem) = LabRequests.Sample(Mesh(), "disc", null, null, null, null, null);
+            var (_, _, problem) = LabRequests.Sample(Mesh(), "disc", null, null, null, null, null, null);
             Assert.Equal("A disc sample needs 'diameter'.", problem);
         }
 
         [Fact]
         public void Sample_ReferenceInDiscMode_IsAProblem()
         {
-            var (_, _, problem) = LabRequests.Sample(Mesh(), "disc", 1.0, Mesh(), null, null, null);
+            var (_, _, problem) = LabRequests.Sample(Mesh(), "disc", 1.0, Mesh(), null, null, null, null);
             Assert.Equal("'reference' is used in as_drawn mode only.", problem);
-            Assert.Null(LabRequests.Sample(Mesh(), "as_drawn", null, Mesh(), null, null, null).problem);
-            Assert.Null(LabRequests.Sample(Mesh(), "disc", 1.0, null, null, null, null).problem);
+            Assert.Null(LabRequests.Sample(Mesh(), "as_drawn", null, Mesh(), null, null, null, null).problem);
+            Assert.Null(LabRequests.Sample(Mesh(), "disc", 1.0, null, null, null, null, null).problem);
         }
 
         [Fact]
         public void Sample_LeavesUnsetInputsOut()
         {
-            var (_, kwargs, _) = LabRequests.Sample(Mesh(), "as_drawn", null, null, null, null, null);
+            var (_, kwargs, _) = LabRequests.Sample(Mesh(), "as_drawn", null, null, null, null, null, null);
             Assert.Empty(kwargs);
-            var (_, set, _) = LabRequests.Sample(Mesh(), "disc", 0.8, null, 0.02, "rotational", "tile");
+            var (_, set, _) = LabRequests.Sample(Mesh(), "disc", 0.8, null, 0.02, "rotational", "tile", null);
             Assert.Equal(new[] { "baseplate", "diameter", "name", "symmetry" }, set.Keys.OrderBy(k => k));
             Assert.Equal(0.8, set["diameter"]);
             Assert.Equal(0.02, set["baseplate"]);
             Assert.Equal("rotational", set["symmetry"]);
             Assert.Equal("tile", set["name"]);
             // an empty text is not a value
-            Assert.Empty(LabRequests.Sample(Mesh(), "as_drawn", null, null, null, "", "").kwargs);
+            Assert.Empty(LabRequests.Sample(Mesh(), "as_drawn", null, null, null, "", "", null).kwargs);
         }
 
         [Fact]
@@ -48,7 +48,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         {
             var mesh = Mesh();
             var reference = Mesh();
-            var (args, kwargs, problem) = LabRequests.Sample(mesh, "as_drawn", null, reference, null, null, null);
+            var (args, kwargs, problem) = LabRequests.Sample(mesh, "as_drawn", null, reference, null, null, null, null);
             Assert.Null(problem);
             Assert.Equal(2, args.Length);
             Assert.Same(mesh, args[0]);
@@ -77,12 +77,12 @@ namespace CompasAcoustics.Grasshopper.Tests
             var spec = ComponentSpec.Load("CA_Scattering_Sample");
             Assert.Equal("08 Lab", spec.Subcategory);
             Assert.Equal(global::Grasshopper.Kernel.GH_Exposure.primary, spec.Exposure);
-            Assert.Equal(new[] { "geometry", "mode", "diameter", "reference", "baseplate", "symmetry", "name" }, spec.Inputs.Select(p => p.Name));
+            Assert.Equal(new[] { "geometry", "mode", "diameter", "reference", "baseplate", "symmetry", "name", "plane" }, spec.Inputs.Select(p => p.Name));
             Assert.Equal(new[] { "sample" }, spec.Outputs.Select(p => p.Name));
             var inputs = spec.Inputs.ToDictionary(p => p.Name);
             Assert.False(inputs["geometry"].Optional);
             Assert.Equal("geometrybase", inputs["geometry"].TypeHint);
-            Assert.All(new[] { "mode", "diameter", "reference", "baseplate", "symmetry", "name" }, n => Assert.True(inputs[n].Optional, n));
+            Assert.All(new[] { "mode", "diameter", "reference", "baseplate", "symmetry", "name", "plane" }, n => Assert.True(inputs[n].Optional, n));
             Assert.Equal("as_drawn", inputs["mode"].Default);
             Assert.Equal("none", inputs["symmetry"].Default);
             Assert.Equal(0.01, inputs["baseplate"].Default);
@@ -90,6 +90,11 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal("float", inputs["diameter"].TypeHint);
             Assert.Equal("geometrybase", inputs["reference"].TypeHint);
             Assert.Equal("str", inputs["name"].TypeHint);
+            Assert.Equal("plane", inputs["plane"].TypeHint);
+            Assert.Null(inputs["plane"].Default);
+            Assert.Contains("Z axis pointing out into the room", inputs["plane"].Description);
+            Assert.All(new[] { "geometry", "reference" }, n => Assert.Contains("unless 'plane' is given", inputs[n].Description));
+            Assert.Contains("+Z", spec.Description);
         }
 
         [Fact]
@@ -101,6 +106,54 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(new[] { "none", "rotational" }, component.Controls.OfType<DropdownControl>().Single(c => c.Port == "symmetry").Options);
             Assert.Equal(new System.Guid("ff1614f6-bb68-5861-aed6-d8d222af8471"), component.ComponentGuid);
             Assert.IsType<Param_ScatteringSample>(component.Params.Output.Single());
+        }
+
+        private static FrameData Wall() => new FrameData
+        {
+            Point = new PointData { X = 2, Y = 4, Z = 1 },
+            Xaxis = new VectorData { X = 1, Y = 0, Z = 0 },
+            Yaxis = new VectorData { X = 0, Y = 0, Z = 1 },
+        };
+
+        [Fact]
+        public void Sample_SendsTheMountingPlaneAsTheFrameKeyword_OnlyWhenSet()
+        {
+            var frame = Wall();
+            var (_, kwargs, problem) = LabRequests.Sample(Mesh(), "as_drawn", null, null, null, null, null, frame);
+            Assert.Null(problem);
+            Assert.Same(frame, kwargs["frame"]);
+            Assert.DoesNotContain("frame", LabRequests.Sample(Mesh(), "as_drawn", null, null, null, null, null, null).kwargs.Keys);
+        }
+
+        [Fact]
+        public void RunKey_IgnoresTheGuidOfTheSample_AndNothingElse()
+        {
+            var (args, kwargs, _) = LabRequests.Lab(LabSample(), "kirchhoff", "survey", "iso", null, null);
+            var key = LabRequests.RunKey(args, kwargs);
+            // a re-solve of the Scattering Sample makes a sample of the same geometry with a new guid
+            var again = LabSample().Clone();
+            again.Guid = System.Guid.NewGuid().ToString();
+            var (againArgs, againKwargs, _) = LabRequests.Lab(again, "kirchhoff", "survey", "iso", null, null);
+            Assert.Equal(key, LabRequests.RunKey(againArgs, againKwargs));
+            // the guid of the original is left as it was
+            Assert.NotEmpty(((ScatteringSampleData)args[0]!).Guid);
+            // another method, preset or vertex is another run
+            Assert.NotEqual(key, LabRequests.RunKey(LabRequests.Lab(LabSample(), "bem", "survey", "iso", null, null).args, LabRequests.Lab(LabSample(), "bem", "survey", "iso", null, null).kwargs));
+            Assert.NotEqual(key, LabRequests.RunKey(LabRequests.Lab(LabSample(), "kirchhoff", "fine", "iso", null, null).args, LabRequests.Lab(LabSample(), "kirchhoff", "fine", "iso", null, null).kwargs));
+            var moved = LabSample().Clone();
+            moved.Sample.Vertices[0] += 0.001;
+            var (movedArgs, movedKwargs, _) = LabRequests.Lab(moved, "kirchhoff", "survey", "iso", null, null);
+            Assert.NotEqual(key, LabRequests.RunKey(movedArgs, movedKwargs));
+        }
+
+        [Fact]
+        public void StaleNotice_NamesWhatIsStale()
+        {
+            Assert.Null(LabResults.StaleNotice(false, false));
+            Assert.Equal("The inputs differ from the last run: the outputs are the last run's; press Run to update.", LabResults.StaleNotice(true, false));
+            Assert.Equal("The inputs changed while a run was going: it was stopped; press Run to start it again.", LabResults.StaleNotice(true, true));
+            Assert.Equal(LabResults.StaleNotice(true, true), LabResults.StaleNotice(false, true));
+            Assert.Equal("inputs changed, press Run", LabResults.StaleStatus);
         }
 
         private static ScatteringSampleData LabSample() => InteropTests.Serializer.Unpack<ScatteringSampleData>(InteropTests.Fixture("scattering_sample"))!;
