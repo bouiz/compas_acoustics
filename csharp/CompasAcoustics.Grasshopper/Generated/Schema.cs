@@ -3,6 +3,6 @@ namespace CompasAcoustics.Grasshopper
 {
     internal static class Schema
     {
-        public const string Hash = "7da66c6a9fbf8cdf6daabdf393e6e56b6971289d3072048beadfcf86cafc8464";
+        public const string Hash = "0979bfe162c9112521f678302133fcfe3a2d6e9830b9f5a26e0a9c870fbee765";
     }
 }

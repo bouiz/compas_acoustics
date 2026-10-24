@@ -9,6 +9,7 @@ Every guid is fixed, so the payloads name the same objects on both sides.
 
 import base64
 import shutil
+import sys
 from pathlib import Path
 from uuid import UUID
 
@@ -23,11 +24,14 @@ from compas_acoustics import Ray
 from compas_acoustics import RayField
 from compas_acoustics import Receiver
 from compas_acoustics import ScatteredRay
+from compas_acoustics import ScatteringSample
 from compas_acoustics import Scene
 from compas_acoustics import Source
+from compas_acoustics.lab import measure_scattering
 from compas_acoustics.pb.types import Audio
 
 HERE = Path(__file__).parent
+sys.path.insert(0, str(HERE.parent / "lab"))  # lab_shapes, the lab tests' tiles
 CSHARP = HERE.parents[1] / "csharp" / "CompasAcoustics.Grasshopper.Tests" / "Fixtures"
 
 
@@ -82,7 +86,21 @@ def audio():
     return a
 
 
-FIXTURES = {"scene": scene, "source": source, "ir": ir, "rayfield": rayfield, "audio": audio}
+def scattering_sample():
+    from lab_shapes import sawtooth_tile
+
+    return _identified(ScatteringSample.disc(sawtooth_tile(), 0.4), 50)
+
+
+def scattering_result():
+    result = measure_scattering(scattering_sample(), method="geometric", preset="survey", n_rays=500)
+    return _identified(result, 51)
+
+
+FIXTURES = {
+    "scene": scene, "source": source, "ir": ir, "rayfield": rayfield, "audio": audio,
+    "scattering_sample": scattering_sample, "scattering_result": scattering_result,
+}
 
 
 def main():

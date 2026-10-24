@@ -158,6 +158,12 @@ from compas_acoustics import SpecularPath  # noqa: E402
 from compas_acoustics import SpecularReflections  # noqa: E402
 from compas_acoustics.pb import plain  # noqa: E402
 from compas_acoustics.pb.types import Audio  # noqa: E402
+from compas_acoustics import ScatteringResult  # noqa: E402
+from compas_acoustics import ScatteringSample  # noqa: E402
+from compas_acoustics.lab import measure_scattering  # noqa: E402
+from lab_shapes import bumped_box  # noqa: E402
+from lab_shapes import sawtooth_tile  # noqa: E402
+from lab_shapes import sine_tile  # noqa: E402
 
 
 def stereo_response(**kwargs):
@@ -245,6 +251,72 @@ def test_plain_turns_numpy_into_python():
         "a": 1.5, "b": [[1, 2]], "c": [3], "d": True}
 
 
+# =============================================================================
+# The coefficient lab: ScatteringSample, ScatteringResult
+# =============================================================================
+
+
+def test_a_scattering_sample_round_trips_as_a_message():
+    sample = ScatteringSample.disc(sine_tile(0.08, 0.02), 0.4)
+    assert arm(sample) == ("message", "type.googleapis.com/compas_acoustics.pb.ScatteringSampleData")
+    loaded = roundtrip(sample)
+    assert isinstance(loaded, ScatteringSample)
+    assert (loaded.mode, loaded.diameter, loaded.period) == (sample.mode, sample.diameter, sample.period)
+    assert (loaded.structural_depth, loaded.symmetry, loaded.baseplate) == (sample.structural_depth, sample.symmetry, sample.baseplate)
+    assert (loaded.warnings, loaded.reference_kind, loaded.guid) == (sample.warnings, sample.reference_kind, sample.guid)
+    assert loaded.feature_size is None and loaded.name == sample.name
+    for a, b in ((loaded.sample, sample.sample), (loaded.reference, sample.reference)):
+        assert isinstance(a, Mesh)
+        assert (a.number_of_vertices(), a.number_of_faces()) == (b.number_of_vertices(), b.number_of_faces())
+
+
+def test_a_scattering_sample_keeps_an_optional_feature_size():
+    sample = ScatteringSample.disc(sine_tile(0.08, 0.02), 0.4, feature_size=0.08, symmetry="rotational")
+    loaded = roundtrip(sample)
+    assert loaded.feature_size == 0.08 and loaded.symmetry == "rotational"
+
+
+def test_an_as_drawn_sample_with_a_proxy_keeps_its_reference_kind():
+    sample = ScatteringSample.as_drawn(bumped_box(size=1.0, thickness=0.01, bump=0.02), reference=bumped_box(size=1.0, thickness=0.01, bump=0.0))
+    loaded = roundtrip(sample)
+    assert loaded.period is None
+    assert loaded.reference_kind == "proxy"
+    assert loaded.mode == "as_drawn" and loaded.warnings == sample.warnings
+
+
+def _geometric_result():
+    pytest.importorskip("embreex")
+    sample = ScatteringSample.disc(sawtooth_tile(), 0.4)
+    return measure_scattering(sample, method="geometric", preset="survey", n_rays=500)
+
+
+def test_a_scattering_result_round_trips_every_field():
+    result = _geometric_result()
+    assert arm(result) == ("message", "type.googleapis.com/compas_acoustics.pb.ScatteringResultData")
+    loaded = roundtrip(result)
+    assert isinstance(loaded, ScatteringResult)
+    assert loaded.guid == result.guid
+    for field in ("s_angle", "d_angle", "receiver_directions", "source_colatitude", "source_azimuth", "source_weights"):
+        assert np.allclose(getattr(loaded, field), getattr(result, field)), field
+    for field in ("polar_sample_db", "polar_reference_db"):
+        assert getattr(loaded, field).shape == getattr(result, field).shape
+        assert np.allclose(getattr(loaded, field), getattr(result, field), atol=0.06), field  # stored rounded to 0.1 dB
+    for field in (
+        "method", "bands", "s_bands", "octave_bands", "s_octaves", "filled_octaves", "polar_source_indices", "unconverged_octaves", "warnings",
+        "generation", "d_bands", "d_octaves",
+    ):
+        assert getattr(loaded, field) == getattr(result, field), field
+    assert loaded.scattering_coefficients == result.scattering_coefficients
+
+
+def test_a_result_without_d_round_trips_with_none():
+    result = _geometric_result()
+    older = ScatteringResult.__from_data__({**result.__data__, "d_angle": None, "d_bands": None, "d_octaves": None})
+    loaded = roundtrip(older)
+    assert loaded.d_angle is None and loaded.d_bands is None and loaded.d_octaves is None
+    assert np.allclose(loaded.s_angle, older.s_angle)
+
+
 FIXTURES = Path(__file__).parent / "pb_fixtures"
 
 
@@ -257,7 +329,8 @@ def _makers():
     return module.FIXTURES
 
 
-@pytest.mark.parametrize("name, kind", [("scene", Scene), ("source", Source), ("ir", ImpulseResponse), ("rayfield", RayField), ("audio", Audio)])
+@pytest.mark.parametrize("name, kind", [("scene", Scene), ("source", Source), ("ir", ImpulseResponse), ("rayfield", RayField), ("audio", Audio),
+                                        ("scattering_sample", ScatteringSample), ("scattering_result", ScatteringResult)])
 def test_the_interop_fixtures_decode_to_what_the_generator_makes(name, kind):
     import base64
 

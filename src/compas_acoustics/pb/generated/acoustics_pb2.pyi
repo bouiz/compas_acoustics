@@ -252,3 +252,89 @@ class SpecularReflectionsData(_message.Message):
     paths: _containers.RepeatedCompositeFieldContainer[SpecularPathData]
     sources: _containers.MessageMap[int, SourceData]
     def __init__(self, guid: _Optional[str] = ..., name: _Optional[str] = ..., paths: _Optional[_Iterable[_Union[SpecularPathData, _Mapping]]] = ..., sources: _Optional[_Mapping[int, SourceData]] = ...) -> None: ...
+
+class ArrayData(_message.Message):
+    __slots__ = ("values", "shape")
+    VALUES_FIELD_NUMBER: _ClassVar[int]
+    SHAPE_FIELD_NUMBER: _ClassVar[int]
+    values: _containers.RepeatedScalarFieldContainer[float]
+    shape: _containers.RepeatedScalarFieldContainer[int]
+    def __init__(self, values: _Optional[_Iterable[float]] = ..., shape: _Optional[_Iterable[int]] = ...) -> None: ...
+
+class ScatteringSampleData(_message.Message):
+    __slots__ = ("guid", "name", "sample", "reference", "mode", "diameter", "period", "structural_depth", "feature_size", "symmetry", "baseplate", "warnings", "reference_kind")
+    GUID_FIELD_NUMBER: _ClassVar[int]
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    SAMPLE_FIELD_NUMBER: _ClassVar[int]
+    REFERENCE_FIELD_NUMBER: _ClassVar[int]
+    MODE_FIELD_NUMBER: _ClassVar[int]
+    DIAMETER_FIELD_NUMBER: _ClassVar[int]
+    PERIOD_FIELD_NUMBER: _ClassVar[int]
+    STRUCTURAL_DEPTH_FIELD_NUMBER: _ClassVar[int]
+    FEATURE_SIZE_FIELD_NUMBER: _ClassVar[int]
+    SYMMETRY_FIELD_NUMBER: _ClassVar[int]
+    BASEPLATE_FIELD_NUMBER: _ClassVar[int]
+    WARNINGS_FIELD_NUMBER: _ClassVar[int]
+    REFERENCE_KIND_FIELD_NUMBER: _ClassVar[int]
+    guid: str
+    name: str
+    sample: _datastructures_pb2.MeshData
+    reference: _datastructures_pb2.MeshData
+    mode: str
+    diameter: float
+    period: _containers.RepeatedScalarFieldContainer[float]
+    structural_depth: float
+    feature_size: float
+    symmetry: str
+    baseplate: float
+    warnings: _containers.RepeatedScalarFieldContainer[str]
+    reference_kind: str
+    def __init__(self, guid: _Optional[str] = ..., name: _Optional[str] = ..., sample: _Optional[_Union[_datastructures_pb2.MeshData, _Mapping]] = ..., reference: _Optional[_Union[_datastructures_pb2.MeshData, _Mapping]] = ..., mode: _Optional[str] = ..., diameter: _Optional[float] = ..., period: _Optional[_Iterable[float]] = ..., structural_depth: _Optional[float] = ..., feature_size: _Optional[float] = ..., symmetry: _Optional[str] = ..., baseplate: _Optional[float] = ..., warnings: _Optional[_Iterable[str]] = ..., reference_kind: _Optional[str] = ...) -> None: ...
+
+class ScatteringResultData(_message.Message):
+    __slots__ = ("guid", "name", "method", "bands", "s_bands", "octave_bands", "s_octaves", "filled_octaves", "s_angle", "source_colatitude", "source_azimuth", "source_weights", "receiver_directions", "polar_sample_db", "polar_reference_db", "polar_source_indices", "unconverged_octaves", "warnings", "generation", "d_angle", "d_bands", "d_octaves")
+    GUID_FIELD_NUMBER: _ClassVar[int]
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    METHOD_FIELD_NUMBER: _ClassVar[int]
+    BANDS_FIELD_NUMBER: _ClassVar[int]
+    S_BANDS_FIELD_NUMBER: _ClassVar[int]
+    OCTAVE_BANDS_FIELD_NUMBER: _ClassVar[int]
+    S_OCTAVES_FIELD_NUMBER: _ClassVar[int]
+    FILLED_OCTAVES_FIELD_NUMBER: _ClassVar[int]
+    S_ANGLE_FIELD_NUMBER: _ClassVar[int]
+    SOURCE_COLATITUDE_FIELD_NUMBER: _ClassVar[int]
+    SOURCE_AZIMUTH_FIELD_NUMBER: _ClassVar[int]
+    SOURCE_WEIGHTS_FIELD_NUMBER: _ClassVar[int]
+    RECEIVER_DIRECTIONS_FIELD_NUMBER: _ClassVar[int]
+    POLAR_SAMPLE_DB_FIELD_NUMBER: _ClassVar[int]
+    POLAR_REFERENCE_DB_FIELD_NUMBER: _ClassVar[int]
+    POLAR_SOURCE_INDICES_FIELD_NUMBER: _ClassVar[int]
+    UNCONVERGED_OCTAVES_FIELD_NUMBER: _ClassVar[int]
+    WARNINGS_FIELD_NUMBER: _ClassVar[int]
+    GENERATION_FIELD_NUMBER: _ClassVar[int]
+    D_ANGLE_FIELD_NUMBER: _ClassVar[int]
+    D_BANDS_FIELD_NUMBER: _ClassVar[int]
+    D_OCTAVES_FIELD_NUMBER: _ClassVar[int]
+    guid: str
+    name: str
+    method: str
+    bands: _containers.RepeatedScalarFieldContainer[int]
+    s_bands: _containers.RepeatedScalarFieldContainer[float]
+    octave_bands: _containers.RepeatedScalarFieldContainer[int]
+    s_octaves: _containers.RepeatedScalarFieldContainer[float]
+    filled_octaves: _containers.RepeatedScalarFieldContainer[int]
+    s_angle: ArrayData
+    source_colatitude: _containers.RepeatedScalarFieldContainer[float]
+    source_azimuth: _containers.RepeatedScalarFieldContainer[float]
+    source_weights: _containers.RepeatedScalarFieldContainer[float]
+    receiver_directions: ArrayData
+    polar_sample_db: ArrayData
+    polar_reference_db: ArrayData
+    polar_source_indices: _containers.RepeatedScalarFieldContainer[int]
+    unconverged_octaves: _containers.RepeatedScalarFieldContainer[int]
+    warnings: _containers.RepeatedScalarFieldContainer[str]
+    generation: _message_pb2.AnyData
+    d_angle: ArrayData
+    d_bands: ArrayData
+    d_octaves: ArrayData
+    def __init__(self, guid: _Optional[str] = ..., name: _Optional[str] = ..., method: _Optional[str] = ..., bands: _Optional[_Iterable[int]] = ..., s_bands: _Optional[_Iterable[float]] = ..., octave_bands: _Optional[_Iterable[int]] = ..., s_octaves: _Optional[_Iterable[float]] = ..., filled_octaves: _Optional[_Iterable[int]] = ..., s_angle: _Optional[_Union[ArrayData, _Mapping]] = ..., source_colatitude: _Optional[_Iterable[float]] = ..., source_azimuth: _Optional[_Iterable[float]] = ..., source_weights: _Optional[_Iterable[float]] = ..., receiver_directions: _Optional[_Union[ArrayData, _Mapping]] = ..., polar_sample_db: _Optional[_Union[ArrayData, _Mapping]] = ..., polar_reference_db: _Optional[_Union[ArrayData, _Mapping]] = ..., polar_source_indices: _Optional[_Iterable[int]] = ..., unconverged_octaves: _Optional[_Iterable[int]] = ..., warnings: _Optional[_Iterable[str]] = ..., generation: _Optional[_Union[_message_pb2.AnyData, _Mapping]] = ..., d_angle: _Optional[_Union[ArrayData, _Mapping]] = ..., d_bands: _Optional[_Union[ArrayData, _Mapping]] = ..., d_octaves: _Optional[_Union[ArrayData, _Mapping]] = ...) -> None: ...
