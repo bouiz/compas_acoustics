@@ -12,6 +12,40 @@ flat bottom face), is reflected specularly on the plane, which counts as one bou
 whatever face it meets, below z = 0 included (the bottom of a closed mesh lies below z = 0). A ray that leaves upward is binned, and so is one that
 leaves exactly along the horizon (``d_z == 0``: it grazes the baffle plane, it is not trapped), into the cell nearest its direction. A ray still
 bouncing after ``max_bounces`` is lost; so would be one leaving downward without meeting a face or the baffle, which a closed body does not let happen.
+
+Accuracy record
+---------------
+Against the Kirchhoff method, 2026-10-24 (``tests/lab/test_geometric_validation.py``, which prints this table). The sample is Heimes &
+Vorländer's sine relief (period 0.08 m, depth 0.051/2.5 m = 20.4 mm, disc of 0.8 m, c = 346.18 m/s), both methods with ``preset="survey"``
+and the ISO band range, the geometric one at its defaults (``n_rays=50000``, ``bin_deg=10``). The last two columns are the geometric s at
+5000 and 50000 rays per source, the Monte-Carlo spread (the seed is fixed, so this is the spread over the footprint points)::
+
+    octave  s_geometric  s_kirchhoff  |delta|   g(5000)  g(50000)
+       125        0.001        0.002    0.001     0.001     0.001
+       250        0.004        0.001    0.003     0.004     0.004
+       500        0.017        0.002    0.016     0.017     0.017
+      1000        0.066        0.003    0.063     0.067     0.066
+      2000        0.234        0.043    0.191     0.238     0.234
+      4000        0.625        0.440    0.186     0.632     0.625
+    max |delta| = 0.191, mean |delta| = 0.077
+
+Run time on the development machine (macOS, 8 or more cores): geometric 1.6 s, Kirchhoff 45.4 s (about 28 times as long). The ray count is not what limits the
+accuracy: 5000 rays per source change s by at most 0.007.
+
+What the numbers show: the heuristic follows the rise of s with frequency but sits above Kirchhoff from 500 Hz up, by 0.06 at 1 kHz and
+by about 0.19 at 2 and 4 kHz, the octaves where s is large. Below 500 Hz both are near 0. Kirchhoff itself warns that its s is unreliable
+below 4327 Hz for this sample (features of 0.08 m smaller than the wavelength), so the lower octaves are not a clean reference; at 4 kHz,
+where the features are about as large as the wavelength, the gap is the least ambiguous one, and it is an over-estimate. Open question for the owner: the
+depth of the curve is ``h = 2 σ`` of the height difference; whether that factor, or the curve's form, should be changed is not settled by
+this one sample against one approximate method (the BEM, or Heimes's s, would be the better reference), and nothing was changed here.
+
+Validity limits. The method has no phase: grating lobes, notches and phase-grating diffusers (periodic relief whose scattering is an interference effect)
+are invisible to it. It has no diffraction (the rim, edges, the
+shadow zone) and no cavity resonance, and a relief much smaller than the wavelength still gets the geometric s_max, reduced only by
+the depth curve. The frequency dependence is that curve, a heuristic, not computed. The object is taken as mounted in a rigid baffle at
+z = 0: a free-standing object is not represented. Directions are binned in cells of ``bin_deg``: a facet tilted by less than about half a
+bin from the reference's reflection counts as specular, so s_max is blind to slopes below that angle. Only the first 1 % of lost
+rays is warned about: a smaller loss goes unreported, and it is compared as one bin like any cell.
 """
 
 from dataclasses import dataclass
