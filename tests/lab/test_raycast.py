@@ -53,6 +53,64 @@ def test_a_ray_from_a_surface_point_does_not_hit_its_own_face():
     assert point[0, 2] == pytest.approx(0.0, abs=1e-9)
 
 
+def _upward_rays(elevation_sin, n=20000, seed=1):
+    """``n`` rays leaving random points of the top face (z = 1) of the unit box upward at the given sine of the elevation: none can hit the box."""
+    rng = np.random.default_rng(seed)
+    origins = np.column_stack([rng.uniform(0.05, 0.95, n), rng.uniform(0.05, 0.95, n), np.ones(n)])
+    azimuth = rng.uniform(0, 2 * np.pi, n)
+    cosine = np.sqrt(1 - elevation_sin**2)
+    directions = np.column_stack([cosine * np.cos(azimuth), cosine * np.sin(azimuth), np.full(n, elevation_sin)])
+    return origins, directions
+
+
+def _top_triangles(caster, origins):
+    """The top-face triangle under each origin."""
+    triangle, _ = caster.first_hits(origins + [0.0, 0.0, 1.0], np.tile([0.0, 0.0, -1.0], (len(origins), 1)))
+    assert (triangle >= 0).all() and np.allclose(caster.normals[triangle], [0.0, 0.0, 1.0])
+    return triangle
+
+
+@pytest.mark.parametrize("elevation_sin", [1e-2, 3e-2, 1e-1])
+def test_rays_leaving_the_top_face_at_ordinary_elevations_do_not_hit_it_without_exclude(elevation_sin):
+    pytest.importorskip("embreex")
+    caster = RayCaster(_box())
+    origins, directions = _upward_rays(elevation_sin)
+    triangle, _ = caster.first_hits(origins, directions)
+    assert (triangle == -1).all()
+
+
+@pytest.mark.parametrize("elevation_sin", [1e-2, 1e-3, 1e-4, 1e-5])
+def test_grazing_rays_leaving_the_top_face_do_not_hit_it_when_it_is_excluded(elevation_sin):
+    pytest.importorskip("embreex")
+    caster = RayCaster(_box())
+    origins, directions = _upward_rays(elevation_sin)
+    triangle, point = caster.first_hits(origins, directions, exclude=_top_triangles(caster, origins))
+    assert (triangle == -1).all()
+
+
+def test_excluding_a_triangle_does_not_hide_a_genuine_later_face():
+    pytest.importorskip("embreex")
+    # a 1 x 1 x 1 block with a V groove in its top, extruded along y; profile in (x, z), counter-clockwise seen from -y
+    profile = [(0, 0), (1, 0), (1, 1), (0.6, 1), (0.5, 0.5), (0.4, 1), (0, 1)]
+    vertices = [[x, 0.0, z] for x, z in profile] + [[x, 1.0, z] for x, z in profile]
+    m = len(profile)
+    cap = [[0, 1, 4], [1, 2, 3], [1, 3, 4], [0, 4, 5], [0, 5, 6]]
+    faces = [list(t) for t in cap] + [[a + m, c + m, b + m] for a, b, c in cap]  # the y = 0 cap faces -y, the y = 1 cap +y
+    for i in range(m):
+        j = (i + 1) % m
+        faces += [[i, j + m, j], [i, i + m, j + m]]
+    body = Mesh.from_vertices_and_faces(vertices, faces)
+    caster = RayCaster(body)
+    # the right wall of the groove, found by a ray from inside the groove
+    wall, wall_point = caster.first_hits(np.array([[0.5, 0.5, 0.75]]), np.array([[1.0, 0.0, 0.0]]))
+    assert wall[0] >= 0 and caster.normals[wall[0]][0] < 0
+    for exclude in (None, wall):
+        triangle, point = caster.first_hits(wall_point, np.array([[-1.0, 0.0, 0.0]]), exclude=exclude)
+        assert triangle[0] >= 0 and triangle[0] != wall[0]
+        assert caster.normals[triangle[0]][0] > 0  # the left wall
+        assert point[0, 0] == pytest.approx(0.45, abs=1e-6)
+
+
 def test_a_body_far_from_the_origin_is_hit_where_it_is():
     pytest.importorskip("embreex")
     box = _box()

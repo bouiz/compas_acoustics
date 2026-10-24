@@ -62,8 +62,8 @@ class RayCaster:
         self.normals = np.where(twice[:, None] > 0, cross / np.where(twice > 0, twice, 1.0)[:, None], 0.0)
         self._offset = 1e-5 * float(np.ptp(self._vertices, axis=0).max())
 
-    def first_hits(self, origins, directions):
-        # type: (np.ndarray, np.ndarray) -> tuple
+    def first_hits(self, origins, directions, exclude=None):
+        # type: (np.ndarray, np.ndarray, object) -> tuple
         """The first triangle each ray hits, and where.
 
         Parameters
@@ -72,12 +72,23 @@ class RayCaster:
             Ray origins, shape (n, 3).
         directions : :class:`numpy.ndarray`
             Unit ray directions, shape (n, 3).
+        exclude : :class:`numpy.ndarray`, optional
+            Shape (n,) int: the triangle each ray has just left (-1 for none), for rays that start on the body. A hit on it is never
+            returned for that ray: a ray leaving a planar triangle cannot meet its plane again, so such a hit is a numerical self-hit.
+            Without it, a ray leaving a face at a grazing angle (sine of the elevation below about 1e-2) can report that face.
 
         Returns
         -------
         tuple of :class:`numpy.ndarray`
             ``(triangle, point)``: ``triangle`` shape (n,) int, the index of the first triangle hit, -1 where the ray hits nothing;
             ``point`` shape (n, 3), the hit point (zeros where the ray misses).
+
+        Notes
+        -----
+        A ray starts ``offset`` (1e-5 of the body's size) along its direction. That lifts it above the plane of the face it leaves by only
+        ``offset · |d · n|``, below single precision for a grazing ray. The start of a ray with an ``exclude`` triangle is therefore also
+        lifted ``offset`` along that triangle's normal, to the side the ray leaves it, a displacement of the ray of the order of ``offset``.
+        A ray still reporting its excluded triangle is lifted ten times as far, up to three times; one that still does is reported as a miss.
         """
         origins = np.asarray(origins, dtype=float).reshape(-1, 3)
         directions = np.asarray(directions, dtype=float).reshape(-1, 3)
@@ -86,20 +97,42 @@ class RayCaster:
         point = np.zeros((n, 3))
         if n == 0:
             return triangle, point
+        if exclude is None:
+            exclude = np.full(n, -1, dtype=int)
+        exclude = np.asarray(exclude, dtype=int).reshape(-1)
+        if len(exclude) != n:
+            raise ValueError("exclude has {} entries for {} rays".format(len(exclude), n))
         starts = origins - self._centre + self._offset * directions
-        ray_index, tri_index = self._first_hit_ids(starts, directions)
-        if len(ray_index) == 0:
+        has = exclude >= 0
+        side = np.ones(n)
+        side[has] = np.where(np.einsum("ij,ij->i", directions[has], self.normals[exclude[has]]) < 0, -1.0, 1.0)
+        lift = np.zeros((n, 3))
+        lift[has] = side[has, None] * self.normals[exclude[has]]
+        found = np.full(n, -1, dtype=int)
+        pending = np.arange(n)
+        for attempt in range(4):
+            ray_index, tri_index = self._first_hit_ids(starts[pending] + self._offset * 10.0**attempt * lift[pending], directions[pending])
+            found[pending] = -1
+            found[pending[ray_index]] = tri_index
+            again = pending[has[pending] & (found[pending] == exclude[pending])]
+            if len(again) == 0:
+                break
+            pending = again
+        found[has & (found == exclude)] = -1
+        hit = np.flatnonzero(found >= 0)
+        if len(hit) == 0:
             return triangle, point
         # the hit point in double precision: the ray against the plane of the triangle it hit
-        o = origins[ray_index]
-        d = directions[ray_index]
+        tri_index = found[hit]
+        o = origins[hit]
+        d = directions[hit]
         normal = self.normals[tri_index]
         corner = self._vertices[self._faces[tri_index, 0]]
         denominator = np.einsum("ij,ij->i", d, normal)
         usable = np.abs(denominator) > 1e-300
         t = np.einsum("ij,ij->i", corner - o, normal) / np.where(usable, denominator, 1.0)
-        triangle[ray_index] = tri_index
-        point[ray_index] = o + t[:, None] * d
+        triangle[hit] = tri_index
+        point[hit] = o + t[:, None] * d
         return triangle, point
 
     def _first_hit_ids(self, starts, directions):
