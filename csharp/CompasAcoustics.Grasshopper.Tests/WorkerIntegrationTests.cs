@@ -359,6 +359,13 @@ namespace CompasAcoustics.Grasshopper.Tests
                 var (mesh, levels, source, _) = LabResults.ReadBalloon(balloonAnswer);
                 Assert.True(mesh.FaceSizes.Count > 0);
                 Assert.Equal(mesh.Vertices.Count / 3, levels.Length);
+                // a flat sample's balloon is the sparsest there is (one cell above the floor): no two vertices may coincide
+                var distinct = new HashSet<(double, double, double)>();
+                for (var i = 0; i + 2 < mesh.Vertices.Count; i += 3)
+                {
+                    distinct.Add((Math.Round(mesh.Vertices[i], 6), Math.Round(mesh.Vertices[i + 1], 6), Math.Round(mesh.Vertices[i + 2], 6)));
+                }
+                Assert.Equal(mesh.Vertices.Count / 3, distinct.Count);
                 Assert.Equal(3, source.Length);
 
                 var (materialArgs, materialKwargs, materialProblem) = LabRequests.Material("panel", new List<double> { 0.1 }, null, result, null);

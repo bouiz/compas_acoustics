@@ -747,11 +747,16 @@ def run_scattering_lab(sample, method="geometric", preset=None, band_range="iso"
             "warnings": _messages(caught)}
 
 
+_BALLOON_MIN_RADIUS = 0.03  # the fraction of the radius at and below the floor: a balloon that collapses to a point is not a mesh
+
+
 def polar_balloon(result, preview=0, octave=1000, body="sample", radius=1.0, floor_db=-30.0):
     """The polar response of one preview source and octave as a balloon mesh, as the Polar Balloon component shows it.
 
-    Each receiver direction is moved out to ``radius * max(0, 1 - level / floor_db)``: the level 0 dB, the maximum of the flat
-    reference, at ``radius`` and a level of ``floor_db`` or below at the centre.
+    Each receiver direction is moved out to ``radius * (r_min + (1 - r_min) * clip(1 - level / floor_db, 0, 1))`` with
+    ``r_min = 0.03``: the level 0 dB, the maximum of the flat reference, at ``radius``, a level of ``floor_db`` or below
+    (the empty cells of a sparse geometric result are at -300 dB) at ``r_min * radius``, and linear in between. The radius never
+    reaches 0, so that no two vertices coincide and the mesh stays valid.
 
     Parameters
     ----------
@@ -763,8 +768,9 @@ def polar_balloon(result, preview=0, octave=1000, body="sample", radius=1.0, flo
     body : str
         ``'sample'`` or ``'reference'``.
     radius : float
+        The radius of the loudest direction (0 dB).
     floor_db : float
-        A negative level in dB.
+        A negative level in dB: a direction at this level or below is at ``0.03 * radius``.
 
     Returns
     -------
@@ -803,7 +809,8 @@ def polar_balloon(result, preview=0, octave=1000, body="sample", radius=1.0, flo
     levels = np.asarray(polar[preview, result.octave_bands.index(octave)], dtype=float)
     directions = np.asarray(result.receiver_directions, dtype=float)
     directions = directions / np.linalg.norm(directions, axis=1)[:, np.newaxis]
-    vertices = directions * (radius * np.maximum(0.0, 1.0 - levels / floor_db))[:, np.newaxis]
+    fraction = np.clip(1.0 - levels / floor_db, 0.0, 1.0)
+    vertices = directions * (radius * (_BALLOON_MIN_RADIUS + (1.0 - _BALLOON_MIN_RADIUS) * fraction))[:, np.newaxis]
 
     # The directions cover a hemisphere: a point below it closes the hull, and the faces that use it are dropped
     n = len(directions)

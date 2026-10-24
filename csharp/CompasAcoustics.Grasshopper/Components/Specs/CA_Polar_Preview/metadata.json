@@ -3,7 +3,7 @@
     "nickname": "Polar",
     "category": "COMPAS Acoustics",
     "subcategory": "08 Lab",
-    "description": "The polar response of a scattering result (ISO 17497-2, 3.8): the level reflected from the sample into every receiver direction, for one incidence direction and one octave band, as a balloon mesh coloured by level. A direction at 0 dB (the level of the flat reference's specular reflection) is at radius from the centre, a direction at floor_db or below at the centre; blue is the lowest level, red the highest. The source output is a line towards the incidence direction. The Preview button shows or hides the drawing.",
+    "description": "The polar response of a scattering result (ISO 17497-2, 3.8): the level reflected from the sample into every receiver direction, for one incidence direction and one octave band, as a balloon mesh coloured by level. A direction at 0 dB (the level of the flat reference's specular reflection) is at radius from the centre, a direction at floor_db or below at 3 % of the radius, near the centre; blue is the lowest level, red the highest. The source output is a line towards the incidence direction. The Preview button shows or hides the drawing.",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,
@@ -42,7 +42,7 @@
             },
             {
                 "name": "radius",
-                "description": "The radius of a direction at 0 dB, in metres.",
+                "description": "The radius of the loudest direction (0 dB), in metres.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "float",
@@ -50,7 +50,7 @@
             },
             {
                 "name": "floor_db",
-                "description": "A negative level in dB: a direction at this level or below is at the centre.",
+                "description": "A negative level in dB: a direction at this level or below is at 3 % of the radius, near the centre.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "float",
