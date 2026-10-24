@@ -82,6 +82,43 @@ order ~50 is needed, while a closed 12-face obstacle already costs 4.5 s at orde
 growing steeply. That times 72 positions × source/mic pairs × 2 is out of reach, and in its validity regime (features ≫ λ) the
 Kirchhoff method already gives the geometric-optics limit. Revisit with a faster coherent engine.
 
+## Objects, the proxy reference and the geometric method (added 2026-10-24)
+
+Source: evaluation of Shtrepi et al. (Building Acoustics 2020, doi 10.1177/1351010X20967821), which traces specular rays off a rigid panel and
+reports a frequency-independent uniformity index, not s. Their method is kept only as the lab's fast default, repaired (below).
+
+**Objects.** Surfaces and objects **mounted** on a wall, floor or ceiling (sound arrives from one side: the hemisphere grids stand), 1 to ~10 m
+across, possibly with deep cavities and shadowing. Surfaces with simple relief can keep using `scattering_coefficients_from_depth`.
+
+**Proxy reference.** `ScatteringSample.as_drawn(mesh, reference=proxy)` takes an optional proxy: the simplified mesh the room model will carry the
+lab's s on. s then measures the share of the detailed object's reflection that the proxy does not reproduce. Without a proxy the reference is the
+flat footprint, as before (the ISO definition). A proxy result is flagged non-ISO (`sample.reference_kind == "proxy"`, a warning). The proxy and the
+sample share one outline. In the room model the material goes on the proxy's faces, never also on the detailed mesh (double counting).
+
+**Methods** (`measure_scattering(method=...)`):
+
+| Method | Status | Pipeline |
+|---|---|---|
+| `"geometric"` (default) | D2 | specular rays off the rigid mesh, binned on the receiver hemisphere; **heuristic** s(f) from the geometry; seconds |
+| `"kirchhoff"` | built | as above |
+| `"sbr"` | D3, later | shooting and bouncing rays with phase and a physical-optics exit integral, into the same correlation pipeline |
+| `"bem"` | built | as above |
+
+**Geometric method.** Per source direction û (the `SourceGrid` presets, default `"standard"`), `n_rays` parallel rays aimed at uniformly random points
+of the reference footprint at z = 0 (the same points for the sample and the reference), reflect specularly off the rigid body up to `max_bounces`
+and leave upward into one cell of the receiver grid (`ReceiverGrid.hemisphere(bin_deg)`, default 10°; the Voronoi weights are the cells' solid angles),
+so energy is conserved by construction. Rays that never leave, or leave below the horizon, are counted as `lost` (warned above 1 %).
+- Geometric scattering share `s_max(û) = 1 − Σ_bins min(E_sample, E_reference)` over the energy fractions per cell (1 − the share in the specular cell for a flat reference).
+- Depth `h = 2·σ_z`, σ_z the standard deviation over the footprint points of the height difference between the sample's and the reference's top surfaces.
+- `s(û, f) = s_max(û)·(1 − exp(−(k h)²))`, k = 2πf/c (the form of `AcousticMaterial.scattering_coefficients_from_depth`, with s_max and h taken from the geometry), evaluated at each band's exact centre. The result is labelled heuristic (`generation["heuristic"]`, a warning).
+- The polar levels are the cells' energy per steradian, the same at every octave. The rim is not diffracted; the flat-reference correlation cancels it for `kirchhoff` and `bem`, not here.
+
+**Diffusion coefficient.** Every method also returns d (ISO 17497-2 eq. 6 on the intensities at the receivers, weighted by the cells' solid angles) and the
+normalised d_n = (d − d_ref)/(1 − d_ref) per band and octave; random incidence uses the same Paris weights as s.
+
+**Order of work:** D1 the proxy reference and d, D2 the geometric method, C the Grasshopper chain (with the final method list), D3 SBR (starts with a spike on
+tube density, ray throughput and the receiver count at 10 m, where Δθ ≤ 50λ/d means ~10⁵ receivers at 5 kHz).
+
 ## Architecture
 
 The work is delivered in **three versions**:
