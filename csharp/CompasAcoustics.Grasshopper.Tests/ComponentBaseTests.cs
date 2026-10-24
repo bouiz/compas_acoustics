@@ -11,7 +11,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void Specs_AreEmbeddedForEveryComponent()
         {
-            Assert.Equal(26, ComponentSpec.Names().Count());
+            Assert.Equal(27, ComponentSpec.Names().Count());
             var model = ComponentSpec.Load("CA_Model");
             Assert.Equal("Acoustic Scene", model.Name);
             Assert.Equal("Scene", model.Nickname);

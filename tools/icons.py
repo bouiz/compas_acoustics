@@ -241,6 +241,16 @@ def lab(image, d, accent):
     d.rectangle((8, 74, 88, 84), fill=DARK)
 
 
+def lab_material(image, d, accent):
+    # the material tile under a small dot hemisphere
+    for radius, count in ((24, 5), (13, 3)):
+        for i in range(count):
+            t = math.pi * (i + 0.5) / count
+            _dot(d, 48 - radius * math.cos(t), 36 - radius * math.sin(t), 4, accent)
+    _hatch(image, (18, 46, 78, 84), accent)
+    d.rectangle((16, 44, 80, 86), outline=DARK, width=W)
+
+
 def balloon(image, d, accent):
     # a lobed closed polar curve (a main lobe up, two smaller ones either side) around a point
     points = []
@@ -264,6 +274,7 @@ GLYPHS = {
     "CA_Deconstruct_IR": bars,
     "CA_Deconstruct_IR_Graph": graph,
     "CA_Deconstruct_Material": deconstruct_material,
+    "CA_Lab_Material": lab_material,
     "CA_Material_Library": library,
     "CA_Model": room,
     "CA_Plot_2D": chart,

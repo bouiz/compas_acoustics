@@ -222,4 +222,44 @@ namespace CompasAcoustics.Grasshopper
                 args.Display.DrawLine(_source, Color.FromArgb(60, 60, 60), 2);
         }
     }
+
+    /// <summary>
+    /// An AcousticMaterial from an absorption (numbers, or taken from a material) and an optional lab result, for the faces of the
+    /// proxy in the room model (the lab's worker function lab_material).
+    /// </summary>
+    public sealed class LabMaterialComponent : ComponentBase
+    {
+        public LabMaterialComponent() : base("CA_Lab_Material") { }
+        protected override string SpecKey => "CA_Lab_Material";
+        public override Guid ComponentGuid => new Guid("94143bb0-1ea1-5d3c-9bc9-edbeb8bfeea7");
+
+        protected override IGH_Param? CreateParam(PortSpec port, bool input) => port.Name switch
+        {
+            "material" => new Param_Material(),
+            "result" => input ? new Param_ScatteringResult() : null,
+            _ => null,
+        };
+
+        public override IReadOnlyList<Control> Controls { get; } = new Control[] { new DropdownControl("category", ConstructMaterialComponent.Categories, "Other") };
+
+        protected override void Solve(IGH_DataAccess access)
+        {
+            var name = Text(access, "name");
+            if (name == null)
+            {
+                Warn("Input parameter 'name' failed to collect data.");
+                return;
+            }
+            var (args, kwargs, problem) = LabRequests.Material(name, List<double>(access, "absorption"), Item<MaterialGoo>(access, "material")?.Value,
+                Item<ScatteringResultGoo>(access, "result")?.Value, Text(access, "category"));
+            if (problem != null)
+            {
+                Warn(problem);
+                return;
+            }
+            var answer = (IDictionary<string, object?>)Worker.Call("lab_material", args, kwargs)!;
+            ShowWarnings(answer);
+            access.SetData(0, new MaterialGoo((AcousticMaterialData)answer["material"]!));
+        }
+    }
 }

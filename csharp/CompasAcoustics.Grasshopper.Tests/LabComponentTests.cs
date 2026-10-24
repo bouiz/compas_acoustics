@@ -378,5 +378,70 @@ namespace CompasAcoustics.Grasshopper.Tests
             var port = (global::Grasshopper.Kernel.Parameters.Param_Integer)component.ControlPort("octave")!;
             Assert.True(port.HasNamedValues);
         }
+
+        private static readonly double[] SevenValues = { 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7 };
+
+        [Fact]
+        public void Material_WithoutAbsorptionOrMaterial_IsAProblem()
+        {
+            var (_, _, problem) = LabRequests.Material("panel", new List<double>(), null, null, null);
+            Assert.Equal("Connect 'absorption' (1 or 7 values) or a 'material' to take it from.", problem);
+        }
+
+        [Fact]
+        public void Material_FiveValues_IsAProblem()
+        {
+            var (_, _, problem) = LabRequests.Material("panel", new List<double> { 0.1, 0.2, 0.3, 0.4, 0.5 }, null, null, null);
+            Assert.Equal("'absorption' takes 1 or 7 values (125 Hz to 8 kHz).", problem);
+            Assert.Null(LabRequests.Material("panel", new List<double> { 0.3 }, null, null, null).problem);
+            Assert.Null(LabRequests.Material("panel", SevenValues, null, null, null).problem);
+        }
+
+        [Fact]
+        public void Material_TakesTheMaterialWhenAbsorptionIsEmpty()
+        {
+            var material = new AcousticMaterialData { Name = "plaster" };
+            var (args, kwargs, problem) = LabRequests.Material("panel", new List<double>(), material, null, null);
+            Assert.Null(problem);
+            Assert.Equal(2, args.Length);
+            Assert.Equal("panel", args[0]);
+            Assert.Same(material, args[1]);
+            Assert.Empty(kwargs);
+        }
+
+        [Fact]
+        public void Material_NumbersWinOverAMaterial_AndTheResultAndCategoryAreKeywords()
+        {
+            var material = new AcousticMaterialData { Name = "plaster" };
+            var result = new ScatteringResultData();
+            var (args, kwargs, problem) = LabRequests.Material("panel", SevenValues, material, result, "Absorbers");
+            Assert.Null(problem);
+            Assert.Equal(SevenValues, args[1]);
+            Assert.Equal(new[] { "category", "result" }, kwargs.Keys.OrderBy(k => k));
+            Assert.Same(result, kwargs["result"]);
+            Assert.Equal("Absorbers", kwargs["category"]);
+        }
+
+        [Fact]
+        public void LabMaterialSpec_DescribesTheProxy()
+        {
+            var spec = ComponentSpec.Load("CA_Lab_Material");
+            Assert.Equal("08 Lab", spec.Subcategory);
+            Assert.Equal(global::Grasshopper.Kernel.GH_Exposure.primary, spec.Exposure);
+            Assert.Contains("proxy", spec.Description);
+            Assert.Equal(new[] { "name", "absorption", "material", "result", "category" }, spec.Inputs.Select(p => p.Name));
+            Assert.Equal(new[] { "material" }, spec.Outputs.Select(p => p.Name));
+            var inputs = spec.Inputs.ToDictionary(p => p.Name);
+            Assert.False(inputs["name"].Optional);
+            Assert.All(new[] { "absorption", "material", "result", "category" }, n => Assert.True(inputs[n].Optional, n));
+            Assert.Equal("ghdoc", inputs["material"].TypeHint);
+            Assert.Equal("ghdoc", inputs["result"].TypeHint);
+            var component = new LabMaterialComponent();
+            Assert.Equal(new System.Guid("94143bb0-1ea1-5d3c-9bc9-edbeb8bfeea7"), component.ComponentGuid);
+            Assert.Equal(ConstructMaterialComponent.Categories, component.Controls.OfType<DropdownControl>().Single(c => c.Port == "category").Options);
+            Assert.IsType<Param_Material>(component.Params.Output.Single());
+            Assert.IsType<Param_Material>(component.Params.Input.Single(p => p.Name == "material"));
+            Assert.IsType<Param_ScatteringResult>(component.Params.Input.Single(p => p.Name == "result"));
+        }
     }
 }

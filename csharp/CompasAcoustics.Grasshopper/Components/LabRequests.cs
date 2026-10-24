@@ -119,5 +119,24 @@ namespace CompasAcoustics.Grasshopper
                 : null;
             return (new object?[] { result }, kwargs, problem);
         }
+
+        /// <summary>
+        /// The call of <c>lab_material</c>: the name and the absorption (the numbers if given, else the material to take it from) as
+        /// arguments; the result and the category (if set) as keywords. <c>problem</c> says why the inputs cannot make a call.
+        /// </summary>
+        public static (object?[] args, Dictionary<string, object?> kwargs, string? problem) Material(string name, IList<double> absorption,
+            AcousticMaterialData? material, ScatteringResultData? result, string? category)
+        {
+            var kwargs = new Dictionary<string, object?>();
+            if (result != null)
+                kwargs["result"] = result;
+            if (!string.IsNullOrEmpty(category))
+                kwargs["category"] = category;
+            object? alpha = absorption.Count > 0 ? absorption.ToList() : material;
+            var problem = absorption.Count == 0 && material == null ? "Connect 'absorption' (1 or 7 values) or a 'material' to take it from."
+                : absorption.Count != 0 && absorption.Count != 1 && absorption.Count != 7 ? "'absorption' takes 1 or 7 values (125 Hz to 8 kHz)."
+                : null;
+            return (new object?[] { name, alpha }, kwargs, problem);
+        }
     }
 }

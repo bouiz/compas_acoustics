@@ -56,7 +56,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal("06 Util", spec.Subcategory);
             Assert.Empty(spec.Inputs);
             Assert.Equal(new[] { "python", "version", "running" }, spec.Outputs.Select(p => p.Name));
-            Assert.Equal(26, ComponentSpec.Names().Count());
+            Assert.Equal(27, ComponentSpec.Names().Count());
         }
     }
 }

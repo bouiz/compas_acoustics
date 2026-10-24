@@ -1,0 +1,56 @@
+{
+    "name": "Lab Material",
+    "nickname": "LabMat",
+    "category": "COMPAS Acoustics",
+    "subcategory": "08 Lab",
+    "description": "An AcousticMaterial from an absorption and a lab result, for the faces of the proxy in the room model: the flat stand-in for the detailed surface. Put it on the proxy only, never also on the detailed mesh, or the surface counts twice.",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "name",
+                "description": "Name of the material.",
+                "optional": false,
+                "scriptParamAccess": 0,
+                "typeHintID": "str"
+            },
+            {
+                "name": "absorption",
+                "description": "Optional. Absorption coefficients: 1 value for every band, or 7 values (125 Hz to 8 kHz). Used before 'material' when both are connected.",
+                "optional": true,
+                "scriptParamAccess": 1,
+                "typeHintID": "float"
+            },
+            {
+                "name": "material",
+                "description": "Optional. An AcousticMaterial to take the absorption from when 'absorption' is empty. 'absorption' wins when both are connected.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "ghdoc"
+            },
+            {
+                "name": "result",
+                "description": "Optional. ScatteringResult object, from Scattering Lab: its scattering coefficients go on the material.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "ghdoc"
+            },
+            {
+                "name": "category",
+                "description": "Optional. Material category, e.g. 'Concrete', 'Wood' or 'Absorbers'.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "str",
+                "default": "Other"
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "material",
+                "description": "AcousticMaterial object, for the faces of the proxy."
+            }
+        ]
+    }
+}
