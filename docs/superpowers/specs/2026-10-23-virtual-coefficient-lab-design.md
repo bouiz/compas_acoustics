@@ -101,8 +101,8 @@ Each sub-project gets its own implementation plan. They are built in this order:
   The geometry is COMPAS `Mesh`.
 - `grids.py`: source presets `survey` (ISO 17497-2 Table 1, 13), `standard` (colatitude 0–80° step 10° × azimuth 30°, 97) and
   `fine` (Heimes: colatitude 1.26°…88.74° step 2.52° × azimuth 15°, 864), collapsed to azimuth 0 when the sample is
-  rotationally symmetric. **Default depends on the method** (decided 2026-10-24): `kirchhoff` → `fine`, `bem` → `standard`
-  (the fine grid makes BEM ~9× longer). Comparisons between methods pass the same preset explicitly. Also: the receiver grid (above),
+  rotationally symmetric. **Default is `standard` for both methods** (decided 2026-10-24: first `kirchhoff` → `fine`, switched to `standard`
+  after measuring a default fine Kirchhoff run at ~45 min on 14 cores vs ~5 min standard; the fine grid also makes BEM ~9× longer). Comparisons between methods pass the same preset explicitly. Also: the receiver grid (above),
   1/9-octave frequency grid with frequency-range splits.
 - `solvers/kirchhoff.py`: the fast free-field solver (above), with no extra dependencies.
 - `solvers/bem.py`: NumCalc backend via `mesh2scattering` (`write_scattering_project_numcalc`, `manage_numcalc`,

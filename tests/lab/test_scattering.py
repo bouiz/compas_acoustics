@@ -59,10 +59,10 @@ def test_extended_range_simulates_8000_and_warns_beyond_iso(monkeypatch):
     assert any("beyond ISO" in w for w in r.warnings)
 
 
-def test_default_preset_depends_on_the_method(monkeypatch):
+def test_default_preset_is_standard_and_an_explicit_one_overrides_it(monkeypatch):
     monkeypatch.setattr(scattering, "_solver", lambda method, **kw: FakeSolver())
     sample = ScatteringSample.disc(flat_tile(), diameter=0.4)
-    assert measure_scattering(sample, method="kirchhoff", band_range=(1000, 1000)).generation["preset"] == "fine"
+    assert measure_scattering(sample, method="kirchhoff", band_range=(1000, 1000)).generation["preset"] == "standard"
     assert measure_scattering(sample, method="bem", band_range=(1000, 1000)).generation["preset"] == "standard"
     assert measure_scattering(sample, method="bem", preset="survey", band_range=(1000, 1000)).generation["preset"] == "survey"
 

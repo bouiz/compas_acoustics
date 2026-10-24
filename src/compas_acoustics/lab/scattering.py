@@ -28,7 +28,7 @@ from .results import ScatteringResult
 __all__ = ["DEFAULT_PRESETS", "measure_scattering", "preview_sources"]
 
 METHODS = ("kirchhoff", "bem")
-DEFAULT_PRESETS = {"kirchhoff": "fine", "bem": "standard"}
+DEFAULT_PRESETS = {"kirchhoff": "standard", "bem": "standard"}
 _ISO_TOP = 5000  # Hz, the highest band of ISO 354 and ISO 17497-1/-2
 _BEYOND_ISO = "bands above 5000 Hz are beyond ISO 354 and ISO 17497 (100-5000 Hz)"
 _FILLED = "the {f} Hz octave was not simulated; the material takes the {g} Hz value"
@@ -149,8 +149,8 @@ def measure_scattering(sample, method="kirchhoff", preset=None, band_range=ISO_B
     coefficients before the next, so the pressures of all sources are never held at once (a batch holds at most 512 MB of them). The
     polar levels are kept only for the preview sources (:func:`preview_sources`: the sources nearest to the 13 directions of ISO 17497-2
     Table 1), listed in ``result.polar_source_indices``. A Kirchhoff run estimated longer than 10 minutes is warned about before it
-    starts (:meth:`~compas_acoustics.lab.solvers.KirchhoffSolver.estimate_seconds`): the default ``"fine"`` preset on a 0.8 m disc takes
-    about 50 minutes on 14 cores.
+    starts (:meth:`~compas_acoustics.lab.solvers.KirchhoffSolver.estimate_seconds`): the ``"fine"`` preset on a 0.8 m disc takes
+    about 50 minutes on 14 cores, the default ``"standard"`` about 5.
 
     Known limitations of the BEM (2026-10-24, Heimes & Vorländer's sine surface, d = 0.8 m): below about 700 Hz NumCalc's iterative solves
     do not converge and those bands are wrong; such steps are listed in ``generation["unconverged"]``, warned about in
@@ -164,7 +164,7 @@ def measure_scattering(sample, method="kirchhoff", preset=None, band_range=ISO_B
     method : {"kirchhoff", "bem"}, optional
         Physical optics (fast) or the boundary element method (mesh2scattering/NumCalc, needs Python ≥ 3.11 and the ``lab`` extra).
     preset : {"survey", "standard", "fine"}, optional
-        The source grid; by default ``DEFAULT_PRESETS[method]``: ``"fine"`` for kirchhoff, ``"standard"`` for bem.
+        The source grid; by default ``DEFAULT_PRESETS[method]``: ``"standard"`` for both methods.
         Comparisons between methods should pass the same preset.
     band_range : tuple of float, optional
         The nominal one-third-octave centres simulated, inclusive: ``ISO_BAND_RANGE`` (100-5000 Hz, ISO 17497-1/-2 §5) by default,
