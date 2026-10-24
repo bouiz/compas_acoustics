@@ -1,12 +1,16 @@
 import numpy as np
 import pytest
+from compas.datastructures import Mesh
 from lab_shapes import flat_tile
 from lab_shapes import sawtooth_tile
 from lab_shapes import v_groove_tile
+from scipy.spatial import cKDTree
 
 from compas_acoustics.lab import ReceiverGrid
 from compas_acoustics.lab import ScatteringSample
 from compas_acoustics.lab import SourceGrid
+from compas_acoustics.lab.raycast import RayCaster
+from compas_acoustics.lab.geometric import _trace
 from compas_acoustics.lab.geometric import geometric_response
 from compas_acoustics.lab.geometric import heuristic_s
 from compas_acoustics.lab.geometric import scattering_share
@@ -41,9 +45,13 @@ def test_a_flat_sample_reflects_everything_into_the_specular_cell():
 def test_energy_is_conserved():
     pytest.importorskip("embreex")
     sample = ScatteringSample.disc(sawtooth_tile(), 0.4)
-    response = geometric_response(sample, SourceGrid.preset("standard"), n_rays=1000)
-    assert np.allclose(response.sample.sum(axis=1) + response.lost_sample, 1.0, atol=1e-9)
-    assert np.allclose(response.reference.sum(axis=1) + response.lost_reference, 1.0, atol=1e-9)
+    sources = SourceGrid.preset("standard")
+    assert sources.colatitude.max() == 80.0  # the grazing ring is in the grid
+    response = geometric_response(sample, sources, n_rays=1000)
+    # the binned energy and the lost fraction are counted separately, so their sum is a check
+    np.testing.assert_allclose(response.sample.sum(axis=1) + response.lost_sample, 1.0, atol=1e-12)
+    np.testing.assert_allclose(response.reference.sum(axis=1) + response.lost_reference, 1.0, atol=1e-12)
+    assert (response.lost_sample >= 0).all() and (response.lost_reference >= 0).all()
 
 
 def test_a_tilted_facet_sends_normal_incidence_to_twice_its_slope():
@@ -124,3 +132,86 @@ def test_the_receiver_cells_are_the_hemisphere_grid_at_bin_deg():
     response = geometric_response(sample, SourceGrid.preset("survey"), bin_deg=15.0, n_rays=500)
     grid = ReceiverGrid.hemisphere(15.0, 1.0)
     assert np.allclose(response.directions, grid.directions) and np.allclose(response.weights, grid.weights)
+
+
+def _closed_disc():
+    return ScatteringSample.disc(sawtooth_tile(), 0.4)
+
+
+def test_cells_alone_may_count_common_losses_as_scattering_and_the_lost_bin_removes_them():
+    pytest.importorskip("embreex")
+    body = _closed_disc().sample
+    sample = ScatteringSample.as_drawn(body, reference=body)
+    response = geometric_response(sample, SourceGrid.preset("standard"), n_rays=2000)
+    # a body against itself: whatever is lost is lost in both
+    cells = scattering_share(response.sample, response.reference)
+    with_lost = scattering_share(np.column_stack([response.sample, response.lost_sample]), np.column_stack([response.reference, response.lost_reference]))
+    np.testing.assert_allclose(with_lost, 0.0, atol=1e-12)
+    np.testing.assert_allclose(cells, response.lost_sample, atol=1e-12)
+
+
+def test_a_flat_disc_at_80_degrees_is_the_same_as_its_reference_and_loses_nothing():
+    pytest.importorskip("embreex")
+    sample = ScatteringSample.disc(flat_tile(), 0.4)
+    sources = SourceGrid.preset("standard")
+    response = geometric_response(sample, sources, n_rays=5000)
+    ring = sources.colatitude == 80.0
+    assert ring.sum() == 12
+    assert np.array_equal(response.sample[ring], response.reference[ring])
+    assert (response.lost_sample == 0).all() and (response.lost_reference == 0).all()
+
+
+def test_the_object_is_mounted_in_a_baffle_so_a_windward_wall_does_not_throw_rays_below_the_horizon():
+    pytest.importorskip("embreex")
+    sample = _closed_disc()
+    sources = SourceGrid.preset("standard")
+    response = geometric_response(sample, sources, n_rays=20000)
+    assert (response.lost_reference == 0).all()
+    ring = sources.colatitude == 80.0
+    # measured with the baffle: 0 on this ring (20000 rays, one ray is 5e-5), free-standing it was 0.12 to 0.27; what remains elsewhere in the preset
+    # (at most 0.011) are rays that leave exactly along the horizon (colatitude 50 = 90 - 2 x 20 reflects off the slope to d_z = 0) or run out of bounces
+    assert response.lost_sample[ring].max() < 1e-3
+
+
+def _box(top=0.2, bottom=-0.1):
+    """A closed unit-square box from z = ``bottom`` to ``top``, outward oriented."""
+    vertices = [[0, 0, bottom], [1, 0, bottom], [1, 1, bottom], [0, 1, bottom], [0, 0, top], [1, 0, top], [1, 1, top], [0, 1, top]]
+    faces = [[3, 2, 1, 0], [4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]
+    return Mesh.from_vertices_and_faces(vertices, faces)
+
+
+def _exit(start, direction, max_bounces=4):
+    """Trace one ray off the box; return the cell directions, the energy per cell and the lost fraction."""
+    grid = ReceiverGrid.hemisphere(10.0, 1.0)
+    d = np.asarray(direction, dtype=float)
+    energy, lost = _trace(RayCaster(_box()), np.array([start], dtype=float), d / np.linalg.norm(d), cKDTree(grid.directions), len(grid.weights), max_bounces)
+    return grid.directions, energy, lost
+
+
+def test_a_ray_reflected_downward_by_a_wall_bounces_on_the_baffle_and_leaves_upward():
+    pytest.importorskip("embreex")
+    # a ray along (-sin60, 0, -cos60) meets the east wall x = 1 at z = 0.1 (it starts 1 m east of it and 0.1 + 1/tan(60) = 0.677 high), reflects to
+    # (+sin60, 0, -cos60), reaches z = 0 at x = 1 + 0.1 tan(60) = 1.173 and is reflected there to (+sin60, 0, +cos60): colatitude 60, azimuth 0
+    a, b = np.sin(np.radians(60.0)), np.cos(np.radians(60.0))
+    directions, energy, lost = _exit([2.0, 0.5, 0.1 + b / a], [-a, 0.0, -b])
+    assert lost == 0.0 and energy.sum() == pytest.approx(1.0, abs=1e-12)
+    assert np.argmax(energy) == np.argmax(directions @ [a, 0.0, b])
+    # the ground bounce is a bounce: with one reflection allowed the ray is lost
+    _, energy, lost = _exit([2.0, 0.5, 0.1 + b / a], [-a, 0.0, -b], max_bounces=1)
+    assert lost == 1.0 and energy.sum() == 0.0
+
+
+def test_a_ray_that_would_hit_a_wall_below_the_baffle_meets_the_baffle_first():
+    pytest.importorskip("embreex")
+    # a 45 degree ray from (2, 0.5, 0.9) crosses z = 0 at x = 1.1, 0.1 east of the wall: there it is reflected to (-1, 0, +1)/sqrt2, meets the wall at
+    # z = 0.1 and is reflected to (+1, 0, +1)/sqrt2: colatitude 45, azimuth 0 (two bounces; the wall below z = 0 is never reached)
+    s = np.sqrt(0.5)
+    directions, energy, lost = _exit([2.0, 0.5, 0.9], [-s, 0.0, -s])
+    assert lost == 0.0 and energy.sum() == pytest.approx(1.0, abs=1e-12)
+    assert np.argmax(energy) == np.argmax(directions @ [s, 0.0, s])
+
+
+def test_a_ray_that_never_leaves_the_horizontal_is_lost():
+    pytest.importorskip("embreex")
+    _, energy, lost = _exit([2.0, 0.5, 0.15], [-1.0, 0.0, 0.0], max_bounces=4)  # reflects off the east wall to +x, d_z = 0: neither up nor down
+    assert lost == 1.0 and energy.sum() == 0.0

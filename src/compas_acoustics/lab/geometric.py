@@ -5,6 +5,10 @@ sample and, with the same rays, off the rigid reference (the flat footprint or a
 hemisphere grid. Energy is conserved by construction: what does not leave upward is counted as lost. There is no phase and no
 diffraction: the rim and any wave effect are ignored, and the frequency dependence is not computed but imposed afterwards by
 :func:`heuristic_s`, in the form of ``AcousticMaterial.scattering_coefficients_from_depth``, from the depth of the relief.
+
+The object is treated as mounted in a rigid infinite baffle at z = 0 (the objects of the lab are mounted on a wall, floor or ceiling): a ray
+travelling downward that meets no face above z = 0 is reflected specularly on the plane z = 0, which counts as one bounce. A ray that leaves
+upward is binned; one that leaves exactly along the horizon, or is still bouncing after ``max_bounces``, is lost.
 """
 
 from dataclasses import dataclass
@@ -18,6 +22,7 @@ from .raycast import RayCaster
 __all__ = ["GeometricResponse", "geometric_response", "heuristic_s", "scattering_share"]
 
 _BOTTOM = 0.999  # a triangle with a normal z below minus this is part of a flat bottom face
+_BELOW = -1e-9  # a hit lower than this (m) is below the baffle; the double-precision hit points on z = 0 are within 1e-15 of it
 _MARGIN = 0.05  # the rays start this fraction of the bodies' height range above the tallest vertex
 
 
@@ -34,7 +39,9 @@ class GeometricResponse:
     sample, reference : :class:`numpy.ndarray`
         The fraction of the incident energy that leaves into each cell, shape (n_sources, n_bins).
     lost_sample, lost_reference : :class:`numpy.ndarray`
-        The fraction that never leaves upward (still bouncing after ``max_bounces`` or leaving below the horizon), shape (n_sources,).
+        The fraction that never leaves upward: still bouncing after ``max_bounces``, or leaving exactly along the horizon (``d_z == 0``),
+        shape (n_sources,). It is counted separately from the cells, so ``sample.sum(axis=1) + lost_sample`` is 1 as a check.
+        Pass it on as one more bin when comparing the two (see :func:`scattering_share`).
     depth : float
         ``2 σ`` of the height difference between sample and reference over the footprint, in m.
     """
@@ -49,7 +56,15 @@ class GeometricResponse:
 
 
 def scattering_share(e_sample, e_reference):
-    """One minus the overlap of two energy histograms, ``1 − Σ min(a, b)`` over the last axis."""
+    """One minus the overlap of two energy histograms, ``1 − Σ min(a, b)`` over the last axis.
+
+    Each histogram must sum to 1, so the lost fraction of a :class:`GeometricResponse` must be included as one extra bin::
+
+        scattering_share(np.column_stack([r.sample, r.lost_sample]), np.column_stack([r.reference, r.lost_reference]))
+
+    Passed the cells alone, energy that both bodies lose (rays still bouncing after ``max_bounces``, rays leaving along the horizon) is
+    counted as scattering, and a body compared with itself gives a share above 0.
+    """
     return 1.0 - np.minimum(np.asarray(e_sample, dtype=float), np.asarray(e_reference, dtype=float)).sum(axis=-1)
 
 
@@ -89,7 +104,7 @@ def geometric_response(sample, sources, bin_deg=10.0, n_rays=50000, max_bounces=
     n_rays : int, optional
         Rays per source; each carries ``1 / n_rays`` of the energy.
     max_bounces : int, optional
-        A ray is reflected at most this many times; one that would hit a face once more is lost.
+        A ray is reflected at most this many times (on a face or on the baffle plane z = 0); one that would be reflected once more is lost.
     seed : int, optional
         Seed of the footprint points, which are the same for the sample, the reference and every source.
 
@@ -101,6 +116,7 @@ def geometric_response(sample, sources, bin_deg=10.0, n_rays=50000, max_bounces=
     -----
     The footprint points are drawn from the flat bottom face of the reference (its triangles with normal −z at z = −baseplate),
     area-weighted, and the rays are aimed at their xy position at z = 0. A ray starts above both bodies and travels along −û.
+    The bodies are treated as mounted in a rigid baffle at z = 0 (module docstring), for the sample and the reference alike.
     """
     reference = sample.reference
     launch = _launch_points(reference, sample.baseplate, n_rays, seed)
@@ -150,32 +166,56 @@ def _launch_points(reference, baseplate, n_rays, seed):
 
 
 def _trace(caster, origins, direction, tree, n_bins, max_bounces):
-    """Bounce the rays, all with the same first ``direction``; return the energy fraction per cell and the lost fraction."""
+    """Bounce the rays, all with the same first ``direction``; return the energy fraction per cell and the lost fraction.
+
+    The body is mounted in a rigid baffle at z = 0: a ray travelling downward that meets no face above z = 0 (it misses, or its first face
+    lies below the baffle) is reflected specularly on the plane z = 0. That counts as a bounce, like a reflection off a face.
+    The binned and the lost rays are counted separately, so that their sum is a check.
+    """
     n_rays = len(origins)
     origins = np.array(origins)
     directions = np.tile(direction, (n_rays, 1))
     exclude = np.full(n_rays, -1, dtype=int)
-    alive = np.arange(n_rays)
-    energy = np.zeros(n_bins)
+    binned = np.zeros(n_bins, dtype=int)
+    lost = 0
     for bounce in range(max_bounces + 1):
-        if len(alive) == 0:
+        if len(origins) == 0:
             break
         triangle, point = caster.first_hits(origins, directions, exclude)
+        dz = directions[:, 2]
         hit = triangle >= 0
-        left = ~hit & (directions[:, 2] > 0)
-        if left.any():
-            cell = tree.query(directions[left])[1]
-            energy += np.bincount(cell, minlength=n_bins) / n_rays
-        keep = hit if bounce < max_bounces else np.zeros(len(alive), dtype=bool)
-        if not keep.any():
-            alive = alive[:0]
+        # a downward ray whose first face is below the baffle meets the baffle first
+        ground = (dz < 0) & (~hit | (point[:, 2] < _BELOW))
+        face = hit & ~ground
+        up = ~hit & (dz > 0)
+        if up.any():
+            binned += np.bincount(tree.query(directions[up])[1], minlength=n_bins)
+        flat = ~hit & (dz == 0)  # leaves along the horizon, neither up nor down
+        lost += int(flat.sum())
+        again = face | ground
+        if bounce == max_bounces:
+            lost += int(again.sum())
             break
-        triangle, point, directions = triangle[keep], point[keep], directions[keep]
-        normal = caster.normals[triangle]
-        directions = directions - 2.0 * np.einsum("ij,ij->i", directions, normal)[:, None] * normal
-        directions /= np.linalg.norm(directions, axis=1)[:, None]
-        origins, exclude, alive = point, triangle, alive[keep]
-    return energy, max(1.0 - float(energy.sum()), 0.0)
+        if not again.any():
+            break
+        origins, directions, exclude = origins[again], directions[again], np.full(int(again.sum()), -1, dtype=int)
+        ground, face, triangle, point = ground[again], face[again], triangle[again], point[again]
+        if ground.any():
+            g = directions[ground]
+            t_ground = np.maximum(-origins[ground, 2] / g[:, 2], 0.0)
+            on_plane = origins[ground] + t_ground[:, None] * g
+            on_plane[:, 2] = 0.0
+            origins[ground] = on_plane
+            g[:, 2] = -g[:, 2]
+            directions[ground] = g
+        if face.any():
+            normal = caster.normals[triangle[face]]
+            d = directions[face]
+            d = d - 2.0 * np.einsum("ij,ij->i", d, normal)[:, None] * normal
+            directions[face] = d / np.linalg.norm(d, axis=1)[:, None]
+            origins[face] = point[face]
+            exclude[face] = triangle[face]
+    return binned / n_rays, lost / n_rays
 
 
 def _depth(sample_caster, reference_caster, launch, height):
