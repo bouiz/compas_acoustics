@@ -8,6 +8,8 @@ from .bands import fill_octaves
 from .bands import fold_to_octaves
 from .bands import simulation_frequencies
 from .bands import third_octave_centres
+from .coefficients import diffusion_coefficient
+from .coefficients import normalised_diffusion
 from .coefficients import random_incidence
 from .coefficients import scattering_freefield
 from .grids import ReceiverGrid
@@ -28,9 +30,11 @@ __all__ = [
     "ScatteringSample",
     "SourceGrid",
     "band_average",
+    "diffusion_coefficient",
     "fill_octaves",
     "fold_to_octaves",
     "measure_scattering",
+    "normalised_diffusion",
     "random_incidence",
     "receiver_spacing",
     "scattering_freefield",
