@@ -231,6 +231,16 @@ def sample(image, d, accent):
     d.rectangle((8, 66, 88, 78), fill=DARK)
 
 
+def lab(image, d, accent):
+    # a hemisphere of dots over a relief profile
+    for radius, count in ((36, 7), (22, 4)):
+        for i in range(count):
+            t = math.pi * (i + 0.5) / count
+            _dot(d, 48 - radius * math.cos(t), 52 - radius * math.sin(t), 5, accent)
+    _line(d, [(8, 66), (22, 56), (36, 66), (48, 56), (60, 66), (74, 56), (88, 66)], DARK, W - 1)
+    d.rectangle((8, 74, 88, 84), fill=DARK)
+
+
 GLYPHS = {
     "CA_Acoustic_Object": wall,
     "CA_Analyse_IR": decay,
@@ -245,6 +255,7 @@ GLYPHS = {
     "CA_Model": room,
     "CA_Plot_2D": chart,
     "CA_Receiver": receiver,
+    "CA_Scattering_Lab": lab,
     "CA_Scattering_Sample": sample,
     "CA_Regularized_Fitness": target,
     "CA_Simulate_Ambisonics": ambisonics,

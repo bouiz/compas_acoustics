@@ -1,0 +1,86 @@
+{
+    "name": "Scattering Lab",
+    "nickname": "Lab",
+    "category": "COMPAS Acoustics",
+    "subcategory": "08 Lab",
+    "description": "The virtual scattering lab: measures the random-incidence scattering coefficient of a sample in the octave bands. The geometric method runs when its inputs change (seconds); kirchhoff and bem take minutes to hours and start only when Run is pressed.",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "sample",
+                "description": "ScatteringSample object, from Scattering Sample.",
+                "optional": false,
+                "scriptParamAccess": 0,
+                "typeHintID": "ghdoc"
+            },
+            {
+                "name": "method",
+                "description": "'geometric' (seconds), 'kirchhoff' or 'bem' (minutes to hours; they start with Run).",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "str",
+                "default": "geometric"
+            },
+            {
+                "name": "preset",
+                "description": "Optional. The measurement's size: 'survey', 'standard' or 'fine'; empty is the method's own (standard).",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "str"
+            },
+            {
+                "name": "band_range",
+                "description": "'iso' (100 to 5000 Hz) or 'extended' (to 8000 Hz).",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "str",
+                "default": "iso"
+            },
+            {
+                "name": "n_rays",
+                "description": "Optional. Geometric method only: the number of rays.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "int"
+            },
+            {
+                "name": "cache_dir",
+                "description": "Optional. The bem method only: NumCalc's project folder, so that an interrupted run resumes.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "str"
+            },
+            {
+                "name": "run",
+                "description": "Press to run. The geometric method runs when the inputs change; kirchhoff and bem take minutes to hours and run only when this is true; a button is added when it is not connected. Press again to run again with the same inputs.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "bool"
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "result",
+                "description": "ScatteringResult object."
+            },
+            {
+                "name": "scattering",
+                "description": "Scattering coefficient of the 7 octave bands, 125 to 8000 Hz.",
+                "typeHintID": "float"
+            },
+            {
+                "name": "diffusion",
+                "description": "Diffusion coefficient of the simulated octave bands; empty when the result has none.",
+                "typeHintID": "float"
+            },
+            {
+                "name": "octaves",
+                "description": "The simulated octave bands, in Hz.",
+                "typeHintID": "int"
+            }
+        ]
+    }
+}

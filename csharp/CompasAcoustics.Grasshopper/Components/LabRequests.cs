@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using CompasAcoustics.Pb;
 using CompasPb.Data;
 using Rhino.Geometry;
 
@@ -62,5 +63,33 @@ namespace CompasAcoustics.Grasshopper
 
         /// <summary>The strip of a sample: its mode and diameter, as the lab measures it.</summary>
         public static string SampleStatus(string mode, double diameter) => string.Create(CultureInfo.InvariantCulture, $"{mode}, d {diameter:0.00} m");
+
+        /// <summary>Whether a method runs when its inputs change: only the geometric method (seconds); kirchhoff and bem (minutes to hours) wait for Run.</summary>
+        public static bool StartsWithoutRun(string method) => method == "geometric";
+
+        /// <summary>
+        /// The call of <c>run_scattering_lab</c>: the sample and the method as arguments; the preset (if set), the band range and
+        /// the method's settings (<c>n_rays</c> of the geometric method, <c>cache_dir</c> of bem) as keywords. <c>problem</c> says
+        /// why the inputs cannot make a call: a setting of another method.
+        /// </summary>
+        public static (object?[] args, Dictionary<string, object?> kwargs, string? problem) Lab(ScatteringSampleData sample, string method, string? preset,
+            string bandRange, int? nRays, string? cacheDir)
+        {
+            var kwargs = new Dictionary<string, object?>();
+            if (!string.IsNullOrEmpty(preset))
+                kwargs["preset"] = preset;
+            kwargs["band_range"] = bandRange;
+            var settings = new Dictionary<string, object?>();
+            if (nRays is int rays)
+                settings["n_rays"] = (long)rays;
+            if (!string.IsNullOrEmpty(cacheDir))
+                settings["cache_dir"] = cacheDir;
+            if (settings.Count > 0)
+                kwargs["settings"] = settings;
+            var problem = nRays != null && method != "geometric" ? "'n_rays' is used by the geometric method only."
+                : !string.IsNullOrEmpty(cacheDir) && method != "bem" ? "'cache_dir' is used by bem only."
+                : null;
+            return (new object?[] { sample, method }, kwargs, problem);
+        }
     }
 }
