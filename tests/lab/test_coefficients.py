@@ -108,3 +108,25 @@ def test_normalisation():
     out = normalised_diffusion(np.array([0.3, 1.0]), np.array([1.0, 1.0]))
     assert np.all(np.isfinite(out))
     assert np.all(out == 0.0)
+
+
+def test_axis_one_on_a_3d_array_matches_per_slice_calls():
+    local = np.random.default_rng(12345)
+    s, n, f = 4, 30, 3
+    intensity = local.uniform(0.05, 3.0, size=(s, n, f))
+    weights = local.uniform(0.2, 2.0, size=n)
+    d = diffusion_coefficient(intensity, weights, axis=1)
+    assert d.shape == (s, f)
+    expected = np.array([[diffusion_coefficient(intensity[i, :, j], weights, axis=0) for j in range(f)] for i in range(s)])
+    np.testing.assert_allclose(d, expected, rtol=1e-12, atol=1e-12)
+
+
+def test_negative_and_other_axes_agree_with_axis_one():
+    local = np.random.default_rng(54321)
+    s, n, f = 4, 30, 3
+    intensity = local.uniform(0.05, 3.0, size=(s, n, f))
+    weights = local.uniform(0.2, 2.0, size=n)
+    d = diffusion_coefficient(intensity, weights, axis=1)
+    np.testing.assert_allclose(diffusion_coefficient(intensity, weights, axis=-2), d, rtol=1e-12, atol=1e-12)
+    transposed = np.moveaxis(intensity, 1, 0)  # (N, S, F)
+    np.testing.assert_allclose(diffusion_coefficient(transposed, weights, axis=0), d, rtol=1e-12, atol=1e-12)
