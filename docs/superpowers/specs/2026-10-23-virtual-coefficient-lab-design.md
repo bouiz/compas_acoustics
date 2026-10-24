@@ -222,7 +222,7 @@ Rhino mesh → Scattering Sample → (sample, reference, grids) → Scattering L
   - Large-feature relief (e.g. randomly placed boxes ≫ λ) gives s that rises in the upper bands.
   - Averaging n identical rigid-sample responses reproduces T₂ (the coherence sanity check).
 - Absorption (slow): a flat sample of a known broadband α in the virtual chamber returns α within tolerance. The empty chamber passes Table 1.
-- BEM integration (slow): flat disc vs itself → s ≈ 0. **Reference case**: Heimes' sine surface (h = 20.4 mm, Λ = 70.8 mm, d = 0.8 m) at θ = 31.5° / 61.74° and random incidence, compared with the Zenodo `results_simulation_optimal` SOFA and the Embrechts analytical curve. The tolerance is the paper's one-third-octave agreement (|Δs| ≲ 0.1 above Λ/λ = 0.5).
+- BEM integration (slow): flat disc vs itself → s ≈ 0. **Reference case**: Heimes' simulated sine surface (h = 20.4 mm, Λ = 80 mm, n = 10 periods across d = 0.8 m, as in Heimes's `0.1_simulate_optimal.py`, which made the Zenodo results) at θ = 31.5° / 61.74° and random incidence, compared with the Zenodo `results_simulation_optimal` SOFA and the Embrechts analytical curve. The tolerance is the paper's one-third-octave agreement (|Δs| ≲ 0.1 above Λ/λ = 0.5). (The paper's text value Λ = 70.8 mm describes the physical sample, not the simulated one compared here.)
 - compas_pb: Python round-trip of every new message (`*_to_pb` → bytes → `*_from_pb` equals the original), and
   `.b64` fixtures decoded on the C# side (as in `GooTests.cs`) to prove both bindings agree.
 - C#: component spec coverage (`SpecCoverageTests`, `AllComponentsTests`) and the fake-worker tests (`Fakes.cs`, `Worker.Override`) for each lab component.

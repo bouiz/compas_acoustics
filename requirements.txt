@@ -2,6 +2,9 @@ compas >=2.13, <3.0
 # Data types as protobuf messages (compas_acoustics.pb): the worker's wire format
 compas_pb >=1.2, <2.0
 pyroomacoustics >=0.10.1
+# Signal processing and the lab's receiver grids (SphericalVoronoi areas); scipy 1.13 is the last release for Rhino 8's CPython 3.9
+scipy >=1.10; python_version >= "3.10"
+scipy >=1.7, <1.14; python_version < "3.10"
 matplotlib >=3.10, <4.0; python_version >= "3.10"
 matplotlib >=3.7, <4.0; python_version < "3.10"
 sounddevice

@@ -35,7 +35,7 @@ class SourceGrid(object):
     -----
     Presets: ``survey`` is ISO 17497-2 Table 1 (colatitude 0, 30 and 60 degrees, azimuth step 60 degrees, 13 sources),
     ``standard`` uses colatitudes 0..80 degrees in 10 degree steps with a 30 degree azimuth step (97 sources), and ``fine``
-    uses Heimes and Vorlaender's colatitudes 1.26..88.74 degrees in 2.52 degree steps with a 15 degree azimuth step (864 sources).
+    uses Heimes and Vorlaender's colatitudes 1.26..89.46 degrees in 2.52 degree steps (``np.arange(1.26, 90, 2.52)``, 36 rings) with a 15 degree azimuth step (864 sources).
     The Paris weights (Kuttruff, *Room Acoustics*) of a ring are ``(sin^2(theta_hi) - sin^2(theta_lo)) / n_azimuth``, with ring
     bounds at the midpoints between consecutive colatitudes, 0 degrees below the first ring and 90 degrees above the last.
     """
