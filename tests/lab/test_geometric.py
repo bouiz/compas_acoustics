@@ -300,3 +300,25 @@ def test_a_mounted_box_has_its_height_as_depth():
 def test_the_options_are_checked(options, name):
     with pytest.raises(ValueError, match=name):
         geometric_response(ScatteringSample.disc(flat_tile(), 0.4), SourceGrid.preset("survey"), **options)
+
+
+def test_the_response_reports_the_mean_and_the_spread_of_the_height():
+    pytest.importorskip("embreex")
+    H = 0.05 * np.tan(np.radians(20.0))
+    # the sawtooth on a flat reference: heights uniform in [0, H], mean H/2, spread H/sqrt(12); the depth is the larger of 2 sigma and the mean
+    saw = geometric_response(ScatteringSample.disc(sawtooth_tile(), 0.4), SourceGrid.preset("survey"), n_rays=20000)
+    assert saw.height_mean == pytest.approx(H / 2, rel=0.05) and saw.height_spread == pytest.approx(H / np.sqrt(12), rel=0.05)
+    assert saw.depth == pytest.approx(max(2 * saw.height_spread, saw.height_mean), rel=1e-12)
+    # a box of uniform height has no spread
+    box = geometric_response(ScatteringSample.as_drawn(bumped_box(size=1.0, thickness=0.5, bump=0.0)), SourceGrid.preset("survey"), n_rays=2000)
+    assert box.height_spread < 1e-9 and box.height_mean == pytest.approx(0.49, abs=1e-9)
+
+
+def test_a_relief_on_a_backing_thicker_than_the_baseplate_has_a_mean_far_above_its_spread():
+    pytest.importorskip("embreex")
+    backing = ScatteringSample.disc(sawtooth_tile(), 0.4, baseplate=0.1).sample
+    sources = SourceGrid.preset("survey")
+    default = geometric_response(ScatteringSample.as_drawn(backing), sources, n_rays=5000)
+    assert default.height_mean == pytest.approx(0.099, abs=0.002) and default.height_mean > 2 * default.height_spread > 0
+    remedy = geometric_response(ScatteringSample.as_drawn(backing, baseplate=0.1), sources, n_rays=5000)
+    assert remedy.height_mean == pytest.approx(0.0091, abs=0.001) and remedy.height_mean < 2 * remedy.height_spread

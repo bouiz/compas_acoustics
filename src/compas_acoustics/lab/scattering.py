@@ -58,6 +58,12 @@ _SHALLOW = (
     "geometric: the object's depth h = {depth:.3g} m is small against the wavelength at {frequency:.0f} Hz: the heuristic returns s close to 0 "
     "although the rays scatter (mean s_max {s_max:.2f}); use kirchhoff or bem"
 )
+_BACKING = (
+    "geometric: the object stands a mean {mean:.3g} m above the mounting plane z = 0, more than twice the spread of its relief (2σ = {two_sigma:.3g} m), "
+    "so the depth h = {depth:.3g} m comes from a base or backing, not from the relief; the plane sits baseplate = {baseplate:.3g} m above the back face "
+    "of a closed mesh, so a thicker backing counts as relief. If the backing sits flush on the wall, pass its thickness: as_drawn(mesh, baseplate=...)"
+)
+_BACKING_SPREAD = 1e-6  # m: below this spread the object is taken to have a uniform height (a box), which has no relief to mistake the base for
 _SHALLOW_CURVE = 0.5  # the depth curve at the top band below which, with a mean s_max above _SHALLOW_S_MAX, the geometric method warns
 _SHALLOW_S_MAX = 0.05
 _LOST = (
@@ -266,6 +272,13 @@ def _shallow(s_max, depth, nominal, exact, c):
     return None
 
 
+def _backing(response, baseplate):
+    """The warning when the object's mean height above the plane exceeds twice the spread of its relief (and the spread is above 0); else None."""
+    if response.height_spread > _BACKING_SPREAD and response.height_mean > 2.0 * response.height_spread:
+        return _BACKING.format(mean=response.height_mean, two_sigma=2.0 * response.height_spread, depth=response.depth, baseplate=baseplate)
+    return None
+
+
 def _geometric(sample, sources, preview, nominal, exact, c, solver_options):
     """The geometric method: specular rays binned on the hemisphere, s_max from the histograms' overlap, s(f) and d from the geometry."""
     try:
@@ -298,6 +311,9 @@ def _geometric(sample, sources, preview, nominal, exact, c, solver_options):
     shallow = _shallow(s_max, response.depth, nominal, exact, c)
     if shallow:
         messages.append(shallow)
+    backing = _backing(response, sample.baseplate)
+    if backing:
+        messages.append(backing)
     if lost > _LOST_LIMIT:
         messages.append(_LOST.format(percent=100.0 * lost, bounces=max_bounces))
     generation = {
@@ -387,7 +403,8 @@ def measure_scattering(sample, method="geometric", preset=None, band_range=ISO_B
       There is no phase and no diffraction: no rim, no cavity resonance. d comes from the cells' energy per steradian and is the same at
       every band, as are the polar levels; both depend on ``bin_deg``. The result is marked ``generation["heuristic"]`` and warned about;
       more than 1 % lost rays for any source is warned about too, and so is a depth curve below 0.5 at the highest band while the mean
-      s_max exceeds 0.05 (s close to 0 although the rays scatter).
+      s_max exceeds 0.05 (s close to 0 although the rays scatter), and so is an object whose mean height above the plane exceeds twice the
+      spread of its relief (a closed mesh on a backing thicker than ``baseplate``: the backing sets the depth; pass its thickness as ``baseplate``).
     - ``"kirchhoff"``: physical optics, the correlation coefficient below.
     - ``"bem"``: the boundary element method (mesh2scattering/NumCalc, needs Python ≥ 3.11 and the ``lab`` extra), the same correlation.
 

@@ -172,6 +172,7 @@ the same names, inputs and outputs.
 * Added the diffusion coefficient to the lab: `diffusion_coefficient` (ISO 17497-2 eq. 6) and `normalised_diffusion`, and `ScatteringResult.d_angle`, `d_bands` and `d_octaves` (d_n per source, one-third-octave band and octave, with the same random-incidence weights as s), returned by every method.
 * Added `method="geometric"` to `measure_scattering`: a fast heuristic preview (seconds, against minutes for Kirchhoff). `n_rays` specular rays per source direction reflect off the rigid sample and reference, mounted in a rigid baffle at z = 0, and are binned on the receiver hemisphere; s is the geometric `s_max` times the depth curve `1 - exp(-(2 pi f h / c)^2)`, with no phase and no diffraction. Its accuracy against Kirchhoff is recorded in the module docstring of `compas_acoustics.lab.geometric`. It needs `trimesh` (and `embreex` for speed) on Python >= 3.11, which the `lab` extra now installs.
 * Added `compas_acoustics.lab.raycast.RayCaster`, the first-hit ray caster (trimesh with the Embree backend) behind the geometric method.
+* The geometric method warns when an object stands a mean height above the mounting plane of more than twice the spread of its relief, which is what a closed mesh on a backing thicker than `baseplate` looks like: the backing then sets the depth `h`. `GeometricResponse` gained `height_mean` and `height_spread`. If the backing sits flush on the wall, pass its thickness as `baseplate` to `as_drawn`.
 
 ### Changed
 

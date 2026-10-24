@@ -336,3 +336,27 @@ def test_geometric_without_embree_names_embreex_and_kirchhoff(monkeypatch):
     with pytest.raises(ImportError, match="embreex") as raised:
         measure_scattering(ScatteringSample.disc(flat_tile(), 0.4), method="geometric", preset="survey", n_rays=10)
     assert 'pass method="kirchhoff" to run without it' in str(raised.value)
+
+
+def test_geometric_warns_when_a_backing_thicker_than_the_baseplate_counts_as_relief():
+    pytest.importorskip("embreex")
+    backing = ScatteringSample.disc(sawtooth_tile(), 0.4, baseplate=0.1).sample  # the relief on a 0.1 m backing, closed
+    with pytest.warns(UserWarning, match="backing") as caught:
+        r = measure_scattering(ScatteringSample.as_drawn(backing), method="geometric", preset="survey", n_rays=2000)
+    message = next(w for w in r.warnings if "backing" in w)
+    assert "baseplate" in message and "0.01" in message and "flush" in message  # the default baseplate and the remedy are named
+    assert message in [str(w.message) for w in caught]  # through warnings.warn as well as result.warnings
+
+
+def test_geometric_does_not_warn_about_a_backing_when_there_is_none_to_warn_about():
+    pytest.importorskip("embreex")
+    backing = ScatteringSample.disc(sawtooth_tile(), 0.4, baseplate=0.1).sample
+    cases = {
+        "an open relief": ScatteringSample.disc(sawtooth_tile(), 0.4),
+        "the backing's thickness passed as baseplate": ScatteringSample.as_drawn(backing, baseplate=0.1),
+        "a box of uniform height": ScatteringSample.as_drawn(bumped_box(size=1.0, thickness=0.5, bump=0.0)),
+        "a flat sample": ScatteringSample.disc(flat_tile(), 0.4),
+    }
+    for name, sample in cases.items():
+        r = measure_scattering(sample, method="geometric", preset="survey", n_rays=2000)
+        assert not any("backing" in w for w in r.warnings), name

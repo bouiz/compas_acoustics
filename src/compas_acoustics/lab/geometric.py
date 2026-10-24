@@ -87,6 +87,9 @@ class GeometricResponse:
         Pass it on as one more bin when comparing the two (see :func:`scattering_share`).
     depth : float
         ``max(2 σ, |mean|)`` of the height difference between sample and reference over the footprint, in m.
+    height_mean, height_spread : float
+        The mean and the standard deviation σ of that height difference in m. A mean above ``2 σ`` with a spread above 0 means the object stands on a
+        base or backing taller than its relief (see :func:`compas_acoustics.lab.scattering.measure_scattering`).
     """
 
     directions: np.ndarray
@@ -96,6 +99,8 @@ class GeometricResponse:
     lost_sample: np.ndarray
     lost_reference: np.ndarray
     depth: float
+    height_mean: float = 0.0
+    height_spread: float = 0.0
 
 
 def scattering_share(e_sample, e_reference):
@@ -190,8 +195,8 @@ def geometric_response(sample, sources, bin_deg=10.0, n_rays=50000, max_bounces=
         start = launch + u * ((z_top + margin) / u[2])
         e_sample[i], lost_sample[i] = _trace(sample_caster, footprint, start, -u, tree, len(grid.weights), max_bounces)
         e_reference[i], lost_reference[i] = _trace(reference_caster, footprint, start, -u, tree, len(grid.weights), max_bounces)
-    depth = _depth(sample_caster, reference_caster, launch, z_top + margin)
-    return GeometricResponse(grid.directions, grid.weights, e_sample, e_reference, lost_sample, lost_reference, depth)
+    depth, mean, spread = _depth(sample_caster, reference_caster, launch, z_top + margin)
+    return GeometricResponse(grid.directions, grid.weights, e_sample, e_reference, lost_sample, lost_reference, depth, mean, spread)
 
 
 def _check_options(bin_deg, n_rays, max_bounces):
@@ -316,6 +321,7 @@ def _depth(sample_caster, reference_caster, launch, height):
 
     ``2 σ`` is the depth of a relief (``2 H / sqrt(12)`` = 0.577 H for a sawtooth of height H, 0.707 H for a sine, against a mean of 0.5 H); the mean
     is the height of an object of uniform height over its footprint (a box, a cylinder, a flat-topped panel), whose σ is 0.
+    Returns ``(h, mean, σ)``; the mean and σ tell a relief from a base under it (the mean far above 2 σ).
     """
     start = launch + [0.0, 0.0, height]
     down = np.tile([0.0, 0.0, -1.0], (len(launch), 1))
@@ -323,6 +329,7 @@ def _depth(sample_caster, reference_caster, launch, height):
     t_reference, p_reference = reference_caster.first_hits(start, down)
     both = (t_sample >= 0) & (t_reference >= 0)
     if not both.any():
-        return 0.0
+        return 0.0, 0.0, 0.0
     z = p_sample[both, 2] - p_reference[both, 2]
-    return float(max(2.0 * np.std(z), abs(np.mean(z))))
+    mean, spread = float(np.mean(z)), float(np.std(z))
+    return max(2.0 * spread, abs(mean)), mean, spread
