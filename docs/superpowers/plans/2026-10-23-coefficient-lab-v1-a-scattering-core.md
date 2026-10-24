@@ -56,12 +56,12 @@ The output is a findings note, not code. Tasks 7 and 9 read it.
 - Create: `docs/superpowers/plans/2026-10-23-coefficient-lab-v1-a-spike-findings.md`
 - Scratch scripts go in the session scratchpad. **Do not commit them.**
 
-- [ ] **Step 1: Install the BEM stack in the dev env**
+- [x] **Step 1: Install the BEM stack in the dev env**
 
 Run: `python -m pip install "mesh2scattering>=1.0.5" trimesh && python -c "import mesh2scattering as m; print(m.__version__); print(m.numcalc.build_or_fetch_numcalc())"`
 Expected: a version ≥ 1.0.5 and the path to a built `NumCalc` binary inside the installed package (`make` with the Xcode command-line tools). Record any build errors and fixes.
 
-- [ ] **Step 2: Run one tiny project and record the layout**
+- [x] **Step 2: Run one tiny project and record the layout**
 
 Write a flat closed disc (d = 0.4 m, 10 mm baseplate, edge length ≈ 1 cm) with `trimesh`. Create a `SampleMesh(mesh, SurfaceDescription(surface_type=FLAT), sample_baseplate_hight=0.01, sample_diameter=0.4)`, a `SoundSource(pf.Coordinates(0, 0, -1), SoundSourceType.PLANE_WAVE)`, and `EvaluationGrid.from_spherical(<200 points on the upper hemisphere at r = 10 m>, "grid")`. Call `write_scattering_project_numcalc(project_path, "flat", np.array([500., 1000.]), ...)`, then `manage_numcalc(project_path, numcalc_path=...)`, then `output.write_pressure(project_path)`.
 
@@ -72,12 +72,12 @@ Record in the findings note:
 - (d) whether `EvaluationGrid.from_spherical` keeps the input point order
 - (e) whether `SoundSource` needs one `SoundSource` per direction or takes a multi-point `Coordinates`
 
-- [ ] **Step 3: Time it at 8 kHz**
+- [x] **Step 3: Time it at 8 kHz**
 
 Use the same disc at d = 0.8 m and time two frequencies, the default range's top (5400 Hz, edge `343/(5400·6)` m) and the extension's top (8600 Hz), each with one source and 3000 receivers. Record the element count, wall time and peak RAM (`/usr/bin/time -l`).
 Expected: numbers to put in the findings note. Task 7's default `max_elements` and the "overnight" estimate come from them.
 
-- [ ] **Step 4: Commit the findings note only**
+- [x] **Step 4: Commit the findings note only**
 
 ```bash
 git add docs/superpowers/plans/2026-10-23-coefficient-lab-v1-a-spike-findings.md
@@ -103,7 +103,7 @@ git commit -m "Lab spike: NumCalc on macOS, mesh2scattering project layout and t
   - `fold_to_octaves(values: np.ndarray, nominal: np.ndarray) -> tuple[list[int], np.ndarray]`: last axis one-third octaves → (the octave centres with at least one band, their means).
   - `fill_octaves(octaves: list[int], values: np.ndarray) -> tuple[np.ndarray, list[tuple[int, int]]]`: the 7 material octaves, missing ones from the nearest simulated octave, plus the `(filled, source)` pairs.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 def test_default_is_the_iso_range_100_to_5000():
@@ -160,12 +160,12 @@ def test_the_lab_imports_without_bem_dependencies():
     subprocess.run([sys.executable, "-c", code], check=True)
 ```
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pytest tests/lab/test_bands.py tests/test_python39.py -v`
 Expected: FAIL (`ModuleNotFoundError: compas_acoustics.lab`).
 
-- [ ] **Step 3: Implement `lab/bands.py` and the package**
+- [x] **Step 3: Implement `lab/bands.py` and the package**
 
 - `lab/__init__.py` re-exports the public names of each module as later tasks add them. Start with the band functions.
 - `requirements-lab.txt`:
@@ -176,12 +176,12 @@ Expected: FAIL (`ModuleNotFoundError: compas_acoustics.lab`).
   ```
 - `pyproject.toml`: `optional-dependencies = { dev = { file = "requirements-dev.txt" }, lab = { file = "requirements-lab.txt" } }`.
 
-- [ ] **Step 4: Run them and see them pass**
+- [x] **Step 4: Run them and see them pass**
 
 Run: `pytest tests/lab/test_bands.py tests/test_python39.py -v`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/compas_acoustics/lab requirements-lab.txt pyproject.toml tests/lab/test_bands.py tests/test_python39.py
@@ -214,7 +214,7 @@ The presets come from the spec:
 - `fine`: Heimes's colatitudes 1.26°…88.74° in steps of 2.52° (36) × azimuth step 15° (24) = 864.
 - `rotational` keeps azimuth 0 only, giving 3, 9 and 36 sources.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 @pytest.mark.parametrize("name, n_none, n_rot", [("survey", 13, 3), ("standard", 97, 9), ("fine", 864, 36)])
@@ -245,23 +245,23 @@ def test_receiver_spacing_matches_heimes_example():
     assert receiver_spacing(0.8, 1000.0, 346.0) == 5.0  # never coarser than ISO 17497-2's 5 degrees
 ```
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pytest tests/lab/test_grids.py -v`
 Expected: FAIL (`ImportError`).
 
-- [ ] **Step 3: Implement `lab/grids.py`**
+- [x] **Step 3: Implement `lab/grids.py`**
 
 - `ReceiverGrid.hemisphere`: a Fibonacci (golden-angle) spiral of `N = ceil(2π/Δ²)` points on the upper hemisphere, with Δ the spacing in radians.
 - The Voronoi weights come from `scipy.spatial.SphericalVoronoi` of the points **together with their mirror images in z = 0**, so the sphere tiling is symmetric. Keep the areas of the upper points.
 - Warn (`warnings.warn`) when N exceeds 50 000.
 
-- [ ] **Step 4: Run them and see them pass**
+- [x] **Step 4: Run them and see them pass**
 
 Run: `pytest tests/lab/test_grids.py -v`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/compas_acoustics/lab/grids.py src/compas_acoustics/lab/__init__.py tests/lab/test_grids.py
@@ -282,7 +282,7 @@ git commit -m "Lab: source presets (ISO 17497-2 Table 1, standard, Heimes fine) 
   - `scattering_freefield(p_sample: np.ndarray, p_reference: np.ndarray, weights: np.ndarray, axis: int = 1) -> np.ndarray`: complex arrays with receivers along `axis`; returns s with that axis removed.
   - `random_incidence(s_angle: np.ndarray, source_grid: SourceGrid) -> np.ndarray`: sources on axis 0.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 rng = np.random.default_rng(0)
@@ -311,21 +311,21 @@ def test_random_incidence_of_sin2_is_one_half():
     assert random_incidence(s, g)[0] == pytest.approx(0.5, abs=1e-2)
 ```
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pytest tests/lab/test_coefficients.py -v`
 Expected: FAIL (`ImportError`).
 
-- [ ] **Step 3: Implement both functions in `lab/coefficients.py`**
+- [x] **Step 3: Implement both functions in `lab/coefficients.py`**
 
 Use the formulas in Global Constraints. The docstrings cite Heimes eq. 3 / Mommertz (2000) and Paris (Kuttruff). Do not import mesh2scattering: its `scattering_freefield` needs pyfar objects and an extra dependency, while this one works on plain arrays.
 
-- [ ] **Step 4: Run them and see them pass**
+- [x] **Step 4: Run them and see them pass**
 
 Run: `pytest tests/lab/test_coefficients.py -v`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/compas_acoustics/lab/coefficients.py src/compas_acoustics/lab/__init__.py tests/lab/test_coefficients.py
@@ -368,7 +368,7 @@ The algorithm, where the signature leaves a choice:
   - `structural_depth > diameter/16` → "ISO 17497-1 6.3.2: structural depth … exceeds d/16"
   - `diameter > 20` → "the sample is … m across; is the model in millimetres?"
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 def flat_tile(size=0.1):
@@ -433,21 +433,21 @@ Put the helpers in `tests/lab/conftest.py`:
 - `two_separate_patches()`: two quads that don't touch.
 - `footprint_area(mesh)`: the summed xy-projected area of the faces whose normal has z > 0.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pytest tests/lab/test_sample.py -v`
 Expected: FAIL (`ImportError`).
 
-- [ ] **Step 3: Implement `lab/sample.py`**
+- [x] **Step 3: Implement `lab/sample.py`**
 
 Follow the algorithm above. Keep each phase a private function (`_clean`, `_tile`, `_clip_to_polygon`, `_boundary_loops`, `_close`, `_flat_body`) so the file reads top-down.
 
-- [ ] **Step 4: Run them and see them pass**
+- [x] **Step 4: Run them and see them pass**
 
 Run: `pytest tests/lab/test_sample.py -v`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/compas_acoustics/lab/sample.py src/compas_acoustics/lab/__init__.py tests/lab/test_sample.py tests/lab/conftest.py
@@ -496,7 +496,7 @@ Validity warnings (`KirchhoffSolver.warnings`):
 - For bands where `c/f > feature_size` (with `feature_size = sample.feature_size or min(sample.period)`; skipped when both are None): "kirchhoff: below {f} Hz the features ({x} m) are smaller than the wavelength; s is unreliable there".
 - If more than 10 % of the relief's top area has faces tilted more than 45°: "kirchhoff: steep relief; multiple reflections are ignored".
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 TRI = np.array([[[0.0, 0.0, 0.0], [0.3, 0.0, 0.05], [0.1, 0.2, -0.02]]])
@@ -565,24 +565,24 @@ def test_warns_below_the_feature_scale():
 
 (The intent is pinned: integrals over exactly and nearly coincident phases agree with a brute-force reference to 1e-6 relative.)
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pytest tests/lab/test_kirchhoff.py -v`
 Expected: FAIL (`ImportError`).
 
-- [ ] **Step 3: Implement `solvers/base.py` (Pressures, ScatteringSolver) and `solvers/kirchhoff.py`**
+- [x] **Step 3: Implement `solvers/base.py` (Pressures, ScatteringSolver) and `solvers/kirchhoff.py`**
 
 - Vectorise over faces × receivers, in chunks of `chunk` receivers.
 - Report `jobs.progress("kirchhoff", done, of)` per (source, frequency) pair.
 - `generation = {"method": "kirchhoff", "shadowing": ..., "faces": ...}`.
 - `solvers/__init__.py` exports `Pressures`, `ScatteringSolver` and `KirchhoffSolver`, and **not** `BemSolver` (so 3.9 imports stay clean).
 
-- [ ] **Step 4: Run them and see them pass**
+- [x] **Step 4: Run them and see them pass**
 
 Run: `pytest tests/lab/test_kirchhoff.py -v`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/compas_acoustics/lab/solvers tests/lab/test_kirchhoff.py
@@ -622,7 +622,7 @@ Behaviour:
 - **Read:** `output.write_pressure(project)`, then `sofar.read_sofa` + `pyfar.io.convert_sofa`. Reorder receivers to `receivers.points` by nearest neighbour, asserting a max distance < 1e-6·radius. Concatenate the splits along frequency.
 - **Generation:** `generation = {"method": "bem", "mesh2scattering": version, "elements": [per split], "edge": [per split], "cache": path}`.
 
-- [ ] **Step 1: Write the failing fast tests**
+- [x] **Step 1: Write the failing fast tests**
 
 ```python
 def test_splits_group_simulation_frequencies_by_octave():
@@ -660,7 +660,7 @@ def test_missing_mesh2scattering_names_the_extra(tmp_path, monkeypatch):
 
 The size check runs before importing mesh2scattering, so the millimetre test needs no NumCalc. Put the `ValueError` check first in `solve`.
 
-- [ ] **Step 2: Write the failing slow test (skipped without mesh2scattering)**
+- [x] **Step 2: Write the failing slow test (skipped without mesh2scattering)**
 
 ```python
 @pytest.mark.slow
@@ -678,21 +678,21 @@ def test_bem_sine_surface_scatters_above_the_first_grating_lobe(tmp_path):
     assert time.perf_counter() - t0 < 30
 ```
 
-- [ ] **Step 3: Run them and see them fail**
+- [x] **Step 3: Run them and see them fail**
 
 Run: `pytest tests/lab/test_bem.py -v -m "slow or not slow"`
 Expected: FAIL (`ImportError: compas_acoustics.lab.solvers.bem`).
 
-- [ ] **Step 4: Implement `solvers/bem.py` and `solvers/_numcalc.py`**
+- [x] **Step 4: Implement `solvers/bem.py` and `solvers/_numcalc.py`**
 
 Follow the behaviour above. The mesh2scattering and trimesh imports go inside `solve` and the helpers that need them.
 
-- [ ] **Step 5: Run them and see them pass**
+- [x] **Step 5: Run them and see them pass**
 
 Run: `pytest tests/lab/test_bem.py -v -m "slow or not slow"`
 Expected: PASS (the slow test takes minutes; record its time in the commit message).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/compas_acoustics/lab/solvers/bem.py src/compas_acoustics/lab/solvers/_numcalc.py tests/lab/test_bem.py
@@ -735,7 +735,7 @@ Pipeline:
 5. `warnings = sample.warnings + solver.warnings(...)`, plus the band warnings from Global Constraints (beyond ISO; filled octaves). Also re-emit each one through `warnings.warn` so the worker's `_messages` collects them.
 6. `generation = {"method", "preset", "band_range", "c", "receivers": n, "sources": n, **pressures.generation}`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 class FakeSolver(ScatteringSolver):
@@ -797,22 +797,22 @@ def test_classes_are_exported_from_the_package():
 
 (`flat_tile_with_zero_area_face` goes in `tests/lab/conftest.py`: the flat tile plus a triangle with three collinear vertices. `band_range=(1000, 4000)` keeps the end-to-end tests fast; `band_range` slices the simulation grid.)
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pytest tests/lab/test_scattering.py -v`
 Expected: FAIL (`ImportError`).
 
-- [ ] **Step 3: Implement `results.py`, `scattering.py` and the exports**
+- [x] **Step 3: Implement `results.py`, `scattering.py` and the exports**
 
 - `scattering._solver(method, **solver_options) -> ScatteringSolver` is the single place that maps method names to solvers. The tests patch it.
 - `ScatteringResult.__data__` stores arrays as nested lists, the polar levels rounded to 0.1 dB (the ISO 17497-2 §8.5 presentation).
 
-- [ ] **Step 4: Run them, plus the whole fast suite**
+- [x] **Step 4: Run them, plus the whole fast suite**
 
 Run: `pytest tests/lab -v && pytest -m "not slow" -q`
 Expected: PASS, with no regressions elsewhere (`tests/test_python39.py` included).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/compas_acoustics/lab src/compas_acoustics/__init__.py tests/lab/test_scattering.py tests/lab/conftest.py
@@ -837,7 +837,7 @@ git commit -m "Lab: measure_scattering (kirchhoff or bem) returning a Scattering
 - The simulated sample: `sine` with Λ = 80 mm, n = 10, d = 0.8 m for Λ/λ ≤ 2 (script `0.1_simulate_optimal.py`), h = 0.051/2.5 m, c = 346.18 m/s.
 - Run with `band_range=EXTENDED_BAND_RANGE`. Λ/λ = 0.5…2 is 2.2…8.7 kHz for this sample, and the default 5 kHz top stops at Λ/λ ≈ 1.2.
 
-- [ ] **Step 1: Write the slow, opt-in tests**
+- [x] **Step 1: Write the slow, opt-in tests**
 
 ```python
 pytestmark = [pytest.mark.slow, pytest.mark.skipif("HEIMES_RESULTS" not in os.environ, reason="needs the Zenodo 15673498 results")]
@@ -863,16 +863,16 @@ def test_kirchhoff_gap_to_bem_is_recorded():
     assert all(np.isfinite(v) for v in gap.values())
 ```
 
-- [ ] **Step 2: Run them once with the data**
+- [ ] **Step 2: Run them once with the data** (partly done: the two per-angle tests and the Kirchhoff gap ran on 2026-10-24; `test_bem_matches_heimes_random_incidence` still needs its overnight run, ruling R6)
 
 Run: `HEIMES_RESULTS=<folder> pytest tests/lab/test_validation_heimes.py -v -s`
 Expected: PASS (an overnight run, as the spike timings predict). Keep the printed gap table.
 
-- [ ] **Step 3: Record Kirchhoff's accuracy in its docstring**
+- [x] **Step 3: Record Kirchhoff's accuracy in its docstring**
 
 Add a "Known accuracy" section to `KirchhoffSolver`. It gives the measured max |Δs| per octave against BEM on Heimes's sine surface, the date, and the command that reproduces it.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add tests/lab/test_validation_heimes.py src/compas_acoustics/lab/solvers/kirchhoff.py
