@@ -67,6 +67,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             ["ReceiverComponent"] = new[] { "receiver" },
             ["AcousticObjectComponent"] = new[] { "acoustic_object" },
             ["RoomSceneComponent"] = new[] { "scene" },
+            ["ScatteringSampleComponent"] = new[] { "sample" },
         };
 
         [Theory]

@@ -1,0 +1,72 @@
+{
+    "name": "Scattering Sample",
+    "nickname": "Sample",
+    "category": "COMPAS Acoustics",
+    "subcategory": "08 Lab",
+    "description": "A surface sample for the virtual scattering lab: a relief mesh, a Brep, a surface or a SubD, as drawn or as a tile repeated over a disc, with the flat reference it is measured against. Meters.",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "geometry",
+                "description": "The relief: a mesh, Brep, surface or SubD. In disc mode, the tile to repeat.",
+                "optional": false,
+                "scriptParamAccess": 0,
+                "typeHintID": "geometrybase"
+            },
+            {
+                "name": "mode",
+                "description": "'as_drawn' measures the geometry as drawn; 'disc' repeats it as a tile over a disc of the given diameter.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "str",
+                "default": "as_drawn"
+            },
+            {
+                "name": "diameter",
+                "description": "Disc mode only, and required there: the diameter of the disc in m.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "float"
+            },
+            {
+                "name": "reference",
+                "description": "Optional. As-drawn mode only: a mesh, Brep, surface or SubD to take as the reference instead of the flat footprint of the relief.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "geometrybase"
+            },
+            {
+                "name": "baseplate",
+                "description": "Thickness of the plate below the relief, in m.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "float",
+                "default": 0.01
+            },
+            {
+                "name": "symmetry",
+                "description": "'none' or 'rotational' (the sample repeats under rotation about its centre).",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "str",
+                "default": "none"
+            },
+            {
+                "name": "name",
+                "description": "Optional. Name of the sample.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "str"
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "sample",
+                "description": "ScatteringSample object, for Scattering Lab."
+            }
+        ]
+    }
+}

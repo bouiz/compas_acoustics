@@ -27,6 +27,7 @@ ACCENTS = {
     "05 Display": (23, 160, 190),
     "06 Util": (110, 110, 110),
     "07 Optimization": (170, 150, 20),
+    "08 Lab": (140, 86, 75),
 }
 
 
@@ -224,6 +225,12 @@ def gear(image, d, accent):
     _dot(d, 48, 48, 12, accent)
 
 
+def sample(image, d, accent):
+    # a sawtooth relief over its baseplate
+    _line(d, [(8, 60), (24, 28), (24, 60), (40, 28), (40, 60), (56, 28), (56, 60), (72, 28), (72, 60), (88, 60)], accent)
+    d.rectangle((8, 66, 88, 78), fill=DARK)
+
+
 GLYPHS = {
     "CA_Acoustic_Object": wall,
     "CA_Analyse_IR": decay,
@@ -238,6 +245,7 @@ GLYPHS = {
     "CA_Model": room,
     "CA_Plot_2D": chart,
     "CA_Receiver": receiver,
+    "CA_Scattering_Sample": sample,
     "CA_Regularized_Fitness": target,
     "CA_Simulate_Ambisonics": ambisonics,
     "CA_Simulate_Binaural": binaural,

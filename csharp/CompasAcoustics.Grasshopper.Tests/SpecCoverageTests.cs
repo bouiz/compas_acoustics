@@ -27,6 +27,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             ["CA_Model"] = "RoomSceneComponent",
             ["CA_Plot_2D"] = "Plot2DComponent",
             ["CA_Receiver"] = "ReceiverComponent",
+            ["CA_Scattering_Sample"] = "ScatteringSampleComponent",
             ["CA_Regularized_Fitness"] = "RegularizedFitnessComponent",
             ["CA_Simulate_Ambisonics"] = "SimulateAmbisonicsComponent",
             ["CA_Simulate_Binaural"] = "SimulateBinauralComponent",
