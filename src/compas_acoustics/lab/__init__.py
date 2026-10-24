@@ -13,18 +13,24 @@ from .coefficients import scattering_freefield
 from .grids import ReceiverGrid
 from .grids import SourceGrid
 from .grids import receiver_spacing
+from .results import ScatteringResult
 from .sample import ScatteringSample
+from .scattering import DEFAULT_PRESETS
+from .scattering import measure_scattering
 
 __all__ = [
+    "DEFAULT_PRESETS",
     "EXTENDED_BAND_RANGE",
     "ISO_BAND_RANGE",
     "THIRD_OCTAVE_CENTRES",
     "ReceiverGrid",
+    "ScatteringResult",
     "ScatteringSample",
     "SourceGrid",
     "band_average",
     "fill_octaves",
     "fold_to_octaves",
+    "measure_scattering",
     "random_incidence",
     "receiver_spacing",
     "scattering_freefield",

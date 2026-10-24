@@ -20,6 +20,7 @@ from .simulation_methods import SimulationMethod, Mono
 from .auraliser import Auraliser
 from .audio_player import AudioPlayer
 from .fitness import regularized_fitness
+from .lab import ScatteringResult
 from .lab import ScatteringSample
 
 
@@ -60,6 +61,7 @@ __all__ = [
     'ImpulseResponse',
     'RoomGeometry',
     'regularized_fitness',
+    'ScatteringResult',
     'ScatteringSample',
     ]
 

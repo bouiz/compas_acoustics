@@ -75,3 +75,13 @@ def bumped_box(size=1.0, thickness=0.01, bump=0.02):
     faces = [[0, 1, 4, 3], [1, 2, 5, 4], [3, 4, 7, 6], [4, 5, 8, 7], [12, 11, 10, 9]]
     faces += [[9, 10, 2, 1, 0], [10, 11, 8, 5, 2], [11, 12, 6, 7, 8], [12, 9, 0, 3, 6]]
     return Mesh.from_vertices_and_faces(vertices, faces)
+
+
+def flat_tile_with_zero_area_face(size=0.1):
+    """The flat tile with a zero-area triangle (three collinear vertices) along its edge y = 0, as Rhino exports leave them.
+
+    The square is a pentagon with a vertex at the middle of that edge; the triangle (corner, middle, corner) closes the edge again.
+    """
+    h = size / 2
+    vertices = [[0, 0, 0], [size, 0, 0], [size, size, 0], [0, size, 0], [h, 0, 0]]
+    return Mesh.from_vertices_and_faces(vertices, [[2, 3, 0, 4, 1], [1, 4, 0]])
