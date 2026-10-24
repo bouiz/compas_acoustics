@@ -229,3 +229,22 @@ def test_a_proxy_that_does_not_fit_the_sample_is_refused_naming_the_proxy(relief
 def test_a_proxy_of_the_same_footprint_is_accepted():
     s = ScatteringSample.as_drawn(_polar_disc_patch(wobble=0.02), reference=_polar_disc_patch())
     assert s.reference_kind == "proxy" and footprint_area(s.reference) == pytest.approx(footprint_area(s.sample), rel=1e-9)
+
+
+def _polygon(n, radius=0.5, z=0.0):
+    """A flat n-gon face of the given circumradius at height z, a vertex at angle 0 (and, for n divisible by 4, at every right angle)."""
+    angles = 2 * np.pi * np.arange(n) / n
+    vertices = [[radius * np.cos(a), radius * np.sin(a), z] for a in angles]
+    return Mesh.from_vertices_and_faces(vertices, [list(range(n))])
+
+
+def test_a_circle_tessellated_with_another_segment_count_is_accepted_as_proxy():
+    """A 64-gon against a 128-gon of the same circumradius differ in area by 1.2e-3, a natural Rhino proxy mismatch."""
+    s = ScatteringSample.as_drawn(_polygon(64), reference=_polygon(128))
+    assert s.reference_kind == "proxy"
+
+
+def test_a_proxy_whose_area_differs_by_a_few_percent_is_still_refused():
+    """A 16-gon against a 128-gon: bounding boxes agree, the areas differ by 2.5 %, above the 1e-2 tolerance."""
+    with pytest.raises(ValueError, match="proxy"):
+        ScatteringSample.as_drawn(_polygon(16), reference=_polygon(128))

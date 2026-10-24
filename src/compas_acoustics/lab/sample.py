@@ -25,6 +25,7 @@ __all__ = ["ScatteringSample"]
 
 _WELD = 1e-6  # m
 _VERTICAL = 1e-9  # m, the xy distance under which outline points are taken to lie on one vertical
+_AREA = 1e-2  # relative difference of the bottom areas up to which a proxy shares the sample's footprint (a circle tessellated with another segment count differs by about 1e-3)
 _SYMMETRIES = ("none", "rotational")
 _PROXY_WARNING = "the reference is a user proxy: s is the share of the sample's reflection the proxy does not reproduce, not the ISO 17497 coefficient"
 _OUTLINE = "the relief must have exactly one closed outline (found {}): fill its holes and join its parts"
@@ -236,7 +237,7 @@ def _naming_the_proxy(error):
 
 
 def _same_outline(sample, proxy, diameter):
-    """Raise ``ValueError`` unless the xy bounding boxes of two bodies agree within 1e-3 of the diameter and their bottom faces' areas within 1e-3 relative."""
+    """Raise ``ValueError`` unless the xy bounding boxes of two bodies agree within 1e-3 of the diameter and their bottom faces' areas within 1e-2 relative (``_AREA``)."""
     boxes = []
     for body in (sample, proxy):
         xy = np.array([body.vertex_coordinates(v)[:2] for v in body.vertices()])
@@ -248,7 +249,7 @@ def _same_outline(sample, proxy, diameter):
             )
         )
     areas = [_bottom_area(body) for body in (sample, proxy)]
-    if abs(areas[1] - areas[0]) > 1e-3 * areas[0]:
+    if abs(areas[1] - areas[0]) > _AREA * areas[0]:
         raise ValueError(
             "the proxy's footprint (bottom area {:.6g} m²) differs from the sample's ({:.6g} m²) although their bounding boxes agree: give the proxy the sample's outline".format(
                 areas[1], areas[0]
