@@ -33,6 +33,10 @@ __all__ = [
     "resume",
     "playback_status",
     "sound_samples",
+    "make_scattering_sample",
+    "run_scattering_lab",
+    "polar_balloon",
+    "lab_material",
 ]
 
 
@@ -616,3 +620,219 @@ def sound_info(path):
     except Exception as e:
         raise ValueError(f"Cannot read the channels of {path}: {e}")
     return {"channels": int(info.channels), "sampling_rate": int(info.samplerate), "frames": int(info.frames)}
+
+
+# =============================================================================
+# The coefficient lab: what Scattering Sample, Scattering Lab, Polar Balloon and Lab Material do
+# =============================================================================
+
+SAMPLE_MODES = ["as_drawn", "disc"]
+BAND_RANGES = ["iso", "extended"]
+BALLOON_BODIES = ["sample", "reference"]
+
+
+def make_scattering_sample(mesh, mode="as_drawn", diameter=None, reference=None, baseplate=0.01, symmetry="none", period=None, name=None):
+    """A :class:`ScatteringSample` of a relief, as the Scattering Sample component makes it.
+
+    Parameters
+    ----------
+    mesh : :class:`compas.datastructures.Mesh`
+        The relief: the tile to repeat in ``'disc'`` mode, the whole relief as drawn otherwise.
+    mode : str
+        ``'as_drawn'`` or ``'disc'``.
+    diameter : float, optional
+        The disc's diameter in m; ``'disc'`` mode only, and required there.
+    reference : :class:`compas.datastructures.Mesh`, optional
+        A proxy mesh to take as the reference instead of the flat footprint; ``'as_drawn'`` mode only.
+    baseplate : float
+        The plate thickness in m below the relief.
+    symmetry : str
+        ``'none'`` or ``'rotational'``.
+    period : sequence of float, optional
+        The tile period (x, y) in m of the ``'disc'`` mode; the tile's bounding box when None or empty.
+    name : str, optional
+
+    Returns
+    -------
+    :class:`compas_acoustics.lab.ScatteringSample`
+
+    Raises
+    ------
+    ValueError
+        For an unknown mode, a disc without a diameter, or a ``period`` that is not 2 numbers.
+    """
+    from compas_acoustics.lab import ScatteringSample
+
+    mode = mode or SAMPLE_MODES[0]
+    if mode not in SAMPLE_MODES:
+        raise ValueError(f"mode is 'as_drawn' or 'disc', not {mode!r}")
+    symmetry = symmetry or "none"
+    baseplate = 0.01 if baseplate is None else baseplate
+    if mode == "disc":
+        if diameter is None:
+            raise ValueError("a disc sample needs a diameter")
+        period = list(period) if period is not None else []
+        if period and len(period) != 2:
+            raise ValueError(f"period is 2 numbers, the tile's x and y, not {len(period)}")
+        sample = ScatteringSample.disc(mesh, diameter, period=tuple(period) if period else None, baseplate=baseplate, symmetry=symmetry)
+    else:
+        sample = ScatteringSample.as_drawn(mesh, baseplate=baseplate, symmetry=symmetry, reference=reference)
+    if name:
+        sample.name = name
+    return sample
+
+
+def run_scattering_lab(sample, method="geometric", preset=None, band_range="iso", settings=None):
+    """Measure the scattering of ``sample`` with :func:`compas_acoustics.lab.measure_scattering`, as the Scattering Lab component does.
+
+    Parameters
+    ----------
+    sample : :class:`compas_acoustics.lab.ScatteringSample`
+    method : str
+        ``'geometric'``, ``'kirchhoff'`` or ``'bem'``.
+    preset : str, optional
+        ``'survey'``, ``'standard'`` or ``'fine'``; the method's own when None or empty.
+    band_range : str
+        ``'iso'`` (100 to 5000 Hz) or ``'extended'`` (to 8000 Hz).
+    settings : dict, optional
+        The method's options, passed on as keyword arguments (the geometric method's ``n_rays``, for one).
+
+    Returns
+    -------
+    dict
+        ``{"result": ScatteringResult, "scattering_coefficients": [7 floats], "octave_bands": [int], "warnings": [str]}``: the
+        coefficients on the material's 7 octaves 125 to 8000 Hz, and the octaves that were simulated.
+
+    Raises
+    ------
+    ValueError
+        For an unknown ``band_range``, or a lab that cannot run here (the geometric method without trimesh and embreex: the message
+        names ``method="kirchhoff"``, which needs neither).
+    """
+    from compas_acoustics.lab import EXTENDED_BAND_RANGE
+    from compas_acoustics.lab import ISO_BAND_RANGE
+    from compas_acoustics.lab import measure_scattering
+
+    band_range = band_range or BAND_RANGES[0]
+    ranges = {"iso": ISO_BAND_RANGE, "extended": EXTENDED_BAND_RANGE}
+    if band_range not in ranges:
+        raise ValueError(f"band_range is 'iso' or 'extended', not {band_range!r}")
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        try:
+            result = measure_scattering(sample, method=method or "geometric", preset=preset or None, band_range=ranges[band_range], **dict(settings or {}))
+        except ImportError as error:
+            # the service answers a ValueError with its message and an ImportError with a traceback
+            raise ValueError(str(error)) from error
+    return {"result": result, "scattering_coefficients": result.scattering_coefficients, "octave_bands": list(result.octave_bands),
+            "warnings": _messages(caught)}
+
+
+def polar_balloon(result, preview=0, octave=1000, body="sample", radius=1.0, floor_db=-30.0):
+    """The polar response of one preview source and octave as a balloon mesh, as the Polar Balloon component shows it.
+
+    Each receiver direction is moved out to ``radius * max(0, 1 - level / floor_db)``: the level 0 dB, the maximum of the flat
+    reference, at ``radius`` and a level of ``floor_db`` or below at the centre.
+
+    Parameters
+    ----------
+    result : :class:`compas_acoustics.lab.ScatteringResult`
+    preview : int
+        The index into ``result.polar_source_indices``.
+    octave : int
+        An octave of ``result.octave_bands``.
+    body : str
+        ``'sample'`` or ``'reference'``.
+    radius : float
+    floor_db : float
+        A negative level in dB.
+
+    Returns
+    -------
+    dict
+        ``{"mesh": Mesh, "levels": [dB per vertex], "source": [x, y, z], "label": str}``: ``source`` is the unit vector towards the preview
+        source times ``1.2 * radius``.
+
+    Raises
+    ------
+    ValueError
+        For a ``preview``, ``octave`` or ``body`` the result does not have (the message lists the valid values), or a ``floor_db`` that
+        is not negative.
+    """
+    import numpy as np
+    from compas.datastructures import Mesh
+    from scipy.spatial import ConvexHull
+
+    previews = result.polar_source_indices
+    if preview is None or not 0 <= int(preview) < len(previews):
+        raise ValueError(f"preview is an index of the preview sources, 0 to {len(previews) - 1}, not {preview!r}")
+    preview = int(preview)
+    if octave is None or int(octave) not in result.octave_bands:
+        raise ValueError(f"octave is one of the simulated octaves {list(result.octave_bands)} Hz, not {octave!r}")
+    octave = int(octave)
+    body = body or BALLOON_BODIES[0]
+    if body not in BALLOON_BODIES:
+        raise ValueError(f"body is 'sample' or 'reference', not {body!r}")
+    floor_db = -30.0 if floor_db is None else float(floor_db)
+    if not floor_db < 0:
+        raise ValueError(f"floor_db is a negative level in dB, not {floor_db!r}")
+    radius = 1.0 if radius is None else float(radius)
+
+    polar = result.polar_sample_db if body == "sample" else result.polar_reference_db
+    levels = np.asarray(polar[preview, result.octave_bands.index(octave)], dtype=float)
+    directions = np.asarray(result.receiver_directions, dtype=float)
+    directions = directions / np.linalg.norm(directions, axis=1)[:, np.newaxis]
+    vertices = directions * (radius * np.maximum(0.0, 1.0 - levels / floor_db))[:, np.newaxis]
+
+    # The directions cover a hemisphere: a point below it closes the hull, and the faces that use it are dropped
+    n = len(directions)
+    hull = ConvexHull(np.vstack([directions, [0.0, 0.0, -1.0]]))
+    faces = []
+    for simplex, outward in zip(hull.simplices, hull.equations[:, :3]):
+        if n in simplex:
+            continue
+        a, b, c = directions[simplex]
+        faces.append([int(i) for i in simplex] if np.cross(b - a, c - a) @ outward > 0 else [int(simplex[0]), int(simplex[2]), int(simplex[1])])
+    mesh = Mesh.from_vertices_and_faces(vertices.tolist(), faces)
+
+    index = previews[preview]
+    colatitude, azimuth = float(result.source_colatitude[index]), float(result.source_azimuth[index])
+    theta, phi = np.radians(colatitude), np.radians(azimuth)
+    source = 1.2 * radius * np.array([np.sin(theta) * np.cos(phi), np.sin(theta) * np.sin(phi), np.cos(theta)])
+    return {"mesh": mesh, "levels": [float(v) for v in levels], "source": [float(v) for v in source],
+            "label": f"θ {colatitude:g}°, φ {azimuth:g}°, {octave} Hz, {body}"}
+
+
+def lab_material(name, absorption, result=None, category=None):
+    """An :class:`AcousticMaterial` of a given absorption and a measured scattering, as the Lab Material component makes it.
+
+    Parameters
+    ----------
+    name : str
+    absorption : sequence of float or :class:`AcousticMaterial`
+        1 value for every octave, or 7 for 125 to 8000 Hz; or a material to take its 7 absorption coefficients from.
+    result : :class:`compas_acoustics.lab.ScatteringResult`, optional
+        The scattering to take the material's scattering coefficients from.
+    category : str, optional
+
+    Returns
+    -------
+    dict
+        ``{"material": AcousticMaterial, "warnings": [str]}``: the warnings are those of :func:`compas_acoustics.lab.lab_material`, a
+        coefficient clipped to [0, 1] for one.
+
+    Raises
+    ------
+    ValueError
+        If ``absorption`` is missing or empty, or not 1 or 7 values.
+    """
+    import numpy as np
+
+    from compas_acoustics.lab import lab_material as make_lab_material
+
+    if absorption is None or (isinstance(absorption, (list, tuple, np.ndarray)) and len(absorption) == 0):
+        raise ValueError("absorption is required: 1 or 7 values, or a material to take them from")
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        material = make_lab_material(name, absorption, scattering=result, category=category or None)
+    return {"material": material, "warnings": _messages(caught)}

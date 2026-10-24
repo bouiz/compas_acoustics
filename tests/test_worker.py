@@ -445,6 +445,7 @@ def test_the_worker_install_runs_its_python_without_the_callers_pythonpath(monke
     assert len(calls) == 3 and all(env is not None for _, env in calls)
     assert all("PYTHONPATH" not in env and "PYTHONHOME" not in env for _, env in calls)
     assert calls[-1][0][0] == str(python)
+    assert calls[1][0][-1].startswith("compas_acoustics[lab] @ ")
     assert json.loads((tmp_path / "worker.json").read_text()) == {"python": str(python), "hybrid": True}
 
 
@@ -537,7 +538,7 @@ def test_responses_from_the_worker_keep_the_methods_normalize(monkeypatch, setti
         np.testing.assert_allclose(ir.denormalized(), here[key].denormalized(), atol=1e-6 * np.max(np.abs(here[key].denormalized())))
 
 
-def test_the_worker_installs_the_wheel_and_nothing_else(monkeypatch, tmp_path):
+def test_the_worker_installs_the_wheel_with_the_lab_extra_and_nothing_else(monkeypatch, tmp_path):
     from compas_acoustics.worker import install
 
     calls = []
@@ -548,7 +549,7 @@ def test_the_worker_installs_the_wheel_and_nothing_else(monkeypatch, tmp_path):
         calls.clear()
         install.install_worker(tmp_path / "compas_acoustics.whl", hybrid=hybrid, home=tmp_path / "worker", config=tmp_path / "worker.json")
         installs = [command[5:] for command in calls if command[:3] == ["uv", "pip", "install"]]
-        assert installs == [[f"compas_acoustics @ {(tmp_path / 'compas_acoustics.whl').resolve().as_uri()}"]]
+        assert installs == [[f"compas_acoustics[lab] @ {(tmp_path / 'compas_acoustics.whl').resolve().as_uri()}"]]
 
 
 
