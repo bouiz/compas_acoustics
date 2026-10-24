@@ -647,7 +647,8 @@ def test_polar_balloon_of_a_flat_disc_points_its_peak_to_the_specular_direction(
     assert np.allclose(balloon["source"], source * 1.2)
     assert balloon["label"] == "θ {:g}°, φ {:g}°, 1000 Hz, reference".format(result.source_colatitude[index], result.source_azimuth[index])
     # the faces point outward, and none uses the pole point added to close the hull: seen on the unit directions the vertices
-    # move along (a sparse balloon is a spike on a tiny sphere, so its own centroid says nothing about the winding)
+    # move along: that check does not depend on the shape of the spike (the centroid of the vertices holds here too, but it is
+    # only meaningful for a roughly round balloon)
     directions = vertices / np.linalg.norm(vertices, axis=1)[:, np.newaxis]
     for face in faces:
         a, b, c = directions[face[:3]]
@@ -693,30 +694,41 @@ def test_a_sparse_balloon_is_a_valid_mesh():
     assert radii.max() == pytest.approx(expected_peak, abs=1e-9)
 
 
-def test_a_dense_balloon_is_a_valid_mesh_and_its_radius_is_monotone_in_the_level():
+def test_a_dense_balloon_is_a_valid_mesh_and_its_radius_is_linear_in_the_level_between_the_floor_and_0_dB():
     import copy
     from scipy.spatial import cKDTree
 
     result = copy.deepcopy(_geometric_result())
     directions = np.asarray(result.receiver_directions, dtype=float)
-    smooth = -25.0 * (1 - directions[:, 2]) - 3.0 * directions[:, 0] ** 2
+    # from +3 dB at the pole to -60 dB at the horizon: cells above 0 dB, between the floor and 0 dB and below the floor
+    smooth = 3.0 - 63.0 * (1 - directions[:, 2]) ** 1.3 - 2.0 * directions[:, 0] ** 2
     result.polar_sample_db[0, result.octave_bands.index(1000)] = smooth
-    balloon = call("polar_balloon", result, preview=0, octave=1000)
-    vertices, faces = _balloon_geometry(balloon)
-    levels = np.array(balloon["levels"])
-    assert np.allclose(levels, smooth, atol=0.051)  # the wire keeps a tenth of a dB
-    radii = np.linalg.norm(vertices, axis=1)
-    order = np.argsort(levels)
-    assert np.all(np.diff(radii[order]) >= -1e-12)
-    assert radii.max() <= 1.0 + 1e-9
-    # the faces of a smooth balloon point away from its centre
+
+    for radius, floor_db in ((1.0, -30.0), (2.0, -40.0)):
+        balloon = call("polar_balloon", result, preview=0, octave=1000, radius=radius, floor_db=floor_db)
+        vertices, faces = _balloon_geometry(balloon)
+        levels = np.array(balloon["levels"])
+        assert np.allclose(levels, smooth, atol=0.051)  # the wire keeps a tenth of a dB
+        assert (levels > 0).any() and (levels < floor_db).any() and ((levels > floor_db) & (levels < 0)).sum() >= 10
+        radii = np.linalg.norm(vertices, axis=1)
+        # 3 % at and below the floor, linear between, the radius at 0 dB and above (the levels are the ones the tool returned)
+        expected = radius * (0.03 + 0.97 * np.clip(1 - levels / floor_db, 0.0, 1.0))
+        assert np.allclose(radii, expected, atol=2e-3 * radius)
+        assert radii.max() == pytest.approx(radius, abs=1e-9)
+        assert radii.min() == pytest.approx(0.03 * radius, abs=1e-9)
+        order = np.argsort(levels)
+        assert np.all(np.diff(radii[order]) >= -1e-12)
+        # the mesh is valid: distinct vertices, faces with an area
+        assert cKDTree(vertices).query(vertices, k=2)[0][:, 1].min() > 1e-6
+        a, b, c = (vertices[faces[:, i]] for i in range(3))
+        assert (np.linalg.norm(np.cross(b - a, c - a), axis=1) / 2).min() > 1e-12
+
+    # the faces of a smooth balloon (a mild level field) point away from its centre
+    result.polar_sample_db[0, result.octave_bands.index(1000)] = -25.0 * (1 - directions[:, 2]) - 3.0 * directions[:, 0] ** 2
+    vertices, faces = _balloon_geometry(call("polar_balloon", result, preview=0, octave=1000))
     centre = vertices.mean(axis=0)
     a, b, c = (vertices[faces[:, i]] for i in range(3))
     assert np.all(np.einsum("ij,ij->i", np.cross(b - a, c - a), a + b + c - 3 * centre) > 0)
-    assert radii.min() > 0.03 - 1e-9
-    assert cKDTree(vertices).query(vertices, k=2)[0][:, 1].min() > 1e-6
-    a, b, c = (vertices[faces[:, i]] for i in range(3))
-    assert (np.linalg.norm(np.cross(b - a, c - a), axis=1) / 2).min() > 1e-12
 
 
 def test_polar_balloon_refuses_an_octave_that_was_not_simulated():
