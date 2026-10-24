@@ -17,6 +17,8 @@ sample and its reference match. The integral over each triangle is closed-form (
 """
 
 import math
+import os
+import warnings
 from typing import List
 
 import numpy as np
@@ -29,7 +31,11 @@ __all__ = ["KirchhoffSolver", "triangle_phase_integral"]
 _SERIES_SPREAD = 1.0  # rad: below this spread of a triangle's vertex phases the Taylor series is used
 _SERIES_TERMS = 20  # enough for spreads below 1 rad to double precision
 _SHADOW_PAIRS = 2_000_000  # (centroid, face) pairs per block of the shadow test
-_PAIRS = 1_000_000  # (receiver, face) pairs per triangle-integral call: about 100 MB of temporaries
+_PAIRS = 16384  # (receiver, face) pairs per block: their factors (1.3 MB) and a frequency's temporaries stay in the core's cache
+_SECONDS_PER_PAIR = 2.4e-8  # s per (face, receiver, source, frequency) in one process, measured 2026-10-24 (see KirchhoffSolver)
+_GAIN_PER_WORKER = 0.38  # the speed-up each worker beyond the first added, measured with 14 workers (5.9 x) on the same machine
+_MIN_PARALLEL_SECONDS = 5.0  # runs estimated below this in one process stay in it: starting the worker processes takes about 1 s
+_POLL = 1.0  # s between the progress reports while the workers run
 _STEEP_TILT = 45.0  # degrees
 _STEEP_SHARE = 0.10
 _STEEP = "kirchhoff: steep relief; multiple reflections are ignored"
@@ -142,15 +148,160 @@ def _occluded(triangles, faces, direction):
     return hidden
 
 
-def _pressure(triangles, normals, u, receivers, k):
-    """(j k / 4π) Σ_T n̂·(û + r̂) I_T(−k(û + r̂)) over the given (lit) faces, for each receiver direction r̂, in blocks of faces."""
+def _pair_factors(triangles, normals, areas, u, receivers):
+    """The frequency-independent factors of the (receiver, face) pairs of one source, flattened and sorted by phase spread.
+
+    With w = û + r̂ the phases at the vertices are −k (w·x), so their order, the half sums and differences the closed form takes, the
+    spread and the symmetric functions the series takes are k times those of w·x (:func:`_simplex_integral`, :func:`_simplex_series`):
+    they are computed here once per source and receiver chunk and scaled by k for every frequency. The pairs are sorted by spread, so
+    the pairs evaluated with the series at a frequency (spread < 1 rad) are a prefix. Pairs with a zero weight (zero-area faces, or
+    n̂·w = 0) are left out: they add 0.
+
+    Returns
+    -------
+    dict of numpy.ndarray
+        Per pair: ``receiver`` (its index in ``receivers``), ``weight`` 2A n̂·w, ``spread`` b₂ − b₀, ``half_hi`` (b₁ + b₂)/2,
+        ``half_lo`` (b₀ + b₁)/2, ``gap_hi`` b₂ − b₁, ``gap_lo`` b₁ − b₀, ``mean``, ``e2`` and ``e3`` of the centred b, for the sorted
+        b₀ ≤ b₁ ≤ b₂ of w·x.
+    """
     w = u + receivers
-    total = np.zeros(len(receivers), dtype=complex)
-    block = max(1, _PAIRS // max(len(receivers), 1))
-    for start in range(0, len(triangles), block):
-        integrals = triangle_phase_integral(triangles[start : start + block], -k * w)
-        total += np.einsum("mt,mt->m", w @ normals[start : start + block].T, integrals)
-    return (1j * k / (4 * np.pi)) * total
+    weight = (w @ normals.T) * (2 * areas)  # (m, t)
+    b = np.sort(np.einsum("mk,tvk->mtv", w, triangles), axis=-1)  # (m, t, 3)
+    keep = weight != 0
+    receiver = np.broadcast_to(np.arange(len(receivers))[:, None], weight.shape)[keep]
+    weight, b = weight[keep], b[keep]
+    b0, b1, b2 = b[:, 0], b[:, 1], b[:, 2]
+    spread = b2 - b0
+    order = np.argsort(spread, kind="stable")
+    mean = b.mean(axis=1)
+    x = b - mean[:, None]
+    factors = {
+        "receiver": receiver,
+        "weight": weight,
+        "spread": spread,
+        "half_hi": 0.5 * (b1 + b2),
+        "half_lo": 0.5 * (b0 + b1),
+        "gap_hi": b2 - b1,
+        "gap_lo": b1 - b0,
+        "mean": mean,
+        "e2": x[:, 0] * x[:, 1] + x[:, 0] * x[:, 2] + x[:, 1] * x[:, 2],
+        "e3": x[:, 0] * x[:, 1] * x[:, 2],
+    }
+    return {name: value[order] for name, value in factors.items()}
+
+
+def _series_terms(spread):
+    """The terms of :func:`_simplex_series` that matter for phases spread at most ``spread`` (< 1 rad): |h_n| ≤ C(n+2, 2) spreadⁿ.
+
+    A term is at most spreadⁿ / (2 n!); the series stops before the first below 1e-18 (all 20 at a spread of 1, as the plain series).
+    """
+    n = 3
+    while n < _SERIES_TERMS and spread**n / (2.0 * math.factorial(n)) >= 1e-18:
+        n += 1
+    return n
+
+
+def _accumulate(factors, k, n_receivers):
+    """Σ over the pairs of each receiver of weight · ∫ exp(j λ·φ) dλ, for the phases φ = −k (w·x): complex, shape (n_receivers,).
+
+    The same evaluation as :func:`triangle_phase_integral` (closed form where the spread is at least 1 rad, the Taylor series below), in
+    real arithmetic on the factors of :func:`_pair_factors`.
+    """
+    n_series = int(np.searchsorted(factors["spread"], 1.0 / k, side="left"))
+    receiver = factors["receiver"]
+    re = np.zeros(n_receivers)
+    im = np.zeros(n_receivers)
+    if n_series < len(receiver):
+        big = slice(n_series, None)
+        # (d_lo - d_hi) / spread with d = j e^{jθ} sinc, θ = -k half, as in _simplex_integral
+        s_hi = np.sinc(k * factors["gap_hi"][big] / (2 * np.pi))
+        s_lo = np.sinc(k * factors["gap_lo"][big] / (2 * np.pi))
+        a_hi = k * factors["half_hi"][big]
+        a_lo = k * factors["half_lo"][big]
+        scale = factors["weight"][big] / (k * factors["spread"][big])
+        re += np.bincount(receiver[big], (np.sin(a_hi) * s_hi - np.sin(a_lo) * s_lo) * scale, minlength=n_receivers)
+        im += np.bincount(receiver[big], (np.cos(a_hi) * s_hi - np.cos(a_lo) * s_lo) * scale, minlength=n_receivers)
+    if n_series:
+        small = slice(0, n_series)
+        # the series about the mean phase -k mean, with the centred phases -k x: e2 -> k² e2, e3 -> -k³ e3
+        e2 = k * k * factors["e2"][small]
+        e3 = -(k**3) * factors["e3"][small]
+        h = [np.ones_like(e2), np.zeros_like(e2), -e2]
+        total_re = 0.5 + e2 / 24.0
+        total_im = np.zeros_like(e2)
+        for n in range(3, _series_terms(k * factors["spread"][n_series - 1])):
+            h.append(-e2 * h[n - 2] + e3 * h[n - 3])
+            term = h[n] / math.factorial(n + 2)
+            sign = 1.0 if (n // 2) % 2 == 0 else -1.0  # j^n = (-1)^(n/2) for even n, j (-1)^((n-1)/2) for odd n
+            if n % 2:
+                total_im = total_im + sign * term
+            else:
+                total_re = total_re + sign * term
+        phase = k * factors["mean"][small]
+        cos, sin = np.cos(phase), np.sin(phase)  # e^{-j k mean} = cos - j sin
+        weight = factors["weight"][small]
+        re += np.bincount(receiver[small], (cos * total_re + sin * total_im) * weight, minlength=n_receivers)
+        im += np.bincount(receiver[small], (cos * total_im - sin * total_re) * weight, minlength=n_receivers)
+    return re + 1j * im
+
+
+def _lit(body, u, shadowing):
+    """The faces of a body lit from û (and not shadowed, with ``shadowing``): triangles, normals and areas."""
+    triangles, normals, areas = body
+    lit = np.flatnonzero(normals @ u > 0)
+    if shadowing and len(lit):
+        lit = lit[~_occluded(triangles, lit, u)]
+    return triangles[lit], normals[lit], areas[lit]
+
+
+def _source_pressures(bodies, u, receivers, ks, chunk, shadowing, tick=None):
+    """The pressures of each body for one source direction û, complex (n_receivers, n_frequencies) per body.
+
+    (j k / 4π) Σ_T n̂·(û + r̂) I_T(−k(û + r̂)) over the lit faces (the module docstring), with the geometry of each block of pairs
+    computed once (:func:`_pair_factors`) and reused for every frequency. ``tick()`` is called after each block.
+    """
+    n_rec = len(receivers)
+    out = []
+    for body in bodies:
+        triangles, normals, areas = _lit(body, u, shadowing)
+        pressures = np.zeros((n_rec, len(ks)), dtype=complex)
+        for r0 in range(0, n_rec, chunk):
+            r_chunk = receivers[r0 : r0 + chunk]
+            block = max(1, _PAIRS // max(len(r_chunk), 1))
+            for t0 in range(0, len(triangles), block):
+                t1 = t0 + block
+                factors = _pair_factors(triangles[t0:t1], normals[t0:t1], areas[t0:t1], u, r_chunk)
+                for f_index, k in enumerate(ks):
+                    pressures[r0 : r0 + chunk, f_index] += _accumulate(factors, k, len(r_chunk))
+                if tick is not None:
+                    tick()
+        out.append(pressures * (1j * ks / (4 * np.pi)))
+    return out
+
+
+_STATE = {}  # the bodies, receivers and wavenumbers of a pool's worker process
+
+
+def _init_worker(state):
+    _STATE.clear()
+    _STATE.update(state)
+
+
+def _solve_source(index, u):
+    """One source in a worker process: ``(index, [sample, reference])``."""
+    s = _STATE
+    return index, _source_pressures(s["bodies"], u, s["receivers"], s["ks"], s["chunk"], s["shadowing"])
+
+
+def _kill_pool(executor):
+    """Stop a process pool now: cancel its queued sources and terminate its processes (the running sources are lost)."""
+    processes = list(getattr(executor, "_processes", {}).values())  # private, but the only handle on the processes
+    executor.shutdown(wait=False, cancel_futures=True)
+    for process in processes:
+        try:
+            process.terminate()
+        except Exception:  # noqa: BLE001 - already gone
+            pass
 
 
 class KirchhoffSolver(ScatteringSolver):
@@ -159,15 +310,31 @@ class KirchhoffSolver(ScatteringSolver):
     See the module docstring for the formula. Its obliquity factor is the reciprocal Beckmann form n̂·(û + r̂) (spec decision 2026-10-24);
     each face's phase integral is closed-form (Gordon 1975). The receivers are in the far field: only their directions count.
 
+    The sources run in parallel worker processes (``concurrent.futures.ProcessPoolExecutor``, started with "spawn"); a script that calls
+    the solver at its top level then needs an ``if __name__ == "__main__":`` guard, or ``workers=1``. Per source, the geometry of each
+    block of (receiver, face) pairs is computed once and reused for every frequency. :meth:`solve_batches` gives the pressures source
+    batch by source batch, for callers that reduce them as they go (``measure_scattering``).
+
     Parameters
     ----------
     shadowing : bool, optional
         Also leave out a lit face when the ray from its centroid towards the source hits another face of the same body.
     chunk : int, optional
-        The receivers evaluated at once. The faces are taken in blocks of about 10⁶ / ``chunk``, so memory stays near 100 MB.
+        The receivers evaluated at once. The faces are taken in blocks of about 16384 / ``chunk``, so that a block's factors stay in
+        the core's cache.
+    workers : int, optional
+        The worker processes; ``os.cpu_count()`` by default. ``1``, a single source, or a run estimated under a few seconds run in this
+        process.
 
     Notes
     -----
+    **Runtime** (measured 2026-10-24 on a 14-core M-series Mac, 10 performance and 4 efficiency cores, Python 3.13). On the 0.8 m disc
+    of ``sine_tile(0.0708, 0.0204)`` (``tests/lab/lab_shapes.py``; 7964 + 3504 faces), 1316 receivers and the 54 frequencies of the ISO
+    range, one source takes 20-24 s in one process (80 s before the factors were reused across frequencies), and 2.9-3.4 s per source
+    with 14 workers (about 6 times faster, not 14: the cores share memory bandwidth and 4 of them are efficiency cores). The ``"fine"``
+    preset (864 sources) then takes about 42-49 min. :meth:`estimate_seconds` scales these: 2.4e-8 s per (face, receiver, source, frequency) in one process,
+    faces counted over both bodies, and 0.38 of a process gained per further worker.
+
     **Known accuracy** (measured 2026-10-24). Against :class:`~compas_acoustics.lab.solvers.bem.BemSolver` on Heimes & Vorländer's
     simulated sine surface (Λ = 80 mm across x, h = 0.051/2.5 m, d = 0.8 m, c = 346.18 m/s), one plane wave each at colatitude 31.5° and
     61.74°, azimuth 0 (the incidence plane across the grooves), ``EXTENDED_BAND_RANGE``, the same receivers for both methods. The max over
@@ -198,40 +365,113 @@ class KirchhoffSolver(ScatteringSolver):
     """
 
     name = "kirchhoff"
+    batchable = True
 
-    def __init__(self, shadowing=False, chunk=2048):
+    def __init__(self, shadowing=False, chunk=2048, workers=None):
         self.shadowing = bool(shadowing)
         self.chunk = int(chunk)
         if self.chunk < 1:
             raise ValueError("chunk must be at least 1, got {}".format(chunk))
+        self.workers = int(workers) if workers is not None else (os.cpu_count() or 1)
+        if self.workers < 1:
+            raise ValueError("workers must be at least 1, got {}".format(workers))
+
+    def estimate_seconds(self, sample, sources, receivers, frequencies, workers=None) -> float:
+        """The expected wall time of :meth:`solve` in s (see Notes: Runtime).
+
+        ``_SECONDS_PER_PAIR`` × faces of both bodies × receivers × sources × frequencies in one process, over ``1 + 0.38 (w − 1)`` for
+        ``w`` workers (``self.workers`` by default, at most one per source).
+        """
+        faces = sum(len(_arrays(body)[0]) for body in (sample.sample, sample.reference))
+        n_src = int(sources.n)
+        serial = _SECONDS_PER_PAIR * faces * len(receivers.directions) * n_src * len(np.atleast_1d(frequencies))
+        workers = max(1, min(self.workers if workers is None else int(workers), n_src))
+        return serial / (1.0 + _GAIN_PER_WORKER * (workers - 1))
 
     def solve(self, sample, sources, receivers, frequencies, c):
+        batches = list(self.solve_batches(sample, sources, receivers, frequencies, c, batch_size=max(1, sources.n)))
+        return batches[0][1]
+
+    def solve_batches(self, sample, sources, receivers, frequencies, c, batch_size):
+        """The pressures in consecutive batches of at most ``batch_size`` sources, with one pool of worker processes for all of them.
+
+        Progress is reported over all sources (``jobs.progress("kirchhoff", done, of)`` in source × frequency steps); a cancel stops the
+        workers.
+
+        Yields
+        ------
+        tuple
+            ``(indices, pressures)``: the indices of the batch's sources in ``sources`` and their :class:`Pressures`.
+        """
         from compas_acoustics.worker import jobs
 
         frequencies = np.atleast_1d(np.asarray(frequencies, dtype=float))
+        ks = 2 * np.pi * frequencies / c
         bodies = [_arrays(sample.sample), _arrays(sample.reference)]
         u_all = np.asarray(sources.directions, dtype=float)
         r_all = np.asarray(receivers.directions, dtype=float)
-        n_src, n_rec, n_freq = len(u_all), len(r_all), len(frequencies)
-        out = [np.zeros((n_src, n_rec, n_freq), dtype=complex) for _ in bodies]
-        done, of = 0, n_src * n_freq
-        jobs.progress("kirchhoff", done, of)
-        for i, u in enumerate(u_all):
-            lit_sets = []
-            for triangles, normals, _ in bodies:
-                lit = np.flatnonzero(normals @ u > 0)
-                if self.shadowing and len(lit):
-                    lit = lit[~_occluded(triangles, lit, u)]
-                lit_sets.append((triangles[lit], normals[lit]))
-            for f_index, f in enumerate(frequencies):
-                k = 2 * np.pi * f / c
-                for (triangles, normals), pressures in zip(lit_sets, out):
-                    for start in range(0, n_rec, self.chunk):
-                        pressures[i, start : start + self.chunk, f_index] = _pressure(triangles, normals, u, r_all[start : start + self.chunk], k)
-                done += 1
-                jobs.progress("kirchhoff", done, of)
+        n_src, n_freq = len(u_all), len(frequencies)
+        batch_size = max(1, int(batch_size))
         generation = {"method": self.name, "shadowing": self.shadowing, "faces": {"sample": len(bodies[0][0]), "reference": len(bodies[1][0])}}
-        return Pressures(out[0], out[1], frequencies, generation)
+        state = {"bodies": bodies, "receivers": r_all, "ks": ks, "chunk": self.chunk, "shadowing": self.shadowing}
+        workers = min(self.workers, n_src)
+        if workers > 1 and self.estimate_seconds(sample, sources, receivers, frequencies, workers=1) < _MIN_PARALLEL_SECONDS:
+            workers = 1
+        progress = {"done": 0, "of": n_src * n_freq}
+
+        def report():
+            jobs.progress("kirchhoff", progress["done"], progress["of"])
+
+        report()
+        executor = None
+        if workers > 1:
+            import multiprocessing
+            from concurrent.futures import ProcessPoolExecutor
+
+            executor = ProcessPoolExecutor(workers, mp_context=multiprocessing.get_context("spawn"), initializer=_init_worker, initargs=(state,))
+        try:
+            for start in range(0, n_src, batch_size):
+                indices = np.arange(start, min(start + batch_size, n_src))
+                out = [np.zeros((len(indices), len(r_all), n_freq), dtype=complex) for _ in bodies]
+                pending = list(indices)
+                if executor is not None:
+                    pending = self._run_parallel(executor, u_all, indices, start, out, progress, report)
+                    if pending:
+                        executor = None
+                for i in pending:
+                    for p, target in zip(_source_pressures(bodies, u_all[i], r_all, ks, self.chunk, self.shadowing, tick=report), out):
+                        target[i - start] = p
+                    progress["done"] += n_freq
+                    report()
+                yield indices, Pressures(out[0], out[1], frequencies, dict(generation))
+        finally:
+            if executor is not None:
+                _kill_pool(executor)
+
+    def _run_parallel(self, executor, u_all, indices, start, out, progress, report):
+        """Run a batch's sources on the pool; return the sources left to run here if the pool broke (warned)."""
+        from concurrent.futures import FIRST_COMPLETED
+        from concurrent.futures import wait
+        from concurrent.futures.process import BrokenProcessPool
+
+        n_freq = out[0].shape[2]
+        futures = {executor.submit(_solve_source, int(i), u_all[i]) for i in indices}
+        remaining = set(int(i) for i in indices)
+        try:
+            while futures:
+                finished, futures = wait(futures, timeout=_POLL, return_when=FIRST_COMPLETED)
+                for future in finished:
+                    i, pressures = future.result()
+                    for p, target in zip(pressures, out):
+                        target[i - start] = p
+                    remaining.discard(i)
+                    progress["done"] += n_freq
+                report()
+        except BrokenProcessPool as error:
+            _kill_pool(executor)
+            warnings.warn("kirchhoff: the worker processes failed ({}); the remaining sources run in this process".format(error), stacklevel=4)
+            return sorted(remaining)
+        return []
 
     def warnings(self, sample, nominal_bands, exact_bands, c) -> List[str]:
         """Where physical optics is unreliable: wavelengths longer than the features, and steep relief (multiple reflections).
