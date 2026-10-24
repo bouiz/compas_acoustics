@@ -87,16 +87,16 @@
   ```
 - Produces: `scattering_sample_to_pb` / `scattering_sample_from_pb` and `scattering_result_to_pb` / `scattering_result_from_pb`, registered with `@pb_serializer` / `@pb_deserializer` like `impulse_response_to_pb`. Arrays go through `ArrayData`, and `generation` goes through `_serializer_any(plain(...))`.
 
-- [ ] **Step 1: Write the failing tests** in `tests/test_pb.py`, using its `roundtrip` and `arm` helpers.
+- [x] **Step 1: Write the failing tests** in `tests/test_pb.py`, using its `roundtrip` and `arm` helpers.
   - `test_a_scattering_sample_round_trips_as_a_message`: `ScatteringSample.disc(sine_tile(0.08, 0.02), 0.4)`. Check that `arm(...)` names `ScatteringSampleData`, then that mode, diameter, period, structural_depth, symmetry, baseplate, warnings, reference_kind and guid are equal, and that both meshes have the same vertex and face counts.
   - `test_an_as_drawn_sample_with_a_proxy_keeps_its_reference_kind`: `period is None` and `reference_kind == "proxy"`.
   - `test_a_scattering_result_round_trips_every_field`: a geometric result of the sawtooth disc at `preset="survey"`, `n_rays=500`. Check that `s_angle`, `d_angle`, `receiver_directions` and the polar arrays are `np.allclose` (polar levels to 1e-3 dB, since they are float32), that the lists and `generation` are equal, and `scattering_coefficients` too.
   - `test_a_result_without_d_round_trips_with_none`: build one with `d_angle=None` and check `d_angle is None`.
 
   Import `sine_tile` and `sawtooth_tile` with `from lab_shapes import ...`: pytest's `pythonpath` already holds `tests/lab`.
-- [ ] **Step 2: Run `pytest tests/test_pb.py -q -k scattering`; expect FAIL (no converter).**
-- [ ] **Step 3: Add the messages, run `invoke generate`, write the converters, and add `scattering_sample()` and `scattering_result()` (guids 50 and 51, geometric, `n_rays=500`, `preset="survey"`) to `tests/pb_fixtures/generate.py`. Then run it.**
-- [ ] **Step 4: Run `pytest tests/test_pb.py -q`, then `dotnet test csharp/CompasAcoustics.Grasshopper.Tests --nologo` (the regenerated C# must compile); expect PASS. Commit** `Lab: ScatteringSample and ScatteringResult travel as compas_pb messages`.
+- [x] **Step 2: Run `pytest tests/test_pb.py -q -k scattering`; expect FAIL (no converter).**
+- [x] **Step 3: Add the messages, run `invoke generate`, write the converters, and add `scattering_sample()` and `scattering_result()` (guids 50 and 51, geometric, `n_rays=500`, `preset="survey"`) to `tests/pb_fixtures/generate.py`. Then run it.**
+- [x] **Step 4: Run `pytest tests/test_pb.py -q`, then `dotnet test csharp/CompasAcoustics.Grasshopper.Tests --nologo` (the regenerated C# must compile); expect PASS. Commit** `Lab: ScatteringSample and ScatteringResult travel as compas_pb messages`.
 
 ### Task 2: `lab_material`, and progress and cancel for the geometric method
 
@@ -116,7 +116,7 @@
   - `data_origin` is `f"compas_acoustics.lab: alpha_s given; s by {method} (preset {preset}{', heuristic' if heuristic else ''})"`, or `"compas_acoustics.lab: alpha_s given; no scattering"`.
 - Produces: `geometric_response` calls `jobs.progress("geometric", i, n_sources)` before each source, importing `from compas_acoustics.worker import jobs` inside the function as `kirchhoff.py` does, so a worker cancel stops it.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `test_material_from_numbers_and_a_result`: 7 absorption values and a geometric sawtooth result. Check that α is equal, `len(scattering_coefficients) == 7`, and `data_origin` contains `"s by geometric (preset survey, heuristic)"`.
   - `test_one_absorption_value_fills_every_octave`
   - `test_absorption_from_a_material`: `AcousticMaterial("m", [0.3] * 7)`.
@@ -125,9 +125,9 @@
   - `test_a_nan_band_is_refused_naming_the_octave`
   - `test_a_strongly_absorbing_sample_warns_about_the_rigid_scattering_assumption`
   - In `test_geometric.py`, `test_a_cancelled_job_stops_the_geometric_run`: `jobs.start("c1")`, `jobs.cancel("c1")`, then `pytest.raises(jobs.Cancelled)` around `geometric_response(...)`, and `jobs.finish("c1")` in a `finally`.
-- [ ] **Step 2: Run them; expect FAIL.**
-- [ ] **Step 3: Implement both, and export `lab_material` from `lab/__init__.py`.** Add this line under B plan Task 5's heading: `> Note (2026-10-24): lab/material.py exists (C plan Task 2) with these rules for numbers and materials; this task adds the AbsorptionResult branch and its data_origin, and its first test now needs method="kirchhoff" passed explicitly (the default is geometric).`
-- [ ] **Step 4: Run `pytest tests/lab -q -m "not slow"`; expect PASS. Commit** `Lab: lab_material from numbers or a material, and the geometric method reports progress and stops on cancel`.
+- [x] **Step 2: Run them; expect FAIL.**
+- [x] **Step 3: Implement both, and export `lab_material` from `lab/__init__.py`.** Add this line under B plan Task 5's heading: `> Note (2026-10-24): lab/material.py exists (C plan Task 2) with these rules for numbers and materials; this task adds the AbsorptionResult branch and its data_origin, and its first test now needs method="kirchhoff" passed explicitly (the default is geometric).`
+- [x] **Step 4: Run `pytest tests/lab -q -m "not slow"`; expect PASS. Commit** `Lab: lab_material from numbers or a material, and the geometric method reports progress and stops on cancel`.
 
 ### Task 3: Worker API and the worker's lab packages
 
@@ -156,7 +156,7 @@
 - `lab_material(name, absorption, result=None, category=None) -> {"material": AcousticMaterial, "warnings": [str]}`, which wraps Task 2's function.
 - `install_worker` installs `"compas_acoustics[lab] @ {wheel uri}"` instead of `"compas_acoustics @ ..."`.
 
-- [ ] **Step 1: Write the failing tests** in `tests/test_worker_api.py`, through its `call()` wire helper, which round-trips compas_pb.
+- [x] **Step 1: Write the failing tests** in `tests/test_worker_api.py`, through its `call()` wire helper, which round-trips compas_pb.
   - `test_make_scattering_sample_as_drawn_and_disc`: a flat 1 m quad as drawn; a sine tile as a disc with `diameter=0.4`.
   - `test_a_disc_without_a_diameter_is_refused`
   - `test_run_scattering_lab_returns_the_result_the_material_octaves_and_the_warnings`: geometric, `settings={"n_rays": 500}`, `preset="survey"`. Expect 7 `scattering_coefficients`, a `"heuristic"` warning, and `octave_bands == [125, 250, 500, 1000, 2000, 4000]`.
@@ -167,9 +167,9 @@
   - `test_lab_material_from_the_lab_result`
 
   In `tests/test_worker.py`, extend the install test: the second uv call's last argument starts with `"compas_acoustics[lab] @ "`.
-- [ ] **Step 2: Run them; expect FAIL.**
-- [ ] **Step 3: Implement the four functions**, each with a numpy docstring, its lab imports inside the function as the module does, and its `__all__` entry. Then the install change.
-- [ ] **Step 4: Run `pytest tests/test_worker_api.py tests/test_worker.py -q`; expect PASS. Commit** `Worker: the scattering lab's functions, and the worker installs the lab extra`.
+- [x] **Step 2: Run them; expect FAIL.**
+- [x] **Step 3: Implement the four functions**, each with a numpy docstring, its lab imports inside the function as the module does, and its `__all__` entry. Then the install change.
+- [x] **Step 4: Run `pytest tests/test_worker_api.py tests/test_worker.py -q`; expect PASS. Commit** `Worker: the scattering lab's functions, and the worker installs the lab extra`.
 
 ### Task 4: Goo and parameters
 
@@ -190,15 +190,15 @@
   - `Diffusion`: the d octaves, or an empty list when the field is unset.
 - **`Param_ScatteringSample : OwnPreviewParam<ScatteringSampleGoo>`** and **`Param_ScatteringResult : CompasAcousticsParam<ScatteringResultGoo>`**, with the GUIDs above.
 
-- [ ] **Step 1: Write the failing tests** from the Task 1 fixtures (`InteropTests.Fixture`).
+- [x] **Step 1: Write the failing tests** from the Task 1 fixtures (`InteropTests.Fixture`).
   - `SampleGoo_ToString_NamesModeDiameterDepthAndReference`
   - `SampleGoo_HasAPreviewBoxAroundTheSample`
   - `ResultGoo_ToString_ShowsTheMethodAndTheRangeOfS`
   - `ResultGoo_WithoutD_HasNoDiffusion`: clear `DOctaves` on a clone of the fixture, then `Diffusion` is empty and `ToString` has no `", d "`.
   - `BothGoo_SurviveAWriteAndRead`, through `GH_LooseChunk` as `AudioPlayerComponentTests` does.
-- [ ] **Step 2: Run `dotnet test ... --filter LabGooTests`; expect FAIL (types missing).**
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run the whole C# suite; expect PASS. Commit** `Grasshopper: Goo and parameters of the scattering sample and result`.
+- [x] **Step 2: Run `dotnet test ... --filter LabGooTests`; expect FAIL (types missing).**
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run the whole C# suite; expect PASS. Commit** `Grasshopper: Goo and parameters of the scattering sample and result`.
 
 ### Task 5: Scattering Sample component
 
@@ -226,7 +226,7 @@
   - Leaving an input out leaves out its kwarg.
 - **The component:** calls `make_scattering_sample` synchronously, shows each `sample.Warnings` entry as a Warning, and sets `Status($"{mode}, d {diameter:0.00} m")`.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `Sample_DiscWithoutDiameter_IsAProblem`;
   - `Sample_ReferenceInDiscMode_IsAProblem`;
   - `Sample_LeavesUnsetInputsOut`;
@@ -234,9 +234,9 @@
   - `SampleSpec_HasItsPortsAndDefaults` (`ComponentSpec.Load("CA_Scattering_Sample")`).
 
   `MeshOf` takes Rhino types and is not unit-tested; keep it to its three cases.
-- [ ] **Step 2: Run; expect FAIL.**
-- [ ] **Step 3: Implement**: the spec, `python tools/icons.py`, the component (`ComponentGuid` as listed), and the `SpecCoverageTests` entry `["CA_Scattering_Sample"] = "ScatteringSampleComponent"`.
-- [ ] **Step 4: Run the C# suite and `pytest tests/test_icons.py -q`; expect PASS. Commit** `Grasshopper: the Scattering Sample component`.
+- [x] **Step 2: Run; expect FAIL.**
+- [x] **Step 3: Implement**: the spec, `python tools/icons.py`, the component (`ComponentGuid` as listed), and the `SpecCoverageTests` entry `["CA_Scattering_Sample"] = "ScatteringSampleComponent"`.
+- [x] **Step 4: Run the C# suite and `pytest tests/test_icons.py -q`; expect PASS. Commit** `Grasshopper: the Scattering Sample component`.
 
 ### Task 6: Scattering Lab component
 
@@ -265,7 +265,7 @@
   - Before a first kirchhoff or bem run it remarks `"Press Run: kirchhoff and bem take minutes to hours."`.
   - `deliver` shows the warnings with `ShowWarnings`, sets the four outputs, and sets `Status(Summary)`.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `OnlyGeometric_StartsWithoutRun`;
   - `Lab_PutsNRaysInTheGeometricSettings`;
   - `Lab_NRaysWithKirchhoff_IsAProblem`;
@@ -275,9 +275,9 @@
   - `Read_WithoutD_GivesAnEmptyDiffusion`;
   - `Summary_ShowsMethodAndRange`;
   - `LabSpec_HasARunButtonAndGeometricAsDefault`.
-- [ ] **Step 2: Run; expect FAIL.**
-- [ ] **Step 3: Implement**: the spec, the icon, the component, and the `SpecCoverageTests` entry `"ScatteringLabComponent"`.
-- [ ] **Step 4: Run the C# suite; expect PASS. Commit** `Grasshopper: the Scattering Lab component, geometric on change and the wave methods on Run`.
+- [x] **Step 2: Run; expect FAIL.**
+- [x] **Step 3: Implement**: the spec, the icon, the component, and the `SpecCoverageTests` entry `"ScatteringLabComponent"`.
+- [x] **Step 4: Run the C# suite; expect PASS. Commit** `Grasshopper: the Scattering Lab component, geometric on change and the wave methods on Run`.
 
 ### Task 7: Polar Preview component
 
@@ -303,16 +303,16 @@
   - A preview out of range is the problem `"'preview' must be 0 to N"`.
 - **`LabResults.FaceLevels(double[] levels, int[][] faces) -> double[]`:** the mean of each face's vertex levels, which the colours are made from.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `PreviewLabels_NameTheRingAndAzimuthOfEachPreviewSource`, from the fixture;
   - `Balloon_PassesPreviewOctaveBodyRadiusAndFloor`;
   - `Balloon_AnOctaveThatWasNotSimulated_IsAProblem`;
   - `FaceLevels_AreTheMeanOfTheirVertices`.
 
   `Coloured` builds a Rhino `Mesh` and stays untested, as it is today. The energy map's call must stay the same apart from the new argument.
-- [ ] **Step 2: Run; expect FAIL.**
-- [ ] **Step 3: Implement**: the spec, the icon, the component (`"PolarPreviewComponent"`), and the SpecCoverage entry.
-- [ ] **Step 4: Run the C# suite; expect PASS. Commit** `Grasshopper: the Polar Preview component draws the reflected level as a coloured balloon`.
+- [x] **Step 2: Run; expect FAIL.**
+- [x] **Step 3: Implement**: the spec, the icon, the component (`"PolarPreviewComponent"`), and the SpecCoverage entry.
+- [x] **Step 4: Run the C# suite; expect PASS. Commit** `Grasshopper: the Polar Preview component draws the reflected level as a coloured balloon`.
 
 ### Task 8: Lab Material component
 
@@ -335,14 +335,14 @@
   - The description says the material goes on the proxy's faces, not on the detailed mesh.
 - **The component:** calls `lab_material` synchronously, shows the warnings, and outputs a `MaterialGoo`.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `Material_WithoutAbsorptionOrMaterial_IsAProblem`;
   - `Material_FiveValues_IsAProblem`;
   - `Material_TakesTheMaterialWhenAbsorptionIsEmpty`;
   - `LabMaterialSpec_DescribesTheProxy` (the description contains `"proxy"`).
-- [ ] **Step 2: Run; expect FAIL.**
-- [ ] **Step 3: Implement**: the spec, the icon, the component (`"LabMaterialComponent"`), and the entry.
-- [ ] **Step 4: Run the C# suite; expect PASS. Commit** `Grasshopper: the Lab Material component`.
+- [x] **Step 2: Run; expect FAIL.**
+- [x] **Step 3: Implement**: the spec, the icon, the component (`"LabMaterialComponent"`), and the entry.
+- [x] **Step 4: Run the C# suite; expect PASS. Commit** `Grasshopper: the Lab Material component`.
 
 ### Task 9: End to end with a real worker, and docs
 
@@ -350,7 +350,7 @@
 - Modify: `csharp/CompasAcoustics.Grasshopper.Tests/WorkerIntegrationTests.cs`, `CHANGELOG.md`, `docs/superpowers/plans/2026-10-24-coefficient-lab-c-grasshopper.md` (tick the steps)
 - Test: `WorkerIntegrationTests.cs`
 
-- [ ] **Step 1: Add `RealWorker_RunsTheScatteringLabChain`** with the same skip guard as its neighbours.
+- [x] **Step 1: Add `RealWorker_RunsTheScatteringLabChain`** with the same skip guard as its neighbours.
   - It runs `make_scattering_sample`, a flat 1 m quad, as drawn.
   - Then `run_scattering_lab` with `settings {n_rays: 500}` and `preset "survey"`, then `polar_balloon(result, 0, 1000)`, then `lab_material("panel", [0.1], result)`.
   - It asserts:
@@ -358,8 +358,8 @@
     - 7 scattering values, all 0 within 1e-9 (flat);
     - a balloon mesh with faces;
     - a material with 7 scattering coefficients.
-- [ ] **Step 2: Run it against the local worker** the way the file's docstring says (its environment variable). It must pass, or skip without one. Report which, in the task report.
-- [ ] **Step 3: Write the CHANGELOG entry** under Unreleased.
+- [x] **Step 2: Run it against the local worker** the way the file's docstring says (its environment variable). It must pass, or skip without one. Report which, in the task report.
+- [x] **Step 3: Write the CHANGELOG entry** under Unreleased.
   - The four components in a new "08 Lab" subcategory.
   - `ScatteringSampleData` and `ScatteringResultData`.
   - The four worker functions.
@@ -369,7 +369,7 @@
   - Scattering Lab runs on change with geometric, and only on Run with kirchhoff. Cancel during the Kirchhoff run shows "cancelled".
   - Polar Preview draws a balloon at `centre`.
   - Lab Material's output wires into Acoustic Object.
-- [ ] **Step 5: Run the C# suite and `pytest tests -q -m "not slow"`; expect PASS. Commit** `Lab: the Grasshopper chain end to end, changelog`.
+- [x] **Step 5: Run the C# suite and `pytest tests -q -m "not slow"`; expect PASS. Commit** `Lab: the Grasshopper chain end to end, changelog`.
 
 ### Task 10: The check in Grasshopper through lamcp (the controller, after the user installs the rebuilt bundle)
 

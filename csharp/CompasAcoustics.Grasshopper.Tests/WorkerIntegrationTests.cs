@@ -329,5 +329,68 @@ namespace CompasAcoustics.Grasshopper.Tests
                 worker.Stop();
             }
         }
+
+        [WorkerFact]
+        public void RealWorker_RunsTheScatteringLabChain()
+        {
+            var worker = RealWorker();
+            try
+            {
+                // a flat 1 m x 1 m quad, as drawn: it scatters nothing
+                var quad = Quad(new[] { 0.0, 0.0, 0.0 }, new[] { 0.0, 1.0, 0.0 }, new[] { 1.0, 1.0, 0.0 }, new[] { 1.0, 0.0, 0.0 });
+                var (sampleArgs, sampleKwargs, sampleProblem) = LabRequests.Sample(quad, "as_drawn", null, null, null, null, null);
+                Assert.Null(sampleProblem);
+                var sample = Assert.IsType<ScatteringSampleData>(worker.Call("make_scattering_sample", sampleArgs, sampleKwargs));
+
+                var (labArgs, labKwargs, labProblem) = LabRequests.Lab(sample, "geometric", "survey", "iso", 500, null);
+                Assert.Null(labProblem);
+                var answer = Assert.IsAssignableFrom<IDictionary<string, object?>>(worker.Call("run_scattering_lab", labArgs, labKwargs));
+                var (result, scattering, octaves, diffusion) = LabResults.Read(answer);
+                Assert.Equal("geometric", result.Method);
+                Assert.Equal(7, scattering.Length);
+                Assert.All(scattering, s => Assert.InRange(s, -1e-9, 1e-9));
+                Assert.Equal(result.OctaveBands.ToArray(), octaves);
+                Assert.Equal(result.OctaveBands.Count, diffusion.Length);
+
+                var (balloonArgs, balloonKwargs, balloonProblem) = LabRequests.Balloon(result, 0, 1000, "sample", 1.0, -30.0);
+                Assert.Null(balloonProblem);
+                var balloonAnswer = Assert.IsAssignableFrom<IDictionary<string, object?>>(worker.Call("polar_balloon", balloonArgs, balloonKwargs));
+                Assert.IsType<MeshData>(balloonAnswer["mesh"]);
+                var (mesh, levels, source, _) = LabResults.ReadBalloon(balloonAnswer);
+                Assert.True(mesh.FaceSizes.Count > 0);
+                Assert.Equal(mesh.Vertices.Count / 3, levels.Length);
+                Assert.Equal(3, source.Length);
+
+                var (materialArgs, materialKwargs, materialProblem) = LabRequests.Material("panel", new List<double> { 0.1 }, null, result, null);
+                Assert.Null(materialProblem);
+                var materialAnswer = Assert.IsAssignableFrom<IDictionary<string, object?>>(worker.Call("lab_material", materialArgs, materialKwargs));
+                var material = Assert.IsType<AcousticMaterialData>(materialAnswer["material"]);
+                Assert.Equal(7, material.ScatteringCoefficients.Count);
+                Assert.Equal(7, material.AbsorptionCoefficients.Count);
+                Assert.All(material.AbsorptionCoefficients, a => Assert.Equal(0.1, a, 9));
+            }
+            finally
+            {
+                worker.Stop();
+            }
+        }
+
+        [WorkerFact]
+        public void RealWorker_AnUnusableDiameterIsAReadableError()
+        {
+            var worker = RealWorker();
+            try
+            {
+                var quad = Quad(new[] { 0.0, 0.0, 0.0 }, new[] { 0.0, 1.0, 0.0 }, new[] { 1.0, 1.0, 0.0 }, new[] { 1.0, 0.0, 0.0 });
+                var (args, kwargs, _) = LabRequests.Sample(quad, "disc", 0.0, null, null, null, null);
+                var error = Assert.Throws<WorkerException>(() => worker.Call("make_scattering_sample", args, kwargs));
+                Assert.Contains("diameter", error.Message);
+                Assert.Equal(400, error.Status);
+            }
+            finally
+            {
+                worker.Stop();
+            }
+        }
     }
 }
