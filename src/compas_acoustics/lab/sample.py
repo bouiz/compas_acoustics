@@ -191,7 +191,11 @@ class ScatteringSample(_PackageDtype, Data):
 
 
 def _proxy(mesh, sample_is_open, floor, baseplate):
-    """A proxy mesh as a closed body, moved by the sample's z shift and closed as the sample was."""
+    """A proxy mesh as a closed body, moved by the sample's z shift and closed as the sample was.
+
+    An open proxy must not reach below the sample's baseplate (``z = −baseplate`` after the shift); a closed proxy must have its lowest point
+    where the sample has it (``z = −baseplate``) and a flat bottom there. Every error names the proxy.
+    """
     V, T = _clean(mesh)
     _, counts = _edge_counts(T)
     proxy_is_open = bool((counts == 1).any())
@@ -201,14 +205,38 @@ def _proxy(mesh, sample_is_open, floor, baseplate):
                 "open" if sample_is_open else "closed", "open" if proxy_is_open else "closed"
             )
         )
-    if proxy_is_open:
-        return _close(V, T, baseplate, floor, "reference")[0]
+    tolerance = 1e-6 * max(float(np.ptp(V, axis=0).max()), 1e-9)
     V = V - [0.0, 0.0, floor]
-    return _to_body(V, _orient(V, T), "reference")
+    low = float(V[:, 2].min())
+    try:
+        if proxy_is_open:
+            if low < -baseplate - tolerance:
+                raise ValueError(
+                    "the proxy reaches z = {:.4g} m, below the sample's baseplate at z = {:.4g} m (the sample's lowest point is at z = 0): "
+                    "an open proxy must lie above the baseplate".format(low, -baseplate)
+                )
+            return _close(V, T, baseplate, 0.0, "proxy")[0]
+        if abs(low + baseplate) > tolerance:
+            raise ValueError("the proxy's lowest point is at z = {:.4g} m, the sample's at z = {:.4g} m: a closed proxy stands on the sample's floor".format(low, -baseplate))
+        T = _orient(V, T)
+        _bottom_loop(V, T, -baseplate)
+        return _to_body(V, T, "proxy")
+    except ValueError as error:
+        raise _naming_the_proxy(error) from error
+
+
+def _naming_the_proxy(error):
+    """``error``'s message about the relief, turned into one about the proxy."""
+    message = str(error)
+    if "proxy" in message:
+        return ValueError(message)
+    if "the relief" in message:
+        return ValueError(message.replace("the relief", "the proxy"))
+    return ValueError("the proxy: " + message)
 
 
 def _same_outline(sample, proxy, diameter):
-    """Raise ``ValueError`` unless the xy bounding boxes of two bodies agree within 1e-3 of the diameter."""
+    """Raise ``ValueError`` unless the xy bounding boxes of two bodies agree within 1e-3 of the diameter and their bottom faces' areas within 1e-3 relative."""
     boxes = []
     for body in (sample, proxy):
         xy = np.array([body.vertex_coordinates(v)[:2] for v in body.vertices()])
@@ -219,6 +247,22 @@ def _same_outline(sample, proxy, diameter):
                 np.array2string(boxes[1], precision=4, separator=", "), np.array2string(boxes[0], precision=4, separator=", ")
             )
         )
+    areas = [_bottom_area(body) for body in (sample, proxy)]
+    if abs(areas[1] - areas[0]) > 1e-3 * areas[0]:
+        raise ValueError(
+            "the proxy's footprint (bottom area {:.6g} m²) differs from the sample's ({:.6g} m²) although their bounding boxes agree: give the proxy the sample's outline".format(
+                areas[1], areas[0]
+            )
+        )
+
+
+def _bottom_area(body):
+    """The area of a closed body's bottom: its faces at its lowest z that face −z."""
+    V, T = body.to_vertices_and_faces(triangulated=True)
+    p = np.asarray(V, dtype=float)[np.asarray(T, dtype=int)]
+    cross = np.cross(p[:, 1] - p[:, 0], p[:, 2] - p[:, 0])
+    bottom = (np.abs(p[:, :, 2] - p[:, :, 2].min()) < _WELD).all(axis=1) & (cross[:, 2] < 0)
+    return float(-cross[bottom, 2].sum() / 2)
 
 
 def _clean(mesh):

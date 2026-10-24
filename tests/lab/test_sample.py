@@ -169,3 +169,63 @@ def test_sawtooth_tile_tiles_into_a_closed_sample():
     s = ScatteringSample.disc(sawtooth_tile(), 0.4)
     assert s.sample.is_closed() and s.reference.is_closed()
     assert s.structural_depth == pytest.approx(0.05 * np.tan(np.radians(20.0)))
+
+
+def _polar_disc_patch(radius=0.5, n=64, rings=8, z=0.0, wobble=0.0):
+    """An open disc patch on a polar grid (a 64-gon), at height ``z`` plus ``wobble·sin(20x)·sin(20y)``."""
+    V = [[0.0, 0.0, z]]
+    for k in range(1, rings + 1):
+        for j in range(n):
+            x, y = radius * k / rings * np.cos(2 * np.pi * j / n), radius * k / rings * np.sin(2 * np.pi * j / n)
+            V.append([x, y, z + wobble * np.sin(20 * x) * np.sin(20 * y)])
+    F = [[0, 1 + j, 1 + (j + 1) % n] for j in range(n)]
+    for k in range(1, rings):
+        b0, b1 = 1 + (k - 1) * n, 1 + k * n
+        F += [[b0 + j, b1 + j, b1 + (j + 1) % n, b0 + (j + 1) % n] for j in range(n)]
+    return Mesh.from_vertices_and_faces(V, F)
+
+
+def _square_patch(size=1.0, n=4):
+    xs = np.linspace(-size / 2, size / 2, n + 1)
+    V = [[x, y, 0.0] for y in xs for x in xs]
+    F = [[j * (n + 1) + i, j * (n + 1) + i + 1, (j + 1) * (n + 1) + i + 1, (j + 1) * (n + 1) + i] for j in range(n) for i in range(n)]
+    return Mesh.from_vertices_and_faces(V, F)
+
+
+def _box_with_a_pointed_bottom():
+    """A closed unit-square body from a point at (0.5, 0.5, 0) up to a flat top at z = 0.5: its lowest point is a vertex, it has no flat bottom."""
+    V = [[0, 0, 0.1], [1, 0, 0.1], [1, 1, 0.1], [0, 1, 0.1], [0, 0, 0.5], [1, 0, 0.5], [1, 1, 0.5], [0, 1, 0.5], [0.5, 0.5, 0.0]]
+    F = [[4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7], [1, 0, 8], [2, 1, 8], [3, 2, 8], [0, 3, 8]]
+    return Mesh.from_vertices_and_faces(V, F)
+
+
+def _lifted(mesh, dz):
+    for v in mesh.vertices():
+        mesh.vertex_attribute(v, "z", mesh.vertex_attribute(v, "z") + dz)
+    return mesh
+
+
+@pytest.mark.parametrize(
+    "relief, proxy, match",
+    [
+        # the same bounding box, another footprint: a flat square over a flat disc (20 % of the rays fell through the square's corners)
+        (_polar_disc_patch, _square_patch, "footprint"),
+        # a closed proxy floating 0.1 m above the sample's lowest point
+        (lambda: bumped_box(size=1.0, thickness=0.5, bump=0.0), lambda: _lifted(bumped_box(size=1.0, thickness=0.3, bump=0.0), 0.1), "lowest point"),
+        # a closed proxy whose lowest point is a vertex
+        (lambda: bumped_box(size=1.0, thickness=0.5, bump=0.0), _box_with_a_pointed_bottom, "flat bottom"),
+        # an open proxy 0.03 m below the sample's floor, more than the 0.01 m baseplate
+        (lambda: _polar_disc_patch(wobble=0.02), lambda: _polar_disc_patch(z=-0.05), "below"),
+        # an open proxy of two parts
+        (open_l_shaped_relief, two_separate_patches, "outline"),
+    ],
+)
+def test_a_proxy_that_does_not_fit_the_sample_is_refused_naming_the_proxy(relief, proxy, match):
+    with pytest.raises(ValueError, match=match) as raised:
+        ScatteringSample.as_drawn(relief(), reference=proxy())
+    assert "proxy" in str(raised.value)
+
+
+def test_a_proxy_of_the_same_footprint_is_accepted():
+    s = ScatteringSample.as_drawn(_polar_disc_patch(wobble=0.02), reference=_polar_disc_patch())
+    assert s.reference_kind == "proxy" and footprint_area(s.reference) == pytest.approx(footprint_area(s.sample), rel=1e-9)
