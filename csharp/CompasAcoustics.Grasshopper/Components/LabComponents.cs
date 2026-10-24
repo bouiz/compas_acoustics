@@ -1,8 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Drawing;
+using System.Linq;
 using CompasAcoustics.Pb;
 using Grasshopper.Kernel;
+using Grasshopper.Kernel.Parameters;
 using Grasshopper.Kernel.Types;
+using Rhino.Geometry;
 
 namespace CompasAcoustics.Grasshopper
 {
@@ -126,6 +130,96 @@ namespace CompasAcoustics.Grasshopper
                 if (!delivered)
                     Status("press Run");
             }
+        }
+    }
+
+    /// <summary>
+    /// The polar response of a scattering result for one incidence direction and octave: the reflected level in every receiver
+    /// direction as a balloon mesh, coloured by level (the worker's polar_balloon).
+    /// </summary>
+    public sealed class PolarPreviewComponent : DisplayComponent
+    {
+        internal static readonly string[] Bodies = { "sample", "reference" };
+        private static readonly string[] Octaves = { "125", "250", "500", "1000", "2000", "4000", "8000" };
+        private Mesh? _drawn;
+        private Line _source = Line.Unset;
+
+        public PolarPreviewComponent() : base("CA_Polar_Preview") { }
+        protected override string SpecKey => "CA_Polar_Preview";
+        public override Guid ComponentGuid => new Guid("caa96e48-6c1b-5a10-bf2f-b8fcb160f04b");
+
+        // the options of preview and octave are the result's own, set at solve time (SetValueOptions)
+        public override IReadOnlyList<Control> Controls { get; } = new Control[]
+        {
+            PreviewSwitch,
+            new DropdownControl("preview", new[] { "0" }, "0", new[] { "0" }, "Preview"),
+            new DropdownControl("octave", Octaves, "1000", Octaves.Select(o => o + " Hz").ToArray(), "Octave"),
+            new DropdownControl("body", Bodies, Bodies[0]),
+        };
+
+        protected override IGH_Param? CreateParam(PortSpec port, bool input) => (input, port.Name) switch
+        {
+            (true, "result") => new Param_ScatteringResult(),
+            (false, "mesh") => new Param_Mesh(),
+            (false, "levels") => new Param_Number(),
+            (false, "source") => new Param_Line(),
+            _ => null,
+        };
+
+        protected override void Clear()
+        {
+            _drawn = null;
+            _source = Line.Unset;
+        }
+
+        protected override void Solve(IGH_DataAccess access)
+        {
+            var goo = Item<ScatteringResultGoo>(access, "result");
+            if (goo?.Value == null)
+            {
+                Warn("Input parameter 'result' failed to collect data.");
+                return;
+            }
+            var result = goo.Value;
+            var previews = LabRequests.PreviewLabels(result);
+            SetValueOptions("preview", Enumerable.Range(0, previews.Length).ToList(), previews);
+            SetValueOptions("octave", result.OctaveBands.ToList(), result.OctaveBands.Select(o => $"{o} Hz").ToList());
+            var (args, kwargs, problem) = LabRequests.Balloon(result, Value<int>(access, "preview") ?? 0, Value<int>(access, "octave") ?? 1000,
+                Text(access, "body") ?? Bodies[0], Value<double>(access, "radius") ?? 1.0, Value<double>(access, "floor_db") ?? -30.0);
+            if (problem != null)
+            {
+                Warn(problem);
+                return;
+            }
+            var floor = (double)kwargs["floor_db"]!;
+            var (mesh, levels, direction, label) = LabResults.ReadBalloon((IDictionary<string, object?>)Worker.Call("polar_balloon", args, kwargs)!);
+            var centre = Value<Point3d>(access, "centre") ?? Point3d.Origin;
+            var move = centre - Point3d.Origin;
+            var (corners, faces) = PreviewGeometry.MeshOf(mesh);
+            var vertices = corners.Select(v => v + move).ToArray();
+            // the level of a face: the mean of its vertices, on the scale from the floor (blue) to 0 dB (red)
+            var colours = LabResults.FaceLevels(levels, faces).Select(v => EnergyMapColours.Of(v, floor, 0.0)).ToArray();
+            _drawn = EnergyMapColours.Coloured(vertices, faces, colours, offset: false);
+            _source = new Line(centre, centre + new Vector3d(direction[0], direction[1], direction[2]));
+            Box = BoxOf(vertices.Concat(new[] { _source.From, _source.To }));
+            Status(label);
+            access.SetData("mesh", _drawn);
+            access.SetDataList("levels", levels);
+            access.SetData("source", _source);
+        }
+
+        public override void DrawViewportMeshes(IGH_PreviewArgs args)
+        {
+            base.DrawViewportMeshes(args);
+            if (_drawn != null)
+                args.Display.DrawMeshFalseColors(_drawn);
+        }
+
+        public override void DrawViewportWires(IGH_PreviewArgs args)
+        {
+            base.DrawViewportWires(args);
+            if (_source.IsValid)
+                args.Display.DrawLine(_source, Color.FromArgb(60, 60, 60), 2);
         }
     }
 }

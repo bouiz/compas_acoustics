@@ -117,6 +117,31 @@ namespace CompasAcoustics.Grasshopper
             return normal * Lift;
         }
 
+        /// <summary>
+        /// The mesh with every face its own vertices, so that each face takes its colour whole, lifted a centimetre off the
+        /// surface it was made from (<see cref="Offset"/>) so that the two do not flicker; ``offset`` false leaves it where it is (a balloon).
+        /// </summary>
+        internal static Mesh Coloured(Point3d[] vertices, int[][] faces, Color[] colours, bool offset = true)
+        {
+            var mesh = new Mesh();
+            for (var f = 0; f < faces.Length; f++)
+            {
+                var first = mesh.Vertices.Count;
+                var lift = offset ? Offset(faces[f].Select(v => vertices[v]).ToArray()) : Vector3d.Zero;
+                foreach (var v in faces[f])
+                {
+                    mesh.Vertices.Add(vertices[v] + lift);
+                    mesh.VertexColors.Add(colours[f]);
+                }
+                if (faces[f].Length == 4)
+                    mesh.Faces.AddFace(first, first + 1, first + 2, first + 3);
+                else
+                    mesh.Faces.AddFace(first, first + 1, first + 2);
+            }
+            mesh.Normals.ComputeNormals();
+            return mesh;
+        }
+
         private static Color Hsv(double hue, double saturation, double value)
         {
             var c = value * saturation;

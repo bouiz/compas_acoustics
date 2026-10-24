@@ -237,5 +237,146 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.IsType<Param_ScatteringResult>(component.Params.Output.First());
             Assert.Equal(new[] { "result", "scattering", "diffusion", "octaves" }, component.Params.Output.Select(p => p.Name));
         }
+
+        [Fact]
+        public void PreviewLabels_NameTheRingAndAzimuthOfEachPreviewSource()
+        {
+            var result = LabResult();
+            var labels = LabRequests.PreviewLabels(result);
+            Assert.Equal(result.PolarSourceIndices.Count, labels.Length);
+            Assert.NotEmpty(labels);
+            for (var i = 0; i < labels.Length; i++)
+            {
+                var at = result.PolarSourceIndices[i];
+                var expected = string.Format(System.Globalization.CultureInfo.InvariantCulture, "\u03b8 {0:0.##}\u00b0, \u03c6 {1:0.##}\u00b0", result.SourceColatitude[at], result.SourceAzimuth[at]);
+                Assert.Equal(expected, labels[i]);
+            }
+            var set = result.Clone();
+            set.SourceColatitude.Clear();
+            set.SourceColatitude.AddRange(new[] { 0.0, 30.0, 22.5 });
+            set.SourceAzimuth.Clear();
+            set.SourceAzimuth.AddRange(new[] { 0.0, 0.0, 45.0 });
+            set.PolarSourceIndices.Clear();
+            set.PolarSourceIndices.AddRange(new[] { 1, 2 });
+            var culture = System.Threading.Thread.CurrentThread.CurrentCulture;
+            try
+            {
+                System.Threading.Thread.CurrentThread.CurrentCulture = new System.Globalization.CultureInfo("de-CH");
+                Assert.Equal(new[] { "\u03b8 30\u00b0, \u03c6 0\u00b0", "\u03b8 22.5\u00b0, \u03c6 45\u00b0" }, LabRequests.PreviewLabels(set));
+            }
+            finally
+            {
+                System.Threading.Thread.CurrentThread.CurrentCulture = culture;
+            }
+        }
+
+        [Fact]
+        public void Balloon_PassesPreviewOctaveBodyRadiusAndFloor()
+        {
+            var result = LabResult();
+            var octave = result.OctaveBands[result.OctaveBands.Count - 1];
+            var (args, kwargs, problem) = LabRequests.Balloon(result, 0, octave, "reference", 2.0, -20.0);
+            Assert.Null(problem);
+            Assert.Single(args);
+            Assert.Same(result, args[0]);
+            Assert.Equal(new[] { "body", "floor_db", "octave", "preview", "radius" }, kwargs.Keys.OrderBy(k => k, StringComparer.Ordinal));
+            Assert.Equal(0L, Convert.ToInt64(kwargs["preview"]));
+            Assert.Equal((long)octave, Convert.ToInt64(kwargs["octave"]));
+            Assert.Equal("reference", kwargs["body"]);
+            Assert.Equal(2.0, kwargs["radius"]);
+            Assert.Equal(-20.0, kwargs["floor_db"]);
+        }
+
+        [Fact]
+        public void Balloon_AnOctaveThatWasNotSimulated_IsAProblem()
+        {
+            var result = LabResult().Clone();
+            result.OctaveBands.Clear();
+            result.OctaveBands.AddRange(new[] { 125, 250, 500 });
+            Assert.Equal("'octave' must be one of 125, 250, 500 Hz", LabRequests.Balloon(result, 0, 1000, "sample", 1.0, -30.0).problem);
+            Assert.Null(LabRequests.Balloon(result, 0, 250, "sample", 1.0, -30.0).problem);
+        }
+
+        [Fact]
+        public void Balloon_APreviewOutOfRange_IsAProblem()
+        {
+            var result = LabResult();
+            var last = result.PolarSourceIndices.Count - 1;
+            var octave = result.OctaveBands[0];
+            Assert.Equal($"'preview' must be 0 to {last}", LabRequests.Balloon(result, last + 1, octave, "sample", 1.0, -30.0).problem);
+            Assert.Equal($"'preview' must be 0 to {last}", LabRequests.Balloon(result, -1, octave, "sample", 1.0, -30.0).problem);
+            Assert.Null(LabRequests.Balloon(result, last, octave, "sample", 1.0, -30.0).problem);
+        }
+
+        [Fact]
+        public void FaceLevels_AreTheMeanOfTheirVertices()
+        {
+            var levels = new[] { 0.0, -6.0, -12.0, -30.0 };
+            var faces = new[] { new[] { 0, 1, 2 }, new[] { 1, 2, 3 }, new[] { 0, 1, 2, 3 } };
+            Assert.Equal(new[] { -6.0, -16.0, -12.0 }, LabResults.FaceLevels(levels, faces));
+            Assert.Empty(LabResults.FaceLevels(levels, Array.Empty<int[]>()));
+        }
+
+        [Fact]
+        public void PolarPreviewSpec_HasItsPortsAndDefaults()
+        {
+            var spec = ComponentSpec.Load("CA_Polar_Preview");
+            Assert.Equal("08 Lab", spec.Subcategory);
+            Assert.Equal(global::Grasshopper.Kernel.GH_Exposure.primary, spec.Exposure);
+            Assert.Equal(new[] { "result", "preview", "octave", "body", "radius", "floor_db", "centre" }, spec.Inputs.Select(p => p.Name));
+            Assert.Equal(new[] { "mesh", "levels", "source" }, spec.Outputs.Select(p => p.Name));
+            var inputs = spec.Inputs.ToDictionary(p => p.Name);
+            Assert.False(inputs["result"].Optional);
+            Assert.Equal("ghdoc", inputs["result"].TypeHint);
+            Assert.All(new[] { "preview", "octave", "body", "radius", "floor_db", "centre" }, n => Assert.True(inputs[n].Optional, n));
+            Assert.Equal("int", inputs["preview"].TypeHint);
+            Assert.Equal("int", inputs["octave"].TypeHint);
+            Assert.Equal("sample", inputs["body"].Default);
+            Assert.Equal(1.0, inputs["radius"].Default);
+            Assert.Equal(-30.0, Convert.ToDouble(inputs["floor_db"].Default));
+            Assert.Equal("point", inputs["centre"].TypeHint);
+            var component = new PolarPreviewComponent();
+            Assert.Equal(new System.Guid("caa96e48-6c1b-5a10-bf2f-b8fcb160f04b"), component.ComponentGuid);
+            Assert.Equal(new[] { "preview", "octave", "body" }, component.Controls.OfType<DropdownControl>().Select(c => c.Port));
+            Assert.Equal(new[] { "sample", "reference" }, component.Controls.OfType<DropdownControl>().Single(c => c.Port == "body").Options);
+            Assert.Single(component.Controls.OfType<ToggleControl>());
+            Assert.False(component.PreviewsOutput(component.Params.Output[0]));
+        }
+
+        [Fact]
+        public void ReadBalloon_TakesTheMeshLevelsSourceAndLabel()
+        {
+            var mesh = Mesh();
+            var answer = new Dictionary<string, object?>
+            {
+                ["mesh"] = mesh,
+                ["levels"] = new List<object> { 0.0, -3.0, -30.0 },
+                ["source"] = new List<object> { 0.6, 0.0, 1.0 },
+                ["label"] = "\u03b8 30\u00b0, \u03c6 0\u00b0, 1000 Hz, sample",
+            };
+            var (read, levels, source, label) = LabResults.ReadBalloon(answer);
+            Assert.Same(mesh, read);
+            Assert.Equal(new[] { 0.0, -3.0, -30.0 }, levels);
+            Assert.Equal(new[] { 0.6, 0.0, 1.0 }, source);
+            Assert.Equal("\u03b8 30\u00b0, \u03c6 0\u00b0, 1000 Hz, sample", label);
+        }
+
+        [Fact]
+        public void PolarPreview_OffersTheOctavesAndPreviewsOfItsResult_NotAll()
+        {
+            var component = new PolarPreviewComponent();
+            var octave = component.Controls.OfType<DropdownControl>().Single(c => c.Port == "octave");
+            Assert.Equal("1000", octave.Default);
+            component.SetValueOptions("octave", new[] { 125, 250, 500 }, new[] { "125 Hz", "250 Hz", "500 Hz" });
+            component.SetValueOptions("preview", new[] { 0, 1 }, new[] { "\u03b8 0\u00b0, \u03c6 0\u00b0", "\u03b8 30\u00b0, \u03c6 0\u00b0" });
+            var (values, labels) = component.OptionsOf(octave);
+            Assert.Equal(new[] { "125", "250", "500" }, values);
+            Assert.Equal(new[] { "125 Hz", "250 Hz", "500 Hz" }, labels);
+            var preview = component.Controls.OfType<DropdownControl>().Single(c => c.Port == "preview");
+            Assert.Equal(new[] { "0", "1" }, component.OptionsOf(preview).values);
+            // the named values of the integer ports, for the shown input's menu
+            var port = (global::Grasshopper.Kernel.Parameters.Param_Integer)component.ControlPort("octave")!;
+            Assert.True(port.HasNamedValues);
+        }
     }
 }

@@ -1,0 +1,82 @@
+{
+    "name": "Polar Preview",
+    "nickname": "Polar",
+    "category": "COMPAS Acoustics",
+    "subcategory": "08 Lab",
+    "description": "The polar response of a scattering result (ISO 17497-2, 3.8): the level reflected from the sample into every receiver direction, for one incidence direction and one octave band, as a balloon mesh coloured by level. A direction at 0 dB (the level of the flat reference's specular reflection) is at radius from the centre, a direction at floor_db or below at the centre; blue is the lowest level, red the highest. The source output is a line towards the incidence direction. The Preview button shows or hides the drawing.",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "result",
+                "description": "ScatteringResult object, from Scattering Lab.",
+                "optional": false,
+                "scriptParamAccess": 0,
+                "typeHintID": "ghdoc"
+            },
+            {
+                "name": "preview",
+                "description": "Which incidence direction: an index of the result's preview sources, labelled with their colatitude (theta) and azimuth (phi) in degrees.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "int",
+                "default": 0
+            },
+            {
+                "name": "octave",
+                "description": "The octave band in Hz, one the result simulated.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "int",
+                "default": 1000
+            },
+            {
+                "name": "body",
+                "description": "'sample' or 'reference' (the flat reference of the same size).",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "str",
+                "default": "sample"
+            },
+            {
+                "name": "radius",
+                "description": "The radius of a direction at 0 dB, in model units.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "float",
+                "default": 1.0
+            },
+            {
+                "name": "floor_db",
+                "description": "A negative level in dB: a direction at this level or below is at the centre.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "float",
+                "default": -30.0
+            },
+            {
+                "name": "centre",
+                "description": "Optional. The point the balloon is centred on; the origin unless given.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "point"
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "mesh",
+                "description": "The balloon, each face in the colour of the mean level of its vertices."
+            },
+            {
+                "name": "levels",
+                "description": "The level in dB of each receiver direction (each vertex of the mesh before it is split into faces)."
+            },
+            {
+                "name": "source",
+                "description": "A line from the centre towards the incidence direction."
+            }
+        ]
+    }
+}

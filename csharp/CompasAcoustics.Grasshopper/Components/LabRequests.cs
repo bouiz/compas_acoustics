@@ -91,5 +91,33 @@ namespace CompasAcoustics.Grasshopper
                 : null;
             return (new object?[] { sample, method }, kwargs, problem);
         }
+
+        /// <summary>The preview sources of a result as its Polar Preview dropdown lists them: <c>θ 30°, φ 0°</c>, the colatitude and azimuth in degrees.</summary>
+        public static string[] PreviewLabels(ScatteringResultData result) =>
+            result.PolarSourceIndices.Select(i => string.Create(CultureInfo.InvariantCulture, $"θ {result.SourceColatitude[i]:0.##}°, φ {result.SourceAzimuth[i]:0.##}°")).ToArray();
+
+        /// <summary>
+        /// The call of <c>polar_balloon</c>: the result as the argument, the preview, octave, body, radius and floor as keywords.
+        /// <c>problem</c> says why the inputs cannot make a call: an octave the result did not simulate or a preview it does not have.
+        /// </summary>
+        public static (object?[] args, Dictionary<string, object?> kwargs, string? problem) Balloon(ScatteringResultData result, int preview, int octave,
+            string body, double radius, double floorDb)
+        {
+            var kwargs = new Dictionary<string, object?>
+            {
+                ["preview"] = (long)preview,
+                ["octave"] = (long)octave,
+                ["body"] = body,
+                ["radius"] = radius,
+                ["floor_db"] = floorDb,
+            };
+            var previews = result.PolarSourceIndices.Count;
+            var problem = previews == 0 ? "The result has no preview sources."
+                : preview < 0 || preview >= previews ? $"'preview' must be 0 to {previews - 1}"
+                : result.OctaveBands.Count == 0 ? "The result has no simulated octaves."
+                : !result.OctaveBands.Contains(octave) ? $"'octave' must be one of {string.Join(", ", result.OctaveBands)} Hz"
+                : null;
+            return (new object?[] { result }, kwargs, problem);
+        }
     }
 }

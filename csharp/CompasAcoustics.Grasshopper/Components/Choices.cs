@@ -107,6 +107,21 @@ namespace CompasAcoustics.Grasshopper
             }
         }
 
+        /// <summary>
+        /// Offer the integers ``values`` with their ``labels`` on the integer input ``port`` (a result's octaves, its preview
+        /// sources): its dropdown reads the labels, no "All", and the port, when shown, its named values.
+        /// </summary>
+        public void SetValueOptions(string port, IReadOnlyList<int> values, IReadOnlyList<string> labels)
+        {
+            _indexOptions[port] = (values.Select(v => v.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToArray(), labels.ToArray());
+            if (ControlPort(port) is global::Grasshopper.Kernel.Parameters.Param_Integer integer)
+            {
+                integer.ClearNamedValues();
+                for (var i = 0; i < values.Count; i++)
+                    integer.AddNamedValue(labels[i], values[i]);
+            }
+        }
+
         /// <summary>The range a slider runs over now: its own, unless the component knows better (the traced order, a field's length).</summary>
         public virtual (double min, double max) SliderRange(SliderControl slider) => (slider.Min, slider.Max);
 

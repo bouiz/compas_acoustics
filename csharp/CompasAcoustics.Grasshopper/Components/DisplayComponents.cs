@@ -436,7 +436,7 @@ namespace CompasAcoustics.Grasshopper
                 var scale = EnergyMapColours.Range(level, range);
                 var label = band is int i ? Bands[i] : "dB(A)";
                 var colours = level.Select(v => EnergyMapColours.Of(v, scale.low, scale.high)).ToArray();
-                _drawn = Coloured(vertices, faces, colours);
+                _drawn = EnergyMapColours.Coloured(vertices, faces, colours);
                 Box = BoxOf(vertices);
                 Status(string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0} {1:0.0} to {2:0.0} dB", label, scale.low, scale.high),
                     string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0} {1:0.0} to {2:0.0} dB\n{3} points{4}",
@@ -474,31 +474,6 @@ namespace CompasAcoustics.Grasshopper
         private static double[] Numbers(object? list) => ((IEnumerable<object?>)list!).Select(v => Convert.ToDouble(v, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
 
         private static double[][] Rows(object? list) => ((IEnumerable<object?>)list!).Select(Numbers).ToArray();
-
-        /// <summary>
-        /// The mesh with every face its own vertices, so that each face takes its colour whole, lifted a centimetre off the
-        /// surface it was made from (<see cref="EnergyMapColours.Offset"/>) so that the two do not flicker.
-        /// </summary>
-        private static Mesh Coloured(Point3d[] vertices, int[][] faces, Color[] colours)
-        {
-            var mesh = new Mesh();
-            for (var f = 0; f < faces.Length; f++)
-            {
-                var first = mesh.Vertices.Count;
-                var lift = EnergyMapColours.Offset(faces[f].Select(v => vertices[v]).ToArray());
-                foreach (var v in faces[f])
-                {
-                    mesh.Vertices.Add(vertices[v] + lift);
-                    mesh.VertexColors.Add(colours[f]);
-                }
-                if (faces[f].Length == 4)
-                    mesh.Faces.AddFace(first, first + 1, first + 2, first + 3);
-                else
-                    mesh.Faces.AddFace(first, first + 1, first + 2);
-            }
-            mesh.Normals.ComputeNormals();
-            return mesh;
-        }
 
         public override void DrawViewportMeshes(IGH_PreviewArgs args)
         {

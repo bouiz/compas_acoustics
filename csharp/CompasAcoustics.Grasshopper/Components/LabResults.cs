@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using CompasAcoustics.Pb;
+using CompasPb.Data;
 
 namespace CompasAcoustics.Grasshopper
 {
@@ -30,5 +31,12 @@ namespace CompasAcoustics.Grasshopper
             result.SOctaves.Count == 0
                 ? result.Method
                 : string.Create(CultureInfo.InvariantCulture, $"{result.Method}, s {result.SOctaves.Min():0.00}–{result.SOctaves.Max():0.00}");
+
+        /// <summary>The level of each face of a balloon: the mean of the levels of its vertices.</summary>
+        public static double[] FaceLevels(double[] levels, int[][] faces) => faces.Select(face => face.Average(v => levels[v])).ToArray();
+
+        /// <summary>The answer of <c>polar_balloon</c>: the balloon, the level of each vertex, the vector towards the source and the label.</summary>
+        public static (MeshData mesh, double[] levels, double[] source, string label) ReadBalloon(IDictionary<string, object?> answer) =>
+            ((MeshData)answer["mesh"]!, Numbers(answer["levels"]).ToArray(), Numbers(answer["source"]).ToArray(), Convert.ToString(answer["label"], CultureInfo.InvariantCulture) ?? "");
     }
 }
