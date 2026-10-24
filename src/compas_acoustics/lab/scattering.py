@@ -51,12 +51,14 @@ _SLOW = (
 _UNCONVERGED = "bem: NumCalc did not converge for the {bodies} at {frequencies} Hz; s in the {octaves} Hz octaves is unreliable"
 _HEURISTIC = (
     "geometric: s is frequency-modelled from the geometry (heuristic: s_max·(1 − exp(−(k·h)²)) from specular rays, with no phase and no "
-    "diffraction); use kirchhoff, sbr or bem for the physics"
+    "diffraction); use kirchhoff or bem for the physics (an sbr method is planned)"
 )
 _LOST = (
-    "geometric: up to {percent:.1f} % of the rays of a source are lost (still bouncing after max_bounces = {bounces}, or leaving along the horizon); "
-    "lost energy of only one of the sample and the reference counts as scattering; a larger max_bounces loses fewer"
+    "geometric: up to {percent:.1f} % of the rays of a source are lost, still bouncing after max_bounces = {bounces}; lost energy of only one of "
+    "the sample and the reference counts as scattering; a larger max_bounces loses fewer"
 )
+_NO_TRIMESH = 'the "geometric" method needs trimesh (Python >= 3.11, pip install compas_acoustics[lab]); pass method="kirchhoff" to run without it'
+_GEOMETRIC_OPTIONS = inspect.signature(geometric_response)  # the options of the geometric method, and their defaults
 _LOST_LIMIT = 0.01  # the lost fraction of a source above which the geometric method warns
 
 
@@ -251,11 +253,14 @@ def _correlation(sample, method, sources, preview, band_range, nominal, exact, c
 def _geometric(sample, sources, preview, nominal, exact, c, solver_options):
     """The geometric method: specular rays binned on the hemisphere, s_max from the histograms' overlap, s(f) and d from the geometry."""
     try:
-        options = inspect.signature(geometric_response).bind(sample, sources, **solver_options)
+        options = _GEOMETRIC_OPTIONS.bind(sample, sources, **solver_options)
     except TypeError as error:
         raise TypeError("geometric: {} (the options are n_rays, bin_deg, max_bounces and seed)".format(error)) from None
     options.apply_defaults()
-    response = geometric_response(*options.args, **options.kwargs)
+    try:
+        response = geometric_response(*options.args, **options.kwargs)
+    except ImportError as error:  # from the ray caster: trimesh or its backend is missing
+        raise ImportError("{}: {}".format(_NO_TRIMESH, error)) from error
     n_bands = len(nominal)
 
     # the lost fraction is one more bin: lost by both bodies it cancels, lost by one it counts as scattering
@@ -353,9 +358,11 @@ def measure_scattering(sample, method="geometric", preset=None, band_range=ISO_B
     Three methods, all on the same source grids, bands and averaging:
 
     - ``"geometric"`` (the default, seconds): a fast **heuristic** preview, not a wave solution (:mod:`compas_acoustics.lab.geometric`).
+      It needs ``trimesh`` (ideally with the ``embreex`` backend), which the ``lab`` extra installs on Python ≥ 3.11 only
+      (``pip install compas_acoustics[lab]``); ``method="kirchhoff"`` runs without them (Rhino's Python 3.9 included).
       ``n_rays`` specular rays per source, aimed at the footprint, reflect off the rigid sample and the rigid reference (mounted in a baffle
       at z = 0) and are binned on a receiver hemisphere of ``bin_deg`` cells. ``s_max`` per source is one minus the overlap of the two
-      energy histograms, the lost fraction (rays still bouncing after ``max_bounces``, or leaving along the horizon) counted as one more bin;
+      energy histograms, the lost fraction (rays still bouncing after ``max_bounces``) counted as one more bin;
       the per-band ``s = s_max·(1 − exp(−(k h)²))`` is imposed at each band's exact centre, with ``h`` twice the standard deviation of the
       relief over the reference. There is no phase and no diffraction: no rim, no cavity resonance. d comes from the cells' energy per
       steradian and is the same at every band, as are the polar levels. The result is marked ``generation["heuristic"]`` and warned about;
@@ -416,6 +423,8 @@ def measure_scattering(sample, method="geometric", preset=None, band_range=ISO_B
         If the method is not supported, or the preset or band range is invalid.
     TypeError
         If a solver option is not one of the method's.
+    ImportError
+        If ``method="geometric"`` and ``trimesh`` or its ray backend is missing; the message names ``method="kirchhoff"`` as the way out.
     RuntimeError
         If the solver returned non-finite pressures.
     """

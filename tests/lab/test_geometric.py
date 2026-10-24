@@ -83,10 +83,11 @@ def test_a_sample_equal_to_its_proxy_scatters_nothing():
     body = ScatteringSample.disc(sawtooth_tile(), 0.4).sample
     sample = ScatteringSample.as_drawn(body, reference=body)
     assert sample.reference_kind == "proxy"
-    response = geometric_response(sample, SourceGrid.preset("survey"), n_rays=2000)
-    # rays lost at the rim are lost identically in both; the lost fraction is one more bin of the histograms (Task 5 does the same)
+    # max_bounces=1: the rays that need a second reflection (the riser, the baffle beyond the rim) are lost, identically in both
+    response = geometric_response(sample, SourceGrid.preset("survey"), n_rays=2000, max_bounces=1)
+    # the lost fraction is one more bin of the histograms (Task 5 does the same)
     with_lost = (np.column_stack([response.sample, response.lost_sample]), np.column_stack([response.reference, response.lost_reference]))
-    assert response.lost_sample.max() > 0
+    assert response.lost_sample.max() > 0.01
     assert np.allclose(scattering_share(*with_lost), 0.0, atol=1e-9)
     assert response.depth == pytest.approx(0.0, abs=1e-9)
 
@@ -144,8 +145,9 @@ def test_cells_alone_may_count_common_losses_as_scattering_and_the_lost_bin_remo
     pytest.importorskip("embreex")
     body = _closed_disc().sample
     sample = ScatteringSample.as_drawn(body, reference=body)
-    response = geometric_response(sample, SourceGrid.preset("standard"), n_rays=2000)
-    # a body against itself: whatever is lost is lost in both
+    response = geometric_response(sample, SourceGrid.preset("standard"), n_rays=2000, max_bounces=1)
+    # a body against itself: whatever is lost is lost in both (one bounce allowed, so that some are)
+    assert response.lost_sample.max() > 0.01
     cells = scattering_share(response.sample, response.reference)
     with_lost = scattering_share(np.column_stack([response.sample, response.lost_sample]), np.column_stack([response.reference, response.lost_reference]))
     np.testing.assert_allclose(with_lost, 0.0, atol=1e-12)
@@ -170,9 +172,11 @@ def test_the_object_is_mounted_in_a_baffle_so_a_windward_wall_does_not_throw_ray
     response = geometric_response(sample, sources, n_rays=20000)
     assert (response.lost_reference == 0).all()
     ring = sources.colatitude == 80.0
-    # measured with the baffle: 0 on this ring (20000 rays, one ray is 5e-5), free-standing it was 0.12 to 0.27; what remains elsewhere in the preset
-    # (at most 0.011) are rays that leave exactly along the horizon (colatitude 50 = 90 - 2 x 20 reflects off the slope to d_z = 0) or run out of bounces
+    # measured with the baffle: 0 on this ring (20000 rays, one ray is 5e-5), free-standing it was 0.12 to 0.27
     assert response.lost_sample[ring].max() < 1e-3
+    # the rays that leave exactly along the horizon (colatitude 50 = 90 - 2 x 20 reflects off the slope to d_z = 0) are binned, not lost: that ring
+    # lost 0.011 when they were; what remains in the preset (at most 0.0004, 2026-10-24) are rays still bouncing after max_bounces
+    assert response.lost_sample.max() < 1e-3
 
 
 def _box(top=0.2, bottom=-0.1):
@@ -251,10 +255,12 @@ def test_the_baffle_is_only_outside_the_footprint():
     assert np.argmax(energy) == np.argmax(directions @ [-s, 0.0, s])
 
 
-def test_a_ray_that_never_leaves_the_horizontal_is_lost():
+def test_a_ray_that_leaves_along_the_horizon_is_binned_in_the_nearest_cell():
     pytest.importorskip("embreex")
-    _, energy, lost = _exit([2.0, 0.5, 0.15], [-1.0, 0.0, 0.0], max_bounces=4)  # reflects off the east wall to +x, d_z = 0: neither up nor down
-    assert lost == 1.0 and energy.sum() == 0.0
+    # reflects off the east wall to +x, d_z = 0: it grazes the baffle plane, it is not trapped, so it goes into the cell nearest to +x
+    directions, energy, lost = _exit([2.0, 0.5, 0.15], [-1.0, 0.0, 0.0], max_bounces=4)
+    assert lost == 0.0 and energy.sum() == pytest.approx(1.0, abs=1e-12)
+    assert np.argmax(energy) == np.argmax(directions @ [1.0, 0.0, 0.0])
 
 
 def _wedge():

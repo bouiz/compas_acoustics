@@ -9,8 +9,9 @@ diffraction: the rim and any wave effect are ignored, and the frequency dependen
 The object is treated as mounted in a rigid infinite baffle at z = 0 (the objects of the lab are mounted on a wall, floor or ceiling), outside
 its footprint: a ray travelling downward that reaches z = 0 before any face, at a point outside the footprint (the xy projection of the reference's
 flat bottom face), is reflected specularly on the plane, which counts as one bounce. Inside the footprint there is no baffle: a ray reflects off
-whatever face it meets, below z = 0 included (the bottom of a closed mesh lies below z = 0). A ray that leaves upward is binned; one that leaves
-exactly along the horizon, leaves downward, or is still bouncing after ``max_bounces`` is lost.
+whatever face it meets, below z = 0 included (the bottom of a closed mesh lies below z = 0). A ray that leaves upward is binned, and so is one that
+leaves exactly along the horizon (``d_z == 0``: it grazes the baffle plane, it is not trapped), into the cell nearest its direction. A ray still
+bouncing after ``max_bounces`` is lost; so would be one leaving downward without meeting a face or the baffle, which a closed body does not let happen.
 """
 
 from dataclasses import dataclass
@@ -43,8 +44,8 @@ class GeometricResponse:
     sample, reference : :class:`numpy.ndarray`
         The fraction of the incident energy that leaves into each cell, shape (n_sources, n_bins).
     lost_sample, lost_reference : :class:`numpy.ndarray`
-        The fraction that never leaves upward: still bouncing after ``max_bounces``, or leaving exactly along the horizon (``d_z == 0``),
-        shape (n_sources,). It is counted separately from the cells, so ``sample.sum(axis=1) + lost_sample`` is 1 as a check.
+        The fraction still bouncing after ``max_bounces`` (trapped in a cavity), shape (n_sources,); rays leaving along the horizon are binned.
+        It is counted separately from the cells, so ``sample.sum(axis=1) + lost_sample`` is 1 as a check.
         Pass it on as one more bin when comparing the two (see :func:`scattering_share`).
     depth : float
         ``2 σ`` of the height difference between sample and reference over the footprint, in m.
@@ -66,7 +67,7 @@ def scattering_share(e_sample, e_reference):
 
         scattering_share(np.column_stack([r.sample, r.lost_sample]), np.column_stack([r.reference, r.lost_reference]))
 
-    Passed the cells alone, energy that both bodies lose (rays still bouncing after ``max_bounces``, rays leaving along the horizon) is
+    Passed the cells alone, energy that both bodies lose (rays still bouncing after ``max_bounces``) is
     counted as scattering, and a body compared with itself gives a share above 0.
     """
     return 1.0 - np.minimum(np.asarray(e_sample, dtype=float), np.asarray(e_reference, dtype=float)).sum(axis=-1)
@@ -201,7 +202,9 @@ def _trace(caster, footprint, origins, direction, tree, n_bins, max_bounces):
     Outside ``footprint`` (triangles (m, 3, 2) in xy) the body is mounted in a rigid baffle at z = 0: a ray travelling downward that reaches
     z = 0 before its first face (it misses, or the face is below the plane), at a point outside the footprint, is reflected specularly on the
     plane. That counts as a bounce, like a reflection off a face. Inside the footprint a ray reflects off the face it hits, whatever its height.
-    The binned and the lost rays are counted separately, so that their sum is a check.
+    A ray that meets nothing more leaves: upward or along the horizon (``d_z == 0``, grazing the baffle plane) into the nearest cell. The binned
+    and the lost rays (still bouncing after ``max_bounces``, or leaving downward through a leak in the body) are counted separately, so that their
+    sum is a check.
     """
     n_rays = len(origins)
     origins = np.array(origins)
@@ -223,10 +226,10 @@ def _trace(caster, footprint, origins, direction, tree, n_bins, max_bounces):
             crossing = origins[g, :2] + t_ground[:, None] * directions[g, :2]
             ground[g] = ~_inside(footprint, crossing)
         face = hit & ~ground
-        up = ~hit & (dz > 0)
-        if up.any():
-            binned += np.bincount(tree.query(directions[up])[1], minlength=n_bins)
-        lost += int((~hit & ~up & ~ground).sum())  # leaves along the horizon or downward
+        out = ~hit & ~ground & (dz >= 0)  # leaves upward, or along the horizon grazing the baffle plane
+        if out.any():
+            binned += np.bincount(tree.query(directions[out])[1], minlength=n_bins)
+        lost += int((~hit & ~ground & (dz < 0)).sum())  # leaves downward without meeting a face or the baffle: a leak in the body
         again = face | ground
         if bounce == max_bounces:
             lost += int(again.sum())

@@ -1,3 +1,5 @@
+import re
+import sys
 import time
 import warnings
 
@@ -209,6 +211,10 @@ def test_geometric_flat_disc_scatters_nothing():
     assert np.allclose(r.s_octaves, 0.0, atol=1e-9) and np.allclose(r.d_octaves, 0.0, atol=1e-9)
     assert r.method == "geometric" and r.generation["heuristic"] is True and r.generation["preset"] == "standard"
     assert any("heuristic" in w for w in r.warnings) and set(r.warnings) <= {str(w.message) for w in caught}
+    # the methods the warning tells the user to use exist ("use a, b or c for the physics"; a method only planned may be named elsewhere)
+    advice = re.search(r"use (.+?) for the physics", next(w for w in r.warnings if "heuristic" in w)).group(1)
+    recommended = re.split(r",\s*|\s+or\s+", advice)
+    assert recommended and set(recommended) <= set(scattering.METHODS), recommended
     assert not any("lost" in w for w in r.warnings) and r.generation["lost"] == 0.0
     assert r.generation["reference"] == "flat" and r.generation["n_rays"] == 2000 and r.generation["receivers"] == len(r.receiver_directions)
     # the specular cell holds everything: 0 dB there, -300 dB (empty) elsewhere, the same at every octave
@@ -241,12 +247,50 @@ def test_geometric_deep_cavity_warns_about_lost_rays():
     assert any("lost" in w for w in r.warnings) and r.generation["lost"] > 0.01 and r.generation["max_bounces"] == 1
 
 
-def test_geometric_with_a_proxy_marks_the_result():
+def test_geometric_with_a_proxy_marks_the_result(monkeypatch):
     pytest.importorskip("embreex")
+    seen = {}
+    response, heuristic = scattering.geometric_response, scattering.heuristic_s
+
+    def spy_response(*args, **kwargs):
+        seen["response"] = response(*args, **kwargs)
+        return seen["response"]
+
+    def spy_heuristic(s_max, *args):
+        seen["s_max"] = np.array(s_max)
+        return heuristic(s_max, *args)
+
+    monkeypatch.setattr(scattering, "geometric_response", spy_response)
+    monkeypatch.setattr(scattering, "heuristic_s", spy_heuristic)
     body = ScatteringSample.disc(sawtooth_tile(), 0.4).sample
-    r = measure_scattering(ScatteringSample.as_drawn(body, reference=body), method="geometric", preset="survey", n_rays=2000)
+    # max_bounces=1: the rays that need a second reflection (the riser, the baffle beyond the rim) are lost, by both bodies alike
+    r = measure_scattering(ScatteringSample.as_drawn(body, reference=body), method="geometric", preset="survey", n_rays=2000, max_bounces=1)
     assert any("proxy" in w for w in r.warnings) and r.generation["reference"] == "proxy"
-    assert np.allclose(r.s_octaves, 0.0, atol=1e-9)  # a body against itself: what is lost is lost in both, and cancels
+    lost = seen["response"].lost_sample
+    assert lost.max() > 0.01 and np.array_equal(lost, seen["response"].lost_reference)  # not vacuous: rays are lost
+    # a body against itself: what is lost is lost in both and cancels in s_max itself (the depth is 0, so s(f) is 0 whatever s_max is)
+    assert np.abs(seen["s_max"]).max() < 1e-12
+    assert np.allclose(r.s_octaves, 0.0, atol=1e-9)
+
+
+def test_geometric_sawtooth_warns_about_no_lost_rays():
+    pytest.importorskip("embreex")
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        r = measure_scattering(ScatteringSample.disc(sawtooth_tile(), 0.4), method="geometric", preset="standard", n_rays=5000)
+    # measured 2026-10-24 at 5000 rays: at most 0.0002 of a source's rays lost (0.011 before horizontal exits were binned)
+    assert r.generation["lost"] < 0.002
+    assert not any("lost" in w for w in r.warnings) and not any("lost" in str(w.message) for w in caught)
+
+
+def test_geometric_without_trimesh_names_the_way_out(monkeypatch):
+    sample = ScatteringSample.disc(flat_tile(), 0.4)
+    monkeypatch.setitem(sys.modules, "trimesh", None)  # import trimesh raises ImportError
+    with pytest.raises(ImportError, match='pass method="kirchhoff" to run without it') as raised:
+        measure_scattering(sample, method="geometric", preset="survey", n_rays=10)
+    assert "Python >= 3.11" in str(raised.value) and isinstance(raised.value.__cause__, ImportError)
+    monkeypatch.setattr(scattering, "_solver", lambda method, **kw: FakeSolver())
+    assert measure_scattering(sample, method="kirchhoff", preset="survey", band_range=(1000, 1000)).method == "kirchhoff"
 
 
 def test_geometric_rejects_an_unknown_option():
