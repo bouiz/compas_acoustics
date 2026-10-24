@@ -20,8 +20,8 @@ room simulations ("design loop").
   with an **optional extension to 8 kHz** (beyond the standards). Decided 2026-10-24 after the cost comparison:
   relative BEM cost 0.41 (default) vs 1.00 (extended) for a 0.8 m disc.
 - Solver: BEM for scattering, the existing ray tracer for absorption.
-- Scattering method chosen per run, trading accuracy for speed: **BEM** (accurate, hours), **Kirchhoff**
-  (fast, seconds to minutes) or the **ray-traced turntable** (virtual ISO 17497-1, valid only for large features).
+- Scattering method chosen per run, trading accuracy for speed: **BEM** (accurate, hours) or **Kirchhoff**
+  (fast, minutes). A virtual ISO 17497-1 turntable was dropped from V1 on 2026-10-24: see "Turntable: dropped" below.
 - Compute: local Mac; overnight runs are acceptable.
 - Sample: both "tile + crop to a disc" and "as drawn", chosen per run.
 - Outputs, delivered in versions:
@@ -37,8 +37,7 @@ room simulations ("design loop").
   - default range: the 4 kHz octave's value, with a warning that it was not simulated;
   - extended range: the mean of the 6.3 kHz and 8 kHz bands (10 kHz is not simulated), with a beyond-ISO warning.
   The full one-third-octave data stays in the result and in the SOFA file.
-- The s_base check and the ±2σ turntable uncertainty from ISO 17497-1 belong to the reverberation-room method, which
-  we are **not** using for s. For the BEM I use convergence checks instead (receiver resolution, Embrechts eq. 6;
+- The s_base check from ISO 17497-1 belongs to the reverberation-room method, which we are **not** using for s. For the BEM I use convergence checks instead (receiver resolution, Embrechts eq. 6;
   frequency points per band). These come in V2, together with the ±2σ uncertainty for α (ray-traced repeats, ISO 17497-1 Annex A.3).
 - The sections "Architecture" and "Testing" describe the full V1–V3 scope. "Version split" says which parts ship when.
 
@@ -63,7 +62,6 @@ room simulations ("design loop").
 |---|---|---|---|---|
 | `"bem"` | free field, complex p₁/p₀ on the receiver hemisphere → Mommertz eq. 3 → random incidence | hours (overnight for the full range) | always (reference method) | — |
 | `"kirchhoff"` | **same** free-field pipeline; p₁/p₀ from the physical-optics (Kirchhoff) surface integral | seconds to minutes | smooth relief, curvature radius ≫ λ, mostly single reflections | shadowing, multiple scattering, deep cavities, some low-frequency edge effects |
-| `"turntable"` | virtual ISO 17497-1 in the ISO 354 chamber of sub-project B: T₁–T₄, rotating sample, phase-locked averaging | minutes to an hour (n positions × source/mic pairs) | features ≫ λ (upper bands, large relief) | all diffraction below the feature scale |
 
 - **Kirchhoff solver.** For plane-wave incidence k̂ᵢ and far-field direction k̂ₛ,
   `p(k̂ₛ) ∝ Σ_facets lit (n·(k̂ᵢ − k̂ₛ)) ∫_T e^{jk(k̂ᵢ−k̂ₛ)·x} dS` (the Beckmann form, chosen 2026-10-24 over the rigid
@@ -71,20 +69,18 @@ room simulations ("design loop").
   form (Gordon's formula), so the mesh does not need λ/6 refinement. Illumination comes from n·k̂ᵢ < 0, with an optional
   ray-cast shadow test using the existing geometry tools. The reference disc is computed the same way, so edge terms
   largely cancel in the correlation, as the paper notes for p₀/p₁. Vectorised numpy, chunked over receivers.
-- **Turntable solver.**
-  - **Responses:** coherent responses only. It uses the `Mono` method (`simulation_methods/pra.py:33`) with `ray_tracing=False` and a high
-    `image_source_order`, because the ray-traced tail is random-sign
-    and identical across positions with a fixed seed (see the exploration notes).
-  - **Rotation:** the sample is rotated in n steps (default 72, ISO 17497-1 §7.3). The responses are averaged per
-    source/mic pair before backward integration.
-  - **Evaluation:** integration limit −30 dB, T over −5 to −20 dB on the first decay (§7.5).
-  - **Results:** α_s (eq. 1), α_spec (eq. 4), s (eq. 5), s_base (eq. 6) checked against Table 1, and ISO 17497-1 room
-    checks (V ≥ 200 N⁻³, A₁ ≤ 0.3 V^⅔, disc d ≥ 3 m, h ≤ d/16, displaced centre for rotationally symmetric samples §6.3.3).
 - **Validity warnings.** Kirchhoff warns per band where the feature curvature radius or depth approaches λ, or where
-  shadowing is significant. The turntable warns per band where λ exceeds the characteristic feature size. Both write
+  shadowing is significant. Both solvers write
   the method into `generation` / the result metadata, so a material always records how its s was obtained.
-- A **solver interface** `ScatteringSolver.solve(sample, grids, frequencies) → (p₁, p₀)` is used by `"bem"` and
-  `"kirchhoff"`. The turntable has its own `measure_scattering(...)` because it computes reverberation times, not pressures.
+- A **solver interface** `ScatteringSolver.solve(sample, grids, frequencies) → (p₁, p₀)` is used by `"bem"` and `"kirchhoff"`.
+
+### Turntable: dropped (2026-10-24)
+The virtual ISO 17497-1 method (T₁–T₄, rotating sample, phase-locked averaging of impulse responses) needs coherent responses,
+which only image sources give, and the standard evaluates the decay from −5 to −20 dB (more than 1 s in a ~200 m³ chamber).
+Measured with `Mono(ray_tracing=False)` in a 7.2×5.3×5.2 m chamber (walls α 0.05): the response grows ~0.02 s per image order, so
+order ~50 is needed, while a closed 12-face obstacle already costs 4.5 s at order 7 (the empty box 0.0 s at order 6, 1.1 s at order 12),
+growing steeply. That times 72 positions × source/mic pairs × 2 is out of reach, and in its validity regime (features ≫ λ) the
+Kirchhoff method already gives the geometric-optics limit. Revisit with a faster coherent engine.
 
 ## Architecture
 
@@ -123,8 +119,6 @@ Each sub-project gets its own implementation plan. They are built in this order:
   `AcousticAnalyser.reverberation_times()` (`analyser.py:385`); c and m come from `AirConditions` (`room/air.py:19`). The ISO 354 inverse formula is new.
   Output: an `AbsorptionResult` with α_s or A_obj per band; ±2σ (ISO 17497-1 A.3) is added in V2.
 - The hybrid/FDN method is not used here, because its tail is statistical.
-- `lab/turntable.py`: `measure_scattering(sample, chamber, n_positions=72, ...)`. It reuses `ReverberationChamber`
-  plus a turntable and base plate, and computes T₁–T₄ (ISO 17497-1 Table 2) as described under "Scattering methods".
 
 ### C. Grasshopper integration: C# components, compas_pb data exchange
 The pattern follows the existing plugin. There are no CPython/GhPython components:
@@ -137,7 +131,7 @@ boundary as a **compas_pb message**.
   - `ScatteringSampleData`: mode (disc / as_drawn), sample `MeshData`, reference `MeshData`, diameter, structural depth,
     structural wavelength x/y, symmetry.
   - `LabGridData`: source directions plus weights, receiver points plus weights, frequencies, frequency splits.
-  - `ScatteringSettingsData`: method (`bem` / `kirchhoff` / `turntable`), band range, quality preset, cache folder, n_positions.
+  - `ScatteringSettingsData`: method (`bem` / `kirchhoff`), band range, quality preset, cache folder.
   - `ReverberationChamberData`: room `MeshData`, wall material, source and mic points, volume, air (temperature, humidity).
   - `PolarResponseData`: incidence direction, band, receiver points, sample and reference levels in dB (for the balloons).
   - `ScatteringResultData`: method, bands, random-incidence s per band, repeated `PolarResponseData`, warnings, generation.
@@ -164,7 +158,7 @@ boundary as a **compas_pb message**.
 - The mesh2scattering / NumCalc dependency stays in the worker's Python environment (3.11+). The C# side only sees messages.
 - New components (each with a spec in `Components/Specs/CA_<Name>/metadata.json` plus icon, a `ComponentBase` class, and an entry in `SpecCoverageTests`):
   - **Scattering Sample**: mode (disc / as drawn), diameter, symmetry; previews the sample, the reference and the source/receiver hemispheres.
-  - **Scattering Lab**: method (`bem` / `kirchhoff` / `turntable`), frequency range, quality preset, output folder; runs in the background. Outputs: the result (V1); 1/3-octave s and s(θ) as Parameter curves (`_parameter`, `api.py:253`) (V2); the SOFA path (V3).
+  - **Scattering Lab**: method (`bem` / `kirchhoff`), frequency range, quality preset, output folder; runs in the background. Outputs: the result (V1); 1/3-octave s and s(θ) as Parameter curves (`_parameter`, `api.py:253`) (V2); the SOFA path (V3).
   - **Absorption Lab**: sample, materials, chamber settings, air; outputs the absorption result (V1), α_s or A_obj curves with uncertainty (V2).
   - **Lab Material**: combines α and s into an `AcousticMaterial` and optionally writes library JSON.
   - **Polar Preview**: per band and incidence direction, the reflected-level polar response as a coloured mesh balloon (V1); an s_d mode as in the paper's Fig. 10 (V3).
@@ -173,11 +167,8 @@ boundary as a **compas_pb message**.
 ## Version split
 
 **V1: material and previews**
-- All three scattering methods ship in V1:
-  - `kirchhoff` and `bem` in sub-project A
-  - `turntable` in sub-project B, since it needs the chamber
-  - the method input on the Scattering Lab component in C
-- The polar preview balloons are available for `bem` and `kirchhoff`. The turntable has no free-field pressures, so for it the preview shows the room, the turntable and the source/mic positions.
+- Both scattering methods ship in V1: `kirchhoff` and `bem` in sub-project A, and the method input on the Scattering Lab component in C.
+- The polar preview balloons are available for both methods.
 - The internal pipeline computes s(θ,φ) on the source grid only as an intermediate result. Random-incidence s needs it, but it is not exposed.
 - `coefficients.py` provides: `scattering_freefield`, `random_incidence`, `band_average`, `fold_to_octaves`.
 - Absorption returns α_s or A_obj per octave band (repeats are averaged; no uncertainty output).
@@ -200,7 +191,7 @@ boundary as a **compas_pb message**.
 ## Data flow
 Rhino mesh → Scattering Sample → (sample, reference, grids) → Scattering Lab →
 [`bem`: NumCalc ×2 (×frequency splits) | `kirchhoff`: surface integral] → p₁, p₀ → coefficients
-(or [`turntable`: chamber T₁–T₄ → α_spec, α_s → s]) → ScatteringResult (+ SOFA in V3) → Lab Material ← AbsorptionResult ← Absorption Lab (ray tracer T₁/T₂) → AcousticMaterial → existing Room/Scene simulation.
+→ ScatteringResult (+ SOFA in V3) → Lab Material ← AbsorptionResult ← Absorption Lab (ray tracer T₁/T₂) → AcousticMaterial → existing Room/Scene simulation.
 
 ## Error handling
 - Bands above 5 kHz (extended range) and an 8 kHz octave filled from 4 kHz (default range) produce warnings.
@@ -217,10 +208,6 @@ Rhino mesh → Scattering Sample → (sample, reference, grids) → Scattering L
   - A flat disc against itself → s = 0.
   - An infinite-plate limit: a large disc gives a specular lobe at θₛ = θᵢ.
 - Kirchhoff vs BEM (slow): sine surface random-incidence s. Expect agreement in the upper bands and documented deviation at low Λ/λ; record the measured gap in the docstring as the method's known accuracy.
-- Turntable (slow):
-  - A flat disc gives s ≈ 0, and s_base within Table 1.
-  - Large-feature relief (e.g. randomly placed boxes ≫ λ) gives s that rises in the upper bands.
-  - Averaging n identical rigid-sample responses reproduces T₂ (the coherence sanity check).
 - Absorption (slow): a flat sample of a known broadband α in the virtual chamber returns α within tolerance. The empty chamber passes Table 1.
 - BEM integration (slow): flat disc vs itself → s ≈ 0. **Reference case**: Heimes' simulated sine surface (h = 20.4 mm, Λ = 80 mm, n = 10 periods across d = 0.8 m, as in Heimes's `0.1_simulate_optimal.py`, which made the Zenodo results) at θ = 31.5° / 61.74° and random incidence, compared with the Zenodo `results_simulation_optimal` SOFA and the Embrechts analytical curve. The tolerance is the paper's one-third-octave agreement (|Δs| ≲ 0.1 above Λ/λ = 0.5). (The paper's text value Λ = 70.8 mm describes the physical sample, not the simulated one compared here.)
 - compas_pb: Python round-trip of every new message (`*_to_pb` → bytes → `*_from_pb` equals the original), and
@@ -231,7 +218,6 @@ Rhino mesh → Scattering Sample → (sample, reference, grids) → Scattering L
 1. Install `mesh2scattering` + build NumCalc on macOS arm64; confirm a Python 3.11+ worker environment.
 2. Check that mesh2scattering's `SampleMesh` accepts as-drawn outlines and full-hemisphere (azimuth) incidence. If not, write the NumCalc project directly (Mesh2HRTF format).
 3. Time one 0.8 m disc at 8 kHz on the Mac, to set the quality presets and split defaults.
-4. Turntable cost: image-source order × faces of a 3 m relief disc × 72 positions × 6 pairs × 2. Measure this in the B plan before committing to the defaults. If it is too slow, cap the order and the face count (merging coplanar faces) and warn.
 
 ## Next steps
 1. Review of this written spec.
