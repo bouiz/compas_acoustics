@@ -1,3 +1,5 @@
 # The BEM scattering solver (compas_acoustics.lab, method="bem"): mesh2scattering builds and runs NumCalc
 mesh2scattering >=1.0.5; python_version >= "3.11"
 trimesh; python_version >= "3.11"
+# trimesh casts rays with Embree (ray casting for the geometric scattering method); without it ray casting needs rtree and is slow
+embreex; python_version >= "3.11"
