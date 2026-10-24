@@ -23,6 +23,13 @@ namespace CompasAcoustics.Grasshopper
             return (data, scattering, octaves, diffusion);
         }
 
+        /// <summary>
+        /// The notes of a worker answer (<c>"notes"</c>: what the method is, not a fault): its distinct strings in order; empty when the
+        /// key is missing, null or not a list (an older worker has none).
+        /// </summary>
+        public static string[] Notes(IDictionary<string, object?> result) =>
+            result.TryGetValue("notes", out var notes) && notes is IEnumerable<object?> texts ? texts.OfType<string>().Distinct().ToArray() : Array.Empty<string>();
+
         private static IEnumerable<double> Numbers(object? list) =>
             list is IEnumerable<object?> items ? items.Select(v => Convert.ToDouble(v, CultureInfo.InvariantCulture)) : Enumerable.Empty<double>();
 

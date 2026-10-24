@@ -122,6 +122,7 @@ namespace CompasAcoustics.Grasshopper
                 {
                     var answer = (IDictionary<string, object?>)outcome.Result!;
                     ShowWarnings(answer);
+                    ShowNotes(answer);
                     var (result, scattering, octaves, diffusion) = LabResults.Read(answer);
                     Status(LabResults.Summary(result));
                     access.SetData("result", new ScatteringResultGoo(result));
@@ -268,6 +269,7 @@ namespace CompasAcoustics.Grasshopper
             }
             var answer = (IDictionary<string, object?>)Worker.Call("lab_material", args, kwargs)!;
             ShowWarnings(answer);
+            ShowNotes(answer);
             access.SetData(0, new MaterialGoo((AcousticMaterialData)answer["material"]!));
         }
     }

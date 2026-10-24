@@ -351,6 +351,10 @@ namespace CompasAcoustics.Grasshopper.Tests
                 Assert.All(scattering, s => Assert.InRange(s, -1e-9, 1e-9));
                 Assert.Equal(result.OctaveBands.ToArray(), octaves);
                 Assert.Equal(result.OctaveBands.Count, diffusion.Length);
+                // the geometric method's heuristic note comes as a note and not as a warning
+                var notes = LabResults.Notes(answer);
+                Assert.NotEmpty(notes);
+                Assert.DoesNotContain(WarningTexts(answer), w => notes.Contains(w));
 
                 var (balloonArgs, balloonKwargs, balloonProblem) = LabRequests.Balloon(result, 0, 1000, "sample", 1.0, -30.0);
                 Assert.Null(balloonProblem);
@@ -375,12 +379,18 @@ namespace CompasAcoustics.Grasshopper.Tests
                 Assert.Equal(7, material.ScatteringCoefficients.Count);
                 Assert.Equal(7, material.AbsorptionCoefficients.Count);
                 Assert.All(material.AbsorptionCoefficients, a => Assert.Equal(0.1, a, 9));
+                var materialNotes = LabResults.Notes(materialAnswer);
+                Assert.NotEmpty(materialNotes);
+                Assert.DoesNotContain(WarningTexts(materialAnswer), w => materialNotes.Contains(w));
             }
             finally
             {
                 worker.Stop();
             }
         }
+
+        private static string[] WarningTexts(IDictionary<string, object?> answer) =>
+            answer.TryGetValue("warnings", out var warnings) && warnings is IEnumerable<object?> texts ? texts.OfType<string>().ToArray() : Array.Empty<string>();
 
         [WorkerFact]
         public void RealWorker_AnUnusableDiameterIsAReadableError()

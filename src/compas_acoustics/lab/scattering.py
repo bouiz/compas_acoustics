@@ -54,6 +54,8 @@ _HEURISTIC = (
     "diffraction), and d and the polar levels are the same at every frequency and depend on bin_deg; use kirchhoff or bem for the physics "
     "(an sbr method is planned)"
 )
+#: The warnings of :func:`measure_scattering` that only state what the method is and flag no fault: the worker returns them as notes
+HEURISTIC_NOTES = (_HEURISTIC,)
 _SHALLOW = (
     "geometric: the object's depth h = {depth:.3g} m is small against the wavelength at {frequency:.0f} Hz: the heuristic returns s close to 0 "
     "although the rays scatter (mean s_max {s_max:.2f}); use kirchhoff or bem"

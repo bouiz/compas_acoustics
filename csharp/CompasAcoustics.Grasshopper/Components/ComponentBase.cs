@@ -233,6 +233,13 @@ namespace CompasAcoustics.Grasshopper
                     Warn(text);
         }
 
+        /// <summary>The notes a worker result lists, each as a Remark (a grey note, not a warning).</summary>
+        protected void ShowNotes(IDictionary<string, object?> result)
+        {
+            foreach (var text in LabResults.Notes(result))
+                Remark(text);
+        }
+
         protected static Worker Worker => Worker.Instance;
 
         /// <summary>An optional item input: its value, or null when nothing is connected or the input is empty.</summary>

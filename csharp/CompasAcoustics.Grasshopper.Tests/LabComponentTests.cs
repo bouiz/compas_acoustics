@@ -236,6 +236,23 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
+        public void Notes_AreTheDistinctStringsOfTheNotesKeyInOrder()
+        {
+            var answer = new Dictionary<string, object?> { ["notes"] = new List<object?> { "b", "a", "b", 3, null } };
+            Assert.Equal(new[] { "b", "a" }, LabResults.Notes(answer));
+        }
+
+        [Fact]
+        public void Notes_AreEmptyWhenTheKeyIsMissingNullOrNotAList()
+        {
+            Assert.Empty(LabResults.Notes(new Dictionary<string, object?>()));
+            Assert.Empty(LabResults.Notes(new Dictionary<string, object?> { ["notes"] = null }));
+            Assert.Empty(LabResults.Notes(new Dictionary<string, object?> { ["notes"] = "a note" }));
+            Assert.Empty(LabResults.Notes(new Dictionary<string, object?> { ["notes"] = 3.0 }));
+            Assert.Empty(LabResults.Notes(new Dictionary<string, object?> { ["notes"] = new List<object?>() }));
+        }
+
+        [Fact]
         public void Read_WithoutD_GivesAnEmptyDiffusion()
         {
             var result = LabResult().Clone();

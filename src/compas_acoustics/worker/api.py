@@ -58,6 +58,11 @@ def _messages(caught):
     return list(dict.fromkeys(str(w.message) for w in caught if issubclass(w.category, UserWarning)))
 
 
+def _split_notes(messages, notes):
+    """``messages`` as ``(warnings, notes)``: the messages that are one of the exact texts in ``notes`` are the notes."""
+    return [m for m in messages if m not in notes], [m for m in messages if m in notes]
+
+
 def info():
     import compas_pb
 
@@ -719,8 +724,9 @@ def run_scattering_lab(sample, method="geometric", preset=None, band_range="iso"
     Returns
     -------
     dict
-        ``{"result": ScatteringResult, "scattering_coefficients": [7 floats], "octave_bands": [int], "warnings": [str]}``: the
-        coefficients on the material's 7 octaves 125 to 8000 Hz, and the octaves that were simulated.
+        ``{"result": ScatteringResult, "scattering_coefficients": [7 floats], "octave_bands": [int], "warnings": [str], "notes": [str]}``:
+        the coefficients on the material's 7 octaves 125 to 8000 Hz, and the octaves that were simulated. ``notes`` holds the heuristic
+        note of the geometric method (``[]`` for kirchhoff and bem), which is no fault and so is not in ``warnings``.
 
     Raises
     ------
@@ -731,6 +737,7 @@ def run_scattering_lab(sample, method="geometric", preset=None, band_range="iso"
     from compas_acoustics.lab import EXTENDED_BAND_RANGE
     from compas_acoustics.lab import ISO_BAND_RANGE
     from compas_acoustics.lab import measure_scattering
+    from compas_acoustics.lab.scattering import HEURISTIC_NOTES
 
     band_range = band_range or BAND_RANGES[0]
     ranges = {"iso": ISO_BAND_RANGE, "extended": EXTENDED_BAND_RANGE}
@@ -743,8 +750,9 @@ def run_scattering_lab(sample, method="geometric", preset=None, band_range="iso"
         except ImportError as error:
             # the service answers a ValueError with its message and an ImportError with a traceback
             raise ValueError(str(error)) from error
+    messages, notes = _split_notes(_messages(caught), HEURISTIC_NOTES)
     return {"result": result, "scattering_coefficients": result.scattering_coefficients, "octave_bands": list(result.octave_bands),
-            "warnings": _messages(caught)}
+            "warnings": messages, "notes": notes}
 
 
 _BALLOON_MIN_RADIUS = 0.03  # the fraction of the radius at and below the floor: a balloon that collapses to a point is not a mesh
@@ -831,6 +839,10 @@ def polar_balloon(result, preview=0, octave=1000, body="sample", radius=1.0, flo
             "label": f"θ {colatitude:g}°, φ {azimuth:g}°, {octave} Hz, {body}"}
 
 
+#: The note of :func:`lab_material` for a scattering from the geometric method (a note, not a warning)
+MATERIAL_HEURISTIC_NOTE = "s comes from the heuristic geometric method: use kirchhoff or bem for a measurement"
+
+
 def lab_material(name, absorption, result=None, category=None):
     """An :class:`AcousticMaterial` of a given absorption and a measured scattering, as the Lab Material component makes it.
 
@@ -846,8 +858,9 @@ def lab_material(name, absorption, result=None, category=None):
     Returns
     -------
     dict
-        ``{"material": AcousticMaterial, "warnings": [str]}``: the warnings are those of :func:`compas_acoustics.lab.lab_material`, a
-        coefficient clipped to [0, 1] for one.
+        ``{"material": AcousticMaterial, "warnings": [str], "notes": [str]}``: the warnings are those of
+        :func:`compas_acoustics.lab.lab_material`, a coefficient clipped to [0, 1] for one; ``notes`` holds the note that the scattering
+        is heuristic (``[]`` for a measured one).
 
     Raises
     ------
@@ -863,7 +876,7 @@ def lab_material(name, absorption, result=None, category=None):
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         material = make_lab_material(name, absorption, scattering=result, category=category or None)
-    messages = _messages(caught)
+    messages, notes = _split_notes(_messages(caught), (MATERIAL_HEURISTIC_NOTE,))
     if result is not None and result.generation.get("heuristic"):
-        messages.append("s comes from the heuristic geometric method: use kirchhoff or bem for a measurement")
-    return {"material": material, "warnings": messages}
+        notes.append(MATERIAL_HEURISTIC_NOTE)
+    return {"material": material, "warnings": messages, "notes": notes}

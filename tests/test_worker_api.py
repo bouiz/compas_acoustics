@@ -584,7 +584,27 @@ def test_run_scattering_lab_returns_the_result_the_material_octaves_and_the_warn
     assert isinstance(out["result"], ScatteringResult) and out["result"].method == "geometric"
     assert len(out["scattering_coefficients"]) == 7
     assert out["octave_bands"] == [125, 250, 500, 1000, 2000, 4000]
-    assert any("heuristic" in w for w in out["warnings"])
+    assert any("heuristic" in n for n in out["notes"])
+    assert not any("heuristic: s_max" in w for w in out["warnings"])
+
+
+def test_the_heuristic_note_of_the_geometric_method_is_a_note_and_not_a_warning():
+    from compas_acoustics.lab.scattering import HEURISTIC_NOTES
+
+    out = call("run_scattering_lab", _lab_disc(), method="geometric", preset="survey", settings={"n_rays": 500})
+    assert out["notes"] == list(HEURISTIC_NOTES)
+    assert not set(out["notes"]) & set(out["warnings"])
+    # a real warning of the same run stays one
+    assert any("8000 Hz octave was not simulated" in w for w in out["warnings"])
+
+
+def test_split_notes_leaves_a_kirchhoff_run_without_notes():
+    from compas_acoustics.lab.scattering import HEURISTIC_NOTES
+
+    kirchhoff = ["the 8000 Hz octave was not simulated; the material takes the 4000 Hz value", "bands above 5000 Hz are beyond ISO 354"]
+    assert api._split_notes(kirchhoff, HEURISTIC_NOTES) == (kirchhoff, [])
+    geometric = [HEURISTIC_NOTES[0], kirchhoff[0]]
+    assert api._split_notes(geometric, HEURISTIC_NOTES) == ([kirchhoff[0]], [HEURISTIC_NOTES[0]])
 
 
 def test_the_extended_band_range_simulates_8_kHz_too():
@@ -728,7 +748,8 @@ def test_lab_material_from_the_lab_result():
     assert isinstance(material, AcousticMaterial) and material.name == "my panel"
     assert list(material.absorption_coefficients) == pytest.approx([0.1, 0.1, 0.2, 0.2, 0.3, 0.3, 0.3])
     assert list(material.scattering_coefficients) == pytest.approx(result.scattering_coefficients)
-    assert [w for w in out["warnings"] if "heuristic" not in w] == []
+    assert out["warnings"] == []
+    assert out["notes"] == [api.MATERIAL_HEURISTIC_NOTE]
     clipped = call("lab_material", "x", [1.5], category="")
     assert any("clipped" in w for w in clipped["warnings"])
 
@@ -836,7 +857,9 @@ def test_a_relief_lying_on_the_wrong_plane_is_told_to_lie_on_xy():
 
 def test_lab_material_flags_a_heuristic_scattering_and_not_a_measured_one():
     geometric = call("lab_material", "heuristic", [0.1], result=_geometric_result())
-    assert any("heuristic geometric method: use kirchhoff or bem for a measurement" in w for w in geometric["warnings"])
+    assert any("heuristic geometric method: use kirchhoff or bem for a measurement" in n for n in geometric["notes"])
+    assert not any("heuristic" in w for w in geometric["warnings"])
     measured = _geometric_result()
     measured.generation = {"method": "kirchhoff", "preset": "survey"}
-    assert api.lab_material("measured", [0.1], result=measured)["warnings"] == []
+    out = api.lab_material("measured", [0.1], result=measured)
+    assert out["warnings"] == [] and out["notes"] == []
