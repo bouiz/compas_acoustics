@@ -51,9 +51,15 @@ class ScatteringResult(_PackageDtype, Data):
     receiver_directions : numpy.ndarray
         Unit vectors from the sample to the receivers, shape (n_receivers, 3).
     polar_sample_db, polar_reference_db : numpy.ndarray
-        The levels at the receivers per source and simulated octave, shape (n_sources, n_octaves, n_receivers), float32: the mean of |p|²
-        over the simulation frequencies in the octave, in dB relative to the reference's maximum for the same source and octave.
+        The levels at the receivers per preview source and simulated octave, shape (n_preview, n_octaves, n_receivers), float32: the mean
+        of |p|² over the simulation frequencies in the octave, in dB relative to the reference's maximum for the same source and octave.
         Stored rounded to 0.1 dB, the resolution ISO 17497-2 §8.5 presents polar responses at.
+    polar_source_indices : list of int, optional
+        The preview sources, as indices into the source arrays (``source_colatitude`` ...): the sources nearest to the ISO 17497-2
+        Table 1 directions (:func:`compas_acoustics.lab.scattering.preview_sources`). By default the first n_preview sources.
+    unconverged_octaves : list of int, optional
+        The simulated octaves holding a frequency at which the solver did not converge (BEM; see ``generation["unconverged"]``):
+        their values are unreliable.
     warnings : list of str
         Where the result falls outside the standards or the method's validity.
     generation : dict
@@ -75,6 +81,8 @@ class ScatteringResult(_PackageDtype, Data):
         receiver_directions,
         polar_sample_db,
         polar_reference_db,
+        polar_source_indices=None,
+        unconverged_octaves=None,
         warnings=None,
         generation=None,
         name=None,
@@ -93,6 +101,10 @@ class ScatteringResult(_PackageDtype, Data):
         self.receiver_directions = np.asarray(receiver_directions, dtype=float)
         self.polar_sample_db = np.asarray(polar_sample_db, dtype=np.float32)
         self.polar_reference_db = np.asarray(polar_reference_db, dtype=np.float32)
+        if polar_source_indices is None:
+            polar_source_indices = range(len(self.polar_sample_db))
+        self.polar_source_indices = [int(i) for i in polar_source_indices]
+        self.unconverged_octaves = [int(o) for o in (unconverged_octaves or [])]
         self.warnings = list(warnings or [])
         self.generation = dict(generation or {})
 
@@ -121,6 +133,8 @@ class ScatteringResult(_PackageDtype, Data):
             "receiver_directions": self.receiver_directions.tolist(),
             "polar_sample_db": polar(self.polar_sample_db),
             "polar_reference_db": polar(self.polar_reference_db),
+            "polar_source_indices": self.polar_source_indices,
+            "unconverged_octaves": self.unconverged_octaves,
             "warnings": self.warnings,
             "generation": _plain(self.generation),
         }
