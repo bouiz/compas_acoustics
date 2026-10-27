@@ -367,7 +367,8 @@ def _enclosure_sides(geometry: RoomGeometry, n: int) -> dict[frozenset, list]:
             p0, d = vertices[a], vertices[b] - vertices[a]
             t = (points - p0) @ d / (d @ d)
             off = np.linalg.norm(points - p0 - np.outer(t, d), axis=1)
-            inner = np.flatnonzero((t > 0.0) & (t < 1.0) & (off < tolerance))
+            # the endpoints' own t can land one ulp inside (0, 1) (see room.geometry._split_at_t_junctions)
+            inner = np.flatnonzero((t > 0.0) & (t < 1.0) & (off < tolerance) & (own != a) & (own != b))
             chain = [a, *own[inner[np.argsort(t[inner])]].tolist(), b]
             for p, q in pairwise(chain):
                 entry = out.setdefault(frozenset((p, q)), [[], []])
