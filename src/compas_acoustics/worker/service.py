@@ -6,7 +6,8 @@ and the client's process id in ``COMPAS_ACOUSTICS_WORKER_PARENT``. The worker ex
 
 Routes, on 127.0.0.1:
 
-* ``GET /ping``: ``200 pong``, without the token, to tell a started worker.
+* ``GET /ping``: ``200 pong <id>``, without the token, to tell a started worker; ``<id>`` is the first 16 hex
+  digits of the token's SHA-256, so a client tells its own worker from another one on a reused port.
 * ``POST /api/<function>``: a function of :data:`compas_acoustics.worker.api.__all__`. The body is
   ``compas_pb.pb_dump_bts({"args": [...], "kwargs": {...}})``, the answer ``pb_dump_bts({"result": result})``
   (compas_pb refuses an empty or zero top-level value, so the result is always wrapped).
@@ -24,6 +25,7 @@ ValueError or TypeError of a function (its message), 500 for any other exception
 
 import argparse
 import atexit
+import hashlib
 import hmac
 import json
 import os
@@ -120,7 +122,7 @@ class _Handler(BaseHTTPRequestHandler):
         from compas_acoustics.worker import jobs
 
         if self.path == "/ping":
-            self._answer(200, b"pong", "text/plain")
+            self._answer(200, b"pong " + hashlib.sha256(self.server.token.encode()).hexdigest()[:16].encode(), "text/plain")
         elif self.path.startswith("/progress/"):
             if not authorized(self.server.token, self.headers.get("Authorization")):
                 self._answer(*_error(401, "Unauthorised."))

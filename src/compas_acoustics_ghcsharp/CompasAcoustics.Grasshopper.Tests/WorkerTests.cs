@@ -16,6 +16,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         private string _version = Worker.Version;
         private string _schema = Schema.Hash;
         private int _pingsBeforeUp;
+        private int _foreignPongs;
         private int _shutdowns;
         private int _refusals;
 
@@ -33,6 +34,8 @@ namespace CompasAcoustics.Grasshopper.Tests
             if (path == "/ping")
             {
                 if (_pingsBeforeUp-- > 0) throw new HttpRequestException("refused");
+                if (_foreignPongs-- > 0)
+                    return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("pong 0123456789abcdef") };
                 return FakeHandler.Pong();
             }
             if (path == "/shutdown")
@@ -52,6 +55,34 @@ namespace CompasAcoustics.Grasshopper.Tests
         private Worker Make(Func<string, string?>? getEnv = null) =>
             new Worker(_starter, (uri, token) => new WorkerClient(uri, token, new FakeHandler(Answer)),
                 getEnv ?? (name => name == "COMPAS_ACOUSTICS_WORKER_PYTHON" ? _python : null), _home, TimeSpan.Zero);
+
+        [Fact]
+        public void AnotherWorkerOnThePort_StartsThisOneOnAnother()
+        {
+            _foreignPongs = 1;
+            var worker = Make();
+            worker.EnsureStarted();
+            Assert.Equal(WorkerState.Running, worker.State);
+            Assert.Equal(2, _starter.Processes.Count);
+            Assert.True(_starter.Processes[0].Killed);
+            Assert.False(_starter.Processes[1].Killed);
+        }
+
+        [Fact]
+        public void AnotherWorkerOnEveryPort_Fails()
+        {
+            _foreignPongs = 3;
+            var error = Assert.Throws<WorkerException>(() => Make().EnsureStarted());
+            Assert.Contains("Another worker answered", error.Message);
+            Assert.All(_starter.Processes, p => Assert.True(p.Killed));
+        }
+
+        [Fact]
+        public void TheIdentityIsTheTokensHashAsTheWorkerSendsIt()
+        {
+            // python -c "import hashlib; print(hashlib.sha256(b'abc').hexdigest()[:16])"
+            Assert.Equal("ba7816bf8f01cfea", WorkerClient.Identity("abc"));
+        }
 
         [Fact]
         public void WorkerState_FollowsStartAndStop()

@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using CompasPb;
 
@@ -97,18 +99,26 @@ namespace CompasAcoustics.Grasshopper
         public bool Ping() => PingStatus() == 200;
 
         /// <summary>The HTTP status ``GET /ping`` answers with; null when nothing answers.</summary>
-        public int? PingStatus()
+        public int? PingStatus() => PingAnswer().status;
+
+        /// <summary>What a worker started with ``token`` answers ``GET /ping`` with after ``pong ``.</summary>
+        public static string Identity(string token) =>
+            Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token))).Substring(0, 16).ToLowerInvariant();
+
+        /// <summary>The status of ``GET /ping`` and the identity after ``pong``; null when nothing answers, or the answer names none.</summary>
+        public (int? status, string? identity) PingAnswer()
         {
             try
             {
                 using var cancel = new CancellationTokenSource(PingTimeout);
                 using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(_base, "/ping"));
                 using var response = _http.Send(request, cancel.Token);
-                return (int)response.StatusCode;
+                var body = response.Content.ReadAsStringAsync(cancel.Token).GetAwaiter().GetResult();
+                return ((int)response.StatusCode, body.StartsWith("pong ") ? body.Substring(5).Trim() : null);
             }
             catch (Exception e) when (e is HttpRequestException || e is OperationCanceledException || e is System.IO.IOException)
             {
-                return null;
+                return (null, null);
             }
         }
 

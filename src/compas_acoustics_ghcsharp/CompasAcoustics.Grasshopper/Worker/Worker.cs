@@ -246,6 +246,19 @@ namespace CompasAcoustics.Grasshopper
         private WorkerClient StartProcess()
         {
             var python = ConfiguredPython(_getEnv, _home) ?? throw new WorkerException("No worker: run the compas_acoustics installer.");
+            // the port is free when probed, but another worker can take it before this one binds it
+            for (var port = 0; port < 3; port++)
+            {
+                var client = StartProcess(python);
+                if (client != null)
+                    return client;
+            }
+            throw new WorkerException($"Another worker answered on each of 3 ports chosen for the worker at {python}.");
+        }
+
+        /// <summary>A worker of ``python`` on a free port; null when another worker answers on that port.</summary>
+        private WorkerClient? StartProcess(string python)
+        {
             var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
             var port = FreePort();
             var env = new Dictionary<string, string?>
@@ -261,7 +274,12 @@ namespace CompasAcoustics.Grasshopper
             var client = _clientFactory(new Uri($"http://127.0.0.1:{port}"), token);
             for (var attempt = 0; ; attempt++)
             {
-                var status = client.PingStatus();
+                var (status, identity) = client.PingAnswer();
+                if (status == 200 && identity != null && identity != WorkerClient.Identity(token))
+                {
+                    process.Kill();
+                    return null;
+                }
                 if (status == 200)
                     break;
                 if (status != null)

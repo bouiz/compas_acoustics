@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import socket
@@ -214,6 +215,7 @@ def test_the_running_worker_refuses_a_caller_without_the_token(running_worker):
     assert refused.value.code == 401
     with urllib.request.urlopen(f"http://127.0.0.1:{running_worker.port}/ping", timeout=5) as pong:
         assert pong.status == 200
+        assert pong.read().decode() == "pong " + hashlib.sha256(running_worker._token.encode()).hexdigest()[:16]
     assert running_worker.info()["compas_acoustics"] == compas_acoustics.__version__
 
 
