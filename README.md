@@ -23,7 +23,7 @@ pip install -e ".[dev]"
 ### Binaural and ambisonics methods (Python >= 3.11)
 
 The `Binaural` and `Ambisonics` simulation methods share one hybrid engine (image sources, edge
-diffraction and a directional feedback delay network, ported from
+diffraction and a directional feedback delay network, after
 [hybrid-rir](https://github.com/gpapadimitri/hybrid-rir)) and differ only in how they render it.
 They need pyFDN, spharpy and multislope, which `compas_acoustics` installs on Python 3.11 and
 newer; on Python 3.9 and 3.10 (Rhino 8) it leaves them out and the methods are not available.

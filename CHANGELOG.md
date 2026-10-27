@@ -83,7 +83,7 @@ the same names, inputs and outputs.
 
 * Added `Scene.simulate(method)` as the one way to simulate, with the methods `Mono(image_source_order=3, ray_tracing=True, ...)`, `Binaural(...)` and `Ambisonics(...)` in `compas_acoustics.simulation_methods`.
 * Added `Scene.sampling_rate` (default 48000, serialised with the scene), the rate at which every method runs; the Acoustic Scene component has the input.
-* Added `Binaural` and `Ambisonics`, binaural and ambisonic room impulse responses from one hybrid engine: image sources, optional edge diffraction (`diffraction="udfa"` or `"btms"`) and a directional feedback delay network tail, ported from hybrid-rir; needs Python >= 3.11. `Binaural(hrtf=None)` takes `"kemar"` (the default) or a SOFA file and records it in `generation["hrtf"]`; `Ambisonics(sh_order=1, normalization="SN3D")` gives ACN channels. Responses are stored under `'binaural'` and `'ambisonics'`.
+* Added `Binaural` and `Ambisonics`, binaural and ambisonic room impulse responses from one hybrid engine: image sources, optional edge diffraction (`diffraction="udfa"` or `"btms"`) and a directional feedback delay network tail, after hybrid-rir; needs Python >= 3.11. `Binaural(hrtf=None)` takes `"kemar"` (the default) or a SOFA file and records it in `generation["hrtf"]`; `Ambisonics(sh_order=1, normalization="SN3D")` gives ACN channels. Responses are stored under `'binaural'` and `'ambisonics'`.
 * Added `tail=...` to `Binaural` and `Ambisonics`, with a reference response, the method's own ray-traced reference, or an Eyring or Sabine prediction as decay target.
 * Added edge diffraction at the edges of the room's own boundary (re-entrant corners) to the hybrid engine.
 * Added `scattering=False` to `Binaural` and `Ambisonics`, surface scattering after Ewert et al. (2025) as RAZR 0.96.3 implements it: each image's specular part, the product of `sqrt(1 - s)` over its reflections, stays in the early field, and its scattered part, the product of `sqrt(s)`, enters the delay lines on its own hemisphere through an allpass cascade; checked against RAZR in `tests/hybrid/data/razr_scattering`. Off by default.
@@ -234,7 +234,7 @@ the same names, inputs and outputs.
 * Fixed the Grasshopper Material Library component forgetting its material when the file is reopened: the choice is kept in the component's nickname, which Grasshopper saves.
 * Fixed the Grasshopper Material Library component failing with `No module named 'compas_acoustics'`: its script pinned an empty Rhino script environment, `compas_acoustics_rhino`, instead of the one the installer fills.
 * Fixed the worker setup from the Grasshopper installer failing at its last check: the worker's Python 3.12 inherited the `PYTHONPATH` of Rhino's 3.9 packages and could not import numpy.
-* Fixed a simulation failing on a Source whose `sound_file` is not a RIFF WAV (an AIFF or FLAC file; the library's `basoon.wav` is an AIFF): the file is read with soundfile.
+* Fixed a simulation failing on a Source whose `sound_file` is not a RIFF WAV (an AIFF or FLAC file; the library's `bassoon.wav` is an AIFF): the file is read with soundfile.
 * Fixed the hybrid engine counting an image source twice when its path passes through an edge (+6 dB on that path); `hybrid.early.image_sources` now keeps one image per position, as `ShoeBox` does.
 * Fixed low-frequency bias in EDT, C50, C80, D50, DRR and Ts caused by the delay of causal octave filters.
 * Fixed `speech_transmission_index` returning NaN for impulse responses shorter than 1.6 s.

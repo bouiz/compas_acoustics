@@ -16,7 +16,6 @@ import subprocess
 # A local clone of gpapadimitri/hybrid-rir: $HYBRID_RIR_UPSTREAM, else the first that exists.
 _CANDIDATES = [
     os.environ.get("HYBRID_RIR_UPSTREAM", ""),
-    "/Users/gpapadim/Documents/Projects/2026_hybridrir/hybrid-rir",
     str(pathlib.Path(__file__).resolve().parents[3] / "hybrid-rir"),
 ]
 UPSTREAM = next((c for c in _CANDIDATES if c and pathlib.Path(c, ".git").exists()), _CANDIDATES[1])
