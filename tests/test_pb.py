@@ -129,7 +129,7 @@ def test_the_schema_hash_follows_the_proto_text():
     root = Path(compas_acoustics.pb.PROTOBUF_DEFS)
     for path in sorted(root.rglob("*.proto")):
         digest.update(path.relative_to(root).as_posix().encode())
-        digest.update(path.read_bytes())
+        digest.update(path.read_bytes().replace(b"\r\n", b"\n"))
     assert compas_acoustics.pb.SCHEMA == digest.hexdigest()
 
 

@@ -287,8 +287,10 @@ namespace CompasAcoustics.Grasshopper
             }
             catch (HttpRequestException e)
             {
+                var exited = process.HasExited;
                 Stop(client, process, port);
-                throw new WorkerException($"The worker at {python} answered, then dropped its first call:\n{process.Output}", details: e.Message);
+                throw new WorkerException($"The worker at {python} answered, then dropped its first call " +
+                                          $"({(exited ? "it had exited" : "it was still running")}):\n{process.Output}", details: e.Message);
             }
             catch (Exception)
             {
