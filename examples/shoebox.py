@@ -39,7 +39,7 @@ scene.add_acoustic_objects(room)
 
 ########### run a ray tracing simulation
 # Image sources plus ray tracing
-rirs = scene.simulate(ca.Pyroomacoustics(ray_tracing=True, n_rays=10000, air_absorption=True))
+rirs = scene.simulate(ca.Mono(ray_tracing=True, n_rays=10000, air_absorption=True))
 
 
 ########### analyze one RIR (they are keyed '<receiver guid>_<source guid>')

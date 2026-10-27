@@ -36,7 +36,7 @@ Nothing is kept under its old name. What replaces what:
 | `sample_rate` (`ImpulseResponse`, `Auraliser`, `AudioPlayer.play`, `receivers_to_pra_mic_array`) | `sampling_rate` |
 | `pra_converter.material_to_pra`, `mesh_to_pra_wall`, `acoustic_object_to_pra_walls` | `RoomGeometry.to_pra`, `compas_acoustics.room.pra.scene_to_pra_room` |
 | `Tools` | removed |
-| `compas_acoustics.orchestra_layouts`; the Orchestra Layout component | `examples/orchestra_layouts.py`; no component |
+| `compas_acoustics.orchestra_layouts`; the Orchestra Layout component | removed |
 | `AcousticAnalyser` | `Analyser` |
 | `Auraliser`, `AcousticAnalyser`, `MaterialsLibrary` as `Data` | plain classes: no `guid`, `copy()` or `compas.json_dumps` |
 | Grasshopper: Simulate Ray Tracing, with a `sample_rate` input | Simulate Mono; the rate is the `sampling_rate` input of Acoustic Scene |
@@ -143,7 +143,7 @@ the same names, inputs and outputs.
 * Changed `compas_acoustics.worker.simulate` to store every format of a run on the scene's graph under its attribute and return the first, as `Scene.simulate` does; it used to store whatever came back under the method's name.
 * Added a status to the Grasshopper Simulate Binaural and Simulate Ambisonics components for when they are not running: it says `done` with the tail (and the ambisonic order) of the last result on the graph, `settings changed, press Run` when its inputs differ from that result, and `press Run` only when there is none.
 * Added the Grasshopper installer for Rhino 8 (`installer/compas_acoustics_installer.gh`), `invoke installer-bundle`, and `compas-dev/compas-actions` v1 workflows (build, release, `prepare release`), with tests on Python 3.9.
-* Added `examples/office_hybrid.py`, which runs both methods on an office.
+* Changed the example scripts' names: `demo.py` is `shoebox.py`, `demo_obj.py` is `obj.py`, `demo_rays.py` is `rays.py`, `demo_scattered_rays.py` is `scattered_rays.py`; added `specular_reflections.py`.
 * Added a getting-started section to the README, and `Examples` sections that `invoke testdocs` can run in the docstrings of `Scene`, `Mono`, `Binaural`, `Ambisonics`, `Analyser` and `Auraliser`.
 * Added `SpecularReflections.from_scene(scene, max_order=3)`, the image-source paths from each source to each receiver for inspection, with `filter(source, ray_index, receiver_index, order)`. It is a `RayField` of `SpecularPath` rays, so it plays in a billiard (`particles`) and displays like traced rays.
 * Added source directivity to `RayField.from_scene`, and so to Visualise Rays and Visualise Billiard: each source emits its rays with the density of its radiated energy, (p + (1 - p) cos theta)^2 about its `direction` (a deterministic lattice; a cardioid sends nothing straight back, a figure-of-eight nothing sideways); within a spotlight cone the cone's lattice is thinned to that density. An omnidirectional source emits the same rays as before.
@@ -261,7 +261,7 @@ the same names, inputs and outputs.
 * Removed `compas_acoustics.stage_acoustics` and `tools.Tools`; use `Analyser.stage_support()`.
 * Removed `pra_converter.material_to_pra`, `mesh_to_pra_wall`, `acoustic_object_to_pra_walls` and `room_octave_bands`; see `RoomGeometry.to_pra`.
 * Removed `Auraliser.multiconvolution()`, `decode_stereo_simple()`, `resample_signal()` and FuMa channel order.
-* Removed `compas_acoustics.orchestra_layouts` and the Orchestra Layout component; the layouts are now `examples/orchestra_layouts.py`.
+* Removed `compas_acoustics.orchestra_layouts` and the Orchestra Layout component.
 * Removed the two MIT KEMAR HRTF sets and `speech.wav`.
 * Removed `Hybrid` and `Hybrid.binaural()`; use `Binaural` or `Ambisonics`.
 * Removed the ambisonic decoders of `Auraliser` (mono from W, stereo cardioids and MagLS binaural: `output_format`, `decode`, `decode_mono`, `decode_stereo`, `decode_binaural`, `hrtf_path`, `binaural_filters`, `ambisonics_upmix_downmix`), `binaural.magls_filters`, `worker.convolve` and the installer's `worker` option `binaural`. The hybrid renders binaural responses with an HRTF per path and per delay line; an ambisonic response or signal is saved as ACN/SN3D for a decoder elsewhere. Impulse responses of different formats in one `Auraliser` raise a `ValueError`.

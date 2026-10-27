@@ -49,7 +49,7 @@ scene.add_acoustic_objects(table)
 
 
 ########### run a ray tracing simulation
-rirs = scene.simulate(ca.Pyroomacoustics(ray_tracing=True, n_rays=10000, air_absorption=True))
+rirs = scene.simulate(ca.Mono(ray_tracing=True, n_rays=10000, air_absorption=True))
 
 
 ########### analyze the RIR

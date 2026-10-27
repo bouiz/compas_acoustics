@@ -152,6 +152,8 @@ examples/output/
 # Local translation of the hybrid-rir boxes_conditions notebook
 examples/boxes_conditions.ipynb
 examples/odeon_room.py
+examples/office_hybrid.py
+examples/orchestra_layouts.py
 examples/AA_rirs/
 examples/rooms_conditions.ipynb
 
