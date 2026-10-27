@@ -7,7 +7,7 @@ import compas_acoustics
 from compas_acoustics.pb import schema_hash
 
 ROOT = Path(__file__).parents[1]
-PLUGIN = ROOT / "csharp" / "CompasAcoustics.Grasshopper"
+PLUGIN = ROOT / "src" / "compas_acoustics_ghcsharp" / "CompasAcoustics.Grasshopper"
 
 
 def test_the_assembly_version_equals_the_package_version():
@@ -22,4 +22,4 @@ def test_the_plugins_schema_hash_is_the_packages():
 
 
 def test_bumpversion_updates_the_plugin_too():
-    assert "csharp/CompasAcoustics.Grasshopper/CompasAcoustics.Grasshopper.csproj" in (ROOT / "pyproject.toml").read_text()
+    assert "src/compas_acoustics_ghcsharp/CompasAcoustics.Grasshopper/CompasAcoustics.Grasshopper.csproj" in (ROOT / "pyproject.toml").read_text()

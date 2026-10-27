@@ -130,8 +130,8 @@ data/
 # source folders the two rules above would hide: the protobuf schema and bindings, the plugin's data types
 !src/compas_acoustics/pb/generated/
 !src/compas_acoustics/pb/protobuf_defs/compas_acoustics/pb/generated/
-!csharp/CompasAcoustics.Grasshopper/Generated/
-!csharp/CompasAcoustics.Grasshopper/Data/
+!src/compas_acoustics_ghcsharp/CompasAcoustics.Grasshopper/Generated/
+!src/compas_acoustics_ghcsharp/CompasAcoustics.Grasshopper/Data/
 
 *.tar.gz
 
@@ -156,5 +156,5 @@ examples/AA_rirs/
 examples/rooms_conditions.ipynb
 
 # the Grasshopper plugin build
-csharp/**/bin/
-csharp/**/obj/
+src/compas_acoustics_ghcsharp/**/bin/
+src/compas_acoustics_ghcsharp/**/obj/

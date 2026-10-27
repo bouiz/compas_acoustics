@@ -1,4 +1,4 @@
-"""Write the compas_pb payloads the C# tests read (csharp/CompasAcoustics.Grasshopper.Tests/Fixtures).
+"""Write the compas_pb payloads the C# tests read (src/compas_acoustics_ghcsharp/CompasAcoustics.Grasshopper.Tests/Fixtures).
 
 Run after a schema change, from the repository root, with compas_acoustics installed::
 
@@ -28,7 +28,7 @@ from compas_acoustics import Source
 from compas_acoustics.pb.types import Audio
 
 HERE = Path(__file__).parent
-CSHARP = HERE.parents[1] / "csharp" / "CompasAcoustics.Grasshopper.Tests" / "Fixtures"
+CSHARP = HERE.parents[1] / "src" / "compas_acoustics_ghcsharp" / "CompasAcoustics.Grasshopper.Tests" / "Fixtures"
 
 
 def _guid(n):

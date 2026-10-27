@@ -9,7 +9,7 @@ import pytest
 PIL = pytest.importorskip("PIL")
 
 ROOT = Path(__file__).resolve().parents[1]
-SPECS = ROOT / "csharp" / "CompasAcoustics.Grasshopper" / "Components" / "Specs"
+SPECS = ROOT / "src" / "compas_acoustics_ghcsharp" / "CompasAcoustics.Grasshopper" / "Components" / "Specs"
 
 
 def _icons():

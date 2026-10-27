@@ -48,7 +48,7 @@ Nothing is kept under its old name. What replaces what:
 | `ir.generation["output"]` | `ir.format` (`'mono'`, `'binaural'` or `'ambisonic'`), read from the channels |
 | `shape_late(late, early, reference, fs)` | `shape_late(signals, early_w, late_w, reference, fs)` |
 | Grasshopper: Simulate Ray Tracing output `ir_graph` | Simulate Mono output `mono_ir_graph` |
-| Grasshopper: the CPython components (`.ghuser`, package `compas_acoustics_ghpython`) | the plugin `CompasAcoustics.gha` (`csharp/`), with the same names, inputs and outputs |
+| Grasshopper: the CPython components (`.ghuser`, package `compas_acoustics_ghpython`) | the plugin `CompasAcoustics.gha` (`src/compas_acoustics_ghcsharp/`), with the same names, inputs and outputs |
 | `compas_acoustics.worker.proxy()`, a `compas.rpc` server with COMPAS JSON and WAV files in temporary folders | `compas_acoustics.worker.client()`, an HTTP service with `compas_pb` payloads |
 | Grasshopper: the hybrid's `reference` given as a method name on the scene | the `mono_ir_graph` wire of Simulate Mono only |
 | Installer input `worker` (`hybrid`) | not used: the installer always sets up the worker |
@@ -113,7 +113,7 @@ the same names, inputs and outputs.
 * Added `anechoic_soundfiles_library` (bassoon, female and male speech, trumpet, viola) and `hrtfs_library` (KEMAR, free-field compensated, 48 kHz), with READMEs that credit the sources and licences.
 * Added `Defaults.HRTF_LIBRARY_PATH`, `ANECHOIC_SOUNDFILES_LIBRARY_PATH` and `PARAM_NAMES`.
 * Added `pyFDN` and `multislope` to the requirements on Python >= 3.11, for the hybrid method (pyFDN brings flamo and PyTorch), and a CI job for it: one `pip install compas_acoustics`, no extra.
-* Added the Grasshopper plugin `CompasAcoustics.gha` (C#, `csharp/CompasAcoustics.sln`, `invoke build-gha`): typed parameters for the compas_acoustics data, value lists and buttons next to unconnected inputs, and the worker as the only Python it runs, so STI, G and the hybrid method are always available. It needs Rhino 8 and the .NET 8 SDK to build.
+* Added the Grasshopper plugin `CompasAcoustics.gha` (C#, `src/compas_acoustics_ghcsharp/CompasAcoustics.sln`, `invoke build-gha`): typed parameters for the compas_acoustics data, value lists and buttons next to unconnected inputs, and the worker as the only Python it runs, so STI, G and the hybrid method are always available. It needs Rhino 8 and the .NET 8 SDK to build.
 * Added the components Simulate Binaural and Simulate Ambisonics (with a `run` button, their last input), Simulate Mono (was Simulate Ray Tracing), Material Library categories, and the inputs `level` (Auralise), `normalize` (Audio Player, Simulate), `method` (Deconstruct IR Graph), `direction` and `plane` (Receiver, which outputs the receiver only and keeps it upright: +z up, no roll).
 * Added the input `role` (a value list: `boundary` or `obstacle`) to the Grasshopper Acoustic Object component; a wrong role or material is an error on the component instead of a traceback.
 * Added the IR graph of the Grasshopper plugin: Simulate Mono, Simulate Binaural and Simulate Ambisonics output the responses of their method (`pyroomacoustics`, `binaural`, `ambisonics`), and Deconstruct IR Graph reads them, so it has no `method` input.
@@ -207,7 +207,7 @@ the same names, inputs and outputs.
 * Changed sources and receivers outside the room to raise a `UserWarning`, and surfaces with `role="obstacle"` to reflect from both sides.
 * Changed `Scene.acoustic_materials` to read-only; assigning it raises an `AttributeError` that says how materials are assigned.
 * Changed the hybrid engine to accept `diffraction` without obstacles, and to report non-closed obstacle components in one warning per call.
-* Changed the package to run on Python 3.9 (Rhino 8) without Rhino, Grasshopper or .NET; the Grasshopper plugin is in `csharp/`.
+* Changed the package to run on Python 3.9 (Rhino 8) without Rhino, Grasshopper or .NET; the Grasshopper plugin is in `src/compas_acoustics_ghcsharp/`.
 * Changed `pyrato >= 1.0` to be required from Python 3.11 (was 3.12), and removed the upper bounds on pyroomacoustics and pyFDN.
 * Changed the Analyse IR component to leave out STI and G, which need pyrato >= 1.0; they stay in `Analyser` where pyrato allows.
 * Changed `matplotlib` to be imported by the `Analyser` plot methods only when they run.

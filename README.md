@@ -32,7 +32,7 @@ which only pyFDN's training modules use; the methods run without them.
 
 ## Install in Rhino 8 / Grasshopper
 
-The Grasshopper components are a compiled plugin, `CompasAcoustics.gha` (C#, `csharp/`), for Rhino 8 on
+The Grasshopper components are a compiled plugin, `CompasAcoustics.gha` (C#, `src/compas_acoustics_ghcsharp/`), for Rhino 8 on
 Windows and macOS. Everything they compute runs in the worker, a Python 3.12 with `compas_acoustics`; the plugin
 sends it scenes, responses and signals as [compas_pb](https://github.com/compas-dev/compas_pb) protobuf messages.
 
@@ -99,9 +99,9 @@ simulate with `Binaural`.
 
 ## Grasshopper plugin development
 
-The plugin is `csharp/CompasAcoustics.sln`: build it with `invoke build-gha` (or `dotnet build`), test it with
-`dotnet test csharp/CompasAcoustics.sln` (set `COMPAS_ACOUSTICS_WORKER_PYTHON` to run the tests against a real worker).
-Each component takes its names, descriptions, ports and icon from `csharp/CompasAcoustics.Grasshopper/Components/Specs/<CA_name>/`.
+The plugin is `src/compas_acoustics_ghcsharp/CompasAcoustics.sln`: build it with `invoke build-gha` (or `dotnet build`), test it with
+`dotnet test src/compas_acoustics_ghcsharp/CompasAcoustics.sln` (set `COMPAS_ACOUSTICS_WORKER_PYTHON` to run the tests against a real worker).
+Each component takes its names, descriptions, ports and icon from `src/compas_acoustics_ghcsharp/CompasAcoustics.Grasshopper/Components/Specs/<CA_name>/`.
 After a change to `src/compas_acoustics/pb/protobuf_defs/.../acoustics.proto`, run `invoke generate` (Python and C# bindings)
 and `python tests/pb_fixtures/generate.py` (the payloads the C# tests read).
 

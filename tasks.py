@@ -14,7 +14,7 @@ from compas_pb.invocations import generate_proto_classes
 from invoke import Collection
 from invoke import task
 
-PLUGIN = os.path.join("csharp", "CompasAcoustics.Grasshopper")
+PLUGIN = os.path.join("src", "compas_acoustics_ghcsharp", "CompasAcoustics.Grasshopper")
 # what the installer copies into Grasshopper's Libraries folder (installer/installer.py GHA_FILES)
 GHA_FILES = ["CompasAcoustics.gha", "CompasPb.dll", "Google.Protobuf.dll", "Newtonsoft.Json.dll"]
 

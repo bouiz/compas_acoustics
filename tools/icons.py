@@ -1,7 +1,7 @@
 """Draw the icons of the Grasshopper components: one flat set, 24 by 24 pixels.
 
 Each glyph is drawn at four times the size and scaled down; it uses its subcategory's accent colour and dark grey.
-``python tools/icons.py`` writes ``csharp/CompasAcoustics.Grasshopper/Components/Specs/<CA_name>/icon.png``.
+``python tools/icons.py`` writes ``src/compas_acoustics_ghcsharp/CompasAcoustics.Grasshopper/Components/Specs/<CA_name>/icon.png``.
 """
 
 import json
@@ -11,7 +11,7 @@ from pathlib import Path
 from PIL import Image
 from PIL import ImageDraw
 
-SPECS = Path(__file__).resolve().parents[1] / "csharp" / "CompasAcoustics.Grasshopper" / "Components" / "Specs"
+SPECS = Path(__file__).resolve().parents[1] / "src" / "compas_acoustics_ghcsharp" / "CompasAcoustics.Grasshopper" / "Components" / "Specs"
 SIZE = 24
 SCALE = 4
 S = SIZE * SCALE
