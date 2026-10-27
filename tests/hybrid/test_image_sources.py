@@ -10,7 +10,7 @@ from compas_acoustics import Scene
 from compas_acoustics import Source
 from compas_acoustics.hybrid.early import image_sources
 from compas_acoustics.hybrid.pair import Pair
-from compas_acoustics.hybrid.target import _air_absorption_coefficient
+from compas_acoustics.room.diffuse import air_attenuation
 from compas_acoustics.room.pra import directivity_to_pra
 from compas_acoustics.room.pra import receivers_to_pra_mic_array
 from compas_acoustics.room.pra import source_to_pra
@@ -115,7 +115,7 @@ def test_air_absorption_darkens_by_the_path_length():
     wet = image_sources(room, 0, 0, pair(geometry, source, receiver, air_absorption=True))
     d = dry.delay * 343.0
     np.testing.assert_allclose(
-        wet.gain / dry.gain, np.exp(-np.outer(d, _air_absorption_coefficient()) / 2.0), rtol=1e-12
+        wet.gain / dry.gain, np.exp(-np.outer(d, air_attenuation()) / 2.0), rtol=1e-12
     )
 
 

@@ -472,7 +472,6 @@ def test_sti_and_g_come_from_the_worker_where_pyrato_cannot_compute_them(monkeyp
     here = AcousticAnalyser(ir)
     here.analyse()
     # Rhino 8's Python 3.9: its pyrato < 1.0 has no STI and no G
-    monkeypatch.setattr(worker, "_pyrato_has_parameters", lambda: False)
     monkeypatch.setattr(analysis, "_STI_SUPPORTED", False)
     monkeypatch.setattr(worker, "worker_python", lambda: "python3.12")
     sent = []
@@ -505,10 +504,10 @@ def test_the_analysis_in_the_worker_matches_the_analysis_here(running_worker, mo
     ir = response()
     here = AcousticAnalyser(ir)
     here.analyse()
-    monkeypatch.setattr(worker, "_pyrato_has_parameters", lambda: False)
-    analyser, _ = worker.analyse(ir)
+    monkeypatch.setattr(analyser, "_STI_SUPPORTED", False)
+    analyser_here, _ = worker.analyse(ir)
     for name in ("STI_overall", "G_overall"):
-        assert analyser.analysis_data[name] == pytest.approx(here.analysis_data[name], abs=0.01)
+        assert analyser_here.analysis_data[name] == pytest.approx(here.analysis_data[name], abs=0.01)
 
 
 @needs_sti

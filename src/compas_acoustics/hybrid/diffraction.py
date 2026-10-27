@@ -1,27 +1,12 @@
-"""Edge diffraction around obstacles and at the room's own corners, as
-pseudo-sources of the early field.
+"""Edge diffraction around obstacles and at the room's own corners, as pseudo-sources of the early field.
 
-Geometry first: which edges diffract (:func:`diffraction_edges`: the
-obstacles' :func:`obstacle_edges` and the room boundary's
-:func:`enclosure_edges`), what blocks a path (:class:`Occluders`), and the
-wedge-frame path over an edge (:func:`wedge_path`). The acoustics is in
-:mod:`hybrid_rir.udfa`.
-
-Every free edge of an obstacle, and every room edge opening wider than pi, diffracts by the universal diffraction filter
-approximation (Kirsch and Ewert 2023), and an object is the sum of its
-edges' paths, as the paper composes flat objects (Sec. VI). Higher-order
-diffraction between edges is not rendered: the three-sided barrier of Kirsch
-and Ewert (2024, :class:`hybrid_rir.udfa.DoubleEdgePath`) is defined for an
-infinite double edge, and the papers give no rule for applying it to a
-finite obstacle.
-
-For ``max_order >= 1`` one enclosure-wall reflection is allowed before the
-diffraction (the source's image in that wall) or after it (the receiver's
-image).
-
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, src/diffraction.py).
-Reads a RoomGeometry, which carries upstream RoomGeometry's attribute names; room edges are searched only
-on a closed boundary (RoomGeometry.is_closed).
+The geometry is here: which edges diffract (:func:`diffraction_edges`), what blocks a path (:class:`Occluders`)
+and the wedge-frame path over an edge (:func:`wedge_path`); the acoustics is in :mod:`~compas_acoustics.hybrid.udfa`
+and :mod:`~compas_acoustics.hybrid.btms`. Every free obstacle edge, and every room edge opening wider than pi (room
+edges only on a closed boundary), diffracts by the universal diffraction filter approximation (Kirsch and Ewert
+2023); an object is the sum of its edges' paths (Sec. VI). Higher-order diffraction is not rendered: the
+three-sided barrier of Kirsch and Ewert (2024) is defined for an infinite double edge only. For
+``max_order >= 1`` one enclosure reflection is allowed before or after the edge.
 """
 
 from __future__ import annotations
@@ -46,12 +31,6 @@ from .pair import Pair
 from .udfa import WedgePath, udfa_transfer
 
 TWO_PI = 2.0 * np.pi
-
-# Edges closer than this to an enclosure face or another obstacle are not free
-# edges: a shelf on the floor has its bottom rim there, and the floor fills its
-# open side.
-ON_ENCLOSURE = 2.0 * OBSTACLE_OFFSET
-_PARALLEL = 1.0 - 1e-8
 
 
 @dataclass(frozen=True)
@@ -490,10 +469,11 @@ def obstacle_edges(geometry: RoomGeometry) -> list[Edge]:
         centre = points.mean(axis=0)
         normal = {i: (n if n @ (ctr - centre) > 0.0 else -n) for i, (_, n, ctr) in info.items()}
         n0 = normal[faces[0]]
-        planar = all(abs(normal[i] @ n0) > _PARALLEL for i in faces) and bool(
+        planar = all(abs(normal[i] @ n0) > 1.0 - 1e-8 for i in faces) and bool(
             np.all(np.abs((points - info[faces[0]][2]) @ n0) < 1e-5))
+        # an edge on an enclosure face or another obstacle is not free: a shelf's bottom rim on the floor
         free = [s for s in _segments(geometry, faces).values()
-                if not occ.on_polygons((s[0] + s[1]) / 2.0, ON_ENCLOSURE, support)]
+                if not occ.on_polygons((s[0] + s[1]) / 2.0, 2.0 * OBSTACLE_OFFSET, support)]
         groups: dict[tuple, list] = {}
         if planar:
             for p, q, owners in free:
@@ -513,7 +493,7 @@ def obstacle_edges(geometry: RoomGeometry) -> list[Edge]:
                 continue
             for p, q, (i, j) in free:
                 cos_ij = float(np.clip(normal[i] @ normal[j], -1.0, 1.0))
-                if cos_ij > _PARALLEL:
+                if cos_ij > 1.0 - 1e-8:
                     continue
                 if tuple(np.round(normal[i], 6)) > tuple(np.round(normal[j], 6)):
                     i, j = j, i
@@ -545,22 +525,21 @@ def enclosure_edges(geometry: RoomGeometry) -> list[Edge]:
     Ewert 2024, Sec. 3, first-order diffraction at a room corner). A seam
     between coplanar faces (pi) and a rectangular corner (pi / 2) have an
     integer wedge index nu = pi / theta_w, where the diffracted field
-    vanishes (Kirsch and Ewert 2023, Eq. 3); EDtoolbox switches such edges
+    vanishes (Kirsch and Ewert 2023, Eq. 3); Svensson's EDtoolbox switches such edges
     off (EDedgeo.m). Edges opening less than pi at a non-integer nu are left
-    out, with :class:`ShellEdgeWarning`, as in both reference implementations:
-    EDtoolbox v0.5 handles external convex problems only, and RoomAcoustiCpp
-    keeps edges wider than pi (``Room::FindEdge``). Two faces with opposite
+    out, with :class:`ShellEdgeWarning`: EDtoolbox v0.5 handles external convex
+    problems only. Two faces with opposite
     normals in one plane (a panel of zero thickness drawn into the enclosure)
     meet at a knife edge, theta_w = 2 pi. A piece lying on another face of the
     enclosure (a partition standing on an unsplit floor) is no edge, as
-    RoomAcoustiCpp's ``IsCoplanarEdge`` and :func:`obstacle_edges` treat it.
+    :func:`obstacle_edges` treats it.
 
     The edge pieces are the sides of the enclosure's faces, split at
     T-junctions by its own vertices as ``RoomGeometry`` splits them to check
     the mesh is closed, and matched by vertex index. Pieces between the same
     two surfaces join where they share a vertex and stay on one line.
     "Coplanar" and "integer" are judged in metres, to the tolerance
-    pyroomacoustics resolves planes to (``_MERGE_TOLERANCE``); "on one line",
+    walls are resolved to (``_MERGE_TOLERANCE``); "on one line",
     to the larger of that and the tolerance at which the mesh accepted the
     T-junction. Vertex noise below ``_MERGE_TOLERANCE`` changes nothing, and
     T-junction offsets along a face up to the mesh's own tolerance keep a
@@ -627,7 +606,7 @@ def enclosure_edges(geometry: RoomGeometry) -> list[Edge]:
     if skipped:
         warnings.warn(
             f"{skipped} room-boundary edge pieces open to less than pi at a non-integer "
-            "wedge index: not rendered, as in EDtoolbox (convex scatterers only) and RoomAcoustiCpp",
+            "wedge index: not rendered (convex scatterers only)",
             ShellEdgeWarning, stacklevel=2)
     edges: list[Edge] = []
     merge_tolerance = max(_MERGE_TOLERANCE, _t_junction_tolerance(vertices))
@@ -664,7 +643,7 @@ class DiffractionPath:
     ``doa`` is in the receiver's frame, ``edge`` indexes
     :func:`diffraction_edges`, ``order`` counts the wall
     reflections on the path (0 or 1) and ``zone`` is the receiver's zone
-    around the edge (:attr:`hybrid_rir.udfa.WedgePath.zone`).
+    around the edge (:attr:`compas_acoustics.hybrid.udfa.WedgePath.zone`).
     """
 
     delay: float
@@ -675,11 +654,6 @@ class DiffractionPath:
     order: int
     zone: str
     edge: int
-
-
-# A reflection point this close to a polygon's outline counts as on it, so a
-# point on a seam between two faces of one wall is accepted exactly once.
-ON_OUTLINE = 1e-6
 
 
 @dataclass(frozen=True)
@@ -720,7 +694,8 @@ def _on_face(polygon: np.ndarray, normal: np.ndarray, x: np.ndarray) -> bool:
     for p, q in zip(polygon, np.roll(polygon, -1, axis=0)):
         d = q - p
         t = float(np.clip((x - p) @ d / (d @ d), 0.0, 1.0))
-        if np.linalg.norm(x - p - t * d) < ON_OUTLINE:
+        # on the outline within 1e-6, so a point on a seam between two faces of one wall is accepted once
+        if np.linalg.norm(x - p - t * d) < 1e-6:
             return True
     return False
 
@@ -963,8 +938,8 @@ def btms_paths(spec: Pair, *, max_order: int = 1, second_order: bool = True) -> 
                 # and Calamia 2006): 1/2 for an edge hit (Svensson et al. 2025, Eqs. 2-4),
                 # and for a corner hit 2/3 for the direct sound and 1/3 for a specular
                 # reflection (EDfindconvexGApaths.m).
-                # The image sources drop that component there (pyroomacoustics occludes a
-                # path within about 1 mm of an obstacle's edge), so it is added here, as
+                # The image sources drop that component there (a path within about 1 mm of an
+                # obstacle's edge is occluded), so it is added here, as
                 # EDmakefirstorderirs.m places a pulse: split linearly between the two
                 # samples around its arrival. Once per component: the edges meeting at a
                 # corner, an apex on a segment end, and a wall image before or after the

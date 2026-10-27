@@ -16,43 +16,32 @@ from compas_acoustics.source import Source
 
 __all__ = ['ImpulseResponse']
 
-# Version of the JSON metadata written next to exported impulse responses
-_METADATA_VERSION = 1
-
 
 class ImpulseResponse(_PackageDtype, Data):
     """An impulse response between a source and a receiver.
 
-    The impulse response is stored at its raw (physical) level together with its
-    normalization factor, the peak absolute value across all channels. By default
-    :attr:`ir` returns the peak-normalized response; the raw level, which carries
-    distance and level differences between impulse responses, is kept and can be
-    recovered with :meth:`denormalized` or :meth:`denormalize_group`.
+    Stored at its raw level with its normalization factor, the peak of all channels. :attr:`ir`
+    is peak-normalized by default; :meth:`denormalized` and :meth:`denormalize_group` give the raw
+    level, which keeps distance and level differences between responses.
 
     Parameters
     ----------
     name : str
-        The name of the impulse response.
     source : Source
-        The source.
     receiver : Receiver
-        The receiver.
     ir : np.ndarray
-        The raw impulse response, shaped (samples,) or (samples, channels).
+        The raw response, (samples,) or (samples, channels).
     sampling_rate : int
-        The sample rate in Hz.
     normalized : bool, optional
-        Whether :attr:`ir` returns the peak-normalized response. Default is True.
+        Whether :attr:`ir` is peak-normalized.
     generation : dict, optional
-        How the impulse response was generated, e.g. the method and its settings.
-        Written to the JSON metadata on export.
+        The method and its settings; written to the JSON metadata on export.
     ambisonic_order : int, optional
-        The ambisonic order of a multichannel response, or None for a mono or
-        non-ambisonic one.
+        None for a mono or binaural response.
     normalization : str, optional
-        The ambisonic normalization, ``'sn3d'`` or ``'n3d'``.
+        ``'sn3d'`` or ``'n3d'``.
     channel_order : str, optional
-        The ambisonic channel order, ``'acn'``.
+        ``'acn'``.
     """
 
     def __init__(self, name: str, source: Source, receiver: Receiver, ir: np.ndarray, sampling_rate: int,
@@ -70,10 +59,9 @@ class ImpulseResponse(_PackageDtype, Data):
         self.normalization = normalization
         self.channel_order = channel_order
 
-
     @property
     def __data__(self):
-        # The raw response, as a list in JSON: for long or many responses use :meth:`to_wav`, which also keeps the metadata
+        # The raw response as a JSON list: long or many responses are better written with to_wav
         return {
             "name": self.name,
             "source": self.source,
@@ -87,17 +75,12 @@ class ImpulseResponse(_PackageDtype, Data):
             "channel_order": self.channel_order,
         }
 
-
     @property
     def ir(self):
-        """np.ndarray : The impulse response, peak-normalized when :attr:`normalized` is True.
-
-        Setting it sets the raw impulse response.
-        """
+        """np.ndarray : Peak-normalized when :attr:`normalized`; setting it sets the raw response."""
         if self.normalized:
             return self._raw_ir / self.normalization_factor
         return self._raw_ir
-
 
     @ir.setter
     def ir(self, ir):
@@ -109,18 +92,15 @@ class ImpulseResponse(_PackageDtype, Data):
         # A silent impulse response is left unscaled
         self._normalization_factor = peak if peak > 0 else 1.0
 
-
     @property
     def normalization_factor(self):
         """float : Peak absolute value of the raw impulse response across all channels."""
         return self._normalization_factor
 
-
     @property
     def n_channels(self):
         """int : The number of channels."""
         return 1 if self._raw_ir.ndim == 1 else self._raw_ir.shape[1]
-
 
     @property
     def format(self):
@@ -131,40 +111,27 @@ class ImpulseResponse(_PackageDtype, Data):
             return "binaural"
         return "ambisonic"
 
-
     @property
     def level_db(self):
         """float : The normalization factor in dB (20 log10 of the raw peak)."""
         return 20.0 * np.log10(self.normalization_factor)
 
-
     def denormalized(self):
-        """Return the raw impulse response, at its physical level.
-
-        Returns
-        -------
-        np.ndarray
-            A copy of the raw impulse response.
-        """
+        """A copy of the raw impulse response."""
         return self._raw_ir.copy()
-
 
     @staticmethod
     def denormalize_group(impulse_responses):
-        """Return impulse responses at their relative levels, scaled to the loudest one.
-
-        Each impulse response is scaled by its normalization factor relative to the
-        largest factor in the group, so the loudest has a peak of 1 and the others keep
-        their level differences below it.
+        """Raw impulse responses scaled together so the loudest peaks at 1.
 
         Parameters
         ----------
-        impulse_responses : list of ImpulseResponse or dict of ImpulseResponse
+        impulse_responses : list or dict of ImpulseResponse
 
         Returns
         -------
-        list of np.ndarray or dict of np.ndarray
-            The scaled impulse responses, in the same container type as the input.
+        list or dict of np.ndarray
+            In the container type of the input.
         """
         is_dict = isinstance(impulse_responses, dict)
         items = list(impulse_responses.values()) if is_dict else list(impulse_responses)
@@ -175,22 +142,8 @@ class ImpulseResponse(_PackageDtype, Data):
         scaled = [ir._raw_ir / reference for ir in items]
         return dict(zip(impulse_responses.keys(), scaled)) if is_dict else scaled
 
-
     def resampled(self, target_sampling_rate: int, method: str = "poly") -> NDArray[np.float64]:
-        """Return :attr:`ir` resampled to ``target_sampling_rate``, every channel along axis 0.
-
-        Parameters
-        ----------
-        target_sampling_rate : int
-            Target sample rate in Hz.
-        method : str, default="poly"
-            Resampling method: "poly" or "fft".
-
-        Returns
-        -------
-        NDArray[np.float64]
-            The resampled impulse response, shaped as :attr:`ir`.
-        """
+        """:attr:`ir` resampled to ``target_sampling_rate`` along axis 0, by ``"poly"`` or ``"fft"``."""
         ir_array = np.asarray(self.ir, dtype=np.float64)
 
         if self.sampling_rate == target_sampling_rate:
@@ -208,14 +161,12 @@ class ImpulseResponse(_PackageDtype, Data):
 
         raise ValueError("method must be 'poly' or 'fft'")
 
-
     def direct_sound_index(self, speed_of_sound: float = None) -> int:
         """Sample of the direct sound.
 
-        On the package scale (``generation['scale'] == 'package'``) the direct
-        sound sits on its geometric sample, distance / c, even when early
-        ray-traced histogram bins are louder or an obstacle blocks it.
-        Otherwise the largest sample of the omnidirectional channel.
+        On the package scale (``generation['scale'] == 'package'``) the geometric one, distance / c,
+        even when early ray-traced bins are louder or an obstacle blocks it; otherwise the largest
+        sample of the omnidirectional channel.
         """
         if self.generation.get("scale") == "package":
             c = speed_of_sound or self.generation.get("speed_of_sound") or Defaults().DEFAULT_SPEED_OF_SOUND
@@ -224,16 +175,13 @@ class ImpulseResponse(_PackageDtype, Data):
         omni = self._raw_ir if self._raw_ir.ndim == 1 else self._raw_ir[:, 0]
         return int(np.argmax(omni ** 2))
 
-
-    # Export and import
-
     @property
     def metadata(self):
-        """dict : Metadata describing the impulse response and how it was generated."""
+        """dict : The response and how it was generated, as written next to it on export."""
         import compas_acoustics
 
         return {
-            'metadata_version': _METADATA_VERSION,
+            'metadata_version': 1,
             'compas_acoustics_version': compas_acoustics.__version__,
             'created': datetime.now(timezone.utc).isoformat(timespec='seconds'),
             'name': self.name,
@@ -268,23 +216,15 @@ class ImpulseResponse(_PackageDtype, Data):
             },
         }
 
-
     def to_wav(self, filepath):
-        """Write the peak-normalized impulse response as a 32-bit float WAV and its metadata as JSON.
+        """Write the peak-normalized response as a 32-bit float WAV, and :attr:`metadata` as JSON beside it.
 
-        The JSON file has the same name with a ``.json`` extension and holds the
-        normalization factor, so the raw level can be restored with :meth:`from_wav`
-        or any other tool.
-
-        Parameters
-        ----------
-        filepath : str
-            The path of the WAV file.
+        The JSON holds the normalization factor, from which :meth:`from_wav` restores the raw level.
 
         Returns
         -------
         tuple of Path
-            The paths of the WAV and JSON files.
+            The WAV and JSON files.
         """
         import soundfile as sf
 
@@ -294,22 +234,19 @@ class ImpulseResponse(_PackageDtype, Data):
         json_path.write_text(json.dumps(self.metadata, indent=4))
         return wav_path, json_path
 
-
     @classmethod
     def from_wav(cls, filepath, source: Source = None, receiver: Receiver = None, normalized: bool = True):
-        """Read an impulse response WAV and, if present, its JSON metadata.
+        """Read a WAV written by :meth:`to_wav`, restoring the raw level from its JSON metadata.
 
-        The raw level is restored from the normalization factor in the metadata.
-        Without metadata the WAV is taken as the raw impulse response.
+        Without metadata the WAV is taken as the raw response.
 
         Parameters
         ----------
         filepath : str
-            The path of the WAV file.
         source, receiver : Source, Receiver, optional
-            Used instead of the ones described in the metadata.
+            Used instead of the ones in the metadata.
         normalized : bool, optional
-            Whether :attr:`ir` returns the peak-normalized response. Default is True.
+            Whether :attr:`ir` is peak-normalized.
 
         Returns
         -------

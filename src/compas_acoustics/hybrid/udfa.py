@@ -11,7 +11,7 @@ For the barrier, two simplifications the 2024 paper allows (end of Sec.
 3.3.1) are taken: beta = 1 at all angles, and no low-frequency gain
 compensation (its Appendix). Where the paper is silent the choice is marked
 "reading:". The barrier is defined for an infinite double edge and is not
-applied to room geometry (:mod:`hybrid_rir.diffraction`).
+applied to room geometry (:mod:`compas_acoustics.hybrid.diffraction`).
 
 A wedge path from a point source over one rigid wedge carries
 ``exp(-j k d) / d * udfa_transfer(path, f)`` relative to a unit free field
@@ -21,9 +21,6 @@ eq. (2): on the shadow side of the incident shadow boundary its incident term
 tends to +1/2, on the lit side to -1/2, and the direct sound's unit step is
 made up exactly. Diffraction is therefore rendered on both sides of every
 boundary, and the geometric sound must be switched by the same geometry.
-
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, src/udfa.py).
-No changes.
 """
 
 from __future__ import annotations
@@ -33,11 +30,6 @@ from dataclasses import dataclass
 
 import numpy as np
 
-# Eq. (6): fractional order and the roll-off shape of the modified low-pass.
-ALPHA = 0.5
-BLEND = 1.44
-Q = 0.2
-ROLLOFF = 1.6
 TWO_PI = 2.0 * np.pi
 
 
@@ -48,7 +40,7 @@ class WedgePath:
     The edge runs along z from ``-length / 2`` to ``+length / 2``
     (``length = inf`` for an infinite wedge), Fig. 1. Azimuths are measured
     through the open region from the face nearer the source, so
-    ``0 <= theta_s <= theta_r <= theta_w``; :func:`hybrid_rir.diffraction.wedge_path`
+    ``0 <= theta_s <= theta_r <= theta_w``; :func:`compas_acoustics.hybrid.diffraction.wedge_path`
     builds this from Cartesian points.
     """
 
@@ -134,12 +126,12 @@ class WedgePath:
 
 
 def fractional_lowpass(
-    freq: np.ndarray, fc: float, blend: float = BLEND, q: float = Q
+    freq: np.ndarray, fc: float, blend: float = 1.44, q: float = 0.2
 ) -> np.ndarray:
-    """Eq. (6). ``fc = inf`` gives a flat response."""
+    """Eq. (6), of fractional order 1/2 and roll-off 1.6. ``fc = inf`` gives a flat response."""
     jx = 1j * np.asarray(freq, dtype=float) / fc
-    return (jx ** (2.0 / blend) + (jx / q) ** (1.0 / blend**ROLLOFF) + 1.0) ** (
-        -ALPHA * blend / 2.0
+    return (jx ** (2.0 / blend) + (jx / q) ** (1.0 / blend**1.6) + 1.0) ** (
+        -0.5 * blend / 2.0
     )
 
 
@@ -221,7 +213,7 @@ def _finite_half_wedge(freq: np.ndarray, fc: float, g: float) -> np.ndarray:
     if g == 0.0:
         return np.zeros(freq.shape, dtype=complex)
     return g * fractional_lowpass(
-        freq, fc / g**2, 1.0 + (BLEND - 1.0) * g**2, 0.5 + (Q - 0.5) * g**2
+        freq, fc / g**2, 1.0 + (1.44 - 1.0) * g**2, 0.5 + (0.2 - 0.5) * g**2
     )
 
 

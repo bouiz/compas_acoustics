@@ -6,8 +6,8 @@ Time-domain kernels in the edge-cylindrical coordinates of EDtoolbox: z along
 the edge, theta from the reference face into the open region, closed wedge
 angle 2 pi - theta_w, free field 1/r.
 
-wedge1st_ir is ported from EDwedge1st_ir.m, wedge2nd_ir from EDwedge2nd.m and
-_coordtrans1 from EDcoordtrans1.m of the Edge Diffraction Toolbox v0.504:
+wedge1st_ir follows EDwedge1st_ir, wedge2nd_ir EDwedge2nd and _coordtrans1
+EDcoordtrans1 of Svensson's Edge Diffraction Toolbox v0.504:
 
     Copyright (c) 2018, Peter Svensson All rights reserved.
 
@@ -36,9 +36,6 @@ _coordtrans1 from EDcoordtrans1.m of the Edge Diffraction Toolbox v0.504:
 
 betaoverml and _quadstep are written from the paper and the adaptive Simpson
 rule, not from the toolbox.
-
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, src/btms.py).
-No changes.
 """
 
 from __future__ import annotations
@@ -212,7 +209,7 @@ def wedge1st_ir(fs, c, closed_angle, rs, thetas, zs, rr, thetar, zr, zw, r_irsta
                          * R0 * rho / (1 + rho) ** 2)
 
             if not skewcase:
-                # tempfact < 0 (rs == rr, long path) makes sqrtB3 imaginary, as in MATLAB
+                # tempfact < 0 (rs == rr, long path) makes sqrtB3 imaginary, as in the toolbox
                 sqrtB3 = np.sqrt(2) * R0 * rho / (1 + rho) / np.sqrt(complex(tempfact))
                 usespecialcase = np.abs(sqrtB3 - sqrtB1vec) < 1e-14
 
@@ -271,7 +268,7 @@ def wedge1st_ir(fs, c, closed_angle, rs, thetas, zs, rr, thetar, zr, zw, r_irsta
                     np.array([zrangespecial]), zrange_apex[:1], tol, *integ)[0]
 
             qsum = _slot_integrals(zrange_apex[:-1], zrange_apex[1:], tol, *integ)
-            # MATLAB ir(arrivalsampnumb + [2:length(zrange_apex)])
+            # the toolbox's ir(arrivalsampnumb + [2:length(zrange_apex)]), 1-based
             ir[arrivalsampnumb + 1:arrivalsampnumb + zrange_apex.size] += qsum
             ir = ir * (-ny / 2 / np.pi)
         else:
@@ -281,7 +278,7 @@ def wedge1st_ir(fs, c, closed_angle, rs, thetas, zs, rr, thetar, zr, zw, r_irsta
 
         if tailincluded:
             qsum = _slot_integrals(zrange_tail[:-1], zrange_tail[1:], tol, *integ)
-            # MATLAB ir(endsampnumb_apex + [1:length(zrange_tail)-1])
+            # the toolbox's ir(endsampnumb_apex + [1:length(zrange_tail)-1]), 1-based
             ir[endsampnumb_apex:endsampnumb_apex + zrange_tail.size - 1] += qsum * (-ny / 4 / np.pi)
 
     return ir, initdelay, singularterm, float(zfirst)
@@ -381,7 +378,7 @@ def wedge2nd_ir(cyl_s, cyl_r, cyl_e2_r1, cyl_e1_r2, nu, edge_limits, dz, steps, 
     e2e_2 = np.sqrt((b5 - zedge1_re2) ** 2 + redge1_re2**2)
     b2 = ((b5 - zedge1_re2) * (b5 - zr) + e2e_2 * e2r) / redge1_re2 / rr
     disc = b2**2 - 1
-    # MATLAB turns the whole array complex if rounding puts any disc below zero
+    # the toolbox turns the whole array complex if rounding puts any disc below zero
     root = np.sqrt(disc) if np.all(disc >= 0) else np.sqrt(disc.astype(complex))
     b2 = (root + b2) ** nu2
     b2 = np.real(b2 + 1 / b2) / 2

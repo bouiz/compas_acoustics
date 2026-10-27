@@ -34,14 +34,12 @@ import traceback
 from http.server import BaseHTTPRequestHandler
 from http.server import ThreadingHTTPServer
 
+from compas_acoustics.worker import CONTENT_TYPE
 from compas_acoustics.worker import PARENT_VARIABLE
 from compas_acoustics.worker import TOKEN_VARIABLE
 from compas_acoustics.worker import WORKERS
 
 __all__ = ["WorkerService", "dispatch", "process_is_alive", "start_service"]
-
-PARENT_CHECK_SECONDS = 2.0
-CONTENT_TYPE = "application/x-protobuf"
 
 
 def _encode(value):
@@ -202,7 +200,7 @@ def _record(port, token):
 
 def _exit_with_the_client(pid, record):
     while process_is_alive(pid):
-        time.sleep(PARENT_CHECK_SECONDS)
+        time.sleep(2.0)
     record.unlink(missing_ok=True)
     os._exit(0)
 

@@ -1,10 +1,6 @@
-"""The hybrid's ambisonic rendering: every path encoded at its direction, every delay line through its output matrix.
+"""Ambisonic rendering of a :class:`~compas_acoustics.hybrid.synthesis.HybridCore`: paths encoded at their directions, delay lines through the output matrix.
 
-The counterpart of :mod:`compas_acoustics.hybrid.binaural`: both turn a format-neutral
-:class:`~compas_acoustics.hybrid.synthesis.HybridCore` into a response. The ambisonic
-order sets how many delay lines the network needs (:func:`default_num_delays`) and
-the matrix that projects them (:func:`ambisonic_output_matrix`). Ported from hybrid-rir
-(gpapadimitri/hybrid-rir @ a272da7, src/late.py and src/synthesis.py).
+The order sets the number of delay lines (:func:`default_num_delays`) and their projection (:func:`ambisonic_output_matrix`).
 """
 
 from __future__ import annotations
@@ -71,20 +67,13 @@ def ambisonic_output_matrix(
     expectation. Scaled by ``1 / sqrt(N)`` so total output energy does not grow
     with the number of delay lines.
 
-    ``normalization="NM"`` is spharpy's audio N3D (a unit plane wave gives
-    W = 1), not the physics "N3D", which keeps the 1/sqrt(4 pi). The package
-    computes in N3D: its basis is orthonormal, so ``C @ C.T`` of an ideal grid
-    is a multiple of the identity and the leakage below compares like with
-    like across orders. In SN3D the diagonal falls as 1 / (2n + 1) per order.
+    ``normalization="NM"`` is N3D with W = 1 for a unit plane wave (without the 1/sqrt(4 pi)). Its basis is
+    orthonormal, so ``C @ C.T`` of an ideal grid is a multiple of the identity and the leakage compares like
+    with like across orders (in SN3D the diagonal falls as 1 / (2n + 1)).
 
-    The diffuse-field assumption only holds if ``C @ C.T`` is diagonal: its
-    off-diagonal entries are the cross-correlation between ambisonic channels,
-    and a large one means the late field carries a directional bias rather than
-    being isotropic. That depends entirely on how well the direction grid
-    supports ``sh_order``, so it is measured here rather than assumed.
-    Measured: a default ``spiral_points`` grid of 16 directions leaks 21.5 per
-    cent -- about -13 dB of channel cross-talk -- while ``equal_area`` at the
-    same size leaks 2e-14 per cent.
+    The late field is isotropic only if ``C @ C.T`` is diagonal; its off-diagonal entries are the channels'
+    cross-correlation, which depends on how well the grid supports ``sh_order``, so it is measured: a
+    16-point spiral grid leaks 21.5 % (about -13 dB of cross-talk), an equal-area one 2e-14 %.
     """
     sh = spharpy.spherical.spherical_harmonic_basis_real(
         sh_order, directions, normalization=normalization, channel_convention="ACN"
@@ -108,18 +97,10 @@ def ambisonic_output_matrix(
 def default_num_delays(sh_order: int, minimum: int | None = None) -> int:
     """Smallest workable number of delay lines for an ambisonic order.
 
-    ``num_delays`` and ``sh_order`` are coupled twice: the direction grid must
-    hold exactly one point per delay line, and it must support the order well
-    enough for :func:`ambisonic_output_matrix` to accept its channel leakage.
-    A fixed 16 satisfied both only at first order -- second order leaked 7.8
-    per cent, and at third order ``equal_area`` returns 17 points when asked
-    for 16, so the network could not be built at all.
-
-    Searched rather than computed, because the counts that satisfy both
-    conditions are irregular: 20, 23, 24, 27, 28 ... at second order. The
-    search starts at ``4 (N + 1) ** 2``: more lines than the order strictly
-    needs, for echo density, and never below ``minimum`` (:data:`MIN_DELAYS`
-    when None), so 96 lines at orders 0 to 3 and 100 at fourth order.
+    The grid must hold exactly one point per line and support the order within the leakage limit of
+    :func:`ambisonic_output_matrix`. The counts that do are irregular (20, 23, 24, 27, 28 ... at second
+    order), so they are searched from ``4 (N + 1) ** 2``, for echo density, and never below ``minimum``
+    (:data:`MIN_DELAYS` when None): 96 lines at orders 0 to 3, 100 at fourth order.
     """
     if sh_order < 0:
         raise ValueError("sh_order must be non-negative")

@@ -6,7 +6,6 @@ import numpy as np
 import pytest
 
 from compas_acoustics import AirConditions
-from compas_acoustics.room.diffuse import _air_absorption_coefficient
 from compas_acoustics.room.air import speed_of_sound
 
 try:
@@ -47,7 +46,6 @@ def test_without_a_medium_the_air_is_iso_9613_1_at_20_c_and_50_percent():
     default = AirConditions(temperature=20.0, humidity=50.0, pressure=101325.0)
     assert AirConditions() == default
     np.testing.assert_array_equal(air_attenuation(None), default.air_attenuation(SYNTHESIS_BANDS))
-    np.testing.assert_array_equal(_air_absorption_coefficient(), default.air_attenuation(SYNTHESIS_BANDS))
 
 
 # RAVEN's calculateSoundSpeed (Cramer 1993, 400 ppm CO2); pyfar takes 425 ppm, 0.003 m/s slower

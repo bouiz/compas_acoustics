@@ -25,8 +25,6 @@ from compas_acoustics.hybrid.synthesis import prepare
 from compas_acoustics.hybrid.ambisonics import render_ambisonics
 from compas_acoustics.hybrid.target import RoomTarget
 from compas_acoustics.hybrid.early import (
-    _RADIATION_HIGHPASS_HZ,
-    _RADIATION_HIGHPASS_ORDER,
     ImageSourceSet,
     _radiation_taper,
     render_images,
@@ -46,7 +44,7 @@ def before_arrival_db(signal, arrival, margin=48):
 
 def test_the_taper_keeps_the_butterworth_magnitude():
     freq = np.fft.rfftfreq(1 << 16, 1 / FS)
-    ratio = (freq / _RADIATION_HIGHPASS_HZ) ** _RADIATION_HIGHPASS_ORDER
+    ratio = (freq / 35.0) ** 4
     np.testing.assert_allclose(np.abs(_radiation_taper(freq)), ratio / np.sqrt(1 + ratio**2), rtol=1e-12, atol=1e-15)
     assert _radiation_taper(np.array([0.0]))[0] == 0.0
 

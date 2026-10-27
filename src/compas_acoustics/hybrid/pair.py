@@ -1,9 +1,4 @@
-"""One source-receiver pair of a scene, as the ported modules see it.
-
-Stands in for hybrid-rir's ``RoomSpec`` with the same attribute names, so the
-ported function bodies, which keep the parameter name ``spec``, read as
-upstream's.
-"""
+"""One source-receiver pair of a scene, the ``spec`` the hybrid modules take."""
 
 from __future__ import annotations
 
@@ -48,10 +43,7 @@ class Pair:
             raise ValueError("a hybrid response needs a closed room")
 
     def air_attenuation(self) -> np.ndarray:
-        """Energy attenuation coefficient of the air per metre on the band grid, zero without air absorption.
-
-        As upstream ``RoomSpec.air_attenuation``, in the pair's air conditions: ``AirConditions()`` without them.
-        """
+        """Energy attenuation coefficient per metre on the band grid in the pair's air, zero without air absorption."""
         if not self.air_absorption:
             return np.zeros(N_BANDS)
         return air_attenuation(self.air)

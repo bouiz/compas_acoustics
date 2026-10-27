@@ -1,7 +1,6 @@
 """The air a room is filled with: temperature, relative humidity and static pressure.
 
-The speed of sound after Cramer (1993) and the air absorption after ISO 9613-1:1993,
-both from :mod:`pyfar.constants` (``speed_of_sound_cramer``, ``air_attenuation``).
+The speed of sound after Cramer (1993) and the air absorption after ISO 9613-1:1993.
 """
 
 from __future__ import annotations
@@ -17,11 +16,7 @@ __all__ = ["AirConditions", "air_or_default", "speed_of_sound"]
 
 @dataclass(frozen=True)
 class AirConditions:
-    """Air at a temperature (deg C), relative humidity (%) and static pressure (Pa).
-
-    The ranges are those of Cramer's speed of sound as pyfar implements it: 0 to
-    30 deg C and 75 to 102 kPa, with any relative humidity from 0 to 100 %.
-    """
+    """Air at a temperature (deg C), relative humidity (%) and static pressure (Pa), within Cramer's 0 to 30 deg C and 75 to 102 kPa."""
 
     temperature: float = 20.0
     humidity: float = 50.0
@@ -40,7 +35,7 @@ class AirConditions:
         """Speed of sound in m/s, after Cramer (1993)."""
         try:
             from pyfar.constants import speed_of_sound_cramer
-        except ImportError:  # pyfar < 0.8, on Python 3.9 (Rhino 8)
+        except ImportError:  # pyfar < 0.8, on Python 3.9
             from compas_acoustics.room._pyfar_constants import speed_of_sound_cramer
 
         return float(speed_of_sound_cramer(self.temperature, self.humidity / 100.0, atmospheric_pressure=self.pressure))

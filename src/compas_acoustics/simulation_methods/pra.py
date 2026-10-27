@@ -1,4 +1,4 @@
-"""The mono simulation method on pyroomacoustics: image sources, optionally with the ray tracer."""
+"""The mono simulation method: image sources, optionally with the ray tracer."""
 
 from __future__ import annotations
 
@@ -16,7 +16,6 @@ from compas_acoustics.room.raytracing import DURATION_RT_FACTOR
 from compas_acoustics.room.raytracing import image_source_rirs
 from compas_acoustics.room.raytracing import ray_traced_rirs
 
-from .base import DEFAULT_SEED
 from .base import SimulationContext
 from .base import SimulationMethod
 from .base import _seed
@@ -24,64 +23,40 @@ from .base import _warn_if_the_search_is_slow
 
 __all__ = ['Mono']
 
-# A ray-traced response must last this many times its own longest T30, or it warns. ODEON's rule: T30's fit ends 35 dB
-# down, at 0.58 of the reverberation time, and an ideal decay cut at 2/3 of it reads T30 2.4 % short (0.7 % at 0.76,
-# 5 % at 0.6). Eyring, which sizes the default buffer, read 0.64 s on a furnished office whose response decays in 2 s.
-MIN_RESPONSE_RT_FACTOR = 2.0 / 3.0
-
 
 class Mono(SimulationMethod):
-    """pyroomacoustics: image sources up to ``image_source_order``, plus ray tracing if ``ray_tracing``.
-
-    There is no separate image-source method: like pyroomacoustics itself, this
-    runs the image source model, and adds the stochastic ray tracer for
-    everything past ``image_source_order`` when ``ray_tracing`` is True. The
-    ray tracer is hybrid-rir's (:mod:`compas_acoustics.room.raytracing`).
+    """Image sources up to ``image_source_order``, and the stochastic ray tracer past it if ``ray_tracing``.
 
     Parameters
     ----------
     image_source_order : int, default=3
-        Last specular order. With ray tracing, hybrid-rir measured 6 to 10 as
-        the range where the decay of a room with uneven absorption stops
-        depending on it. The default 3 is chosen for the cost of the image
-        source search: with ray tracing, T30 did not move between orders 3 and
-        6 in the evaluation, EDT by up to 15 % and C80 by 1 dB.
+        Last specular order. With ray tracing a room with uneven absorption stops depending on it from 6 to 10;
+        3 is chosen for the cost of the search: T30 did not move between 3 and 6, EDT by up to 15 % and C80 1 dB.
     ray_tracing : bool, default=True
-        Add the ray tracer; ``False`` runs the image sources alone. Materials without scattering coefficients scatter 0.05 in every band.
+        Materials without scattering coefficients scatter 0.05 in every band.
     air_absorption : bool, default=True
-        Air absorption in the simulation.
     n_rays : int or None, default=20000
-        Rays per source; ``None`` takes pyroomacoustics' heuristic, at least
-        50000. The T30 spread across seeds is about 3.9 % at 20000 rays and
-        2.6 % at 50000.
+        Per source; None: a heuristic of at least 50000. The T30 spread across seeds is about 3.9 % at 20000
+        and 2.6 % at 50000.
     energy_thres : float, default=1e-7
-        Energy at which a ray is stopped, pyroomacoustics' own default: the product of its
-        wall reflections in its least absorbed band, while what the receiver logs is that
-        energy over the squared distance (Schroeder 2011, eq. 5.54), so the logged tail
-        has decayed much further by then. Between 1e-8 and 1e-4 no parameter moved beyond the
-        seed-to-seed spread; 1e-8 (hybrid-rir's) cost 25 % more in a reverberant room.
+        The product of its reflections in its least absorbed band at which a ray stops; the logged energy is
+        that over the squared distance (Schroeder 2011, eq. 5.54), so the tail has decayed much further. No
+        parameter moved beyond the seed spread between 1e-8 and 1e-4; 1e-8 cost 25 % more in a reverberant room.
     duration : float, optional
-        Length of the ray-traced responses in seconds; by default 1.5 times the
-        longest Eyring reverberation time, within 0.5 to 12 s, with a warning when
-        the prediction exceeds the cap (10 s for a scene that does not close a
-        volume). A response that is the reference of :class:`Binaural` or :class:`Ambisonics` must outlast
-        its reverberation time: the hybrid warns when it does not. Without ray
-        tracing the responses have their natural length.
+        Of the ray-traced responses, in seconds; default 1.5 times the longest Eyring reverberation time, within
+        0.5 to 12 s (10 s for a scene that closes no volume), with a warning at the cap. Without ray tracing the
+        responses have their natural length.
     receiver_radius : float, default=0.5
-        Radius of the ray-tracing receivers in metres.
+        In metres.
     seed : bool or int, default=True
-        Seeds pyroomacoustics' generator. True seeds with 42, so that the same scene gives the same responses;
-        an int seeds with that value; False (or None) leaves it unseeded, a new draw each run, recorded as
-        ``generation["seed"] = None``. The T30 spread between seeds is the ray tracer's own variance: change the seed to see it.
+        True seeds with 42, an int with that value, False or None leaves the run unseeded
+        (``generation["seed"] = None``).
     normalize : bool, default=True
-        Whether the returned responses are peak-normalized views.
+        Whether the responses are peak-normalized views.
     air : AirConditions, optional
-        The air: its speed of sound and, with ``air_absorption``, its ISO 9613-1
-        absorption. Without one, ``AirConditions()``: 20 C, 50 %, 101325 Pa.
+        Its speed of sound and, with ``air_absorption``, its ISO 9613-1 absorption; default ``AirConditions()``.
 
-    The ray-tracing settings (``n_rays`` to ``seed``) given away from their
-    defaults with ``ray_tracing=False`` raise a ``ValueError`` rather than
-    being ignored.
+    Ray-tracing settings (``n_rays`` to ``seed``) changed with ``ray_tracing=False`` raise ``ValueError``.
 
     Examples
     --------
@@ -111,7 +86,7 @@ class Mono(SimulationMethod):
         "energy_thres": 1e-7,
         "duration": None,
         "receiver_radius": 0.5,
-        "seed": DEFAULT_SEED,
+        "seed": 42,
     }
 
     def __init__(self, image_source_order: int = 3, ray_tracing: bool = True, air_absorption: bool = True,
@@ -198,9 +173,12 @@ class Mono(SimulationMethod):
 
     @staticmethod
     def _warn_if_cut_short(rirs: dict, fs: int) -> None:
-        """Warn when a response ends before 2/3 of its own reverberation time: the buffer comes from Eyring, which a
-        non-diffuse room (an absorbing ceiling over hard walls) can underestimate several times over, and a
-        response that is cut reads T30 short and, as the reference of :class:`Binaural` or :class:`Ambisonics`, truncates its decay fit."""
+        """Warn when a response ends before 2/3 of its own longest T30.
+
+        The buffer comes from Eyring, which a non-diffuse room can underestimate several times over (0.64 s for
+        a furnished office decaying in 2 s). T30's fit ends 35 dB down, at 0.58 of the reverberation time; a decay
+        cut at 2/3 of it reads T30 2.4 % short (0.7 % at 0.76, 5 % at 0.6), and cuts the hybrid's decay fit.
+        """
         from compas_acoustics.analyser import AcousticAnalyser
 
         longest, length = 0.0, 0.0
@@ -211,7 +189,7 @@ class Mono(SimulationMethod):
             if np.any(np.isfinite(t30)):
                 longest = max(longest, float(np.nanmax(t30)))
             length = ir.ir.shape[0] / fs
-        if longest > 0.0 and length < MIN_RESPONSE_RT_FACTOR * longest:
+        if longest > 0.0 and length < 2.0 / 3.0 * longest:
             warnings.warn(
                 f"The responses are {length:.1f} s long, less than 2/3 of their reverberation time ({longest:.1f} s): T30 reads "
                 f"short and the hybrid's decay fit would be cut. Rerun with a duration of at least "

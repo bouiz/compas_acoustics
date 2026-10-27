@@ -11,7 +11,6 @@ from compas_acoustics import Scene
 from compas_acoustics import Source
 from compas_acoustics.simulation_methods import Mono
 from compas_acoustics.simulation_methods import SimulationContext
-from compas_acoustics.room.raytracing import OPEN_ROOM_DURATION
 from compas_acoustics.room.raytracing import default_duration
 from compas_acoustics.room.raytracing import image_source_rirs
 from compas_acoustics.room.raytracing import ray_traced_rirs
@@ -68,7 +67,7 @@ def test_the_default_length_comes_from_eyring():
 def test_an_open_room_gets_the_fixed_default():
     with pytest.warns(UserWarning):
         g = RoomGeometry.from_scene(scene_of(leaves=5))
-    assert default_duration(g, air_absorption=True) == OPEN_ROOM_DURATION
+    assert default_duration(g, air_absorption=True) == 10.0
 
 
 def test_a_long_predicted_rt_warns_that_the_run_will_be_slow():

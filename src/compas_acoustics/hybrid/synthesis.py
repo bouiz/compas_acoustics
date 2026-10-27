@@ -1,19 +1,7 @@
-"""The hybrid room impulse response of one source-receiver pair: its format-neutral core.
+"""The format-neutral core of one pair's hybrid response: its early paths and delay lines (:func:`prepare`).
 
-Ported by hand from hybrid-rir (gpapadimitri/hybrid-rir, src/synthesis.py, at
-4b42bfd: the btms branch included). The image
-source search moved to the caller, which runs one search for every source and
-receiver of a scene: ``iss`` holds the pair's images up to ``max_order``. Upstream's ``synthesize`` is split into
-:func:`prepare` (paths and delay lines) and a renderer: :mod:`compas_acoustics.hybrid.ambisonics` or
-:mod:`compas_acoustics.hybrid.binaural`.
-Upstream's obstacle-free drive is not ported; its scattering is replaced by
-surface scattering after Ewert et al. (2025) as RAZR 0.96.3 implements it. ``HybridCore`` also
-keeps the early paths (images, UDFA paths, BTMS contributions), which upstream does not.
-
-Deliberately different from upstream: the network is driven by the last
-rendered order into the opposite line (see :func:`prepare`, step 3), after
-Wendt et al. (2014), RAZR and Ewert et al. (2025). Checked against the measured
-responses of BRAS CR2 (Aspoeck et al.) and against RAZR on exact shoeboxes.
+A renderer, :mod:`~compas_acoustics.hybrid.ambisonics` or :mod:`~compas_acoustics.hybrid.binaural`, turns it into
+a response. Checked against the measured responses of BRAS CR2 (Aspoeck et al.) and exact shoeboxes.
 """
 
 from __future__ import annotations
@@ -54,10 +42,8 @@ from .target import RoomTarget
 class HybridCore:
     """The hybrid of one pair before it has a format: its early paths and its delay lines.
 
-    The early paths are left to the renderer, which evaluates each once (UDFA's
-    transfer functions are the expensive part). The late envelope compares the
-    lines with the omnidirectional early field, which every renderer has as its
-    first channel, so it is applied there through :meth:`shaped_lines`.
+    The renderer evaluates each early path once; the late envelope compares the lines with the omnidirectional
+    early field, every renderer's first channel, so it is applied there (:meth:`shaped_lines`).
     """
 
     spec: Pair
@@ -116,75 +102,38 @@ def prepare(
 ) -> HybridCore:
     """The format-neutral part of the hybrid for one pair: its early paths and its delay lines.
 
-    A renderer turns the core into a response: :func:`~compas_acoustics.hybrid.ambisonics.render_ambisonics`, or
-    :func:`compas_acoustics.hybrid.binaural.render_binaural`. After Wendt, van de
-    Par and Ewert (2014) and Kirsch et al. (2021, 2023):
+    After Wendt, van de Par and Ewert (2014) and Kirsch et al. (2021, 2023):
 
-    1. Images up to ``max_order`` (and, with ``diffraction``, diffracted paths)
-       are the early field, kept path by path for the renderer. Images of
-       higher orders in ``iss`` are ignored.
-    2. An FDN with one delay line per direction of an equal-area grid of
-       ``num_delays`` points (:func:`fdn_directions`); its attenuation filters
-       follow ``target.rt``, and each line is the room's free path along its
-       direction (:func:`directional_delays`).
-    3. The images of order ``max_order``, the last order rendered, also enter
-       the network, each spread over the delay lines of the hemisphere opposite
-       its direction of arrival, weighted by the cosine to each line
-       (:func:`~compas_acoustics.hybrid.scattering.scattering_weights` with
-       ``opposite``), so the network's first output is the next order, one
-       free path later, off the far side of the room. Wendt et al. (2014,
-       Sec. 1.3): the network input "must equal the total energy of the
-       Nth-order reflections"; RAZR 0.96.3 feeds that order
-       (``image_source_model.m``), as do Kirsch et al. (2023) and Ewert et al.
-       (2025, Sec. 3.1.2), whose mapping this is (RAZR's
-       ``fdn_smart_ch_mapping``; its default, Wendt's, is by image index).
-       hybrid-rir @ a272da7 fed order ``max_order + 1`` without rendering it,
-       into the one line nearest the opposite direction; neither has a
-       reference, and the extra order costs one more order of image source
-       search.
-    4. Each line's output is weighted with the reflection of the boundary in its
-       direction (``directional_absorption``). The lines are kept
-       (``late_lines``, with ``line_directions``): the ambisonic late field is
-       their projection through the output matrix, the binaural one each line
-       through the HRIR of its direction.
+    1. Images up to ``max_order`` (with ``diffraction``, diffracted paths too) are the early field, kept path by
+       path; higher orders in ``iss`` are ignored.
+    2. An FDN with one delay line per direction of an equal-area grid (:func:`fdn_directions`), attenuation
+       following ``target.rt``, each line the room's free path along its direction (:func:`directional_delays`).
+    3. The images of order ``max_order`` also enter the network, each spread over the lines of the hemisphere
+       opposite its arrival by the cosine to each line (:func:`~compas_acoustics.hybrid.scattering.scattering_weights`
+       with ``opposite``; Ewert et al. 2025, Sec. 3.1.2), so the first output is the next order, one free path
+       later, off the far side: the input "must equal the total energy of the Nth-order reflections" (Wendt et
+       al. 2014, Sec. 1.3).
+    4. Each line is weighted with the reflection of the boundary in its direction (``directional_absorption``).
+       The lines are kept with ``line_directions`` for the renderer.
 
-    ``drive_gain`` defaults to ``sqrt(num_delays)``. ``late_envelope`` is an
-    omnidirectional reference on the package scale, normally the pair's
-    ray-traced response; the network output is attenuated per band to follow
-    its late energy (Vorlaender 2020, Sec. 11.9), every line by the gains of the
-    lines' W against the early field's W; the renderer applies it
-    (:meth:`HybridCore.shaped_lines`), since W is its first channel. ``directional_envelope``, a
-    :class:`~compas_acoustics.room.raytracing.DirectionalHistogram` binned on the
-    lines' directions in room coordinates (their grid turned by the receiver's
-    rotation), then gives the lines the rays' distribution over directions
-    (:func:`~compas_acoustics.hybrid.envelope.shape_late_directional`, RAVEN's
-    directivity groups); it needs ``late_envelope``. ``diffraction=True`` adds
-    edge diffraction to the early field (Kirsch and Ewert 2023) around the
-    obstacles and at the edges of the room's boundary that open wider than
-    pi (see :func:`compas_acoustics.hybrid.diffraction.diffraction_edges`), for
-    the direct sound and, when ``max_order >= 1``, one enclosure reflection
-    before or after the edge; the late field is not affected.
-    ``diffraction="btms"`` renders first- and second-order diffraction with the
-    BTMS model (Svensson et al. 1999, kernels ported from EDtoolbox v0.504):
-    first order with at most one wall reflection, second order between any two
-    visible edges (obstacle or room boundary), direct paths only; slow, minutes
-    per source-receiver pair. ``True`` is ``"udfa"``.
-    ``scattering`` adds surface scattering after Ewert et al. (2025), as RAZR
-    0.96.3 implements it (``tests/hybrid/data/razr_scattering``): ``iss`` must
-    carry ``scattered`` (see :func:`~compas_acoustics.hybrid.early.image_sources`),
-    and its gains, which render the early field and drive the network, are
-    then the specular parts. The scattered part of every image of orders 1 to
-    ``max_order``, the last included, enters "those FDN channels on the same
-    hemisphere (initially skipping the FDN delays ...)" (Sec. 3.1.2):
-    smeared by the allpass cascade of Eqs. 12-13, ``R`` the mean free path,
-    and weighted onto the lines by
-    :func:`~compas_acoustics.hybrid.scattering.scattering_weights`, RAZR's
-    ``fdn_smart_ch_mapping`` rule, whose unit l2 norm is that of one driving
-    image, times the same ``drive_gain``. It is ``render``'s ``tap``: heard
-    through each line's attenuation filters and then recirculating, as RAZR's
-    input placed one delay early is. The specular drive takes the same rule
-    with the opposite hemisphere (step 3), so both inputs enter as RAZR's
-    smart mapping places them.
+    ``drive_gain`` defaults to ``sqrt(num_delays)``. ``late_envelope``, a package-scale omnidirectional reference,
+    attenuates the lines per band to its late energy (Vorlaender 2020, Sec. 11.9); ``directional_envelope``, a
+    :class:`~compas_acoustics.room.raytracing.DirectionalHistogram` on the lines' directions in room coordinates,
+    then gives them the rays' distribution (:func:`~compas_acoustics.hybrid.envelope.shape_late_directional`);
+    the renderer applies both (:meth:`HybridCore.shaped_lines`).
+
+    ``diffraction="udfa"`` (``True``) adds edge diffraction (Kirsch and Ewert 2023) around obstacles and at room
+    edges wider than pi (:func:`~compas_acoustics.hybrid.diffraction.diffraction_edges`), for the direct sound and,
+    when ``max_order >= 1``, one enclosure reflection before or after the edge. ``"btms"`` renders first- and
+    second-order diffraction with the BTMS model (Svensson et al. 1999), first order with at most one wall
+    reflection, second order between visible edges, direct paths only; minutes per pair. The late field is not
+    affected.
+
+    ``scattering`` (Ewert et al. 2025) needs ``iss.scattered``; the gains are then the specular parts. The
+    scattered part of every image of orders 1 to ``max_order`` enters "those FDN channels on the same hemisphere
+    (initially skipping the FDN delays ...)" (Sec. 3.1.2), smeared by the allpass cascade of Eqs. 12-13 with
+    ``R`` the mean free path and weighted by :func:`~compas_acoustics.hybrid.scattering.scattering_weights` (unit
+    l2 norm, as one driving image) times ``drive_gain``, as :func:`render`'s ``tap``.
     """
     model = {False: None, True: "udfa", "udfa": "udfa", "btms": "btms"}.get(diffraction, "invalid")
     if model == "invalid":
@@ -274,7 +223,7 @@ def prepare(
 def _select(iss: ImageSourceSet, mask: np.ndarray) -> ImageSourceSet:
     """The subset of an image source set selected by a boolean mask."""
     if np.asarray(iss.delay).size == 0:
-        return iss  # pyfar cannot read the coordinates of an empty set
+        return iss  # an empty Coordinates set has no cartesian
     xyz = iss.doa.cartesian[mask]
     return replace(
         iss,

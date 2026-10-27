@@ -1,8 +1,7 @@
-"""Functions the worker serves; called through :func:`compas_acoustics.worker.client` or the Grasshopper plugin, never directly.
+"""Functions the worker serves, called through :func:`compas_acoustics.worker.client` or the Grasshopper plugin.
 
-Arguments and results are what compas_pb carries (:mod:`compas_acoustics.pb`): compas_acoustics and COMPAS Data
-objects, dicts, lists and numbers. A function raises ValueError or TypeError for input it cannot use; the service
-answers those with their message.
+Arguments and results are what :mod:`compas_acoustics.pb` carries: Data objects, dicts, lists and numbers. Unusable
+input raises ValueError or TypeError, which the service answers with its message.
 """
 
 import importlib.util
@@ -143,19 +142,16 @@ def make_material(name, absorption, scattering=None, category=None):
                             category=category or None)
 
 
-#: The source directivities, as Source and Directivity offer them
-DIRECTIVITIES = ["bidirectional", "hypercardioid", "supercardioid", "cardioid", "omnidirectional"]
-
-
 def make_source(name, position, direction=None, directivity=None, sound_file=None, spl=None):
     """A :class:`Source` with the defaults of the Source component: ``my_source``, facing +x, omnidirectional.
 
     ``spl``, the source's level on its axis at 1 m per band (one value for every band), keeps the default when None.
     """
     from compas_acoustics import Source
+    from compas_acoustics.room.pra import CARDIOID_P
 
     directivity = directivity or "omnidirectional"
-    if directivity not in DIRECTIVITIES:
+    if directivity not in CARDIOID_P:
         raise ValueError("Input parameter 'directivity' is not valid.")
     source = Source(name or "my_source", *(position if position is not None else [0, 0, 0]), directivity=directivity,
                     direction=list(direction) if direction is not None else [1, 0, 0], sound_file=sound_file or None)
@@ -244,10 +240,6 @@ PARAMETERS = {
     "LFC": ("Lateral Energy Fraction, cosine (LFC)", "Frequency (Hz)", "Fraction (0-1)"),
 }
 TIME_SCALES = ["db", "linear"]
-# The frequency axis of a frequency response
-FREQUENCY_AXIS = (20.0, 20000.0)
-# An amplitude plot of a time response ends where its Schroeder curve falls this far, in dB
-LINEAR_TIME_TRIM_DB = 60.0
 
 
 def _parameter(name, title, x_unit, y_unit, x_scale, x, values, overall=None, channels=()):
@@ -312,10 +304,10 @@ def analysis(ir, time_scale="db"):
             parameters.append(_parameter(name, title, x_unit, y_unit, "bands", bands, [values], data[f"{name}_overall"]))
         samples, channels = _plotted_channels(ir)
         db = time_scale == "db"
-        times, levels = time_response(samples, ir.sampling_rate, db=db, trim_db=None if db else LINEAR_TIME_TRIM_DB)
+        times, levels = time_response(samples, ir.sampling_rate, db=db, trim_db=None if db else 60.0)
         time = _parameter("IR", _curve_title("Impulse Response", channels), "Time (s)", "Level (dB)" if db else "Amplitude", "linear",
                           times, levels, channels=channels)
-        frequencies, magnitudes = frequency_response(samples, ir.sampling_rate, num_fractions=3, frequency_range=FREQUENCY_AXIS)
+        frequencies, magnitudes = frequency_response(samples, ir.sampling_rate, num_fractions=3, frequency_range=(20.0, 20000.0))
         frequency = _parameter("FR", _curve_title("Frequency Response, 1/3 octave", channels), "Frequency (Hz)", "Level (dB)", "log",
                                frequencies, magnitudes, channels=channels)
     return {"parameters": parameters, "time": time, "frequency": frequency, "warnings": _messages(caught)}
@@ -326,7 +318,6 @@ def analysis(ir, time_scale="db"):
 # =============================================================================
 
 LEVELS = ["relative", "individual", "none"]
-HEADROOM_DB = -1.0
 
 
 def auralise(groups, level="relative", mix_sources=False, save_folder=None, save_name=None):
@@ -400,7 +391,7 @@ def auralise(groups, level="relative", mix_sources=False, save_folder=None, save
                             r, " and ".join(task_formats)))
                     auraliser = Auraliser(name=name, impulse_responses=ir_data, anechoic_sounds=sound_data)
                     renders.append((group["branch"], auraliser, auraliser.convolve(), suffix, task_formats[0]))
-        gains = Auraliser.render_gains([render[2] for render in renders], level, HEADROOM_DB)
+        gains = Auraliser.render_gains([render[2] for render in renders], level, -1.0)
         signals = []
         peak = -np.inf
         for (branch, auraliser, signal, suffix, ir_format), gain in zip(renders, gains):
@@ -547,8 +538,8 @@ def ray_field(scene, source_index=None, n_rays=500, max_order=10, direction=None
 def energy_map(scene, points, source_index=None):
     """The sound pressure level of the scene's sources over ``points``, as Visualise Energy Map colours it.
 
-    The settings are fixed, as Pachyderm's mapping fixes its own: the image sources up to order 1, the rays of
-    :func:`compas_acoustics.energy_map.map_rays`, seeded with 42, so that the same scene gives the same map.
+    The settings are fixed: image sources up to order 1, the rays of :func:`compas_acoustics.energy_map.map_rays`,
+    seeded with 42, so that the same scene gives the same map.
 
     Returns
     -------

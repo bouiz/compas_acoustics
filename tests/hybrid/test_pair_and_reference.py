@@ -7,9 +7,9 @@ from compas_acoustics import AcousticObjectsLibrary
 from compas_acoustics import Scene
 from compas_acoustics.hybrid.bands import BANDS
 from compas_acoustics.hybrid.pair import Pair
-from compas_acoustics.hybrid.target import reference_scale
 from compas_acoustics.room.geometry import SYNTHESIS_BANDS
 from compas_acoustics.room.geometry import RoomGeometry
+from compas_acoustics.room.raytracing import _on_package_scale
 
 
 def shoebox(leaves=6):
@@ -41,11 +41,11 @@ def test_a_pair_needs_a_proper_rotation():
         Pair(shoebox(), [1.5, 1.5, 1.6], [5, 3, 1.5], np.diag([1.0, -1.0, 1.0]), 48000.0)
 
 
-def test_reference_scale_removes_the_latency_and_the_1_over_r_convention():
+def test_the_package_scale_removes_the_latency_and_the_1_over_r_convention():
     latency = pra.constants.get("frac_delay_length") // 2
     rir = np.zeros(1000)
     rir[latency + 10] = 4.0 * np.pi
-    scaled = reference_scale(rir, 1200)
+    scaled = _on_package_scale(rir, latency, 1200)
     assert scaled.shape == (1200,)
     assert scaled[10] == pytest.approx(1.0)
     assert np.count_nonzero(scaled) == 1

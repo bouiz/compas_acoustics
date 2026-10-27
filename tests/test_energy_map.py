@@ -29,17 +29,13 @@ def shoebox(dims, alpha, scattering, sources, spl=80.0):
 def test_the_rays_give_every_point_its_target_of_hits_within_a_floor_and_a_cap():
     import math
 
-    from compas_acoustics.energy_map import MAP_HITS
-    from compas_acoustics.energy_map import MAX_MAP_RAYS
-    from compas_acoustics.energy_map import MIN_MAP_RAYS
     from compas_acoustics.energy_map import map_rays
 
     c = Defaults().DEFAULT_SPEED_OF_SOUND
     # Vorlaender (2008) Eq. 11.12 over the response length: a ray of length cT crosses a sphere of radius 0.5 m cT pi r^2 / V times
-    assert map_rays(12000.0, 5.0) == math.ceil(MAP_HITS * 12000.0 / (math.pi * 0.25 * c * 5.0))
-    assert MAP_HITS == 16000
-    assert map_rays(105.0, 0.8) == MIN_MAP_RAYS == 20000
-    assert map_rays(1e6, 1.0) == MAX_MAP_RAYS == 250000
+    assert map_rays(12000.0, 5.0) == math.ceil(16000 * 12000.0 / (math.pi * 0.25 * c * 5.0))
+    assert map_rays(105.0, 0.8) == 20000
+    assert map_rays(1e6, 1.0) == 250000
 
 
 def test_the_rays_are_traced_to_one_receiver_per_metre_cell_of_the_map():

@@ -1,15 +1,8 @@
-"""A scene's surfaces as one validated room, and its pyroomacoustics build.
+"""A scene's surfaces as one validated room: welded, merged, checked closed, wound outward, obstacles two-sided.
 
-Every simulation in compas_acoustics builds its pyroomacoustics room through
-:meth:`RoomGeometry.to_pra`. Vertex welding, coplanar merging, the closedness
-check with T-junction splitting, outward winding and two-sided obstacles are
-ported from hybrid-rir (gpapadimitri/hybrid-rir, src/room.py).
-
-Two views of the room are kept. The geometric-acoustics view (``faces``) holds
-each obstacle twice, ``OBSTACLE_OFFSET`` either side, which is what
-pyroomacoustics and the hybrid synthesis read. The drawn model is the boundary
-faces plus ``obstacle_faces`` as drawn; a volume mesher (a wave solver) must
-use that one, never the offset copies.
+Two views are kept. ``faces`` holds each obstacle twice, ``OBSTACLE_OFFSET`` either side, as the geometric
+methods read it; the drawn model is the boundary faces plus ``obstacle_faces``, which a volume mesher (a wave
+solver) must use instead of the offset copies.
 """
 
 from __future__ import annotations
@@ -37,43 +30,29 @@ from compas_acoustics.room.air import air_or_default
 
 __all__ = ['RoomGeometry', 'SurfaceMaterial', 'SYNTHESIS_BANDS', 'OBSTACLE_OFFSET', 'DEFAULT_SCATTERING', 'pra_octave_grid']
 
-# pyFDN's octave grid, on which the hybrid synthesis works. Public materials
-# start at 125 Hz; the 62.5 Hz band takes the 125 Hz value.
+# The synthesis grid; materials start at 125 Hz and 62.5 Hz takes the 125 Hz value
 SYNTHESIS_BANDS = (62.5, 125.0, 250.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0)
 
-# Half the gap between the two copies of an obstacle face, in metres: 100 times
-# pyroomacoustics' geometric tolerance, so the copies are always resolved apart.
+# Half the gap between the two copies of an obstacle face, in metres: 100 times the geometric tolerance
 OBSTACLE_OFFSET = 1e-3
 
-# Vertices closer than this are one vertex, in metres: Rhino's default absolute tolerance in a metre
-# model, which is what a CAD export is exact to. A vertex lies on an edge only within 1e-6 of the model's
-# extent (_split_at_t_junctions): a sliver face can put a vertex of its own a fraction of a millimetre
-# off an edge, and splitting the edge there makes it non-manifold.
-WELD_TOLERANCE = 1e-3
-
-# A bounding box larger than this, in metres, is taken for a model in millimetres.
-UNIT_WARNING_EXTENT = 500.0
-
-# Scattering coefficient, every band, of a material that gives none, in every pyroomacoustics room
+# Scattering coefficient, every band, of a material that gives none
 DEFAULT_SCATTERING = 0.05
-
-_PRA_OCTAVE_BASE_FREQ = "octave_bands_base_freq"
 
 
 @contextmanager
 def pra_octave_grid() -> Iterator[None]:
-    """Put pyroomacoustics' octave grid on ``SYNTHESIS_BANDS``, then restore it.
+    """Put the backend's octave grid, process-wide state read when a room is built, on ``SYNTHESIS_BANDS``, then restore it.
 
-    The base frequency is process-wide state read by ``pra.Room`` at
-    construction. At its default of 125 Hz a 48 kHz room has 8 bands against
-    7 wall coefficients, which is what held the simulator at 16 kHz.
+    At its default of 125 Hz a 48 kHz room has 8 bands against 7 wall coefficients.
     """
-    previous = pra.constants.get(_PRA_OCTAVE_BASE_FREQ)
-    pra.constants.set(_PRA_OCTAVE_BASE_FREQ, SYNTHESIS_BANDS[0])
+    key = "octave_bands_base_freq"
+    previous = pra.constants.get(key)
+    pra.constants.set(key, SYNTHESIS_BANDS[0])
     try:
         yield
     finally:
-        pra.constants.set(_PRA_OCTAVE_BASE_FREQ, previous)
+        pra.constants.set(key, previous)
 
 
 def _extended(coefficients) -> Optional[np.ndarray]:
@@ -105,8 +84,7 @@ class SurfaceMaterial:
             absorption=_extended(material.absorption_coefficients),
             scattering=_extended(material.scattering_coefficients),
         )
-        # As upstream Material: a coefficient outside [0, 1] is an input error,
-        # not something for pyroomacoustics to absorb silently.
+        # a coefficient outside [0, 1] is an input error, not something to absorb silently
         for kind, values in (("absorption", surface.absorption), ("scattering", surface.scattering)):
             if values is not None and (np.any(values < 0.0) or np.any(values > 1.0)):
                 raise ValueError(f"Material '{material.name}' has {kind} coefficients outside [0, 1].")
@@ -152,11 +130,10 @@ def _object_polygons(acoustic_object) -> List[np.ndarray]:
 
 
 def _weld(points: np.ndarray, tolerance: float) -> Tuple[np.ndarray, np.ndarray]:
-    """Merge points closer than ``tolerance``, transitively.
+    """Merge points closer than ``tolerance``, transitively, each cluster into its first point.
 
-    Rhino writes every surface's vertices separately; rounding to a grid would
-    keep two points 1 nm apart separate when a grid line falls between them.
-    Each cluster is represented by its first point.
+    CAD exports write every surface's vertices separately; rounding to a grid would keep two points 1 nm
+    apart separate when a grid line falls between them.
     """
     parent = np.arange(len(points))
 
@@ -176,10 +153,11 @@ def _weld(points: np.ndarray, tolerance: float) -> Tuple[np.ndarray, np.ndarray]
 
 
 def _split_at_t_junctions(vertices: np.ndarray, a: int, b: int) -> List[int]:
-    """The edge ``a -> b`` as the chain of vertices lying on it.
+    """The edge ``a -> b`` as the chain of vertices lying on it, within 1e-6 of the model's extent.
 
-    CAD exports subdivide one side of a seam and not the other, so edges are
-    compared segment by segment.
+    CAD exports subdivide one side of a seam and not the other, so edges are compared segment by segment. The
+    tolerance is far below the weld's: a sliver face can put a vertex a fraction of a millimetre off an edge,
+    and splitting the edge there makes it non-manifold.
     """
     start = vertices[a]
     direction = vertices[b] - start
@@ -216,8 +194,7 @@ def _without_collapsed(faces, groups):
 def _triangulated_where_warped(vertices: np.ndarray, faces, groups):
     """Faces whose corners lie off their own plane, as fans of triangles of the same group and winding.
 
-    pyroomacoustics refuses a wall whose corners are further than
-    ``_MERGE_TOLERANCE`` from a plane, and a CAD quad with one corner a few
+    A wall's corners must lie within ``_MERGE_TOLERANCE`` of a plane, and a CAD quad with one corner a few
     millimetres out is still a surface.
     """
     out_faces, out_groups = [], []
@@ -282,10 +259,9 @@ def _orient(vertices: np.ndarray, faces):
 def _orient_outward(vertices: np.ndarray, faces):
     """Boundary faces wound consistently, their largest volume facing out.
 
-    pyroomacoustics needs normals pointing out of the air and drops image
-    sources silently otherwise. Any further closed volume (a pillar) bounds
-    the air from outside, so it is wound into itself. Returns ``(faces,
-    defect)``; on a defect the faces come back as drawn.
+    Image sources are dropped silently unless the normals point out of the air. Any further closed volume (a
+    pillar) bounds the air from outside, so it is wound into itself. Returns ``(faces, defect)``; on a defect
+    the faces come back as drawn.
     """
     flips, component, defect = _orient(vertices, faces)
     if defect is not None:
@@ -305,11 +281,9 @@ def _orient_outward(vertices: np.ndarray, faces):
 class RoomGeometry:
     """Every surface of a scene as one room: welded, oriented, materials on ``SYNTHESIS_BANDS``.
 
-    Faces are listed boundary first, then the front copy and then the back
-    copy of every obstacle face. ``is_closed`` says whether the boundary faces
-    close a volume; ``open_edge`` holds the end points of the first edge that
-    prevents it. The attribute names follow hybrid-rir's ``MeshGeometry``, so
-    the ported modules read a ``RoomGeometry`` unchanged.
+    Faces are listed boundary first, then the front and then the back copy of every obstacle face.
+    ``is_closed`` says whether the boundary faces close a volume; ``open_edge`` holds the end points of the
+    first edge that prevents it.
     """
 
     vertices: np.ndarray
@@ -328,18 +302,14 @@ class RoomGeometry:
     mergeable_faces: int = 0
 
     @classmethod
-    def from_scene(cls, scene, merge_coplanar: bool = True, weld_tolerance: float = WELD_TOLERANCE) -> RoomGeometry:
+    def from_scene(cls, scene, merge_coplanar: bool = True, weld_tolerance: float = 1e-3) -> RoomGeometry:
         """Collect, weld, orient and validate every surface of ``scene``.
 
-        Boundary faces that close a volume are wound outward. Boundary faces
-        that do not are kept as drawn, with a ``UserWarning``. Obstacle faces
-        are stored twice, ``OBSTACLE_OFFSET`` either side, wound opposite,
-        because pyroomacoustics reflects off one side of a wall only.
-
-        Coplanar faces of one object and material are joined into larger walls
-        (``merge_coplanar=True``), as in a Rhino mesh that triangulates every
-        flat surface; ``False`` keeps the faces as modelled and warns where
-        faces could have been merged.
+        Boundary faces that close a volume are wound outward; otherwise they are kept as drawn, with a
+        ``UserWarning``. Obstacle faces are stored twice, ``OBSTACLE_OFFSET`` either side and wound opposite,
+        since a wall reflects off one side only. ``merge_coplanar`` joins coplanar faces of one object and
+        material into larger walls (a triangulated CAD mesh); ``False`` keeps them and warns where it could.
+        ``weld_tolerance``, in metres, is a CAD model's usual absolute tolerance.
         """
         polygons: List[np.ndarray] = []
         groups: List[Tuple[str, str, str]] = []  # (role, object name, material name)
@@ -360,13 +330,8 @@ class RoomGeometry:
 
     @classmethod
     def from_mesh(cls, vertices, faces, face_materials, materials, obstacles=(),
-                  merge_coplanar: bool = False, weld_tolerance: float = WELD_TOLERANCE) -> RoomGeometry:
-        """A room from shared vertices and faces, as upstream ``MeshGeometry``.
-
-        ``materials`` maps names to :class:`SurfaceMaterial`; faces whose
-        material is in ``obstacles`` are obstacles. Used for OBJ-style input and
-        by the tests that run upstream's suite against this package.
-        """
+                  merge_coplanar: bool = False, weld_tolerance: float = 1e-3) -> RoomGeometry:
+        """A room from shared vertices and faces; ``materials`` maps names to :class:`SurfaceMaterial`, those in ``obstacles`` are obstacles."""
         vertices = np.asarray(vertices, dtype=float)
         polygons = [vertices[list(face)] for face in faces]
         groups = [('obstacle' if name in obstacles else 'boundary', name, name) for name in face_materials]
@@ -391,7 +356,7 @@ class RoomGeometry:
             start += len(polygon)
 
         extent = float(np.ptp(vertices, axis=0).max())
-        if extent > UNIT_WARNING_EXTENT:
+        if extent > 500.0:
             warnings.warn(
                 f"The model is {extent:g} units across. Coordinates are read as metres; a model drawn in millimetres "
                 "needs scaling by 0.001 first.",
@@ -419,7 +384,7 @@ class RoomGeometry:
             if mergeable:
                 warnings.warn(
                     f"{mergeable} faces lie in one plane with a neighbour of the same object and material, as in a "
-                    "triangulated surface. pyroomacoustics loses image sources at the seams between them (up to 14 % "
+                    "triangulated surface. Image sources are lost at the seams between them (up to 14 % "
                     "of the response measured on a triangulated box); merge_coplanar=True joins them into larger walls.",
                     UserWarning,
                     stacklevel=3,
@@ -439,7 +404,7 @@ class RoomGeometry:
             if boundary:
                 message = (
                     f"The boundary surfaces do not close a volume{where}. They are kept as drawn, so "
-                    "pyroomacoustics may miss reflections off their back sides. Mark free-standing "
+                    "reflections off their back sides may be missed. Mark free-standing "
                     "surfaces with role='obstacle'. "
                 )
             else:
@@ -551,14 +516,9 @@ class RoomGeometry:
         return [(self.vertices[list(face)], name) for face, name in zip(self.faces, self.face_materials)]
 
     def is_inside(self, point) -> bool:
-        """Whether ``point`` is in the air of the room.
+        """Whether ``point`` is in the air: inside a closed boundary (anywhere in an open scene), outside every closed obstacle.
 
-        Inside the boundary when it closes a volume (anywhere, when it does not:
-        an open scene has no outside), and not inside any obstacle that closes a
-        volume of its own (a pillar, a cabinet). Decided by generalised winding
-        numbers over the drawn faces, so the 2 mm obstacle copies play no part.
-        Every pyroomacoustics room built by :meth:`to_pra` answers ``is_inside``
-        with this.
+        Decided by generalised winding numbers over the drawn faces, so the obstacle copies play no part.
         """
         point = np.asarray(point, dtype=float).reshape(3)
         if self.is_closed and abs(_winding_number(point, self._triangles["boundary"])) < 0.5:
@@ -614,18 +574,12 @@ class RoomGeometry:
         enclosure_only: bool = False,
         air: Optional[AirConditions] = None,
     ) -> pra.Room:
-        """The pyroomacoustics room, one wall per face, on ``SYNTHESIS_BANDS``.
+        """The backend's room, one wall per face, materials resampled to its octave grid (nine bands at 48 kHz).
 
-        Materials are resampled to the room's own octave grid (nine bands at
-        48 kHz), which ``wall_factory`` does not do. Bands above 8 kHz hold the
-        8 kHz value: pyroomacoustics would extrapolate linearly, past 1.
-        A material without scattering coefficients scatters ``DEFAULT_SCATTERING``
-        (0.05) in every band; given coefficients are used as they are.
-        ``enclosure_only`` leaves the obstacles out. The room answers
-        ``is_inside`` with :meth:`is_inside`. ``air`` sets the room's speed of
-        sound and, with ``air_absorption``, its air absorption on the room's own
-        octave grid (ISO 9613-1); without one, ``AirConditions()`` (20 C, 50 %), never
-        pyroomacoustics' own 343 m/s and air table.
+        Bands above 8 kHz hold the 8 kHz value, where linear extrapolation could pass 1. A material without
+        scattering scatters ``DEFAULT_SCATTERING``. ``enclosure_only`` leaves the obstacles out. The room
+        answers ``is_inside`` with :meth:`is_inside`. ``air`` (default ``AirConditions()``) sets the speed of
+        sound and, with ``air_absorption``, the ISO 9613-1 absorption, never the backend's own 343 m/s and table.
         """
         with pra_octave_grid():
             octave_bands = pra.acoustics.AntoniOctaveFilterBank(
@@ -633,8 +587,6 @@ class RoomGeometry:
                 n_fft=pra.constants.get("octave_bands_n_fft"),
                 base_frequency=SYNTHESIS_BANDS[0],
             )
-            # Bands above 8 kHz (16 kHz above 32 kHz sampling) take the 8 kHz
-            # value: linear extrapolation can exceed an absorption of 1.
             above = [float(f) for f in octave_bands.centers if f > SYNTHESIS_BANDS[-1]]
             freqs = list(SYNTHESIS_BANDS) + above
 
@@ -667,7 +619,7 @@ class RoomGeometry:
                         scattering,
                         name=f"{face_name}_{index}",
                     )
-                except Exception as error:  # pyroomacoustics raises RuntimeError for corners off a plane
+                except Exception as error:  # RuntimeError for corners off a plane
                     raise ValueError(
                         f"pyroomacoustics cannot build a wall from face {index} of '{face_name}' "
                         f"({len(face)} corners): {error}"
@@ -681,7 +633,7 @@ class RoomGeometry:
                     ray_tracing=ray_tracing,
                     air_absorption=air_absorption,
                 )
-            except Exception as error:  # pyroomacoustics raises RuntimeError, ValueError or scipy's QhullError
+            except Exception as error:  # RuntimeError, ValueError or scipy's QhullError
                 raise ValueError(
                     f"pyroomacoustics cannot build a room from these {len(walls)} walls (obstacles count twice): it "
                     f"needs at least four walls that span three dimensions. ({type(error).__name__}: {error})"
@@ -691,13 +643,13 @@ class RoomGeometry:
             if air_absorption:
                 centres = [float(f) for f in room.octave_bands.centers]
                 room.set_air_absorption(coefficients=air.air_attenuation(centres).tolist(), center_freqs=centres)
-        # pyroomacoustics counts wall crossings, which the two obstacle copies and an open
-        # boundary confuse; it refuses sources and hides microphones it calls outside.
+        # The backend counts wall crossings, which the obstacle copies and an open boundary confuse,
+        # and refuses sources and hides microphones it calls outside
         crossings = room.is_inside
 
         def is_inside(p, include_borders=True):
-            # Its own test still runs, unused: it draws from pyroomacoustics' random generator,
-            # and skipping the draws would change every seeded ray-traced response.
+            # its own test still runs, unused: it draws from the random generator, and skipping
+            # the draws would change every seeded ray-traced response
             crossings(p, include_borders)
             return self.is_inside(p)
 
@@ -705,11 +657,8 @@ class RoomGeometry:
         return room
 
 
-# _MERGE_TOLERANCE through _merge_coplanar: ported from hybrid-rir
-# (gpapadimitri/hybrid-rir @ 8a70661, src/room.py), verbatim.
-# Coplanarity tolerance for merging faces, in metres. pyroomacoustics' own:
-# it stores corners as float32 and rejects a wall whose corners are further
-# than libroom_eps (1e-5 m) from a plane.
+# Coplanarity tolerance in metres: the backend stores corners as float32 and rejects a wall whose
+# corners are further than this from a plane
 _MERGE_TOLERANCE = 1e-5
 
 
@@ -721,17 +670,11 @@ def _merge_coplanar(
 ) -> tuple[list[list[int]], list[str]]:
     """Join neighbouring coplanar faces of one group into convex polygons.
 
-    CAD exports triangulate every flat surface, and every extra wall multiplies
-    the image source search. Two faces are joined only when they belong to the
-    same group, share exactly one edge that no other face uses, lie in one
-    plane to within ``_MERGE_TOLERANCE`` and give a convex polygon. Convex so
-    that the result is a wall pyroomacoustics can take, and so that no merge
-    can close a ring around a hole. Vertices left in the middle of a straight
-    side are dropped; the closedness check reads any T-junction that leaves.
-
-    Obstacle faces may be joined across opposite windings, since they are
-    stored on both sides anyway. Enclosure faces must already agree, which
-    ``_check_closed`` requires of them regardless.
+    Every extra wall multiplies the image source search. Two faces are joined only when they belong to the
+    same group, share exactly one edge no other face uses, lie in one plane within ``_MERGE_TOLERANCE`` and
+    give a convex polygon, a valid wall that cannot close a ring around a hole. Vertices in the middle of a
+    straight side are dropped; the closedness check reads any T-junction that leaves. Obstacle faces may join
+    across opposite windings, being two-sided anyway; boundary faces must already agree.
     """
     faces = [list(f) for f in faces]
     alive = [True] * len(faces)

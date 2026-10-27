@@ -1,8 +1,4 @@
-"""The directional feedback delay network: one delay line per direction.
-
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, src/late.py).
-The free paths read the faces of a RoomGeometry.
-"""
+"""The directional feedback delay network: one delay line per direction."""
 
 from __future__ import annotations
 
@@ -21,14 +17,10 @@ from .pair import Pair
 from .target import RoomTarget
 
 
-#: Fewest delay lines at any ambisonic order. Kirsch, Wendt and van de Par (2023, Secs. 1.2
-#: and 3.3) ran their network with 96 lines whatever the number of rendered directions, so that
-#: the tail's spectro-temporal character does not change with the count and the recurrent
-#: patterns of a small network are avoided; they name 96 as the choice for offline simulation.
-#: RAZR 0.96.3 allows 6, 12, 24, 48 or 96 (``get_default_options.m``) and defaults to 24 for
-#: real-time use. The 96-point equal-area grid supports orders 0 to 3, so the count no longer
-#: moves with ``sh_order`` there. A smaller grid also landed badly in one shoebox: with 24 lines
-#: the late level sat 2.8 dB below the exact image-source room against 1.5 dB with 16 or 28.
+#: Fewest delay lines at any ambisonic order: Kirsch, Wendt and van de Par (2023, Secs. 1.2 and 3.3) use 96
+#: for offline simulation whatever the rendered directions, so the tail's character does not change with the
+#: count and a small network's recurrent patterns are avoided. The 96-point equal-area grid supports orders 0
+#: to 3. With 24 lines one shoebox's late level sat 2.8 dB below the exact image-source room (1.5 dB with 16 or 28).
 MIN_DELAYS = 96
 
 
@@ -36,12 +28,8 @@ MIN_DELAYS = 96
 def fdn_directions(num_delays: int = MIN_DELAYS) -> pf.Coordinates:
     """The direction each delay line radiates from, an equal-area grid of ``num_delays`` points.
 
-    One grid, used four times: the image sources are routed onto it,
-    :func:`directional_delays` reads the room along it, the directional
-    histogram bins the rays on it, and a renderer gives each line its direction
-    (:func:`~compas_acoustics.hybrid.ambisonics.ambisonic_output_matrix`, or an HRIR). They must be the same grid,
-    so this is the only place it is constructed. The grid depends on the count
-    alone; whether it carries an ambisonic order is the output matrix's check.
+    The one grid the image sources are routed onto, :func:`directional_delays` reads the room along, the
+    directional histogram bins the rays on, and the renderers project the lines from.
     """
     return spharpy.samplings.equal_area(n_max=0, n_points=num_delays)
 
@@ -49,10 +37,8 @@ def fdn_directions(num_delays: int = MIN_DELAYS) -> pf.Coordinates:
 def _nearest_coprime(targets: np.ndarray, tolerance: float = 0.03) -> np.ndarray:
     """Distinct integers near their targets, pairwise coprime where that fits.
 
-    Coprimality is only sought within ``tolerance`` of each target, and the
-    nearest unused integer is taken where none is found. Unbounded, it destroys
-    the lengths it is meant to protect: 64 pairwise-coprime values between 340
-    and 650 samples do not exist, and the search walked lines down to 181.
+    Coprimality is sought within ``tolerance`` of each target, else the nearest unused integer is taken:
+    unbounded, the search walked 64 lines between 340 and 650 samples down to 181.
     """
     chosen: list[int] = []
     out = np.empty(targets.size, dtype=int)
@@ -86,28 +72,14 @@ def directional_delays(
 ) -> np.ndarray:
     """Delay line lengths in samples, each the room's free path along its direction.
 
-    Kirsch, Poppitz and Wendt (2021) and Kirsch, Wendt and van de Par (2023)
-    derive the delay lines from the room's dimensions. This does that per
-    direction, in a form that holds for any closed geometry. A uniform field
-    travelling along ``u`` meets the boundary at the rate
-    ``c sum_f A_f |n_f . u| / (2 V)``, so line ``i`` takes the reciprocal,
-    ``2 V / sum_f A_f |n_f . u_i|``. For a shoebox that is exactly
-    ``1 / (|u_x| / L_x + |u_y| / L_y + |u_z| / L_z)``: the dimensions, with an
-    axis-aligned line taking that axis' length. Its average over the sphere is
-    Cauchy's mean free path ``4 V / S``. A polygon or mesh needs no separate
-    rule, only its faces.
+    The room-dimension delays of Kirsch, Poppitz and Wendt (2021) and Kirsch, Wendt and van de Par (2023), per
+    direction and for any closed geometry: a uniform field along ``u`` meets the boundary at the rate
+    ``c sum_f A_f |n_f . u| / (2 V)``, so line ``i`` takes ``2 V / sum_f A_f |n_f . u_i|``. For a shoebox that is
+    ``1 / (|u_x| / L_x + |u_y| / L_y + |u_z| / L_z)``; its mean over the sphere is Cauchy's ``4 V / S``.
 
-    Directions ``u`` and ``-u`` have the same free path, and a symmetric grid
-    holds both. ``spread`` jitters each length uniformly by that fraction
-    before the lengths are made coprime, so opposite lines do not end up a
-    sample or two apart and ring together.
-
-    ``directions`` are the delay lines' directions in the receiver's frame,
-    which is also the frame the images are routed in and the output matrix is
-    built in. The faces are in room coordinates, so a rotated receiver has its
-    grid rotated back before the two are projected onto each other; without
-    that, a listener turned 90 degrees would read the room's length along the
-    line that points at its width.
+    ``u`` and ``-u`` share a free path, so ``spread`` jitters each length by that fraction before the lengths
+    are made coprime, lest opposite lines ring together. ``directions`` are in the receiver's frame and are
+    rotated back to the room's before projecting.
     """
     unit = directions.cartesian
     unit = unit / np.linalg.norm(unit, axis=1, keepdims=True)
@@ -133,21 +105,14 @@ def design_fdn(
 ) -> list[pyFDN.FDNBuild]:
     """Design one FDN per decay slope of ``target``, with one output: the lines' omnidirectional sum.
 
-    ``delays`` is one array of lengths in samples, one per delay line, shared
-    by every slope, or one such array per slope. The output matrix ``C`` is the
-    W row of every ambisonic output matrix, ``1 / sqrt(N)`` for each line: what
-    the late envelope compares with its reference. A renderer projects the
-    lines (:func:`render`) itself.
-    Each slope's attenuation filters follow ``target.rt`` for that slope, and
+    ``delays`` (samples) is one array shared by every slope or one per slope. ``C`` is the W row of the
+    ambisonic output matrix, ``1 / sqrt(N)`` per line, which the late envelope compares with its reference;
+    renderers project the lines themselves (:func:`render`). Each slope's attenuation follows ``target.rt`` and
     its feedback matrix is seeded ``rng + slope``.
 
-    A multi-exponential decay is realised by summing independent FDNs, one per
-    slope, as in pyFDN's multi-slope example. All of them take the same input,
-    so each is weighted by its share of the initial level: slope ``k`` gets
-    ``level_k / sqrt(sum_j level_j ** 2)`` per band, as an output filter. That
-    keeps the ratios of ``target.level`` between slopes and leaves the summed
-    initial energy equal to one network's. A single slope gets no output
-    filter at all.
+    A multi-exponential decay sums independent networks with one input, each weighted per band by
+    ``level_k / sqrt(sum_j level_j ** 2)`` as an output filter, which keeps the slopes' level ratios and one
+    network's initial energy. A single slope has no output filter.
     """
     n_slopes = target.n_slopes
     delays = np.asarray(delays, dtype=int)
@@ -172,8 +137,7 @@ def design_fdn(
 
     builds = []
     for slope in range(n_slopes):
-        # fdn_build_gallery is pyFDN's seeded entry point; fdn_matrix_gallery and
-        # random_orthogonal would draw from NumPy's global state
+        # the seeded entry point; the matrix galleries draw from NumPy's global state
         build = pyFDN.fdn_build_gallery(
             num_delays,
             fs=target.fs,
@@ -214,38 +178,19 @@ def render(
 ) -> np.ndarray:
     """Run the network with a separate input per delay line; the lines' outputs, (n, num_delays).
 
-    ``drive`` is ``(n_samples, num_delays)``: column ``i`` is the signal
-    entering delay line ``i``, so ``B`` is the identity and ``D`` is zero.
-    Column ``i`` of the result is what line ``i`` radiates from its direction,
-    after ``line_eq`` and the slope weights, summed over the slope networks.
-    The ambisonic late field is the result times ``C.T`` (every build's ``C``
-    is the same); a binaural renderer filters each line with the HRIR of its
-    direction instead (:func:`compas_acoustics.hybrid.binaural.render_binaural`).
+    ``drive`` (n_samples, num_delays) enters line ``i`` in column ``i`` (``B`` identity, ``D`` zero). Column ``i`` of
+    the result is what line ``i`` radiates, after ``line_eq`` and the slope weights, summed over the slopes'
+    networks; the ambisonic late field is it times ``C.T``.
 
-    ``line_eq``, an SOS bank of shape ``(n_sections, 6, num_delays)``, filters
-    each line on its way out, after the feedback is taken, so it colours what
-    is heard from that direction without touching the decay. That is where the
-    direction-dependent boundary absorption of :mod:`hybrid_rir.directional`
-    sits (Kirsch et al. 2023). ``pyFDN.process_dss`` filters either inside the
-    loop (``post_delay``) or after its output matrix (``post_output``), so the
-    lines are rendered through an identity output matrix and filtered here.
-    A build's ``post_output``, the slope weight of :func:`design_fdn` on its one
-    output, is applied to every line.
+    ``line_eq``, an SOS bank (n_sections, 6, num_delays), filters each line on its way out, after the feedback
+    is taken, so it colours a direction without touching the decay: the directional boundary absorption of
+    Kirsch et al. (2023). The lines go through an identity output matrix and are filtered here, as are the
+    builds' slope weights (``post_output``).
 
-    ``tap``, the same shape, enters each line skipping its delay: it passes
-    the line's attenuation filters and is then heard at once from the line
-    and recirculates through ``A``, exactly as ``drive`` would one delay
-    earlier. That is where the scattered parts of
-    :mod:`compas_acoustics.hybrid.scattering` enter, "initially skipping the
-    FDN delays" (Ewert et al. 2025, Sec. 3.1.2); RAZR 0.96.3 places them one
-    delay early, so they too pass the line's absorption filter before they
-    are heard (``tests/hybrid/data/razr_scattering``, ``line_filter``). With
-    a static ``A`` it is exactly ``f(tap)`` at the lines' outputs plus
-    ``A f(tap)`` into the delay lines, ``f`` the attenuation filters.
-
-    Not ``pyFDN.build_to_impz``: that renders an impulse through ``B``.
-    ``pyFDN.process_dss`` takes a multichannel input and replaces ``B``, ``C``
-    and ``D`` per call.
+    ``tap``, of the same shape, enters each line skipping its delay, "initially skipping the FDN delays" (Ewert
+    et al. 2025, Sec. 3.1.2): it passes the attenuation filters ``f``, is heard at once and recirculates, exactly
+    ``f(tap)`` at the outputs plus ``A f(tap)`` into the lines with a static ``A``. The scattered parts of
+    :mod:`compas_acoustics.hybrid.scattering` enter there.
     """
     builds = list(builds)
     if not builds:
