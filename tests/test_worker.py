@@ -464,12 +464,12 @@ def test_sti_and_g_come_from_the_worker_where_pyrato_cannot_compute_them(monkeyp
     import types
     import warnings
 
-    from compas_acoustics import AcousticAnalyser
+    from compas_acoustics import Analyser
     from compas_acoustics import analyser as analysis
     from compas_acoustics.worker import api
 
     ir = response()
-    here = AcousticAnalyser(ir)
+    here = Analyser(ir)
     here.analyse()
     # Rhino 8's Python 3.9: its pyrato < 1.0 has no STI and no G
     monkeypatch.setattr(analysis, "_STI_SUPPORTED", False)
@@ -499,10 +499,10 @@ def test_sti_and_g_come_from_the_worker_where_pyrato_cannot_compute_them(monkeyp
 @needs_sti
 @needs_worker
 def test_the_analysis_in_the_worker_matches_the_analysis_here(running_worker, monkeypatch):
-    from compas_acoustics import AcousticAnalyser
+    from compas_acoustics import Analyser
 
     ir = response()
-    here = AcousticAnalyser(ir)
+    here = Analyser(ir)
     here.analyse()
     monkeypatch.setattr(analyser, "_STI_SUPPORTED", False)
     analyser_here, _ = worker.analyse(ir)
@@ -512,12 +512,12 @@ def test_the_analysis_in_the_worker_matches_the_analysis_here(running_worker, mo
 
 @needs_sti
 def test_the_worker_computes_only_sti_and_g(monkeypatch):
-    from compas_acoustics import AcousticAnalyser
+    from compas_acoustics import Analyser
     from compas_acoustics.worker import api
 
     ir = response()
     for name in ("reverberation_times", "clarity_definition", "direct_to_reverberant_ratio", "center_time"):
-        monkeypatch.setattr(AcousticAnalyser, name, lambda *args, **kwargs: pytest.fail("the client computes these itself"))
+        monkeypatch.setattr(Analyser, name, lambda *args, **kwargs: pytest.fail("the client computes these itself"))
     assert set(api.analyse(ir)["analysis"]) == {"STI", "STI_overall", "G", "G_overall"}
 
 

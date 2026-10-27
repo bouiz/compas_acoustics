@@ -60,7 +60,7 @@ warnings.filterwarnings("ignore", message="Impulse response has 4 channels")
 ir_mono = scene.get_impulse_response(speaker, listener, attribute="mono")
 ir_ambisonic = scene.get_impulse_response(speaker, listener, attribute="ambisonics")
 ir_binaural = scene.get_impulse_response(speaker, listener, attribute="binaural")
-results = {"mono": ca.AcousticAnalyser(ir_mono).analyse(), "ambisonics": ca.AcousticAnalyser(ir_ambisonic).analyse()}
+results = {"mono": ca.Analyser(ir_mono).analyse(), "ambisonics": ca.Analyser(ir_ambisonic).analyse()}
 
 fig, axes = plt.subplots(1, 2, figsize=(10, 3.8), sharey=True)
 for ax, parameter in zip(axes, ("EDT", "T30")):

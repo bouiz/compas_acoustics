@@ -2,7 +2,7 @@
 
 `ita_lf_cases.json` holds LF (J_LF) and LFC (J_LFC) per octave band, 125 Hz to 8 kHz, computed by the ITA Toolbox's
 `ita_roomacoustics_lateral` (ISO 3382-1) with `ita_lf_cases.m` in MATLAB R2025b on 2026-10-23 (the toolbox as
-installed then; `ita_toolbox_version_number` reported nothing). They check `AcousticAnalyser.lateral_fraction`.
+installed then; `ita_toolbox_version_number` reported nothing). They check `Analyser.lateral_fraction`.
 
 Signals, 48 kHz, 1 s: an omnidirectional channel and a figure-of-eight channel whose null faces the direct sound.
 The direct sound arrives from 2 m; one reflection of amplitude 0.5 follows 20 ms later, lateral (`lateral`) or at

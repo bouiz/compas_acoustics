@@ -53,7 +53,7 @@ rirs = scene.simulate(ca.Pyroomacoustics(ray_tracing=True, n_rays=10000, air_abs
 
 
 ########### analyze the RIR
-analyser = ca.AcousticAnalyser(next(iter(rirs.values())))
+analyser = ca.Analyser(next(iter(rirs.values())))
 results = analyser.analyse()
 
 

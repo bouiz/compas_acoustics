@@ -6,7 +6,7 @@ from compas.data import Data
 from compas.data import json_dumps
 from compas.data import json_loads
 
-from compas_acoustics import AcousticAnalyser
+from compas_acoustics import Analyser
 from compas_acoustics import AcousticMaterial
 from compas_acoustics import AcousticObjectsLibrary
 from compas_acoustics import Auraliser
@@ -111,7 +111,7 @@ def test_a_ray_field_survives_json_with_its_scattered_rays_and_sources():
 
 def test_the_services_are_plain_classes_that_pickle():
     ir = traced_response()
-    analyser = AcousticAnalyser(ir)
+    analyser = Analyser(ir)
     analyser.analyse()
     auraliser = Auraliser("a", {"s": {"ir": np.ones((10, 1)), "sampling_rate": 48000}}, {"s": {"filepath": "x.wav"}}, "mono")
     for service in (analyser, auraliser, MaterialsLibrary()):

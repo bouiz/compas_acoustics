@@ -9,7 +9,7 @@ from scipy.signal import sosfilt
 
 from compas_acoustics.defaults import Defaults
 
-__all__ = ["AcousticAnalyser", "frequency_response", "time_response"]
+__all__ = ["Analyser", "frequency_response", "time_response"]
 
 _PARAM_NAMES = ['EDT', 'T20', 'T30', 'C50', 'C80', 'D50', 'DRR', 'Ts', 'STI', 'G', 'SPL', 'LF', 'LFC']
 
@@ -139,7 +139,7 @@ def frequency_response(ir, sampling_rate, num_fractions=3, frequency_range=(20.0
     return smoothed.frequencies[keep], _level_re_peak(smoothed.freq[..., keep])
 
 
-class AcousticAnalyser:
+class Analyser:
     """Room acoustic parameters of an impulse response.
 
     Parameters
@@ -157,7 +157,7 @@ class AcousticAnalyser:
     >>> scene.add_source(ca.Source("talker", 1.5, 1.5, 1.6))
     >>> scene.add_receiver(ca.Receiver("listener", 4.0, 3.0, 1.2))
     >>> responses = scene.simulate(ca.Mono(ray_tracing=True, n_rays=2000, duration=0.5))
-    >>> analyser = ca.AcousticAnalyser(next(iter(responses.values())))
+    >>> analyser = ca.Analyser(next(iter(responses.values())))
     >>> results = analyser.analyse()
     >>> results["freqs"]
     [125, 250, 500, 1000, 2000, 4000, 8000]

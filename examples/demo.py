@@ -44,7 +44,7 @@ rirs = scene.simulate(ca.Pyroomacoustics(ray_tracing=True, n_rays=10000, air_abs
 
 ########### analyze one RIR (they are keyed '<receiver guid>_<source guid>')
 ir = next(ir for ir in rirs.values() if ir.receiver.name == "receiver_2" and ir.source.name == "source_2")
-analyser = ca.AcousticAnalyser(ir)
+analyser = ca.Analyser(ir)
 results = analyser.analyse()
 
 

@@ -179,13 +179,13 @@ class Mono(SimulationMethod):
         a furnished office decaying in 2 s). T30's fit ends 35 dB down, at 0.58 of the reverberation time; a decay
         cut at 2/3 of it reads T30 2.4 % short (0.7 % at 0.76, 5 % at 0.6), and cuts the hybrid's decay fit.
         """
-        from compas_acoustics.analyser import AcousticAnalyser
+        from compas_acoustics.analyser import Analyser
 
         longest, length = 0.0, 0.0
         for ir in rirs.values():
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                t30 = np.asarray(AcousticAnalyser(ir).reverberation_times()["T30"], dtype=float)
+                t30 = np.asarray(Analyser(ir).reverberation_times()["T30"], dtype=float)
             if np.any(np.isfinite(t30)):
                 longest = max(longest, float(np.nanmax(t30)))
             length = ir.ir.shape[0] / fs

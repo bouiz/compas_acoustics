@@ -3,7 +3,7 @@ import warnings
 import numpy as np
 import pytest
 
-from compas_acoustics import AcousticAnalyser
+from compas_acoustics import Analyser
 from compas_acoustics.analyser import _PYRATO_PARAMETERS
 from compas_acoustics.analyser import _STI_SUPPORTED
 from compas_acoustics.analyser import _PARAM_NAMES
@@ -30,7 +30,7 @@ def make_foa(omni, seed=1):
 
 def test_mono_ir_is_stored_unchanged():
     ir = make_ir()
-    analyser = AcousticAnalyser(ir)
+    analyser = Analyser(ir)
     assert analyser.ir.shape == ir.shape
     assert np.array_equal(analyser.ir, ir)
 
@@ -39,7 +39,7 @@ def test_mono_ir_does_not_warn():
     ir = make_ir()
     with warnings.catch_warnings(record=True) as record:
         warnings.simplefilter("always")
-        AcousticAnalyser(ir)
+        Analyser(ir)
     assert record == []
 
 
@@ -47,7 +47,7 @@ def test_multichannel_ir_is_reduced_to_first_channel():
     omni = make_ir()
     foa = make_foa(omni)
     with pytest.warns(UserWarning, match="4 channels"):
-        analyser = AcousticAnalyser(foa)
+        analyser = Analyser(foa)
     assert analyser.ir.shape == omni.shape
     assert np.array_equal(analyser.ir, omni)
 
@@ -56,14 +56,14 @@ def test_single_column_ir_is_flattened_without_warning():
     ir = make_ir()
     with warnings.catch_warnings(record=True) as record:
         warnings.simplefilter("always")
-        analyser = AcousticAnalyser(ir.reshape(-1, 1))
+        analyser = Analyser(ir.reshape(-1, 1))
     assert record == []
     assert analyser.ir.shape == ir.shape
 
 
 def test_more_than_two_dimensions_raises():
     with pytest.raises(ValueError, match="1D or 2D"):
-        AcousticAnalyser(np.zeros((10, 2, 2)))
+        Analyser(np.zeros((10, 2, 2)))
 
 
 def test_multichannel_analysis_matches_first_channel_alone():
@@ -71,8 +71,8 @@ def test_multichannel_analysis_matches_first_channel_alone():
     foa = make_foa(omni)
 
     with pytest.warns(UserWarning):
-        multichannel = AcousticAnalyser(foa).analyse()
-    mono = AcousticAnalyser(omni).analyse()
+        multichannel = Analyser(foa).analyse()
+    mono = Analyser(omni).analyse()
 
     assert multichannel.keys() == mono.keys()
     for key in mono:
@@ -86,7 +86,7 @@ def test_multichannel_analysis_matches_first_channel_alone():
 
 @needs_sti
 def test_sti_is_finite_for_ir_shorter_than_iec_minimum():
-    analyser = AcousticAnalyser(make_ir(duration=1.0))
+    analyser = Analyser(make_ir(duration=1.0))
     analyser.analyse()
     assert np.isfinite(analyser.STI_overall)
     assert np.all(np.isfinite(analyser.STI))
@@ -98,8 +98,8 @@ def test_sti_of_short_ir_matches_zero_padded_ir():
     short = make_ir(duration=1.0)
     padded = np.pad(short, (0, int(1.6 * fs) - short.size))
     np.testing.assert_allclose(
-        AcousticAnalyser(short).speech_transmission_index()["mti"],
-        AcousticAnalyser(padded).speech_transmission_index()["mti"],
+        Analyser(short).speech_transmission_index()["mti"],
+        Analyser(padded).speech_transmission_index()["mti"],
     )
 
 
@@ -112,7 +112,7 @@ def test_sti_failure_warns_instead_of_passing_silently(monkeypatch):
 
     monkeypatch.setattr(pyrato.parameters, "modulation_transfer_function", fail)
     with pytest.warns(UserWarning, match="STI computation failed: boom"):
-        result = AcousticAnalyser(make_ir()).speech_transmission_index()
+        result = Analyser(make_ir()).speech_transmission_index()
     assert np.isnan(result["sti"])
 
 
@@ -132,7 +132,7 @@ def make_stage_ir(early_db=-12.0, late_db=-15.0, fs=48000, seed=1):
 
 
 def test_stage_support_recovers_known_energy_ratios():
-    analyser = AcousticAnalyser(make_stage_ir(-12.0, -15.0))
+    analyser = Analyser(make_stage_ir(-12.0, -15.0))
     result = analyser.stage_support()
     assert result["freqs"] == list(analyser.frequency_bands)
     assert result["ST_early_overall"] == pytest.approx(-12.0, abs=0.5)
@@ -143,7 +143,7 @@ def test_stage_support_recovers_known_energy_ratios():
 
 def test_stage_support_warns_when_late_window_is_truncated():
     with pytest.warns(UserWarning, match="ST_late"):
-        AcousticAnalyser(make_stage_ir()[:48000 // 2]).stage_support()
+        Analyser(make_stage_ir()[:48000 // 2]).stage_support()
 
 
 @pytest.mark.skipif(not _PYRATO_PARAMETERS, reason="G needs pyrato >= 1.0")
@@ -161,7 +161,7 @@ def test_strength_matches_inverse_distance_law():
     near_ir = ImpulseResponse("near", source, Receiver("r", 1, 0, 0), near, fs)
     reference_ir = ImpulseResponse("ref", source, Receiver("f", 10, 0, 0), reference, fs)
 
-    result = AcousticAnalyser(near_ir).sound_strength(reference_ir)
+    result = Analyser(near_ir).sound_strength(reference_ir)
     np.testing.assert_allclose(result["G"], 20.0, atol=0.01)
     assert result["G_overall"] == pytest.approx(20.0, abs=0.01)
 
@@ -173,7 +173,7 @@ def test_strength_rejects_mismatched_sampling_rates():
 
     reference = ImpulseResponse("ref", Source("s", 0, 0, 0), Receiver("f", 10, 0, 0), np.ones(10), 44100)
     with pytest.raises(ValueError, match="sample rate"):
-        AcousticAnalyser(make_ir()).sound_strength(reference)
+        Analyser(make_ir()).sound_strength(reference)
 
 
 def test_impulse_response_object_sets_sampling_rate_and_raw_level():
@@ -183,7 +183,7 @@ def test_impulse_response_object_sets_sampling_rate_and_raw_level():
 
     raw = make_ir() * 0.3
     ir = ImpulseResponse("ir", Source("s", 0, 0, 0), Receiver("r", 1, 0, 0), raw, 44100)
-    analyser = AcousticAnalyser(ir)
+    analyser = Analyser(ir)
     assert analyser.sampling_rate == 44100
     np.testing.assert_allclose(analyser.ir, raw)
 
@@ -196,7 +196,7 @@ def test_clarity_definition_and_center_time_are_exact_in_every_band():
     ir = np.zeros(2 * fs)
     ir[1000] = 1.0
     ir[1000 + int(0.3 * fs)] = 0.5
-    analyser = AcousticAnalyser(ir)
+    analyser = Analyser(ir)
     analyser.sampling_rate = fs
 
     clarity = analyser.clarity_definition()
@@ -216,7 +216,7 @@ def test_reverberation_times_recover_an_exponential_decay_in_every_band():
     # EDT was about 15 % too long at 125 Hz when the decay started on the causal filter's build-up
     results = []
     for seed in range(3):
-        analyser = AcousticAnalyser(exponential_decay(1.2, 3.0, seed))
+        analyser = Analyser(exponential_decay(1.2, 3.0, seed))
         analyser.sampling_rate = 48000
         results.append(analyser.reverberation_times())
     for key in ("EDT", "T20", "T30"):
@@ -235,7 +235,7 @@ def test_modulation_transfer_matches_the_analytic_exponential_decay():
 
     results = []
     for seed in range(3):
-        analyser = AcousticAnalyser(exponential_decay(reverberation_time, 3.0, seed))
+        analyser = Analyser(exponential_decay(reverberation_time, 3.0, seed))
         analyser.sampling_rate = 48000
         results.append(analyser.speech_transmission_index())
     # Average realisations: a single noise tail scatters by about 0.05 in the 125 Hz band
@@ -250,7 +250,7 @@ def test_energy_parameters_are_exact_for_discrete_reflections():
     ir[2000] = 1.0
     ir[2000 + int(0.06 * fs)] = 0.25
     ir[2000 + int(0.30 * fs)] = 0.1
-    analyser = AcousticAnalyser(ir)
+    analyser = Analyser(ir)
     analyser.sampling_rate = fs
     clarity, drr, ts = analyser.clarity_definition(), analyser.direct_to_reverberant_ratio(), analyser.center_time()
     support = analyser.stage_support()
@@ -274,8 +274,8 @@ def test_a_package_scale_response_is_analysed_from_its_geometric_onset():
     ir[100] = 50.0  # an early bin louder than the direct sound
     package = ImpulseResponse("k", Source("s", 0, 0, 0), Receiver("r", 34.3, 0, 0), ir, fs,
                               generation={"scale": "package"})
-    support = AcousticAnalyser(package).stage_support()
-    reference = AcousticAnalyser(clean).stage_support()
+    support = Analyser(package).stage_support()
+    reference = Analyser(clean).stage_support()
     assert support["ST_early_overall"] == pytest.approx(reference["ST_early_overall"], abs=0.1)
 
 
@@ -288,7 +288,7 @@ def test_the_stored_onset_follows_the_response():
     data[onset] = 1.0
     data[10] = 5.0
     package = ImpulseResponse("k", Source("s", 0, 0, 0), Receiver("r", 3.43, 0, 0), data, 48000, generation={"scale": "package"})
-    analyser = AcousticAnalyser(package)
+    analyser = Analyser(package)
     assert analyser.onset == onset
     analyser.ir = data
     assert analyser.onset is None
@@ -306,17 +306,17 @@ def test_g_is_a_main_parameter_and_needs_no_reference_on_the_package_scale():
     direct[int(round(1.0 / 343.0 * fs))] = 1.0 / (4.0 * np.pi * 1.0)
     ir = ImpulseResponse("near", source, Receiver("r", 1, 0, 0), direct, fs,
                          generation={"scale": "package"})
-    result = AcousticAnalyser(ir).analyse()
+    result = Analyser(ir).analyse()
     assert "G" in _PARAM_NAMES
     np.testing.assert_allclose(result["G"], 20.0, atol=0.01)
     assert result["G_overall"] == pytest.approx(20.0, abs=0.01)
 
 
 def test_g_is_nan_without_the_package_scale():
-    result = AcousticAnalyser(make_ir()).analyse()
+    result = Analyser(make_ir()).analyse()
     assert np.all(np.isnan(result["G"])) and np.isnan(result["G_overall"])
     with pytest.raises(ValueError, match="package-scale"):
-        AcousticAnalyser(make_ir()).sound_strength()
+        Analyser(make_ir()).sound_strength()
 
 
 @pytest.mark.skipif(not _PYRATO_PARAMETERS, reason="compares with pyrato >= 1.0")
@@ -324,9 +324,9 @@ def test_center_time_without_pyrato_parameters_matches_pyrato(monkeypatch):
     import compas_acoustics.analyser as analyser_module
 
     ir = make_ir()
-    with_pyrato = AcousticAnalyser(ir).center_time()["Ts"]
+    with_pyrato = Analyser(ir).center_time()["Ts"]
     monkeypatch.setattr(analyser_module, "_PYRATO_PARAMETERS", False)
-    fallback = AcousticAnalyser(ir).center_time()["Ts"]
+    fallback = Analyser(ir).center_time()["Ts"]
     np.testing.assert_allclose(fallback, with_pyrato, atol=1e-3)
 
 
@@ -336,7 +336,7 @@ def test_strength_is_nan_with_a_warning_without_pyrato_parameters(monkeypatch):
     monkeypatch.setattr(analyser_module, "_PYRATO_PARAMETERS", False)
     ir = make_ir()
     with pytest.warns(UserWarning, match="Sound strength G needs pyrato"):
-        result = AcousticAnalyser(ir).sound_strength(ir)
+        result = Analyser(ir).sound_strength(ir)
     assert np.isnan(result["G_overall"])
 
 
@@ -353,7 +353,7 @@ def test_analyse_gives_nan_g_without_a_second_warning_on_pyrato_below_1():
     package = ImpulseResponse("ir", Source("s", 0, 0, 0), Receiver("r", 1, 0, 0), data, 48000, generation={"scale": "package"})
     with warnings.catch_warnings(record=True) as record:
         warnings.simplefilter("always")
-        result = AcousticAnalyser(package).analyse()
+        result = Analyser(package).analyse()
     assert not any("Sound strength G" in str(w.message) for w in record)
     assert np.isnan(result["G_overall"])
 
@@ -370,7 +370,7 @@ def test_drr_counts_the_first_5_ms_after_the_direct_sound_as_direct():
     ir[n0 + int(0.006 * fs)] = 0.25
     ir[n0 + int(0.04 * fs)] = 0.25
     # (1 + 0.25) / (0.0625 + 0.0625) is 10 dB; a window of +-2.5 ms around the direct sound gave 4.3 dB
-    assert AcousticAnalyser(ir).direct_to_reverberant_ratio()["DRR_overall"] == pytest.approx(10.0, abs=0.1)
+    assert Analyser(ir).direct_to_reverberant_ratio()["DRR_overall"] == pytest.approx(10.0, abs=0.1)
 
 
 def test_drr_holds_a_band_limited_direct_sound_whole():
@@ -392,7 +392,7 @@ def test_drr_holds_a_band_limited_direct_sound_whole():
     receiver = Receiver("r", arrival / fs * Defaults().DEFAULT_SPEED_OF_SOUND, 0, 0)
     ir = ImpulseResponse("ir", Source("s", 0, 0, 0), receiver, direct + late, fs, generation={"scale": "package"})
     assert ir.direct_sound_index() == 4801
-    analyser = AcousticAnalyser(ir)
+    analyser = Analyser(ir)
     drr = analyser.direct_to_reverberant_ratio()
 
     def band_energy(x, f):
@@ -406,14 +406,14 @@ def test_drr_holds_a_band_limited_direct_sound_whole():
 
 
 def test_the_single_number_drr_is_the_700_to_4000_hz_band():
-    analyser = AcousticAnalyser(make_ir())
+    analyser = Analyser(make_ir())
     result = analyser.analyse()
     assert result["DRR_overall"] == analyser.direct_to_reverberant_ratio()["DRR_overall"]
     assert analyser.DRR_overall == result["DRR_overall"]
 
 
 def onset_of(ir):
-    return AcousticAnalyser(np.asarray(ir, dtype=float))._direct_sound_onset(np.asarray(ir, dtype=float))
+    return Analyser(np.asarray(ir, dtype=float))._direct_sound_onset(np.asarray(ir, dtype=float))
 
 
 def test_the_start_is_the_last_sample_below_20_db_before_the_rise():
@@ -456,7 +456,7 @@ def test_a_blocked_direct_sound_is_found_as_ita_finds_it():
     ir[tail] = rng.standard_normal(tail.size) * 0.05 * np.exp(-(tail - 9500) / fs / 0.15)
     package = ImpulseResponse("k", Source("s", 0, 0, 0), Receiver("r", 34.3, 0, 0), ir, fs, generation={"scale": "package"})
     assert package.direct_sound_index() == 4786  # 34.3 m at 343.98 m/s
-    blocked, plain = AcousticAnalyser(package), AcousticAnalyser(ir)
+    blocked, plain = Analyser(package), Analyser(ir)
     assert blocked._direct_sound_onset(blocked.ir) == plain._direct_sound_onset(plain.ir) == 7999
     assert blocked.direct_to_reverberant_ratio() == plain.direct_to_reverberant_ratio()
 
@@ -471,7 +471,7 @@ def test_a_ray_traced_tail_that_dies_into_zeros_is_evaluated_in_every_band():
     results = []
     for seed in range(3):
         decay = exponential_decay(1.2, 2.0, seed) * 10 ** (-np.clip(t - 0.8, 0, None) ** 2 * 60)
-        analyser = AcousticAnalyser(np.concatenate([decay, np.zeros(fs)]))
+        analyser = Analyser(np.concatenate([decay, np.zeros(fs)]))
         analyser.sampling_rate = fs
         results.append(analyser.reverberation_times())
     for key in ("EDT", "T20", "T30"):
@@ -486,7 +486,7 @@ def test_trailing_zeros_do_not_hide_the_decay():
     results = []
     for seed in range(3):
         padded = np.concatenate([exponential_decay(1.2, 2.0, seed), np.zeros(48000)])
-        analyser = AcousticAnalyser(padded)
+        analyser = Analyser(padded)
         analyser.sampling_rate = 48000
         results.append(analyser.reverberation_times())
     for key in ("EDT", "T20", "T30"):
@@ -501,7 +501,7 @@ def test_sti_equals_pyrato_indirect_method():
 
     for seed in range(3):
         ir = make_ir(seed=seed)
-        analyser = AcousticAnalyser(ir)
+        analyser = Analyser(ir)
         sti = analyser.speech_transmission_index()["sti"]
         expected = float(np.squeeze(pyrato.parameters.speech_transmission_index_indirect(pf.Signal(ir, analyser.sampling_rate), snr=np.inf)))
         assert sti == round(expected, 4)
@@ -523,22 +523,22 @@ def test_each_octave_filter_is_designed_once(monkeypatch):
     analysis._octave_band_filter.cache_clear()
     # not analyse(): pyrato's STI designs its own filters
     for seed in range(2):
-        analyser = AcousticAnalyser(make_ir(seed=seed))
+        analyser = Analyser(make_ir(seed=seed))
         analyser.reverberation_times()
         analyser.clarity_definition()
     assert len(designs) == len(Defaults().DEFAULT_FREQUENCY_BANDS)
 
 
 def test_analyse_filters_the_bands_of_the_decay_once_for_the_reverberation_times_and_center_time(monkeypatch):
-    analyser = AcousticAnalyser(make_ir())
+    analyser = Analyser(make_ir())
     calls = []
-    filter_band = AcousticAnalyser._filter_impulse_response
+    filter_band = Analyser._filter_impulse_response
 
     def counted(self, *args):
         calls.append(args)
         return filter_band(self, *args)
 
-    monkeypatch.setattr(AcousticAnalyser, "_filter_impulse_response", counted)
+    monkeypatch.setattr(Analyser, "_filter_impulse_response", counted)
 
     def count(run):
         calls.clear()
@@ -556,7 +556,7 @@ def test_analyse_filters_the_bands_of_the_decay_once_for_the_reverberation_times
 @pytest.mark.parametrize("name", ["C50", "C80", "D50", "Ts", "EDT", "T20", "T30"])
 def test_single_numbers_average_500_and_1000_hz(name):
     # ISO 3382-1:2009 Table A.1; C50 is a function of D50 and takes its bands
-    r = AcousticAnalyser(make_ir()).analyse()
+    r = Analyser(make_ir()).analyse()
     assert r["freqs"][2:4] == [500, 1000]
     assert r[f"{name}_overall"] == pytest.approx(np.nanmean([r[name][2], r[name][3]]), abs=0.01)
 
@@ -622,7 +622,7 @@ def _direct_time(distance=2.0):
 @pytest.mark.parametrize("n3d", [False, True])
 def test_lateral_fraction_of_one_lateral_reflection(n3d):
     ir = _ambisonic([(_direct_time(), 1.0, (1, 0, 0)), (0.02, 0.5, (0, 1, 0))], n3d=n3d)
-    lf = AcousticAnalyser(ir).lateral_fraction()
+    lf = Analyser(ir).lateral_fraction()
     assert lf["LF"][3] == pytest.approx(0.2, abs=0.01)
     assert lf["LF"] == pytest.approx([0.2] * 7, abs=0.03)
     assert lf["LFC"][3] == pytest.approx(0.2, abs=0.01)
@@ -631,7 +631,7 @@ def test_lateral_fraction_of_one_lateral_reflection(n3d):
 
 def test_lateral_fraction_weights_by_cos_squared():
     ir = _ambisonic([(_direct_time(), 1.0, (1, 0, 0)), (0.02, 0.5, (np.sqrt(0.5), np.sqrt(0.5), 0))])
-    lf = AcousticAnalyser(ir).lateral_fraction()
+    lf = Analyser(ir).lateral_fraction()
     assert lf["LF"][3] == pytest.approx(0.125 / 1.25, abs=0.01)
     assert lf["LFC"][3] == pytest.approx(0.5 * 0.5 * np.sqrt(0.5) / 1.25, abs=0.01)
 
@@ -639,18 +639,18 @@ def test_lateral_fraction_weights_by_cos_squared():
 def test_lateral_fraction_ignores_lateral_energy_before_5_ms_and_after_80_ms():
     t0 = _direct_time()
     ir = _ambisonic([(t0, 1.0, (1, 0, 0)), (t0 + 0.003, 0.5, (0, 1, 0)), (t0 + 0.09, 0.5, (0, 1, 0))])
-    assert AcousticAnalyser(ir).lateral_fraction()["LF"][3] == pytest.approx(0.0, abs=0.01)
+    assert Analyser(ir).lateral_fraction()["LF"][3] == pytest.approx(0.0, abs=0.01)
 
 
 def test_lateral_fraction_with_the_source_overhead_uses_the_receivers_y_axis():
     ir = _ambisonic([(_direct_time(), 1.0, (0, 0, 1)), (0.02, 0.5, (0, 1, 0))], receiver=(0.0, 0.0, -2.0), facing=(1.0, 0.0, 0.0))
-    assert AcousticAnalyser(ir).lateral_fraction()["LF"][3] == pytest.approx(0.2, abs=0.01)
+    assert Analyser(ir).lateral_fraction()["LF"][3] == pytest.approx(0.2, abs=0.01)
 
 
 def test_lateral_fraction_of_an_occluded_pair_takes_the_axis_from_geometry():
     t0 = _direct_time()
     ir = _ambisonic([(t0 + 0.010, 0.5, (0, 1, 0)), (t0 + 0.020, 0.5, (1, 0, 0))])
-    assert AcousticAnalyser(ir).lateral_fraction()["LF"][3] == pytest.approx(0.25 / 0.5, abs=0.02)
+    assert Analyser(ir).lateral_fraction()["LF"][3] == pytest.approx(0.25 / 0.5, abs=0.02)
 
 
 def test_lateral_fraction_is_nan_for_mono_and_binaural():
@@ -662,7 +662,7 @@ def test_lateral_fraction_is_nan_for_mono_and_binaural():
     for ir in (mono, binaural):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            lf = AcousticAnalyser(ir).lateral_fraction()
+            lf = Analyser(ir).lateral_fraction()
         assert np.all(np.isnan(lf["LF"])) and np.all(np.isnan(lf["LFC"]))
         assert np.isnan(lf["LF_overall"]) and np.isnan(lf["LFC_overall"])
 
@@ -673,7 +673,7 @@ def test_lateral_fraction_matches_the_ita_toolbox_ratios():
 
     oracle = json.loads((Path(__file__).parent / "data" / "ita_lateral" / "ita_lf_cases.json").read_text())
     t0 = _direct_time()
-    ours = {name: AcousticAnalyser(_ambisonic([(t0, 1.0, (1, 0, 0)), (t0 + 0.020, 0.5, (c, np.sqrt(1 - c * c), 0))])).lateral_fraction()
+    ours = {name: Analyser(_ambisonic([(t0, 1.0, (1, 0, 0)), (t0 + 0.020, 0.5, (c, np.sqrt(1 - c * c), 0))])).lateral_fraction()
             for name, c in (("lateral", 0.0), ("oblique", np.sqrt(0.5)))}
     for key in ("LF", "LFC"):
         ita = np.asarray(oracle["oblique"][key]) / np.asarray(oracle["lateral"][key])
@@ -683,14 +683,14 @@ def test_lateral_fraction_matches_the_ita_toolbox_ratios():
 def test_analyse_holds_lf_for_an_ambisonic_response():
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        data = AcousticAnalyser(_ambisonic([(_direct_time(), 1.0, (1, 0, 0)), (0.02, 0.5, (0, 1, 0))])).analyse()
+        data = Analyser(_ambisonic([(_direct_time(), 1.0, (1, 0, 0)), (0.02, 0.5, (0, 1, 0))])).analyse()
     assert data["LF_overall"] == pytest.approx(0.2, abs=0.02)
     assert data["LFC_overall"] == pytest.approx(0.2, abs=0.02)
     assert len(data["LF"]) == len(data["freqs"])
 
 
 def test_analyse_of_a_mono_response_has_nan_lf():
-    data = AcousticAnalyser(make_ir()).analyse()
+    data = Analyser(make_ir()).analyse()
     assert np.isnan(data["LF_overall"]) and np.isnan(data["LFC_overall"])
     assert _PARAM_NAMES[-2:] == ["LF", "LFC"]
 
@@ -712,32 +712,32 @@ def _free_field(distance=2.0, spl=80.0, fs=48000):
 
 @pytest.mark.skipif(not _PYRATO_PARAMETERS, reason="SPL comes from G, which needs pyrato >= 1.0")
 def test_free_field_spl_falls_6_db_per_doubling_from_the_level_at_1_m():
-    spl = AcousticAnalyser(_free_field()).sound_pressure_level()
+    spl = Analyser(_free_field()).sound_pressure_level()
     assert spl["SPL"] == pytest.approx([80 - 6.02] * 7, abs=0.1)
     assert spl["SPL_total"] == pytest.approx(80 - 6.02 + 10 * np.log10(7), abs=0.1)
 
 
 @pytest.mark.skipif(not _PYRATO_PARAMETERS, reason="SPL comes from G, which needs pyrato >= 1.0")
 def test_spl_overall_is_the_a_weighted_total():
-    spl = AcousticAnalyser(_free_field()).sound_pressure_level()
+    spl = Analyser(_free_field()).sound_pressure_level()
     expected = 10 * np.log10(sum(10 ** ((80 - 6.02 + a) / 10) for a in A_WEIGHTS))
     assert spl["SPL_overall"] == pytest.approx(expected, abs=0.1)
 
 
 @pytest.mark.skipif(not _PYRATO_PARAMETERS, reason="SPL comes from G, which needs pyrato >= 1.0")
 def test_spl_takes_a_given_level_over_the_sources():
-    spl = AcousticAnalyser(_free_field(spl=80.0)).sound_pressure_level(source_spl=90.0)
+    spl = Analyser(_free_field(spl=80.0)).sound_pressure_level(source_spl=90.0)
     assert spl["SPL"][3] == pytest.approx(90 - 6.02, abs=0.1)
 
 
 def test_spl_of_a_response_without_absolute_level_is_nan_and_warns():
     with pytest.warns(UserWarning, match="package scale"):
-        spl = AcousticAnalyser(make_ir()).sound_pressure_level(source_spl=80)
+        spl = Analyser(make_ir()).sound_pressure_level(source_spl=80)
     assert np.all(np.isnan(spl["SPL"])) and np.isnan(spl["SPL_overall"])
 
 
 @pytest.mark.skipif(not _PYRATO_PARAMETERS, reason="SPL comes from G, which needs pyrato >= 1.0")
 def test_analyse_holds_spl():
-    data = AcousticAnalyser(_free_field()).analyse()
+    data = Analyser(_free_field()).analyse()
     assert data["SPL"][3] == pytest.approx(80 - 6.02, abs=0.1)
     assert "SPL" in _PARAM_NAMES and _PARAM_NAMES.index("SPL") == _PARAM_NAMES.index("G") + 1

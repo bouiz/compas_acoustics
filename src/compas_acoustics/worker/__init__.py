@@ -301,16 +301,16 @@ def analyse(ir):
 
     Returns
     -------
-    tuple of (:class:`compas_acoustics.AcousticAnalyser`, list of str)
+    tuple of (:class:`compas_acoustics.Analyser`, list of str)
         The analyser, its :attr:`analysis_data` filled, and the messages of the UserWarnings raised in the worker.
     """
     import warnings
 
-    from compas_acoustics import AcousticAnalyser
+    from compas_acoustics import Analyser
     from compas_acoustics import ImpulseResponse
     from compas_acoustics import analyser as analysis
 
-    analyser = AcousticAnalyser(ir)
+    analyser = Analyser(ir)
     if analysis._STI_SUPPORTED or worker_python() is None or not isinstance(ir, ImpulseResponse):
         analyser.analyse()
         return analyser, []

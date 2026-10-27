@@ -15,7 +15,7 @@ class Source(_PackageDtype, Point):
 
     ``spl`` is the free-field level on its axis at 1 m per octave band, 125 Hz to 8 kHz, in dB re 20 uPa (the
     voice presets give the talker levels of ANSI S3.5-1997). On the package scale the direct sound is
-    ``1 / (4 pi r)`` with gain 1 on axis, so ``Lp = spl + G - 20 dB`` (:meth:`AcousticAnalyser.sound_pressure_level`).
+    ``1 / (4 pi r)`` with gain 1 on axis, so ``Lp = spl + G - 20 dB`` (:meth:`Analyser.sound_pressure_level`).
     """
 
     def __init__(self, name: str, x: float, y: float, z: float, directivity: str = None, direction: Vector = None, sound_file: str = None):

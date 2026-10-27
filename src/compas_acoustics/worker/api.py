@@ -104,12 +104,12 @@ def simulate(scene, method, settings, references=None):
 
 def analyse(ir):
     """STI and G of ``ir``, for a client whose pyrato cannot compute them: ``{"analysis": {...}, "warnings": [str]}``."""
-    from compas_acoustics import AcousticAnalyser
+    from compas_acoustics import Analyser
 
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         # the client computes every other parameter itself
-        analysis = AcousticAnalyser(ir)._sti_and_strength()
+        analysis = Analyser(ir)._sti_and_strength()
     return {"analysis": analysis, "warnings": _messages(caught)}
 
 
@@ -283,7 +283,7 @@ def analysis(ir, time_scale="db"):
     """
     import math
 
-    from compas_acoustics import AcousticAnalyser
+    from compas_acoustics import Analyser
     from compas_acoustics.analyser import frequency_response
     from compas_acoustics.analyser import time_response
 
@@ -292,7 +292,7 @@ def analysis(ir, time_scale="db"):
         raise ValueError(f"Input parameter 'time_scale' must be one of {TIME_SCALES}: 'db' or 'linear'.")
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        analyser = AcousticAnalyser(ir)
+        analyser = Analyser(ir)
         analyser.analyse()
         data = analyser.analysis_data
         bands = analyser.frequency_bands

@@ -14,7 +14,7 @@ from .room import RoomGeometry
 from .rays import Ray, ScatteredRay, RayField
 from .rays import SpecularPath, SpecularReflections
 from .scene import Scene
-from .analyser import AcousticAnalyser
+from .analyser import Analyser
 from .energy_map import EnergyMap
 from .simulation_methods import SimulationMethod, Mono
 from .auraliser import Auraliser
@@ -49,7 +49,7 @@ __all__ = [
     'SpecularPath',
     'SpecularReflections',
     'Scene',
-    'AcousticAnalyser',
+    'Analyser',
     'EnergyMap',
     'SimulationMethod',
     'Mono',
