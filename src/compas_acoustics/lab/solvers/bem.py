@@ -699,8 +699,14 @@ class BemSolver(ScatteringSolver):
 
         path = os.path.normpath(os.path.join(project, "..", "{}_{}.pressure.sofa".format(title, _GRID)))
         if not os.path.isfile(path):
-            with contextlib.redirect_stdout(io.StringIO()):
-                output.write_pressure(project)
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    output.write_pressure(project)
+            except BaseException:
+                # a partial file would be read, and fail, on every later run instead of being written again
+                with contextlib.suppress(OSError):
+                    os.remove(path)
+                raise
         data, source_coordinates, receiver_coordinates = pf.io.convert_sofa(sofar.read_sofa(path, verify=False))[:3]
         p = np.asarray(data.freq)
         f_order = np.argsort(data.frequencies)

@@ -215,3 +215,46 @@ def test_unconverged_steps_are_warned_and_recorded(tmp_path, monkeypatch):
         warnings.simplefilter("error", UserWarning)
         monkeypatch.setattr(bem, "parse_convergence", lambda text: (30, 1e-10, True))
         assert BemSolver(cache_dir=str(tmp_path)).solve(sample, sources, receivers, frequencies, 343.0).generation["unconverged"] == []
+
+
+def test_numcalc_runner_launches_fast_and_up_to_a_nearly_full_cpu(tmp_path, monkeypatch):
+    # manage_numcalc launches one instance per wait; a 2 s wait against 3 s steps kept 1-2 of 14 cores busy (2026-10-26)
+    numcalc = pytest.importorskip("mesh2scattering.numcalc")
+    from compas_acoustics.lab.solvers import _numcalc
+
+    (tmp_path / "sample").mkdir()
+    (tmp_path / "sample" / "parameters.json").write_text("{}")
+    calls = {}
+    monkeypatch.setattr(numcalc, "calc_and_read_ram", lambda project, path: np.array([[1, 1, 100.0, 0.1]]))
+    monkeypatch.setattr(numcalc, "manage_numcalc", lambda **kwargs: calls.update(kwargs))
+    assert _numcalc.main([str(tmp_path), "NumCalc"]) == 0
+    assert 0 < calls["wait_time"] <= 0.1
+    assert calls["max_cpu_load"] == 95
+
+
+def test_sofa_with_string_variables_round_trips(tmp_path):
+    # netCDF4 1.7.4 and later fail on sofar's stringtochar(..., encoding="utf-8"): the BEM results could not be written (2026-10-26)
+    sofar = pytest.importorskip("sofar")
+    path = str(tmp_path / "tf.sofa")
+    sofa = sofar.Sofa("GeneralTF")
+    sofa.add_variable("SampleSymmetryAzimuth", "0,90", "string", "S")  # as mesh2scattering's pressure files
+    sofar.write_sofa(path, sofa)
+    assert sofar.read_sofa(path, verify=False).SampleSymmetryAzimuth == "0,90"
+
+
+def test_a_failed_pressure_write_leaves_no_partial_file(tmp_path, monkeypatch):
+    # a partial .sofa in the cache made every later run fail on reading it instead of writing it again
+    output = pytest.importorskip("mesh2scattering.output")
+
+    project = tmp_path / "sample"
+    project.mkdir()
+    partial = tmp_path / "sample_receivers.pressure.sofa"
+
+    def write_pressure(path):
+        partial.write_bytes(b"CDF partial")
+        raise AttributeError("'numpy.bytes_' object has no attribute 'encode'")
+
+    monkeypatch.setattr(output, "write_pressure", write_pressure)
+    with pytest.raises(AttributeError):
+        BemSolver()._read(str(project), "sample", None, None, 1.0, np.array([100.0]))
+    assert not partial.exists()

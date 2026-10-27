@@ -10,6 +10,9 @@ matplotlib >=3.7, <4.0; python_version < "3.10"
 sounddevice
 soundfile
 sofar
+# sofar writes string variables with netCDF4's stringtochar(..., encoding="utf-8"), which fails on bytes from netCDF4 1.7.4 on
+# (AttributeError: 'numpy.bytes_' object has no attribute 'encode'; 1.7.5.1.post1 still, 2026-10-26)
+netCDF4 <1.7.4
 # Rhino 8 ships CPython 3.9: recent pyfar/pyrato releases are not available there,
 # so older versions are used and the analyser falls back to reduced functionality.
 pyfar >=0.8.0; python_version >= "3.11"
