@@ -21,7 +21,8 @@ def schema_hash(root=PROTOBUF_DEFS):
     digest = hashlib.sha256()
     for path in sorted(root.rglob("*.proto")):
         digest.update(path.relative_to(root).as_posix().encode())
-        digest.update(path.read_bytes())
+        # a Windows checkout writes CRLF; the plugin's hash is of the LF files
+        digest.update(path.read_bytes().replace(b"\r\n", b"\n"))
     return digest.hexdigest()
 
 

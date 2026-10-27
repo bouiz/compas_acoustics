@@ -285,6 +285,11 @@ namespace CompasAcoustics.Grasshopper
             {
                 info = (IDictionary<string, object?>)client.Call("info")!;
             }
+            catch (HttpRequestException e)
+            {
+                Stop(client, process, port);
+                throw new WorkerException($"The worker at {python} answered, then dropped its first call:\n{process.Output}", details: e.Message);
+            }
             catch (Exception)
             {
                 Stop(client, process, port);

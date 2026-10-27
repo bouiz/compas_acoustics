@@ -166,6 +166,8 @@ def _split_at_t_junctions(vertices: np.ndarray, a: int, b: int) -> List[int]:
     distance = np.linalg.norm(offsets - np.outer(t, direction), axis=1)
     tolerance = 1e-6 * float(np.ptp(vertices, axis=0).max())
     inner = np.flatnonzero((t > 0.0) & (t < 1.0) & (distance < tolerance))
+    # t of the endpoints themselves can land one ulp inside (0, 1): BLAS rounds the matrix product differently by platform
+    inner = inner[(inner != a) & (inner != b)]
     return [a, *inner[np.argsort(t[inner])].tolist(), b]
 
 

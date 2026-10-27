@@ -13,11 +13,13 @@ namespace CompasAcoustics.Grasshopper.Tests
     /// <summary>A test that needs a real worker: COMPAS_ACOUSTICS_WORKER_PYTHON, a Python with this checkout's compas_acoustics.</summary>
     public sealed class WorkerFactAttribute : FactAttribute
     {
-        public WorkerFactAttribute()
+        public WorkerFactAttribute(bool playsAudio = false)
         {
             var python = Environment.GetEnvironmentVariable(Worker.PythonVariable);
             if (string.IsNullOrEmpty(python) || !File.Exists(python))
                 Skip = "set COMPAS_ACOUSTICS_WORKER_PYTHON to a Python with this checkout's compas_acoustics";
+            else if (playsAudio && !OperatingSystem.IsWindows() && !OperatingSystem.IsMacOS())
+                Skip = "the worker's audio player supports Windows and macOS only";
         }
     }
 
@@ -296,7 +298,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             }
         }
     
-        [WorkerFact]
+        [WorkerFact(playsAudio: true)]
         public void RealWorker_PlaybackStatusFollowsPlayPauseStop()
         {
             var worker = RealWorker();

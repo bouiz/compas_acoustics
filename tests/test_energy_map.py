@@ -110,7 +110,8 @@ def test_points_outside_the_room_are_nan_and_warn():
 def test_two_sources_add_incoherently():
     one = EnergyMap.from_scene(shoebox((6.0, 5.0, 3.0), 0.3, 0.1, [(1.5, 1.5, 1.6)]), [[4, 3, 1.2]], n_rays=4000, seed=1)
     two = EnergyMap.from_scene(shoebox((6.0, 5.0, 3.0), 0.3, 0.1, [(1.5, 1.5, 1.6)] * 2), [[4, 3, 1.2]], n_rays=4000, seed=1)
-    assert two.spl() == pytest.approx(one.spl() + 10 * np.log10(2), abs=0.05)
+    # the two maps trace independent rays: their difference spreads 0.07 dB (1 sigma over 20 seeds)
+    assert two.spl() == pytest.approx(one.spl() + 10 * np.log10(2), abs=0.25)
 
 
 def test_one_source_of_several():
