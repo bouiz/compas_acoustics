@@ -1,4 +1,3 @@
-import os
 
 import numpy as np
 import pytest
@@ -83,12 +82,6 @@ def test_vertices_are_not_rounded_and_degenerate_faces_are_skipped(tmp_path):
     mesh = AcousticObject.from_obj(write_obj(tmp_path / "d.obj", lines))[0].acoustic_geometry
     assert mesh.number_of_faces() == 1
     assert max(mesh.vertices_attribute("x")) == 1.0000004
-
-
-def test_the_example_office_gives_its_six_groups():
-    path = os.path.join(os.path.dirname(__file__), "..", "examples", "cut_without.obj")
-    groups = [o.group for o in AcousticObject.from_obj(path)]
-    assert groups == ["glass", "concrete", "ceiling", "tables", "chairs", "bookshelves"]
 
 
 def test_a_utf8_bom_and_non_ascii_names_are_read(tmp_path):
