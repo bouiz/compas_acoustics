@@ -1,0 +1,34 @@
+{
+    "name": "Material Library",
+    "nickname": "MatLib",
+    "category": "COMPAS Acoustics",
+    "subcategory": "00 Elements",
+    "description": "Preset picker for AcousticMaterial. Click the strip or double-click the component to search the materials library by name and category, or choose Custom at the top; on the chart, set any band's absorption or scattering. Connect absorption or scattering (a value per octave band, 125 Hz to 8 kHz) to replace the chosen material's coefficients.",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "absorption",
+                "description": "Absorption coefficients, one per octave band from 125 Hz to 8 kHz, to replace the chosen material's (optional).",
+                "optional": true,
+                "scriptParamAccess": 1,
+                "typeHintID": "float"
+            },
+            {
+                "name": "scattering",
+                "description": "Scattering coefficients, one per octave band, to replace the chosen material's (optional; a material without them is simulated with 0.05 in every band).",
+                "optional": true,
+                "scriptParamAccess": 1,
+                "typeHintID": "float"
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "material",
+                "description": "AcousticMaterial object."
+            }
+        ]
+    }
+}

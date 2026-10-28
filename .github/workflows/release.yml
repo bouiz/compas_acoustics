@@ -43,7 +43,7 @@ jobs:
   prepare:
     needs: [release, build]
     if: needs.release.outputs.is-release == 'true'
-    # pre-build creates the Grasshopper components that go into the wheel, which needs Windows
+    # the protobuf bindings are committed, pre-build has nothing to make
     runs-on: windows-latest
     steps:
       - uses: compas-dev/compas-actions/prepare-release@v1
@@ -55,6 +55,7 @@ jobs:
   installer-bundle:
     needs: [release, build]
     if: needs.release.outputs.is-release == 'true'
+    # the Grasshopper plugin builds with the .NET SDK that Windows runners have
     runs-on: windows-latest
     steps:
       - uses: compas-dev/compas-actions/release-assets@v1

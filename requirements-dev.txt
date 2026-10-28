@@ -9,4 +9,3 @@ twine
 wheel
 
 compas_viewer >=2.0, <3.0
-ghpython_componentizer

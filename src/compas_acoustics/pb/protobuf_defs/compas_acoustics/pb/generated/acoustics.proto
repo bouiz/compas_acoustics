@@ -1,0 +1,150 @@
+// The compas_acoustics Data types as compas_pb messages.
+// Python bindings: src/compas_acoustics/pb/generated (invoke generate-proto-classes),
+// C# bindings: csharp/CompasAcoustics.Grasshopper/Generated (invoke generate-csharp).
+// Every message mirrors the class's __data__; guid and name come first, as in compas_pb.
+syntax = "proto3";
+
+package compas_acoustics.pb;
+
+import "compas_pb/generated/datastructures.proto";
+import "compas_pb/generated/geometry.proto";
+import "compas_pb/generated/message.proto";
+
+message AcousticMaterialData {
+  string guid = 1;
+  string name = 2;
+  string description = 3;
+  string category = 4;
+  repeated double absorption_coefficients = 5;
+  repeated double scattering_coefficients = 6;
+  repeated double transmission_coefficients = 7;
+  string data_origin = 8;
+}
+
+message SourceData {
+  string guid = 1;
+  string name = 2;
+  compas_pb.data.PointData point = 3;
+  string directivity = 4;
+  compas_pb.data.VectorData direction = 5;
+  optional string sound_file = 6;
+  repeated double spl = 7;
+  optional string description = 8;
+}
+
+message ReceiverData {
+  string guid = 1;
+  string name = 2;
+  compas_pb.data.PointData point = 3;
+  compas_pb.data.VectorData direction = 4;
+  compas_pb.data.VectorData up = 5;
+  double radius = 6;
+}
+
+message AcousticObjectData {
+  string guid = 1;
+  optional string name = 2;
+  oneof geometry {
+    compas_pb.data.MeshData mesh = 3;
+    compas_pb.data.PolylineData polyline = 4;
+  }
+  // unset: an object without a material, which cannot be simulated
+  AcousticMaterialData material = 5;
+  compas_pb.data.PointData position = 6;
+  string role = 7;
+  repeated SourceData sources = 8;
+}
+
+message SceneData {
+  string guid = 1;
+  string name = 2;
+  string description = 3;
+  int32 sampling_rate = 4;
+  repeated AcousticObjectData acoustic_objects = 5;
+  repeated SourceData sources = 6;
+  repeated ReceiverData receivers = 7;
+}
+
+// Samples are sample-major: frame 0 of every channel, then frame 1, ...; shape is the numpy shape,
+// (samples,) or (samples, channels).
+message ImpulseResponseData {
+  string guid = 1;
+  string name = 2;
+  SourceData source = 3;
+  ReceiverData receiver = 4;
+  // the raw response, at its physical level
+  repeated double samples = 5;
+  repeated int64 shape = 6;
+  int32 sampling_rate = 7;
+  bool normalized = 8;
+  // the method's description of the run, a dict
+  compas_pb.data.AnyData generation = 9;
+  optional int32 ambisonic_order = 10;
+  optional string normalization = 11;
+  optional string channel_order = 12;
+}
+
+// A rendered signal: what Auralise gives and the Audio Player plays.
+message AudioData {
+  string guid = 1;
+  repeated double samples = 2;
+  repeated int64 shape = 3;
+  int32 sampling_rate = 4;
+  // mono, binaural or ambisonic
+  string format = 5;
+}
+
+// Points are flat x, y, z triplets, as in compas_pb's PolylineData.
+message RayData {
+  string guid = 1;
+  optional string name = 2;
+  repeated double points = 3;
+  optional int32 source_index = 4;
+  optional int32 ray_index = 5;
+  compas_pb.data.VectorData direction = 6;
+  double distance_offset = 7;
+  repeated ScatteredRayData scattered_reflections = 8;
+}
+
+message ScatteredRayData {
+  string guid = 1;
+  optional string name = 2;
+  repeated double points = 3;
+  optional int32 source_index = 4;
+  optional int32 ray_index = 5;
+  compas_pb.data.VectorData direction = 6;
+  double distance_offset = 7;
+  optional int32 parent_ray_index = 9;
+  optional double energy = 10;
+  // the reflection order of the hit the ray is scattered from
+  int32 origin_reflection_order = 11;
+}
+
+message SpecularPathData {
+  string guid = 1;
+  optional string name = 2;
+  repeated double points = 3;
+  optional int32 source_index = 4;
+  optional int32 ray_index = 5;
+  compas_pb.data.VectorData direction = 6;
+  double distance_offset = 7;
+  int32 order = 9;
+  repeated int32 walls = 10;
+  compas_pb.data.PointData image = 11;
+  int32 receiver_index = 12;
+}
+
+// Each source once, by its index, as RayField.__data__ keeps them.
+message RayFieldData {
+  string guid = 1;
+  optional string name = 2;
+  repeated RayData rays = 3;
+  map<int32, SourceData> sources = 4;
+}
+
+message SpecularReflectionsData {
+  string guid = 1;
+  optional string name = 2;
+  repeated SpecularPathData paths = 3;
+  map<int32, SourceData> sources = 4;
+}

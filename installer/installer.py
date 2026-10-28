@@ -13,18 +13,20 @@ next to the ``.gh`` file).
 same way Rhino installs the packages that scripts ask for. ``venv`` is the
 name of the environment (created if needed). Empty means ``default``, the
 environment of scripts that do not ask for one.
-3. Copy the Grasshopper user objects (``.ghuser``) into the Grasshopper
-UserObjects folder (``compas_acoustics`` subfolder). For a ``venv`` other
-than ``default``, add the venv directive as first line of each copied
-component, so it runs in that environment. The files in the package are
-not changed.
-4. Unload previously imported ``compas_acoustics`` modules.
+3. Copy the Grasshopper plugin (``CompasAcoustics.gha`` and the assemblies it
+needs, the ``gha`` folder of the installer bundle, next to the wheel) into
+Grasshopper's Libraries folder (``compas_acoustics`` subfolder), and remove
+the CPython components (``.ghuser``) of earlier versions from UserObjects.
+4. Create the worker: a Python 3.12 environment with compas_acoustics, in
+which the plugin's components run everything (``compas_acoustics.worker.install``).
+5. Unload previously imported ``compas_acoustics`` modules.
 
 Rhino must be restarted afterwards: reloading Grasshopper's component libraries
 at runtime (``ComponentServer.LoadExternalFiles``) re-registers every plugin
 and makes Grasshopper show "Component ID conflict" dialogs.
 
-Inputs: source (str), venv (str), install (bool, connect a button).
+Inputs: source (str), venv (str), install (bool, connect a button), worker (str, not used: the worker is always
+created; kept so that the installer file's inputs stay).
 Outputs: log (str), ok (bool).
 
 Rhino quirks to keep in mind when editing this file: Rhino pre-processes the
@@ -48,8 +50,9 @@ import scriptcontext as sc
 PACKAGE = "compas_acoustics"
 STATE_KEY = "compas_acoustics_installer_state"
 DEFAULT_VENV = "default"
-# assembled from pieces: Rhino would otherwise read this line as a directive for this script
-VENV_DIRECTIVE = "# " + "venv" + ": {}"
+# the Grasshopper plugin's files, in the bundle's gha folder
+GHA_FOLDER = "gha"
+GHA_FILES = ["CompasAcoustics.gha", "CompasPb.dll", "Google.Protobuf.dll", "Newtonsoft.Json.dll"]
 
 
 def rhino_python():
@@ -108,11 +111,13 @@ def download(url, log):
     return target
 
 
-def run(cmd, log):
+def run(cmd, log, env=None):
     log("> " + " ".join('"{}"'.format(c) if " " in c else c for c in cmd))
     kwargs = {}
     if os.name == "nt":
         kwargs["creationflags"] = 0x08000000  # CREATE_NO_WINDOW
+    if env is not None:
+        kwargs["env"] = env
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, **kwargs)
     for line in process.stdout:
         line = line.rstrip()
@@ -175,64 +180,41 @@ def resolve_venv(venv, log):
     return location
 
 
-def set_venv(path, venv):
-    """Make the script component in a .ghuser file run in the ``venv`` script environment."""
-    from System.Reflection import BindingFlags
+def install_gha(wheel, log):
+    """Copy the plugin of the bundle (its ``gha`` folder, next to ``wheel``) into Grasshopper's Libraries folder.
 
-    def patch():
-        userobject = Grasshopper.Kernel.GH_UserObject(path)
-        component = userobject.InstantiateObject()
+    The CPython components of earlier versions (``.ghuser`` files in UserObjects) are removed: the plugin replaces them.
+    """
+    source = os.path.join(os.path.dirname(os.path.abspath(wheel)), GHA_FOLDER)
+    missing = [name for name in GHA_FILES if not os.path.isfile(os.path.join(source, name))]
+    if missing:
+        raise RuntimeError(
+            "The Grasshopper plugin is not next to the wheel ({} missing in {}): download and unzip the whole installer bundle, "
+            "and leave 'source' empty or point it at the wheel in the bundle.".format(", ".join(missing), source)
+        )
 
-        # the script text and language are explicit interface properties of the script component
-        text = language = None
-        flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly
-        t = component.GetType()
-        while t is not None:
-            for prop in t.GetProperties(flags):
-                if prop.CanWrite and prop.Name.endswith(".Text") and text is None:
-                    text = prop
-                if prop.CanWrite and prop.Name.endswith("LanguageSpec") and language is None:
-                    language = prop
-            t = t.BaseType
-        if text is None or language is None:
-            raise RuntimeError("{} does not contain a script component".format(os.path.basename(path)))
+    target = os.path.join(Grasshopper.Folders.DefaultAssemblyFolder, PACKAGE)
+    if os.path.isdir(target):
+        shutil.rmtree(target)
+    os.makedirs(target)
+    for name in GHA_FILES:
+        shutil.copy2(os.path.join(source, name), os.path.join(target, name))
+    log("Installed the Grasshopper plugin {} into {}".format(GHA_FILES[0], target))
+    if os.name == "nt":
+        log("If Grasshopper reports the plugin as blocked, unblock the files in {} (Properties > Unblock).".format(target))
 
-        spec = language.GetValue(component)
-        text.SetValue(component, VENV_DIRECTIVE.format(venv) + "\n" + text.GetValue(component))
-        # setting the text resets the language
-        language.SetValue(component, spec)
-
-        userobject.SetDataFromObject(component)
-        userobject.SaveToFile()
-
-    on_ui_thread(patch)
-
-
-def install_userobjects(python, log, venv, target):
-    # locate the package without importing it: it needs RhinoCommon, which a plain Python process does not have
-    package_dir = query(python, "import importlib.util as u; print(u.find_spec('compas_acoustics_ghpython').submodule_search_locations[0])", target)
-    src = os.path.join(package_dir, "components", "ghuser")
-    ghusers = sorted(glob.glob(os.path.join(src, "*.ghuser")))
-    if not ghusers:
-        raise RuntimeError("No .ghuser files found in {}".format(src))
-
-    root = Grasshopper.Folders.DefaultUserObjectFolder
-    dst = os.path.join(root, PACKAGE)
-    if os.path.isdir(dst):
-        shutil.rmtree(dst)
-    os.makedirs(dst)
-
-    for path in ghusers:
-        name = os.path.basename(path)
-        # remove stale copies from manual installs into the UserObjects root
-        stale = os.path.join(root, name)
-        if os.path.isfile(stale):
-            os.remove(stale)
-        shutil.copy2(path, os.path.join(dst, name))
-        if venv != DEFAULT_VENV:
-            set_venv(os.path.join(dst, name), venv)
-    log("Installed {} Grasshopper components into {}".format(len(ghusers), dst))
-    log("The components run in the '{}' script environment.".format(venv))
+    userobjects = Grasshopper.Folders.DefaultUserObjectFolder
+    old = os.path.join(userobjects, PACKAGE)
+    removed = 0
+    if os.path.isdir(old):
+        removed += len(glob.glob(os.path.join(old, "*.ghuser")))
+        shutil.rmtree(old)
+    # copies of manual installs into the UserObjects root
+    for path in glob.glob(os.path.join(userobjects, PACKAGE + ": *.ghuser")):
+        os.remove(path)
+        removed += 1
+    if removed:
+        log("Removed {} CPython components of an earlier version from {}".format(removed, userobjects))
 
 
 def unload_modules():
@@ -242,7 +224,7 @@ def unload_modules():
     return len(names)
 
 
-def run_install(state, source, venv, gh_file):
+def run_install(state, source, venv, gh_file, worker):
     def log(message):
         state["log"].append(message)
 
@@ -270,7 +252,15 @@ def run_install(state, source, venv, gh_file):
         log("")
         log("{} {} installed.".format(PACKAGE, version))
 
-        install_userobjects(python, log, venv, target)
+        install_gha(wheel, log)
+
+        if (worker or "").strip():
+            log("The 'worker' input is not used any more: the worker is always set up.")
+        log("")
+        log("Setting up the Python 3.12 worker, in which the components run; the first time this takes a while (it downloads PyTorch, several GB)...")
+        cmd = [python, "-m", "compas_acoustics.worker.install", "--wheel", wheel, "--hybrid"]
+        run(cmd, log, env=dict(os.environ, PYTHONPATH=target))
+
         unloaded = unload_modules()
         if unloaded:
             log("Unloaded {} previously imported compas_acoustics modules.".format(unloaded))
@@ -288,14 +278,14 @@ def run_install(state, source, venv, gh_file):
 
 
 class Script_Instance(Grasshopper.Kernel.GH_ScriptInstance):
-    def RunScript(self, source, venv, install):
+    def RunScript(self, source, venv, install, worker):
         component = ghenv.Component  # noqa: F821
         state = sc.sticky.setdefault(STATE_KEY, {"running": False, "log": [], "ok": None})
 
         if install and not state["running"]:
             gh_doc = component.OnPingDocument()
             state.update(running=True, log=[], ok=None)
-            thread = threading.Thread(target=run_install, args=(state, source, venv, gh_doc.FilePath if gh_doc else None))
+            thread = threading.Thread(target=run_install, args=(state, source, venv, gh_doc.FilePath if gh_doc else None, worker))
             thread.daemon = True
             thread.start()
 

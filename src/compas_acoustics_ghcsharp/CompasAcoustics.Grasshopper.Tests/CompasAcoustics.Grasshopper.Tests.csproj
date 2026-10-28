@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <!-- Rhino 8 runs .NET 8; only a newer runtime may be installed -->
+    <RollForward>Major</RollForward>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <!-- the Grasshopper package's targets keep its assemblies out of a plugin's output; the test host needs them -->
+    <ShouldRemoveRhinoReferences>false</ShouldRemoveRhinoReferences>
+    <NoWarn>$(NoWarn);CA1416;NU1701;NU1903;NETSDK1138</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <!-- with its run time assemblies: the tests use RhinoCommon's managed geometry and Grasshopper's goo outside Rhino -->
+    <PackageReference Include="Grasshopper" Version="8.0.23304.9001" />
+    <!-- GH_IO's chunks reference it; on the Mac only its GDI+ types fail, which the tests do not use -->
+    <PackageReference Include="System.Drawing.Common" Version="8.0.10" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\CompasAcoustics.Grasshopper\CompasAcoustics.Grasshopper.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Fixtures\*.b64" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <!-- WinFormsStub: built, not referenced, copied next to the tests for WinFormsResolver -->
+  <ItemGroup>
+    <Compile Remove="WinFormsStub\**" />
+    <ProjectReference Include="WinFormsStub\WinFormsStub.csproj" ReferenceOutputAssembly="false" Private="false" />
+  </ItemGroup>
+  <Target Name="CopyWinFormsStub" AfterTargets="Build">
+    <MSBuild Projects="WinFormsStub\WinFormsStub.csproj" Targets="GetTargetPath" Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="WinFormsStubAssembly" />
+    </MSBuild>
+    <Copy SourceFiles="@(WinFormsStubAssembly)" DestinationFolder="$(OutDir)winforms-stub" SkipUnchangedFiles="true" />
+  </Target>
+</Project>

@@ -1,0 +1,48 @@
+{
+    "name": "Construct Material",
+    "nickname": "ConMat",
+    "category": "COMPAS Acoustics",
+    "subcategory": "00 Elements",
+    "description": "Create an AcousticMaterial for AcousticObject(s).",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "absorption",
+                "description": "List of absorption coefficients for each frequency band, or one value for every band.",
+                "optional": false,
+                "scriptParamAccess": 1,
+                "typeHintID": "float"
+            },
+            {
+                "name": "scattering",
+                "description": "Optional. List of scattering coefficients for each frequency band, or one value for every band.",
+                "optional": true,
+                "scriptParamAccess": 1,
+                "typeHintID": "float"
+            },
+            {
+                "name": "name",
+                "description": "Name of the material.",
+                "optional": false,
+                "scriptParamAccess": 0,
+                "typeHintID": "str"
+            },
+            {
+                "name": "category",
+                "description": "Optional. Material category, e.g. 'Concrete', 'Wood' or 'Absorbers' (defaults to 'Other').",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "str"
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "material",
+                "description": "AcousticMaterial object."
+            }
+        ]
+    }
+}

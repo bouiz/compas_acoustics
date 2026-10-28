@@ -126,6 +126,12 @@ temp/**
 src/.build/**
 
 data/
+!tests/hybrid/data/
+# source folders the two rules above would hide: the protobuf schema and bindings, the plugin's data types
+!src/compas_acoustics/pb/generated/
+!src/compas_acoustics/pb/protobuf_defs/compas_acoustics/pb/generated/
+!src/compas_acoustics_ghcsharp/CompasAcoustics.Grasshopper/Generated/
+!src/compas_acoustics_ghcsharp/CompasAcoustics.Grasshopper/Data/
 
 *.tar.gz
 
@@ -140,5 +146,17 @@ docs/api/generated/
 scripts/
 
 .ruff_cache
-# Grasshopper components are built with `invoke build-cpython-ghuser-components`
-src/**/components/ghuser/
+# Demonstration notebooks are kept out of the repository
+examples/notebooks/
+examples/output/
+# Local translation of the hybrid-rir boxes_conditions notebook
+examples/boxes_conditions.ipynb
+examples/odeon_room.py
+examples/office_hybrid.py
+examples/orchestra_layouts.py
+examples/AA_rirs/
+examples/rooms_conditions.ipynb
+
+# the Grasshopper plugin build
+src/compas_acoustics_ghcsharp/**/bin/
+src/compas_acoustics_ghcsharp/**/obj/

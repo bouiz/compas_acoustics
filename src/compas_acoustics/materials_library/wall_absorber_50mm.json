@@ -23,5 +23,5 @@
         ],
         "transmission_coefficients": []
     },
-    "dtype": "compas_acoustics.acoustic_material/AcousticMaterial"
+    "dtype": "compas_acoustics/AcousticMaterial"
 }

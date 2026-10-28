@@ -1,8 +1,9 @@
 compas >=2.13, <3.0
+# Data types as protobuf messages (compas_acoustics.pb): the worker's wire format
+compas_pb >=1.2, <2.0
 pyroomacoustics >=0.10.1
 matplotlib >=3.10, <4.0; python_version >= "3.10"
 matplotlib >=3.7, <4.0; python_version < "3.10"
-librosa
 sounddevice
 soundfile
 sofar
@@ -10,5 +11,9 @@ sofar
 # so older versions are used and the analyser falls back to reduced functionality.
 pyfar >=0.8.0; python_version >= "3.11"
 pyfar >=0.6, <0.8; python_version < "3.11"
-pyrato >=1.0.0; python_version >= "3.12"
-pyrato >=0.4, <1.0; python_version < "3.12"
+pyrato >=1.0.0; python_version >= "3.11"
+pyrato >=0.4, <1.0; python_version < "3.11"
+spharpy >=1.0; python_version >= "3.11"
+# The hybrid method. pyFDN requires flamo and with it PyTorch, which only its training modules use
+pyFDN >=0.5.0; python_version >= "3.11"
+multislope >=0.1.1; python_version >= "3.11"

@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The names of the Windows Forms types that Grasshopper's virtual methods take (the right-click menu), so that the test
+    host, which has no Windows Forms on the Mac or Linux, can load components that override them. Never shipped.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>System.Windows.Forms</AssemblyName>
+    <RootNamespace>System.Windows.Forms</RootNamespace>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+</Project>
