@@ -81,3 +81,9 @@ def test_the_sound_library_readme_lists_the_files_that_exist():
     sounds = ROOT / "src/compas_acoustics/anechoic_soundfiles_library"
     listed = set(re.findall(r"`(\w+\.wav)`", read("src/compas_acoustics/anechoic_soundfiles_library/README.md")))
     assert listed == {p.name for p in sounds.glob("*.wav")}
+
+
+def test_no_template_placeholders_are_left():
+    assert not (ROOT / "tests/test_placeholder.py").exists()
+    assert not (ROOT / "temp/PLACEHOLDER").exists()
+    assert "PLACEHOLDER" not in read(".gitignore")

@@ -117,11 +117,7 @@ generated/
 *.3dmbak
 *.rhl
 
-libs/**
-!libs/PLACEHOLDER
-
-temp/**
-!temp/PLACEHOLDER
+temp/
 
 src/.build/**
 
