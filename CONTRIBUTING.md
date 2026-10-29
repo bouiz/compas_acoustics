@@ -9,10 +9,10 @@ In short, this is how that works.
 
 1. Fork [the repository](https://github.com/gramaziokohler/compas_acoustics) and clone the fork.
 2. Create a virtual environment using your tool of choice (e.g. `virtualenv`, `conda`, etc).
-3. Install development dependencies:
+3. Install the package with its development dependencies:
 
    ```bash
-   pip install -r requirements-dev.txt
+   pip install -e ".[dev]"
    ```
 
 4. Make sure all tests pass:
@@ -21,16 +21,24 @@ In short, this is how that works.
    invoke test
    ```
 
-5. Start making your changes to the **master** branch (or branch off of it).
-6. Make sure all tests still pass:
+5. Start making your changes on a branch off **main**.
+6. Make sure lint and all tests still pass:
 
    ```bash
+   invoke lint
    invoke test
    ```
 
-7. Add yourself to the *Contributors* section of `AUTHORS.md`.
-8. Commit your changes and push your branch to GitHub.
-9. Create a [pull request](https://help.github.com/articles/about-pull-requests/) through the GitHub website.
+   If you changed the Grasshopper plugin (`src/compas_acoustics_ghcsharp/`), also run its tests (they need the .NET 8 SDK):
+
+   ```bash
+   dotnet test src/compas_acoustics_ghcsharp/CompasAcoustics.sln
+   ```
+
+7. Add a line about your change to the `Unreleased` section of `CHANGELOG.md`.
+8. Add yourself to the *Contributors* section of `AUTHORS.md`.
+9. Commit your changes and push your branch to GitHub.
+10. Create a [pull request](https://help.github.com/articles/about-pull-requests/) through the GitHub website.
 
 During development, use [pyinvoke](http://docs.pyinvoke.org/) tasks on the
 command line to ease recurring operations:
