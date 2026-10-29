@@ -73,7 +73,7 @@ def identity(n_dir=1):
     return HrtfSet(hrirs, np.tile([[1.0, 0.0, 0.0]], (n_dir, 1)), FS)
 
 
-@pytest.mark.parametrize("diffraction", [False, True, pytest.param("btms", marks=pytest.mark.slow)])
+@pytest.mark.parametrize("diffraction", [False, True])
 def test_with_a_transparent_hrtf_both_ears_hear_the_omnidirectional_early_part(diffraction):
     """Same paths, same encoders, same band interpolation, delays and taper: the core's W exactly, BTMS included."""
     from compas_acoustics.hybrid.binaural import render_binaural

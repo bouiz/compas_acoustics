@@ -122,7 +122,6 @@ temp/
 src/.build/**
 
 data/
-!tests/hybrid/data/
 # source folders the two rules above would hide: the protobuf schema and bindings, the plugin's data types
 !src/compas_acoustics/pb/generated/
 !src/compas_acoustics/pb/protobuf_defs/compas_acoustics/pb/generated/

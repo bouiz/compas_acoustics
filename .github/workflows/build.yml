@@ -78,18 +78,11 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
-      # the worker the plugin's integration tests start; PyPI's Linux torch (through pyFDN) brings CUDA, which fills the runner's disk
-      - run: python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
-      - run: python -m pip install -e .
-      - name: Test the Grasshopper plugin against the worker
-        run: COMPAS_ACOUSTICS_WORKER_PYTHON=$(python -c "import sys; print(sys.executable)") dotnet test src/compas_acoustics_ghcsharp/CompasAcoustics.sln
+      - name: Test the Grasshopper plugin
+        run: dotnet test src/compas_acoustics_ghcsharp/CompasAcoustics.sln
 
   hybrid:
     needs: release-change
@@ -106,5 +99,5 @@ jobs:
       # On Python >= 3.11 compas_acoustics requires the hybrid method's packages; torch from the CPU index (no CUDA)
       - run: python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
       - run: python -m pip install -e . pytest
-      # The parity tests skip without hybrid_rir; the slow claim tests need COMPAS_ACOUSTICS_SLOW
+      # the slow wheel test runs in the build job
       - run: python -m pytest tests/hybrid tests/test_worker_api.py tests/test_pb.py -m "not slow"

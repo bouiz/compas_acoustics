@@ -114,7 +114,7 @@ simulate with `Binaural`.
 ## Grasshopper plugin development
 
 The plugin is `src/compas_acoustics_ghcsharp/CompasAcoustics.sln`: build it with `invoke build-gha` (or `dotnet build`), test it with
-`dotnet test src/compas_acoustics_ghcsharp/CompasAcoustics.sln` (set `COMPAS_ACOUSTICS_WORKER_PYTHON` to run the tests against a real worker).
+`dotnet test src/compas_acoustics_ghcsharp/CompasAcoustics.sln`.
 Each component takes its names, descriptions, ports and icon from `src/compas_acoustics_ghcsharp/CompasAcoustics.Grasshopper/Components/Specs/<CA_name>/`.
 After a change to `src/compas_acoustics/pb/protobuf_defs/.../acoustics.proto`, run `invoke generate` (Python and C# bindings)
 and `python tests/pb_fixtures/generate.py` (the payloads the C# tests read).

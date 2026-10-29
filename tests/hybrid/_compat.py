@@ -1,8 +1,6 @@
 """Upstream hybrid-rir's room types and its image source entry point, on this package.
 
-Lets upstream's own tests run against the port. Test-only. A test that needs
-something not ported (scattering, obstacle-free drive) is skipped by name with
-a reason in its port step (tests/hybrid/regenerate.py).
+Lets the tests ported from upstream run against this package. Test-only.
 
 Differences from upstream that a ported test can see: an open mesh warns
 instead of raising (RoomGeometry keeps open scenes for ray tracing), and

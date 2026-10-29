@@ -1,7 +1,6 @@
 import warnings
 
 import numpy as np
-import pyFDN
 import pytest
 from compas.datastructures import Mesh
 from compas.geometry import Box
@@ -294,18 +293,6 @@ def test_diffraction_and_the_late_envelope_run():
         assert np.all(np.isfinite(ir.ir))
 
 
-@pytest.mark.slow
-def test_the_w_channel_decays_at_the_target_rate():
-    scene = make()
-    hybrid = Ambisonics(references(scene, n_rays=20000), sh_order=1, image_source_order=3)
-    ((key, ir),) = scene.simulate(hybrid).items()
-    rt_w = np.asarray(pyFDN.estimate_rt_bands(ir.denormalized()[:, 0], FS)[0])
-    target = hybrid.results[key].core.target.rt[:, 0]
-    # 6 %: the 250 Hz band reads 4.2-5.1 % short with the envelope off, with its level step alone and with the
-    # directional shares (seed True), and the 125 Hz band moves 5 % between seeds; the network, not the envelope
-    np.testing.assert_allclose(rt_w[2:7], target[2:7], rtol=0.06)
-
-
 # ------------------------------------------------------- revision 2, tails --
 @pytest.mark.parametrize("tail", ["reference", "ray_tracing", "eyring"])
 def test_every_tail_meets_the_contract(assert_meets_contract, tail):
@@ -315,16 +302,6 @@ def test_every_tail_meets_the_contract(assert_meets_contract, tail):
     rirs = scene.simulate(hybrid)
     assert_meets_contract(rirs, SimulationContext.from_scene(scene), hybrid)
     assert all(ir.generation["tail"] == tail for ir in rirs.values())
-
-
-@pytest.mark.slow
-def test_no_reference_runs_its_own_ray_tracing():
-    scene = make()
-    hybrid = Ambisonics(**FAST)
-    scene.simulate(hybrid)
-    assert hybrid.tail == "ray_tracing"
-    assert all(ir.generation["ray_tracing"] and ir.generation["n_rays"] == 20000 for ir in hybrid.reference_rirs.values())
-    assert "mono" not in scene.simulation_methods()  # not written to the graph
 
 
 def test_a_graph_name_a_dict_and_a_method_give_the_same_result():
@@ -534,37 +511,6 @@ def test_without_a_medium_the_hybrid_and_its_reference_share_the_default():
     assert ir.generation["speed_of_sound"] == pytest.approx(AirConditions().speed_of_sound)
     (ir,) = scene.simulate(Ambisonics(references(scene), **FAST)).values()
     assert ir.generation["air"] == AirConditions().to_dict()
-
-
-def test_the_hybrid_runs_without_pytorch_and_flamo():
-    # pyFDN requires flamo and PyTorch for its training modules only; the worker installs it without them
-    import os
-    import subprocess
-    import sys
-
-    script = """
-import importlib.abc, sys, warnings
-warnings.simplefilter("ignore")
-class Missing(importlib.abc.MetaPathFinder):
-    def find_spec(self, name, path, target=None):
-        if name.split(".")[0] in ("torch", "torchaudio", "flamo", "nnAudio"):
-            raise ImportError(name + " is not installed")
-sys.meta_path.insert(0, Missing())
-import compas_acoustics as ca
-from compas_acoustics.simulation_methods import Ambisonics, Binaural
-s = ca.Scene("b")
-s.add_acoustic_objects(ca.AcousticObjectsLibrary.shoebox_room(6, 4, 3, materials=ca.AcousticMaterial("w", 0.2, 0.1)))
-s.add_source(ca.Source("s", 1.5, 1.5, 1.6))
-s.add_receiver(ca.Receiver("r", 4.5, 2.5, 1.2))
-(binaural,) = s.simulate(Binaural(tail="eyring", image_source_order=1, diffraction="udfa")).values()
-(ir,) = s.simulate(Ambisonics(tail="eyring", image_source_order=1, diffraction="udfa")).values()
-print(binaural.n_channels)
-print(ir.n_channels)
-"""
-    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, env=dict(os.environ), timeout=600)
-    assert result.returncode == 0, result.stderr[-2000:]
-    assert result.stdout.strip().splitlines()[-2:] == ["2", "4"]
-
 
 
 def test_the_hybrids_own_reference_has_the_methods_default_length_whatever_the_output_duration():

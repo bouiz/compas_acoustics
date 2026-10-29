@@ -81,12 +81,12 @@ namespace CompasAcoustics.Grasshopper.Tests
             var material = new AcousticMaterialData { Name = "wall" };
             material.AbsorptionCoefficients.Add(new[] { 0.5, 0.5 });
             var scene = new SceneData { Name = "room" };
-            foreach (var wall in WorkerIntegrationTests.ShoeboxWalls(7, 5, 3))
+            foreach (var wall in TestMeshes.ShoeboxWalls(7, 5, 3))
                 scene.AcousticObjects.Add(new AcousticObjectData { Mesh = wall, Material = material, Role = "boundary" });
             if (obstacle)
                 scene.AcousticObjects.Add(new AcousticObjectData
                 {
-                    Mesh = WorkerIntegrationTests.Quad(new double[] { 1, 1, 0 }, new double[] { 2, 1, 0 }, new double[] { 2, 1, 2 }, new double[] { 1, 1, 2 }),
+                    Mesh = TestMeshes.Quad(new double[] { 1, 1, 0 }, new double[] { 2, 1, 0 }, new double[] { 2, 1, 2 }, new double[] { 1, 1, 2 }),
                     Role = "obstacle",
                 });
             scene.Sources.Add(new SourceData { Name = "src", Point = P(1.5, 1.5, 1.6), Direction = V(1, 0, 0), Directivity = "omnidirectional" });

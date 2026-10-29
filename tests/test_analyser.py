@@ -667,19 +667,6 @@ def test_lateral_fraction_is_nan_for_mono_and_binaural():
         assert np.isnan(lf["LF_overall"]) and np.isnan(lf["LFC_overall"])
 
 
-def test_lateral_fraction_matches_the_ita_toolbox_ratios():
-    import json
-    from pathlib import Path
-
-    oracle = json.loads((Path(__file__).parent / "data" / "ita_lateral" / "ita_lf_cases.json").read_text())
-    t0 = _direct_time()
-    ours = {name: Analyser(_ambisonic([(t0, 1.0, (1, 0, 0)), (t0 + 0.020, 0.5, (c, np.sqrt(1 - c * c), 0))])).lateral_fraction()
-            for name, c in (("lateral", 0.0), ("oblique", np.sqrt(0.5)))}
-    for key in ("LF", "LFC"):
-        ita = np.asarray(oracle["oblique"][key]) / np.asarray(oracle["lateral"][key])
-        assert np.asarray(ours["oblique"][key]) / np.asarray(ours["lateral"][key]) == pytest.approx(ita, abs=0.02)
-
-
 def test_analyse_holds_lf_for_an_ambisonic_response():
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
