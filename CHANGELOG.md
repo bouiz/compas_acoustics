@@ -110,7 +110,7 @@ the same names, inputs and outputs.
 * Added a warning before an image source search that will take long (`simulation_methods.image_source_search_seconds()`).
 * Added `compas_acoustics.worker`: runs compas_acoustics in a second Python 3.12, for the Grasshopper plugin and for Rhino 8's Python 3.9: a local HTTP service on a free port with a token per session that takes and returns `compas_pb` payloads (`client()`, `simulate`, `analyse`, and in `worker.api` the functions the components call).
 * Added `compas_acoustics.pb`, a compas_pb plugin: the Data types as protobuf messages (`pb/protobuf_defs/.../acoustics.proto`), their Python bindings, converters registered through the `compas_pb.plugins` entry point, `SCHEMA` (which the plugin checks the worker against) and `plain()`; `compas_pb >= 1.2` is a requirement. `invoke generate` regenerates the Python and C# bindings.
-* Added `anechoic_soundfiles_library` (bassoon, female and male speech, trumpet, viola) and `hrtfs_library` (KEMAR, free-field compensated, 48 kHz), with READMEs that credit the sources and licences.
+* Added `anechoic_soundfiles_library` (bassoon, female and male speech, viola) and `hrtfs_library` (KEMAR, free-field compensated, 48 kHz), with READMEs that credit the sources and licences.
 * Added `Defaults.HRTF_LIBRARY_PATH`, `ANECHOIC_SOUNDFILES_LIBRARY_PATH` and `PARAM_NAMES`.
 * Added `pyFDN` and `multislope` to the requirements on Python >= 3.11, for the hybrid method (pyFDN brings flamo and PyTorch), and a CI job for it: one `pip install compas_acoustics`, no extra.
 * Added the Grasshopper plugin `CompasAcoustics.gha` (C#, `src/compas_acoustics_ghcsharp/CompasAcoustics.sln`, `invoke build-gha`): typed parameters for the compas_acoustics data, value lists and buttons next to unconnected inputs, and the worker as the only Python it runs, so STI, G and the hybrid method are always available. It needs Rhino 8 and the .NET 8 SDK to build.
@@ -223,6 +223,7 @@ the same names, inputs and outputs.
 * Changed the hybrid's binaural late field to be rendered per delay line, each line `/ sqrt(N)` through the HRIR measured nearest its direction, as RAZR and RAVEN render their feedback delay networks; it was the ambisonic late field MagLS-decoded at `sh_order`, so a binaural response no longer needs `sh_order >= 1`.
 * Changed `hybrid.late.render` to return the delay lines' outputs, `(n, num_delays)`, after the directional absorption and slope weights; the ambisonic late field is that times `C.T`.
 * Changed the format of a response to come from its channels, `ImpulseResponse.format` (`'mono'`, `'binaural'` for two channels without an ambisonic order, `'ambisonic'`), not a `generation["output"]` flag; the Auraliser, the analysis plots and the Grasshopper Audio Player read it.
+* Filled in the package metadata, README and documentation for the first public release, and removed the tests that compared against external toolboxes, saved outputs or a running worker.
 
 ### Fixed
 

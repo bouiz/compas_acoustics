@@ -68,3 +68,10 @@ def test_contributor_files_fit_this_project():
     assert "master" not in read("CONTRIBUTING.md")
     bug = read(".github/ISSUE_TEMPLATE/bug_report.md")
     assert "ST3" not in bug and "iOS" not in bug and "2.7" not in bug and "worker log" in bug
+
+
+def test_the_changelog_names_only_shipped_sounds_and_one_unreleased():
+    text = read("CHANGELOG.md")
+    assert text.count("Unreleased") == 1
+    assert "trumpet" not in text
+    assert "first public release" in text
