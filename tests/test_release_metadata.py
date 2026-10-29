@@ -46,3 +46,12 @@ def test_readme_and_docs_open_with_the_lead():
 def test_the_api_reference_lists_every_public_name():
     listed = set(re.findall(r"^\s{4}(\w+)\s*$", read("docs/api/compas_acoustics.rst"), re.M))
     assert set(compas_acoustics.__all__) | {"Binaural", "Ambisonics"} <= listed
+
+
+EXAMPLES = ["shoebox", "obj", "rays", "scattered_rays", "specular_reflections"]
+
+
+def test_every_example_has_a_docs_page_and_the_tutorial_has_content():
+    for name in EXAMPLES:
+        assert f"../../examples/{name}.py" in read(f"docs/examples/{name}.rst")
+    assert read("docs/tutorial.rst").count(".. code-block:: python") >= 4
