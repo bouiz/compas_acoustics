@@ -7,7 +7,7 @@ import sphinx_compas2_theme
 # -- General configuration ------------------------------------------------
 
 project = "compas_acoustics"
-copyright = ""
+copyright = "2025, Gramazio Kohler Research, ETH Zurich"
 author = "Achilleas Xydis"
 package = "compas_acoustics"
 organization = "gramaziokohler"
