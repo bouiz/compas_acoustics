@@ -55,3 +55,10 @@ def test_every_example_has_a_docs_page_and_the_tutorial_has_content():
     for name in EXAMPLES:
         assert f"../../examples/{name}.py" in read(f"docs/examples/{name}.rst")
     assert read("docs/tutorial.rst").count(".. code-block:: python") >= 4
+
+
+def test_installation_docs_match_how_the_package_is_distributed():
+    text = read("docs/installation.rst")
+    assert "compas_tna" not in text
+    assert "compas_acoustics_installer.zip" in text
+    assert "pip install compas_acoustics\n" not in text  # not on PyPI for 0.1.0

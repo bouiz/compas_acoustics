@@ -19,6 +19,12 @@ Create a virtual environment with `python >= 3.9` (Rhino 8 runs 3.9; the hybrid 
 conda create -n your_env_name python=3.12
 ```
 
+To install a release in Python (it is not on PyPI yet):
+
+```bash
+pip install "compas_acoustics @ git+https://github.com/gramaziokohler/compas_acoustics.git@v0.1.0"
+```
+
 To install the latest version for development, do:
 
 ```bash
@@ -46,9 +52,9 @@ sends it scenes, responses and signals as [compas_pb](https://github.com/compas-
 
 `compas_acoustics` is not on PyPI yet. To install it in Rhino 8, use the Grasshopper installer:
 
-1. Run `invoke installer-bundle` (it needs the .NET 8 SDK). It creates `dist/compas_acoustics_installer.zip`:
+1. Download `compas_acoustics_installer.zip` from the [latest release](https://github.com/gramaziokohler/compas_acoustics/releases/latest):
    the wheel, the plugin (`gha/`) and `compas_acoustics_installer.gh`.
-   GitHub Actions also builds it: download it from the `compas_acoustics_installer` artifact of the build workflow, or from the release.
+   To build it yourself, run `invoke installer-bundle` (it needs the .NET 8 SDK); it creates `dist/compas_acoustics_installer.zip`.
 2. Unzip it and open `compas_acoustics_installer.gh` in Grasshopper.
 3. Press **Install**. When the component says *Restart Rhino*, restart Rhino.
 
