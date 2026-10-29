@@ -1,6 +1,9 @@
 """What a first-time visitor reads: package metadata, docs and repository files carry no template leftovers."""
 
 import pathlib
+import re
+
+import compas_acoustics
 
 ROOT = pathlib.Path(__file__).parents[1]
 
@@ -29,3 +32,17 @@ def test_the_docs_copyright_is_set():
 def test_no_black_and_no_tools_leftovers():
     assert "black" not in read("requirements-dev.txt")
     assert "Tools" not in read("src/compas_acoustics/__init__.py")
+
+
+LEAD = "compas_acoustics simulates, analyses and auralises the acoustics of rooms modelled with COMPAS"
+
+
+def test_readme_and_docs_open_with_the_lead():
+    assert LEAD in read("README.md").split("## Installation")[0]
+    assert LEAD in read("docs/index.rst")
+    assert ".. .. figure::" not in read("docs/index.rst")
+
+
+def test_the_api_reference_lists_every_public_name():
+    listed = set(re.findall(r"^\s{4}(\w+)\s*$", read("docs/api/compas_acoustics.rst"), re.M))
+    assert set(compas_acoustics.__all__) | {"Binaural", "Ambisonics"} <= listed
