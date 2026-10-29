@@ -2,7 +2,15 @@
 
 # compas_acoustics
 
+compas_acoustics simulates, analyses and auralises the acoustics of rooms modelled with COMPAS or in Rhino and Grasshopper. It computes impulse responses with the image source method and ray tracing (Mono), and with a hybrid engine of image sources, edge diffraction and a directional feedback delay network (Binaural, Ambisonics); it derives room acoustic parameters (ISO 3382) from them and convolves them with anechoic recordings to listen to a design.
 
+## Features
+
+- **Simulation methods**: `Mono` (image sources and ray tracing, with pyroomacoustics), `Binaural` and `Ambisonics` (a hybrid of image sources, edge diffraction and a directional feedback delay network), all through `scene.simulate`.
+- **Analysis**: reverberation times, clarity and definition, direct-to-reverberant ratio, lateral fraction, stage support, strength and STI from an impulse response (`Analyser`).
+- **Auralisation**: convolve mono, binaural or ambisonic responses with anechoic recordings (`Auraliser`), and play them (`AudioPlayer`).
+- **Materials library**: 95 absorbing and scattering materials in categories, searchable from Python and Grasshopper.
+- **Grasshopper plugin**: components for Rhino 8 on Windows and macOS that run every computation in a Python worker.
 
 ## Installation
 

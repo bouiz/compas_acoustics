@@ -4,11 +4,7 @@ compas_acoustics
 
 .. rst-class:: lead
 
-
-
-.. .. figure:: /_images/
-     :figclass: figure
-     :class: figure-img img-fluid
+compas_acoustics simulates, analyses and auralises the acoustics of rooms modelled with COMPAS or in Rhino and Grasshopper. It computes impulse responses with the image source method and ray tracing (Mono), and with a hybrid engine of image sources, edge diffraction and a directional feedback delay network (Binaural, Ambisonics); it derives room acoustic parameters (ISO 3382) from them and convolves them with anechoic recordings to listen to a design.
 
 
 Table of Contents
