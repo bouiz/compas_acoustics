@@ -5,9 +5,7 @@
     "subcategory": "00 Elements",
     "description": "Acoustic Receiver object (microphone, human ear, etc.) with an orientation: the direction it faces, upright (+z up), which sets the frame of ambisonic responses (x facing, y left, z up).",
     "exposure": 2,
-    "ghpython": {
-        "isAdvancedMode": true,
-        "iconDisplay": 0,
+    "ports": {
         "inputParameters": [
             {
                 "name": "position",

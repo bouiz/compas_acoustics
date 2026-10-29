@@ -4,7 +4,7 @@ using System.Linq;
 
 namespace CompasAcoustics.Grasshopper
 {
-    /// <summary>Axis ticks and curve decimation of Plot 2D, as compas_acoustics_ghpython's plotter computed them.</summary>
+    /// <summary>Axis ticks and curve decimation of Plot 2D.</summary>
     public static class Ticks
     {
         /// <summary>A curve is drawn with the minimum and maximum of each of this many bins along the x axis.</summary>

@@ -48,7 +48,6 @@ Nothing is kept under its old name. What replaces what:
 | `ir.generation["output"]` | `ir.format` (`'mono'`, `'binaural'` or `'ambisonic'`), read from the channels |
 | `shape_late(late, early, reference, fs)` | `shape_late(signals, early_w, late_w, reference, fs)` |
 | Grasshopper: Simulate Ray Tracing output `ir_graph` | Simulate Mono output `mono_ir_graph` |
-| Grasshopper: the CPython components (`.ghuser`, package `compas_acoustics_ghpython`) | the plugin `CompasAcoustics.gha` (`src/compas_acoustics_ghcsharp/`), with the same names, inputs and outputs |
 | `compas_acoustics.worker.proxy()`, a `compas.rpc` server with COMPAS JSON and WAV files in temporary folders | `compas_acoustics.worker.client()`, an HTTP service with `compas_pb` payloads |
 | Grasshopper: the hybrid's `reference` given as a method name on the scene | the `mono_ir_graph` wire of Simulate Mono only |
 | Installer input `worker` (`hybrid`) | not used: the installer always sets up the worker |
@@ -224,6 +223,7 @@ the same names, inputs and outputs.
 * Changed `hybrid.late.render` to return the delay lines' outputs, `(n, num_delays)`, after the directional absorption and slope weights; the ambisonic late field is that times `C.T`.
 * Changed the format of a response to come from its channels, `ImpulseResponse.format` (`'mono'`, `'binaural'` for two channels without an ambisonic order, `'ambisonic'`), not a `generation["output"]` flag; the Auraliser, the analysis plots and the Grasshopper Audio Player read it.
 * Filled in the package metadata, README and documentation for the first public release, and removed the tests that compared against external toolboxes, saved outputs or a running worker.
+* Changed the component specs (`Specs/<CA_name>/metadata.json`) to list their ports under `ports`.
 
 ### Fixed
 
@@ -253,7 +253,6 @@ the same names, inputs and outputs.
 ### Removed
 
 * Removed Plot 2D Settings and Plot 2D's Rhino geometry (texts, points, polylines, grid).
-* Removed the CPython Grasshopper components and the package `compas_acoustics_ghpython` (`AcousticParameter`, `Plotter2D`, `Plotter2DSettings`, `MethodGraph`, `ensure_inputs`), `invoke build-cpython-ghuser-components` and the `ghpython_componentizer` requirement: the plugin replaces them.
 * Removed the worker's `compas.rpc` transport (`proxy()`) and its temporary WAV folders.
 * Removed `Simulator`; use `Scene.simulate(method)` and `RayField.from_scene`.
 * Removed `simulation_platform` from `Scene` and `ImpulseResponse`; `generation` names the method.

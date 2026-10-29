@@ -9,7 +9,7 @@ using Grasshopper.Kernel.Parameters;
 namespace CompasAcoustics.Grasshopper
 {
     /// <summary>
-    /// The base of every COMPAS Acoustics component: its names, description and ports come from its spec (the Python
+    /// The base of every COMPAS Acoustics component: its names, description and ports come from its spec (the
     /// component's metadata.json), its icon from the spec's icon.png; worker errors become one Error message.
     /// </summary>
     public abstract partial class ComponentBase : GH_Component

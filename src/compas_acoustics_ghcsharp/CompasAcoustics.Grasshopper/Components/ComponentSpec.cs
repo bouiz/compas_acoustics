@@ -50,7 +50,7 @@ namespace CompasAcoustics.Grasshopper
             using var stream = Resource(key + "/metadata.json");
             using var json = JsonDocument.Parse(stream);
             var root = json.RootElement;
-            var gh = root.GetProperty("ghpython");
+            var ports = root.GetProperty("ports");
             return new ComponentSpec(
                 key,
                 root.GetProperty("name").GetString()!,
@@ -58,13 +58,13 @@ namespace CompasAcoustics.Grasshopper
                 root.GetProperty("description").GetString()!,
                 root.GetProperty("subcategory").GetString()!,
                 root.TryGetProperty("exposure", out var exposure) ? (GH_Exposure)exposure.GetInt32() : GH_Exposure.primary,
-                Ports(gh, "inputParameters"),
-                Ports(gh, "outputParameters"));
+                Ports(ports, "inputParameters"),
+                Ports(ports, "outputParameters"));
         }
 
-        private static IReadOnlyList<PortSpec> Ports(JsonElement gh, string key)
+        private static IReadOnlyList<PortSpec> Ports(JsonElement spec, string key)
         {
-            if (!gh.TryGetProperty(key, out var ports))
+            if (!spec.TryGetProperty(key, out var ports))
                 return Array.Empty<PortSpec>();
             return ports.EnumerateArray().Select(p => new PortSpec(
                 p.GetProperty("name").GetString()!,

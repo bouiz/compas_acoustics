@@ -5,9 +5,7 @@
     "subcategory": "00 Elements",
     "description": "Create an AcousticMaterial for AcousticObject(s).",
     "exposure": 2,
-    "ghpython": {
-        "isAdvancedMode": true,
-        "iconDisplay": 0,
+    "ports": {
         "inputParameters": [
             {
                 "name": "absorption",

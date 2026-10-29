@@ -5,9 +5,7 @@
     "subcategory": "00 Elements",
     "description": "Deconstruct an AcousticMaterial object into its components.",
     "exposure": 2,
-    "ghpython": {
-        "isAdvancedMode": true,
-        "iconDisplay": 0,
+    "ports": {
         "inputParameters": [
             {
                 "name": "material",

@@ -5,9 +5,7 @@
     "subcategory": "05 Display",
     "description": "Trace rays from the scene's sources, for display and for Visualise Billiard: each ray as a polyline over its wall hits, with the scattered rays when scattering is on. Press Play to draw the rays growing from the sources as sound travels; the same button reads Stop while playing and holds them where they are, Rewind goes back to the start. Nothing is drawn before Play. The Preview button shows or hides the drawing.",
     "exposure": 2,
-    "ghpython": {
-        "isAdvancedMode": true,
-        "iconDisplay": 0,
+    "ports": {
         "inputParameters": [
             {
                 "name": "scene",

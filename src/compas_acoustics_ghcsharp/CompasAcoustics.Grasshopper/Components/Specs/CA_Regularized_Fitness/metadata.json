@@ -5,9 +5,7 @@
     "subcategory": "07 Optimization",
     "description": "A loss function that combines the Mean Absolute Error (MAE) and Standard Deviation (STD) of a list of values with respect to a target value. \nMAE evaluates the Accuracy to the target, while STD evaluates the Consistency of the values. \nThe lower the fitness score, the better the fitness.",
     "exposure": 2,
-    "ghpython": {
-        "isAdvancedMode": true,
-        "iconDisplay": 0,
+    "ports": {
         "inputParameters": [
             {
                 "name": "values",

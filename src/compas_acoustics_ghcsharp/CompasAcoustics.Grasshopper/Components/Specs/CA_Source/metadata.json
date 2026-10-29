@@ -5,9 +5,7 @@
     "subcategory": "00 Elements",
     "description": "Acoustic Source object (speaker, human, etc.). Choose its directivity on the body: omnidirectional (default), cardioid, supercardioid, hypercardioid or bidirectional.",
     "exposure": 2,
-    "ghpython": {
-        "isAdvancedMode": true,
-        "iconDisplay": 0,
+    "ports": {
         "inputParameters": [
             {
                 "name": "position",

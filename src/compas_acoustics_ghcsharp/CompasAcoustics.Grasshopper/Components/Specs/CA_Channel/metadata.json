@@ -5,9 +5,7 @@
     "subcategory": "06 Util",
     "description": "Number of channels of a sound: an audio file path, an impulse response, a Source with a sound file, or the signals of Auralise.",
     "exposure": 2,
-    "ghpython": {
-        "isAdvancedMode": true,
-        "iconDisplay": 0,
+    "ports": {
         "inputParameters": [
             {
                 "name": "sound",

@@ -5,9 +5,7 @@
     "subcategory": "03 Analysis",
     "description": "Analyse impulse response (IR) and return acoustic parameters such as EDT, T20, C50, etc., and its time and frequency responses for Plot 2D. Computed in the compas_acoustics worker.",
     "exposure": 2,
-    "ghpython": {
-        "isAdvancedMode": true,
-        "iconDisplay": 0,
+    "ports": {
         "inputParameters": [
             {
                 "name": "ir",

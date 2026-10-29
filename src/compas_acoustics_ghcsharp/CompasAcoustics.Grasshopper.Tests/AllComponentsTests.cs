@@ -6,7 +6,7 @@ using Xunit;
 
 namespace CompasAcoustics.Grasshopper.Tests
 {
-    /// <summary>Every component of the plugin, built outside Rhino, against its spec (the Python component's metadata.json).</summary>
+    /// <summary>Every component of the plugin, built outside Rhino, against its spec (the component's metadata.json).</summary>
     public class AllComponentsTests
     {
         /// <summary>
