@@ -9,7 +9,7 @@
         "inputParameters": [
             {
                 "name": "irs",
-                "description": "ImpulseResponse object(s) ",
+                "description": "ImpulseResponse object(s).",
                 "optional": true,
                 "scriptParamAccess": 2,
                 "typeHintID": "ghdoc"

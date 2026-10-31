@@ -71,7 +71,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             var wave = new RectangleF(10, Controls.Bottom, 430, PlayerLayout.WaveHeight(2, 44));
             var boxes = PlayerLayout.Arrange(Controls, wave);
             Assert.All(new[] { boxes.PlayPause, boxes.Stop, boxes.Normalize, boxes.Volume, boxes.VolumeLabel }, b => Assert.True(Controls.Contains(b)));
-            // Play/Pause and Stop on top, Norm below as wide as the two, the volume to their right centred on both rows
+            // Play/Pause and Stop on top, Normalize below as wide as the two, the volume to their right centred on both rows
             Assert.True(boxes.PlayPause.Right <= boxes.Stop.Left && boxes.PlayPause.Top == boxes.Stop.Top);
             Assert.True(boxes.Normalize.Top >= boxes.PlayPause.Bottom);
             Assert.Equal((boxes.PlayPause.Left, boxes.Stop.Right), (boxes.Normalize.Left, boxes.Normalize.Right));
@@ -92,7 +92,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             var boxes = PlayerLayout.Arrange(Controls, RectangleF.Empty);
             Assert.True(boxes.Lanes.IsEmpty && boxes.Header.IsEmpty && boxes.Ruler.IsEmpty);
             Assert.True(Controls.Contains(boxes.PlayPause) && Controls.Contains(boxes.Volume) && Controls.Contains(boxes.VolumeLabel));
-            // larger buttons than the 26 by 18 they were
             Assert.True(boxes.PlayPause.Width >= 32 && boxes.PlayPause.Height >= 22);
         }
 
@@ -111,7 +110,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void TheNormalizeButton_SaysWhatTheInputSaid_AndItsDefault()
         {
-            // the description of the normalize input it replaces, with the button's default
+            // what normalizing does, with the button's default
             Assert.Equal("normalize", PlayerLayout.NormalizeTooltip.title);
             Assert.Contains("full level before playing", PlayerLayout.NormalizeTooltip.text);
             Assert.Contains("rendered level", PlayerLayout.NormalizeTooltip.text);

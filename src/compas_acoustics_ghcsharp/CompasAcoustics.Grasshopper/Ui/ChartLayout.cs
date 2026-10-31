@@ -13,15 +13,15 @@ namespace CompasAcoustics.Grasshopper
     public sealed record YTick(float Y, string Text);
 
     /// <summary>
-    /// A chart of one acoustic parameter in canvas pixels (y down): bars for bands, a line per channel for a time or
-    /// frequency response. Bands are also a line, through a dot per band (``Dots``); their ``Bars`` are for Deconstruct
-    /// Parameter's strip and the readout. ``Data`` holds the values of each line's points.
+    /// A chart of one acoustic parameter in canvas pixels (y down): a line through a dot per band (``Dots``), or a line per
+    /// channel for a time or frequency response. ``Bars`` place each band, for the line and the readout; ``Data`` holds the
+    /// values of each line's points.
     /// </summary>
     public sealed record Chart(string Title, RectangleF Plot, IReadOnlyList<ChartBar> Bars, IReadOnlyList<PointF[]> Lines,
         IReadOnlyList<(double x, double y)[]> Data, IReadOnlyList<XTick> XTicks, IReadOnlyList<YTick> YTicks, string XTitle, string YTitle,
         string? Overall, float? ZeroY, double YLow, double YHigh, IReadOnlyList<string> Channels, bool Dots = false);
 
-    /// <summary>The layout of Plot 2D's charts: the tick and range rules of the plots Plot 2D drew in Rhino, on the canvas.</summary>
+    /// <summary>The layout of the charts on the canvas (Plot 2D, Deconstruct Parameter): margins, ticks and ranges.</summary>
     public static class ChartLayout
     {
         /// <summary>The margins around the plot: the y title and the y ticks on the left, the title above, the x ticks and title below.</summary>

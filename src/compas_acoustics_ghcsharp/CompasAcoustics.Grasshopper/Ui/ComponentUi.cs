@@ -301,7 +301,7 @@ namespace CompasAcoustics.Grasshopper
             g.SmoothingMode = state;
         }
 
-        /// <summary>The input's name above its switch or dropdown.</summary>
+        /// <summary>The input's name above its switch, dropdown or slider.</summary>
         public static void DrawTitle(Graphics g, ControlBox box)
         {
             using var format = new StringFormat { Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap, LineAlignment = StringAlignment.Far };

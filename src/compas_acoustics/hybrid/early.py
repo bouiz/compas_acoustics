@@ -158,13 +158,11 @@ def _radiation_taper(freq: np.ndarray) -> np.ndarray:
     """Causal fourth-order Butterworth high-pass at 35 Hz, exactly zero at DC.
 
     Band gains start at 62.5 Hz and are held flat to f = 0, where every image's phase ramp is 1, so the image
-    set sums coherently: on a shoebox, a DC value 26 times the peak sample and a quarter of the early energy
-    below 20 Hz, which biases the FDN drive and every convolution. The taper leaves 0.03 % below 20 Hz (first
-    order at 20 Hz left 4.5 %) and costs 0.05 dB at 62.5 Hz, 0.65 dB at the band's 44 Hz edge.
+    set sums coherently there; that DC and infrasonic energy would bias the FDN drive and every convolution.
+    The taper costs 0.04 dB at 62.5 Hz and 0.6 dB at the band's 44 Hz lower edge.
 
-    It is the analog filter's complex response: a zero-phase magnitude rings symmetrically about each arrival,
-    and around an L-shaped room's corner the diffracted part held energy 18 dB down before the direct sound
-    could arrive. The minimum-phase filter rings only after the arrival.
+    It is the analog filter's complex response, minimum phase, so it rings only after each arrival and no
+    energy precedes the direct sound.
     """
     zeros, poles, gain = butter(4, 2.0 * np.pi * 35.0, "high", analog=True, output="zpk")
     return freqs_zpk(zeros, poles, gain, worN=2.0 * np.pi * np.asarray(freq, dtype=float))[1]
@@ -173,9 +171,9 @@ def _radiation_taper(freq: np.ndarray) -> np.ndarray:
 def _extrapolated_top_db(gain_db: np.ndarray, octaves: float) -> float:
     """Gain at Nyquist, continuing the last octave's slope, never upward.
 
-    Holding the 8 kHz value flat would leave the top 1.5 octaves at 48 kHz without wall roll-off or air
-    absorption while the FDN shortens its decay there. A rising slope (absorption falling with frequency)
-    is clamped: there is no data to amplify.
+    The top 1.5 octaves at 48 kHz keep the wall and air roll-off, consistent with the FDN's decay, which
+    shortens there too (:meth:`~compas_acoustics.hybrid.target.RoomTarget.geq_bands`). A rising slope (absorption falling with
+    frequency) is clamped to flat: there is no data to amplify.
     """
     slope_db_per_octave = min(float(gain_db[-1] - gain_db[-2]), 0.0)
     return float(gain_db[-1] + slope_db_per_octave * octaves)
@@ -213,8 +211,8 @@ def render_images(
 ) -> np.ndarray:
     """Image sources accumulated onto output channels, (n, n_ch), with ``weights`` (M, n_ch) per image.
 
-    The spherical harmonics give ambisonic channels, a routing matrix delay lines, with one treatment of band
-    magnitude, fractional delay and radiation taper.
+    ``weights`` are spherical harmonics for ambisonic channels or a routing onto delay lines or HRIRs; every
+    image gets the same band magnitude, exact fractional delay and radiation taper (:func:`encode`).
     """
     if n_samples < 1:
         raise ValueError("n_samples must be positive")
@@ -243,7 +241,7 @@ def render_images(
 def _accumulate(spectrum_of, paths: np.ndarray, weights: np.ndarray, n_freq: int) -> np.ndarray:
     """``sum_m outer(spectrum_of(m), weights[m])`` over ``paths``, as matrix products over chunks of 16 paths.
 
-    A chunk costs one pass over the bins instead of one per path; 16 spectra at a million bins are 250 MB.
+    Each chunk is one pass over the bins; 16 complex spectra at a million bins take 256 MB, which bounds the chunk.
     """
     weights = np.asarray(weights, dtype=complex)
     spectrum = np.zeros((n_freq, weights.shape[1]), dtype=complex)
@@ -259,7 +257,7 @@ def _accumulate(spectrum_of, paths: np.ndarray, weights: np.ndarray, n_freq: int
 
 def _fft_grid(n_samples: int, fs: float) -> tuple[int, np.ndarray]:
     # headroom: ringing past the buffer's end and the pre-ringing of a kernel near t = 0 fall into the
-    # discarded tail instead of aliasing into the response
+    # discarded tail and do not alias into the response
     nfft = 1 << (int(np.ceil(np.log2(max(n_samples, 2)))) + 1)
     return nfft, np.fft.rfftfreq(nfft, 1.0 / fs)
 
@@ -346,6 +344,7 @@ def route_to_directions(iss: ImageSourceSet, directions: pf.Coordinates, opposit
 
     Each image goes to the direction nearest its direction of arrival, or with ``opposite`` its reverse: the
     sharp limit of :func:`~compas_acoustics.hybrid.scattering.scattering_weights` (Ewert et al. 2025, Sec. 3.1.2).
+    Only the tests use it.
     """
     unit_dir = directions.cartesian
     unit_dir = unit_dir / np.linalg.norm(unit_dir, axis=1, keepdims=True)

@@ -97,7 +97,7 @@ class Ray(_PackageDtype, Polyline):
     @classmethod
     def __from_data__(cls, data):
         data = dict(data)
-        data.pop("sound_speed", None)  # stored before the speed of sound came from Defaults
+        data.pop("sound_speed", None)  # a legacy key, not a constructor argument
         scattered = data.pop("scattered_reflections", None)
         ray = cls(**data)
         if scattered:
@@ -284,7 +284,7 @@ class RayField(_PackageDtype, Data):
 
     @property
     def __data__(self):
-        # Each source once, by its index, instead of once per ray
+        # Each source once, by its index, not once per ray
         sources = {ray.source_index: ray.source for ray in self.rays if ray.source is not None and ray.source_index is not None}
         return {"rays": self.rays, "sources": [[index, source] for index, source in sorted(sources.items())]}
 
@@ -340,7 +340,8 @@ class RayField(_PackageDtype, Data):
         duration : float, optional
             In seconds: a ray stops at the first reflection past the distance sound travels in it.
         energy_thres : float, optional
-            A ray stops when the energy its surfaces left it falls below this.
+            A ray stops when the energy its reflections leave it, by the band mean of each wall's
+            absorption (and scattering, with ``include_scattering``), falls below this.
         sources : list of :class:`compas_acoustics.Source`, optional
             Default: all of the scene's. ``source_index`` is the index in ``scene.sources``.
         include_scattering : bool, default=False
@@ -843,7 +844,7 @@ class SpecularPath(Ray):
     @classmethod
     def __from_data__(cls, data):
         data = dict(data)
-        data.pop("wall_names", None)  # stored by the first version
+        data.pop("wall_names", None)  # a legacy key, not a constructor argument
         return super().__from_data__(data)
 
     @property
@@ -852,7 +853,7 @@ class SpecularPath(Ray):
         return self.order
 
     def _clone_with_points(self, points) -> Ray:
-        # A cut path no longer reaches its receiver: a plain ray
+        # A cut path does not reach its receiver: a plain ray
         return Ray(points, source=self.source, source_index=self.source_index, ray_index=self.ray_index,
                    direction=self.direction, name=self.name)
 
@@ -872,7 +873,7 @@ class SpecularReflections(RayField):
     @classmethod
     def __from_data__(cls, data):
         data = dict(data)
-        if "rays" not in data:  # stored by the first version
+        if "rays" not in data:  # the legacy layout, with the paths under "paths"
             data["rays"] = data.pop("paths")
         return super().__from_data__(data)
 
@@ -932,7 +933,7 @@ class SpecularReflections(RayField):
                 kept = []
                 failed = []
                 for i in np.flatnonzero(np.asarray(room.visibility[s][m], dtype=bool)):
-                    # the first of each group at one position, as hybrid.early._first_of_each_position
+                    # the first of each group at one position, as in compas_acoustics.hybrid.early
                     if _near(kept, images[i], tolerance):
                         continue
                     traced = _trace_back(walls, end, images[i], int(last_walls[i]), int(orders[i]), start, tolerance)

@@ -2,11 +2,12 @@
 
 The geometry is here: which edges diffract (:func:`diffraction_edges`), what blocks a path (:class:`Occluders`)
 and the wedge-frame path over an edge (:func:`wedge_path`); the acoustics is in :mod:`~compas_acoustics.hybrid.udfa`
-and :mod:`~compas_acoustics.hybrid.btms`. Every free obstacle edge, and every room edge opening wider than pi (room
-edges only on a closed boundary), diffracts by the universal diffraction filter approximation (Kirsch and Ewert
-2023); an object is the sum of its edges' paths (Sec. VI). Higher-order diffraction is not rendered: the
-three-sided barrier of Kirsch and Ewert (2024) is defined for an infinite double edge only. For
-``max_order >= 1`` one enclosure reflection is allowed before or after the edge.
+and :mod:`~compas_acoustics.hybrid.btms`. The diffracting edges are every free obstacle edge and, on a closed
+boundary, every room edge opening wider than pi. :func:`diffraction_paths` renders them to first order by the
+universal diffraction filter approximation (Kirsch and Ewert 2023), an object being the sum of its edges' paths
+(Sec. VI); the three-sided barrier of Kirsch and Ewert (2024) is defined for an infinite double edge only and is
+not used here. :func:`btms_paths` renders first order by BTMS and, on the direct path, second order. For
+``max_order >= 1`` one enclosure reflection is allowed before or after a first-order edge.
 """
 
 from __future__ import annotations
@@ -40,8 +41,9 @@ class Edge:
     ``face_a`` and ``face_b`` point from the edge into each face,
     perpendicular to it. ``theta_w`` is the open (exterior) angle from face A
     to face B; for a knife edge the two faces coincide and it is 2 pi.
-    ``faces`` indexes the polygons of :class:`Occluders` that meet at the edge.
-    ``regions`` is set on edges of the room's boundary only
+    ``faces`` indexes the polygons of :class:`Occluders` that meet at the edge,
+    ``component`` the obstacle component (:func:`obstacle_components`; -1 on
+    the room's boundary). ``regions`` is set on edges of the room's boundary only
     (:func:`enclosure_edges`): the coplanar connected surface that face A and
     face B belong to.
     """
@@ -117,7 +119,7 @@ def wedge_path(edge: Edge, source: np.ndarray, receiver: np.ndarray) -> WedgePat
 
 def toolbox_frame(edge: Edge) -> tuple[np.ndarray, np.ndarray]:
     """The edge's ends in EDtoolbox order and the reference face's normal into
-    the air: x into face A, y = z cross x into the open region (R2)."""
+    the air: x into face A, y = z cross x into the open region."""
     w = np.cross(edge.axis, edge.face_a)
     if w @ edge._w > 0.0:
         return np.array([edge.start, edge.end]), w
@@ -138,9 +140,10 @@ def toolbox_cyl(edge: Edge, points: np.ndarray) -> np.ndarray:
 
 
 def edge_segments(edge: Edge, source: np.ndarray, receiver: np.ndarray) -> np.ndarray:
-    """Segment limits (k, 2) along the edge in the toolbox's z, each
-    subtending at most about 5 deg at the nearer of source and receiver, and
-    at least 0.01 m long where a point is (nearly) on the edge's line."""
+    """Limits (k, 2) of equal segments along the edge in the toolbox's z, each
+    at most 0.087 times the distance of the nearer of source and receiver from
+    the edge's line (about 5 deg subtended there), that bound floored at 0.01 m
+    for a point (nearly) on the line."""
     ends, _ = toolbox_frame(edge)
     nearest = min(np.linalg.norm(np.cross(ends[1] - ends[0], ends[0] - p)) / edge.length
                   for p in (np.asarray(source), np.asarray(receiver)))
@@ -187,7 +190,7 @@ def shared_face(e1: Edge, e2: Edge, tol: float = 1e-6) -> int | None:
 def along_plane(e1: Edge, e2: Edge, tol: float = 1e-6) -> bool:
     """Do the two edges, of one obstacle or both of the room's boundary,
     bound a common plane (:func:`shared_face`), so the path between them runs
-    along a surface (R3)?"""
+    along a surface?"""
     return shared_face(e1, e2, tol) is not None
 
 
@@ -198,12 +201,11 @@ def coplanar_thetas(e1: Edge, e2: Edge) -> tuple[float, float]:
     the other edge's line (a shared corner) has no angle, and on a knife edge
     rounding puts a point of the panel at 0 or 2 pi - eps.
 
-    A knife edge's faces are one plane, and the toolbox gives every edge of a
-    thin plate the same reference side (theta = 0 approached from the front
-    plane's normal), so the path runs along one side of the panel. Here each
-    edge's frame picks its side, so e1 sets it: 0 about e1, and about e2 0 if
-    e2's frame has the same side, else 2 pi. Mirroring both frames leaves the
-    second-order term unchanged."""
+    A knife edge's faces are one plane, and the path along a thin plate runs
+    along one side of the panel, so both angles must refer to that side. Each
+    edge's frame (:func:`toolbox_frame`) picks its own side, so e1 sets it: 0
+    about e1, and about e2 0 if e2's frame has the same side, else 2 pi.
+    Mirroring both frames leaves the second-order term unchanged."""
     def one(a, b):
         return 0.0 if shared_face(a, b) == 0 else a.theta_w
 
@@ -227,7 +229,7 @@ class ObstacleEdgeWarning(UserWarning):
 
 class ShellEdgeWarning(UserWarning):
     """Edges of the room's boundary opening less than pi at a non-integer wedge
-    index, which neither reference implementation renders."""
+    index, which are not rendered, or a boundary that is not closed."""
 
 
 def _inside_polygon(points: np.ndarray, normal: np.ndarray, x: np.ndarray) -> bool:
@@ -472,8 +474,7 @@ def obstacle_edges(geometry: RoomGeometry) -> list[Edge]:
         n0 = normal[faces[0]]
         planar = all(abs(normal[i] @ n0) > 1.0 - 1e-8 for i in faces) and bool(
             np.all(np.abs((points - info[faces[0]][2]) @ n0) < 1e-5))
-        # an edge on an enclosure face or another obstacle is not free: a shelf's bottom rim on the floor
-        free = [s for s in _segments(geometry, faces).values()
+        free =[s for s in _segments(geometry, faces).values()
                 if not occ.on_polygons((s[0] + s[1]) / 2.0, 2.0 * OBSTACLE_OFFSET, support)]
         groups: dict[tuple, list] = {}
         if planar:
@@ -526,10 +527,10 @@ def enclosure_edges(geometry: RoomGeometry) -> list[Edge]:
     Ewert 2024, Sec. 3, first-order diffraction at a room corner). A seam
     between coplanar faces (pi) and a rectangular corner (pi / 2) have an
     integer wedge index nu = pi / theta_w, where the diffracted field
-    vanishes (Kirsch and Ewert 2023, Eq. 3); Svensson's EDtoolbox switches such edges
-    off (EDedgeo.m). Edges opening less than pi at a non-integer nu are left
-    out, with :class:`ShellEdgeWarning`: EDtoolbox v0.5 handles external convex
-    problems only. Two faces with opposite
+    vanishes (Kirsch and Ewert 2023, Eq. 3), and are skipped. Edges opening
+    less than pi at a non-integer nu are left out, with
+    :class:`ShellEdgeWarning`: :class:`Edge` takes theta_w in (pi, 2 pi]
+    only. Two faces with opposite
     normals in one plane (a panel of zero thickness drawn into the enclosure)
     meet at a knife edge, theta_w = 2 pi. A piece lying on another face of the
     enclosure (a partition standing on an unsplit floor) is no edge, as
@@ -764,7 +765,7 @@ def _clear(occ: Occluders, points: list[np.ndarray], on: list[frozenset[int]]) -
 
 
 def diffraction_paths(spec: Pair, *, max_order: int = 1) -> list[DiffractionPath]:
-    """Every diffracted path, with at most one wall reflection before or after it.
+    """Every first-order UDFA path, with at most one wall reflection before or after it.
 
     For ``max_order >= 1`` the source's image in a wall gives the paths that
     reflect before they diffract, and the receiver's image those that reflect
@@ -839,10 +840,11 @@ def encode_diffraction(paths: list[DiffractionPath], sh_order: int, n_samples: i
 class BtmsContribution:
     """One BTMS segment (first order) or segment pair (second order).
 
-    ``ir`` is the toolbox's response (free field 1/r) starting at sample
+    ``ir`` is the BTMS response (free field 1/r) starting at sample
     ``start``; ``doa`` in the receiver frame; ``edges`` indexes
-    :func:`diffraction_edges`. Order 0 is the scaled geometric component of a
-    path exactly on a zone boundary of edge ``edges[0]``.
+    :func:`diffraction_edges`; ``singular`` flags a path on a zone boundary.
+    Order 0 is the scaled geometric component of a path exactly on a zone
+    boundary of edge ``edges[0]``.
     """
 
     start: int
@@ -873,8 +875,8 @@ def second_order_start(source, receiver, seg1, seg2, c: float, fs: float) -> int
 
 def btms_paths(spec: Pair, *, max_order: int = 1, second_order: bool = True) -> list[BtmsContribution]:
     """First-order BTMS over every edge segment, with at most one wall
-    reflection before or after; second order (direct paths) when
-    ``second_order``."""
+    reflection before or after, plus the order-0 geometric components on zone
+    boundaries; second order (direct paths) when ``second_order``."""
     geometry = spec.geometry
     if not isinstance(geometry, RoomGeometry):
         raise ValueError("diffraction needs a RoomGeometry")  # noqa: TRY004
@@ -934,17 +936,16 @@ def btms_paths(spec: Pair, *, max_order: int = 1, second_order: bool = True) -> 
                 length = np.linalg.norm(mid - src.position) + np.linalg.norm(rec.position - mid)
                 out.append(BtmsContribution(start, ir, doa_of(pl[0][-2]), gain_of(length, pl[1]),
                                             1, (k,), bool(np.any(singular))))
-                # On a zone boundary the toolbox drops the singular term and scales the
-                # geometric component, which keeps the total field continuous (Svensson
+                # On a zone boundary wedge1st_ir drops the singular term and the geometric
+                # component is scaled, which keeps the total field continuous (Svensson
                 # and Calamia 2006): 1/2 for an edge hit (Svensson et al. 2025, Eqs. 2-4),
                 # and for a corner hit 2/3 for the direct sound and 1/3 for a specular
                 # reflection (EDfindconvexGApaths.m).
-                # The image sources drop that component there (a path within about 1 mm of an
-                # obstacle's edge is occluded), so it is added here, as
-                # EDmakefirstorderirs.m places a pulse: split linearly between the two
-                # samples around its arrival. Once per component: the edges meeting at a
-                # corner, an apex on a segment end, and a wall image before or after the
-                # edge would otherwise count it again.
+                # The image sources omit that component there (a path within about 1 mm of an
+                # obstacle's edge is occluded), so it is added here as a pulse split
+                # linearly between the two samples around its arrival (EDmakefirstorderirs.m).
+                # Once per component: the edges meeting at a corner, an apex on a segment
+                # end, and a wall image before or after the edge would otherwise count it again.
                 apex_length = float(np.hypot(rs + rr, zr - zs))
                 za = (rs * zr + rr * zs) / (rs + rr)
                 end = ends[0] if abs(za) < 1e-9 else ends[1] if abs(za - e.length) < 1e-9 else None

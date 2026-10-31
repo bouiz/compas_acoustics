@@ -3,7 +3,7 @@ using System.Globalization;
 
 namespace CompasAcoustics.Grasshopper
 {
-    /// <summary>Python's ``format(x, ".{p}g")``, so that panels read as they did with the Python components.</summary>
+    /// <summary>Python's ``format(x, ".{p}g")``, so that panels print numbers as compas_acoustics does.</summary>
     public static class PythonFormat
     {
         public static string G(double value, int precision = 6)

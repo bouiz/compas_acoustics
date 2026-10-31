@@ -271,8 +271,8 @@ def analysis(ir, time_scale="db"):
     Parameters
     ----------
     ir : :class:`compas_acoustics.ImpulseResponse`
-    time_scale : str
-        ``'db'``: the time response as its level in dB re the peak; ``'linear'``: its amplitude, ending 60 dB down its decay.
+    time_scale : str, optional
+        ``'db'`` (default): the time response as its level in dB re the peak; ``'linear'``: its amplitude, ending 60 dB down its decay.
 
     Returns
     -------
@@ -328,9 +328,9 @@ def auralise(groups, level="relative", mix_sources=False, save_folder=None, save
     groups : list of dict
         One per Grasshopper branch: ``{"branch": str, "irs": [ImpulseResponse], "sounds": [path or None]}``; a None
         sound is the sound file of the response's source.
-    level : str
-        ``'relative'`` (one gain for every signal of the call, the loudest at -1 dBFS), ``'individual'`` or ``'none'``.
-    mix_sources : bool
+    level : str, optional
+        ``'relative'`` (default; one gain for every signal of the call, the loudest at -1 dBFS), ``'individual'`` or ``'none'``.
+    mix_sources : bool, optional
         One signal per receiver, its sources summed; else one per source and receiver.
     save_folder, save_name : str, optional
         With a folder, each signal is also written there as ``<save_name or 'convolved_sound'>_mic_<suffix>.wav``.

@@ -1,4 +1,4 @@
-"""Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, tests/test_room_target.py)."""
+"""``RoomTarget`` from the diffuse-field models and from a response; the GEQ band extension."""
 
 import numpy as np
 import pyrato

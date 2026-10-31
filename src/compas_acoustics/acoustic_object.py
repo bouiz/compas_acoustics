@@ -35,9 +35,9 @@ class AcousticObject(_PackageDtype, Data):
     x, y, z : float
         The geometry's reference point.
     name : str, optional
-        Default: a unique identifier.
-    role : str
-        ``'boundary'`` (part of the closed room) or ``'obstacle'`` (free-standing inside it).
+        Default: the class name.
+    role : str, optional
+        ``'boundary'`` (part of the closed room, the default) or ``'obstacle'`` (free-standing inside it).
     group : str, optional
         The OBJ group the object was read from, for :meth:`assign_roles_by_group` and
         :meth:`assign_materials_by_group`. Not serialised.

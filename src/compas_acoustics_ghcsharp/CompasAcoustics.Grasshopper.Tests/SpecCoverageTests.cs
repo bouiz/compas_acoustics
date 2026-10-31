@@ -8,7 +8,7 @@ using Xunit;
 
 namespace CompasAcoustics.Grasshopper.Tests
 {
-    /// <summary>Every spec (every Python component the plugin replaces) has its component, read from the assembly's metadata without loading the types.</summary>
+    /// <summary>Every spec has its component, read from the assembly's metadata without loading the types.</summary>
     public class SpecCoverageTests
     {
         // spec folder: component class

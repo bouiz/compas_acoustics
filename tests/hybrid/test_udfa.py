@@ -1,6 +1,4 @@
 """UDFA for a single rigid wedge (Kirsch and Ewert 2023) and the three-sided
-
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, tests/test_udfa.py).
 barrier (Kirsch and Ewert 2024, Sec. 3.3)."""
 
 import numpy as np

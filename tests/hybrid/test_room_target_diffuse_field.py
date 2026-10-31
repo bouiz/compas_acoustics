@@ -1,21 +1,17 @@
 """``RoomTarget.from_room`` must say when Sabine and Eyring do not apply.
 
 Both models collapse the room to one area-weighted mean absorption and assume
-a diffuse field. Measured against pyroomacoustics, that assumption fails in two
-independent ways, and in both the returned target is confidently wrong with
-nothing in the return value to show it:
+a diffuse field. That assumption fails in two independent ways, in both of
+which the returned reverberation time is too short with nothing in the return
+value to show it:
 
 - absorption concentrated on some surfaces (a carpeted, acoustically treated
-  room): Eyring returned 0.233 s at 8 kHz against an actual 0.83 s, 72 % low;
-- high absorption spread uniformly: at alpha = 0.25 Eyring returns 0.414 s
-  against an image source model's converged 0.58 s, because the spread of
-  reflection order at a given path length makes ``E[(1 - a) ** n]`` exceed
-  ``(1 - a) ** E[n]``.
+  room);
+- high absorption spread uniformly: the spread of reflection order at a given
+  path length makes ``E[(1 - a) ** n]`` exceed ``(1 - a) ** E[n]``.
 
-Neither is a defect this package can fix -- the models are pyrato's and they
-are being used correctly. What it can do is refuse to be silent.
-
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, tests/test_room_target_diffuse_field.py).
+The models are pyrato's and are used correctly; what the target can do is
+refuse to be silent.
 """
 
 import warnings

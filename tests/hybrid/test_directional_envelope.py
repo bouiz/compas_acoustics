@@ -1,4 +1,4 @@
-"""The directional ray-tracing histogram (RAVEN, Schroeder 2011) and the per-line late envelope it shapes."""
+"""The directional ray-tracing histogram (Schroeder 2011) and the per-line late envelope it shapes."""
 
 import numpy as np
 import pyroomacoustics as pra
@@ -212,7 +212,7 @@ def test_the_directional_envelope_quietens_the_lines_facing_the_absorbing_wall()
 
 
 def test_the_histogram_follows_the_receivers_orientation():
-    """Facing -x, the absorbing wall is in front: the quiet lines are now those at +x of the receiver's frame."""
+    """Facing -x, the absorbing wall is in front: the quiet lines are those at +x of the receiver's frame."""
     kwargs = dict(tail="ray_tracing", duration=0.8, directional_absorption=False, late_envelope=True)
     turned = ca.Ambisonics(**kwargs)
     asymmetric_scene(direction=[-1, 0, 0]).simulate(turned)

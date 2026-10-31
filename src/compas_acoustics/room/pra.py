@@ -55,7 +55,7 @@ def points_to_array(
 
 
 def source_to_pra(src : Source) -> pra.SoundSource:
-    """A source with its first-order directivity and, if it has one, its sound file's first channel peak-normalized."""
+    """A source with its first-order directivity and, if it has one, the first channel of its sound file, peak-normalized."""
     if src.sound_file:
         audio_clean, _ = sf.read(src.sound_file, dtype="float32")
         if len(audio_clean.shape) > 1:

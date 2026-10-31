@@ -93,7 +93,7 @@ def test_a_t_junction_seam_still_closes():
 
 
 def test_a_sliver_face_off_an_edge_still_closes():
-    # As in BRAS CR2: a sliver's apex lies a fraction of a millimetre off its own long edge, inside the weld
+    # A sliver's apex lies a fraction of a millimetre off its own long edge, inside the weld
     # tolerance but not on the edge; taking it for a T-junction would make the edge non-manifold.
     walls = [o for o in shoebox_leaves() if not o.name.endswith("floor")]
     apex = [3.5, 5e-4, 0.0]

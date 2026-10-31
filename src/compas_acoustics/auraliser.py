@@ -45,9 +45,9 @@ class Auraliser:
     sampling_rate : int, optional
         Responses and sounds are resampled to it. Default: that of the first response.
     level : str, optional
-        ``'relative'``, ``'individual'`` or ``'none'``.
+        ``'relative'`` (default), ``'individual'`` or ``'none'``.
     headroom_db : float, optional
-        Target peak in dBFS for ``'relative'`` and ``'individual'``.
+        Target peak in dBFS for ``'relative'`` and ``'individual'``; default -1.
 
     Examples
     --------
@@ -202,7 +202,7 @@ class Auraliser:
 
     @staticmethod
     def _default_sampling_rate(impulse_responses):
-        """The sample rate of the first impulse response, or the project default if there are none."""
+        """The sample rate of the first impulse response, or :attr:`Defaults.SAMPLING_RATE` if there are none."""
         if isinstance(impulse_responses, dict):
             impulse_responses = [data['sampling_rate'] for data in impulse_responses.values()]
         else:
@@ -393,9 +393,9 @@ class Auraliser:
         signals : list of np.ndarray
             From :meth:`convolve`, e.g. one per receiver or source.
         level : str, optional
-            As :attr:`level`.
+            As :attr:`level`; default ``'relative'``.
         headroom_db : float, optional
-            Target peak in dBFS.
+            Target peak in dBFS; default -1.
 
         Returns
         -------

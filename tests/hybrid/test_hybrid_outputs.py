@@ -18,7 +18,7 @@ FAST = dict(tail="eyring", duration=0.3)
 
 
 def evaluation_scene(direction=None):
-    """The evaluation's shoebox: 8 x 6 x 3.5 m, alpha 0.15, s 0.2."""
+    """A shoebox of 8 x 6 x 3.5 m, alpha 0.15, s 0.2."""
     scene = ca.Scene("outputs", sampling_rate=FS)
     scene.add_acoustic_objects(ca.AcousticObjectsLibrary.shoebox_room(8, 6, 3.5, materials=ca.AcousticMaterial("wall", 0.15, 0.2)))
     scene.add_source(ca.Source("src", 4.0, 5.0, 1.5))

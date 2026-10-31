@@ -97,7 +97,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void Scene_PreviewsItsObjects_WithoutALabel_AndMeasuresVolumeAndSurface()
         {
-            // its name, volume and area written over the room were clutter: the Scene component's message gives them
+            // no label over the room: the Scene component's message gives its name, volume and area
             var preview = PreviewGeometry.Scene(Room());
             Assert.Equal(6, preview.Objects.Count);
             Assert.Null(typeof(ScenePreview).GetProperty("Label"));
@@ -124,7 +124,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.False(typeof(global::Grasshopper.Kernel.IGH_PreviewData).IsAssignableFrom(typeof(SceneGoo)));
             Assert.True(typeof(global::Grasshopper.Kernel.IGH_PreviewObject).IsAssignableFrom(typeof(Param_AcousticObject)));
             Assert.True(typeof(global::Grasshopper.Kernel.IGH_PreviewObject).IsAssignableFrom(typeof(Param_Scene)));
-            // nor sources and receivers: a Merge of sources drew them past the Source's preview toggle
+            // nor sources and receivers: a Merge of sources would draw them past the Source's preview toggle
             Assert.False(typeof(global::Grasshopper.Kernel.IGH_PreviewData).IsAssignableFrom(typeof(SourceGoo)));
             Assert.False(typeof(global::Grasshopper.Kernel.IGH_PreviewData).IsAssignableFrom(typeof(ReceiverGoo)));
             Assert.True(typeof(global::Grasshopper.Kernel.IGH_PreviewObject).IsAssignableFrom(typeof(Param_Source)));
@@ -234,7 +234,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void AnIrGraph_DrawsNothing()
         {
-            // a line and a label per source and receiver pair was clutter over the room
+            // a line and a label per source and receiver pair would clutter the room
             Assert.False(typeof(global::Grasshopper.Kernel.IGH_PreviewData).IsAssignableFrom(typeof(IrGraphGoo)));
             Assert.False(typeof(global::Grasshopper.Kernel.IGH_PreviewObject).IsAssignableFrom(typeof(Param_IrGraph)));
         }

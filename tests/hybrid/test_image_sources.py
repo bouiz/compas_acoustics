@@ -69,8 +69,8 @@ def test_each_receiver_gets_only_the_images_it_sees():
 
 
 def test_a_shared_room_gives_each_pair_the_images_of_its_own_room():
-    """Upstream builds one room per source and receiver; the per-pair visibility
-    mask of a shared room must reproduce that, obstacles included."""
+    """The per-pair visibility mask of a room shared by several receivers gives
+    each pair the images of a room built for that pair alone, obstacles included."""
     panel = AcousticObject(
         Mesh.from_vertices_and_faces([[3, 0.5, 0.5], [3, 0.5, 2.5], [3, 2.5, 2.5], [3, 2.5, 0.5]], [[0, 1, 2, 3]]),
         WALL, name="panel", role="obstacle",

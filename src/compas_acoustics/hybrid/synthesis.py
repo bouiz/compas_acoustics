@@ -1,7 +1,7 @@
 """The format-neutral core of one pair's hybrid response: its early paths and delay lines (:func:`prepare`).
 
 A renderer, :mod:`~compas_acoustics.hybrid.ambisonics` or :mod:`~compas_acoustics.hybrid.binaural`, turns it into
-a response. Checked against the measured responses of BRAS CR2 (Aspoeck et al.) and exact shoeboxes.
+a response.
 """
 
 from __future__ import annotations
@@ -106,7 +106,7 @@ def prepare(
 
     1. Images up to ``max_order`` (with ``diffraction``, diffracted paths too) are the early field, kept path by
        path; higher orders in ``iss`` are ignored.
-    2. An FDN with one delay line per direction of an equal-area grid (:func:`fdn_directions`), attenuation
+    2. An FDN with one delay line per direction of an equal-area grid of ``num_delays`` points (:func:`fdn_directions`), attenuation
        following ``target.rt``, each line the room's free path along its direction (:func:`directional_delays`).
     3. The images of order ``max_order`` also enter the network, each spread over the lines of the hemisphere
        opposite its arrival by the cosine to each line (:func:`~compas_acoustics.hybrid.scattering.scattering_weights`
@@ -116,7 +116,8 @@ def prepare(
     4. Each line is weighted with the reflection of the boundary in its direction (``directional_absorption``).
        The lines are kept with ``line_directions`` for the renderer.
 
-    ``drive_gain`` defaults to ``sqrt(num_delays)``. ``late_envelope``, a package-scale omnidirectional reference,
+    ``duration_s`` defaults to 1.5 times the longest target RT. ``rng`` seeds the delay jitter and the feedback
+    matrices, ``rng + slope`` for each slope. ``drive_gain`` defaults to ``sqrt(num_delays)``. ``late_envelope``, a package-scale omnidirectional reference,
     attenuates the lines per band to its late energy (Vorlaender 2020, Sec. 11.9); ``directional_envelope``, a
     :class:`~compas_acoustics.room.raytracing.DirectionalHistogram` on the lines' directions in room coordinates,
     then gives them the rays' distribution (:func:`~compas_acoustics.hybrid.envelope.shape_late_directional`);
@@ -126,8 +127,8 @@ def prepare(
     edges wider than pi (:func:`~compas_acoustics.hybrid.diffraction.diffraction_edges`), for the direct sound and,
     when ``max_order >= 1``, one enclosure reflection before or after the edge. ``"btms"`` renders first- and
     second-order diffraction with the BTMS model (Svensson et al. 1999), first order with at most one wall
-    reflection, second order between visible edges, direct paths only; minutes per pair. The late field is not
-    affected.
+    reflection, second order between visible edges, direct paths only; it is far slower than ``"udfa"``. The
+    late field is not affected.
 
     ``scattering`` (Ewert et al. 2025) needs ``iss.scattered``; the gains are then the specular parts. The
     scattered part of every image of orders 1 to ``max_order`` enters "those FDN channels on the same hemisphere

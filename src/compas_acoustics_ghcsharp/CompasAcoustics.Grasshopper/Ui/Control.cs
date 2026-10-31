@@ -44,8 +44,10 @@ namespace CompasAcoustics.Grasshopper
     /// </summary>
     public sealed record SliderControl(string Port, double Min, double Max, string Unit, double Step = 0.1, bool Live = false, string? Title = null) : Control(Port);
 
-    /// <summary>Where a control is drawn: its row, and for a switch the box of each option.</summary>
-    /// <summary>``Title``: the row above a switch or dropdown that names its input; empty for a button.</summary>
+    /// <summary>
+    /// Where a control is drawn: its row, for a switch the box of each option, and ``Title``, the row above a control that
+    /// names its input (empty for a button or toggle).
+    /// </summary>
     public sealed record ControlBox(Control Control, RectangleF Bounds, RectangleF[] Segments, RectangleF Title = default);
 
     /// <summary>The rows of a component's controls, below its ports.</summary>
@@ -159,7 +161,7 @@ namespace CompasAcoustics.Grasshopper
             return boxes;
         }
 
-        /// <summary>What a control reads: its value, or a button's label (the input's name is the title above).</summary>
+        /// <summary>What a control reads: the value it is given (the input's name is the title above).</summary>
         public static string Text(Control control, string value) => value;
 
         /// <summary>The control under ``point``, and the option of a switch (-1 for the others); null outside every control.</summary>

@@ -146,7 +146,7 @@ def test_plain_containers_still_travel(value):
 
 
 # ---------------------------------------------------------------------------
-# Responses, audio, rays and reflections (Task 2)
+# Responses, audio, rays and reflections
 # ---------------------------------------------------------------------------
 
 import numpy as np  # noqa: E402

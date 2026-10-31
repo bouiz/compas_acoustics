@@ -168,7 +168,7 @@ namespace CompasAcoustics.Grasshopper
                 Warn("No receivers provided.");
                 return;
             }
-            // an upstream component that failed passes nothing; leave such items out instead of failing the scene
+            // a wired component that failed passes nothing; leave such items out instead of failing the scene
             var objects = given.Where(o => o?.Value != null).Select(o => (object?)o.Value).ToList();
             if (objects.Count == 0)
             {

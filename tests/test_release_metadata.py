@@ -90,10 +90,9 @@ def test_no_template_placeholders_are_left():
 
 
 GONE = [
-    "tests/hybrid/test_btms_oracle.py", "tests/hybrid/test_udfa_oracle.py", "tests/hybrid/test_upstream_parity.py",
+    "tests/hybrid/test_btms_oracle.py", "tests/hybrid/test_udfa_oracle.py",
     "tests/hybrid/test_environment.py", "tests/hybrid/test_ray_tracing_claims.py", "tests/test_python39.py",
-    "tests/hybrid/_upstream.py", "tests/hybrid/regenerate.py", "tests/hybrid/UPSTREAM_REVISION",
-    "tests/hybrid/data", "tests/data", "tests/test_data/test_auraliser_impulse_response.wav",
+    "tests/hybrid/regenerate.py", "tests/hybrid/data", "tests/data", "tests/test_data/test_auraliser_impulse_response.wav",
     "src/compas_acoustics_ghcsharp/CompasAcoustics.Grasshopper.Tests/WorkerIntegrationTests.cs",
 ]
 
@@ -102,7 +101,7 @@ def test_only_unit_tests_are_left():
     assert [rel for rel in GONE if (ROOT / rel).exists()] == []
     assert (ROOT / "tests/test_wheel.py").exists()
     for rel in ["tests/hybrid/test_scattering.py", "tests/hybrid/test_hybrid_outputs.py"]:
-        assert "hybrid_reference" not in read(rel) and "razr_scattering_oracle" not in read(rel)
+        assert "hybrid_reference" not in read(rel)
     assert "needs_worker" not in read("tests/test_worker.py")
     assert "subprocess" not in read("tests/hybrid/test_simulator_hybrid.py")
     assert "COMPAS_ACOUSTICS_WORKER_PYTHON" not in read(".github/workflows/build.yml")

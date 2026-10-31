@@ -18,8 +18,8 @@ namespace CompasAcoustics.Grasshopper
     }
 
     /// <summary>
-    /// A component's names, description, ports and icon: the metadata.json and icon.png the Python component had,
-    /// embedded in the assembly (Components/Specs/&lt;name&gt;), so that the texts stay what users know.
+    /// A component's names, description, ports and icon: its metadata.json and icon.png, embedded in the assembly
+    /// (Components/Specs/&lt;name&gt;).
     /// </summary>
     public sealed record ComponentSpec(string Key, string Name, string Nickname, string Description, string Subcategory, GH_Exposure Exposure,
         IReadOnlyList<PortSpec> Inputs, IReadOnlyList<PortSpec> Outputs)

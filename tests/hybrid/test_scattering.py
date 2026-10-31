@@ -1,4 +1,4 @@
-"""Surface scattering in the hybrid (Ewert et al. 2025), as RAZR 0.96.3 implements it."""
+"""Surface scattering in the hybrid (Ewert et al. 2025)."""
 
 
 import numpy as np
@@ -33,14 +33,14 @@ from compas_acoustics.simulation_methods import Ambisonics
 from _scenes import reference_scene  # noqa: E402
 
 FS = 48000
-# a 10 m x 8 m x 4 m shoebox with scattering coefficients d of 0.25 and 0.5 (room 1 of the comparison with RAZR)
+# a 10 m x 8 m x 4 m shoebox with scattering coefficients d of 0.25 and 0.5
 CASES = [dict(boxsize=[10, 8, 4], absorption=0.15, source=[2.5, 3, 1.5], receiver=[7.5, 5.5, 1.2], d=d) for d in (0.25, 0.5)]
 ORDER = 3
-WALLS = ("-z", "-y", "-x", "+x", "+y", "+z")  # RAZR's wall order
+WALLS = ("-z", "-y", "-x", "+x", "+y", "+z")  # the order of per-wall scattering values
 
 
 def scene(case, scattering):
-    """A room of ``CASES``; ``scattering`` is one value, or one per wall in RAZR's order."""
+    """A room of ``CASES``; ``scattering`` is one value, or one per wall in ``WALLS`` order."""
     s = Scene("oracle")
     walls = AcousticObjectsLibrary.shoebox_room(*case["boxsize"])
     per_wall = np.broadcast_to(scattering, 6)
@@ -110,8 +110,8 @@ def test_smear_is_an_allpass_with_the_papers_delays():
 
 
 def test_tap_is_heard_through_the_lines_attenuation_filters():
-    """RAZR places a scattered part in a line ahead by the line's delay, so it passes the line's absorption
-    filter before it is heard (oracle, line_filter): the tap equals driving that line one delay earlier."""
+    """A scattered part enters a line ahead by the line's delay, so it passes the line's absorption filter
+    before it is heard: the tap equals driving that line one delay earlier."""
     spec = pair(scene(CASES[1], 0.1))
     directions = fdn_directions()
     builds = design_fdn(RoomTarget.from_room(spec, model="eyring"), [directional_delays(spec, directions)])

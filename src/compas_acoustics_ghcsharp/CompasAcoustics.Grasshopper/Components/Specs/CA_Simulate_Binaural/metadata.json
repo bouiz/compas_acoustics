@@ -112,14 +112,14 @@
             },
             {
                 "name": "hrtf",
-                "description": "HRTF set of the binaural format. Empty: KEMAR (default). Connect a File Path to a .sofa file to use your own HRTF set; the component's message names the set in use.",
+                "description": "HRTF set of the binaural responses. Empty: KEMAR (default). Choose a .sofa file with the HRTF... button, or connect a File Path to one, which takes precedence; the component's message names the set in use.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "str"
             },
             {
                 "name": "run",
-                "description": "Press to simulate. The simulation takes seconds to minutes and Grasshopper recomputes on every upstream change, so it runs only when this is true; a button is added when it is not connected. Without it, the responses already on the scene's graph are passed on.",
+                "description": "Simulate when true: the body's Run button, or a Button or Boolean Toggle wired here. The simulation takes seconds to minutes and Grasshopper recomputes on every change of the inputs, so it starts only on a press; otherwise the responses of the last run for this scene are passed on.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "bool"

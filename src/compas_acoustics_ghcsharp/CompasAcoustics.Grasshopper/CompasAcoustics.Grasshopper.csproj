@@ -36,7 +36,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <!-- each component's names, descriptions, ports and icon, as the Python components had them -->
+    <!-- each component's names, descriptions, ports and icon -->
     <EmbeddedResource Include="Components\Specs\**\*.json;Components\Specs\**\*.png" LogicalName="Specs/%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
   <ItemGroup>

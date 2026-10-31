@@ -46,7 +46,7 @@ def speed_of_sound_cramer(
     Parameters
     ----------
     temperature : float, array_like
-        Temperature in degree Celsius from 0°C to 30°C.
+        Temperature in degree Celsius from 0 deg C to 30 deg C.
     relative_humidity : float, array_like
         Relative humidity in the range of 0 to 1.
     co2_ppm : float, array_like, optional
@@ -65,9 +65,9 @@ def speed_of_sound_cramer(
 
     References
     ----------
-    .. [#] O. Cramer, “The variation of the specific heat ratio and the
+    .. [#] O. Cramer, "The variation of the specific heat ratio and the
            speed of sound in air with temperature, pressure, humidity, and
-           CO\ :sub:`2` concentration,” The Journal of the Acoustical Society
+           CO\ :sub:`2` concentration," The Journal of the Acoustical Society
            of America, vol. 93, no. 5, pp. 2510-2516, May 1993,
            doi: 10.1121/1.405827.
     .. [#] Lan, X., Tans, P. and K.W. Thoning: Trends in globally-averaged
@@ -78,13 +78,11 @@ def speed_of_sound_cramer(
     """
     if atmospheric_pressure is None:
         atmospheric_pressure = REFERENCE_ATMOSPHERIC_PRESSURE
-    # convert to array
     temperature = np.array(temperature)
     relative_humidity = np.array(relative_humidity)
     atmospheric_pressure = np.array(atmospheric_pressure)
     co2_ppm = np.array(co2_ppm)
 
-    # check inputs:
     if np.any(temperature < 0) or np.any(temperature > 30):
         raise ValueError("Temperature must be between 0°C and 30°C.")
     if np.any(relative_humidity < 0) or np.any(relative_humidity > 1):
@@ -161,9 +159,9 @@ def air_attenuation(
     Parameters
     ----------
     temperature : float, array_like
-        Temperature in °C.
-        Must be in the range of -20 °C to 50 °C for accuracy of +/-10% or
-        must be greater than -70 °C for accuracy of +/-50%.
+        Temperature in deg C.
+        Must be in the range of -20 deg C to 50 deg C for accuracy of +/-10% or
+        must be greater than -70 deg C for accuracy of +/-50%.
     frequencies : float, array_like
         Frequency in Hz. Must be greater than 50 Hz.
         Just one dimensional array is allowed.
@@ -187,20 +185,20 @@ def air_attenuation(
 
         ``10``, +/- 10% accuracy
             - molar concentration of water vapour: 0.05% to 5%.
-            - air temperature: 253.15 K to 323.15 K (-20 °C to +50 °C)
+            - air temperature: 253.15 K to 323.15 K (-20 deg C to +50 deg C)
             - atmospheric pressure: less than 200 000 Pa (2 atm)
             - frequency-to-pressure ratio: 0.0004 Hz/Pa to 10 Hz/Pa.
 
         ``20``, +/- 20% accuracy
             - molar concentration of water vapour: 0.005% to 0.05%,
               and greater than 5%
-            - air temperature: 253.15 K to 323.15 K (-20 °C to +50 °C)
+            - air temperature: 253.15 K to 323.15 K (-20 deg C to +50 deg C)
             - atmospheric pressure: less than 200 000 Pa (2 atm)
             - frequency-to-pressure ratio: 0.0004 Hz/Pa to 10 Hz/Pa.
 
         ``50``, +/- 50% accuracy
             - molar concentration of water vapour: less than 0.005%
-            - air temperature: greater than 200 K (- 73 °C)
+            - air temperature: greater than 200 K (- 73 deg C)
             - atmospheric pressure: less than 200 000 Pa (2 atm)
             - frequency-to-pressure ratio: 0.0004 Hz/Pa to 10 Hz/Pa.
 
@@ -215,7 +213,6 @@ def air_attenuation(
     """
     if atmospheric_pressure is None:
         atmospheric_pressure = REFERENCE_ATMOSPHERIC_PRESSURE
-    # check inputs
     if not isinstance(temperature, (int, float, np.ndarray, list, tuple)):
         raise TypeError(
             'temperature must be a number or array of numbers')
@@ -233,7 +230,6 @@ def air_attenuation(
         raise TypeError(
             'atmospheric_pressure must be a number or array of numbers')
 
-    # check if broadcastable
     try:
         _ = np.broadcast_shapes(
             np.atleast_1d(temperature).shape,
@@ -244,7 +240,6 @@ def air_attenuation(
             'temperature, relative_humidity, and atmospheric_pressure must '
             'have the same shape or be broadcastable.') from e
 
-    # check limits
     if np.any(np.array(temperature) < -73):
         raise ValueError("Temperature must be greater than -73°C.")
     if np.any(np.array(frequencies) < 50):
@@ -254,7 +249,6 @@ def air_attenuation(
         raise ValueError("Relative humidity must be between 0 and 1.")
     if np.any(np.array(atmospheric_pressure) > 200000):
         raise ValueError("Atmospheric pressure must be less than 200 kPa.")
-    # convert arrays
     temperature = np.array(
         temperature, dtype=float)[..., np.newaxis]
     relative_humidity = np.array(
@@ -263,7 +257,6 @@ def air_attenuation(
         atmospheric_pressure, dtype=float)[..., np.newaxis]
     frequencies = np.array(frequencies, dtype=float)
 
-    # calculate air attenuation
     p_atmospheric_ref = REFERENCE_ATMOSPHERIC_PRESSURE
     t_degree_ref = REFERENCE_AIR_TEMPERATURE_CELSIUS
 
@@ -274,7 +267,6 @@ def air_attenuation(
     T = temperature - ABSOLUTE_ZERO_CELSIUS
     T_0 = t_degree_ref - ABSOLUTE_ZERO_CELSIUS
 
-    # saturation vapour pressure
     p_sat = _saturation_vapour_pressure_iso(temperature)
 
     # molar concentration of water vapor as a percentage (Equation B.1)
@@ -296,7 +288,6 @@ def air_attenuation(
     m = pf.FrequencyData(
         alpha / (10*np.log10(np.exp(1))), frequencies=frequencies)
 
-    # calculate accuracy
     accuracy = _air_attenuation_accuracy(
         h, temperature, atmospheric_pressure, frequencies, m.freq.shape)
 
@@ -309,7 +300,7 @@ def _air_attenuation_accuracy(
     """Calculate the accuracy of the air attenuation calculation.
 
     Calculation is in accordance with ISO 9613-1 [#]_. This method is used in
-    :py:func:`~pyfar.constants.air_attenuation` to calculate the accuracy of
+    :py:func:`air_attenuation` to calculate the accuracy of
     the air attenuation calculation.
 
     Parameters
@@ -319,7 +310,7 @@ def _air_attenuation_accuracy(
         Must be between 0% and 100%.
     temperature : float, array_like
         Temperature in degree Celsius.
-        Must be above -273.15°C.
+        Must be above -273.15 deg C.
     atmospheric_pressure : float, array_like
         Atmospheric pressure in Pascal.
         Must be above 0Pa.
@@ -336,20 +327,20 @@ def _air_attenuation_accuracy(
 
             ``10``, +/- 10% accuracy
                 - molar concentration of water vapour: 0.05% to 5%.
-                - air temperature: 253.15 K to 323.15 K (-20 °C to +50 °C)
+                - air temperature: 253.15 K to 323.15 K (-20 deg C to +50 deg C)
                 - atmospheric pressure: less than 200 000 Pa (2 atm)
                 - frequency-to-pressure ratio: 4 x 10-4 Hz/Pa to 10 Hz/Pa.
 
             ``20``, +/- 20% accuracy
                 - molar concentration of water vapour: 0.005% to 0.05%,
                   and greater than 5%
-                - air temperature: 253.15 K to 323.15 K (-20 °C to +50 °C)
+                - air temperature: 253.15 K to 323.15 K (-20 deg C to +50 deg C)
                 - atmospheric pressure: less than 200 000 Pa (2 atm)
                 - frequency-to-pressure ratio: 4 x 10-4 Hz/Pa to 10 Hz/Pa.
 
             ``50``, +/- 50% accuracy
                 - molar concentration of water vapour: less than 0.005%
-                - air temperature: greater than 200 K (- 73 °C)
+                - air temperature: greater than 200 K (- 73 deg C)
                 - atmospheric pressure: less than 200 000 Pa (2 atm)
                 - frequency-to-pressure ratio: 4 x 10-4 Hz/Pa to 10 Hz/Pa.
 
@@ -376,7 +367,6 @@ def _air_attenuation_accuracy(
         raise ValueError(
             "Frequencies must be positive.")
 
-    # broadcast inputs
     atmospheric_pressure = np.broadcast_to(atmospheric_pressure, shape)
     h_water_vapor = np.broadcast_to(concentration_water_vapour, shape)
     frequency_pressure_ratio = frequencies/atmospheric_pressure
@@ -397,12 +387,11 @@ def _air_attenuation_accuracy(
     # molar concentration of water vapour: less than 0.005%
     vapor_50_mask = (0.005 > h_water_vapor)
 
-    # air temperature: 253,15 K to 323,15 (-20 °C to +50°C)
+    # air temperature: 253,15 K to 323,15 (-20 deg C to +50 deg C)
     temp_20_mask = (-20 <= temperature) & (temperature <= 50)
-    # air temperature: greater than 200 K (- 73 °C)
+    # air temperature: greater than 200 K (- 73 deg C)
     temp_50_mask = (-73 <= temperature)
 
-    # apply masks
     accuracy_50 = common_mask & temp_50_mask & (
         vapor_10_mask | vapor_20_mask | vapor_50_mask)
     accuracy[accuracy_50] = 50
@@ -414,7 +403,6 @@ def _air_attenuation_accuracy(
     accuracy_10 = vapor_10_mask & common_mask & temp_20_mask
     accuracy[accuracy_10] = 10
 
-    # return FrequencyData object
     return pf.FrequencyData(accuracy, frequencies=frequencies)
 
 
@@ -431,8 +419,8 @@ def _saturation_vapour_pressure_iso(temperature):
     ----------
     temperature : float, array_like
         Temperature in degree Celsius.
-        Must be in the range of -20°C to 50°C for accuracy of +/-10% or
-        must be greater than -70°C for accuracy of +/-50%.
+        Must be in the range of -20 deg C to 50 deg C for accuracy of +/-10% or
+        must be greater than -70 deg C for accuracy of +/-50%.
 
     Returns
     -------

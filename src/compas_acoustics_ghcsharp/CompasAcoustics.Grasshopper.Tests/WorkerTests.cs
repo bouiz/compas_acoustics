@@ -263,7 +263,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void Start_OfAWorkerThatAnswersButIsNotThisVersions_FailsAtOnceAndStopsIt()
         {
-            // an earlier worker (compas.rpc's XML-RPC server) answers the ping with an error status
+            // a worker of another compas_acoustics version answers the ping with an error status
             var worker = new Worker(_starter, (uri, token) => new WorkerClient(uri, token, new FakeHandler((request, body) =>
                     new HttpResponseMessage(HttpStatusCode.NotImplemented))),
                 name => name == "COMPAS_ACOUSTICS_WORKER_PYTHON" ? _python : null, _home, TimeSpan.FromSeconds(10));

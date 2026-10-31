@@ -1,11 +1,12 @@
-"""Upstream hybrid-rir's room types and its image source entry point, on this package.
+"""Compact room types for the hybrid tests, built on this package. Test-only.
 
-Lets the tests ported from upstream run against this package. Test-only.
+``Material``, ``MeshGeometry``, ``ShoeboxGeometry`` and ``RoomSpec`` return a
+:class:`SurfaceMaterial`, a :class:`RoomGeometry` and a :class:`Pair`;
+``image_sources`` runs the image source model for a ``RoomSpec``.
 
-Differences from upstream that a ported test can see: an open mesh warns
-instead of raising (RoomGeometry keeps open scenes for ray tracing), and
-``ShoeboxGeometry`` is a closed mesh, so pyroomacoustics builds it from walls
-rather than as a ``ShoeboxRoom``.
+An open mesh warns instead of raising (RoomGeometry keeps open scenes for ray
+tracing), and ``ShoeboxGeometry`` is a closed mesh, so pyroomacoustics builds
+it from walls rather than as a ``ShoeboxRoom``.
 """
 
 from dataclasses import replace
@@ -20,7 +21,7 @@ from compas_acoustics.room.geometry import SurfaceMaterial
 
 
 class Material:
-    """Upstream ``Material(absorption, bands, scattering=None)``, returning a :class:`SurfaceMaterial`."""
+    """``Material(absorption, bands, scattering=None)``: per-band coefficients checked, as a :class:`SurfaceMaterial`."""
 
     def __new__(cls, absorption, bands=None, scattering=None):
         if bands is not None:
@@ -50,7 +51,7 @@ def MeshGeometry(vertices, faces, face_materials, materials, obstacles=()):
 
 
 class ShoeboxGeometry:
-    """Upstream ``ShoeboxGeometry(dimensions, materials)`` as a closed mesh, one face per wall."""
+    """``ShoeboxGeometry(dimensions, materials)`` as a closed mesh, one face per wall."""
 
     WALL_NAMES = ("west", "east", "south", "north", "floor", "ceiling")
 

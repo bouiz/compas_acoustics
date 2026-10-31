@@ -13,7 +13,7 @@ Anechoic source recordings used by `compas_acoustics` for auralisation and relat
 
 The source and licence of `bassoon.wav` are not recorded yet. Fill them in here before the package is released.
 
-`viola.wav` was resampled from 96 kHz to 48 kHz (polyphase, anti-aliased), the sampling rate of the package.
+`viola.wav` is the 96 kHz original resampled to 48 kHz (polyphase, anti-aliased), the sampling rate of the package.
 
 ## OpenAIR files: licence and attribution
 

@@ -1,7 +1,4 @@
-"""The ray-traced late envelope imposed on the network output.
-
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, tests/test_envelope.py).
-"""
+"""The ray-traced late envelope imposed on the network output."""
 
 import numpy as np
 import pytest

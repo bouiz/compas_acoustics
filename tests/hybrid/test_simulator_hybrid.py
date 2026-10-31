@@ -50,7 +50,7 @@ def uneven():
     return {"floor": carpet, "ceiling": carpet, "left_wall": WALL, "right_wall": WALL, "front_wall": WALL, "back_wall": WALL}
 
 
-# ------------------------------------------------------------ v1 Task 15 --
+# ------------------------------------------------------- ambisonic output --
 def test_one_ambisonic_response_per_pair():
     scene = make([Receiver("a", 8.0, 4.0, 1.5), Receiver("b", 3.0, 6.0, 1.2, direction=[0, 1, 0])])
     hybrid = Ambisonics(references(scene), sh_order=1, **FAST)
@@ -153,7 +153,7 @@ def test_diffraction_at_the_room_boundary_needs_no_obstacles():
     start = int(np.linalg.norm(np.subtract(off.source.position, off.receiver.position)) / 343.0 * FS)
     window = slice(start, start + int(0.02 * FS))
     e_off, e_on = np.sum(off.ir[window] ** 2), np.sum(on.ir[window] ** 2)
-    # raw level, seeded reference: the window energy rises by 21 % (1.98e-4 -> 2.41e-4); 10 % leaves half of that as margin
+    # raw level and a seeded reference; 10 % leaves about half the rise as margin
     assert e_on > 1.10 * e_off
 
 
@@ -276,7 +276,7 @@ def test_decay_db_reaches_the_target():
 
 
 def test_the_reference_is_on_the_scale_of_the_hybrid():
-    """Upstream's run-time scale guard (envelope.SCALE_WARN_DB) stays silent."""
+    """The run-time scale guard (envelope.SCALE_WARN_DB) stays silent."""
     scene = make()
     refs = references(scene)
     with warnings.catch_warnings(record=True) as caught:
@@ -293,7 +293,7 @@ def test_diffraction_and_the_late_envelope_run():
         assert np.all(np.isfinite(ir.ir))
 
 
-# ------------------------------------------------------- revision 2, tails --
+# ------------------------------------------------------------------ tails --
 @pytest.mark.parametrize("tail", ["reference", "ray_tracing", "eyring"])
 def test_every_tail_meets_the_contract(assert_meets_contract, tail):
     scene = make()
@@ -423,13 +423,9 @@ def test_the_late_level_matches_an_exact_specular_room(dims, alpha, src, rec):
     """A shoebox with specular walls has an exact answer: its image sources to high order.
 
     Given that answer's decay, the hybrid's late energy (after 80 ms, 1 kHz band), averaged over four
-    seeds of the network, must match it within 2 dB. The network is driven by the last rendered order,
-    as in Wendt et al. (2014) and RAZR, so its level is that order's energy, which sits below the energy
-    trend of the higher orders: measured over eight seeds, 0.5 dB below in the 10 x 8 x 4 m room and
-    1.6 dB below in the 6 x 5 x 3 m room of alpha 0.1, where RAZR 0.96.3 itself is 3.7 dB below (seed
-    spread of this network 0.1 to 0.4 dB). pyroomacoustics' ray tracer is not the yardstick: measured
-    here it sits 1 to 2.6 dB below this answer without scattering, and 1.5 to 3.6 dB above Barron's
-    revised theory with scattering 0.5.
+    seeds of the network, must match it within 2 dB. The network is driven by the last rendered order
+    (Wendt et al. 2014), so its level is that order's energy, which sits below the energy trend of the
+    higher orders.
     """
     import pyroomacoustics as pra
     from scipy.signal import butter

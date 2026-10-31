@@ -36,7 +36,7 @@ namespace CompasAcoustics.Grasshopper
         public override string TypeName => "AcousticParameter";
         public override string TypeDescription => "A room acoustic parameter per band, or a time or frequency response.";
 
-        /// <summary>What a panel shows, as AcousticParameter.__str__ wrote it.</summary>
+        /// <summary>What a panel shows: a curve's title and x range, or a parameter's first channel per band and its overall value.</summary>
         public override string ToString()
         {
             if (Value == null)

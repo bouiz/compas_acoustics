@@ -7,7 +7,7 @@ using Xunit;
 
 namespace CompasAcoustics.Grasshopper.Tests
 {
-    /// <summary>The body controls of the plan of 2026-10-23: typed inputs, toggles, dropdowns with labels, sliders, file buttons.</summary>
+    /// <summary>The body controls: typed inputs, toggles, dropdowns with labels, sliders, file buttons.</summary>
     public class BodyControlsTests
     {
         // the test runner reads these signatures before WinFormsResolver is registered: no plugin type in them

@@ -190,8 +190,8 @@ def test_impulse_response_object_sets_sampling_rate_and_raw_level():
 
 def test_clarity_definition_and_center_time_are_exact_in_every_band():
     # Direct sound and one reflection of half amplitude 300 ms later: C50 = C80 = 10 log10(1 / 0.25),
-    # D50 = 80 %, Ts = 0.3 s * 0.25 / 1.25 = 60 ms. The causal octave filter delayed the low bands'
-    # direct sound past the time limits (e.g. Ts was about 35 ms too long at 125 Hz).
+    # D50 = 80 %, Ts = 0.3 s * 0.25 / 1.25 = 60 ms. The low bands catch a causal octave filter's delay of
+    # the direct sound past the time limits.
     fs = 48000
     ir = np.zeros(2 * fs)
     ir[1000] = 1.0
@@ -213,7 +213,7 @@ def exponential_decay(reverberation_time, seconds, seed, fs=48000):
 
 
 def test_reverberation_times_recover_an_exponential_decay_in_every_band():
-    # EDT was about 15 % too long at 125 Hz when the decay started on the causal filter's build-up
+    # The 125 Hz band catches an EDT lengthened by a decay that starts on the octave filter's build-up
     results = []
     for seed in range(3):
         analyser = Analyser(exponential_decay(1.2, 3.0, seed))
@@ -238,7 +238,7 @@ def test_modulation_transfer_matches_the_analytic_exponential_decay():
         analyser = Analyser(exponential_decay(reverberation_time, 3.0, seed))
         analyser.sampling_rate = 48000
         results.append(analyser.speech_transmission_index())
-    # Average realisations: a single noise tail scatters by about 0.05 in the 125 Hz band
+    # Average realisations: a single noise tail scatters beyond the tolerance in the 125 Hz band
     np.testing.assert_allclose(np.mean([r["mti"] for r in results], axis=0), mti, atol=0.03)
     assert np.mean([r["sti"] for r in results]) == pytest.approx(sti, abs=0.02)
 
@@ -269,7 +269,7 @@ def test_a_package_scale_response_is_analysed_from_its_geometric_onset():
 
     fs = 48000
     ir = make_stage_ir(-12.0, -15.0)  # direct sound at 5 ms
-    ir = np.concatenate([np.zeros(4560), ir])  # direct sound now at 4800 samples = 34.3 m
+    ir = np.concatenate([np.zeros(4560), ir])  # direct sound at 4800 samples = 34.3 m
     clean = ir.copy()
     ir[100] = 50.0  # an early bin louder than the direct sound
     package = ImpulseResponse("k", Source("s", 0, 0, 0), Receiver("r", 34.3, 0, 0), ir, fs,
@@ -369,7 +369,7 @@ def test_drr_counts_the_first_5_ms_after_the_direct_sound_as_direct():
     ir[n0 + int(0.003 * fs)] = 0.5
     ir[n0 + int(0.006 * fs)] = 0.25
     ir[n0 + int(0.04 * fs)] = 0.25
-    # (1 + 0.25) / (0.0625 + 0.0625) is 10 dB; a window of +-2.5 ms around the direct sound gave 4.3 dB
+    # (1 + 0.25) / (0.0625 + 0.0625) is 10 dB
     assert Analyser(ir).direct_to_reverberant_ratio()["DRR_overall"] == pytest.approx(10.0, abs=0.1)
 
 
@@ -417,7 +417,7 @@ def onset_of(ir):
 
 
 def test_the_start_is_the_last_sample_below_20_db_before_the_rise():
-    # ita_start_IR (ITA Toolbox, ISO 3382-1): the sample at -26 dB is the start, not the one at -14 dB after it
+    # ISO 3382-1 (Annex A.3.1): the sample at -26 dB is the start, not the one at -14 dB after it
     ir = np.zeros(4800)
     ir[[1000, 1001, 1002]] = [0.05, 0.2, 1.0]
     assert onset_of(ir) == 1000
@@ -441,9 +441,9 @@ def test_a_response_less_than_20_db_above_its_noise_has_no_start():
     assert onset_of(ir) == 0
 
 
-def test_a_blocked_direct_sound_is_found_as_ita_finds_it():
-    # Package scale, direct path blocked: nothing arrives at the geometric sample (4786). Like ita_start_IR,
-    # the analysis starts at the first arrival; the geometric window held nothing and gave a DRR of about -110 dB.
+def test_a_blocked_direct_sound_is_found_at_the_first_arrival():
+    # Package scale, direct path blocked: nothing arrives at the geometric sample (4786). The analysis starts
+    # at the first arrival, as for the same response without geometry.
     from compas_acoustics import ImpulseResponse
     from compas_acoustics import Receiver
     from compas_acoustics import Source
@@ -462,10 +462,8 @@ def test_a_blocked_direct_sound_is_found_as_ita_finds_it():
 
 
 def test_a_ray_traced_tail_that_dies_into_zeros_is_evaluated_in_every_band():
-    # pyroomacoustics stops each ray at energy_thres: past about -60 dB the decay steepens, falls to around
-    # -150 dB and ends in exact zeros. Schroeder's integral is exact for a response without noise. (On the
-    # 408-face office of examples/notebooks/03_whats_new, whose ray-traced tail is also sparse, pyrato's
-    # Lundeby search found no intersection and left six of seven bands NaN; this smooth tail does not trip it.)
+    # The ray tracer stops each ray at an energy threshold: past about -60 dB the decay steepens, falls to
+    # around -150 dB and ends in exact zeros. Schroeder's integral is exact for a response without noise.
     fs = 48000
     t = np.arange(int(2.0 * fs)) / fs
     results = []
@@ -481,8 +479,8 @@ def test_a_ray_traced_tail_that_dies_into_zeros_is_evaluated_in_every_band():
 
 
 def test_trailing_zeros_do_not_hide_the_decay():
-    # A response padded with exact zeros: the octave filters' ringing decays into them without a noise floor,
-    # and pyrato's Lundeby search found none. The ITA Toolbox cuts trailing zeros before its noise detection.
+    # A response padded with exact zeros: the octave filters' ringing into them would steepen the end of the
+    # Schroeder integral, so trailing zeros are cut first.
     results = []
     for seed in range(3):
         padded = np.concatenate([exponential_decay(1.2, 2.0, seed), np.zeros(48000)])

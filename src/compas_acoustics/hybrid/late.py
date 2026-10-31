@@ -20,7 +20,7 @@ from .target import RoomTarget
 #: Fewest delay lines at any ambisonic order: Kirsch, Wendt and van de Par (2023, Secs. 1.2 and 3.3) use 96
 #: for offline simulation whatever the rendered directions, so the tail's character does not change with the
 #: count and a small network's recurrent patterns are avoided. The 96-point equal-area grid supports orders 0
-#: to 3. With 24 lines one shoebox's late level sat 2.8 dB below the exact image-source room (1.5 dB with 16 or 28).
+#: to 3.
 MIN_DELAYS = 96
 
 
@@ -37,8 +37,8 @@ def fdn_directions(num_delays: int = MIN_DELAYS) -> pf.Coordinates:
 def _nearest_coprime(targets: np.ndarray, tolerance: float = 0.03) -> np.ndarray:
     """Distinct integers near their targets, pairwise coprime where that fits.
 
-    Coprimality is sought within ``tolerance`` of each target, else the nearest unused integer is taken:
-    unbounded, the search walked 64 lines between 340 and 650 samples down to 181.
+    Coprimality is sought within ``tolerance`` of each target, else the nearest unused integer is taken, so
+    no length strays far from its target.
     """
     chosen: list[int] = []
     out = np.empty(targets.size, dtype=int)
@@ -77,9 +77,9 @@ def directional_delays(
     ``c sum_f A_f |n_f . u| / (2 V)``, so line ``i`` takes ``2 V / sum_f A_f |n_f . u_i|``. For a shoebox that is
     ``1 / (|u_x| / L_x + |u_y| / L_y + |u_z| / L_z)``; its mean over the sphere is Cauchy's ``4 V / S``.
 
-    ``u`` and ``-u`` share a free path, so ``spread`` jitters each length by that fraction before the lengths
-    are made coprime, lest opposite lines ring together. ``directions`` are in the receiver's frame and are
-    rotated back to the room's before projecting.
+    ``u`` and ``-u`` share a free path, so ``spread`` jitters each length uniformly by up to that fraction,
+    drawn from ``rng``, before the lengths are made coprime, lest opposite lines ring together. ``directions``
+    are in the receiver's frame and are rotated back to the room's before projecting.
     """
     unit = directions.cartesian
     unit = unit / np.linalg.norm(unit, axis=1, keepdims=True)
@@ -107,8 +107,10 @@ def design_fdn(
 
     ``delays`` (samples) is one array shared by every slope or one per slope. ``C`` is the W row of the
     ambisonic output matrix, ``1 / sqrt(N)`` per line, which the late envelope compares with its reference;
-    renderers project the lines themselves (:func:`render`). Each slope's attenuation follows ``target.rt`` and
-    its feedback matrix is seeded ``rng + slope``.
+    renderers project the lines themselves (:func:`render`). Each slope's attenuation follows ``target.rt``
+    (:meth:`~compas_acoustics.hybrid.target.RoomTarget.geq_bands` with ``dc_factor`` and ``nyquist_factor``)
+    and its feedback matrix is seeded ``rng + slope``; any ``matrix`` other than ``"orthogonal"`` is taken
+    from ``pyFDN.fdn_matrix_gallery``, which draws from NumPy's global state.
 
     A multi-exponential decay sums independent networks with one input, each weighted per band by
     ``level_k / sqrt(sum_j level_j ** 2)`` as an output filter, which keeps the slopes' level ratios and one

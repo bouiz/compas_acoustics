@@ -1,7 +1,6 @@
 """Nothing is heard before it arrives, through ``Scene.simulate(Ambisonics(...))``.
 
-compas-owned (not ported). The DSP is pinned by the ported test_early_causality.py;
-this runs the same L-shaped room through the scene, the room geometry and the method.
+The L-shaped room of test_early_causality.py, run through the scene, the room geometry and the method.
 """
 
 import warnings
@@ -36,10 +35,9 @@ def l_room():
 @pytest.mark.parametrize("model", ["udfa", "btms"])
 def test_diffraction_adds_nothing_before_the_direct_sound_could_arrive(model):
     # Around the corner the wall hides the direct sound; no diffracted path is shorter than it.
-    # Before the causal taper: -18 dB (UDFA) and -17 dB (BTMS) of the diffracted energy. What remains is
-    # the zero-phase band magnitude and UDFA transfer of each path, which ring before its arrival; how the
-    # nine paths' pre-rings add depends on their fractional delays: -38 to -57 dB for speeds of sound
-    # 341.6-344.5 m/s (measured). The bound keeps 17 dB below the untapered response.
+    # After the causal taper what remains is the zero-phase band magnitude and UDFA transfer of each
+    # path, which ring before its arrival; how the paths' pre-rings add depends on their fractional
+    # delays, hence on the speed of sound, so the bound leaves a margin.
     scene = l_room()
     responses = {}
     with warnings.catch_warnings():

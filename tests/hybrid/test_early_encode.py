@@ -1,4 +1,4 @@
-"""Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, tests/test_early_encode.py)."""
+"""The early encoder: band gains, delays, ambisonic channel gains and the path renderers."""
 
 import numpy as np
 import pyfar as pf
@@ -49,9 +49,7 @@ def test_output_shape_matches_the_ambisonic_order():
 
 
 def test_sloped_band_gains_are_reproduced_within_a_fraction_of_a_decibel():
-    """The test the band-sum design failed by 8.4 dB.
-
-    A target sloping down 26 dB across the spectrum is what an absorptive room
+    """A target sloping down 26 dB across the spectrum is what an absorptive room
     produces. Reproducing it is the encoder's entire job.
     """
     fs = 48000.0

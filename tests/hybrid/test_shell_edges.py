@@ -1,7 +1,4 @@
-"""Diffraction at the edges of the room's own boundary.
-
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, tests/test_shell_edges.py).
-"""
+"""Diffraction at the edges of the room's own boundary."""
 
 import warnings
 from itertools import pairwise
@@ -297,7 +294,7 @@ S_L = np.array([7.0, 1.0, 1.5])
 
 
 def panel_l_room():
-    """The L room of examples/08: an 8 x 6 m box with the quadrant x > 5, y > 3
+    """The L room as an 8 x 6 m box with the quadrant x > 5, y > 3
     closed off by two full-height obstacle panels."""
     v = [[0, 0, 0], [8, 0, 0], [8, 6, 0], [0, 6, 0], [0, 0, H], [8, 0, H], [8, 6, H], [0, 6, H]]
     faces = [(0, 3, 7, 4), (1, 5, 6, 2), (0, 4, 5, 1), (3, 2, 6, 7), (0, 1, 2, 3), (4, 7, 6, 5)]

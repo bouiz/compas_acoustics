@@ -43,7 +43,7 @@ def private_home(monkeypatch, tmp_path):
 
     home = tmp_path / "home"
     home.mkdir()
-    # A new home would make matplotlib rebuild its font cache in every worker, which takes half a minute
+    # A new home would make matplotlib rebuild its font cache in every worker
     monkeypatch.setenv("MPLCONFIGDIR", matplotlib.get_configdir())
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setenv("USERPROFILE", str(home))
@@ -273,7 +273,7 @@ def fake_worker(monkeypatch):
 
 
 def test_a_cold_worker_gets_time_to_start(fake_worker):
-    # The first start of a fresh environment imports the scientific stack uncached: 30 s measured
+    # The first start of a fresh environment imports the scientific stack uncached
     assert worker.CONNECTION_ATTEMPTS * 0.1 >= 60
     fake_worker.pings_before_up = 5
     assert worker.client() is not None
@@ -443,7 +443,7 @@ def test_an_empty_or_zero_result_still_travels(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Call ids, cancellation and progress (Grasshopper UI plan, Task 1)
+# Call ids, cancellation and progress
 # ---------------------------------------------------------------------------
 
 

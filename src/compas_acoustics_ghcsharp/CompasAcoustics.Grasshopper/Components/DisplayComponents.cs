@@ -217,7 +217,7 @@ namespace CompasAcoustics.Grasshopper
                 var shown = (RayFieldData)result["shown"]!;
                 Message = $"{field.Rays.Count} rays, order={outcome.Context}, seed={result["seed"]}";
                 var rays = RayGeometry.FromField(shown);
-                // nothing until Play: all rays at once are a blur; Play draws them as far as sound has travelled, Stop holds them
+                // nothing until Play: all rays at once are a blur; Play draws them as far as sound has travelled
                 var speedOfSound = Worker.SpeedOfSound;
                 // one button: Play, and Pause while playing (it holds the rays where they are; Play goes on)
                 var play = Pressed("play");
@@ -365,7 +365,7 @@ namespace CompasAcoustics.Grasshopper
         protected override string SpecKey => "CA_Visualise_Energy_Map";
         public override Guid ComponentGuid => new Guid("a0fc70ee-6c93-5bb3-b30d-315b8e4530cf");
 
-        // a static map: switched on, it shows the levels; the energy arriving over time was not worth watching
+        // a static map of the levels: no playback controls
         public override IReadOnlyList<Control> Controls { get; } = new Control[]
         {
             PreviewSwitch,
@@ -441,7 +441,6 @@ namespace CompasAcoustics.Grasshopper
                 Status(string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0} {1:0.0} to {2:0.0} dB", label, scale.low, scale.high),
                     string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0} {1:0.0} to {2:0.0} dB\n{3} points{4}",
                         label, scale.low, scale.high, faces.Length,
-                        // a worker installed before the ray count was its own does not say it
                         result.TryGetValue("n_rays", out var rays) && rays != null ? $", {rays} rays per source" : ""));
                 access.SetData("mesh", _drawn);
                 access.SetDataList("values", level);

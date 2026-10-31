@@ -57,14 +57,12 @@ def _band_list(mask: np.ndarray) -> str:
 
 
 def _warn_if_not_diffuse(geometry, model: str) -> None:
-    """Warn when the room breaks the diffuse-field assumption, since the FDN reproduces a wrong target to under 1 %.
+    """Warn with :class:`DiffuseFieldWarning` in the bands where the room breaks the diffuse-field assumption.
 
-    The thresholds were calibrated at 1 kHz against image sources of order 20 with ray tracing, over four room
-    shapes and scattering 0 to 0.6. Moving a fixed mean absorption onto floor and ceiling, Eyring's error grows
-    with the spread of absorption: -1 % at a coefficient of variation of 0.20, -14 % at 0.41, -29 % at 0.76, -47 %
-    at 0.96, crossing 10 % near 0.3. With uniform absorption Eyring is within 3 % near alpha = 0.12; below 0.1 the
-    error is dominated by the reference's scattering (at 0.05 it spans 3.13 s at s = 0 to 2.08 s at 0.3 around
-    Eyring's 2.32 s), so only the high side warns: from 0.25 the prediction is at least 18 % low at every scattering.
+    The late field reproduces the predicted decay, right or wrong. Sabine and Eyring underestimate the decay of
+    a room whose absorption is unevenly distributed, more the larger the spread, and of a highly absorbing room,
+    where the reflection order at a given path length spreads. The thresholds are an area-weighted coefficient
+    of variation of absorption above 0.3 and a mean absorption of 0.25 or more.
     """
     mean = mean_absorption(geometry)
     uniformity = _absorption_uniformity(geometry)
@@ -78,10 +76,9 @@ def _warn_if_not_diffuse(geometry, model: str) -> None:
             f"unevenly distributed across its surfaces in the "
             f"{_band_list(uneven)} Hz band(s) (area-weighted coefficient of "
             f"variation up to {uniformity[uneven].max():.2f}, warning above "
-            f"{uneven_cv}). Measured against a ray tracer, the predicted "
-            f"reverberation time is then up to 47 % low, and the synthesised "
-            f"T30 with it. tail='ray_tracing' (Binaural, Ambisonics) simulates the decay "
-            f"from this same geometry instead and lands within 4 %; "
+            f"{uneven_cv}). The predicted reverberation time is then too short, "
+            f"and the synthesised T30 with it. tail='ray_tracing' (Binaural, Ambisonics) "
+            f"simulates the decay from this same geometry instead; "
             f"reference=... fits it (RoomTarget.from_rir) to a response you already have.",
             DiffuseFieldWarning,
             stacklevel=3,
@@ -95,9 +92,8 @@ def _warn_if_not_diffuse(geometry, model: str) -> None:
             f"{mean[absorbing].max():.2f}, warning at {high_absorption} and "
             f"above). A diffuse-field model treats every reflection as drawing "
             f"the mean absorption, but the spread of reflection order at a "
-            f"given path length makes the real decay slower: measured 18 to "
-            f"31 % slower than predicted, for every scattering coefficient "
-            f"tested. Use tail='ray_tracing' (Binaural, Ambisonics), which needs the same "
+            f"given path length makes the real decay slower than predicted. "
+            f"Use tail='ray_tracing' (Binaural, Ambisonics), which needs the same "
             f"geometry and no measurement, or reference=... "
             f"(RoomTarget.from_rir) if you have a response already.",
             DiffuseFieldWarning,
@@ -140,10 +136,10 @@ def predicted_rt(
 ) -> np.ndarray:
     """Reverberation time per band on ``SYNTHESIS_BANDS`` (8,), Sabine or Eyring on :func:`mean_absorption`.
 
-    With ``air_absorption`` the ``4 m V`` term is added in closed form. Warns with :class:`DiffuseFieldWarning`
-    where the room is not diffuse, unless ``warn`` is False. ``air`` sets the attenuation and, unless
-    ``speed_of_sound`` is given, the speed of sound. The mean absorption is held below 1, so a fully absorbing
-    room gives zero rather than a division error.
+    ``weighting`` is that of :func:`mean_absorption`. With ``air_absorption`` the ``4 m V`` term is added in
+    closed form. Warns with :class:`DiffuseFieldWarning` where the room is not diffuse, unless ``warn`` is False.
+    ``air`` sets the attenuation and, unless ``speed_of_sound`` is given, the speed of sound. The mean absorption
+    is held below 1, so a fully absorbing room gives a finite time rather than a division error.
     """
     if hasattr(pyrato, "parametric"):
         models = {

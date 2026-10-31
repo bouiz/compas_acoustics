@@ -23,9 +23,9 @@ _A_WEIGHTS = {125: -16.1, 250: -8.6, 500: -3.2, 1000: 0.0, 2000: 1.2, 4000: 1.0,
 
 @lru_cache(maxsize=None)
 def _octave_band_filter(sampling_rate, center_frequency):
-    # IEC 61260-1 order-14 octave filter. The range is +-10 % of the centre: +-1/2 octave meets the
-    # neighbouring band edges exactly and selects three bands. Without an initial state the filter
-    # keeps none between calls, so one design serves every call.
+    # IEC 61260-1 order-14 octave filter. A range of +-10 % of the centre selects that band alone: at
+    # +-1/2 octave the range meets the neighbouring band edges and selects three. Without an initial
+    # state the filter keeps none between calls, so one design serves every call.
     return pf.dsp.filter.fractional_octave_bands(
         signal=None,
         num_fractions=1,
@@ -66,7 +66,7 @@ def _channels_first(ir):
 
 
 def _decay_end(ir, trim_db, margin=0.05):
-    """Samples of ``ir`` (channels, samples) until the Schroeder curve of all channels falls ``trim_db`` below its start, plus ``margin``."""
+    """Samples of ``ir`` (channels, samples) until the Schroeder curve of all channels falls ``trim_db`` below its start, lengthened by the fraction ``margin``."""
     remaining = np.cumsum(np.sum(ir ** 2, axis=0)[::-1])[::-1]
     if remaining[0] == 0:
         return ir.shape[1]
@@ -335,7 +335,7 @@ class Analyser:
     def _band_from_onset(self, ir_array, center_frequency):
         """Zero-phase octave-band IR starting 0.1 s before the direct sound.
 
-        The causal filter delays the band's direct sound (about 18 ms at 250 Hz, 35 ms at 125 Hz)
+        The causal filter delays the band's direct sound, by tens of milliseconds in the low bands,
         past limits measured from the broadband direct sound; forward-backward filtering removes
         the delay, and its ringing is symmetric, so integration starts before the direct sound.
 
@@ -361,11 +361,10 @@ class Analyser:
     def reverberation_times(self, impulse_response=None) -> dict:
         """EDT, T20 and T30 per band (ISO 3382-1).
 
-        Schroeder backward integration of the zero-phase band (:meth:`_band_from_onset`), from the
-        direct sound to the last non-zero sample, normalized to 0 dB at its start, then linear
-        regression. No noise compensation: a simulated response has no noise floor, and the Lundeby
-        et al. (1995) intersection is not found in a decay into numerical zero. Truncate a measured
-        response at its noise floor first.
+        Schroeder (1965) backward integration of the zero-phase band (:meth:`_band_from_onset`),
+        from the direct sound to the last non-zero sample, normalized to 0 dB at its start, then
+        linear regression. No noise compensation, since a simulated response has no noise floor:
+        truncate a measured response at its noise floor first.
         """
         if impulse_response is None:
             impulse_response = self.ir
@@ -375,7 +374,7 @@ class Analyser:
         # Trailing zeros are cut: the filters' ringing into them would steepen the end of the integral
         end = int(np.flatnonzero(ir_array)[-1]) + 1 if np.any(ir_array) else len(ir_array)
         keys = ('EDT', 'T20', 'T30')
-        # in pyrato.parameters from pyrato 1.0, at the top level before
+        # in pyrato.parameters from pyrato 1.0, at the top level of pyrato < 1.0
         regression = getattr(pyrato, 'parameters', pyrato).reverberation_time_linear_regression
 
         results = {key: [] for key in keys}
@@ -488,6 +487,12 @@ class Analyser:
         """STI and the modulation transfer index per octave band (IEC 60268-16:2020, indirect method).
 
         Responses shorter than the 1.6 s of Section 6.2 are zero-padded, which assumes a full decay.
+        ``snr`` is the signal-to-noise ratio in dB, one value or one per octave band 125-8000 Hz.
+
+        Returns
+        -------
+        dict
+            ``'mti'`` per octave band 125-8000 Hz and ``'sti'``; NaN where pyrato cannot compute them.
         """
         if not _STI_SUPPORTED:
             warnings.warn(

@@ -118,8 +118,8 @@ namespace CompasAcoustics.Grasshopper
                 SetGraph(access, scene.Value.Guid);
                 shown = true;
             }
-            // the simulation can take minutes and Grasshopper recomputes on every upstream change, so it starts only when
-            // 'run' is true (a button pulse); otherwise the responses of the last run for this scene are passed on
+            // the simulation can take minutes and Grasshopper recomputes on every change of the inputs, so it starts only
+            // when 'run' is true (a button pulse); otherwise the responses of the last run for this scene are passed on
             var pressed = Value<bool>(access, "run") == true || Pressed("run");
             var decision = RunInBackground(access, request, Deliver, start: pressed, restart: pressed);
             if (decision.Kind == RunKind.Idle)

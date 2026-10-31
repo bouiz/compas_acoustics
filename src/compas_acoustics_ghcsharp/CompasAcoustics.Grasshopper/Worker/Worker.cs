@@ -72,7 +72,7 @@ namespace CompasAcoustics.Grasshopper
 
         public double SpeedOfSound { get; private set; } = 343.0;
 
-        /// <summary>Whether the worker can run the hybrid method (pyFDN).</summary>
+        /// <summary>Whether the worker can run the binaural and ambisonics methods (its Python has pyFDN).</summary>
         public bool Hybrid { get; private set; }
 
         public bool Running => _client != null;
@@ -182,7 +182,7 @@ namespace CompasAcoustics.Grasshopper
             }
         }
 
-        /// <summary>Whether the worker is being started (its first call of a session waits for it, about 30 s on a cold start).</summary>
+        /// <summary>Whether the worker is being started (the first call of a session waits for it).</summary>
         public bool Starting { get; private set; }
 
         public T Call<T>(string function, params object?[] args) => (T)Call(function, args)!;
@@ -284,7 +284,7 @@ namespace CompasAcoustics.Grasshopper
                     break;
                 if (status != null)
                 {
-                    // something answers, but not this worker's service: an earlier version (compas.rpc's XML-RPC server)
+                    // something answers, but not this worker's service, e.g. a worker of another compas_acoustics version
                     process.Kill();
                     throw new WorkerException($"The worker at {python} is not this version's (it answers HTTP {status}): run the installer again.");
                 }

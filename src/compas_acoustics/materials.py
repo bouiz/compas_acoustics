@@ -160,6 +160,7 @@ class AcousticMaterial(_PackageDtype, Data):
         depth : float
             The surface's characteristic depth, in metres.
         s_max : float, optional
+            Default 0.8.
         c : float, optional
             Speed of sound in m/s; default that of ``AirConditions()``.
 

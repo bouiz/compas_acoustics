@@ -2,11 +2,9 @@
 
 pyFDN's ``level`` is the linear *amplitude* ``L`` of the per-octave-band decay
 ``L * 10 ** (-3 t / T)``, as returned by ``estimate_initial_level_bands``. That
-is neither an energy nor a spectral density, and ``from_room`` predicted it
-from diffuse-field theory as though it were both. These tests pin the two
-conversions that were missing.
-
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, tests/test_room_target_level.py).
+is neither an energy nor a spectral density, so predicting it from
+diffuse-field theory in ``from_room`` takes two conversions; these tests pin
+them.
 """
 
 import numpy as np
@@ -97,8 +95,7 @@ def test_from_room_and_from_rir_agree_on_a_room_they_both_describe():
     """The two constructors must produce levels a caller can compare.
 
     ``from_rir`` measures with pyFDN's estimator, so it is in pyFDN's units by
-    construction. ``from_room`` predicts, and used to predict a different
-    quantity entirely. Synthesising a decay with the shape ``from_room``
+    construction; ``from_room`` predicts. Synthesising a decay with the shape ``from_room``
     specifies and measuring it back must return that same shape.
     """
     fs = 48000.0

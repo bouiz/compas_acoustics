@@ -510,7 +510,6 @@ def test_import_anechoic_sound():
     filepath = Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"
     audio = a.import_anechoic_sound(filepath, sampling_rate_default)
 
-    # Assertions
     assert isinstance(audio, np.ndarray), "Audio should be a numpy array"
     assert audio.size > 0, "Audio array should not be empty"
     assert audio.ndim == 1, "Audio should be mono (1D array)"
@@ -583,14 +582,11 @@ def test_convolve_ambisonics():
 
     result = a.convolve()
 
-    # Test 1: result should be a NumPy array
     assert isinstance(result, np.ndarray), f"Expected a NumPy array, got {type(result)}"
 
-    # Test 2: number of channels should match maximum Ambisonics order
     expected_channels = (a.maximum_ambisonics_order + 1) ** 2
     assert result.shape[1] == expected_channels, f"Expected {expected_channels} channels, got {result.shape[1]}"
 
-    # Test 3: number of samples should be >= longest IR length
     longest_ir = max(ir_data['ir'].shape[0] for ir_data in a.impulse_responses.values())
     assert result.shape[0] >= longest_ir, f"Expected at least {longest_ir} samples, got {result.shape[0]}"
 

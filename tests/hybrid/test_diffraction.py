@@ -1,6 +1,4 @@
 """Obstacle edges, diffraction paths and their visibility, rendering, and
-
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, tests/test_diffraction.py).
 diffraction in prepare and render_ambisonics."""
 
 import warnings
@@ -334,9 +332,8 @@ def test_floor_paths_reflect_before_and_after_the_diffraction():
 def test_a_reflection_on_a_floor_seam_counts_once():
     # Both floor reflections over the top edge land on y = 4, the seam.
     # Nanometre noise on the seam's ends, as CAD exports carry, makes the two
-    # faces' planes differ in the last bits; one image per face then counted
-    # the path twice or dropped it (8 and 1 of 30 trials before the images
-    # were built per plane).
+    # faces' planes differ in the last bits; one image per face would count
+    # the path twice or drop it.
     s, r = np.array([2.0, 4.0, 1.5]), np.array([8.0, 4.0, 1.0])
     before, after = expected_floor(s, r)
     expected = sorted([round(before, 6), round(after, 6)])
@@ -350,7 +347,7 @@ def test_a_reflection_on_a_floor_seam_counts_once():
 def test_only_the_legs_at_the_apex_pass_the_edge_faces():
     # source -> wall x = 10 -> top edge -> receiver: the source's leg to the
     # wall crosses the panel at z = 1.59, so the path is blocked; skipping the
-    # edge's face on every leg let it through
+    # edge's faces on every leg would let it through
     s, r = np.array([4.0, 4.0, 1.5]), np.array([2.0, 4.0, 1.5])
     apex = np.array([5.0, 4.0, TOP])
     image = s * np.array([-1.0, 1.0, 1.0]) + np.array([20.0, 0.0, 0.0])
@@ -552,7 +549,7 @@ def test_btms_segments_of_a_free_edge_sum_to_the_kernel_on_the_whole_edge():
         total[p.start:p.start + p.ir.size] += p.ir
     (rs, ts, zs), (rr, tr, zr) = toolbox_cyl(e, np.array([s, r]))
     whole, *_ = wedge1st_ir(spec.fs, C, 2 * np.pi - e.theta_w, rs, ts, zs, rr, tr, zr, np.array([0.0, e.length]))
-    # the analytic apex approximation (zrelmax = 0.1) is good to ~1.6e-5 of peak and its range moves with the cut
+    # the analytic apex approximation (zrelmax = 0.1) is good to a few 1e-5 of peak and its range moves with the cut
     np.testing.assert_allclose(total[:whole.size], whole, atol=5e-5 * np.max(np.abs(whole)))
 
 
@@ -693,7 +690,7 @@ def test_second_order_is_invariant_under_rotation_with_corner_sharing_pairs():
 
 def test_second_order_over_a_free_panel_is_invariant_under_rotation():
     # knife edges: the panel is both faces, so a computed angle of a coplanar edge is 0 or 2 pi - eps by
-    # rounding; the toolbox (EDed2geo.m) gives it the reference plane's 0
+    # rounding; it must get the reference plane's 0
     from scipy.spatial.transform import Rotation
 
     centre = np.array([5.0, 4.0, 2.0])
@@ -787,8 +784,8 @@ def test_an_unknown_diffraction_model_is_refused():
 
 
 def edverify_plate():
-    """The 1 x 2 m plate of EDverify.m tests 2 and 3 (plane y = 0, edge x = 0,
-    -1 <= z <= 1) in a 400 m enclosure that absorbs everything."""
+    """A 1 x 2 m plate (plane y = 0, edge x = 0, -1 <= z <= 1) in a 400 m
+    enclosure that absorbs everything."""
     big = 200.0 * np.array([[-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1],
                             [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]], float)
     plate = np.array([[0, 0, 1], [0, 0, -1], [-1, 0, -1], [-1, 0, 1]], float)
@@ -800,11 +797,12 @@ def edverify_plate():
 
 @pytest.mark.parametrize("z", [0.0, 1.0], ids=["perpendicular", "skewed"])
 def test_continuity_across_zone_boundaries_as_edverify(z):
-    """EDverify.m tests 2 and 3: at 100 Hz the field exactly on the direct-sound
-    and the specular zone boundary equals the mean of the fields 0.001 deg either
-    side to 1e-5. Direct sound and specular reflection are placed as
-    EDmakefirstorderirs.m places them and counted off the boundary only, as the
-    image sources are; on it the scaled component comes from btms_paths."""
+    """At 100 Hz the field exactly on the direct-sound and the specular zone
+    boundary equals the mean of the fields 0.001 deg either side to 1e-5
+    (Svensson and Calamia 2006). Direct sound and specular reflection are split
+    linearly between the two samples around their arrival and counted off the
+    boundary only, as the image sources are; on it the scaled component comes
+    from btms_paths."""
     c, f = 344.0, 100.0
     geo = edverify_plate()
     s = np.array([-1.0, 1.0, 0.0]) / np.sqrt(2.0)
@@ -849,8 +847,8 @@ def test_continuity_across_zone_boundaries_as_edverify(z):
                          ids=["direct", "specular"])
 def test_a_path_through_a_corner_is_scaled_once_as_edfindconvexgapaths(mirror, scale):
     # the path through the plate's corner (0, 0, 1) lies on the zone boundaries of
-    # both edges meeting there; EDfindconvexGApaths.m scales the direct sound to 2/3
-    # and a specular reflection to 1/3 for such a corner hit
+    # both edges meeting there; for such a corner hit the direct sound is scaled to 2/3
+    # and a specular reflection to 1/3
     s = np.array([-1.0, 1.0, 0.0]) / np.sqrt(2.0)
     origin = s * np.array(mirror)
     r = np.array([0.0, 0.0, 2.0]) - origin
@@ -866,8 +864,8 @@ def test_a_receiver_on_a_zone_boundary_gets_half_the_geometric_sound():
     # source, the panel's top edge (z = 2.5 at x = 5) and receiver exactly collinear:
     # the receiver lies on the incident shadow boundary of that edge. The image
     # sources drop the direct sound there and the singular BTMS term is zeroed, so
-    # without the half direct sound the field would lose half its pressure. Compared
-    # at 100 Hz as EDverify.m does, with the neighbour 0.1 mm into the shadow (on the
+    # without the half direct sound the field would lose half its pressure (Svensson
+    # et al. 2025, Eqs. 2-4). Compared at 100 Hz, with the neighbour 0.1 mm into the shadow (on the
     # lit side pyroomacoustics drops the direct sound up to about 1 mm from the edge).
     s, r = np.array([2.0, 4.0, 1.5]), np.array([8.0, 4.0, 3.5])
 

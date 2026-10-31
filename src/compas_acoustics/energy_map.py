@@ -26,8 +26,7 @@ def map_rays(volume: float, duration: float) -> int:
     """The rays per source that give every point of a map 16000 hits, from 20000 to 250000.
 
     A ray of length ``c T`` crosses a receiver sphere of radius ``r = 0.5`` m about ``c T pi r^2 / V`` times in a
-    diffuse field (Vorlaender 2008, Eq. 11.12, with the response length for the bin). At 16000 hits two seeds agree
-    within 0.5 dB at every point in rooms of 105 to 12000 m3.
+    diffuse field (Vorlaender 2008, Eq. 11.12, with the response length for the bin).
     """
     c = Defaults().DEFAULT_SPEED_OF_SOUND
     n = math.ceil(16000 * volume / (math.pi * 0.5 ** 2 * c * duration))
@@ -51,6 +50,7 @@ class EnergyMap(_PackageDtype, Data):
         The length of a time bin in seconds; bin ``k`` starts ``k * bin_size`` after the emission.
     energy : array-like
         (n, b, bins).
+    name : str, optional
     """
 
     def __init__(self, points, inside, bands, bin_size, energy, name=None):
@@ -136,14 +136,13 @@ class EnergyMap(_PackageDtype, Data):
         seed : bool or int, default=True
             The rays' seed: True seeds with 42, an int with that value, False leaves them unseeded.
         ray_spacing : float, optional
-            The rays are traced to one receiver per cell of this size, the point of the cell nearest its centre, and
+            Default 1 m. The rays are traced to one receiver per cell of this size, the point of the cell nearest its centre, and
             their energy is interpolated to the other points; None traces them to every point. A run costs rays times
             receivers, the late energy varies slowly and a 0.5 m receiver sphere resolves nothing finer; the image
             sources stay exact at every point.
 
         Points outside the room, or inside a closed obstacle, are left out with one ``UserWarning``. The ray
-        tracer's scattering over-estimates the late energy with high scattering coefficients (up to about 3 dB
-        at s 0.6 to 1).
+        tracer's scattering over-estimates the late energy at high scattering coefficients.
         """
         from compas_acoustics.room.geometry import RoomGeometry
         from compas_acoustics.room.raytracing import default_duration

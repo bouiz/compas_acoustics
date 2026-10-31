@@ -1,4 +1,4 @@
-"""Binaural rendering of the hybrid without spherical harmonics: the HRIR measured nearest each path and each delay line."""
+"""Binaural rendering of the hybrid: every early path and every delay line through the HRIR measured nearest its direction."""
 
 from __future__ import annotations
 
@@ -65,9 +65,9 @@ def render_binaural(core, hrtf: HrtfSet):
     """A :class:`~compas_acoustics.hybrid.synthesis.HybridCore` at the two ears, (n, 2), as a
     :class:`~compas_acoustics.hybrid.synthesis.HybridResult`.
 
-    Early part: every image, diffracted path and BTMS contribution keeps the band magnitude, fractional delay
-    and radiation taper of its ambisonic encoding, with the HRIR measured nearest its direction instead of its
-    spherical harmonics; paths sharing an HRIR are summed first. Late part: line ``i`` after the late envelope
+    Early part: every image, diffracted path and BTMS contribution has the band magnitude, fractional delay
+    and radiation taper of :func:`~compas_acoustics.hybrid.early.render_images` and goes through the HRIR
+    measured nearest its direction; paths sharing an HRIR are summed first. Late part: line ``i`` after the late envelope
     (:meth:`~compas_acoustics.hybrid.synthesis.HybridCore.shaped_lines`, fitted against the paths' omnidirectional
     sum), over ``sqrt(N)`` (the W row of the ambisonic output matrix), through the HRIR nearest
     ``core.line_directions[i]``.

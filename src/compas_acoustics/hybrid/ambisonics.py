@@ -72,8 +72,8 @@ def ambisonic_output_matrix(
     with like across orders (in SN3D the diagonal falls as 1 / (2n + 1)).
 
     The late field is isotropic only if ``C @ C.T`` is diagonal; its off-diagonal entries are the channels'
-    cross-correlation, which depends on how well the grid supports ``sh_order``, so it is measured: a
-    16-point spiral grid leaks 21.5 % (about -13 dB of cross-talk), an equal-area one 2e-14 %.
+    cross-correlation, which depends on how well the grid supports ``sh_order``. The largest of them over the
+    mean diagonal is the leakage; a grid leaking more than ``max_leakage`` raises ``ValueError``.
     """
     sh = spharpy.spherical.spherical_harmonic_basis_real(
         sh_order, directions, normalization=normalization, channel_convention="ACN"

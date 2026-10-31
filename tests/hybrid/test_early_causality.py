@@ -1,19 +1,13 @@
 """The early field is causal: nothing is heard before it arrives.
 
 The radiation taper (a fourth-order 35 Hz high-pass that keeps DC out, see
-``early._radiation_taper``) multiplies every path's spectrum. Applied as a real,
-zero-phase magnitude it rang symmetrically about each arrival, and its
-low-frequency half before the arrival reached back to the start of the response:
-around the corner of an L-shaped room the diffracted part held 18 dB below its
-energy before the direct sound could arrive. It is now the causal Butterworth
-high-pass of the same magnitude.
+``early._radiation_taper``) multiplies every path's spectrum as a causal
+Butterworth high-pass. A zero-phase magnitude would ring symmetrically about each
+arrival, and its low-frequency half before the arrival would reach back to the
+start of the response.
 
-Not tested here: the sinc tail of a fractional delay (about -27 dB beyond 1 ms,
-the cost of an exact band-limited delay), and the band magnitude, which is still
-applied zero-phase (a reflection losing 20 dB over the eight bands rings about
-25 dB down a millisecond before it arrives).
-
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, tests/test_early_causality.py).
+Not tested here: the sinc tail of a fractional delay (the cost of an exact
+band-limited delay), and the band magnitude, which is applied zero-phase.
 """
 
 import numpy as np
@@ -52,9 +46,8 @@ def test_the_taper_keeps_the_butterworth_magnitude():
 def test_the_taper_is_causal():
     nfft = 1 << 16
     h = np.fft.irfft(_radiation_taper(np.fft.rfftfreq(nfft, 1 / FS)), nfft)
-    # The second half of the circular response is negative time. Its last millisecond holds the Gibbs ripple of
-    # band-limiting the analog response at Nyquist (2e-6 of the energy, in the samples next to t = 0); before
-    # that the zero-phase taper left 4.6e-4, the causal one 3e-8.
+    # The second half of the circular response is negative time. Its last millisecond, left out, holds the Gibbs
+    # ripple of band-limiting the analog response at Nyquist, in the samples next to t = 0.
     assert np.sum(h[nfft // 2: nfft - 48] ** 2) / np.sum(h**2) < 1e-6
 
 

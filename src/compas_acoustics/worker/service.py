@@ -226,7 +226,7 @@ def start_service(port, token, parent=None, host="127.0.0.1"):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, required=True)
-    # accepted for clients that still pass it; the worker never reloads modules
+    # accepted and ignored: the worker never reloads modules
     parser.add_argument("--no-autoreload", action="store_true")
     token = os.environ.pop(TOKEN_VARIABLE, None)
     if not token:

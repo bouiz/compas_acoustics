@@ -127,7 +127,7 @@ class Scene(_PackageDtype, Data):
     @acoustic_materials.setter
     def acoustic_materials(self, materials):
         raise AttributeError(
-            "Scene materials are no longer assigned by surface name. Give each AcousticObject its material, e.g. "
+            "Scene materials are not assigned by surface name. Give each AcousticObject its material, e.g. "
             "AcousticObjectsLibrary.shoebox_room(..., materials={'floor': carpet, ...}) or "
             "AcousticObject.from_obj(path, materials={'<group>': material})."
         )

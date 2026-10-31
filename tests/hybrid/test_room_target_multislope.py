@@ -1,4 +1,4 @@
-"""Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, tests/test_room_target_multislope.py)."""
+"""Multi-slope ``RoomTarget.from_rir`` and the slope selection of ``geq_bands``."""
 
 import numpy as np
 import pytest
@@ -41,7 +41,7 @@ def test_single_slope_target_is_two_dimensional_with_one_column():
 
 
 def test_single_slope_values_are_unchanged_by_the_shape_change():
-    """The n_slopes=1 path must still be pyFDN's single-slope estimate."""
+    """The n_slopes=1 path is pyFDN's single-slope estimate."""
     import pyFDN
 
     rir = decaying_noise([0.8], [0.0])
@@ -125,8 +125,7 @@ def test_from_room_is_single_slope():
 def test_forcing_two_slopes_on_a_single_slope_room_is_documented_as_harmful():
     """Not a bug, a warning: n_slopes=2 forced on one slope corrupts the fit.
 
-    Measured 0.626 / 0.661 s against a true 0.8 s. The estimator has no way to
-    decline, so the caller must. This test pins the behaviour so the docstring
+    The estimator has no way to decline, so the caller must. This test pins the behaviour so the docstring
     stays honest.
     """
     forced = RoomTarget.from_rir(decaying_noise([0.8], [0.0]), FS, n_slopes=2)

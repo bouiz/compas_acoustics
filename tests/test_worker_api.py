@@ -40,7 +40,7 @@ def box_mesh():
 
 
 # ---------------------------------------------------------------------------
-# Task 4: materials and model makers
+# Materials and model makers
 # ---------------------------------------------------------------------------
 
 
@@ -155,7 +155,7 @@ def test_make_scene_keeps_no_name_as_none_and_validates_the_rate():
 
 
 # ---------------------------------------------------------------------------
-# Task 5: analysis, auralise, play, stop
+# Analysis, auralise, play, stop
 # ---------------------------------------------------------------------------
 
 from pathlib import Path  # noqa: E402
@@ -309,7 +309,7 @@ def test_play_and_stop_reach_the_player(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Task 6: rays, reflections, fitness
+# Rays, reflections, fitness
 # ---------------------------------------------------------------------------
 
 from compas_acoustics import RayField  # noqa: E402
@@ -383,7 +383,7 @@ def test_regularized_fitness_matches_the_function():
 
 
 # ---------------------------------------------------------------------------
-# Task 15: what Check Channel asks about a file
+# What the Check Channel component asks about a file
 # ---------------------------------------------------------------------------
 
 
@@ -405,7 +405,7 @@ def test_sound_info_of_a_missing_or_unreadable_file_is_a_value_error(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Playback control (Grasshopper UI plan, Task 2)
+# Playback control
 # ---------------------------------------------------------------------------
 
 

@@ -1,9 +1,8 @@
 """The early-to-late transition: the last rendered order drives the network, into the opposite line.
 
 Wendt et al. (2014, Sec. 1.3): the network input "must equal the total energy of the Nth-order
-reflections", N the maximum image source order the ISM renders. RAZR 0.96.3 feeds that order
-(``image_source_model.m``: "sigmat of the last loop iteration will be used for FDN input"), and so do
-Kirsch et al. (2023) and Ewert et al. (2025). Ewert et al. (Sec. 3.1.2) map each specular image to the
+reflections", N the maximum image source order the ISM renders; Kirsch et al. (2023) and Ewert
+et al. (2025) feed that order too. Ewert et al. (Sec. 3.1.2) map each specular image to the
 channels of the spatially opposite hemisphere, "including the FDN delays, thus mimicking sound having
 travelled once through the room and being reflected on the opposite side".
 """
@@ -66,9 +65,8 @@ def test_the_network_is_heard_one_line_after_the_last_order():
     result = render_ambisonics(prepare(spec, iss, TARGET, max_order=2, duration_s=0.3))
     first = iss.delay[iss.order == 2].min() * FS + np.asarray(result.core.builds[0].delays).min()
     energy = result.late[:, 0] ** 2
-    # before that only the zero-phase band magnitude's pre-ringing: about -34 dB here, each image entering
-    # some 48 lines of its opposite hemisphere (-51 dB when it entered one); a drive heard at once would
-    # put the whole last order there, at 0 dB
+    # before that only the zero-phase band magnitude's pre-ringing, each image entering some 48 lines of
+    # its opposite hemisphere; a drive heard at once would put the whole last order there
     assert energy[: int(first) - 48].sum() < 1e-3 * energy.sum()
 
 
