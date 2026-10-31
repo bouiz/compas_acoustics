@@ -40,7 +40,7 @@ def test_single_slope_target_is_two_dimensional_with_one_column():
     assert target.n_slopes == 1
 
 
-def test_single_slope_values_are_unchanged_by_the_shape_change():
+def test_a_single_slope_is_pyfdns_estimate():
     """The n_slopes=1 path is pyFDN's single-slope estimate."""
     import pyFDN
 
@@ -106,13 +106,12 @@ def test_geq_bands_rejects_a_slope_that_does_not_exist():
 
 def test_from_room_is_single_slope():
     """Geometry gives one decay per band; there is no second slope to predict."""
-    from _compat import Material, RoomSpec, ShoeboxGeometry
+    from _rooms import box_room, pair
 
-    mat = Material.from_scalar(0.2)
-    spec = RoomSpec(
-        geometry=ShoeboxGeometry(
-            (8.0, 6.0, 3.0), {n: mat for n in ShoeboxGeometry.WALL_NAMES}
-        ),
+    from compas_acoustics.room.geometry import SurfaceMaterial
+
+    spec = pair(
+        geometry=box_room((8.0, 6.0, 3.0), SurfaceMaterial("wall", np.full(N_BANDS, 0.2))),
         source=np.array([2.0, 2.0, 1.5]),
         receiver=np.array([5.0, 4.0, 1.5]),
     )

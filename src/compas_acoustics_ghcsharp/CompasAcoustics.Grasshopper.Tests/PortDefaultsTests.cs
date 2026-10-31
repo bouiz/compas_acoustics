@@ -17,10 +17,10 @@ namespace CompasAcoustics.Grasshopper.Tests
         [InlineData("CA_Simulate_Binaural", "ism_order", 3)]
         [InlineData("CA_Visualise_Rays", "n_rays", 500)]
         [InlineData("CA_Visualise_Rays", "max_order", 10)]
-        public void Specs_DeclareTheIntegerDefaultsOfThePlan(string component, string port, int value) => Assert.Equal(value, Port(component, port).Default);
+        public void Specs_DeclareTheIntegerDefaults(string component, string port, int value) => Assert.Equal(value, Port(component, port).Default);
 
         [Fact]
-        public void Specs_DeclareTheNumberDefaultsOfThePlan()
+        public void Specs_DeclareTheNumberDefaults()
         {
             Assert.Equal(1e-7, Port("CA_Simulate_Mono", "energy_thres").Default);
             Assert.Equal(1.0, Port("CA_Regularized_Fitness", "k").Default);
@@ -30,7 +30,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void APortWithADefault_NoLongerSaysItInItsDescription()
+        public void APortDescription_LeavesTheDefaultToThePort()
         {
             foreach (var key in ComponentSpec.Names())
                 foreach (var port in ComponentSpec.Load(key).Inputs.Where(p => p.Default != null))

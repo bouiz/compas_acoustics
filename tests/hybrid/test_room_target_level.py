@@ -13,19 +13,15 @@ import pytest
 from scipy.signal import sosfilt
 
 from compas_acoustics.hybrid.bands import BANDS, BANDWIDTHS
-from _compat import Material, RoomSpec, ShoeboxGeometry
+from _rooms import box_room, pair
 from compas_acoustics.hybrid.target import RoomTarget
+from compas_acoustics.room.geometry import SurfaceMaterial
 
 
 def spec_with(alpha, dims=(8.0, 6.0, 3.0)):
-    material = (
-        Material.from_scalar(alpha)
-        if np.isscalar(alpha)
-        else Material(np.asarray(alpha, dtype=float), BANDS.copy())
-    )
-    geom = ShoeboxGeometry(dims, {n: material for n in ShoeboxGeometry.WALL_NAMES})
-    return RoomSpec(
-        geometry=geom,
+    material = SurfaceMaterial("wall", np.full(BANDS.size, float(alpha)) if np.isscalar(alpha) else np.asarray(alpha, dtype=float))
+    return pair(
+        geometry=box_room(dims, material),
         source=np.array([2.0, 2.0, 1.5]),
         receiver=np.array([5.0, 4.0, 1.5]),
     )

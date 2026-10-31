@@ -191,7 +191,7 @@ def edge():
     return shoebox(source=(2, 2.5, 1.5), receiver=(5, 2.5, 1.5))
 
 
-def test_data_stored_with_wall_names_and_a_speed_of_sound_still_loads():
+def test_data_stored_with_wall_names_and_a_speed_of_sound_loads():
     data = path().__data__
     data.update(wall_names=["floor"], sound_speed=343.98)
     loaded = SpecularPath.__from_data__(data)

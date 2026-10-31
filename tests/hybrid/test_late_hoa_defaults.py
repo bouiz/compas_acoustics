@@ -48,6 +48,6 @@ def test_the_grid_depends_on_the_count_alone():
 
 
 def test_a_delay_count_that_cannot_support_the_order_raises():
-    """The guard must not be softened into a silent substitution."""
+    """An order the grid cannot carry raises rather than being replaced."""
     with pytest.raises(ValueError, match="leaks"):
         ambisonic_output_matrix(2, fdn_directions(16))

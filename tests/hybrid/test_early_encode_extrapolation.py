@@ -54,7 +54,7 @@ def spectrum(signal):
     return freq, mag
 
 
-def test_the_coherent_dc_buildup_is_gone():
+def test_the_extrapolation_has_no_coherent_dc():
     """The running sum stays small against the peak sample.
 
     Not asserted as zero. The taper's spectrum is zero at DC, so the sum over

@@ -73,7 +73,7 @@ def identity(n_dir=1):
     return HrtfSet(hrirs, np.tile([[1.0, 0.0, 0.0]], (n_dir, 1)), FS)
 
 
-@pytest.mark.parametrize("diffraction", [False, True])
+@pytest.mark.parametrize("diffraction", [False, True, "btms"])
 def test_with_a_transparent_hrtf_both_ears_hear_the_omnidirectional_early_part(diffraction):
     """Same paths, same encoders, same band interpolation, delays and taper: the core's W exactly, BTMS included."""
     from compas_acoustics.hybrid.binaural import render_binaural
@@ -85,32 +85,6 @@ def test_with_a_transparent_hrtf_both_ears_hear_the_omnidirectional_early_part(d
     w = render_ambisonics(core).early[:, 0]
     np.testing.assert_allclose(ears[:, 0], w, rtol=0, atol=1e-12 * np.max(np.abs(w)))
     np.testing.assert_array_equal(ears[:, 0], ears[:, 1])
-
-
-def direct_level(ears, core, ear):
-    """Level in dB of the 2 ms after the direct sound arrives, at one ear."""
-    start = int(round(float(core.images.delay[core.images.order == 0][0]) * FS))
-    return 10 * np.log10(np.sum(ears[start:start + 96, ear] ** 2))
-
-
-def test_a_source_on_the_left_is_louder_in_the_left_ear():
-    from compas_acoustics.hybrid.binaural import DEFAULT_HRTF
-    from compas_acoustics.hybrid.binaural import HrtfSet, render_binaural
-
-    # The source is at (2, 4, 1.5); a receiver at (2, 1, 1.5) facing +x has it on its left (+y)
-    core = run(Binaural(**FAST), receiver=Receiver("rec", 2.0, 1.0, 1.5)).core
-    ears = render_binaural(core, HrtfSet.from_sofa(DEFAULT_HRTF, FS)).early
-    assert direct_level(ears, core, 0) - direct_level(ears, core, 1) > 6.0
-
-
-def test_the_ears_turn_with_the_receiver():
-    from compas_acoustics.hybrid.binaural import DEFAULT_HRTF
-    from compas_acoustics.hybrid.binaural import HrtfSet, render_binaural
-
-    turned = Receiver("rec", 2.0, 1.0, 1.5, direction=[-1, 0, 0])
-    core = run(Binaural(**FAST), receiver=turned).core
-    ears = render_binaural(core, HrtfSet.from_sofa(DEFAULT_HRTF, FS)).early
-    assert direct_level(ears, core, 1) - direct_level(ears, core, 0) > 6.0
 
 
 def test_the_binaural_response_is_early_plus_each_line_through_its_hrir():

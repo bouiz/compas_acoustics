@@ -10,7 +10,7 @@ ROOT = pathlib.Path(__file__).parents[1]
 
 
 @pytest.mark.slow
-def test_the_wheel_ships_the_new_modules(tmp_path):
+def test_the_wheel_ships_the_package_modules(tmp_path):
     # a ``build/`` folder left by an earlier build is importable as a namespace package: look for the tool itself
     if importlib.util.find_spec("build") is None or importlib.util.find_spec("build.__main__") is None:
         pytest.skip("needs the build package")

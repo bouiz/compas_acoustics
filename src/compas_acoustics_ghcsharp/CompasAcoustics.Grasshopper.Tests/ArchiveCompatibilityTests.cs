@@ -7,7 +7,7 @@ using Xunit;
 
 namespace CompasAcoustics.Grasshopper.Tests
 {
-    /// <summary>Definitions saved with an earlier build: a component that has gained inputs since reads without errors.</summary>
+    /// <summary>Saved definitions whose ports differ from the current ones: a component reads them without errors, matching ports by name.</summary>
     public class ArchiveCompatibilityTests
     {
         // the test runner reads these signatures before WinFormsResolver is registered: no plugin type in them
@@ -33,7 +33,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             (archive.Messages ?? new System.Collections.Generic.List<GH_Message>()).Where(m => m.Type != GH_Message_Type.info).Select(m => m.Message).ToArray();
 
         [Fact]
-        public void AMaterialLibrarySavedBeforeItsInputs_ReadsWithoutErrors()
+        public void AMaterialLibrarySavedWithoutInputs_ReadsWithoutErrors()
         {
             var old = new MaterialLibraryComponent();
             foreach (var input in old.Params.Input.ToList())
@@ -46,9 +46,9 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void ASourceSavedWithItsFormerDirectivityInput_ReadsEachInputByName()
+        public void ASourceSavedWithAnExtraDirectivityInput_ReadsEachInputByName()
         {
-            // the Source had a directivity input before sound_file; its saved choice must not land in sound_file
+            // a saved directivity input before sound_file: its value must not land in sound_file
             var old = new SourceComponent();
             var directivity = new Param_String { Name = "directivity", NickName = "directivity" };
             directivity.PersistentData.Append(new GH_String("cardioid"));
@@ -64,10 +64,9 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void ASavedPyroomacousticsComponent_ReadsAsSimulateMono()
+        public void ASavedSimulateMono_IsFoundByItsGuid_AndReadsItsPortsByName()
         {
-            // a definition saved with Simulate Pyroomacoustics finds the component by its GUID and its ports by name
-            var mono = new SimulateMonoComponent();
+                        var mono = new SimulateMonoComponent();
             Assert.Equal(new System.Guid("afb77a6d-dd01-5224-9ee0-70972dcbdbcf"), mono.ComponentGuid);
             Assert.Equal(("Simulate Mono", "SimMono"), (mono.Name, mono.NickName));
             Assert.Equal(new[] { "scene", "ism_order", "ray_tracing", "n_rays", "absorb_air", "energy_thres", "duration", "seed", "normalize" },

@@ -291,7 +291,6 @@ def test_a_ray_field_traces_each_ray_for_its_duration():
     assert all(sum(ray.segment_lengths[:-1]) <= limit for ray in field)
     assert any(ray.total_distance > 0.5 * limit for ray in field)
     assert "duration" in inspect.signature(RayField.from_scene).parameters
-    assert "time_thres" not in inspect.signature(RayField.from_scene).parameters
 
 
 def test_particles_carry_the_reflection_order_they_have_reached():

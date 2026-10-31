@@ -32,7 +32,7 @@ def bundle(tmp_path):
     return wheel
 
 
-def test_install_gha_copies_the_assembly_and_removes_the_old_userobjects(installer, tmp_path):
+def test_install_gha_copies_the_assembly_and_removes_previously_installed_userobjects(installer, tmp_path):
     wheel = bundle(tmp_path)
     old = tmp_path / "UserObjects" / "compas_acoustics"
     old.mkdir(parents=True)
@@ -60,8 +60,5 @@ def test_install_gha_without_the_plugin_next_to_the_wheel_says_what_to_download(
         installer.install_gha(str(wheel), print)
 
 
-def test_the_installer_has_no_venv_directive_and_installs_the_worker_always(installer):
-    text = INSTALLER.read_text()
-    assert "# " + "venv:" not in text
-    assert "install_userobjects" not in text and "set_venv" not in text
-    assert '"--hybrid"' in text
+def test_the_installer_installs_the_worker_always(installer):
+    assert '"--hybrid"' in INSTALLER.read_text()

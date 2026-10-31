@@ -337,23 +337,3 @@ def render_signals(
             buffer[start:stop] += block[: stop - start]
         spectrum += np.fft.rfft(buffer, axis=0) * magnitude(gains[members[0]])[:, np.newaxis]
     return _finish(spectrum, freq, nfft, n_samples)
-
-
-def route_to_directions(iss: ImageSourceSet, directions: pf.Coordinates, opposite: bool = False) -> np.ndarray:
-    """One-hot routing of images onto directions, shape (M, n_directions).
-
-    Each image goes to the direction nearest its direction of arrival, or with ``opposite`` its reverse: the
-    sharp limit of :func:`~compas_acoustics.hybrid.scattering.scattering_weights` (Ewert et al. 2025, Sec. 3.1.2).
-    Only the tests use it.
-    """
-    unit_dir = directions.cartesian
-    unit_dir = unit_dir / np.linalg.norm(unit_dir, axis=1, keepdims=True)
-    if np.asarray(iss.delay).size == 0:
-        return np.zeros((0, unit_dir.shape[0]), dtype=float)
-    doa = iss.doa.cartesian
-    doa = doa / np.linalg.norm(doa, axis=1, keepdims=True)
-
-    nearest = np.argmax((-doa if opposite else doa) @ unit_dir.T, axis=1)
-    weights = np.zeros((doa.shape[0], unit_dir.shape[0]), dtype=float)
-    weights[np.arange(doa.shape[0]), nearest] = 1.0
-    return weights

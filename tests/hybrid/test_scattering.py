@@ -30,28 +30,27 @@ from compas_acoustics.room.geometry import RoomGeometry
 from compas_acoustics.room.geometry import pra_octave_grid
 from compas_acoustics.simulation_methods import Ambisonics
 
-from _scenes import reference_scene  # noqa: E402
-
 FS = 48000
-# a 10 m x 8 m x 4 m shoebox with scattering coefficients d of 0.25 and 0.5
-CASES = [dict(boxsize=[10, 8, 4], absorption=0.15, source=[2.5, 3, 1.5], receiver=[7.5, 5.5, 1.2], d=d) for d in (0.25, 0.5)]
+DIMS = (10, 8, 4)
+ABSORPTION = 0.15
+SOURCE, RECEIVER = (2.5, 3, 1.5), (7.5, 5.5, 1.2)
 ORDER = 3
 WALLS = ("-z", "-y", "-x", "+x", "+y", "+z")  # the order of per-wall scattering values
 
 
-def scene(case, scattering):
-    """A room of ``CASES``; ``scattering`` is one value, or one per wall in ``WALLS`` order."""
-    s = Scene("oracle")
-    walls = AcousticObjectsLibrary.shoebox_room(*case["boxsize"])
+def scene(scattering):
+    """The ``DIMS`` shoebox; ``scattering`` is one value, or one per wall in ``WALLS`` order."""
+    s = Scene("scattering")
+    walls = AcousticObjectsLibrary.shoebox_room(*DIMS)
     per_wall = np.broadcast_to(scattering, 6)
     for wall in walls:
         xyz = np.array(wall.acoustic_geometry.vertices_attributes("xyz"))
         axis = int(np.argmin(np.ptp(xyz, axis=0)))
         name = ("+" if xyz[0, axis] > 0.0 else "-") + "xyz"[axis]
-        wall.material = AcousticMaterial(f"wall{name}", case["absorption"], float(per_wall[WALLS.index(name)]))
+        wall.material = AcousticMaterial(f"wall{name}", ABSORPTION, float(per_wall[WALLS.index(name)]))
     s.add_acoustic_objects(walls)
-    s.add_source(Source("src", *case["source"]))
-    s.add_receiver(Receiver("rec", *case["receiver"]))
+    s.add_source(Source("src", *SOURCE))
+    s.add_receiver(Receiver("rec", *RECEIVER))
     return s
 
 
@@ -70,9 +69,9 @@ def computed(geometry, s, ray_tracing):
     return room
 
 
-def split(case, scattering):
+def split(scattering):
     """``(spec, full, parts)``: the images without scattering, and split into specular and scattered parts."""
-    s = scene(case, scattering)
+    s = scene(scattering)
     spec = pair(s)
     full = image_sources(computed(spec.geometry, s, False), 0, 0, spec)
     parts = image_sources(
@@ -86,7 +85,7 @@ def split(case, scattering):
 
 @pytest.mark.parametrize("s", [0.0, 1.0])
 def test_full_and_no_scattering_are_exact(s):
-    _, full, parts = split(CASES[0], s)
+    _, full, parts = split(s)
     reflected = parts.order >= 1
     if s == 1.0:
         assert np.all(parts.gain[reflected] == 0.0)
@@ -112,7 +111,7 @@ def test_smear_is_an_allpass_with_the_papers_delays():
 def test_tap_is_heard_through_the_lines_attenuation_filters():
     """A scattered part enters a line ahead by the line's delay, so it passes the line's absorption filter
     before it is heard: the tap equals driving that line one delay earlier."""
-    spec = pair(scene(CASES[1], 0.1))
+    spec = pair(scene(0.1))
     directions = fdn_directions()
     builds = design_fdn(RoomTarget.from_room(spec, model="eyring"), [directional_delays(spec, directions)])
     line = 3
@@ -126,8 +125,8 @@ def test_tap_is_heard_through_the_lines_attenuation_filters():
 
 def test_zero_scattering_changes_nothing():
     kwargs = dict(tail="eyring", image_source_order=2, duration=0.3, air_absorption=False)
-    off = next(iter(scene(CASES[0], 0.0).simulate(Ambisonics(**kwargs)).values()))
-    on = next(iter(scene(CASES[0], 0.0).simulate(Ambisonics(scattering=True, **kwargs)).values()))
+    off = next(iter(scene(0.0).simulate(Ambisonics(**kwargs)).values()))
+    on = next(iter(scene(0.0).simulate(Ambisonics(scattering=True, **kwargs)).values()))
     assert np.allclose(np.asarray(on.ir), np.asarray(off.ir), rtol=0.0, atol=1e-12 * np.abs(off.ir).max())
     assert on.generation["scattering"] is True
 
@@ -135,8 +134,8 @@ def test_zero_scattering_changes_nothing():
 def test_scattering_moves_energy_from_the_early_to_the_late_field():
     kwargs = dict(tail="eyring", image_source_order=2, duration=0.5, air_absorption=False)
     off, on = Ambisonics(**kwargs), Ambisonics(scattering=True, **kwargs)
-    scene(CASES[0], CASES[0]["d"]).simulate(off)
-    scene(CASES[0], CASES[0]["d"]).simulate(on)
+    scene(0.25).simulate(off)
+    scene(0.25).simulate(on)
     (a,), (b,) = off.results.values(), on.results.values()
     assert np.all(np.isfinite(b.rir))
     assert np.sum(b.early[:, 0] ** 2) < np.sum(a.early[:, 0] ** 2)
@@ -144,15 +143,19 @@ def test_scattering_moves_energy_from_the_early_to_the_late_field():
 
 
 def test_scattering_is_off_by_default():
+    s = Scene("default", sampling_rate=32000)
+    s.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(6, 5, 3, materials=AcousticMaterial("wall", 0.1, 0.25)))
+    s.add_source(Source("src", 1.5, 1.5, 1.5))
+    s.add_receiver(Receiver("rec", 4.5, 3.5, 1.2, direction=[0, 1, 0]))
     hybrid = Ambisonics(tail="eyring", image_source_order=1, duration=0.05)
-    (response,) = reference_scene().simulate(hybrid).values()
+    (response,) = s.simulate(hybrid).values()
     assert response.generation["scattering"] is False
     (result,) = hybrid.results.values()
     assert result.core.images.scattered is None
 
 
 def test_scattering_needs_the_scattered_parts():
-    s = scene(CASES[1], 0.1)
+    s = scene(0.1)
     spec = pair(s)
     iss = image_sources(computed(spec.geometry, s, False), 0, 0, spec)
     with pytest.raises(ValueError, match="scattered"):
@@ -166,8 +169,8 @@ def test_prepare_assembles_the_tap_from_the_scattered_parts_of_orders_one_to_the
     from compas_acoustics.hybrid.directional import directional_absorption_filters
     from compas_acoustics.hybrid.early import render_images
 
-    case, last, duration, speed, drive_gain = CASES[1], 2, 0.3, 331.0, 1.7
-    spec, _, parts = split(case, 0.3)
+    last, duration, speed, drive_gain = 2, 0.3, 331.0, 1.7
+    spec, _, parts = split(0.3)
     spec = replace_fields(spec, speed_of_sound=speed)
     target = RoomTarget.from_room(spec, model="eyring")
     result = render_ambisonics(prepare(spec, parts, target, max_order=last, duration_s=duration, scattering=True, drive_gain=drive_gain))
@@ -186,7 +189,7 @@ def test_prepare_assembles_the_tap_from_the_scattered_parts_of_orders_one_to_the
         driving = subset(parts.order == last)
         drive = render_images(driving, scattering_weights(driving.doa, directions, opposite=True), n_samples)
         reflected = subset(np.isin(parts.order, tap_orders))
-        x, y, z = case["boxsize"]
+        x, y, z = DIMS
         free_path = 4.0 * (x * y * z) / (2.0 * (x * y + y * z + x * z))
         tap = smear(
             render_images(replace_fields(reflected, gain=reflected.scattered), scattering_weights(reflected.doa, directions), n_samples),

@@ -17,9 +17,9 @@ from compas_acoustics import Scene
 from compas_acoustics import Source
 from compas_acoustics.hybrid.bands import BANDS
 from compas_acoustics.hybrid.early import image_sources
-from compas_acoustics.hybrid.early import route_to_directions
 from compas_acoustics.hybrid.late import fdn_directions
 from compas_acoustics.hybrid.pair import Pair
+from compas_acoustics.hybrid.scattering import scattering_weights
 from compas_acoustics.hybrid.synthesis import prepare
 from compas_acoustics.hybrid.ambisonics import render_ambisonics
 from compas_acoustics.hybrid.target import RoomTarget
@@ -75,20 +75,24 @@ def unit(xyz):
     return xyz / np.linalg.norm(xyz, axis=1, keepdims=True)
 
 
-def test_each_image_enters_the_line_opposite_its_arrival():
+def test_each_image_enters_the_lines_opposite_its_arrival():
+    """Weighted most on the line nearest its reverse direction, none on the lines of its own hemisphere."""
     directions = fdn_directions()
     _, iss = pair(1)
-    weights = route_to_directions(iss, directions, opposite=True)
-    expected = np.argmax(-unit(iss.doa.cartesian) @ unit(directions.cartesian).T, axis=1)
-    np.testing.assert_array_equal(np.argmax(weights, axis=1), expected)
-    np.testing.assert_array_equal(weights.sum(axis=1), 1.0)
+    weights = scattering_weights(iss.doa, directions, opposite=True)
+    cosines = unit(iss.doa.cartesian) @ unit(directions.cartesian).T
+    np.testing.assert_array_equal(np.argmax(weights, axis=1), np.argmax(-cosines, axis=1))
+    assert np.all(weights[cosines >= 0.0] == 0.0)
+    np.testing.assert_allclose(np.linalg.norm(weights, axis=1), 1.0)
 
 
-def test_routing_defaults_to_the_direction_of_arrival():
+def test_without_opposite_the_weights_follow_the_direction_of_arrival():
     directions = fdn_directions()
     _, iss = pair(1)
-    expected = np.argmax(unit(iss.doa.cartesian) @ unit(directions.cartesian).T, axis=1)
-    np.testing.assert_array_equal(np.argmax(route_to_directions(iss, directions), axis=1), expected)
+    weights = scattering_weights(iss.doa, directions)
+    cosines = unit(iss.doa.cartesian) @ unit(directions.cartesian).T
+    np.testing.assert_array_equal(np.argmax(weights, axis=1), np.argmax(cosines, axis=1))
+    assert np.all(weights[cosines <= 0.0] == 0.0)
 
 
 def test_the_hybrid_searches_only_the_orders_it_renders(monkeypatch):

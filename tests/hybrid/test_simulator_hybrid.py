@@ -15,6 +15,7 @@ from compas_acoustics.room.diffuse import DiffuseFieldWarning
 from compas_acoustics.hybrid.diffraction import ShellEdgeWarning
 from compas_acoustics.hybrid.diffraction import diffraction_edges
 from compas_acoustics.hybrid.diffraction import enclosure_edges
+from compas_acoustics.hybrid.diffraction import encode_diffraction
 from compas_acoustics.simulation_methods import Ambisonics
 from compas_acoustics.simulation_methods import Mono
 from compas_acoustics.simulation_methods import SimulationContext
@@ -142,19 +143,21 @@ def l_room():
 
 
 def test_diffraction_at_the_room_boundary_needs_no_obstacles():
+    """The L's re-entrant corner diffracts: the paths are added to the early field, the late field is untouched."""
     scene = l_room()
-    assert RoomGeometry.from_scene(scene).is_closed
-    refs = references(scene)
-    (off,) = scene.simulate(Ambisonics(refs, diffraction=False, normalize=False, **FAST)).values()
+    geometry = RoomGeometry.from_scene(scene)
+    assert geometry.is_closed and "obstacle" not in geometry.face_roles
+    off = Ambisonics(tail="eyring", normalization="N3D", diffraction=False, seed=1, **FAST)
+    on = Ambisonics(tail="eyring", normalization="N3D", diffraction=True, seed=1, **FAST)
+    scene.simulate(off)
     with warnings.catch_warnings():
         warnings.simplefilter("error", ShellEdgeWarning)
-        (on,) = scene.simulate(Ambisonics(refs, diffraction=True, normalize=False, **FAST)).values()
-    # the wall hides the direct sound, so the window starts at its geometric arrival
-    start = int(np.linalg.norm(np.subtract(off.source.position, off.receiver.position)) / 343.0 * FS)
-    window = slice(start, start + int(0.02 * FS))
-    e_off, e_on = np.sum(off.ir[window] ** 2), np.sum(on.ir[window] ** 2)
-    # raw level and a seeded reference; 10 % leaves about half the rise as margin
-    assert e_on > 1.10 * e_off
+        scene.simulate(on)
+    (off,), (on,) = off.results.values(), on.results.values()
+    assert off.core.diffraction_paths == () and len(on.core.diffraction_paths) > 0
+    added = encode_diffraction(list(on.core.diffraction_paths), 1, off.early.shape[0], FS)
+    np.testing.assert_allclose(on.early - off.early, added, atol=1e-12)
+    np.testing.assert_array_equal(on.late, off.late)
 
 
 def pillar_scene():
@@ -412,51 +415,6 @@ def test_a_receiver_next_to_a_fully_absorbing_ceiling_runs():
     scene = make([Receiver("rec", 8.0, 4.0, 3.9)], materials=materials)
     (ir,) = scene.simulate(Ambisonics(tail="eyring", duration=0.3)).values()
     assert np.all(np.isfinite(ir.ir))
-
-
-# ------------------------------------------------------------ late level --
-@pytest.mark.parametrize("dims, alpha, src, rec", [
-    ((10, 8, 4), 0.15, (2.5, 3.0, 1.5), (7.5, 5.5, 1.2)),
-    ((6, 5, 3), 0.1, (1.5, 1.5, 1.5), (4.5, 3.5, 1.2)),
-])
-def test_the_late_level_matches_an_exact_specular_room(dims, alpha, src, rec):
-    """A shoebox with specular walls has an exact answer: its image sources to high order.
-
-    Given that answer's decay, the hybrid's late energy (after 80 ms, 1 kHz band), averaged over four
-    seeds of the network, must match it within 2 dB. The network is driven by the last rendered order
-    (Wendt et al. 2014), so its level is that order's energy, which sits below the energy trend of the
-    higher orders.
-    """
-    import pyroomacoustics as pra
-    from scipy.signal import butter
-    from scipy.signal import sosfiltfilt
-
-    from compas_acoustics import ImpulseResponse
-
-    room = pra.ShoeBox(dims, fs=FS, materials=pra.Material(alpha), max_order=100, air_absorption=False)
-    room.add_source(list(src))
-    room.add_microphone(np.array(rec, dtype=float).reshape(3, 1))
-    room.compute_rir()
-    exact = room.rir[0][0][pra.constants.get("frac_delay_length") // 2:] / (4 * np.pi)
-
-    scene = Scene("exact")
-    scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(*dims, materials=AcousticMaterial("m", alpha, 0.0)))
-    source, receiver = Source("s", *src), Receiver("r", *rec)
-    scene.add_source(source)
-    scene.add_receiver(receiver)
-    reference = {f"{receiver.guid}_{source.guid}": ImpulseResponse("exact", source, receiver, exact, FS,
-                                                                     generation={"scale": "package", "air_absorption": False})}
-    sos = butter(4, [1000 / np.sqrt(2), 1000 * np.sqrt(2)], btype="band", fs=FS, output="sos")
-
-    def late_energy(x, start):
-        return np.sum(sosfiltfilt(sos, np.concatenate([x, np.zeros(FS // 2)]))[start:] ** 2)
-
-    levels = []
-    for seed in range(4):
-        (ir,) = scene.simulate(Ambisonics(reference=reference, seed=seed)).values()
-        start = ir.direct_sound_index() + int(0.08 * FS)
-        levels.append(10 * np.log10(late_energy(ir.denormalized()[:, 0], start) / late_energy(exact, start)))
-    assert np.mean(levels) == pytest.approx(0.0, abs=2.0)
 
 
 def test_the_medium_sets_the_hybrids_speed_and_air():

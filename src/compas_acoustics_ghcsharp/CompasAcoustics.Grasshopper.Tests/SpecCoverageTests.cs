@@ -56,11 +56,11 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void TheComponentsThatTestsCannotLoad_AreOnlyTheMenuComponents()
+        public void EveryComponent_LoadsInTheTestHost()
         {
             var loadable = AllComponentsTests.Components().Select(c => (string)c[0]).ToHashSet();
             var notLoaded = Components.Values.Where(name => !loadable.Contains(name)).OrderBy(n => n).ToArray();
-            Assert.Equal(AllComponentsTests.MenuComponents.OrderBy(n => n).ToArray(), notLoaded);
+            Assert.Empty(notLoaded);
         }
     }
 }

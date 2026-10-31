@@ -14,7 +14,7 @@ import numpy as np
 import pyfar as pf
 import pytest
 
-from _compat import RoomSpec, image_sources
+from _rooms import images, pair
 from compas_acoustics.hybrid.synthesis import prepare
 from compas_acoustics.hybrid.ambisonics import render_ambisonics
 from compas_acoustics.hybrid.target import RoomTarget
@@ -24,7 +24,7 @@ from compas_acoustics.hybrid.early import (
     render_images,
 )
 from compas_acoustics.hybrid.bands import BANDS
-from _compat import Material, MeshGeometry
+from compas_acoustics.room.geometry import RoomGeometry, SurfaceMaterial
 
 FS = 48_000.0
 C = 343.0
@@ -67,16 +67,16 @@ def l_room():
     v = np.array([[x, y, 0.0] for x, y in outline] + [[x, y, 3.0] for x, y in outline], float)
     faces = [tuple(range(n))[::-1], tuple(range(n, 2 * n))] + [(k, (k + 1) % n, (k + 1) % n + n, k + n) for k in range(n)]
     # frequency-dependent: with every material flat, pyroomacoustics returns a single band
-    materials = {name: Material(0.1 * np.linspace(0.8, 1.2, 8), BANDS.copy()) for name in ("floor", "ceiling", "wall")}
-    return MeshGeometry(v, tuple(faces), tuple(["floor", "ceiling"] + ["wall"] * n), materials)
+    materials = {name: SurfaceMaterial(name, 0.1 * np.linspace(0.8, 1.2, 8)) for name in ("floor", "ceiling", "wall")}
+    return RoomGeometry.from_mesh(v, tuple(faces), tuple(["floor", "ceiling"] + ["wall"] * n), materials)
 
 
 @pytest.mark.parametrize("model", ["udfa", "btms"])
 def test_diffraction_adds_nothing_before_the_direct_sound_could_arrive(model):
     # around the corner the wall hides the direct sound, and no diffracted path is shorter than it
-    spec = RoomSpec(geometry=l_room(), source=np.array(SOURCE), receiver=np.array(RECEIVER),
+    spec = pair(geometry=l_room(), source=np.array(SOURCE), receiver=np.array(RECEIVER),
                     air_absorption=False, speed_of_sound=C)
-    off = render_ambisonics(prepare(spec, image_sources(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2)).early[:, 0]
-    on = render_ambisonics(prepare(spec, image_sources(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction=model)).early[:, 0]
+    off = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2)).early[:, 0]
+    on = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction=model)).early[:, 0]
     hidden = int(np.linalg.norm(np.subtract(SOURCE, RECEIVER)) / C * FS)
     assert before_arrival_db(on - off, hidden) < -50.0

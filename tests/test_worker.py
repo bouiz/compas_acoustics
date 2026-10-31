@@ -1,7 +1,5 @@
 import json
 import os
-import socket
-from pathlib import Path
 
 import numpy as np
 import pytest
@@ -18,7 +16,6 @@ from compas_acoustics import worker
 
 # the local reference needs STI and G, which pyrato < 1.0 (Python < 3.11, Rhino 8) cannot compute
 needs_sti = pytest.mark.skipif(not analyser._STI_SUPPORTED, reason="STI and G need pyrato >= 1.0 (Python >= 3.11)")
-VIOLA = str(Path(compas_acoustics.__file__).parent / "anechoic_soundfiles_library" / "viola.wav")
 
 
 def scene():
@@ -151,8 +148,9 @@ def test_a_process_is_alive_until_it_exits():
     assert not process_is_alive(child.pid)
 
 
-def test_stopping_the_running_workers_shuts_them_down_and_forgets_them(tmp_path):
+def test_stopping_the_running_workers_shuts_them_down_and_forgets_them(tmp_path, monkeypatch):
     import threading
+    import types
 
     from compas_acoustics.worker.service import WorkerService
 
@@ -161,23 +159,13 @@ def test_stopping_the_running_workers_shuts_them_down_and_forgets_them(tmp_path)
     thread.start()
     (tmp_path / "1.json").write_text(json.dumps({"pid": 1, "port": server.server_address[1], "token": "secret"}))
     (tmp_path / "2.json").write_text(json.dumps({"pid": 2, "port": 1, "token": "x"}))
+    # neither record is removed by its worker, so skip the wait for it to disappear
+    monkeypatch.setattr(worker, "time", types.SimpleNamespace(sleep=lambda seconds: None))
     worker.stop_running_workers(tmp_path)
     thread.join(timeout=5)
     assert not thread.is_alive()
     server.server_close()
     assert list(tmp_path.glob("*.json")) == []
-
-
-def lan_address():
-    # A UDP connect sends nothing; it only picks the interface a route would use
-    probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        probe.connect(("10.255.255.255", 9))
-        return probe.getsockname()[0]
-    except OSError:
-        return None
-    finally:
-        probe.close()
 
 
 def test_the_api_returns_the_responses_under_the_methods_name():
@@ -556,7 +544,7 @@ def test_progress_and_cancel_need_the_token(service):
     assert status == 401
 
 
-def test_a_call_without_an_id_runs_as_before(service):
+def test_a_call_without_an_id_is_answered(service):
     assert service.call("info")["compas_acoustics"] == compas_acoustics.__version__
 
 

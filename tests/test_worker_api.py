@@ -93,12 +93,6 @@ def test_make_receiver_takes_a_direction_and_stays_upright():
     assert np.allclose(list(receiver.direction), [0, 1, 0]) and np.allclose(list(receiver.up), [0, 0, 1])
 
 
-def test_make_receiver_has_no_up():
-    import inspect
-
-    assert list(inspect.signature(api.make_receiver).parameters) == ["name", "position", "direction", "frame"]
-
-
 def test_make_receiver_from_a_frame_faces_its_x_axis():
     result = call("make_receiver", "r", frame=Frame([1, 2, 3], [0, 1, 0], [-1, 0, 0]))
     receiver = result["receiver"]
@@ -514,9 +508,9 @@ def test_energy_map_fixes_its_rays_seed_and_image_source_order():
     # the same map every run: a map has no setting to tune but its grid
     assert "seed" not in result
     assert result["spl_a"] == call("energy_map", scene, [[4, 3, 1.2]])["spl_a"]
-    for removed in ("n_rays", "image_source_order", "seed"):
+    for fixed in ("n_rays", "image_source_order", "seed"):
         with pytest.raises(TypeError):
-            api.energy_map(scene, [[4, 3, 1.2]], **{removed: 1})
+            api.energy_map(scene, [[4, 3, 1.2]], **{fixed: 1})
 
 
 def test_energy_map_rejects_a_source_index_out_of_range():

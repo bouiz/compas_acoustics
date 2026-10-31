@@ -5,16 +5,15 @@ import pyrato
 import pytest
 
 from compas_acoustics.hybrid.bands import BANDS, N_BANDS
-from _compat import Material, RoomSpec, ShoeboxGeometry
+from _rooms import box_room, pair
 from compas_acoustics.hybrid.target import RoomTarget
 from compas_acoustics.room.diffuse import mean_absorption
+from compas_acoustics.room.geometry import SurfaceMaterial
 
 
 def spec_with(alpha=0.2, dims=(8.0, 6.0, 3.0)):
-    mat = Material.from_scalar(alpha)
-    geom = ShoeboxGeometry(dims, {n: mat for n in ShoeboxGeometry.WALL_NAMES})
-    return RoomSpec(
-        geometry=geom,
+    return pair(
+        geometry=box_room(dims, SurfaceMaterial("wall", np.full(N_BANDS, float(alpha)))),
         source=np.array([2.0, 2.0, 1.5]),
         receiver=np.array([5.0, 4.0, 1.5]),
     )

@@ -8,7 +8,7 @@ import pyfar as pf
 import pytest
 
 from compas_acoustics.hybrid.early import ImageSourceSet, encode
-from _compat import RoomSpec, image_sources
+from _rooms import images, pair
 from compas_acoustics.hybrid.synthesis import prepare
 from compas_acoustics.hybrid.ambisonics import render_ambisonics
 from compas_acoustics.hybrid.target import RoomTarget
@@ -33,7 +33,7 @@ from compas_acoustics.hybrid.diffraction import (
     wedge_path,
 )
 from compas_acoustics.hybrid.bands import BANDS
-from _compat import Material, MeshGeometry
+from compas_acoustics.room.geometry import RoomGeometry, SurfaceMaterial
 from compas_acoustics.hybrid.udfa import udfa_transfer
 
 C = 343.0
@@ -123,9 +123,9 @@ def room_with(obstacle_v, obstacle_f, name="shelf"):
     names = ["wall"] * 4 + ["floor", "ceiling"] + [name] * len(obstacle_f)
     # frequency-dependent on purpose: with every material flat, pyroomacoustics
     # returns a single band and image_sources refuses the mesh
-    materials = {n: Material(a * TILT, BANDS.copy()) for n, a in
+    materials = {n: SurfaceMaterial(n, a * TILT) for n, a in
                  (("wall", 0.1), ("floor", 0.05), ("ceiling", 0.3), (name, 0.1))}
-    return MeshGeometry(vertices=np.vstack([ROOM_V, obstacle_v]), faces=tuple(faces),
+    return RoomGeometry.from_mesh(vertices=np.vstack([ROOM_V, obstacle_v]), faces=tuple(faces),
                         face_materials=tuple(names), materials=materials, obstacles=(name,))
 
 
@@ -271,14 +271,14 @@ def panel_room(split_floor=False, noise=None):
     v.append(PANEL)
     faces.append(tuple(range(n, n + 4)))
     names.append("panel")
-    materials = {name: Material(a * TILT, BANDS.copy()) for name, a in
+    materials = {name: SurfaceMaterial(name, a * TILT) for name, a in
                  (("wall", 0.1), ("floor", 0.05), ("ceiling", 0.3), ("panel", 0.1))}
-    return MeshGeometry(vertices=np.vstack(v), faces=tuple(faces), face_materials=tuple(names),
+    return RoomGeometry.from_mesh(vertices=np.vstack(v), faces=tuple(faces), face_materials=tuple(names),
                         materials=materials, obstacles=("panel",))
 
 
 def spec_at(source, receiver, geometry=None, **kw):
-    return RoomSpec(geometry=panel_room() if geometry is None else geometry,
+    return pair(geometry=panel_room() if geometry is None else geometry,
                     source=np.asarray(source, float), receiver=np.asarray(receiver, float),
                     air_absorption=False, **kw)
 
@@ -364,7 +364,7 @@ def test_occlusion_agrees_with_pyroomacoustics_visibility():
         receiver = np.array([rng.uniform(6.0, 9.0), rng.uniform(2.5, 5.5), rng.uniform(0.8, 3.0)])
         spec = spec_at(source, receiver)
         # pyroomacoustics returns one band at max_order = 0 on a mesh: search to 1
-        visible = bool(np.any(image_sources(spec, 1).order == 0))
+        visible = bool(np.any(images(spec, 1).order == 0))
         paths = direct(diffraction_paths(spec, max_order=0))
         shadowed = len(paths) == 4 and all(p.zone == "shadow" for p in paths)
         assert visible != shadowed, receiver
@@ -413,10 +413,10 @@ def window_db(rir, r):
 
 
 def test_diffraction_off_changes_nothing_and_on_adds_the_paths():
-    spec = RoomSpec(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]),
+    spec = pair(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]),
                     receiver=np.array([8.0, 4.0, 3.0]), air_absorption=False)
-    off = render_ambisonics(prepare(spec, image_sources(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2), normalization="N3D")
-    on = render_ambisonics(prepare(spec, image_sources(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction=True), normalization="N3D")
+    off = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2), normalization="N3D")
+    on = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction=True), normalization="N3D")
     n = off.early.shape[0]
     added = encode_diffraction(diffraction_paths(spec, max_order=1), 1, n, spec.fs)
     np.testing.assert_allclose(on.early - off.early, added, atol=1e-12)
@@ -428,9 +428,9 @@ def test_the_field_is_continuous_across_the_panel_shadow_boundary():
     levels = {}
     for flag in (False, True):
         for z in (3.495, 3.505):
-            spec = RoomSpec(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]),
+            spec = pair(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]),
                             receiver=np.array([8.0, 4.0, z]), air_absorption=False)
-            rir = render_ambisonics(prepare(spec, image_sources(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction=flag)).early
+            rir = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction=flag)).early
             levels[flag, z] = window_db(rir, float(np.linalg.norm(spec.receiver - spec.source)))
     assert abs(levels[False, 3.505] - levels[False, 3.495]) > 6.0
     assert abs(levels[True, 3.505] - levels[True, 3.495]) < 0.5
@@ -536,7 +536,7 @@ def test_an_edge_behind_another_is_not_a_pair():
 
 def test_btms_segments_of_a_free_edge_sum_to_the_kernel_on_the_whole_edge():
     s, r = np.array([2.0, 4.0, 1.5]), np.array([8.0, 4.0, 3.0])
-    spec = RoomSpec(geometry=panel_room(), source=s, receiver=r, air_absorption=False, speed_of_sound=C)
+    spec = pair(geometry=panel_room(), source=s, receiver=r, air_absorption=False, speed_of_sound=C)
     paths = btms_paths(spec, max_order=0, second_order=False)
     assert paths and all(p.order == 1 for p in paths)
     edges = obstacle_edges(spec.geometry)
@@ -554,7 +554,7 @@ def test_btms_segments_of_a_free_edge_sum_to_the_kernel_on_the_whole_edge():
 
 
 def _btms_total(a, b):
-    spec = RoomSpec(geometry=panel_room(), source=a, receiver=b, air_absorption=False, speed_of_sound=C)
+    spec = pair(geometry=panel_room(), source=a, receiver=b, air_absorption=False, speed_of_sound=C)
     return encode_btms(btms_paths(spec, max_order=1, second_order=False), 0, 4800, spec.fs)[:, 0]
 
 
@@ -572,7 +572,7 @@ def test_btms_reciprocity_with_a_segment_boundary_on_the_apex_is_rounding_limite
 
 
 def test_btms_contributions_after_the_render_length_are_dropped():
-    spec = RoomSpec(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]),
+    spec = pair(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]),
                     receiver=np.array([8.0, 4.0, 3.0]), air_absorption=False, speed_of_sound=C)
     out = encode_btms(btms_paths(spec, max_order=0, second_order=False), 0, 10, spec.fs)
     assert out.shape == (10, 1) and np.all(out == 0.0)
@@ -582,14 +582,14 @@ def test_btms_skips_a_receiver_on_an_edge_line():
     geo = panel_room()
     e = obstacle_edges(geo)[0]
     on_line = e.start + 0.5 * (e.end - e.start)
-    spec = RoomSpec(geometry=geo, source=np.array([2.0, 4.0, 1.5]), receiver=on_line,
+    spec = pair(geometry=geo, source=np.array([2.0, 4.0, 1.5]), receiver=on_line,
                     air_absorption=False, speed_of_sound=C)
     out = encode_btms(btms_paths(spec, max_order=0, second_order=False), 1, 4800, spec.fs)
     assert np.all(np.isfinite(out))
 
 
 def shelf_spec(s, r):
-    return RoomSpec(geometry=box_geometry(), source=s, receiver=r, air_absorption=False, speed_of_sound=C)
+    return pair(geometry=box_geometry(), source=s, receiver=r, air_absorption=False, speed_of_sound=C)
 
 
 def test_second_order_reaches_over_a_box_top():
@@ -679,7 +679,7 @@ def test_second_order_is_invariant_under_rotation_with_corner_sharing_pairs():
     def response(deg):
         # the box turned by deg, source and receiver turned by deg - 30: one configuration, two frames
         v, f = box(-half, half)
-        spec = RoomSpec(geometry=room_with(v @ rot_z(deg).T + centre, f), source=centre + rot_z(deg - 30) @ s0,
+        spec = pair(geometry=room_with(v @ rot_z(deg).T + centre, f), source=centre + rot_z(deg - 30) @ s0,
                         receiver=centre + rot_z(deg - 30) @ r0, air_absorption=False, speed_of_sound=C)
         second = [p for p in btms_paths(spec, max_order=0) if p.order == 2]
         return encode_btms(second, 0, 4800, spec.fs)[:, 0]
@@ -698,7 +698,7 @@ def test_second_order_over_a_free_panel_is_invariant_under_rotation():
     s0, r0 = np.array([-0.2, -0.05, 0.6]), np.array([0.25, 0.05, -0.5])
 
     def response(rot):
-        spec = RoomSpec(geometry=room_with(v @ rot.T + centre, [(0, 1, 2, 3)], name="panel"),
+        spec = pair(geometry=room_with(v @ rot.T + centre, [(0, 1, 2, 3)], name="panel"),
                         source=centre + rot @ s0, receiver=centre + rot @ r0, air_absorption=False, speed_of_sound=C)
         second = [p for p in btms_paths(spec, max_order=0) if p.order == 2]
         assert second
@@ -746,7 +746,7 @@ def test_second_order_between_collinear_edges_is_skipped_without_a_warning():
     v = np.array([[5, 1, 0.5], [5, 3, 0.5], [5, 3, 2.5], [5, 1, 2.5],
                   [5, 5, 0.5], [5, 7, 0.5], [5, 7, 2.5], [5, 5, 2.5]], dtype=float)
     geometry = room_with(v, [(0, 1, 2, 3), (4, 5, 6, 7)], name="panel")
-    spec = RoomSpec(geometry=geometry, source=np.array([2.0, 4.0, 3.2]), receiver=np.array([8.0, 4.0, 3.2]),
+    spec = pair(geometry=geometry, source=np.array([2.0, 4.0, 3.2]), receiver=np.array([8.0, 4.0, 3.2]),
                     air_absorption=False, speed_of_sound=C)
     with warnings.catch_warnings():
         warnings.simplefilter("error")
@@ -759,28 +759,28 @@ def test_second_order_between_collinear_edges_is_skipped_without_a_warning():
 
 
 def test_true_and_udfa_are_the_same_model():
-    spec = RoomSpec(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]),
+    spec = pair(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]),
                     receiver=np.array([8.0, 4.0, 3.0]), air_absorption=False)
-    a = render_ambisonics(prepare(spec, image_sources(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction=True))
-    b = render_ambisonics(prepare(spec, image_sources(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction="udfa"))
+    a = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction=True))
+    b = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction="udfa"))
     np.testing.assert_array_equal(a.rir, b.rir)
 
 
 def test_btms_mode_adds_exactly_the_btms_field():
-    spec = RoomSpec(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]),
+    spec = pair(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]),
                     receiver=np.array([8.0, 4.0, 3.0]), air_absorption=False)
-    off = render_ambisonics(prepare(spec, image_sources(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2), normalization="N3D")
-    on = render_ambisonics(prepare(spec, image_sources(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction="btms"), normalization="N3D")
+    off = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2), normalization="N3D")
+    on = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction="btms"), normalization="N3D")
     added = encode_btms(btms_paths(spec, max_order=1), 1, off.early.shape[0], spec.fs)
     np.testing.assert_allclose(on.early - off.early, added, atol=1e-12)
     np.testing.assert_array_equal(on.late, off.late)
 
 
 def test_an_unknown_diffraction_model_is_refused():
-    spec = RoomSpec(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]),
+    spec = pair(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]),
                     receiver=np.array([8.0, 4.0, 3.0]))
     with pytest.raises(ValueError, match="diffraction"):
-        render_ambisonics(prepare(spec, image_sources(spec, 1), RoomTarget.from_room(spec), max_order=0, duration_s=0.1, diffraction="btm"))
+        render_ambisonics(prepare(spec, images(spec, 1), RoomTarget.from_room(spec), max_order=0, duration_s=0.1, diffraction="btm"))
 
 
 def edverify_plate():
@@ -789,9 +789,9 @@ def edverify_plate():
     big = 200.0 * np.array([[-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1],
                             [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]], float)
     plate = np.array([[0, 0, 1], [0, 0, -1], [-1, 0, -1], [-1, 0, 1]], float)
-    mats = {"absorber": Material(np.linspace(0.999, 1.0, 8), BANDS.copy()),
-            "plate": Material(np.linspace(0.0, 1e-6, 8), BANDS.copy())}
-    return MeshGeometry(np.vstack([big, plate]), tuple(ROOM_F) + ((8, 9, 10, 11),),
+    mats = {"absorber": SurfaceMaterial("absorber", np.linspace(0.999, 1.0, 8)),
+            "plate": SurfaceMaterial("plate", np.linspace(0.0, 1e-6, 8))}
+    return RoomGeometry.from_mesh(np.vstack([big, plate]), tuple(ROOM_F) + ((8, 9, 10, 11),),
                         ("absorber",) * 6 + ("plate",), mats, obstacles=("plate",))
 
 
@@ -822,7 +822,7 @@ def test_continuity_across_zone_boundaries_as_edverify(z):
         return src[0] + src[1] / (src[1] - r[1]) * (r[0] - src[0])
 
     def fields(r):
-        spec = RoomSpec(geometry=geo, source=s, receiver=r, air_absorption=False, speed_of_sound=c)
+        spec = pair(geometry=geo, source=s, receiver=r, air_absorption=False, speed_of_sound=c)
         diff = sum(np.sum(p.ir * np.exp(-2j * np.pi * f * (p.start + np.arange(p.ir.size)) / spec.fs))
                    * p.band_gain[1] for p in btms_paths(spec, max_order=0, second_order=False))
         direct = at(s, r, spec.fs) if crossing_x(s, r) > 1e-12 else 0.0
@@ -852,7 +852,7 @@ def test_a_path_through_a_corner_is_scaled_once_as_edfindconvexgapaths(mirror, s
     s = np.array([-1.0, 1.0, 0.0]) / np.sqrt(2.0)
     origin = s * np.array(mirror)
     r = np.array([0.0, 0.0, 2.0]) - origin
-    spec = RoomSpec(geometry=edverify_plate(), source=s, receiver=r, air_absorption=False, speed_of_sound=344.0)
+    spec = pair(geometry=edverify_plate(), source=s, receiver=r, air_absorption=False, speed_of_sound=344.0)
     paths = btms_paths(spec, max_order=0, second_order=False)
     assert sum(p.singular for p in paths if p.order == 1) == 2
     scaled = [p for p in paths if p.order == 0]
@@ -870,11 +870,11 @@ def test_a_receiver_on_a_zone_boundary_gets_half_the_geometric_sound():
     s, r = np.array([2.0, 4.0, 1.5]), np.array([8.0, 4.0, 3.5])
 
     def at_100_hz(receiver):
-        spec = RoomSpec(geometry=panel_room(), source=s, receiver=receiver, air_absorption=False)
-        w = render_ambisonics(prepare(spec, image_sources(spec, 1), RoomTarget.from_room(spec), max_order=0, duration_s=0.1, diffraction="btms")).early[:, 0]
+        spec = pair(geometry=panel_room(), source=s, receiver=receiver, air_absorption=False)
+        w = render_ambisonics(prepare(spec, images(spec, 1), RoomTarget.from_room(spec), max_order=0, duration_s=0.1, diffraction="btms")).early[:, 0]
         return abs(np.sum(w * np.exp(-2j * np.pi * 100.0 * np.arange(w.size) / spec.fs)))
 
-    spec = RoomSpec(geometry=panel_room(), source=s, receiver=r, air_absorption=False)
+    spec = pair(geometry=panel_room(), source=s, receiver=r, air_absorption=False)
     halves = [p for p in btms_paths(spec, max_order=0) if p.order == 0]
     assert len(halves) == 1 and halves[0].singular
     np.testing.assert_allclose(halves[0].ir.sum(), 0.5 / np.linalg.norm(r - s), rtol=1e-12)
