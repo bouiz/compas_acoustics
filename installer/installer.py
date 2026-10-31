@@ -255,7 +255,7 @@ def run_install(state, source, venv, gh_file, worker):
         install_gha(wheel, log)
 
         if (worker or "").strip():
-            log("The 'worker' input is not used any more: the worker is always set up.")
+            log("The 'worker' input is ignored: the worker is always set up.")
         log("")
         log("Setting up the Python 3.12 worker, in which the components run; the first time this takes a while (it downloads PyTorch, several GB)...")
         cmd = [python, "-m", "compas_acoustics.worker.install", "--wheel", wheel, "--hybrid"]
