@@ -87,8 +87,8 @@ def ambisonic_output_matrix(
         raise ValueError(
             f"direction grid leaks {leakage:.1%} between ambisonic channels, "
             f"above the {max_leakage:.0%} limit: it does not support sh_order="
-            f"{sh_order}. Leave num_delays unset to have default_num_delays"
-            f"({sh_order}) pick a count that works, or pass a better grid."
+            f"{sh_order}; default_num_delays({sh_order}) gives a number of "
+            f"delay lines whose grid does."
         )
     return C
 
@@ -116,5 +116,5 @@ def default_num_delays(sh_order: int, minimum: int | None = None) -> int:
         return num_delays
     raise ValueError(  # pragma: no cover - no order in range hits this
         f"no equal_area grid between {start} and {4 * start} points supports "
-        f"sh_order={sh_order}; pass num_delays explicitly"
+        f"sh_order={sh_order}"
     )

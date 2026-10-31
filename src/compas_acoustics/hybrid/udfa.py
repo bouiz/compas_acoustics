@@ -361,7 +361,6 @@ def double_edge_terms(path: DoubleEdgePath, *, c: float) -> list[RouteTerm]:
 
     # eq. (8), beta = 1; d_{1,2} = d_s + d_r across either edge
     d1, d2 = d_s1 + d_r1, d_s2 + d_r2
-    # (d_w + d^2 mixes metres with square metres; as printed in the paper)
     hat1 = p.theta_w1 + d1**2 / (p.width + d1**2) * (p.theta_w2 - np.pi)
     hat2 = p.theta_w2 + d2**2 / (p.width + d2**2) * (p.theta_w1 - np.pi)
 

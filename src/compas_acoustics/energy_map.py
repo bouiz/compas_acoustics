@@ -141,8 +141,7 @@ class EnergyMap(_PackageDtype, Data):
             receivers, the late energy varies slowly and a 0.5 m receiver sphere resolves nothing finer; the image
             sources stay exact at every point.
 
-        Points outside the room, or inside a closed obstacle, are left out with one ``UserWarning``. The ray
-        tracer's scattering over-estimates the late energy at high scattering coefficients.
+        Points outside the room, or inside a closed obstacle, are left out with one ``UserWarning``.
         """
         from compas_acoustics.room.geometry import RoomGeometry
         from compas_acoustics.room.raytracing import default_duration

@@ -193,7 +193,7 @@ the same names, inputs and outputs.
 * Changed `sample_rate` to `sampling_rate` everywhere: `ImpulseResponse`, `Auraliser`, `AudioPlayer.play`, `receivers_to_pra_mic_array`, `HrtfSet` and the Grasshopper components.
 * Changed the `Analyser` methods to name the quantity: `reverberation_times`, `clarity_definition`, `direct_to_reverberant_ratio`, `speech_transmission_index`, `stage_support`, `sound_strength`.
 * Changed the analyser to apply octave filters zero-phase or after cutting the time windows, which removes a delay of 18 ms at 250 Hz and 35 ms at 125 Hz from EDT, Ts, C50, C80, D50 and DRR.
-* Changed `direct_to_reverberant_ratio` to Haapaniemi and Lokki (2018): 5 ms of direct sound, `DRR_overall` from a 700-4000 Hz band.
+* Changed `direct_to_reverberant_ratio` to 5 ms of direct sound, `DRR_overall` from a 700-4000 Hz band.
 * Changed `reverberation_times` to Schroeder integration without noise compensation; truncate a measured response with a noise floor before analysing it.
 * Changed the direct sound detection to the start of ISO 3382-1: the last sample more than 20 dB below the maximum before it.
 * Changed `Auraliser.convolve()` to return the signal in the format of its impulse responses, without decoding, summing the impulse responses of one sound first.

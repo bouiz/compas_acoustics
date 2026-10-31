@@ -359,7 +359,7 @@ def test_analyse_gives_nan_g_without_a_second_warning_on_pyrato_below_1():
 
 
 def test_drr_counts_the_first_5_ms_after_the_direct_sound_as_direct():
-    # Haapaniemi and Lokki (2018), eq. 1: a reflection 3 ms after the direct sound is direct, one 6 ms after is not.
+    # A reflection 3 ms after the direct sound is direct, one 6 ms after is not.
     # Their band-pass is applied before the window, so a reflection right before 5 ms would leave part of its
     # filtered response after it: 3 ms keeps it whole.
     fs = 48000

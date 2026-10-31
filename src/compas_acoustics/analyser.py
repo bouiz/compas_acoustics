@@ -427,7 +427,7 @@ class Analyser:
         return results
 
     def direct_to_reverberant_ratio(self, impulse_response=None) -> dict:
-        """DRR per band and in 700-4000 Hz (Haapaniemi and Lokki 2018, eq. 1).
+        """DRR per band and in 700-4000 Hz.
 
         The energy of the first 5 ms from the direct sound over the energy after it, in dB. The window
         opens 1 ms early so that a band-limited arrival is held whole. ``'DRR_overall'`` is theirs: a
