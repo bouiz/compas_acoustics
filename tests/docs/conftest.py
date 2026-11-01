@@ -20,3 +20,10 @@ def component(fixtures):
 
     (c,) = [c for c in load_components(fixtures / "Specs") if c.key == "CA_Fixture_A"]
     return c
+
+
+@pytest.fixture
+def components(fixtures):
+    from ghcomponents.specs import load_components
+
+    return load_components(fixtures / "Specs")
