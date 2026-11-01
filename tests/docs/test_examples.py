@@ -12,8 +12,7 @@ def by_name(fixtures):
 
 
 def test_examples_pair_by_name_and_either_side_may_be_missing(fixtures):
-    assert [(e.name, bool(e.py), bool(e.ghx)) for e in discover(fixtures / "examples")] == [
-        ("both", True, True), ("ghx_only", False, True), ("py_only", True, False)]
+    assert [(e.name, bool(e.py), bool(e.ghx)) for e in discover(fixtures / "examples")] == [("both", True, True), ("ghx_only", False, True), ("py_only", True, False)]
 
 
 def test_docstring_gives_title_and_body(fixtures):
@@ -53,8 +52,9 @@ def test_python_page_without_output_has_no_output_section(fixtures):
 
 
 def test_ghx_page_has_download_images_walkthrough_and_python_link(fixtures):
-    text = ghx_example_page(by_name(fixtures)["both"], fixtures / "walkthroughs/both.rst", "_downloads/both.ghx",
-                            "/_images/examples/both/canvas.png", "/_images/examples/both/viewport.png")
+    text = ghx_example_page(
+        by_name(fixtures)["both"], fixtures / "walkthroughs/both.rst", "_downloads/both.ghx", "/_images/examples/both/canvas.png", "/_images/examples/both/viewport.png"
+    )
     assert text.startswith(".. _example-gh-both:\n\nA room on both sides\n====================\n")
     assert ":download:`both.ghx <_downloads/both.ghx>`" in text
     assert text.index("canvas.png") < text.index("viewport.png") < text.index("#. Build the room")

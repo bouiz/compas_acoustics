@@ -46,8 +46,7 @@ def _input_row(p: Port) -> list[str]:
     return ["``{}``".format(p.name), escape(p.type_hint or ""), p.access, default, description.strip()]
 
 
-def component_page(c: Component, *, image: str, icon: str, notes: Path | None, used_in: list[str],
-                   python: str | None) -> str:
+def component_page(c: Component, *, image: str, icon: str, notes: Path | None, used_in: list[str], python: str | None) -> str:
     parts = [
         ".. _gh-{}:\n".format(c.key),
         title(c.name),
@@ -58,14 +57,12 @@ def component_page(c: Component, *, image: str, icon: str, notes: Path | None, u
         title("Inputs", "-"),
     ]
     if c.inputs:
-        parts.append(_table(["Name", "Type", "Access", "Default", "Description"],
-                            [_input_row(p) for p in c.inputs], [15, 10, 8, 10, 57]))
+        parts.append(_table(["Name", "Type", "Access", "Default", "Description"], [_input_row(p) for p in c.inputs], [15, 10, 8, 10, 57]))
     else:
         parts.append("None.\n")
     parts.append(title("Outputs", "-"))
     if c.outputs:
-        parts.append(_table(["Name", "Description"],
-                            [["``{}``".format(p.name), escape(p.description)] for p in c.outputs], [20, 80]))
+        parts.append(_table(["Name", "Description"], [["``{}``".format(p.name), escape(p.description)] for p in c.outputs], [20, 80]))
     else:
         parts.append("None.\n")
     if notes is not None:
@@ -78,8 +75,7 @@ def component_page(c: Component, *, image: str, icon: str, notes: Path | None, u
 
 
 def overview_page(components: list[Component], order: list[str], icon_for: Callable[[Component], str]) -> str:
-    parts = [title("Components"),
-             "Every component of the plugin, by ribbon panel. Each page lists its inputs and outputs.\n"]
+    parts = [title("Components"), "Every component of the plugin, by ribbon panel. Each page lists its inputs and outputs.\n"]
     for subcategory in order:
         members = [c for c in components if c.subcategory == subcategory]
         if not members:

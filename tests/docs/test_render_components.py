@@ -4,8 +4,7 @@ from ghcomponents.render import overview_page
 
 
 def page(c, **kw):
-    args = dict(image="/_images/components/{}.png".format(c.key), icon="_icons/{}.png".format(c.key),
-                notes=None, used_in=[], python=None)
+    args = dict(image="/_images/components/{}.png".format(c.key), icon="_icons/{}.png".format(c.key), notes=None, used_in=[], python=None)
     args.update(kw)
     return component_page(c, **args)
 
