@@ -84,7 +84,7 @@ Choices sit on the component bodies (switches, dropdowns, buttons); a wire into 
 runs (simulations, analysis, auralisation, rays) work in the background: the canvas stays responsive, the message shows the
 time and the worker's stage, and Cancel stops the run. Material Library opens a searchable picker on a click of its body;
 Plot 2D draws its charts on the canvas; the Audio Player shows the signal (an auralisation, a file, or an impulse response from Deconstruct IR Graph) and plays, pauses, seeks and sets the volume. The
-Worker component (06 Util) shows the worker's state and opens its log; every component's right-click menu has "Open worker log".
+Worker component (Util) shows the worker's state and opens its log; every component's right-click menu has "Open worker log".
 
 ## Getting started
 

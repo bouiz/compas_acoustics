@@ -10,7 +10,7 @@ namespace CompasAcoustics.Grasshopper
     public abstract class CompasAcousticsParam<T> : GH_Param<T> where T : class, IGH_Goo
     {
         protected CompasAcousticsParam(string name, string nickname, string description)
-            : base(name, nickname, description, "COMPAS Acoustics", "00 Params", GH_ParamAccess.item)
+            : base(name, nickname, description, ComponentBase.CategoryName, ComponentBase.RibbonSubcategory("Params"), GH_ParamAccess.item)
         {
         }
 

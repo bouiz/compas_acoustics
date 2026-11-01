@@ -2,7 +2,7 @@
     "name": "Material Library",
     "nickname": "MatLib",
     "category": "COMPAS Acoustics",
-    "subcategory": "00 Elements",
+    "subcategory": "Elements",
     "description": "Preset picker for AcousticMaterial. Click the strip or double-click the component to search the materials library by name and category, or choose Custom at the top; on the chart, set any band's absorption or scattering. Connect absorption or scattering (a value per octave band, 125 Hz to 8 kHz) to replace the chosen material's coefficients.",
     "exposure": 2,
     "ports": {

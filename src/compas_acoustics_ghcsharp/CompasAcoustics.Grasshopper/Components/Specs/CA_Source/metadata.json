@@ -2,7 +2,7 @@
     "name": "Source",
     "nickname": "Source",
     "category": "COMPAS Acoustics",
-    "subcategory": "00 Elements",
+    "subcategory": "Elements",
     "description": "Acoustic Source object (speaker, human, etc.). Choose its directivity on the body: omnidirectional (default), cardioid, supercardioid, hypercardioid or bidirectional.",
     "exposure": 2,
     "ports": {

@@ -2,7 +2,7 @@
     "name": "Regularized Fitness",
     "nickname": "Fitness",
     "category": "COMPAS Acoustics",
-    "subcategory": "07 Optimization",
+    "subcategory": "Optimization",
     "description": "A loss of a list of values against a target value: their mean absolute error (MAE) to the target, which measures accuracy, plus k times their sample standard deviation (STD), which measures consistency. The lower the score, the better the fitness.",
     "exposure": 2,
     "ports": {

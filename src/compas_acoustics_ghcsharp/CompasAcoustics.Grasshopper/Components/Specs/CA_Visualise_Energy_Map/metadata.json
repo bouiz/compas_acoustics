@@ -2,7 +2,7 @@
     "name": "Visualise Energy Map",
     "nickname": "EnergyMap",
     "category": "COMPAS Acoustics",
-    "subcategory": "05 Display",
+    "subcategory": "Display",
     "description": "Colour a surface by the sound pressure level of the scene's sources: the surface is meshed into faces no larger than spacing, one point per face centre, and each point gets the direct sound, the first-order image sources and pyroomacoustics' rays past them, with each source's level at 1 m (Source spl). The rays per source scale with the room's volume and the response length, for about 16000 hits per point (20000 to 250000 rays), with a fixed seed: the same scene gives the same map. Blue is the lowest level, red the highest; a face outside the room or inside an obstacle is grey. The Preview button shows or hides the drawing.",
     "exposure": 2,
     "ports": {

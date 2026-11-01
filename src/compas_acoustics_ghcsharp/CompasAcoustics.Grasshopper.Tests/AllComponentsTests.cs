@@ -38,7 +38,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(spec.Nickname, component.NickName);
             Assert.Equal(spec.Description, component.Description);
             Assert.Equal(ComponentBase.CategoryName, component.Category);
-            Assert.Equal(spec.Subcategory, component.SubCategory);
+            Assert.Equal(ComponentBase.RibbonSubcategory(spec.Subcategory), component.SubCategory);
             Assert.Equal(spec.Inputs.Select(p => p.Name), component.Params.Input.Select(p => p.Name));
             Assert.Equal(spec.Inputs.Select(p => p.Access), component.Params.Input.Select(p => p.Access));
             Assert.Equal(spec.Inputs.Select(p => p.Optional), component.Params.Input.Select(p => p.Optional));

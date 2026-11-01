@@ -2,7 +2,7 @@
     "name": "Worker",
     "nickname": "Worker",
     "category": "COMPAS Acoustics",
-    "subcategory": "06 Util",
+    "subcategory": "Util",
     "description": "The compas_acoustics worker, the Python that runs every simulation and analysis: its state, its Python, its version and whether its schema matches this plugin. Restart stops and starts it; Open log opens what it printed.",
     "exposure": 2,
     "ports": {

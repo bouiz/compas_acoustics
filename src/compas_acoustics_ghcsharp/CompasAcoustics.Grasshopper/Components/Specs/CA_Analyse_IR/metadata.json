@@ -2,7 +2,7 @@
     "name": "Analyse Impulse Response",
     "nickname": "AnalyseIR",
     "category": "COMPAS Acoustics",
-    "subcategory": "03 Analysis",
+    "subcategory": "Analysis",
     "description": "Analyse an impulse response (IR): acoustic parameters such as EDT, T20 and C50, and its time and frequency responses for Plot 2D. Computed in the compas_acoustics worker.",
     "exposure": 2,
     "ports": {

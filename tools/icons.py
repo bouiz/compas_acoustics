@@ -19,14 +19,14 @@ W = 7
 DARK = (60, 60, 60, 255)
 
 ACCENTS = {
-    "00 Elements": (31, 119, 180),
-    "01 Model": (44, 160, 44),
-    "02 Simulation": (214, 39, 40),
-    "03 Analysis": (148, 103, 189),
-    "04 Auralisation": (255, 127, 14),
-    "05 Display": (23, 160, 190),
-    "06 Util": (110, 110, 110),
-    "07 Optimization": (170, 150, 20),
+    "Elements": (31, 119, 180),
+    "Model": (44, 160, 44),
+    "Simulation": (214, 39, 40),
+    "Analysis": (148, 103, 189),
+    "Auralisation": (255, 127, 14),
+    "Display": (23, 160, 190),
+    "Util": (110, 110, 110),
+    "Optimization": (170, 150, 20),
 }
 
 

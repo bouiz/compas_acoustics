@@ -2,7 +2,7 @@
     "name": "Deconstruct Material",
     "nickname": "DeMat",
     "category": "COMPAS Acoustics",
-    "subcategory": "00 Elements",
+    "subcategory": "Elements",
     "description": "Deconstruct an AcousticMaterial object into its components.",
     "exposure": 2,
     "ports": {

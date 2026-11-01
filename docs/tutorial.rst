@@ -98,7 +98,7 @@ signal, to save as a multichannel file for a decoder elsewhere.
 Grasshopper
 ===========
 
-The Grasshopper plugin has a component for each of these steps, in the tabs
-``01 Model`` to ``06 Util`` of the COMPAS Acoustics category. Install it with the
+The Grasshopper plugin has a component for each of these steps, in the panels
+``Elements`` to ``Optimization`` of the COMPAS Acoustics category. Install it with the
 installer bundle (see :doc:`installation`); the components run everything in a
 Python worker that starts with the first component that needs it.

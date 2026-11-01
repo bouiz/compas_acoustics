@@ -2,7 +2,7 @@
     "name": "Deconstruct Parameter",
     "nickname": "DeParam",
     "category": "COMPAS Acoustics",
-    "subcategory": "03 Analysis",
+    "subcategory": "Analysis",
     "description": "Deconstruct acoustic parameters. Connect the parameters of Analyse Impulse Response and choose on the body which to take: all of them (a branch each), or one by name (EDT, T20, T30, C50, C80, D50, DRR, Ts, STI, G, SPL, LF, LFC), which gives it as a parameter for Plot 2D or a panel, and its name, values, frequencies and overall value as plain lists.",
     "exposure": 2,
     "ports": {

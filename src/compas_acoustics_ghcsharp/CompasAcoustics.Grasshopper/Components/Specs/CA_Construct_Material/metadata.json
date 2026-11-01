@@ -2,7 +2,7 @@
     "name": "Construct Material",
     "nickname": "ConMat",
     "category": "COMPAS Acoustics",
-    "subcategory": "00 Elements",
+    "subcategory": "Elements",
     "description": "Create an AcousticMaterial for AcousticObject(s).",
     "exposure": 2,
     "ports": {

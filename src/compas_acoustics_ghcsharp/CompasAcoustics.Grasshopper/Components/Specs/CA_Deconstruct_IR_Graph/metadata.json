@@ -2,7 +2,7 @@
     "name": "Deconstruct IR Graph",
     "nickname": "DeIRGraph",
     "category": "COMPAS Acoustics",
-    "subcategory": "02 Simulation",
+    "subcategory": "Simulation",
     "description": "Deconstruct an impulse response graph into ImpulseResponse(s). It reads the responses of the simulation method whose component the graph came from: Simulate Mono gives the mono responses, Simulate Binaural the binaural ones, Simulate Ambisonics the ambisonic ones.",
     "exposure": 2,
     "ports": {

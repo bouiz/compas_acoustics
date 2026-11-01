@@ -107,7 +107,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             // a fine map: the rays keep their 1 m grid, the image sources and the interpolation take the points
             Assert.Equal(0.25, spec.Inputs.Single(p => p.Name == "spacing").Default);
             Assert.Equal(new[] { "mesh", "values", "colours" }, spec.Outputs.Select(p => p.Name));
-            Assert.Equal("05 Display", spec.Subcategory);
+            Assert.Equal("Display", spec.Subcategory);
         }
     }
 }
