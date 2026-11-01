@@ -151,7 +151,7 @@ html_context = {
 }
 
 html_static_path = sphinx_compas2_theme.get_html_static_path() + ["_static"]
-html_css_files = []
+html_css_files = ["custom.css"]
 html_extra_path = []
 html_last_updated_fmt = ""
 html_copy_source = False

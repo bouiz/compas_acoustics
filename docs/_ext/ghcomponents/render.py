@@ -94,6 +94,7 @@ def overview_page(components: list[Component], order: list[str], icon_for: Calla
                 "      :link: {}".format(c.key),
                 "      :link-type: doc",
                 "      :img-top: {}".format(icon_for(c)),
+                "      :class-img-top: ca-component-icon",
                 "",
                 "      ``{}`` · {}".format(c.nickname, escape(first_sentence(c.description))),
                 "",

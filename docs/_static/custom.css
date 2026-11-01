@@ -1,0 +1,5 @@
+/* The component icons on the Grasshopper component overview: their own size, not the card's width. */
+.sd-card-img-top.ca-component-icon {
+    width: 48px;
+    margin: 1rem auto 0;
+}

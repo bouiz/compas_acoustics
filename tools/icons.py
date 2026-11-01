@@ -1,7 +1,8 @@
 """Draw the icons of the Grasshopper components: one flat set, 24 by 24 pixels.
 
 Each glyph is drawn at four times the size and scaled down; it uses its subcategory's accent colour and dark grey.
-``python tools/icons.py`` writes ``src/compas_acoustics_ghcsharp/CompasAcoustics.Grasshopper/Components/Specs/<CA_name>/icon.png``.
+``python tools/icons.py`` writes ``src/compas_acoustics_ghcsharp/CompasAcoustics.Grasshopper/Components/Specs/<CA_name>/icon.png``,
+and the same icon at four times the size to ``docs/_images/icons/<CA_name>.png`` for the documentation.
 """
 
 import json
@@ -11,7 +12,9 @@ from pathlib import Path
 from PIL import Image
 from PIL import ImageDraw
 
-SPECS = Path(__file__).resolve().parents[1] / "src" / "compas_acoustics_ghcsharp" / "CompasAcoustics.Grasshopper" / "Components" / "Specs"
+ROOT = Path(__file__).resolve().parents[1]
+DOCS_ICONS = ROOT / "docs" / "_images" / "icons"
+SPECS = ROOT / "src" / "compas_acoustics_ghcsharp" / "CompasAcoustics.Grasshopper" / "Components" / "Specs"
 SIZE = 24
 SCALE = 4
 S = SIZE * SCALE
@@ -251,18 +254,20 @@ GLYPHS = {
 }
 
 
-def draw(name):
-    """The icon of the spec folder ``name``, 24 by 24 RGBA."""
+def draw(name, size=SIZE):
+    """The icon of the spec folder ``name``, ``size`` by ``size`` RGBA."""
     subcategory = json.loads((SPECS / name / "metadata.json").read_text(encoding="utf-8"))["subcategory"]
     accent = ACCENTS[subcategory] + (255,)
     image = Image.new("RGBA", (S, S), (0, 0, 0, 0))
     GLYPHS[name](image, ImageDraw.Draw(image), accent)
-    return image.resize((SIZE, SIZE), Image.LANCZOS)
+    return image if size == S else image.resize((size, size), Image.LANCZOS)
 
 
 def main():
+    DOCS_ICONS.mkdir(parents=True, exist_ok=True)
     for name in sorted(GLYPHS):
         draw(name).save(SPECS / name / "icon.png")
+        draw(name, size=S).save(DOCS_ICONS / (name + ".png"))
         print("wrote", name)
 
 

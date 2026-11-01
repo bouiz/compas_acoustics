@@ -82,3 +82,8 @@ def test_a_description_that_looks_like_a_list_or_comment_stays_text(component):
     component.outputs[0].description = ".. not a comment"
     text = page(component)
     assert r"\- not a list" in text and r"\.. not a comment" in text
+
+
+def test_overview_cards_show_the_icon_at_a_fixed_size(components):
+    text = overview_page(components, ["Elements", "Model"], lambda c: "_icons/{}.png".format(c.key))
+    assert text.count(":class-img-top: ca-component-icon") == text.count(":img-top:") > 0

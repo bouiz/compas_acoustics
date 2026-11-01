@@ -35,7 +35,8 @@ The generator is ``docs/_ext/ghcomponents``. It writes three folders, which git 
      - ``src/compas_acoustics_ghcsharp/CompasAcoustics.Grasshopper/Components/Specs/<CA_name>/metadata.json`` and
        ``icon.png``; the panel order from ``ComponentBase.Subcategories`` in ``ComponentBase.cs``; the GUIDs from
        the C# classes; ``docs/grasshopper/python_equivalents.json``; ``docs/grasshopper/notes/<CA_name>.rst``;
-       ``docs/_images/components/<CA_name>.png``
+       ``docs/_images/components/<CA_name>.png``; ``docs/_images/icons/<CA_name>.png``, each icon at four times
+       the size, which the pages use instead of ``icon.png``
    * - ``docs/python/examples/``
      - ``examples/<name>.py`` (its docstring gives the title and paragraph) and
        ``docs/_images/examples/<name>/`` (``figure_<n>.png``, ``viewer_<n>.png``, ``stdout.txt``)
@@ -55,6 +56,10 @@ Grasshopper images
     Rhino 8 and Grasshopper, open ``docs/_tools/capture_grasshopper.py`` in Rhino's ScriptEditor and run it. It
     captures what is missing or out of date (component screenshots, and the canvas and viewport of each ``.ghx``)
     and updates the fingerprints. Set ``ALL = True`` at the top of the script to capture everything.
+
+Component icons
+    ``tools/icons.py`` draws them. After a change to an icon, run ``python tools/icons.py``: it writes the plugin's
+    ``icon.png`` and the large copy in ``docs/_images/icons/``. ``tests/test_icons.py`` fails when either is out of date.
 
 Python example outputs
     Run ``invoke docs-images``. It runs each example whose output is missing or out of date and saves the figures it

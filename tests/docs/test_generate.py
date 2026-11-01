@@ -152,3 +152,9 @@ def test_viewer_captures_are_shown_after_the_figures(tree):
     page = (tree.docs / "python/examples/both.rst").read_text()
     order = [page.index(name) for name in ("figure_1.png", "figure_2.png", "viewer_1.png")]
     assert order == sorted(order)
+
+
+def test_the_docs_icon_is_used_when_there_is_one(tree):
+    touch(tree.images / "icons/CA_Fixture_A.png", "large")
+    generate(tree, check=False)
+    assert (tree.docs / "grasshopper/components/_icons/CA_Fixture_A.png").read_text() == "large"

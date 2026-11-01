@@ -116,7 +116,8 @@ def generate(paths: Paths | None = None, *, check: bool = True) -> list[Path]:
                 used_in.setdefault(key, []).append(ex.name)
 
     for c in components:
-        out.bytes(gh_components / "_icons" / (c.key + ".png"), c.icon.read_bytes())
+        large = paths.images / "icons" / (c.key + ".png")  # tools/icons.py draws it at four times the size
+        out.bytes(gh_components / "_icons" / (c.key + ".png"), (large if large.exists() else c.icon).read_bytes())
         notes = paths.notes / (c.key + ".rst")
         out.text(
             gh_components / (c.key + ".rst"),
