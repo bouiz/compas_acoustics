@@ -19,11 +19,13 @@ Create a virtual environment with `python >= 3.9` (Rhino 8 runs 3.9; the hybrid 
 conda create -n your_env_name python=3.12
 ```
 
-To install a release in Python (it is not on PyPI yet):
+To install it in Python from the repository (it is not on PyPI yet):
 
 ```bash
-pip install "compas_acoustics @ git+https://github.com/gramaziokohler/compas_acoustics.git@v0.1.0"
+pip install "compas_acoustics @ git+https://github.com/gramaziokohler/compas_acoustics.git"
 ```
+
+This installs the latest `main`. To install a specific release, add its tag, for example `…compas_acoustics.git@v0.1.0`; the tags are on the [releases page](https://github.com/gramaziokohler/compas_acoustics/releases).
 
 To install the latest version for development, do:
 

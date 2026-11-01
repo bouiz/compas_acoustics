@@ -25,12 +25,16 @@ several GB.
 Python
 ======
 
-Create an environment with Python 3.9 or newer, then install a release from
-the git repository:
+Create an environment with Python 3.9 or newer, then install it from the git
+repository:
 
 .. code-block:: bash
 
-    pip install "compas_acoustics @ git+https://github.com/gramaziokohler/compas_acoustics.git@v0.1.0"
+    pip install "compas_acoustics @ git+https://github.com/gramaziokohler/compas_acoustics.git"
+
+This installs the latest ``main``. To install a specific release, add its tag,
+for example ``…compas_acoustics.git@v0.1.0``; the tags are on the
+`releases page <https://github.com/gramaziokohler/compas_acoustics/releases>`_.
 
 The ``Binaural`` and ``Ambisonics`` methods need Python 3.11 or newer: there,
 ``compas_acoustics`` also installs pyFDN, spharpy and multislope. On Python 3.9
