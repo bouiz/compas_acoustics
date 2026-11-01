@@ -38,7 +38,7 @@ The generator is ``docs/_ext/ghcomponents``. It writes three folders, which git 
        ``docs/_images/components/<CA_name>.png``
    * - ``docs/python/examples/``
      - ``examples/<name>.py`` (its docstring gives the title and paragraph) and
-       ``docs/_images/examples/<name>/`` (``figure_<n>.png``, ``stdout.txt``)
+       ``docs/_images/examples/<name>/`` (``figure_<n>.png``, ``viewer_<n>.png``, ``stdout.txt``)
    * - ``docs/grasshopper/examples/``
      - ``examples/<name>.ghx``, ``docs/grasshopper/walkthroughs/<name>.rst`` and
        ``docs/_images/examples/<name>/`` (``canvas.png``, ``viewport.png``)
@@ -57,8 +57,9 @@ Grasshopper images
     and updates the fingerprints. Set ``ALL = True`` at the top of the script to capture everything.
 
 Python example outputs
-    Run ``invoke docs-images``. It runs each example whose output is missing or out of date, without windows, and
-    saves the figures it shows and what it prints. ``invoke docs-images --all`` runs every example.
+    Run ``invoke docs-images``. It runs each example whose output is missing or out of date and saves the figures it
+    shows, what it prints, and a capture of each COMPAS viewer it opens (the viewer window opens for a moment, so
+    run it on a computer with a display). ``invoke docs-images --all`` runs every example.
 
 Commit ``docs/_images/`` with the change that needed new images.
 

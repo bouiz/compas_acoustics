@@ -143,3 +143,12 @@ def test_check_false_writes_pages_and_raises_nothing(tree):
     (tree.images / "components/CA_Fixture_A.png").unlink()
     generate(tree, check=False)
     assert (tree.docs / "grasshopper/components/CA_Fixture_A.rst").exists()
+
+
+def test_viewer_captures_are_shown_after_the_figures(tree):
+    touch(tree.images / "examples/both/viewer_1.png")
+    touch(tree.images / "examples/both/figure_2.png")
+    generate(tree)
+    page = (tree.docs / "python/examples/both.rst").read_text()
+    order = [page.index(name) for name in ("figure_1.png", "figure_2.png", "viewer_1.png")]
+    assert order == sorted(order)

@@ -89,6 +89,11 @@ def _rel(path: Path) -> str:
         return Path(path).as_posix()
 
 
+def _numbered(folder: Path, prefix: str) -> list[Path]:
+    """``<prefix>_<n>.png`` in ``folder``, by number."""
+    return sorted(folder.glob(prefix + "_*.png"), key=lambda f: int(f.stem[len(prefix) + 1 :]))
+
+
 def generate(paths: Paths | None = None, *, check: bool = True) -> list[Path]:
     """Write the generated pages; with ``check``, raise DocsCheckError listing every problem found."""
     paths = paths or Paths.default()
@@ -146,7 +151,7 @@ def generate(paths: Paths | None = None, *, check: bool = True) -> list[Path]:
             if doc is None:
                 missing_docstrings.append(ex.name)
                 continue
-            figures = [_site_path(paths, f) for f in sorted(images.glob("figure_*.png"), key=lambda f: int(f.stem[7:]))]
+            figures = [_site_path(paths, f) for f in _numbered(images, "figure") + _numbered(images, "viewer")]
             stdout = (images / "stdout.txt").read_text(encoding="utf-8") if (images / "stdout.txt").exists() else None
             out.text(py_examples / (ex.name + ".rst"), render.python_example_page(ex, doc[0], doc[1], figures, stdout))
             py_index.append((ex.name, doc[0]))

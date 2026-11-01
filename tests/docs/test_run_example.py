@@ -40,3 +40,14 @@ def test_show_is_restored_afterwards(tmp_path):
     script.write_text("print(1)\n")
     run_example(script, tmp_path / "out")
     assert plt.show is before
+
+
+def test_the_grasshopper_images_in_the_same_folder_are_kept(tmp_path):
+    script = tmp_path / "room.py"
+    script.write_text("print(1)\n")
+    out = tmp_path / "out"
+    out.mkdir()
+    for name in ("canvas.png", "viewport.png", "viewer_3.png"):
+        (out / name).write_bytes(b"png")
+    run_example(script, out)
+    assert sorted(p.name for p in out.iterdir()) == ["canvas.png", "stdout.txt", "viewport.png"]
