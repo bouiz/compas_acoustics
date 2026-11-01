@@ -62,6 +62,30 @@ def docs_components(ctx):
         ctx.run('"{}" docs/_ext/ghcomponents'.format(sys.executable))
 
 
+@task(help={"all": "Run every example, not only those whose output is out of date."})
+def docs_images(ctx, all=False):  # noqa: A002 (the flag is --all)
+    """Run the example scripts headless and save their figures and printed output into docs/_images/examples/."""
+    sys.path.insert(0, os.path.join(ctx.base_folder, "docs", "_ext"))
+    from ghcomponents import fingerprints
+    from ghcomponents.examples import discover
+
+    images = os.path.join(ctx.base_folder, "docs", "_images")
+    record = fingerprints.load()
+    scripts = [e.py for e in discover(os.path.join(ctx.base_folder, "examples")) if e.py]
+    if not all:
+        stale = {s.name for s in fingerprints.stale_files("py", scripts, record, fingerprints.IMAGES)}
+        scripts = [p for p in scripts if p.stem in stale]
+    for script in scripts:
+        out = os.path.join(images, "examples", script.stem)
+        print("Running {}".format(script.name))
+        with ctx.cd(ctx.base_folder):
+            result = ctx.run('"{}" docs/_tools/run_example.py "{}" "{}"'.format(sys.executable, script, out), warn=True)
+        if result.ok:
+            fingerprints.record_file(record, "py", script)
+            fingerprints.save(record)
+    print("Ran {} example(s).".format(len(scripts)))
+
+
 @task(
     pre=[docs_components],
     help={
@@ -110,6 +134,7 @@ ns = Collection(
     style.format,
     docs,
     docs_components,
+    docs_images,
     ci_docs.linkcheck,
     tests.test,
     tests.testdocs,

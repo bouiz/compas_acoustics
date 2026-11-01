@@ -1,0 +1,1 @@
+Traced 5 specular rays and 65 scattered rays.

@@ -1,3 +1,9 @@
+"""A simple simulation in a shoebox room.
+
+A shoebox room built from scratch, one material per surface, simulated with image sources and ray tracing
+and analysed. It is the Python twin of the Grasshopper definition simple_simulation_shoebox.ghx.
+"""
+
 import compas_acoustics as ca
 
 
