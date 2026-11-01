@@ -1,10 +1,5 @@
 ********************************************************************************
-Examples
+Troubleshooting
 ********************************************************************************
 
-.. toctree::
-   :maxdepth: 1
-   :titlesonly:
-   :glob:
-
-   examples/*
+What to do when the worker does not start, the versions do not match, or a method is missing.

@@ -110,7 +110,7 @@ signal = ca.Auraliser("room", list(binaural.values()), anechoic_sounds=[speech])
 multichannel file for an ambisonic decoder elsewhere. There is no ambisonic-to-binaural or stereo decoder: for headphones,
 simulate with `Binaural`.
 
-`examples/` has short scripts: `shoebox.py` (a room from scratch), `obj.py` (a room from OBJ files), `rays.py`, `scattered_rays.py` and `specular_reflections.py` (ray and image-source paths for display).
+`examples/` has short scripts: `simple_simulation_shoebox.py` (a room from scratch), `obj.py` (a room from OBJ files), `rays.py`, `scattered_rays.py` and `specular_reflections.py` (ray and image-source paths for display).
 
 ## Grasshopper plugin development
 

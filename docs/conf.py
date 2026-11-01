@@ -1,8 +1,14 @@
 # flake8: noqa
 # -*- coding: utf-8 -*-
 
+import os
+import sys
+
 from sphinx.writers import html, html5
 import sphinx_compas2_theme
+
+# the generator of the Grasshopper component pages and the example pages
+sys.path.insert(0, os.path.abspath("_ext"))
 
 # -- General configuration ------------------------------------------------
 
@@ -15,7 +21,7 @@ organization = "gramaziokohler"
 master_doc = "index"
 source_suffix = {".rst": "restructuredtext", ".md": "markdown"}
 templates_path = sphinx_compas2_theme.get_autosummary_templates_path()
-exclude_patterns = sphinx_compas2_theme.default_exclude_patterns
+exclude_patterns = sphinx_compas2_theme.default_exclude_patterns + ["superpowers/**", "grasshopper/notes/**", "grasshopper/walkthroughs/**"]
 add_module_names = True
 language = "en"
 
@@ -32,6 +38,7 @@ else:
 
 extensions = sphinx_compas2_theme.default_extensions
 extensions.remove("sphinx.ext.linkcode")
+extensions += ["myst_parser", "ghcomponents"]
 
 # numpydoc options
 
@@ -118,12 +125,6 @@ html_theme_options = {
             "name": "Discourse",
             "url": "http://forum.compas-framework.org/",
             "icon": "fa-brands fa-discourse",
-            "type": "fontawesome",
-        },
-        {
-            "name": "PyPI",
-            "url": f"https://pypi.org/project/{package}/",
-            "icon": "fa-brands fa-python",
             "type": "fontawesome",
         },
     ],
