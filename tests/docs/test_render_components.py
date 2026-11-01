@@ -59,3 +59,26 @@ def test_overview_follows_the_order_and_skips_empty_subcategories(components):
     assert ".. grid-item-card::" in text and ":link: CA_Fixture_A" in text and ":link-type: doc" in text
     assert "Make a fixture." in text and "It has two inputs." not in text  # first sentence only
     assert ":hidden:" in text and "   CA_Fixture_A\n" in text and "   CA_Fixture_B\n" in text
+
+
+def cell(text, line):
+    return [ln for ln in text.splitlines() if line in ln]
+
+
+def test_a_multiline_port_description_stays_in_its_cell(component):
+    component.inputs[0].description = "First line.\nSecond line."
+    text = page(component)
+    assert cell(text, "First line.") and "First line. Second line." in cell(text, "First line.")[0]
+
+
+def test_an_empty_default_does_not_make_a_transition(component):
+    component.inputs[1].default = ""
+    text = page(component)
+    assert "````" not in text and '``""``' in text
+
+
+def test_a_description_that_looks_like_a_list_or_comment_stays_text(component):
+    component.inputs[0].description = "- not a list"
+    component.outputs[0].description = ".. not a comment"
+    text = page(component)
+    assert r"\- not a list" in text and r"\.. not a comment" in text

@@ -11,8 +11,8 @@ How a definition flows
 
 1. **Elements.** Turn Rhino geometry into acoustic objects: pick a material from the
    :ref:`Material Library <gh-CA_Material_Library>` or make one with
-   :ref:`Construct Material <gh-CA_Construct_Material>`, then give each mesh or Brep its material in
-   :ref:`Acoustic Object <gh-CA_Acoustic_Object>`. Place a :ref:`Source <gh-CA_Source>` and a
+   :ref:`Construct Material <gh-CA_Construct_Material>`, then give each mesh (or closed polyline) its
+   material in :ref:`Acoustic Object <gh-CA_Acoustic_Object>`; turn Breps into meshes with Mesh Brep first. Place a :ref:`Source <gh-CA_Source>` and a
    :ref:`Receiver <gh-CA_Receiver>`.
 2. **Model.** Collect objects, sources and receivers in an :ref:`Acoustic Scene <gh-CA_Model>`.
 3. **Simulation.** Run :ref:`Simulate Mono <gh-CA_Simulate_Mono>`,

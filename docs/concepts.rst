@@ -92,7 +92,7 @@ The analyser derives these parameters (after ISO 3382) from an impulse response,
      - Direct-to-reverberant ratio: the direct sound against everything after it. dB.
      -
    * - Ts
-     - Centre time: the centre of gravity of the energy in time. Lower is clearer. Milliseconds.
+     - Centre time: the centre of gravity of the energy in time. Lower is clearer. Seconds.
      -
    * - STI
      - Speech transmission index: speech intelligibility from 0 (bad) to 1 (excellent).
