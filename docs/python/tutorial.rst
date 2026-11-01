@@ -100,5 +100,5 @@ Grasshopper
 
 The Grasshopper plugin has a component for each of these steps, in the panels
 ``Elements`` to ``Optimization`` of the COMPAS Acoustics category. Install it with the
-installer bundle (see :doc:`installation`); the components run everything in a
+installer bundle (see :doc:`/installation/grasshopper`); the components run everything in a
 Python worker that starts with the first component that needs it.

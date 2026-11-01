@@ -1,6 +1,297 @@
 {
-  "components": {},
-  "ghx": {},
+  "components": {
+    "CA_Acoustic_Object": {
+      "hash": "53b165034d12",
+      "inputs": [
+        "geometry",
+        "material",
+        "name"
+      ],
+      "outputs": [
+        "acoustic_object"
+      ]
+    },
+    "CA_Analyse_IR": {
+      "hash": "fa7cc4a62860",
+      "inputs": [
+        "ir"
+      ],
+      "outputs": [
+        "parameters",
+        "time",
+        "frequency"
+      ]
+    },
+    "CA_Audio_Player": {
+      "hash": "574ac7d2726e",
+      "inputs": [
+        "audio"
+      ],
+      "outputs": []
+    },
+    "CA_Auralise": {
+      "hash": "1a0238be0596",
+      "inputs": [
+        "irs",
+        "anechoic_sounds",
+        "mix_sources"
+      ],
+      "outputs": [
+        "signals",
+        "sampling_rate"
+      ]
+    },
+    "CA_Channel": {
+      "hash": "e7725a50648b",
+      "inputs": [
+        "sound"
+      ],
+      "outputs": [
+        "channels"
+      ]
+    },
+    "CA_Construct_Material": {
+      "hash": "78e8f9a249b6",
+      "inputs": [
+        "absorption",
+        "scattering",
+        "name",
+        "category"
+      ],
+      "outputs": [
+        "material"
+      ]
+    },
+    "CA_Deconstruct_IR": {
+      "hash": "03b0f0502ec4",
+      "inputs": [
+        "parameters"
+      ],
+      "outputs": [
+        "parameter",
+        "name",
+        "values",
+        "overall",
+        "frequencies"
+      ]
+    },
+    "CA_Deconstruct_IR_Graph": {
+      "hash": "386243f5aa54",
+      "inputs": [
+        "ir_graph",
+        "source_idx",
+        "receiver_idx"
+      ],
+      "outputs": [
+        "ir",
+        "sources",
+        "receivers",
+        "edges"
+      ]
+    },
+    "CA_Deconstruct_Material": {
+      "hash": "526a23606686",
+      "inputs": [
+        "material"
+      ],
+      "outputs": [
+        "absorption",
+        "scattering",
+        "name",
+        "category",
+        "data_origin"
+      ]
+    },
+    "CA_Material_Library": {
+      "hash": "7df7b453f5a2",
+      "inputs": [
+        "absorption",
+        "scattering"
+      ],
+      "outputs": [
+        "material"
+      ]
+    },
+    "CA_Model": {
+      "hash": "fdcd23e59ce3",
+      "inputs": [
+        "objects",
+        "sources",
+        "receivers",
+        "name"
+      ],
+      "outputs": [
+        "scene"
+      ]
+    },
+    "CA_Plot_2D": {
+      "hash": "a55f6c9112ee",
+      "inputs": [
+        "data"
+      ],
+      "outputs": []
+    },
+    "CA_Receiver": {
+      "hash": "da7df14d5586",
+      "inputs": [
+        "position",
+        "name",
+        "direction"
+      ],
+      "outputs": [
+        "receiver"
+      ]
+    },
+    "CA_Regularized_Fitness": {
+      "hash": "97d1d1a1d2e9",
+      "inputs": [
+        "values",
+        "target",
+        "k"
+      ],
+      "outputs": [
+        "fitness"
+      ]
+    },
+    "CA_Simulate_Ambisonics": {
+      "hash": "c76bf02a3ce5",
+      "inputs": [
+        "scene",
+        "tail",
+        "reference",
+        "ism_order",
+        "diffraction",
+        "late_envelope",
+        "seed",
+        "normalize",
+        "run"
+      ],
+      "outputs": [
+        "ambisonic_ir_graph"
+      ]
+    },
+    "CA_Simulate_Binaural": {
+      "hash": "bb96d54edded",
+      "inputs": [
+        "scene",
+        "tail",
+        "reference",
+        "ism_order",
+        "diffraction",
+        "late_envelope",
+        "seed",
+        "normalize",
+        "hrtf",
+        "run"
+      ],
+      "outputs": [
+        "binaural_ir_graph"
+      ]
+    },
+    "CA_Simulate_Mono": {
+      "hash": "7742b75d7e12",
+      "inputs": [
+        "scene",
+        "ism_order",
+        "ray_tracing",
+        "n_rays",
+        "absorb_air",
+        "energy_thres",
+        "duration",
+        "seed",
+        "normalize"
+      ],
+      "outputs": [
+        "mono_ir_graph"
+      ]
+    },
+    "CA_Source": {
+      "hash": "571d634f3573",
+      "inputs": [
+        "position",
+        "name",
+        "direction",
+        "sound_file",
+        "spl"
+      ],
+      "outputs": [
+        "source"
+      ]
+    },
+    "CA_Visualise_Billiard": {
+      "hash": "48fd57d9bd1a",
+      "inputs": [
+        "ray_field",
+        "time",
+        "play",
+        "speed"
+      ],
+      "outputs": [
+        "particles"
+      ]
+    },
+    "CA_Visualise_Energy_Map": {
+      "hash": "ffa591d61b5c",
+      "inputs": [
+        "scene",
+        "mesh",
+        "spacing",
+        "source_idx",
+        "frequency_bands",
+        "range"
+      ],
+      "outputs": [
+        "mesh",
+        "values",
+        "colours"
+      ]
+    },
+    "CA_Visualise_Rays": {
+      "hash": "111126b4bed3",
+      "inputs": [
+        "scene",
+        "source_idx",
+        "n_rays",
+        "max_order",
+        "direction",
+        "angle",
+        "scattering",
+        "seed",
+        "order"
+      ],
+      "outputs": [
+        "ray_field",
+        "rays",
+        "scattered"
+      ]
+    },
+    "CA_Visualise_Reflections": {
+      "hash": "b2136705e342",
+      "inputs": [
+        "scene",
+        "order",
+        "source_idx",
+        "receiver_idx"
+      ],
+      "outputs": [
+        "reflections",
+        "order",
+        "time"
+      ]
+    },
+    "CA_Worker": {
+      "hash": "6ed5a1a9acf8",
+      "inputs": [],
+      "outputs": [
+        "python",
+        "version",
+        "running"
+      ]
+    }
+  },
+  "ghx": {
+    "simple_simulation_shoebox": "ca7b1eec4290"
+  },
   "py": {
     "obj": "96911692bf65",
     "rays": "7211b9b77980",
