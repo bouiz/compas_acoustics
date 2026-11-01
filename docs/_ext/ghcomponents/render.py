@@ -6,6 +6,8 @@ import re
 from pathlib import Path
 from typing import Callable
 
+from .examples import Example
+from .examples import walkthrough as read_walkthrough
 from .specs import Component
 from .specs import Port
 
@@ -96,4 +98,45 @@ def overview_page(components: list[Component], order: list[str], icon_for: Calla
             ]
         parts.append("\n".join(cards))
     parts.append(".. toctree::\n   :hidden:\n\n" + "".join("   {}\n".format(c.key) for c in components))
+    return "\n".join(parts) + GENERATED
+
+
+def _indent(text: str) -> str:
+    return "".join("    " + line if line.strip() else "\n" for line in text.splitlines(True))
+
+
+def python_example_page(ex: Example, title_text: str, body: str, figures: list[str], stdout: str | None) -> str:
+    parts = [".. _example-py-{}:\n".format(ex.name), title(title_text), body + "\n"]
+    if ex.ghx is not None:
+        parts.append("The same example in Grasshopper: :doc:`/grasshopper/examples/{}`.\n".format(ex.name))
+    parts.append(".. literalinclude:: /../examples/{}.py\n   :language: python\n".format(ex.name))
+    if figures or stdout:
+        parts.append(title("Output", "-"))
+        parts += [".. image:: {}\n".format(f) for f in figures]
+        if stdout:
+            parts.append("::\n\n" + _indent(stdout))
+    return "\n".join(parts) + GENERATED
+
+
+def ghx_example_page(ex: Example, walkthrough: Path, download: str, canvas: str, viewport: str) -> str:
+    title_text, body = read_walkthrough(walkthrough)
+    intro, _, steps = body.partition("\n\n")
+    parts = [
+        ".. _example-gh-{}:\n".format(ex.name),
+        title(title_text),
+        intro + "\n",
+        "Download the definition: :download:`{}.ghx <{}>`\n".format(ex.name, download),
+        ".. image:: {}\n   :alt: The definition on the Grasshopper canvas\n".format(canvas),
+        ".. image:: {}\n   :alt: The Rhino viewport\n".format(viewport),
+    ]
+    if steps.strip():
+        parts += [title("Walkthrough", "-"), steps.strip() + "\n"]
+    if ex.py is not None:
+        parts.append("The same example in Python: :doc:`/python/examples/{}`.\n".format(ex.name))
+    return "\n".join(parts) + GENERATED
+
+
+def examples_index(title_text: str, names_titles: list[tuple[str, str]]) -> str:
+    parts = [title(title_text), "".join("* :doc:`{}`\n".format(name) for name, _ in names_titles)]
+    parts.append(".. toctree::\n   :hidden:\n\n" + "".join("   {}\n".format(name) for name, _ in names_titles))
     return "\n".join(parts) + GENERATED
