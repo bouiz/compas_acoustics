@@ -11,11 +11,11 @@ name = "compas_acoustics"
 description = "Room acoustic simulation, analysis and auralisation for COMPAS, with a Grasshopper plugin for Rhino 8."
 keywords = ["acoustics", "room acoustics", "auralisation", "impulse response", "ray tracing", "image source method", "ambisonics", "binaural", "compas", "grasshopper", "rhino"]
 authors = [
-    { name = "Achilleas Xydis", email = "xydis@arch.ethz.ch" },
-    { name = "Georgios Papadimitriou", email = "papadimitriou@arch.ethz.ch" },
-    { name = "Wang Hao Cheng (Jerry)"},
-    { name = "Gardar Edvaldsson" },
-    { name = "Gonzalo Casas", email = "casas@arch.ethz.ch" }
+    {name = "Achilleas Xydis"},
+    {name = "Georgios Papadimitriou"},
+    {name = "Hao Cheng Wang"},
+    {name = "Gardar Edvaldsson"},
+    {name = "Gonzalo Casas"},
 ]
 license = { file = "LICENSE" }
 readme = "README.md"

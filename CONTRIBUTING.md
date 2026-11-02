@@ -36,7 +36,8 @@ In short, this is how that works.
    ```
 
 7. Add a line about your change to the `Unreleased` section of `CHANGELOG.md`.
-8. Add yourself to the *Contributors* section of `AUTHORS.md`.
+8. Add yourself to the authors in `CITATION.cff`, the only list of authors edited by hand: `invoke sync-authors`
+   copies it into `pyproject.toml` on release, and the docs read it when they are built.
 9. Commit your changes and push your branch to GitHub.
 10. Create a [pull request](https://help.github.com/articles/about-pull-requests/) through the GitHub website.
 

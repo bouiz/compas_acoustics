@@ -43,7 +43,7 @@ jobs:
   prepare:
     needs: [release, build]
     if: needs.release.outputs.is-release == 'true'
-    # the protobuf bindings are committed, pre-build has nothing to make
+    # pre-build syncs the pyproject.toml authors from CITATION.cff; the protobuf bindings are committed
     runs-on: windows-latest
     steps:
       - uses: compas-dev/compas-actions/prepare-release@v1
