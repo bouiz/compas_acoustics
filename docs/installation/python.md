@@ -23,7 +23,7 @@ pip install "compas_acoustics @ git+https://github.com/gramaziokohler/compas_aco
 ## Binaural and ambisonics methods
 
 The `Binaural` and `Ambisonics` methods share one hybrid engine (image sources, edge diffraction and a
-directional feedback delay network, after [hybrid-rir](https://github.com/gpapadimitri/hybrid-rir)) and differ only
+directional feedback delay network) and differ only
 in how they render it. They need pyFDN, spharpy and multislope, which `compas_acoustics` installs on Python 3.11
 and newer; on Python 3.9 and 3.10 (Rhino 8's Python) it leaves them out and the methods are not available.
 
