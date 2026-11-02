@@ -7,11 +7,8 @@ Anechoic source recordings used by `compas_acoustics` for auralisation and relat
 | File | Description | Format | Source |
 | --- | --- | --- | --- |
 | `viola.wav` | Modern viola, C major detache | 48 kHz, 16 bit, 11.4 s | [OpenAIR, modern-viola-c-major-detache.wav](https://webfiles.york.ac.uk/OPENAIR/Anechoic/modern-viola/mono/) |
-| `bassoon.wav` | Bassoon | 48 kHz, 16 bit, 39.2 s | not recorded yet |
 | `female_speech.wav` | Female speech | 48 kHz, float, 13.3 s | [EARS dataset](https://sp-uhh.github.io/ears_dataset/) |
 | `male_speech.wav` | Male speech | 48 kHz, float, 12.5 s | [EARS dataset](https://sp-uhh.github.io/ears_dataset/) |
-
-The source and licence of `bassoon.wav` are not recorded yet. Fill them in here before the package is released.
 
 `viola.wav` is the 96 kHz original resampled to 48 kHz (polyphase, anti-aliased), the sampling rate of the package.
 

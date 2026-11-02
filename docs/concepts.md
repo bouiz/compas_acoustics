@@ -63,5 +63,5 @@ The analyser derives these parameters (after ISO 3382) from an impulse response,
 The auraliser convolves anechoic recordings (sound recorded without any room) with impulse responses and mixes the
 sources. It keeps the format of the responses: a mono response gives mono, a binaural one gives a two-channel file for
 headphones, an ambisonic one gives a multichannel file for an ambisonic decoder. There is no ambisonic-to-binaural
-decoder: for headphones, simulate with `Binaural`. The package bundles four anechoic recordings (see
+decoder: for headphones, simulate with `Binaural`. The package bundles three anechoic recordings (see
 [License and credits](license.md)).
