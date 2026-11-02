@@ -67,12 +67,27 @@ jobs:
           paths: dist/compas_acoustics_installer.zip
           artifact-name: github-release-assets-installer
 
-  # Not on PyPI yet. For the first PyPI release, add a `publish` job here like in
-  # compas_pb (pypa/gh-action-pypi-publish with a Trusted Publisher) and make
-  # `create-release` depend on it.
+  # PyPI Trusted Publishing: owner gramaziokohler, repo compas_acoustics, workflow release.yml, environment pypi
+  publish:
+    needs: [release, prepare]
+    if: needs.release.outputs.is-release == 'true'
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Download package distributions
+        uses: actions/download-artifact@v8.0.1
+        with:
+          name: python-package-distributions
+          path: dist
+
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@v1.14.2
 
   create-release:
-    needs: [release, prepare, installer-bundle]
+    needs: [release, prepare, installer-bundle, publish]
     if: needs.release.outputs.is-release == 'true'
     runs-on: ubuntu-latest
     permissions:
