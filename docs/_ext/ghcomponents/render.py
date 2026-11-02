@@ -87,7 +87,7 @@ def overview_page(components: list[Component], order: list[str], icon_for: Calla
         if not members:
             continue
         parts.append(title(subcategory, "-"))
-        cards = [".. grid:: 2 3 4 4", "   :gutter: 2", ""]
+        cards = [".. grid:: 2", "   :gutter: 2", ""]
         for c in members:
             cards += [
                 "   .. grid-item-card:: {}".format(escape(c.name)),
