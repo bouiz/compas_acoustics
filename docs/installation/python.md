@@ -8,15 +8,17 @@ conda create -n acoustics python=3.12
 conda activate acoustics
 ```
 
-Then install it from the git repository (it is not on PyPI yet):
+Then install it from PyPI:
+
+```bash
+pip install compas_acoustics
+```
+
+To install the latest `main` instead, install it from the git repository:
 
 ```bash
 pip install "compas_acoustics @ git+https://github.com/gramaziokohler/compas_acoustics.git"
 ```
-
-This installs the latest `main`. To install a specific release, add its tag, for example
-`…compas_acoustics.git@v0.1.0`; the tags are on the
-[releases page](https://github.com/gramaziokohler/compas_acoustics/releases).
 
 ## Binaural and ambisonics methods
 

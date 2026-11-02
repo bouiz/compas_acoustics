@@ -14,20 +14,20 @@ compas_acoustics simulates, analyses and auralises the acoustics of rooms modell
 
 ## Installation
 
-`compas_acoustics` is not on PyPI yet. The [installation guide](https://gramaziokohler.github.io/compas_acoustics/latest/installation/index.html) has the details.
+The [installation guide](https://gramaziokohler.github.io/compas_acoustics/latest/installation/) has the details.
+
+**Python** (3.9 or newer; the `Binaural` and `Ambisonics` methods need 3.11 or newer):
+
+```bash
+pip install compas_acoustics
+```
 
 **Rhino 8 / Grasshopper** (Windows and macOS): download `compas_acoustics_installer.zip` from the
 [latest release](https://github.com/gramaziokohler/compas_acoustics/releases/latest), unzip it, open
 `compas_acoustics_installer.gh` in Grasshopper, press **Install**, and restart Rhino. The installer adds the plugin and
 creates the worker, the Python 3.12 environment the components compute in.
 
-**Python** (3.9 or newer; the `Binaural` and `Ambisonics` methods need 3.11 or newer):
-
-```bash
-pip install "compas_acoustics @ git+https://github.com/gramaziokohler/compas_acoustics.git"
-```
-
-Add a release tag (`…compas_acoustics.git@v0.1.0`) to install that release. For development:
+For development:
 
 ```bash
 git clone https://github.com/gramaziokohler/compas_acoustics.git
@@ -83,6 +83,13 @@ For further "getting started" instructions, a tutorial, examples, and an API ref
 please check out the online documentation here: [compas_acoustics docs](https://gramaziokohler.github.io/compas_acoustics):
 concepts, installation, a Python and a Grasshopper track with examples, a reference of every Grasshopper component, and
 the API reference.
+
+## License
+
+The code is released under the [MIT license](https://github.com/gramaziokohler/compas_acoustics/blob/main/LICENSE). The package also ships data under its own licences, some
+stricter than MIT: the HRTF set of `Binaural` is CC BY-SA 3.0 (share-alike), and the two speech recordings are
+CC BY-NC 4.0 (no commercial use). The [License and credits](https://gramaziokohler.github.io/compas_acoustics/latest/license/)
+page lists every source and its licence.
 
 ## Issue Tracker
 
