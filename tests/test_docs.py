@@ -17,13 +17,13 @@ def test_the_api_reference_lists_every_public_name():
     assert set(compas_acoustics.__all__) | {"Binaural", "Ambisonics"} <= listed
 
 
-EXAMPLES = ["shoebox", "obj", "rays", "scattered_rays", "specular_reflections"]
+EXAMPLES = ["simple_simulation_shoebox", "obj", "rays", "scattered_rays", "specular_reflections"]
 
 
 def test_every_example_has_a_docs_page_and_the_tutorial_has_content():
     for name in EXAMPLES:
-        assert f"../../examples/{name}.py" in read(f"docs/examples/{name}.rst")
-    assert read("docs/tutorial.rst").count(".. code-block:: python") >= 4
+        assert f"/../examples/{name}.py" in read(f"docs/python/examples/{name}.rst")
+    assert read("docs/python/tutorial.rst").count(".. code-block:: python") >= 4
 
 
 def test_the_sound_library_readme_lists_the_files_the_package_has():
