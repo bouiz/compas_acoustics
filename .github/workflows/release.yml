@@ -67,6 +67,21 @@ jobs:
           paths: dist/compas_acoustics_installer.zip
           artifact-name: github-release-assets-installer
 
+  # the .proto bundle and the bindings of each language: compas_acoustics owns its schema, so it publishes them
+  proto-assets:
+    needs: [release, build]
+    if: needs.release.outputs.is-release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: compas-dev/compas-actions/release-assets@v1
+        with:
+          python-version: "3.12"
+          management-tool: uv
+          extras: dev
+          invoke-tasks: create-class-assets
+          paths: dist/proto/*.zip
+          artifact-name: github-release-assets-proto
+
   # PyPI Trusted Publishing: owner gramaziokohler, repo compas_acoustics, workflow release.yml, environment pypi
   publish:
     needs: [release, prepare]
@@ -87,7 +102,7 @@ jobs:
         uses: pypa/gh-action-pypi-publish@v1.14.2
 
   create-release:
-    needs: [release, prepare, installer-bundle, publish]
+    needs: [release, prepare, installer-bundle, proto-assets, publish]
     if: needs.release.outputs.is-release == 'true'
     runs-on: ubuntu-latest
     permissions:

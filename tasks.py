@@ -11,6 +11,8 @@ from compas_invocations2 import docs as ci_docs
 from compas_invocations2 import mkdocs as ci_mkdocs
 from compas_invocations2 import style
 from compas_invocations2 import tests
+from compas_pb.invocations import create_class_assets
+from compas_pb.invocations import create_proto_bundle
 from compas_pb.invocations import generate_proto_classes
 from invoke import Collection
 from invoke import task
@@ -183,6 +185,8 @@ ns = Collection(
     generate_proto_classes,
     generate_csharp,
     generate,
+    create_proto_bundle,
+    create_class_assets,
 )
 ns.configure(
     {
@@ -191,5 +195,8 @@ ns.configure(
         "proto_folder": os.path.join("src", "compas_acoustics", "pb", "protobuf_defs", "compas_acoustics", "pb", "generated"),
         "proto_include_paths": [os.path.join("src", "compas_acoustics", "pb", "protobuf_defs"), compas_pb.PROTOBUF_DEFS],
         "proto_out_folder": "src",
+        # invoke create-class-assets: the .proto bundle and the bindings of each language, as release assets
+        "package_name": "compas_acoustics",
+        "generated_folder": os.path.join("dist", "generated"),
     }
 )
