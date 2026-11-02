@@ -44,11 +44,10 @@ theme:
 extra_css:
   - assets/css/custom.css
 
-# not pages: the generator and its page sources (they are inlined into generated pages), and the planning notes
+# not pages: the generator and its page sources (they are inlined into generated pages)
 exclude_docs: |
   _ext/
   _tools/
-  superpowers/
   grasshopper/notes/
   grasshopper/walkthroughs/
   grasshopper/python_equivalents.json
