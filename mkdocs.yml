@@ -1,0 +1,133 @@
+site_name: COMPAS Acoustics
+site_url: https://gramaziokohler.github.io/compas_acoustics/
+
+repo_name: gramaziokohler/compas_acoustics
+repo_url: https://github.com/gramaziokohler/compas_acoustics/
+edit_uri: blob/main/docs/
+
+copyright: Copyright &copy; 2025, Gramazio Kohler Research, ETH Zurich
+
+extra:
+  version:
+    provider: mike
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/gramaziokohler/compas_acoustics
+    - icon: fontawesome/brands/discourse
+      link: https://forum.compas-framework.org/
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  font:
+    text: Roboto
+    code: Roboto Mono
+  logo: assets/images/compas_logo_white_transparent.png
+  favicon: assets/images/compas_logo_white_transparent.png
+  features:
+    - content.code.copy
+    - navigation.footer
+    - navigation.sections
+    - navigation.top
+    - search.highlight
+    - search.suggest
+    - toc.follow
+
+extra_css:
+  - assets/css/custom.css
+
+# not pages: the generator and its page sources (they are inlined into generated pages), and the planning notes
+exclude_docs: |
+  _ext/
+  _tools/
+  superpowers/
+  grasshopper/notes/
+  grasshopper/walkthroughs/
+  grasshopper/python_equivalents.json
+  _images/fingerprints.json
+
+hooks:
+  - docs/_ext/mkdocs_hooks.py
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - pymdownx.highlight:
+      anchor_linenums: true
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
+  - pymdownx.superfences
+  - toc:
+      permalink: true
+
+plugins:
+  - search
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          paths: [src]
+          inventories:
+            - https://docs.python.org/3/objects.inv
+            - https://compas.dev/compas/latest/objects.inv
+          options:
+            extensions:
+              - docs/_ext/griffe_sphinx_roles.py:SphinxRoles
+            allow_inspection: true
+            docstring_style: numpy
+            docstring_section_style: table
+            docstring_options:
+              ignore_init_summary: true
+            filters: public
+            group_by_category: true
+            heading_level: 3
+            inherited_members: false
+            merge_init_into_class: true
+            relative_crossrefs: true
+            scoped_crossrefs: true
+            separate_signature: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_signature_annotations: true
+            show_source: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            signature_crossrefs: true
+
+nav:
+  - Introduction: index.md
+  - Getting started:
+      - concepts.md
+      - Installation:
+          - installation/index.md
+          - installation/grasshopper.md
+          - installation/python.md
+  - Python:
+      - python/tutorial.md
+      - Examples: python/examples/index.md
+  - Grasshopper:
+      - grasshopper/getting_started.md
+      - Components: grasshopper/components/index.md
+      - Examples: grasshopper/examples/index.md
+  - Reference:
+      - API: api/compas_acoustics.md
+      - troubleshooting.md
+      - contributing/docs.md
+      - changelog.md
+      - license.md

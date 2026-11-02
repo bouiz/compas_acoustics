@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from .fingerprints import Stale
 
-GUIDE = "docs/contributing/docs.rst"
+GUIDE = "docs/contributing/docs.md"
 
 CAPTURE = [
     "Install the current plugin in Rhino 8 (invoke installer-bundle, then run the installer).",
@@ -79,8 +79,8 @@ def run(
         report.append(
             section(
                 "Grasshopper examples have no walkthrough:",
-                [(name, "no {}/{}.rst".format(walkthroughs_dir, name)) for name in missing_walkthroughs],
-                ["Write {}/<name>.rst: a title line, a paragraph on what the definition does, then one numbered step per group.".format(walkthroughs_dir)],
+                [(name, "no {}/{}.md".format(walkthroughs_dir, name)) for name in missing_walkthroughs],
+                ["Write {}/<name>.md: a title line, a paragraph on what the definition does, then one numbered step per group.".format(walkthroughs_dir)],
                 "walkthroughs",
             )
         )

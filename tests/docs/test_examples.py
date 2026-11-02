@@ -25,7 +25,7 @@ def test_docstring_is_none_without_one(tmp_path):
 
 
 def test_walkthrough_gives_title_and_body(fixtures):
-    assert walkthrough(fixtures / "walkthroughs/ghx_only.rst") == ("Grasshopper only", "A definition.")
+    assert walkthrough(fixtures / "walkthroughs/ghx_only.md") == ("Grasshopper only", "A definition.")
 
 
 def test_components_in_finds_guids_case_insensitively(fixtures):
@@ -35,16 +35,16 @@ def test_components_in_finds_guids_case_insensitively(fixtures):
 
 def test_python_page_links_its_grasshopper_twin_only_when_there_is_one(fixtures):
     ex = by_name(fixtures)
-    assert ":doc:`/grasshopper/examples/both`" in python_example_page(ex["both"], "T", "B", [], None)
+    assert "(../../grasshopper/examples/both.md)" in python_example_page(ex["both"], "T", "B", [], None)
     assert "grasshopper/examples" not in python_example_page(ex["py_only"], "T", "B", [], None)
 
 
 def test_python_page_includes_script_figures_and_stdout(fixtures):
-    text = python_example_page(by_name(fixtures)["both"], "A room", "Body *x*.", ["/_images/examples/both/figure_1.png"], "hi\n")
-    assert text.startswith(".. _example-py-both:\n\nA room\n======\n") and "Body *x*." in text
-    assert ".. literalinclude:: /../examples/both.py" in text
-    assert ".. image:: /_images/examples/both/figure_1.png" in text
-    assert "Output\n------" in text and "::\n\n    hi\n" in text
+    text = python_example_page(by_name(fixtures)["both"], "A room", "Body *x*.", ["../../_images/examples/both/figure_1.png"], "hi\n")
+    assert text.startswith("# A room\n") and "Body *x*." in text
+    assert '```python\n--8<-- "examples/both.py"\n```' in text
+    assert "![](../../_images/examples/both/figure_1.png)" in text
+    assert "## Output" in text and "```text\nhi\n```" in text
 
 
 def test_python_page_without_output_has_no_output_section(fixtures):
@@ -53,20 +53,20 @@ def test_python_page_without_output_has_no_output_section(fixtures):
 
 def test_ghx_page_has_download_images_walkthrough_and_python_link(fixtures):
     text = ghx_example_page(
-        by_name(fixtures)["both"], fixtures / "walkthroughs/both.rst", "_downloads/both.ghx", "/_images/examples/both/canvas.png", "/_images/examples/both/viewport.png"
+        by_name(fixtures)["both"], fixtures / "walkthroughs/both.md", "_downloads/both.ghx", "../../_images/examples/both/canvas.png", "../../_images/examples/both/viewport.png"
     )
-    assert text.startswith(".. _example-gh-both:\n\nA room on both sides\n====================\n")
-    assert ":download:`both.ghx <_downloads/both.ghx>`" in text
-    assert text.index("canvas.png") < text.index("viewport.png") < text.index("#. Build the room")
-    assert ":doc:`/python/examples/both`" in text
+    assert text.startswith("# A room on both sides\n")
+    assert "[both.ghx](_downloads/both.ghx)" in text
+    assert text.index("canvas.png") < text.index("viewport.png") < text.index("1. Build the room")
+    assert "(../../python/examples/both.md)" in text
 
 
 def test_ghx_page_without_twin_has_no_python_link(fixtures):
-    text = ghx_example_page(by_name(fixtures)["ghx_only"], fixtures / "walkthroughs/ghx_only.rst", "d", "c", "v")
+    text = ghx_example_page(by_name(fixtures)["ghx_only"], fixtures / "walkthroughs/ghx_only.md", "d", "c", "v")
     assert "python/examples" not in text
 
 
-def test_examples_index_lists_pages_in_a_toctree():
+def test_examples_index_links_every_page_by_title():
     text = examples_index("Python examples", [("both", "A room"), ("py_only", "Python only")])
-    assert text.startswith("Python examples\n===============\n")
-    assert ":doc:`both`" in text and "   both\n   py_only\n" in text
+    assert text.startswith("# Python examples\n")
+    assert "* [A room](both.md)\n* [Python only](py_only.md)\n" in text

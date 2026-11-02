@@ -46,7 +46,7 @@ command line to ease recurring operations:
 
 * `invoke clean`: Clean all generated artifacts.
 * `invoke check`: Run various code and documentation style checks.
-* `invoke docs`: Generate the component pages and build the documentation.
+* `invoke docs`: Generate the component pages and build the documentation (needs `pip install -e ".[docs]"`).
 * `invoke test`: Run all tests and checks in one swift command.
 * `invoke`: Show available tasks.
 
@@ -63,8 +63,8 @@ plugin's `Components/Specs/`) and the example pages (from `examples/`), and fail
 
 Then commit `docs/_images/`. A new Python example needs a docstring (title line, blank line, paragraph); a new
 Grasshopper example is saved as `.ghx` and needs a walkthrough in `docs/grasshopper/walkthroughs/`. The details are in
-[Contributing to the documentation](https://gramaziokohler.github.io/compas_acoustics/latest/contributing/docs.html)
-(`docs/contributing/docs.rst`).
+[Contributing to the documentation](https://gramaziokohler.github.io/compas_acoustics/latest/contributing/docs/)
+(`docs/contributing/docs.md`).
 
 ## Bug reports
 

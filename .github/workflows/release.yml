@@ -100,3 +100,17 @@ jobs:
           target: ${{ github.sha }}
           release-name-prefix: COMPAS Acoustics
           release-assets-artifact-pattern: github-release-assets-*
+
+  # the tag that github-release creates with GITHUB_TOKEN triggers no workflow, so the release deploys its own docs
+  docs:
+    needs: [release, create-release]
+    if: needs.release.outputs.is-release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: compas-dev/compas-actions/docs@v1
+        with:
+          deploy: true
+          version: ${{ needs.release.outputs.version }}
+          extras: docs

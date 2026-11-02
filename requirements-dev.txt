@@ -4,10 +4,8 @@ compas_invocations2
 invoke >=0.14
 # invoke sync-authors reads CITATION.cff
 pyyaml
-myst-parser >=2.0, <3.0
 pytest-xdist
 ruff
-sphinx_compas2_theme
 twine
 wheel
 

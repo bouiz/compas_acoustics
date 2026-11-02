@@ -54,6 +54,8 @@ class Mono(SimulationMethod):
     air : AirConditions, optional
         Its speed of sound and, with ``air_absorption``, its ISO 9613-1 absorption; default ``AirConditions()``.
 
+    Notes
+    -----
     Ray-tracing settings (``n_rays`` to ``seed``) changed with ``ray_tracing=False`` raise ``ValueError``.
 
     Examples

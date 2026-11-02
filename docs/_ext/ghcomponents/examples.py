@@ -35,7 +35,7 @@ def docstring(py: Path) -> tuple[str, str] | None:
 
 
 def walkthrough(path: Path) -> tuple[str, str]:
-    """A walkthrough file as (title, body): its first line and the reStructuredText after it."""
+    """A walkthrough file as (title, body): its first line and the Markdown after it."""
     return _title_and_body(Path(path).read_text(encoding="utf-8"))
 
 

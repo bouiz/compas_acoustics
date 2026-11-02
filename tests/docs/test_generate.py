@@ -57,28 +57,28 @@ def test_a_complete_fixture_tree_generates_without_errors(tree):
     written = generate(tree)
     docs = tree.docs
     for rel in (
-        "grasshopper/components/index.rst",
-        "grasshopper/components/CA_Fixture_A.rst",
+        "grasshopper/components/index.md",
+        "grasshopper/components/CA_Fixture_A.md",
         "grasshopper/components/_icons/CA_Fixture_A.png",
-        "grasshopper/examples/index.rst",
-        "grasshopper/examples/both.rst",
+        "grasshopper/examples/index.md",
+        "grasshopper/examples/both.md",
         "grasshopper/examples/_downloads/both.ghx",
-        "python/examples/index.rst",
-        "python/examples/both.rst",
-        "python/examples/py_only.rst",
+        "python/examples/index.md",
+        "python/examples/both.md",
+        "python/examples/py_only.md",
     ):
         assert docs / rel in written and (docs / rel).exists(), rel
-    a = (docs / "grasshopper/components/CA_Fixture_A.rst").read_text()
-    assert ":doc:`../examples/both`" in a and ":obj:`compas_acoustics.Scene`" in a
-    assert ".. image:: /_images/components/CA_Fixture_A.png" in a
-    both = (docs / "python/examples/both.rst").read_text()
-    assert ".. image:: /_images/examples/both/figure_1.png" in both and "    hi\n" in both
+    a = (docs / "grasshopper/components/CA_Fixture_A.md").read_text()
+    assert "(../examples/both.md)" in a and "[`compas_acoustics.Scene`][compas_acoustics.Scene]" in a
+    assert "](../../_images/components/CA_Fixture_A.png)" in a
+    both = (docs / "python/examples/both.md").read_text()
+    assert "](../../_images/examples/both/figure_1.png)" in both and "```text\nhi\n```" in both
 
 
 def test_notes_are_included_when_the_file_exists(tree):
-    touch(tree.notes / "CA_Fixture_A.rst", "A note.")
+    touch(tree.notes / "CA_Fixture_A.md", "A note.")
     generate(tree)
-    assert ".. include:: /grasshopper/notes/CA_Fixture_A.rst" in (tree.docs / "grasshopper/components/CA_Fixture_A.rst").read_text()
+    assert "## Notes\n\nA note.\n" in (tree.docs / "grasshopper/components/CA_Fixture_A.md").read_text()
 
 
 def test_every_problem_is_reported_in_one_error(tree):
@@ -117,23 +117,23 @@ def test_a_script_without_docstring_and_a_ghx_without_walkthrough_fail_with_a_fi
     record = load(tree.images / "fingerprints.json")
     record_file(record, "py", tree.examples / "py_only.py")
     save(record, tree.images / "fingerprints.json")
-    (tree.walkthroughs / "ghx_only.rst").unlink()
+    (tree.walkthroughs / "ghx_only.md").unlink()
     with pytest.raises(DocsCheckError) as e:
         generate(tree)
     text = str(e.value)
     assert "py_only" in text and "#example-docstrings" in text and "Start the script with a docstring" in text
-    assert "ghx_only" in text and "#walkthroughs" in text and "walkthroughs/ghx_only.rst" in text
+    assert "ghx_only" in text and "#walkthroughs" in text and "walkthroughs/ghx_only.md" in text
 
 
 def test_pages_of_removed_components_are_deleted(tree):
-    touch(tree.docs / "grasshopper/components/CA_Gone.rst", "old")
+    touch(tree.docs / "grasshopper/components/CA_Gone.md", "old")
     generate(tree)
-    assert not (tree.docs / "grasshopper/components/CA_Gone.rst").exists()
+    assert not (tree.docs / "grasshopper/components/CA_Gone.md").exists()
 
 
 def test_unchanged_pages_are_not_rewritten(tree):
     generate(tree)
-    page = tree.docs / "grasshopper/components/CA_Fixture_A.rst"
+    page = tree.docs / "grasshopper/components/CA_Fixture_A.md"
     os.utime(page, (1, 1))
     generate(tree)
     assert page.stat().st_mtime == 1
@@ -142,14 +142,14 @@ def test_unchanged_pages_are_not_rewritten(tree):
 def test_check_false_writes_pages_and_raises_nothing(tree):
     (tree.images / "components/CA_Fixture_A.png").unlink()
     generate(tree, check=False)
-    assert (tree.docs / "grasshopper/components/CA_Fixture_A.rst").exists()
+    assert (tree.docs / "grasshopper/components/CA_Fixture_A.md").exists()
 
 
 def test_viewer_captures_are_shown_after_the_figures(tree):
     touch(tree.images / "examples/both/viewer_1.png")
     touch(tree.images / "examples/both/figure_2.png")
     generate(tree)
-    page = (tree.docs / "python/examples/both.rst").read_text()
+    page = (tree.docs / "python/examples/both.md").read_text()
     order = [page.index(name) for name in ("figure_1.png", "figure_2.png", "viewer_1.png")]
     assert order == sorted(order)
 
