@@ -10,3 +10,8 @@
   vertical-align: middle;
   margin-right: 0.5rem;
 }
+
+/* Port names in the first column of the component tables stay on one line. */
+.md-typeset td:first-child code {
+  white-space: nowrap;
+}
