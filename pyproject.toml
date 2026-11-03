@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=66.0"]
+requires = ["setuptools>=77.0"]
 build-backend = "setuptools.build_meta"
 
 # ============================================================================
@@ -11,20 +11,20 @@ name = "compas_acoustics"
 description = "Room acoustic simulation, analysis and auralisation for COMPAS, with a Grasshopper plugin for Rhino 8."
 keywords = ["acoustics", "room acoustics", "auralisation", "impulse response", "ray tracing", "image source method", "ambisonics", "binaural", "compas", "grasshopper", "rhino"]
 authors = [
-    { name = "Achilleas Xydis", email = "xydis@arch.ethz.ch" },
-    { name = "Georgios Papadimitriou", email = "papadimitriou@arch.ethz.ch" },
-    { name = "Wang Hao Cheng (Jerry)"},
-    { name = "Gardar Edvaldsson" },
-    { name = "Gonzalo Casas", email = "casas@arch.ethz.ch" }
+    {name = "Achilleas Xydis"},
+    {name = "Georgios Papadimitriou"},
+    {name = "Hao Cheng Wang"},
+    {name = "Gardar Edvaldsson"},
+    {name = "Gonzalo Casas"},
 ]
-license = { file = "LICENSE" }
+license = "MIT"
+license-files = ["LICENSE"]
 readme = "README.md"
 requires-python = ">=3.9"
 dynamic = ['dependencies', 'optional-dependencies', 'version']
 classifiers = [
     "Development Status :: 4 - Beta",
     "Topic :: Scientific/Engineering",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: Unix",
     "Operating System :: POSIX",
     "Operating System :: Microsoft :: Windows",
@@ -60,7 +60,7 @@ zip-safe = false
 [tool.setuptools.dynamic]
 version = { attr = "compas_acoustics.__version__" }
 dependencies = { file = "requirements.txt" }
-optional-dependencies = { dev = { file = "requirements-dev.txt" } }
+optional-dependencies = { dev = { file = "requirements-dev.txt" }, docs = { file = "requirements-docs.txt" } }
 
 [tool.setuptools.packages.find]
 where = ["src"]

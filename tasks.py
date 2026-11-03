@@ -8,8 +8,11 @@ import sys
 import compas_pb
 from compas_invocations2 import build
 from compas_invocations2 import docs as ci_docs
+from compas_invocations2 import mkdocs as ci_mkdocs
 from compas_invocations2 import style
 from compas_invocations2 import tests
+from compas_pb.invocations import create_class_assets
+from compas_pb.invocations import create_proto_bundle
 from compas_pb.invocations import generate_proto_classes
 from invoke import Collection
 from invoke import task
@@ -89,19 +92,53 @@ def docs_images(ctx, all=False):  # noqa: A002 (the flag is --all)
 @task(
     pre=[docs_components],
     help={
-        "rebuild": "True to clean all previously built docs before starting, otherwise False.",
-        "doctest": "True to run doctests, otherwise False.",
-        "check_links": "True to check all web links in docs for validity, otherwise False.",
+        "clean": "True to clean the site directory before building, otherwise False.",
+        "verbose": "True to nicely format the output, otherwise False.",
     },
 )
-def docs(ctx, doctest=False, rebuild=False, check_links=False):
-    """Generate the component and example pages, then build the HTML documentation."""
-    ci_docs.docs(ctx, doctest=doctest, rebuild=rebuild, check_links=check_links)
+def docs(ctx, clean=False, verbose=False):
+    """Generate the component and example pages, then build the HTML documentation with MkDocs into dist/docs."""
+    # any pre-docs docs related task runs here
+    ci_mkdocs.docs(ctx, clean=clean, verbose=verbose)
 
 
 @task
+def sync_authors(ctx):
+    """Write the authors of CITATION.cff into pyproject.toml, names only.
+
+    CITATION.cff is the only author list edited by hand; `pre-build` runs this, so a release picks up new authors.
+    The docs read CITATION.cff directly (docs/_ext/mkdocs_hooks.py).
+    """
+    import tomlkit
+    import yaml
+
+    with open(os.path.join(ctx.base_folder, "CITATION.cff"), encoding="utf-8") as file:
+        cff = yaml.safe_load(file)
+
+    # people carry given-names/family-names, organizations a single "name". Names only: PyPI shows just the
+    # first author when emails are present (https://github.com/pypi/warehouse/issues/12877)
+    names = [" ".join(filter(None, (author.get("given-names"), author.get("family-names")))) or author.get("name", "") for author in cff["authors"]]
+
+    path = os.path.join(ctx.base_folder, "pyproject.toml")
+    with open(path, encoding="utf-8") as file:
+        pyproject = tomlkit.parse(file.read())
+
+    authors = tomlkit.array()
+    authors.multiline(True)
+    for name in names:
+        entry = tomlkit.inline_table()
+        entry["name"] = name
+        authors.append(entry)
+    pyproject["project"]["authors"] = authors
+
+    with open(path, "w", encoding="utf-8") as file:
+        file.write(tomlkit.dumps(pyproject))
+    print("Synced {} authors from CITATION.cff into pyproject.toml".format(len(names)))
+
+
+@task(pre=[sync_authors])
 def pre_build(ctx):
-    """Generate the files that go into the wheel but are not in git: none, the protobuf bindings are committed."""
+    """Prepare the build: sync the pyproject.toml authors from CITATION.cff (the protobuf bindings are committed)."""
 
 
 @task(help={"output": "Folder where the installer bundle is created (default: dist/)"})
@@ -135,19 +172,21 @@ ns = Collection(
     docs,
     docs_components,
     docs_images,
-    ci_docs.linkcheck,
     tests.test,
     tests.testdocs,
     tests.testcodeblocks,
     build.prepare_changelog,
     build.clean,
     build.release,
+    sync_authors,
     pre_build,
     installer_bundle,
     build_gha,
     generate_proto_classes,
     generate_csharp,
     generate,
+    create_proto_bundle,
+    create_class_assets,
 )
 ns.configure(
     {
@@ -156,5 +195,8 @@ ns.configure(
         "proto_folder": os.path.join("src", "compas_acoustics", "pb", "protobuf_defs", "compas_acoustics", "pb", "generated"),
         "proto_include_paths": [os.path.join("src", "compas_acoustics", "pb", "protobuf_defs"), compas_pb.PROTOBUF_DEFS],
         "proto_out_folder": "src",
+        # invoke create-class-assets: the .proto bundle and the bindings of each language, as release assets
+        "package_name": "compas_acoustics",
+        "generated_folder": os.path.join("dist", "generated"),
     }
 )

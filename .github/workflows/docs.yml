@@ -10,15 +10,29 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
+env:
+  # pyFDN -> flamo -> torch; without the CPU backend uv takes the CUDA build, whose ~5 GB fills the runner's disk
+  UV_TORCH_BACKEND: cpu
+
 jobs:
-  docs:
+  build:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    env:
-      # pyFDN -> flamo -> torch; without the CPU index pip takes the CUDA build, whose ~5 GB fills the runner's disk
-      PIP_EXTRA_INDEX_URL: https://download.pytorch.org/whl/cpu
     steps:
-      - uses: compas-dev/compas-actions.docs@v4
+      - uses: compas-dev/compas-actions/docs@v1
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          # Binaural and Ambisonics import on Python >= 3.11 only; the action's default is 3.10
-          python: "3.12"
+          extras: docs
+
+  deploy:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: compas-dev/compas-actions/docs@v1
+        with:
+          deploy: true
+          extras: docs

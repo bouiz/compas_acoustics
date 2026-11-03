@@ -7,7 +7,7 @@ It captures what is missing or out of date, as docs/_images/fingerprints.json te
   docs/_images/examples/<name>/, once its solution and background runs have finished.
 
 and records their fingerprints. Set ALL = True to capture everything. Your open Grasshopper document is restored at
-the end. See docs/contributing/docs.rst.
+the end. See docs/contributing/docs.md.
 """
 
 import os

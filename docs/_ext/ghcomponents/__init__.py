@@ -1,13 +1,14 @@
 """Generated pages of the documentation: the Grasshopper component reference and the examples.
 
 ``generate()`` writes them into docs/grasshopper/components/, docs/grasshopper/examples/ and docs/python/examples/
-(all gitignored) and checks that the committed images in docs/_images/ match their sources. ``invoke docs``,
-``invoke docs-components`` and Sphinx (``builder-inited``) all call it.
+(all gitignored) and checks that the committed images in docs/_images/ match their sources. ``invoke docs-components``
+and the MkDocs build (docs/_ext/mkdocs_hooks.py) call it.
 """
 
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -77,9 +78,9 @@ class _Writer:
         self.bytes(path, text.encode("utf-8"))
 
 
-def _site_path(paths: Paths, path: Path) -> str:
-    """A path as Sphinx reads it from any page: relative to docs/, with a leading slash."""
-    return "/" + Path(path).relative_to(paths.docs).as_posix()
+def _link(page: Path, target: Path) -> str:
+    """``target`` as MkDocs reads it from ``page``: relative to the page's folder."""
+    return Path(os.path.relpath(target, Path(page).parent)).as_posix()
 
 
 def _rel(path: Path) -> str:
@@ -118,19 +119,20 @@ def generate(paths: Paths | None = None, *, check: bool = True) -> list[Path]:
     for c in components:
         large = paths.images / "icons" / (c.key + ".png")  # tools/icons.py draws it at four times the size
         out.bytes(gh_components / "_icons" / (c.key + ".png"), (large if large.exists() else c.icon).read_bytes())
-        notes = paths.notes / (c.key + ".rst")
+        notes = paths.notes / (c.key + ".md")
+        page = gh_components / (c.key + ".md")
         out.text(
-            gh_components / (c.key + ".rst"),
+            page,
             render.component_page(
                 c,
-                image=_site_path(paths, paths.images / "components" / (c.key + ".png")),
+                image=_link(page, paths.images / "components" / (c.key + ".png")),
                 icon="_icons/{}.png".format(c.key),
-                notes=Path(_site_path(paths, notes)) if notes.exists() else None,
+                notes=notes if notes.exists() else None,
                 used_in=sorted(used_in.get(c.key, [])),
                 python=equivalents.get(c.key),
             ),
         )
-    out.text(gh_components / "index.rst", render.overview_page(components, order, lambda c: "_icons/{}.png".format(c.key)))
+    out.text(gh_components / "index.md", render.overview_page(components, order, lambda c: "_icons/{}.png".format(c.key)))
 
     missing_docstrings, missing_walkthroughs = [], []
     gh_index, py_index = [], []
@@ -138,11 +140,12 @@ def generate(paths: Paths | None = None, *, check: bool = True) -> list[Path]:
         images = paths.images / "examples" / ex.name
         if ex.ghx is not None:
             out.bytes(gh_examples / "_downloads" / (ex.name + ".ghx"), ex.ghx.read_bytes())
-            notes = paths.walkthroughs / (ex.name + ".rst")
+            notes = paths.walkthroughs / (ex.name + ".md")
             if notes.exists():
+                page = gh_examples / (ex.name + ".md")
                 out.text(
-                    gh_examples / (ex.name + ".rst"),
-                    render.ghx_example_page(ex, notes, "_downloads/{}.ghx".format(ex.name), _site_path(paths, images / "canvas.png"), _site_path(paths, images / "viewport.png")),
+                    page,
+                    render.ghx_example_page(ex, notes, "_downloads/{}.ghx".format(ex.name), _link(page, images / "canvas.png"), _link(page, images / "viewport.png")),
                 )
                 gh_index.append((ex.name, walkthrough(notes)[0]))
             else:
@@ -152,12 +155,13 @@ def generate(paths: Paths | None = None, *, check: bool = True) -> list[Path]:
             if doc is None:
                 missing_docstrings.append(ex.name)
                 continue
-            figures = [_site_path(paths, f) for f in _numbered(images, "figure") + _numbered(images, "viewer")]
+            page = py_examples / (ex.name + ".md")
+            figures = [_link(page, f) for f in _numbered(images, "figure") + _numbered(images, "viewer")]
             stdout = (images / "stdout.txt").read_text(encoding="utf-8") if (images / "stdout.txt").exists() else None
-            out.text(py_examples / (ex.name + ".rst"), render.python_example_page(ex, doc[0], doc[1], figures, stdout))
+            out.text(page, render.python_example_page(ex, doc[0], doc[1], figures, stdout))
             py_index.append((ex.name, doc[0]))
-    out.text(gh_examples / "index.rst", render.examples_index("Grasshopper examples", gh_index))
-    out.text(py_examples / "index.rst", render.examples_index("Python examples", py_index))
+    out.text(gh_examples / "index.md", render.examples_index("Grasshopper examples", gh_index))
+    out.text(py_examples / "index.md", render.examples_index("Python examples", py_index))
 
     for folder in (gh_components, gh_examples, py_examples):
         for path in folder.rglob("*"):
@@ -179,16 +183,3 @@ def generate(paths: Paths | None = None, *, check: bool = True) -> list[Path]:
             raise DocsCheckError("The documentation is out of step with its sources.\n\n" + "\n\n".join(report))
     return out.written
 
-
-def _on_builder_inited(app) -> None:
-    from sphinx.errors import ExtensionError
-
-    try:
-        generate()
-    except DocsCheckError as error:
-        raise ExtensionError(str(error)) from None
-
-
-def setup(app):
-    app.connect("builder-inited", _on_builder_inited)
-    return {"parallel_read_safe": True, "parallel_write_safe": True}

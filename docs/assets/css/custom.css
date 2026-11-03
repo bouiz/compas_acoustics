@@ -1,0 +1,17 @@
+:root > * {
+  --md-primary-fg-color:        #0092d2;
+  --md-primary-fg-color--light: #0092d2;
+  --md-primary-fg-color--dark:  #0092d2;
+}
+
+/* The component icons on the Grasshopper component overview: their own size, not the card's width. */
+.ca-component-icon {
+  width: 48px;
+  vertical-align: middle;
+  margin-right: 0.5rem;
+}
+
+/* Port names in the first column of the component tables stay on one line. */
+.md-typeset td:first-child code {
+  white-space: nowrap;
+}

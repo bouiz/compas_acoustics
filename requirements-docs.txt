@@ -1,0 +1,1 @@
+compas_invocations2[mkdocs]

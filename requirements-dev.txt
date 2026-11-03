@@ -1,11 +1,13 @@
 attrs >=17.4
+build
 bump-my-version
 compas_invocations2
 invoke >=0.14
-myst-parser >=2.0, <3.0
+pytest
+# invoke sync-authors reads CITATION.cff
+pyyaml
 pytest-xdist
 ruff
-sphinx_compas2_theme
 twine
 wheel
 

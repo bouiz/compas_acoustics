@@ -36,7 +36,8 @@ In short, this is how that works.
    ```
 
 7. Add a line about your change to the `Unreleased` section of `CHANGELOG.md`.
-8. Add yourself to the *Contributors* section of `AUTHORS.md`.
+8. Add yourself to the authors in `CITATION.cff`, the only list of authors edited by hand: `invoke sync-authors`
+   copies it into `pyproject.toml` on release, and the docs read it when they are built.
 9. Commit your changes and push your branch to GitHub.
 10. Create a [pull request](https://help.github.com/articles/about-pull-requests/) through the GitHub website.
 
@@ -45,7 +46,7 @@ command line to ease recurring operations:
 
 * `invoke clean`: Clean all generated artifacts.
 * `invoke check`: Run various code and documentation style checks.
-* `invoke docs`: Generate the component pages and build the documentation.
+* `invoke docs`: Generate the component pages and build the documentation (needs `pip install -e ".[docs]"`).
 * `invoke test`: Run all tests and checks in one swift command.
 * `invoke`: Show available tasks.
 
@@ -62,8 +63,8 @@ plugin's `Components/Specs/`) and the example pages (from `examples/`), and fail
 
 Then commit `docs/_images/`. A new Python example needs a docstring (title line, blank line, paragraph); a new
 Grasshopper example is saved as `.ghx` and needs a walkthrough in `docs/grasshopper/walkthroughs/`. The details are in
-[Contributing to the documentation](https://gramaziokohler.github.io/compas_acoustics/latest/contributing/docs.html)
-(`docs/contributing/docs.rst`).
+[Contributing to the documentation](https://gramaziokohler.github.io/compas_acoustics/latest/contributing/docs/)
+(`docs/contributing/docs.md`).
 
 ## Bug reports
 
