@@ -3,6 +3,7 @@ bump-my-version
 compas_invocations2
 invoke >=0.14
 myst-parser >=2.0, <3.0
+pytest-xdist
 ruff
 sphinx_compas2_theme
 twine

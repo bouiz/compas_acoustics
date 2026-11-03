@@ -34,6 +34,9 @@ jobs:
         exclude:
           - os: macos-latest
             python: "3.9"
+    env:
+      # the tests in parallel on the runner's cores (pytest-xdist, from requirements-dev.txt)
+      PYTEST_ADDOPTS: "-n auto"
     steps:
       - uses: compas-dev/compas-actions/ci@v1
         with:
