@@ -2,12 +2,10 @@
     "name": "Audio Player",
     "nickname": "Player",
     "category": "COMPAS Acoustics",
-    "subcategory": "06 Util",
-    "description": "Show and play a signal from Auralise, an impulse response (e.g. the ir output of Deconstruct IR Graph), an audio file, or a Source's sound file: a lane per channel (the body grows with the channels), with a Play/Pause button, Stop, Norm (scale the signal to full level; off by default, so auralisations play at their rendered level), a click in the waveform to seek, and a volume slider. Drag the corner to set the width and the lanes' height. A file plays whole, without pause or seek.",
+    "subcategory": "Util",
+    "description": "Show and play a signal from Auralise, an impulse response (e.g. the ir output of Deconstruct IR Graph), an audio file, or a Source's sound file: a lane per channel (the body grows with the channels), with a Play/Pause button, Stop, Normalize (scale the signal to full level; off by default, so auralisations play at their rendered level), a click in the waveform to seek, and a volume slider. Drag the corner to set the width and the lanes' height. A file plays whole, without pause or seek. A signal of more than two channels (ambisonic) is shown but not played.",
     "exposure": 2,
-    "ghpython": {
-        "isAdvancedMode": true,
-        "iconDisplay": 0,
+    "ports": {
         "inputParameters": [
             {
                 "name": "audio",

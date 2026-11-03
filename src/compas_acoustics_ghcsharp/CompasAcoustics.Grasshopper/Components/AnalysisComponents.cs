@@ -106,7 +106,7 @@ namespace CompasAcoustics.Grasshopper
 
         public override void CreateAttributes() => m_attributes = new ParameterStripUi(this);
 
-        /// <summary>The one parameter per band this component holds, drawn as bars on its body; null otherwise.</summary>
+        /// <summary>The one parameter per band this component holds, drawn as a chart on its body; null otherwise.</summary>
         public ParameterGoo.Content? Strip { get; private set; }
 
         protected override void BeforeSolveInstance()

@@ -16,6 +16,12 @@ from .bands import N_BANDS
 
 @dataclass(frozen=True, eq=False)
 class Pair:
+    """A source and a receiver in a closed room, positions in metres.
+
+    The columns of ``receiver_rotation`` are the receiver's axes in room coordinates; ``air`` None is
+    ``AirConditions()``.
+    """
+
     geometry: RoomGeometry
     source: np.ndarray
     receiver: np.ndarray

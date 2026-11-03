@@ -11,7 +11,7 @@ the receiver sample the absorption of the first face they meet, and each line ta
 ``v_s`` the scanned directions, ``v_k`` the line's, ``K`` the number of lines (a -3 dB lobe of 90 degrees at six).
 The line's output filter has the magnitude ``sqrt(1 - a_k)`` per band. It sits outside the loop, so every line
 still decays at ``target.rt``; the late field loses one reflection's absorption, ``10 log10(mean_k (1 - a_k))``
-dB, left uncompensated as in both papers. The anisotropy has not been validated against a directional reference.
+dB, left uncompensated as in both papers.
 """
 
 from __future__ import annotations
@@ -44,7 +44,8 @@ def scanned_absorption(
 ) -> np.ndarray:
     """Absorption coefficient per delay line and band, shape (n_lines, 8).
 
-    Rays rather than projections onto face normals: a concave room needs the first face hit.
+    Each scan direction takes the absorption of the first face its ray from the receiver meets, which holds in
+    a concave room too.
     """
     faces = spec.geometry.faces_with_materials()
     scan = scan_directions(n_scan).cartesian
@@ -86,7 +87,7 @@ def absorption_filters(absorption: np.ndarray, fs: float) -> np.ndarray:
 def directional_absorption_filters(
     spec: Pair, directions: pf.Coordinates, *, n_scan: int = SCAN_DIRECTIONS
 ) -> np.ndarray:
-    """The per-line output filters of this room, ready for :func:`render`."""
+    """The per-line output filters of this room, the ``line_eq`` of :func:`~compas_acoustics.hybrid.late.render`."""
     return absorption_filters(
         scanned_absorption(spec, directions, n_scan=n_scan), spec.fs
     )

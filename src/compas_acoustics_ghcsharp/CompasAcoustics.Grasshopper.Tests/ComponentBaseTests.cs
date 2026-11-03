@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
@@ -8,6 +9,24 @@ namespace CompasAcoustics.Grasshopper.Tests
 {
     public class ComponentBaseTests
     {
+        [Theory]
+        [InlineData(StringComparison.Ordinal)]
+        [InlineData(StringComparison.InvariantCulture)]
+        [InlineData(StringComparison.CurrentCulture)]
+        public void RibbonSubcategories_SortInRibbonOrder_WithoutNumbers(StringComparison comparison)
+        {
+            var names = ComponentBase.Subcategories.Select(ComponentBase.RibbonSubcategory).ToList();
+            var sorted = names.OrderBy(n => n, StringComparer.FromComparison(comparison)).ToList();
+            Assert.Equal(names, sorted);
+            Assert.Equal(ComponentBase.Subcategories, names.Select(n => n.Trim()));
+        }
+
+        [Fact]
+        public void RibbonSubcategory_RejectsAnUnlistedSubcategory()
+        {
+            Assert.Throws<ArgumentException>(() => ComponentBase.RibbonSubcategory("00 Elements"));
+        }
+
         [Fact]
         public void Specs_AreEmbeddedForEveryComponent()
         {
@@ -15,7 +34,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             var model = ComponentSpec.Load("CA_Model");
             Assert.Equal("Acoustic Scene", model.Name);
             Assert.Equal("Scene", model.Nickname);
-            Assert.Equal("01 Model", model.Subcategory);
+            Assert.Equal("Model", model.Subcategory);
             Assert.Equal(GH_Exposure.primary, model.Exposure);
             Assert.Equal(new[] { "objects", "sources", "receivers", "name" }, model.Inputs.Select(i => i.Name).ToArray());
             var objects = model.Inputs[0];

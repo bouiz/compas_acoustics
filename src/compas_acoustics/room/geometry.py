@@ -33,7 +33,7 @@ __all__ = ['RoomGeometry', 'SurfaceMaterial', 'SYNTHESIS_BANDS', 'OBSTACLE_OFFSE
 # The synthesis grid; materials start at 125 Hz and 62.5 Hz takes the 125 Hz value
 SYNTHESIS_BANDS = (62.5, 125.0, 250.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0)
 
-# Half the gap between the two copies of an obstacle face, in metres: 100 times the geometric tolerance
+# Half the gap between the two copies of an obstacle face, in metres: 100 times _MERGE_TOLERANCE
 OBSTACLE_OFFSET = 1e-3
 
 # Scattering coefficient, every band, of a material that gives none
@@ -42,7 +42,7 @@ DEFAULT_SCATTERING = 0.05
 
 @contextmanager
 def pra_octave_grid() -> Iterator[None]:
-    """Put the backend's octave grid, process-wide state read when a room is built, on ``SYNTHESIS_BANDS``, then restore it.
+    """Start pyroomacoustics' octave grid, process-wide state read when a room is built, at ``SYNTHESIS_BANDS[0]``, then restore it.
 
     At its default of 125 Hz a 48 kHz room has 8 bands against 7 wall coefficients.
     """
@@ -99,7 +99,7 @@ class SurfaceMaterial:
 
 
 def _polygon_area_and_centroid(points: np.ndarray) -> Tuple[float, np.ndarray, np.ndarray]:
-    """Area, unit normal and centroid of one planar polygon in 3-D (Newell)."""
+    """Area, unit normal (Newell) and vertex mean of one planar polygon in 3-D."""
     rolled = np.roll(points, -1, axis=0)
     normal = 0.5 * np.cross(points, rolled).sum(axis=0)
     area = float(np.linalg.norm(normal))
@@ -109,7 +109,7 @@ def _polygon_area_and_centroid(points: np.ndarray) -> Tuple[float, np.ndarray, n
 
 
 def _signed_volume(vertices: np.ndarray, faces) -> float:
-    """Divergence theorem, ``V = sum_f (c_f . n_f) A_f / 3``."""
+    """Divergence theorem, ``V = sum_f (c_f . n_f) A_f / 3``; any point of the face's plane serves as ``c_f``."""
     total = 0.0
     for face in faces:
         area, normal, centroid = _polygon_area_and_centroid(vertices[list(face)])
@@ -118,7 +118,7 @@ def _signed_volume(vertices: np.ndarray, faces) -> float:
 
 
 def _object_polygons(acoustic_object) -> List[np.ndarray]:
-    """The faces of one acoustic object as (k, 3) arrays, as the converter reads them."""
+    """The faces of one acoustic object as (k, 3) arrays; a polyline is closed, its last point repeating its first."""
     geometry = acoustic_object.acoustic_geometry
     if isinstance(geometry, Mesh):
         return [np.array(geometry.face_coordinates(f), dtype=float) for f in geometry.faces()]
@@ -132,8 +132,7 @@ def _object_polygons(acoustic_object) -> List[np.ndarray]:
 def _weld(points: np.ndarray, tolerance: float) -> Tuple[np.ndarray, np.ndarray]:
     """Merge points closer than ``tolerance``, transitively, each cluster into its first point.
 
-    CAD exports write every surface's vertices separately; rounding to a grid would keep two points 1 nm
-    apart separate when a grid line falls between them.
+    CAD exports write every surface's vertices separately.
     """
     parent = np.arange(len(points))
 
@@ -261,7 +260,7 @@ def _orient(vertices: np.ndarray, faces):
 def _orient_outward(vertices: np.ndarray, faces):
     """Boundary faces wound consistently, their largest volume facing out.
 
-    Image sources are dropped silently unless the normals point out of the air. Any further closed volume (a
+    pyroomacoustics drops image sources silently unless the normals point out of the air. Any further closed volume (a
     pillar) bounds the air from outside, so it is wound into itself. Returns ``(faces, defect)``; on a defect
     the faces come back as drawn.
     """
@@ -386,8 +385,8 @@ class RoomGeometry:
             if mergeable:
                 warnings.warn(
                     f"{mergeable} faces lie in one plane with a neighbour of the same object and material, as in a "
-                    "triangulated surface. Image sources are lost at the seams between them (up to 14 % "
-                    "of the response measured on a triangulated box); merge_coplanar=True joins them into larger walls.",
+                    "triangulated surface. Image sources are lost at the seams between them; "
+                    "merge_coplanar=True joins them into larger walls.",
                     UserWarning,
                     stacklevel=3,
                 )
@@ -529,9 +528,8 @@ class RoomGeometry:
 
     @cached_property
     def _drawn_vertices(self) -> np.ndarray:
-        """The vertices without the obstacle copies, which sit ``OBSTACLE_OFFSET`` from the drawn faces, the weld tolerance."""
+        """The welded vertices of the drawn faces, without the obstacle copies, which follow them in ``vertices``."""
         first = sum(1 for role in self.face_roles if role == 'boundary')
-        # obstacle copies are appended after the welded vertices, so they are the tail of self.vertices
         return self.vertices[:min(self.faces[first])] if self.obstacle_faces else self.vertices
 
     @cached_property
@@ -576,12 +574,13 @@ class RoomGeometry:
         enclosure_only: bool = False,
         air: Optional[AirConditions] = None,
     ) -> pra.Room:
-        """The backend's room, one wall per face, materials resampled to its octave grid (nine bands at 48 kHz).
+        """The pyroomacoustics room, one wall per face, materials resampled to its octave grid (nine bands at 48 kHz).
 
         Bands above 8 kHz hold the 8 kHz value, where linear extrapolation could pass 1. A material without
         scattering scatters ``DEFAULT_SCATTERING``. ``enclosure_only`` leaves the obstacles out. The room
         answers ``is_inside`` with :meth:`is_inside`. ``air`` (default ``AirConditions()``) sets the speed of
-        sound and, with ``air_absorption``, the ISO 9613-1 absorption, never the backend's own 343 m/s and table.
+        sound (Cramer) and, with ``air_absorption``, the ISO 9613-1 absorption, in place of pyroomacoustics'
+        own 343 m/s and absorption table.
         """
         with pra_octave_grid():
             octave_bands = pra.acoustics.AntoniOctaveFilterBank(
@@ -645,7 +644,7 @@ class RoomGeometry:
             if air_absorption:
                 centres = [float(f) for f in room.octave_bands.centers]
                 room.set_air_absorption(coefficients=air.air_attenuation(centres).tolist(), center_freqs=centres)
-        # The backend counts wall crossings, which the obstacle copies and an open boundary confuse,
+        # pyroomacoustics counts wall crossings, which the obstacle copies and an open boundary confuse,
         # and refuses sources and hides microphones it calls outside
         crossings = room.is_inside
 
@@ -659,7 +658,7 @@ class RoomGeometry:
         return room
 
 
-# Coplanarity tolerance in metres: the backend stores corners as float32 and rejects a wall whose
+# Coplanarity tolerance in metres: pyroomacoustics stores corners as float32 and rejects a wall whose
 # corners are further than this from a plane
 _MERGE_TOLERANCE = 1e-5
 
@@ -803,7 +802,7 @@ def _fan_triangles(vertices: np.ndarray, faces) -> np.ndarray:
 
 
 def _winding_number(point: np.ndarray, triangles: np.ndarray) -> float:
-    """Generalised winding number of a triangle soup around ``point`` (Van Oosterom and Strackee solid angles).
+    """Generalised winding number of a triangle soup around ``point``, from the Van Oosterom and Strackee (1983) solid angles.
 
     About +-1 inside a closed, consistently wound surface and 0 outside, whichever way it is wound.
     """

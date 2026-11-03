@@ -1,13 +1,19 @@
 # flake8: noqa
 # -*- coding: utf-8 -*-
 
+import os
+import sys
+
 from sphinx.writers import html, html5
 import sphinx_compas2_theme
+
+# the generator of the Grasshopper component pages and the example pages
+sys.path.insert(0, os.path.abspath("_ext"))
 
 # -- General configuration ------------------------------------------------
 
 project = "compas_acoustics"
-copyright = ""
+copyright = "2025, Gramazio Kohler Research, ETH Zurich"
 author = "Achilleas Xydis"
 package = "compas_acoustics"
 organization = "gramaziokohler"
@@ -15,7 +21,7 @@ organization = "gramaziokohler"
 master_doc = "index"
 source_suffix = {".rst": "restructuredtext", ".md": "markdown"}
 templates_path = sphinx_compas2_theme.get_autosummary_templates_path()
-exclude_patterns = sphinx_compas2_theme.default_exclude_patterns
+exclude_patterns = sphinx_compas2_theme.default_exclude_patterns + ["superpowers/**", "grasshopper/notes/**", "grasshopper/walkthroughs/**"]
 add_module_names = True
 language = "en"
 
@@ -32,6 +38,7 @@ else:
 
 extensions = sphinx_compas2_theme.default_extensions
 extensions.remove("sphinx.ext.linkcode")
+extensions += ["myst_parser", "ghcomponents"]
 
 # numpydoc options
 
@@ -120,12 +127,6 @@ html_theme_options = {
             "icon": "fa-brands fa-discourse",
             "type": "fontawesome",
         },
-        {
-            "name": "PyPI",
-            "url": f"https://pypi.org/project/{package}/",
-            "icon": "fa-brands fa-python",
-            "type": "fontawesome",
-        },
     ],
     "switcher": {
         "json_url": f"https://raw.githubusercontent.com/{organization}/{package}/gh-pages/versions.json",
@@ -150,7 +151,7 @@ html_context = {
 }
 
 html_static_path = sphinx_compas2_theme.get_html_static_path() + ["_static"]
-html_css_files = []
+html_css_files = ["custom.css"]
 html_extra_path = []
 html_last_updated_fmt = ""
 html_copy_source = False

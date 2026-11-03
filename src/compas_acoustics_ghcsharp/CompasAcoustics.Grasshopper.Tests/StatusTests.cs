@@ -53,7 +53,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         {
             var spec = ComponentSpec.Load("CA_Worker");
             Assert.Equal("Worker", spec.Name);
-            Assert.Equal("06 Util", spec.Subcategory);
+            Assert.Equal("Util", spec.Subcategory);
             Assert.Empty(spec.Inputs);
             Assert.Equal(new[] { "python", "version", "running" }, spec.Outputs.Select(p => p.Name));
             Assert.Equal(23, ComponentSpec.Names().Count());

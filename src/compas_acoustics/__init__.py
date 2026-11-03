@@ -1,7 +1,6 @@
 from typing import TYPE_CHECKING
 
 from .defaults import Defaults
-# from .tools import Tools
 from .room import AirConditions
 from .materials import AcousticMaterial
 from .materials import MaterialCategory
@@ -27,10 +26,7 @@ if TYPE_CHECKING:
     from .simulation_methods.hybrid import Ambisonics  # noqa: F401
     from .simulation_methods.hybrid import Binaural  # noqa: F401
 
-__author__ = ["Achilleas Xydis"]
-__copyright__ = "Gramazio Kohler Research"
-__license__ = "MIT License"
-__email__ = "xydis@arch.ethz.ch"
+
 __version__ = "0.1.0"
 
 __all__ = [
@@ -55,7 +51,6 @@ __all__ = [
     'Mono',
     'Auraliser',
     'AudioPlayer',
-    # 'Tools',
     'ImpulseResponse',
     'RoomGeometry',
     'regularized_fitness',

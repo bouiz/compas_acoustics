@@ -12,7 +12,4 @@ if tuple(int(part) for part in _soundfile.__version__.split(".")[:2]) < (0, 12):
         "repair it with: pip install --force-reinstall --no-deps soundfile"
     )
 
-#: The hybrid-rir revision the oracle tests compare with (tests/hybrid/UPSTREAM_REVISION).
-UPSTREAM_REVISION = "a272da7"
-
-__all__ = ["UPSTREAM_REVISION"]
+__all__ = []

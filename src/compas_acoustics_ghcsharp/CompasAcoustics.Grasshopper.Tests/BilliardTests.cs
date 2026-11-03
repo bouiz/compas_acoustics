@@ -4,7 +4,7 @@ using Xunit;
 
 namespace CompasAcoustics.Grasshopper.Tests
 {
-    /// <summary>Visualise Billiard's playback, the tests of the Python component with a fake clock in seconds.</summary>
+    /// <summary>Visualise Billiard's playback, with a fake clock in seconds.</summary>
     public class PlaybackTests
     {
         private double _now;

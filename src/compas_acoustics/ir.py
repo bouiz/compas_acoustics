@@ -33,7 +33,7 @@ class ImpulseResponse(_PackageDtype, Data):
         The raw response, (samples,) or (samples, channels).
     sampling_rate : int
     normalized : bool, optional
-        Whether :attr:`ir` is peak-normalized.
+        Whether :attr:`ir` is peak-normalized; default True.
     generation : dict, optional
         The method and its settings; written to the JSON metadata on export.
     ambisonic_order : int, optional
@@ -246,7 +246,7 @@ class ImpulseResponse(_PackageDtype, Data):
         source, receiver : Source, Receiver, optional
             Used instead of the ones in the metadata.
         normalized : bool, optional
-            Whether :attr:`ir` is peak-normalized.
+            Whether :attr:`ir` is peak-normalized; default True.
 
         Returns
         -------

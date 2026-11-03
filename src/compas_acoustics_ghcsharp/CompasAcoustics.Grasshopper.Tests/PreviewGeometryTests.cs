@@ -81,12 +81,12 @@ namespace CompasAcoustics.Grasshopper.Tests
             var material = new AcousticMaterialData { Name = "wall" };
             material.AbsorptionCoefficients.Add(new[] { 0.5, 0.5 });
             var scene = new SceneData { Name = "room" };
-            foreach (var wall in WorkerIntegrationTests.ShoeboxWalls(7, 5, 3))
+            foreach (var wall in TestMeshes.ShoeboxWalls(7, 5, 3))
                 scene.AcousticObjects.Add(new AcousticObjectData { Mesh = wall, Material = material, Role = "boundary" });
             if (obstacle)
                 scene.AcousticObjects.Add(new AcousticObjectData
                 {
-                    Mesh = WorkerIntegrationTests.Quad(new double[] { 1, 1, 0 }, new double[] { 2, 1, 0 }, new double[] { 2, 1, 2 }, new double[] { 1, 1, 2 }),
+                    Mesh = TestMeshes.Quad(new double[] { 1, 1, 0 }, new double[] { 2, 1, 0 }, new double[] { 2, 1, 2 }, new double[] { 1, 1, 2 }),
                     Role = "obstacle",
                 });
             scene.Sources.Add(new SourceData { Name = "src", Point = P(1.5, 1.5, 1.6), Direction = V(1, 0, 0), Directivity = "omnidirectional" });
@@ -97,7 +97,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void Scene_PreviewsItsObjects_WithoutALabel_AndMeasuresVolumeAndSurface()
         {
-            // its name, volume and area written over the room were clutter: the Scene component's message gives them
+            // no label over the room: the Scene component's message gives its name, volume and area
             var preview = PreviewGeometry.Scene(Room());
             Assert.Equal(6, preview.Objects.Count);
             Assert.Null(typeof(ScenePreview).GetProperty("Label"));
@@ -124,7 +124,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.False(typeof(global::Grasshopper.Kernel.IGH_PreviewData).IsAssignableFrom(typeof(SceneGoo)));
             Assert.True(typeof(global::Grasshopper.Kernel.IGH_PreviewObject).IsAssignableFrom(typeof(Param_AcousticObject)));
             Assert.True(typeof(global::Grasshopper.Kernel.IGH_PreviewObject).IsAssignableFrom(typeof(Param_Scene)));
-            // nor sources and receivers: a Merge of sources drew them past the Source's preview toggle
+            // nor sources and receivers: a Merge of sources would draw them past the Source's preview toggle
             Assert.False(typeof(global::Grasshopper.Kernel.IGH_PreviewData).IsAssignableFrom(typeof(SourceGoo)));
             Assert.False(typeof(global::Grasshopper.Kernel.IGH_PreviewData).IsAssignableFrom(typeof(ReceiverGoo)));
             Assert.True(typeof(global::Grasshopper.Kernel.IGH_PreviewObject).IsAssignableFrom(typeof(Param_Source)));
@@ -234,7 +234,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void AnIrGraph_DrawsNothing()
         {
-            // a line and a label per source and receiver pair was clutter over the room
+            // a line and a label per source and receiver pair would clutter the room
             Assert.False(typeof(global::Grasshopper.Kernel.IGH_PreviewData).IsAssignableFrom(typeof(IrGraphGoo)));
             Assert.False(typeof(global::Grasshopper.Kernel.IGH_PreviewObject).IsAssignableFrom(typeof(Param_IrGraph)));
         }

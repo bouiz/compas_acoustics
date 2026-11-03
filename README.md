@@ -2,74 +2,38 @@
 
 # compas_acoustics
 
+compas_acoustics simulates, analyses and auralises the acoustics of rooms modelled with COMPAS or in Rhino and Grasshopper. It computes impulse responses with the image source method and ray tracing (Mono), and with a hybrid engine of image sources, edge diffraction and a directional feedback delay network (Binaural, Ambisonics); it derives room acoustic parameters (ISO 3382) from them and convolves them with anechoic recordings to listen to a design.
 
+## Features
+
+- **Simulation methods**: `Mono` (image sources and ray tracing, with pyroomacoustics), `Binaural` and `Ambisonics` (a hybrid of image sources, edge diffraction and a directional feedback delay network), all through `scene.simulate`.
+- **Analysis**: reverberation times, clarity and definition, direct-to-reverberant ratio, lateral fraction, stage support, strength and STI from an impulse response (`Analyser`).
+- **Auralisation**: convolve mono, binaural or ambisonic responses with anechoic recordings (`Auraliser`), and play them (`AudioPlayer`).
+- **Materials library**: 95 absorbing and scattering materials in categories, searchable from Python and Grasshopper.
+- **Grasshopper plugin**: components for Rhino 8 on Windows and macOS that run every computation in a Python worker.
 
 ## Installation
 
-Create a virtual environment with `python >= 3.9` (Rhino 8 runs 3.9; the hybrid method needs 3.11 or newer)
+`compas_acoustics` is not on PyPI yet. The [installation guide](https://gramaziokohler.github.io/compas_acoustics/latest/installation/index.html) has the details.
+
+**Rhino 8 / Grasshopper** (Windows and macOS): download `compas_acoustics_installer.zip` from the
+[latest release](https://github.com/gramaziokohler/compas_acoustics/releases/latest), unzip it, open
+`compas_acoustics_installer.gh` in Grasshopper, press **Install**, and restart Rhino. The installer adds the plugin and
+creates the worker, the Python 3.12 environment the components compute in.
+
+**Python** (3.9 or newer; the `Binaural` and `Ambisonics` methods need 3.11 or newer):
+
 ```bash
-conda create -n your_env_name python=3.12
+pip install "compas_acoustics @ git+https://github.com/gramaziokohler/compas_acoustics.git"
 ```
 
-To install the latest version for development, do:
+Add a release tag (`…compas_acoustics.git@v0.1.0`) to install that release. For development:
 
 ```bash
 git clone https://github.com/gramaziokohler/compas_acoustics.git
 cd compas_acoustics
-conda activate your_env_name
 pip install -e ".[dev]"
 ```
-
-### Binaural and ambisonics methods (Python >= 3.11)
-
-The `Binaural` and `Ambisonics` simulation methods share one hybrid engine (image sources, edge
-diffraction and a directional feedback delay network, after
-[hybrid-rir](https://github.com/gpapadimitri/hybrid-rir)) and differ only in how they render it.
-They need pyFDN, spharpy and multislope, which `compas_acoustics` installs on Python 3.11 and
-newer; on Python 3.9 and 3.10 (Rhino 8) it leaves them out and the methods are not available.
-pyFDN brings flamo and with it PyTorch (about 0.5 GB on macOS, several GB with CUDA on Linux),
-which only pyFDN's training modules use; the methods run without them.
-
-## Install in Rhino 8 / Grasshopper
-
-The Grasshopper components are a compiled plugin, `CompasAcoustics.gha` (C#, `src/compas_acoustics_ghcsharp/`), for Rhino 8 on
-Windows and macOS. Everything they compute runs in the worker, a Python 3.12 with `compas_acoustics`; the plugin
-sends it scenes, responses and signals as [compas_pb](https://github.com/compas-dev/compas_pb) protobuf messages.
-
-`compas_acoustics` is not on PyPI yet. To install it in Rhino 8, use the Grasshopper installer:
-
-1. Run `invoke installer-bundle` (it needs the .NET 8 SDK). It creates `dist/compas_acoustics_installer.zip`:
-   the wheel, the plugin (`gha/`) and `compas_acoustics_installer.gh`.
-   GitHub Actions also builds it: download it from the `compas_acoustics_installer` artifact of the build workflow, or from the release.
-2. Unzip it and open `compas_acoustics_installer.gh` in Grasshopper.
-3. Press **Install**. When the component says *Restart Rhino*, restart Rhino.
-
-The installer copies the plugin into Grasshopper's Libraries folder (`compas_acoustics/`), removes the CPython
-components of earlier versions, and creates the worker: a Python 3.12 environment made with `uv` (it installs
-PyTorch, several GB, the first time), recorded in `~/.compas_acoustics/worker.json`. Set the environment variable
-`COMPAS_ACOUSTICS_WORKER_PYTHON` to use another interpreter that has this version of `compas_acoustics`.
-
-Installer options:
-
-- `source`: path of the `.whl` file in the bundle. Empty: use the `.whl` file next to the `.gh` file. The plugin must be next to it, in `gha/`.
-- `venv`: name of the Rhino script environment that gets `compas_acoustics` too, for your own scripts. Empty: `default`.
-- `worker`: not used any more; the worker is always set up.
-
-### The worker
-
-The worker starts with the first component that needs it (a few seconds; half a minute the first time) and stops with
-Rhino. Every Rhino session starts its own, on a free port of `127.0.0.1`, and shares a random token with it: it answers
-`POST /api/<function>` of `compas_acoustics.worker.api` only with the token, takes and returns `compas_pb` payloads, and exits
-when Rhino ends or dies. It must run the same `compas_acoustics` version and protobuf schema as the plugin; otherwise the
-components say to run the installer again. A Python script can use the same worker through `compas_acoustics.worker.client()`.
-
-### Using the components
-
-Choices sit on the component bodies (switches, dropdowns, buttons); a wire into the same input wins over the control. The long
-runs (simulations, analysis, auralisation, rays) work in the background: the canvas stays responsive, the message shows the
-time and the worker's stage, and Cancel stops the run. Material Library opens a searchable picker on a click of its body;
-Plot 2D draws its charts on the canvas; the Audio Player shows the signal (an auralisation, a file, or an impulse response from Deconstruct IR Graph) and plays, pauses, seeks and sets the volume. The
-Worker component (06 Util) shows the worker's state and opens its log; every component's right-click menu has "Open worker log".
 
 ## Getting started
 
@@ -95,12 +59,12 @@ signal = ca.Auraliser("room", list(binaural.values()), anechoic_sounds=[speech])
 multichannel file for an ambisonic decoder elsewhere. There is no ambisonic-to-binaural or stereo decoder: for headphones,
 simulate with `Binaural`.
 
-`examples/` has short scripts: `shoebox.py` (a room from scratch), `obj.py` (a room from OBJ files), `rays.py`, `scattered_rays.py` and `specular_reflections.py` (ray and image-source paths for display).
+`examples/` has short scripts: `simple_simulation_shoebox.py` (a room from scratch), `obj.py` (a room from OBJ files), `rays.py`, `scattered_rays.py` and `specular_reflections.py` (ray and image-source paths for display).
 
 ## Grasshopper plugin development
 
 The plugin is `src/compas_acoustics_ghcsharp/CompasAcoustics.sln`: build it with `invoke build-gha` (or `dotnet build`), test it with
-`dotnet test src/compas_acoustics_ghcsharp/CompasAcoustics.sln` (set `COMPAS_ACOUSTICS_WORKER_PYTHON` to run the tests against a real worker).
+`dotnet test src/compas_acoustics_ghcsharp/CompasAcoustics.sln`.
 Each component takes its names, descriptions, ports and icon from `src/compas_acoustics_ghcsharp/CompasAcoustics.Grasshopper/Components/Specs/<CA_name>/`.
 After a change to `src/compas_acoustics/pb/protobuf_defs/.../acoustics.proto`, run `invoke generate` (Python and C# bindings)
 and `python tests/pb_fixtures/generate.py` (the payloads the C# tests read).
@@ -116,7 +80,9 @@ python tools/import_backend_materials.py
 ## Documentation
 
 For further "getting started" instructions, a tutorial, examples, and an API reference,
-please check out the online documentation here: [compas_acoustics docs](https://gramaziokohler.github.io/compas_acoustics)
+please check out the online documentation here: [compas_acoustics docs](https://gramaziokohler.github.io/compas_acoustics):
+concepts, installation, a Python and a Grasshopper track with examples, a reference of every Grasshopper component, and
+the API reference.
 
 ## Issue Tracker
 

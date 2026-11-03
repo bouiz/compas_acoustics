@@ -18,7 +18,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         {
             var controls = new Control[]
             {
-                new SwitchControl("output", new[] { "binaural", "ambisonic", "both" }),
+                new SwitchControl("level", new[] { "none", "relative", "individual" }),
                 new DropdownControl("tail", new[] { "auto", "reference" }),
                 new ButtonControl("run", "Run"),
             };
@@ -45,17 +45,17 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(0, ControlLayout.Height(new Control[0]));
         }
 
-        private static readonly Control[] Hybrid =
+        private static readonly Control[] TitledThenButton =
         {
             new DropdownControl("tail", new[] { "auto", "reference" }),
-            new SwitchControl("output", new[] { "binaural", "ambisonic", "both" }),
+            new SwitchControl("level", new[] { "none", "relative", "individual" }),
             new ButtonControl("run", "Run"),
         };
 
         [Fact]
         public void ATitle_SitsALittleAboveItsControl()
         {
-            var boxes = ControlLayout.Arrange(Hybrid, Body);
+            var boxes = ControlLayout.Arrange(TitledThenButton, Body);
             Assert.True(ControlLayout.TitleGap >= 2);
             Assert.All(boxes.Take(2), b => Assert.Equal(ControlLayout.TitleGap, b.Bounds.Top - b.Title.Bottom, 3));
         }
@@ -63,23 +63,23 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void AButtonAfterATitledControl_StandsApartAsTheBodyFromThePorts()
         {
-            var boxes = ControlLayout.Arrange(Hybrid, Body);
+            var boxes = ControlLayout.Arrange(TitledThenButton, Body);
             Assert.True(ControlLayout.ButtonGap > ControlLayout.Margin);
             Assert.Equal(ControlLayout.ButtonGap, boxes[2].Bounds.Top - boxes[1].Bounds.Bottom, 3);
             // between two titled controls the usual margin
             Assert.Equal(ControlLayout.Margin, boxes[1].Title.Top - boxes[0].Bounds.Bottom, 3);
-            Assert.Equal(boxes[2].Bounds.Bottom + ControlLayout.Margin - Body.Top, ControlLayout.Height(Hybrid), 3);
+            Assert.Equal(boxes[2].Bounds.Bottom + ControlLayout.Margin - Body.Top, ControlLayout.Height(TitledThenButton), 3);
         }
 
         [Fact]
         public void HitTest_FindsTheControlAndSegmentUnderAPoint()
         {
-            var controls = new Control[] { new SwitchControl("output", new[] { "binaural", "ambisonic", "both" }) };
+            var controls = new Control[] { new SwitchControl("level", new[] { "none", "relative", "individual" }) };
             var boxes = ControlLayout.Arrange(controls, Body);
             var middle = boxes[0].Segments[1];
             var hit = ControlLayout.HitTest(boxes, new PointF(middle.X + middle.Width / 2, middle.Y + middle.Height / 2));
             Assert.NotNull(hit);
-            Assert.Equal("output", hit!.Value.box.Control.Port);
+            Assert.Equal("level", hit!.Value.box.Control.Port);
             Assert.Equal(1, hit.Value.segment);
             Assert.Null(ControlLayout.HitTest(boxes, new PointF(0, 0)));
         }
@@ -87,16 +87,16 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void Resolve_WiredValueWins()
         {
-            Assert.Equal(("ambisonic", true), ControlState.Resolve(1, "ambisonic", "binaural", new[] { "binaural", "ambisonic", "both" }));
+            Assert.Equal(("relative", true), ControlState.Resolve(1, "relative", "none", new[] { "none", "relative", "individual" }));
         }
 
         [Fact]
         public void Resolve_UnwiredUsesThePersistentValueOrTheFirstOption()
         {
-            var options = new[] { "binaural", "ambisonic", "both" };
-            Assert.Equal(("both", false), ControlState.Resolve(0, null, "both", options));
-            Assert.Equal(("binaural", false), ControlState.Resolve(0, null, null, options));
-            Assert.Equal(("binaural", false), ControlState.Resolve(0, null, "", options));
+            var options = new[] { "none", "relative", "individual" };
+            Assert.Equal(("individual", false), ControlState.Resolve(0, null, "individual", options));
+            Assert.Equal(("none", false), ControlState.Resolve(0, null, null, options));
+            Assert.Equal(("none", false), ControlState.Resolve(0, null, "", options));
         }
 
         [Fact]
@@ -133,7 +133,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.False(hybrid.Pressed("run"));
         }
 
-        public static IEnumerable<object[]> FormerInputObjects() => new[]
+        public static IEnumerable<object[]> ControlledInputs() => new[]
         {
             new object[] { typeof(SimulateBinauralComponent), new[] { "tail", "diffraction", "run" } },
             new object[] { typeof(SimulateAmbisonicsComponent), new[] { "tail", "diffraction", "run" } },
@@ -144,8 +144,8 @@ namespace CompasAcoustics.Grasshopper.Tests
         };
 
         [Theory]
-        [MemberData(nameof(FormerInputObjects))]
-        public void Components_DeclareControlsForEveryFormerValueListAndButton(System.Type type, string[] ports)
+        [MemberData(nameof(ControlledInputs))]
+        public void Components_DeclareTheirBodyControls(System.Type type, string[] ports)
         {
             var component = (ComponentBase)System.Activator.CreateInstance(type)!;
             Assert.Equal(ports, component.Controls.Select(c => c.Port).Where(ports.Contains).ToArray());

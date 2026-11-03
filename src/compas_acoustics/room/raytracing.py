@@ -2,9 +2,9 @@
 
 The backend of :class:`~compas_acoustics.simulation_methods.Mono` and of the hybrid methods' reference runs and
 directional histograms. With ray tracing, specular reflections up to ``max_order`` come from the image sources and
-everything later from a stochastic ray tracer that also carries the scattered energy. Responses are on the package
-scale: spreading ``1 / (4 pi r)``, the direct sound on its geometric sample (the backend spreads as ``1 / r`` and
-delays by half its fractional-delay kernel).
+everything later from pyroomacoustics' stochastic ray tracer, which also carries the scattered energy. Responses are
+on the package scale: spreading ``1 / (4 pi r)``, the direct sound on its geometric sample (pyroomacoustics spreads
+as ``1 / r`` and delays by half its fractional-delay kernel).
 """
 
 from __future__ import annotations
@@ -28,10 +28,9 @@ __all__ = ['MIN_RAYS', 'MAX_DURATION', 'DURATION_RT_FACTOR', 'DirectionalHistogr
 
 # Floor on the heuristic ray count, applied only with n_rays=None
 MIN_RAYS = 50_000
-# A response lasts this many times the longest Eyring RT, within 0.5 s and MAX_DURATION. 1.5 keeps T30 where Eyring
-# underestimates the decay by 18 to 31 %; over five shoeboxes the hybrid's response is identical at 1.5, 2.0 and
-# 2.5, and 1.0 moves T30 at 125 Hz by 9 to 20 %. A room that outruns Eyring altogether (a furnished office: 2 s
-# against 0.64 s) is caught by the methods' length warnings.
+# A response lasts this many times the longest Eyring RT, within 0.5 s and MAX_DURATION. The margin over 1 keeps the
+# T30 evaluation range inside the response where Eyring underestimates the decay; a room whose decay outlasts it is
+# caught by the methods' length warnings.
 DURATION_RT_FACTOR = 1.5
 MAX_DURATION = 12.0
 _HIST_BIN = 0.004
@@ -102,9 +101,8 @@ def ray_traced_rirs(
 ) -> List[List[np.ndarray]]:
     """Monaural responses of every source at every microphone, ``[mic][source]``.
 
-    ``sources`` are ``pra.SoundSource``; ``mic_positions`` is ``(3, M)``; every material must carry scattering.
-    ``max_order`` splits specular from ray-traced energy; the decay stops depending on it from 6 to 10.
-    ``duration`` defaults to :func:`default_duration`; ``n_rays=None`` takes a heuristic raised to ``MIN_RAYS``;
+    ``sources`` are ``pra.SoundSource``; ``mic_positions`` is ``(3, M)``. ``max_order`` splits specular from
+    ray-traced energy. ``duration`` defaults to :func:`default_duration`; ``n_rays=None`` takes a heuristic raised to ``MIN_RAYS``;
     ``seed`` None draws a fresh one from the OS. ``air`` sets the speed of sound and the air absorption.
     """
     if duration is None:
@@ -118,8 +116,7 @@ def ray_traced_rirs(
         "time_thres": float(duration),
         "hist_bin_size": _HIST_BIN,
     }
-    # numpy's generator only: seeding the tracer's own as well draws different tail noise (same envelope), which
-    # breaks sample parity with the oracle. None reseeds from the OS rather than continuing an earlier stream.
+    # The numpy seed only: pyroomacoustics derives the tracer's seed from it. None reseeds both from the OS.
     pra.random.seed(seed)
     with pra_octave_grid():
         room = geometry.to_pra(fs, max_order, ray_tracing=True, air_absorption=air_absorption, air=air)

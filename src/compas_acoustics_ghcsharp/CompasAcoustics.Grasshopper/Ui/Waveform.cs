@@ -76,16 +76,16 @@ namespace CompasAcoustics.Grasshopper
         public const float RulerHeight = 10;
         public const float TransportHeight = 24;
         public const float ButtonWidth = 34;
-        /// <summary>The Normalize button's tooltip: the description of the ``normalize`` input it replaced, with its default.</summary>
+        /// <summary>The Normalize button's tooltip: what it does, with its default.</summary>
         public static readonly (string title, string text) NormalizeTooltip = ("normalize",
             "Whether to scale the signal to full level before playing (default off). Leave it off to hear auralised signals at their rendered level.");
 
-        /// <summary>Between the Play/Stop row and the Norm row.</summary>
+        /// <summary>Between the Play/Stop row and the Normalize row.</summary>
         public const float RowGap = 3;
         /// <summary>The row of the Volume label, above the slider: a control title's, in the font of the input names.</summary>
         public const float VolumeLabelHeight = ControlLayout.TitleHeight;
 
-        /// <summary>The transport beside the icon, top right: Play/Pause and Stop, Norm below them, the volume to their right.</summary>
+        /// <summary>The transport beside the icon, top right: Play/Pause and Stop, Normalize below them, the volume to their right.</summary>
         public const float ControlsHeight = Margin + TransportHeight + RowGap + TransportHeight + Margin;
 
         /// <summary>The channels' height below the inputs, for ``channels`` lanes of ``laneHeight`` each: more channels, a taller component.</summary>

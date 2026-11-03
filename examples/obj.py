@@ -1,3 +1,9 @@
+"""A room from OBJ files.
+
+A room and a table read from OBJ files, one acoustic object per OBJ group, the table as a free-standing
+obstacle, simulated with image sources and ray tracing and analysed.
+"""
+
 import os
 import compas_acoustics as ca
 

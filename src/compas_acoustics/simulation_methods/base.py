@@ -43,8 +43,7 @@ def _seed(seed):
 def image_source_search_seconds(n_faces: int, order: int) -> float:
     """A rough estimate of the image source search time on a mesh room, in seconds, for warnings.
 
-    About a factor ``n_faces / 2.2`` per order, measured on rooms of 6 to 42 faces (0.7 s at order 6 with
-    18 faces, 120 s with 42).
+    An empirical fit growing by a factor ``n_faces / 2.2`` per order.
     """
     return 1e-6 * n_faces ** 3.4 * (n_faces / 2.2) ** (order - 4)
 

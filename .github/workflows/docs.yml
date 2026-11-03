@@ -13,7 +13,12 @@ on:
 jobs:
   docs:
     runs-on: ubuntu-latest
+    env:
+      # pyFDN -> flamo -> torch; without the CPU index pip takes the CUDA build, whose ~5 GB fills the runner's disk
+      PIP_EXTRA_INDEX_URL: https://download.pytorch.org/whl/cpu
     steps:
       - uses: compas-dev/compas-actions.docs@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          # Binaural and Ambisonics import on Python >= 3.11 only; the action's default is 3.10
+          python: "3.12"

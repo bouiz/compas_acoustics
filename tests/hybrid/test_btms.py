@@ -1,7 +1,4 @@
-"""BTMS kernels: properties the toolbox comparison does not pin.
-
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, tests/test_btms.py).
-"""
+"""First-order BTMS wedge kernels: zero-length and very short edges, segmentation, the apex and ``r_irstart``."""
 
 import numpy as np
 import pytest

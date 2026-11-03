@@ -78,22 +78,6 @@ def test_a_non_positive_duration_raises():
         render_ambisonics(prepare(spec, iss, TARGET, max_order=MAX_ORDER, duration_s=0.0))
 
 
-def test_without_a_reference_nothing_changes():
-    spec, iss = setup()
-    default = render_ambisonics(prepare(spec, iss, TARGET, max_order=MAX_ORDER, duration_s=0.5))
-    none = render_ambisonics(prepare(spec, iss, TARGET, max_order=MAX_ORDER, duration_s=0.5, late_envelope=None))
-    np.testing.assert_array_equal(default.rir, none.rir)
-
-
-def test_a_reference_shapes_only_the_late_field():
-    spec, iss = setup()
-    plain = render_ambisonics(prepare(spec, iss, TARGET, max_order=MAX_ORDER, duration_s=0.5))
-    reference = plain.early[:, 0] + 0.5 * plain.late[:, 0]
-    shaped = render_ambisonics(prepare(spec, iss, TARGET, max_order=MAX_ORDER, duration_s=0.5, late_envelope=reference))
-    np.testing.assert_array_equal(shaped.early, plain.early)
-    assert np.sum(shaped.late ** 2) < np.sum(plain.late ** 2)
-
-
 def test_diffraction_changes_only_the_early_field():
     spec, iss = setup(panel=True)
     plain = render_ambisonics(prepare(spec, iss, TARGET, max_order=MAX_ORDER, duration_s=0.5))

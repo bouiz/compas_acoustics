@@ -14,7 +14,6 @@ from pathlib import Path
 
 import numpy as np
 
-from compas_acoustics.hybrid import UPSTREAM_REVISION
 from compas_acoustics.hybrid.ambisonics import default_num_delays
 from compas_acoustics.hybrid.ambisonics import render_ambisonics
 from compas_acoustics.hybrid.early import image_sources
@@ -110,7 +109,7 @@ class _HybridMethod(SimulationMethod):
         if context.outside:
             # in a closed room a point outside is a modelling error
             raise ValueError(f"the hybrid method: {context.outside} lie outside the room")
-        # Before any work: a receiver facing along its up vector has no orientation
+        # read before any work, so a receiver facing along its up vector (no orientation) fails early
         rotations = {id(receiver): receiver.rotation for receiver in context.receivers}
         # A fully absorbing surface (an open window, alpha = 1) has no reflection, which the directional
         # absorption filters cannot represent when a delay line sees nothing else; 1 - 1e-6 reflects -60 dB.
@@ -168,7 +167,6 @@ class _HybridMethod(SimulationMethod):
             "num_delays": self.num_delays,
             "seed": self.seed,
             "scene": getattr(context.scene, "name", None),
-            "upstream": f"hybrid-rir @ {UPSTREAM_REVISION}",
         }
 
         # The longest Eyring RT, against which a given reference's length is checked
@@ -252,8 +250,7 @@ class _HybridMethod(SimulationMethod):
     def _check_reference_length(self, length, target, eyring_rt, key):
         """Warn when a reference ends before 2/3 of its reverberation time (the fitted or Eyring one, the longer).
 
-        The decay fit then shrinks to what the response has and the late envelope reads a cut tail: 1.0 times the
-        Eyring RT read T30 at 125 Hz 25 % short in a room with curtain walls; 1.5 times gave the 2.5-times result.
+        The decay fit then shrinks to what the response has and the late envelope reads a cut tail.
         """
         rt = max(float(np.max(target.rt)), float(eyring_rt))
         if length < 2.0 / 3.0 * rt:
@@ -360,7 +357,7 @@ _ENGINE_PARAMETERS = """
         for a reference or ray-tracing tail; an Eyring or Sabine tail has no reference, so ``True`` raises.
     diffraction : {False, True, "udfa", "btms"}, default=False
         Edge diffraction around obstacles and at room edges that open wider than 180 deg; ``True`` is
-        ``"udfa"``. ``"btms"`` takes minutes per pair.
+        ``"udfa"``. ``"btms"`` is far slower than ``"udfa"``.
     air_absorption : bool, optional
         On the image sources and diffracted paths. Default the reference's setting, or True; it must agree with
         the reference's, since the early field and the decay target share it.

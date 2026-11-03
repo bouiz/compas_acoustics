@@ -1,19 +1,14 @@
 """What ``encode`` does outside the eight bands it is given.
 
 Material data stops at 62.5 Hz and 8 kHz, but the FFT grid runs from DC to
-Nyquist. Holding the edge band's gain flat across both gaps -- the original
-behaviour -- invents content in two places that matter:
+Nyquist. Holding the edge band's gain flat across both gaps would invent
+content in two places that matter:
 
-* At DC every image's phase ramp is exactly 1, so all gains add coherently.
-  Measured on a shoebox with realistic absorption, that put 25 per cent of the
-  early field's energy below 20 Hz and a DC value 26 times the peak sample. A
-  source cannot radiate DC and the result is not a physically realisable
-  signal; it also biases the splice's level estimate and ``drr``.
+* At DC every image's phase ramp is exactly 1, so all gains add coherently
+  into a DC component a source cannot radiate, which also biases the DRR.
 * Above 8 kHz a flat hold leaves the top 1.5 octaves at 48 kHz with neither
   wall roll-off nor air absorption, while the FDN's own ``nyquist_factor``
   shortens its decay there.
-
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, tests/test_early_encode_extrapolation.py).
 """
 
 import numpy as np
@@ -59,14 +54,12 @@ def spectrum(signal):
     return freq, mag
 
 
-def test_the_coherent_dc_buildup_is_gone():
-    """The running sum, which the coherent DC term used to dominate.
+def test_the_extrapolation_has_no_coherent_dc():
+    """The running sum stays small against the peak sample.
 
     Not asserted as zero. The taper's spectrum is zero at DC, so the sum over
     the *whole* transform is zero by construction, but the response is
-    truncated to ``n_samples`` and the taper's own tail is cut with it. What
-    must go is the buildup: on the audit's shoebox the sum ran to 26 times the
-    peak sample, and now runs to 0.34 times it. On this fixture, 0.13.
+    truncated to ``n_samples`` and the taper's own tail is cut with it.
     """
     out = encode(images(1.0), 1, 8192)
     assert abs(out[:, 0].sum()) < 0.25 * np.abs(out[:, 0]).max()

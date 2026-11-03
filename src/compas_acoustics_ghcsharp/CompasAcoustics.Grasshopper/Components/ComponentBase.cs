@@ -9,18 +9,36 @@ using Grasshopper.Kernel.Parameters;
 namespace CompasAcoustics.Grasshopper
 {
     /// <summary>
-    /// The base of every COMPAS Acoustics component: its names, description and ports come from its spec (the Python
+    /// The base of every COMPAS Acoustics component: its names, description and ports come from its spec (the
     /// component's metadata.json), its icon from the spec's icon.png; worker errors become one Error message.
     /// </summary>
     public abstract partial class ComponentBase : GH_Component
     {
         public const string CategoryName = "COMPAS Acoustics";
 
+        /// <summary>The ribbon's panels, left to right: the subcategories the specs name.</summary>
+        public static readonly IReadOnlyList<string> Subcategories = new[]
+        {
+            "Elements", "Params", "Model", "Simulation", "Analysis", "Auralisation", "Display", "Util", "Optimization",
+        };
+
+        /// <summary>
+        /// The panel name Grasshopper gets for a subcategory. Grasshopper sorts a tab's panels by name, so each one gets a leading
+        /// space more than the panel after it: a space sorts before any letter, with ordinal, invariant and culture comparison alike.
+        /// </summary>
+        public static string RibbonSubcategory(string subcategory)
+        {
+            var index = Subcategories.ToList().IndexOf(subcategory);
+            if (index < 0)
+                throw new ArgumentException($"No ribbon panel {subcategory}.", nameof(subcategory));
+            return new string(' ', Subcategories.Count - index) + subcategory;
+        }
+
         protected ComponentBase(string key) : this(ComponentSpec.Load(key))
         {
         }
 
-        private ComponentBase(ComponentSpec spec) : base(spec.Name, spec.Nickname, spec.Description, CategoryName, spec.Subcategory)
+        private ComponentBase(ComponentSpec spec) : base(spec.Name, spec.Nickname, spec.Description, CategoryName, RibbonSubcategory(spec.Subcategory))
         {
             Spec = spec;
         }

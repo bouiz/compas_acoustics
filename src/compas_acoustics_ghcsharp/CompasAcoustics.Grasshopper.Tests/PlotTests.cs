@@ -267,9 +267,8 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void Specs_HaveNoPlot2DSettings_AndPlot2DOnlyTakesData()
+        public void Plot2D_OnlyTakesData()
         {
-            Assert.DoesNotContain("CA_Plot_2D_Settings", ComponentSpec.Names());
             var plot = ComponentSpec.Load("CA_Plot_2D");
             Assert.Equal(new[] { "data" }, plot.Inputs.Select(p => p.Name));
             Assert.Equal(GH_ParamAccess.list, plot.Inputs[0].Access);

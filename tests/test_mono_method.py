@@ -94,7 +94,7 @@ def test_seeded_runs_repeat():
 
 
 def uniform(scattering=0.15):
-    """Upstream's uniform_spec: 5 x 4 x 3 m, alpha 0.15, no air absorption."""
+    """A 5 x 4 x 3 m shoebox with alpha 0.15 and the given scattering on every surface."""
     material = AcousticMaterial("uniform", 0.15, [scattering] * 7)
     scene = Scene("uniform")
     scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(5, 4, 3, materials=material))
@@ -109,7 +109,7 @@ def traced_uniform(g, **kwargs):
 
 
 def test_ray_tracing_is_stochastic_across_seeds():
-    """Upstream: different seeds are different draws of the same room."""
+    """Different seeds are different draws of the same room."""
     a = traced_uniform(uniform(), max_order=6, seed=1)
     b = traced_uniform(uniform(), max_order=6, seed=2)
     assert not np.array_equal(a, b)
@@ -122,7 +122,7 @@ def test_the_duration_must_be_positive():
 
 
 def test_there_is_a_tail_beyond_the_image_source_order():
-    """Upstream: the point of the ray tracer, energy where a low order would stop."""
+    """The ray tracer gives energy past the end of a low image-source order."""
     rir = traced_uniform(uniform(), max_order=4, duration=0.8)
     assert np.sum(rir[int(0.4 * FS):] ** 2) > 0.0
 
@@ -181,7 +181,7 @@ def test_ism_and_ray_tracing_share_the_direct_sound():
     assert n == traced.direct_sound_index()
     a, b = ism.denormalized(), traced.denormalized()
     assert np.argmax(np.abs(a[: n + 50])) == np.argmax(np.abs(b[: n + 50])) == n
-    # the ray tracer adds its noise from t = 0, as in pyroomacoustics and upstream
+    # the ray tracer adds its noise from t = 0
     assert b[n] == pytest.approx(a[n], rel=0.1)
 
 
@@ -203,7 +203,7 @@ def test_default_duration_follows_the_predicted_rt():
 
     g = geometry()
     rt = float(np.max(predicted_rt(g, air_absorption=True, warn=False)))
-    # 1.5 times the longest Eyring RT within 0.5 to 12 s (ODEON: at least 2/3 of the RT; RAZR: 1.0; Eyring 18-31 % short)
+    # 1.5 times the longest Eyring RT within 0.5 to 12 s
     assert default_duration(g, air_absorption=True) == pytest.approx(np.clip(1.5 * rt, 0.5, 12.0))
     assert default_duration(g, air_absorption=True, factor=2.5) == pytest.approx(np.clip(2.5 * rt, 0.5, 12.0))
 
@@ -217,12 +217,35 @@ def test_a_source_outside_the_room_warns_and_prints_nothing(capsys):
     assert capsys.readouterr().out == ""
 
 
-def test_the_search_time_estimate_follows_the_measurements():
+def test_the_search_time_estimate_grows_with_faces_and_order():
     from compas_acoustics.simulation_methods import image_source_search_seconds
 
-    assert image_source_search_seconds(6, 6) < 0.1
-    assert 0.1 < image_source_search_seconds(18, 6) < 3.0
-    assert 40.0 < image_source_search_seconds(42, 6) < 400.0
+    for order in range(1, 10):
+        times = [image_source_search_seconds(n, order) for n in range(6, 200)]
+        assert np.all(np.diff(times) > 0)
+    for n in (6, 18, 42, 120):
+        times = [image_source_search_seconds(n, order) for order in range(1, 10)]
+        # one order more multiplies the estimate by n_faces / 2.2
+        assert np.allclose(np.array(times[1:]) / times[:-1], n / 2.2)
+
+
+@pytest.mark.parametrize("seconds, message", [(30.0, None), (30.1, "tens of seconds"), (120.0, "tens of seconds"),
+                                              (120.1, "minutes")])
+def test_the_search_warns_above_30_seconds_and_names_minutes_above_120(monkeypatch, seconds, message):
+    from types import SimpleNamespace
+
+    from compas_acoustics.simulation_methods import base
+
+    monkeypatch.setattr(base, "image_source_search_seconds", lambda n_faces, order: seconds)
+    geometry = SimpleNamespace(faces=range(22))
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        base._warn_if_the_search_is_slow(geometry, 6)
+    if message is None:
+        assert caught == []
+    else:
+        (warning,) = caught
+        assert f"may take {message} or more" in str(warning.message) and "about 10x per order" in str(warning.message)
 
 
 def test_a_slow_image_source_search_warns_before_it_starts(monkeypatch):
@@ -247,8 +270,8 @@ def test_ray_tracing_runs_in_the_medium():
 
     g = geometry(SMOOTH)
     (cold,), = traced(g, air=AirConditions(temperature=0.0), seed=42)
-    (legacy,), = traced(g, seed=42)
-    assert not np.allclose(cold, legacy)
+    (default,), = traced(g, seed=42)
+    assert not np.allclose(cold, default)
 
 
 def test_the_default_duration_follows_the_medium():
@@ -262,7 +285,7 @@ def test_the_default_duration_follows_the_medium():
 
 
 def test_a_response_shorter_than_its_reverberation_time_warns():
-    """The buffer comes from Eyring; a room whose decay outruns it (a furnished office read 2 s against Eyring's 0.64 s) warns."""
+    """The buffer comes from Eyring; a response cut shorter than its decay warns."""
     scene = simulator()
     with pytest.warns(UserWarning, match="less than 2/3 of their reverberation time"):
         scene.simulate(Mono(duration=0.15, n_rays=2000, seed=1))
@@ -283,7 +306,7 @@ def _decay_response(reverberation_time, seconds, seed=0, fs=48000):
 
 
 def test_a_response_of_two_thirds_of_its_reverberation_time_is_long_enough():
-    """ODEON's rule: T30's fit ends 35 dB down, at 0.58 of the reverberation time; cut at 0.76 it reads 0.7 % short."""
+    """T30's fit ends 35 dB down, at 0.58 of the reverberation time: 0.76 of it passes, 0.6 warns."""
     with warnings.catch_warnings():
         warnings.simplefilter("error", UserWarning)
         Mono._warn_if_cut_short({"k": _decay_response(2.5, 1.9)}, 48000)

@@ -110,7 +110,7 @@ def test_a_failure_to_stop_is_a_warning(player, sounddevice):
 
 
 # ---------------------------------------------------------------------------
-# Gain, start, pause, resume, position (Grasshopper UI plan, Task 2)
+# Gain, start, pause, resume, position
 # ---------------------------------------------------------------------------
 
 

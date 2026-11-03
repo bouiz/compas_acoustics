@@ -2,12 +2,10 @@
     "name": "Visualise Energy Map",
     "nickname": "EnergyMap",
     "category": "COMPAS Acoustics",
-    "subcategory": "05 Display",
-    "description": "Colour a surface by the sound pressure level of the scene's sources: the surface is meshed into faces no larger than spacing, one point per face centre, and each point gets the direct sound and the first-order image sources, and pyroomacoustics' rays past them, enough rays for every point to stay within about 0.5 dB from run to run (more in larger rooms), with each source's level at 1 m (Source spl). Blue is the lowest level, red the highest; a face outside the room or inside an obstacle is grey. The ray tracer over-estimates the late energy of surfaces that scatter strongly (up to about 3 dB at scattering 0.6 to 1). The Preview button shows or hides the drawing.",
+    "subcategory": "Display",
+    "description": "Colour a surface by the sound pressure level of the scene's sources: the surface is meshed into faces no larger than spacing, one point per face centre, and each point gets the direct sound, the first-order image sources and pyroomacoustics' rays past them, with each source's level at 1 m (Source spl). The rays per source scale with the room's volume and the response length, for about 16000 hits per point (20000 to 250000 rays), with a fixed seed: the same scene gives the same map. Blue is the lowest level, red the highest; a face outside the room or inside an obstacle is grey. The Preview button shows or hides the drawing.",
     "exposure": 2,
-    "ghpython": {
-        "isAdvancedMode": true,
-        "iconDisplay": 0,
+    "ports": {
         "inputParameters": [
             {
                 "name": "scene",
@@ -25,7 +23,7 @@
             },
             {
                 "name": "spacing",
-                "description": "The largest edge of the map's faces, in metres: one point every spacing, 0.25 m unless given (Pachyderm's mapping uses 0.5 m). The rays are traced on a 1 m grid whatever the spacing, so a finer map costs little more.",
+                "description": "The largest edge of the map's faces, in metres: one point every spacing. The rays are traced on a 1 m grid whatever the spacing, so a finer map costs little more.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "float",

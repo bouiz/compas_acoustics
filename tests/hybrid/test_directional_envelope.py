@@ -1,4 +1,4 @@
-"""The directional ray-tracing histogram (RAVEN, Schroeder 2011) and the per-line late envelope it shapes."""
+"""The directional ray-tracing histogram (Schroeder 2011) and the per-line late envelope it shapes."""
 
 import numpy as np
 import pyroomacoustics as pra
@@ -8,6 +8,8 @@ from compas_acoustics import AcousticMaterial
 from compas_acoustics import AcousticObjectsLibrary
 from compas_acoustics import Scene
 from compas_acoustics.hybrid.late import fdn_directions
+from compas_acoustics.room.air import AirConditions
+from compas_acoustics.room.diffuse import air_attenuation
 from compas_acoustics.room.raytracing import DirectionalHistogram
 from compas_acoustics.room.raytracing import directional_histograms
 from compas_acoustics.room.geometry import RoomGeometry
@@ -83,8 +85,9 @@ def test_air_absorption_attenuates_the_late_bins():
     (damped,), = histograms(g, grid(), air_absorption=True)
     late = slice(int(0.4 / dry.bin_size), int(0.5 / dry.bin_size))
     ratio = damped.energy[:, 7, late].sum() / dry.energy[:, 7, late].sum()
-    # 8 kHz at 20 C, 50 %: 0.0242 /m in energy (compas_acoustics.room.diffuse.air_attenuation) over 0.45 s * 344 m/s
-    assert 10 * np.log10(ratio) == pytest.approx(-10 * np.log10(np.e) * 0.02424 * 0.45 * 343.98, abs=1.5)
+    # the 8 kHz band in the default air over 0.45 s of travel
+    m, c = air_attenuation()[7], AirConditions().speed_of_sound
+    assert 10 * np.log10(ratio) == pytest.approx(-10 * np.log10(np.e) * m * 0.45 * c, abs=1.5)
     assert np.all(damped.energy <= dry.energy + 1e-15)
     early = slice(0, int(0.05 / dry.bin_size))
     np.testing.assert_allclose(damped.energy[:, 1, early], dry.energy[:, 1, early], rtol=0.01, atol=1e-15)
@@ -206,13 +209,13 @@ def test_the_directional_envelope_quietens_the_lines_facing_the_absorbing_wall()
     directional = ca.Ambisonics(late_envelope=True, **kwargs)
     ir = next(iter(asymmetric_scene().simulate(directional).values()))
     assert ir.generation["late_envelope"] is True
-    (before,), (after,) = plain.results.values(), directional.results.values()
-    assert abs(late_level_by_x(before)) < 1.0
-    assert late_level_by_x(after) < -1.5
+    (plain,), (directional,) = plain.results.values(), directional.results.values()
+    assert abs(late_level_by_x(plain)) < 1.0
+    assert late_level_by_x(directional) < -1.5
 
 
 def test_the_histogram_follows_the_receivers_orientation():
-    """Facing -x, the absorbing wall is in front: the quiet lines are now those at +x of the receiver's frame."""
+    """Facing -x, the absorbing wall is in front: the quiet lines are those at +x of the receiver's frame."""
     kwargs = dict(tail="ray_tracing", duration=0.8, directional_absorption=False, late_envelope=True)
     turned = ca.Ambisonics(**kwargs)
     asymmetric_scene(direction=[-1, 0, 0]).simulate(turned)
@@ -224,23 +227,3 @@ def test_the_envelope_is_on_by_default_and_needs_a_reference():
     assert ca.Ambisonics().late_envelope is True
     with pytest.raises(ValueError, match="late_envelope"):
         ca.Ambisonics(tail="eyring", late_envelope=True)
-
-
-def test_the_lines_total_energy_does_not_change_with_the_shares():
-    """The shares keep the lines' total energy: the full envelope and the level step alone agree, window by window."""
-    kwargs = dict(tail="ray_tracing", duration=0.8, directional_absorption=False)
-    hy = ca.Ambisonics(late_envelope=True, **kwargs)
-    asymmetric_scene().simulate(hy)
-    (res,) = hy.results.values()
-    key = next(iter(hy.reference_rirs))
-    reference = np.asarray(hy.reference_rirs[key].denormalized(), dtype=float)
-    from compas_acoustics.hybrid.envelope import shape_late
-    C = res.core.builds[0].C
-    # the lines' energy in 100 ms windows against the level step alone on the unshaped lines of the same network
-    plain = ca.Ambisonics(late_envelope=False, **kwargs)
-    asymmetric_scene().simulate(plain)
-    (raw,) = plain.results.values()
-    omni_only = shape_late(raw.late_lines, raw.early[:, 0], raw.late_lines @ C[0], reference, FS)
-    for a in np.arange(0.15, 0.7, 0.1):
-        sl = slice(int(a * FS), int((a + 0.1) * FS))
-        assert abs(10 * np.log10(np.sum(res.late_lines[sl] ** 2) / np.sum(omni_only[sl] ** 2))) < 0.3

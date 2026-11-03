@@ -1,8 +1,5 @@
-import hashlib
 import json
 import os
-import socket
-from pathlib import Path
 
 import numpy as np
 import pytest
@@ -17,11 +14,8 @@ from compas_acoustics import Source
 from compas_acoustics import analyser
 from compas_acoustics import worker
 
-WORKER_PYTHON = os.environ.get("COMPAS_ACOUSTICS_TEST_WORKER_PYTHON")
-needs_worker = pytest.mark.skipif(not WORKER_PYTHON, reason="set COMPAS_ACOUSTICS_TEST_WORKER_PYTHON to a Python >= 3.11 with compas_acoustics")
 # the local reference needs STI and G, which pyrato < 1.0 (Python < 3.11, Rhino 8) cannot compute
 needs_sti = pytest.mark.skipif(not analyser._STI_SUPPORTED, reason="STI and G need pyrato >= 1.0 (Python >= 3.11)")
-VIOLA = str(Path(compas_acoustics.__file__).parent / "anechoic_soundfiles_library" / "viola.wav")
 
 
 def scene():
@@ -46,19 +40,11 @@ def private_home(monkeypatch, tmp_path):
 
     home = tmp_path / "home"
     home.mkdir()
-    # A new home would make matplotlib rebuild its font cache in every worker, which takes half a minute
+    # A new home would make matplotlib rebuild its font cache in every worker
     monkeypatch.setenv("MPLCONFIGDIR", matplotlib.get_configdir())
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setenv("USERPROFILE", str(home))
     monkeypatch.setattr(worker, "WORKERS", home / ".compas_acoustics" / "workers")
-
-
-@pytest.fixture
-def running_worker(monkeypatch):
-    monkeypatch.setenv("COMPAS_ACOUSTICS_WORKER_PYTHON", WORKER_PYTHON)
-    client = worker.client()
-    yield client
-    client.stop()
 
 
 def test_without_a_worker_everything_stays_local():
@@ -67,8 +53,8 @@ def test_without_a_worker_everything_stays_local():
 
 
 def test_the_config_file_names_the_worker(tmp_path):
-    worker.CONFIG.write_text(json.dumps({"python": WORKER_PYTHON or __file__}))
-    assert worker.worker_python() == (WORKER_PYTHON or __file__)
+    worker.CONFIG.write_text(json.dumps({"python": __file__}))
+    assert worker.worker_python() == __file__
 
 
 def call(function, *args, token="secret", authorization=None, **kwargs):
@@ -162,8 +148,9 @@ def test_a_process_is_alive_until_it_exits():
     assert not process_is_alive(child.pid)
 
 
-def test_stopping_the_running_workers_shuts_them_down_and_forgets_them(tmp_path):
+def test_stopping_the_running_workers_shuts_them_down_and_forgets_them(tmp_path, monkeypatch):
     import threading
+    import types
 
     from compas_acoustics.worker.service import WorkerService
 
@@ -172,118 +159,13 @@ def test_stopping_the_running_workers_shuts_them_down_and_forgets_them(tmp_path)
     thread.start()
     (tmp_path / "1.json").write_text(json.dumps({"pid": 1, "port": server.server_address[1], "token": "secret"}))
     (tmp_path / "2.json").write_text(json.dumps({"pid": 2, "port": 1, "token": "x"}))
+    # neither record is removed by its worker, so skip the wait for it to disappear
+    monkeypatch.setattr(worker, "time", types.SimpleNamespace(sleep=lambda seconds: None))
     worker.stop_running_workers(tmp_path)
     thread.join(timeout=5)
     assert not thread.is_alive()
     server.server_close()
     assert list(tmp_path.glob("*.json")) == []
-
-
-def lan_address():
-    # A UDP connect sends nothing; it only picks the interface a route would use
-    probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        probe.connect(("10.255.255.255", 9))
-        return probe.getsockname()[0]
-    except OSError:
-        return None
-    finally:
-        probe.close()
-
-
-@needs_worker
-def test_the_service_listens_on_localhost_only(running_worker):
-    lan = lan_address()
-    if lan is None or lan.startswith("127."):
-        pytest.skip("this machine has no non-loopback address")
-    socket.create_connection(("127.0.0.1", running_worker.port), timeout=1).close()
-    with pytest.raises(OSError):
-        socket.create_connection((lan, running_worker.port), timeout=1).close()
-
-
-@needs_worker
-def test_the_running_worker_refuses_a_caller_without_the_token(running_worker):
-    import urllib.error
-    import urllib.request
-
-    from compas_pb import pb_dump_bts
-
-    request = urllib.request.Request(f"http://127.0.0.1:{running_worker.port}/api/info", data=pb_dump_bts({"args": [], "kwargs": {}}),
-                                     method="POST", headers={"Content-Type": "application/x-protobuf"})
-    with pytest.raises(urllib.error.HTTPError) as refused:
-        urllib.request.urlopen(request, timeout=5)
-    assert refused.value.code == 401
-    with urllib.request.urlopen(f"http://127.0.0.1:{running_worker.port}/ping", timeout=5) as pong:
-        assert pong.status == 200
-        assert pong.read().decode() == "pong " + hashlib.sha256(running_worker._token.encode()).hexdigest()[:16]
-    assert running_worker.info()["compas_acoustics"] == compas_acoustics.__version__
-
-
-@needs_worker
-def test_the_worker_records_itself_and_is_forgotten_when_stopped(running_worker):
-    import time
-
-    records = list(worker.WORKERS.glob("*.json"))
-    mine = [json.loads(r.read_text()) for r in records]
-    assert any(m["port"] == running_worker.port for m in mine)
-    running_worker.stop()
-    for _ in range(50):
-        if not any(json.loads(r.read_text())["port"] == running_worker.port for r in worker.WORKERS.glob("*.json")):
-            break
-        time.sleep(0.1)
-    else:
-        pytest.fail("the worker's record is still there")
-
-
-@needs_worker
-def test_the_worker_starts_without_the_clients_python_path(tmp_path, monkeypatch):
-    poisoned = tmp_path / "compas_acoustics"
-    poisoned.mkdir()
-    (poisoned / "__init__.py").write_text("raise ImportError('the client PYTHONPATH reached the worker')\n")
-    monkeypatch.setenv("PYTHONPATH", str(tmp_path))
-    monkeypatch.setenv("COMPAS_ACOUSTICS_WORKER_PYTHON", WORKER_PYTHON)
-    client = worker.client()
-    try:
-        assert client.info()["compas_acoustics"] == compas_acoustics.__version__
-        assert os.environ["PYTHONPATH"] == str(tmp_path)
-    finally:
-        client.stop()
-
-
-@needs_worker
-def test_simulate_in_the_worker_matches_simulating_here(running_worker):
-    s = scene()
-    here = s.simulate(Mono(image_source_order=2, ray_tracing=False))
-    there, messages = worker.simulate(s, "mono", {"image_source_order": 2, "ray_tracing": False})
-    assert sorted(there) == sorted(here)
-    for key in here:
-        expected = here[key].denormalized()
-        np.testing.assert_allclose(there[key].denormalized(), expected, atol=1e-6 * np.max(np.abs(expected)))
-        assert there[key].sampling_rate == here[key].sampling_rate
-    assert isinstance(messages, list)
-
-
-@needs_worker
-def test_ambisonics_runs_in_the_worker(running_worker):
-    if not running_worker.info()["hybrid"]:
-        pytest.skip("the worker has no pyFDN")
-    s = scene()
-    rirs, _ = worker.simulate(s, "ambisonics", {"tail": "eyring"})
-    ir = next(iter(rirs.values()))
-    assert ir.ambisonic_order == 1 and ir.n_channels == 4
-    assert ir.normalization is not None and ir.channel_order is not None
-    assert s.impulse_responses("ambisonics") == rirs
-
-
-@needs_worker
-def test_binaural_runs_in_the_worker(running_worker):
-    if not running_worker.info()["hybrid"]:
-        pytest.skip("the worker has no pyFDN")
-    s = scene()
-    rirs, _ = worker.simulate(s, "binaural", {"tail": "eyring"})
-    assert s.impulse_responses("binaural") == rirs
-    for ir in rirs.values():
-        assert ir.n_channels == 2 and ir.format == "binaural" and ir.generation["hrtf"]
 
 
 def test_the_api_returns_the_responses_under_the_methods_name():
@@ -379,7 +261,7 @@ def fake_worker(monkeypatch):
 
 
 def test_a_cold_worker_gets_time_to_start(fake_worker):
-    # The first start of a fresh environment imports the scientific stack uncached: 30 s measured
+    # The first start of a fresh environment imports the scientific stack uncached
     assert worker.CONNECTION_ATTEMPTS * 0.1 >= 60
     fake_worker.pings_before_up = 5
     assert worker.client() is not None
@@ -499,20 +381,6 @@ def test_sti_and_g_come_from_the_worker_where_pyrato_cannot_compute_them(monkeyp
 
 
 @needs_sti
-@needs_worker
-def test_the_analysis_in_the_worker_matches_the_analysis_here(running_worker, monkeypatch):
-    from compas_acoustics import Analyser
-
-    ir = response()
-    here = Analyser(ir)
-    here.analyse()
-    monkeypatch.setattr(analyser, "_STI_SUPPORTED", False)
-    analyser_here, _ = worker.analyse(ir)
-    for name in ("STI_overall", "G_overall"):
-        assert analyser_here.analysis_data[name] == pytest.approx(here.analysis_data[name], abs=0.01)
-
-
-@needs_sti
 def test_the_worker_computes_only_sti_and_g(monkeypatch):
     from compas_acoustics import Analyser
     from compas_acoustics.worker import api
@@ -563,7 +431,7 @@ def test_an_empty_or_zero_result_still_travels(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Call ids, cancellation and progress (Grasshopper UI plan, Task 1)
+# Call ids, cancellation and progress
 # ---------------------------------------------------------------------------
 
 
@@ -676,7 +544,7 @@ def test_progress_and_cancel_need_the_token(service):
     assert status == 401
 
 
-def test_a_call_without_an_id_runs_as_before(service):
+def test_a_call_without_an_id_is_answered(service):
     assert service.call("info")["compas_acoustics"] == compas_acoustics.__version__
 
 

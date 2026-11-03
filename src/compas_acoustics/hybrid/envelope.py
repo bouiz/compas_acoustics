@@ -2,26 +2,23 @@
 
 In a room with unevenly distributed absorption the late field does not decay exponentially from the transition
 order: the part reaching the absorbing surfaces dies early, while the network of Wendt et al. (2014) assumes a
-diffuse field from its input on (in furnished offices: the late field 5 dB high at 200-800 ms, EDT doubled).
-The remedy is the hybrid approach for non-Sabinean rooms (Vorlaender 2020, Sec. 11.9 and 16.5.5): ray tracing
-estimates the envelope M^2(dt, f), and a synthetic fine structure is shaped to it (Heinz 1993; Schroeder 2011).
-Here the fine structure is the network's own dense, directional output; only its per-band energy over time
-changes. Per band b, with E the smoothed energies of the omnidirectional signals on the package scale,
+diffuse field from its input on. This module follows the hybrid approach for non-Sabinean rooms (Vorlaender
+2020, Sec. 11.9 and 16.5.5): ray tracing estimates the envelope M^2(dt, f), and a synthetic fine structure is
+shaped to it (Heinz 1993; Schroeder 2011). The fine structure is the network's own dense, directional output;
+only its per-band energy over time changes. Per band b, with E the smoothed energies of the omnidirectional
+signals on the package scale,
 
     g_b(t) = min(1, sqrt(max(E_ref,b - E_early,b, 0) / E_late,b)),
 
 the same on every channel; a ray is logged only after the image source order, so the reference minus the image
-sources is what they do not carry. Design choices, measured on 60 pairs in six furnished offices:
+sources is what they do not carry.
 
-- ``SMOOTH_MS``: at 10 ms the reference fluctuates by 6-10 dB and puts swells into the tail; 100 ms leaves
-  3-4 dB and still follows the correction, which builds up over 100-300 ms.
-- Attenuate only: gains above 1 brightened the tail's onset by up to 13 dB at 8 kHz (20 dB where the image
-  sources are empty) at no gain in accuracy; a hybrid quieter than its reference stays so (4 dB, diffuse shoebox).
-- Hold: once the reference band has decayed 20 dB its gain is frozen, a ratio over the preceding ``SMOOTH_MS``,
-  never before the early images end plus that window. Holding later brought the swells back; at -10 dB of the
-  late field it gave 10 dB outliers.
-- Nine bands, 63 Hz to 16 kHz: the top band of a reconstructing bank takes everything above its lower edge,
-  and an 8 kHz top band read the reference's energy above 8 kHz as a 15 dB boost. 16 kHz takes the 8 kHz gain.
+- Smoothing: a Hann window of ``SMOOTH_MS``, which averages out the reference's stochastic fine structure.
+- Attenuate only: the gains are capped at 1, so a hybrid quieter than its reference stays so.
+- Hold: once the reference band's energy decay curve has fallen 20 dB its gain is frozen, the ratio over the
+  preceding ``SMOOTH_MS``, never before the early images end (:func:`_early_end`) plus that window.
+- Nine bands, 63 Hz to 16 kHz: the top band of a reconstructing bank takes everything above its lower edge, so
+  a 16 kHz band keeps the energy above 11.3 kHz out of the 8 kHz estimate; 16 kHz takes the 8 kHz gain.
 
 :func:`shape_late_directional` adds the directional histogram, the detection sphere divided into directivity
 groups (Lentz, Schroeder and Vorlaender 2007, Sec. 2.2; Schroeder 2011, Sec. 5.3.4), there used only for the
@@ -29,8 +26,8 @@ distribution of directions within a time slot, one for all bands. Here the level
 every line is scaled by ``sqrt(p_i / q_i)``, its direction's share of the rays' energy over its share of the
 lines' (:func:`directional_shares`): the lines keep their total and take the rays' distribution, so a direction
 facing an absorbing wall decays faster. The bins are first pooled over neighbouring directions with the kernel
-of Kirsch, Wendt and van de Par (2023, Eq. 4), ``max(u_i . u_j, 0) ** (N / 6)``: at 96 lines a 4 ms bin holds
-a handful of detections per direction.
+of Kirsch, Wendt and van de Par (2023, Eq. 4), ``max(u_i . u_j, 0) ** (N / 6)``, since a short bin holds few
+detections per direction.
 """
 
 from __future__ import annotations
@@ -70,7 +67,7 @@ def _reconstructing_bank(fs: float) -> np.ndarray:
 
 @lru_cache(maxsize=8)
 def _bank_response(fs: float, n_fft: int) -> np.ndarray:
-    """The bank's spectrum on an ``n_fft`` grid, (9, n_fft // 2 + 1); the four splits of one run share it."""
+    """The bank's spectrum on an ``n_fft`` grid, (9, n_fft // 2 + 1); the splits of one :func:`shape_late` call share it."""
     return scipy.fft.rfft(_reconstructing_bank(fs), n_fft, axis=1)
 
 
@@ -100,7 +97,7 @@ def _smoothed_energy(bands: np.ndarray, fs: float, ms: float) -> np.ndarray:
 
 
 def _early_end(ref_b: np.ndarray, early_b: np.ndarray, fs: float) -> int:
-    """First sample after which the early images stay 13 dB below the reference."""
+    """First sample after which the early images stay 13 dB below the reference in every band, both smoothed over 10 ms."""
     e_ref = _smoothed_energy(ref_b, fs, 10.0)
     e_early = _smoothed_energy(early_b, fs, 10.0)
     present = e_early > 1e-6 * e_early.max(axis=1, keepdims=True)

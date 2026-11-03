@@ -2,12 +2,10 @@
     "name": "Plot 2D",
     "nickname": "Plot2D",
     "category": "COMPAS Acoustics",
-    "subcategory": "05 Display",
+    "subcategory": "Display",
     "description": "Chart an acoustic parameter (a dot per band, joined by a line), or the time or frequency response of Analyse Impulse Response (a line per channel), on the canvas: one chart per parameter connected, stacked. Drag the corner to resize; hover a chart to read its values; Save writes the charts as a PNG image.",
     "exposure": 2,
-    "ghpython": {
-        "isAdvancedMode": true,
-        "iconDisplay": 0,
+    "ports": {
         "inputParameters": [
             {
                 "name": "data",

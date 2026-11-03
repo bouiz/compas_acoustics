@@ -18,8 +18,8 @@ namespace CompasAcoustics.Grasshopper
     }
 
     /// <summary>
-    /// A component's names, description, ports and icon: the metadata.json and icon.png the Python component had,
-    /// embedded in the assembly (Components/Specs/&lt;name&gt;), so that the texts stay what users know.
+    /// A component's names, description, ports and icon: its metadata.json and icon.png, embedded in the assembly
+    /// (Components/Specs/&lt;name&gt;).
     /// </summary>
     public sealed record ComponentSpec(string Key, string Name, string Nickname, string Description, string Subcategory, GH_Exposure Exposure,
         IReadOnlyList<PortSpec> Inputs, IReadOnlyList<PortSpec> Outputs)
@@ -50,7 +50,7 @@ namespace CompasAcoustics.Grasshopper
             using var stream = Resource(key + "/metadata.json");
             using var json = JsonDocument.Parse(stream);
             var root = json.RootElement;
-            var gh = root.GetProperty("ghpython");
+            var ports = root.GetProperty("ports");
             return new ComponentSpec(
                 key,
                 root.GetProperty("name").GetString()!,
@@ -58,13 +58,13 @@ namespace CompasAcoustics.Grasshopper
                 root.GetProperty("description").GetString()!,
                 root.GetProperty("subcategory").GetString()!,
                 root.TryGetProperty("exposure", out var exposure) ? (GH_Exposure)exposure.GetInt32() : GH_Exposure.primary,
-                Ports(gh, "inputParameters"),
-                Ports(gh, "outputParameters"));
+                Ports(ports, "inputParameters"),
+                Ports(ports, "outputParameters"));
         }
 
-        private static IReadOnlyList<PortSpec> Ports(JsonElement gh, string key)
+        private static IReadOnlyList<PortSpec> Ports(JsonElement spec, string key)
         {
-            if (!gh.TryGetProperty(key, out var ports))
+            if (!spec.TryGetProperty(key, out var ports))
                 return Array.Empty<PortSpec>();
             return ports.EnumerateArray().Select(p => new PortSpec(
                 p.GetProperty("name").GetString()!,

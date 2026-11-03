@@ -1,7 +1,4 @@
-"""Diffraction at the edges of the room's own boundary.
-
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, tests/test_shell_edges.py).
-"""
+"""Diffraction at the edges of the room's own boundary."""
 
 import warnings
 from itertools import pairwise
@@ -9,7 +6,7 @@ from itertools import pairwise
 import numpy as np
 import pytest
 
-from _compat import RoomSpec, image_sources
+from _rooms import images, pair
 from compas_acoustics.hybrid.synthesis import prepare
 from compas_acoustics.hybrid.ambisonics import render_ambisonics
 from compas_acoustics.hybrid.target import RoomTarget
@@ -25,8 +22,7 @@ from compas_acoustics.hybrid.diffraction import (
     encode_btms,
     shared_face,
 )
-from compas_acoustics.hybrid.bands import BANDS
-from _compat import Material, MeshGeometry
+from compas_acoustics.room.geometry import RoomGeometry, SurfaceMaterial
 
 C = 343.0
 H = 3.0
@@ -39,7 +35,7 @@ PI_OUTLINE = [(0, 0), (4.5, 0), (4.5, 3.5), (5.5, 3.5), (5.5, 0), (10, 0), (10, 
 def materials(*names):
     # frequency-dependent on purpose: with every material flat, pyroomacoustics
     # returns a single band and image_sources refuses the mesh
-    return {n: Material(0.1 * TILT, BANDS.copy()) for n in names}
+    return {n: SurfaceMaterial(n, 0.1 * TILT) for n in names}
 
 
 def prism_room(outline, height=H, rotation=None):
@@ -52,7 +48,7 @@ def prism_room(outline, height=H, rotation=None):
     v = np.array(v, float)
     if rotation is not None:
         v = v @ rotation.T
-    return MeshGeometry(v, tuple(faces), tuple(["floor", "ceiling"] + ["wall"] * n),
+    return RoomGeometry.from_mesh(v, tuple(faces), tuple(["floor", "ceiling"] + ["wall"] * n),
                         materials("floor", "ceiling", "wall"))
 
 
@@ -92,7 +88,7 @@ def grid_room(xs, ys, solid, height=H):
                 faces.append((vid(x0, y0, 0), vid(x1, y0, 0), vid(x1, y0, height), vid(x0, y0, height)))
                 names.append("wall")
     v = np.array(sorted(index, key=index.get), float)
-    return MeshGeometry(v, tuple(faces), tuple(names), materials("floor", "ceiling", "wall"))
+    return RoomGeometry.from_mesh(v, tuple(faces), tuple(names), materials("floor", "ceiling", "wall"))
 
 
 def vertical_at(edges, x, y):
@@ -140,7 +136,7 @@ def t_junction_l(offset=0.0):
             faces += [(a, b, 2 * n + 1, 2 * n), (2 * n, 2 * n + 1, b + n, a + n)]
         else:
             faces.append((a, b, b + n, a + n))
-    return MeshGeometry(np.array(v, float), tuple(faces),
+    return RoomGeometry.from_mesh(np.array(v, float), tuple(faces),
                         tuple(["floor", "ceiling"] + ["wall"] * (n + 1)), materials("floor", "ceiling", "wall"))
 
 
@@ -152,7 +148,7 @@ def test_a_corner_split_by_a_t_junction_is_one_edge():
 
 
 def test_a_t_junction_vertex_just_off_the_corner_keeps_one_edge():
-    """5 um off the line: within the tolerance MeshGeometry splits sides at."""
+    """5 um off the line: within the tolerance RoomGeometry.from_mesh splits sides at."""
     with warnings.catch_warnings():
         warnings.simplefilter("error", ShellEdgeWarning)
         edges = enclosure_edges(t_junction_l(5e-6))
@@ -173,7 +169,7 @@ def banded_l(levels):
     for (x0, y0), (x1, y1) in zip(L_OUTLINE, L_OUTLINE[1:] + L_OUTLINE[:1]):
         faces += [(vid(x0, y0, z0), vid(x1, y1, z0), vid(x1, y1, z1), vid(x0, y0, z1)) for z0, z1 in pairwise(zs)]
     v = np.array(sorted(index, key=index.get), float)
-    return MeshGeometry(v, tuple(faces), tuple(["floor", "ceiling"] + ["wall"] * (len(faces) - 2)),
+    return RoomGeometry.from_mesh(v, tuple(faces), tuple(["floor", "ceiling"] + ["wall"] * (len(faces) - 2)),
                         materials("floor", "ceiling", "wall"))
 
 
@@ -181,7 +177,7 @@ def banded_l(levels):
 def test_vertex_noise_on_a_corner_of_several_pieces_changes_nothing(seed):
     clean = banded_l([1.0, 2.0])
     noise = np.random.default_rng(seed).normal(0.0, 1e-6, clean.vertices.shape)
-    noisy = MeshGeometry(clean.vertices + noise, clean.faces, clean.face_materials, clean.materials)
+    noisy = RoomGeometry.from_mesh(clean.vertices + noise, clean.faces, clean.face_materials, clean.materials)
     with warnings.catch_warnings():
         warnings.simplefilter("error", ShellEdgeWarning)
         edges = enclosure_edges(noisy)
@@ -195,7 +191,7 @@ def test_a_wall_tilted_by_a_microradian_next_to_a_long_floor_is_not_warned_about
     v = np.array([[0, 0, 0], [60, 0, 0], [60, 6, 0], [0, 6, 0],
                   [0, 0, H], [60 + 3e-6, 0, H], [60 + 3e-6, 6, H], [0, 6, H]], float)
     faces = ((0, 3, 2, 1), (4, 5, 6, 7), (0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7))
-    geometry = MeshGeometry(v, faces, ("floor", "ceiling") + ("wall",) * 4, materials("floor", "ceiling", "wall"))
+    geometry = RoomGeometry.from_mesh(v, faces, ("floor", "ceiling") + ("wall",) * 4, materials("floor", "ceiling", "wall"))
     with warnings.catch_warnings():
         warnings.simplefilter("error", ShellEdgeWarning)
         assert enclosure_edges(geometry) == []
@@ -208,7 +204,7 @@ def floating_panel_room():
     n = len(box.vertices)
     v = np.vstack([box.vertices, [[3, 2, 1], [5, 2, 1], [5, 2, 2], [3, 2, 2]]])
     faces = box.faces + ((n, n + 1, n + 2, n + 3), (n + 3, n + 2, n + 1, n))
-    return MeshGeometry(v, faces, box.face_materials + ("wall", "wall"), box.materials)
+    return RoomGeometry.from_mesh(v, faces, box.face_materials + ("wall", "wall"), box.materials)
 
 
 def test_a_panel_drawn_into_the_enclosure_gives_knife_edges():
@@ -249,7 +245,7 @@ def test_a_sliver_face_along_the_corner_keeps_the_corner():
             faces += [(3, 12, 9), (3, 4, 10, 12)]
         else:
             faces.append((a, b, b + n, a + n))
-    geometry = MeshGeometry(np.array(v, float), tuple(faces),
+    geometry = RoomGeometry.from_mesh(np.array(v, float), tuple(faces),
                             tuple(["floor", "ceiling"] + ["wall"] * (n + 1)), materials("floor", "ceiling", "wall"))
     edges = enclosure_edges(geometry)
     assert len(edges) == 1
@@ -260,7 +256,7 @@ def test_a_sliver_face_along_the_corner_keeps_the_corner():
 def test_vertex_noise_below_the_mesh_tolerance_changes_nothing():
     clean = grid_room(list(range(9)), list(range(7)), {(i, j) for i in range(5, 8) for j in range(3, 6)})
     noise = np.random.default_rng(0).normal(0.0, 1e-6, clean.vertices.shape)
-    noisy = MeshGeometry(clean.vertices + noise, clean.faces, clean.face_materials, clean.materials)
+    noisy = RoomGeometry.from_mesh(clean.vertices + noise, clean.faces, clean.face_materials, clean.materials)
     with warnings.catch_warnings():
         warnings.simplefilter("error", ShellEdgeWarning)
         edges = enclosure_edges(noisy)
@@ -297,7 +293,7 @@ S_L = np.array([7.0, 1.0, 1.5])
 
 
 def panel_l_room():
-    """The L room of examples/08: an 8 x 6 m box with the quadrant x > 5, y > 3
+    """The L room as an 8 x 6 m box with the quadrant x > 5, y > 3
     closed off by two full-height obstacle panels."""
     v = [[0, 0, 0], [8, 0, 0], [8, 6, 0], [0, 6, 0], [0, 0, H], [8, 0, H], [8, 6, H], [0, 6, H]]
     faces = [(0, 3, 7, 4), (1, 5, 6, 2), (0, 4, 5, 1), (3, 2, 6, 7), (0, 1, 2, 3), (4, 7, 6, 5)]
@@ -307,7 +303,7 @@ def panel_l_room():
         v += [[x0, y0, 0], [x1, y1, 0], [x1, y1, H], [x0, y0, H]]
         faces.append((n, n + 1, n + 2, n + 3))
         names.append("panel")
-    return MeshGeometry(np.array(v, float), tuple(faces), tuple(names),
+    return RoomGeometry.from_mesh(np.array(v, float), tuple(faces), tuple(names),
                         materials("wall", "floor", "ceiling", "panel"), obstacles=("panel",))
 
 
@@ -327,12 +323,12 @@ def box_obstacle_room(rotation=None):
     v = np.array(v, float)
     if rotation is not None:
         v = v @ rotation.T
-    return MeshGeometry(v, tuple(faces), tuple(names),
+    return RoomGeometry.from_mesh(v, tuple(faces), tuple(names),
                         materials("wall", "floor", "ceiling", "box"), obstacles=("box",))
 
 
 def spec_of(geometry, source, receiver):
-    return RoomSpec(geometry=geometry, source=np.asarray(source, float), receiver=np.asarray(receiver, float),
+    return pair(geometry=geometry, source=np.asarray(source, float), receiver=np.asarray(receiver, float),
                     air_absorption=False, speed_of_sound=C)
 
 
@@ -391,7 +387,7 @@ def test_a_rotated_room_diffracts_as_the_axis_aligned_room(source, receiver):
     that into a path in a room that is not axis-aligned."""
     rot = rotation_z(30.0)
     base = prism_room(L_OUTLINE)
-    turned = MeshGeometry(base.vertices @ rot.T, base.faces, base.face_materials, base.materials)
+    turned = RoomGeometry.from_mesh(base.vertices @ rot.T, base.faces, base.face_materials, base.materials)
     specs = (spec_of(base, source, receiver), spec_of(turned, rot @ np.asarray(source), rot @ np.asarray(receiver)))
     a, b = (sorted(diffraction_paths(s, max_order=1), key=lambda p: (round(p.distance, 9), p.order, p.zone))
             for s in specs)
@@ -406,9 +402,9 @@ def test_a_rotated_room_diffracts_as_the_axis_aligned_room(source, receiver):
 
 def test_a_rectangular_room_has_no_room_edges_and_diffraction_changes_nothing():
     spec = spec_of(prism_room([(0, 0), (8, 0), (8, 6), (0, 6)]), [2.0, 2.0, 1.5], [6.0, 4.0, 1.7])
-    off = render_ambisonics(prepare(spec, image_sources(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2))
+    off = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2))
     for model in (True, "btms"):
-        on = render_ambisonics(prepare(spec, image_sources(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction=model))
+        on = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction=model))
         np.testing.assert_array_equal(on.rir, off.rir)
 
 
@@ -424,7 +420,7 @@ def test_the_field_is_continuous_across_a_room_corner_shadow_boundary():
     for flag in (False, True):
         for x in (3.495, 3.505):
             spec = spec_of(prism_room(L_OUTLINE), S_L, [x, 4.5, 1.5])
-            rir = render_ambisonics(prepare(spec, image_sources(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction=flag)).early
+            rir = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction=flag)).early
             levels[flag, x] = window_db(rir, float(np.linalg.norm(spec.receiver - spec.source)), spec.fs)
     assert abs(levels[False, 3.505] - levels[False, 3.495]) > 6.0
     assert abs(levels[True, 3.505] - levels[True, 3.495]) < 0.5
@@ -443,11 +439,11 @@ def partition_room(as_obstacle):
     faces.append((8, 9, 10, 11))
     names = ["floor", "ceiling"] + ["wall"] * n + ["panel"]
     if as_obstacle:
-        return MeshGeometry(np.array(v, float), tuple(faces), tuple(names),
+        return RoomGeometry.from_mesh(np.array(v, float), tuple(faces), tuple(names),
                             materials("floor", "ceiling", "wall", "panel"), obstacles=("panel",))
     faces.append((11, 10, 9, 8))
     names.append("panel")
-    return MeshGeometry(np.array(v, float), tuple(faces), tuple(names),
+    return RoomGeometry.from_mesh(np.array(v, float), tuple(faces), tuple(names),
                         materials("floor", "ceiling", "wall", "panel"))
 
 
@@ -494,8 +490,7 @@ def tilt(deg):
 def test_a_tilted_room_diffracts_as_the_level_room(room, source, receiver):
     """Floor and ceiling tilted 20 deg about x: an apex clipped to an edge end on
     the floor must not gain a zero-length floor reflection (exact t = 1 when level).
-    The positions were found by a search as ones that reproduce the t = 1 - eps
-    floor hit (most positions do not)."""
+    At these positions the tilted floor is hit at t = 1 - eps (most positions miss it)."""
     build = (lambda rot: prism_room(L_OUTLINE, rotation=rot)) if room == "l" else box_obstacle_room
     rot = tilt(20.0)
     level = spec_of(build(None), source, receiver)
@@ -510,7 +505,7 @@ def test_a_tilted_room_diffracts_as_the_level_room(room, source, receiver):
 
 
 def test_a_large_room_corner_with_a_t_junction_within_the_mesh_tolerance_is_one_edge():
-    """A 40 x 30 m L: MeshGeometry accepts a T-junction up to 1e-6 x 40 m = 4e-5 m
+    """A 40 x 30 m L: RoomGeometry.from_mesh accepts a T-junction up to 1e-6 x 40 m = 4e-5 m
     off a side; one 2e-5 m off the corner splits the wall x = 25 at mid-height."""
     outline = [(x * 5, y * 5) for x, y in L_OUTLINE]
     n = len(outline)
@@ -523,7 +518,7 @@ def test_a_large_room_corner_with_a_t_junction_within_the_mesh_tolerance_is_one_
             faces += [(a, b, 2 * n + 1, 2 * n), (2 * n, 2 * n + 1, b + n, a + n)]
         else:
             faces.append((a, b, b + n, a + n))
-    geometry = MeshGeometry(np.array(v, float), tuple(faces),
+    geometry = RoomGeometry.from_mesh(np.array(v, float), tuple(faces),
                             tuple(["floor", "ceiling"] + ["wall"] * (n + 1)), materials("floor", "ceiling", "wall"))
     edges = enclosure_edges(geometry)
     assert len(edges) == 1

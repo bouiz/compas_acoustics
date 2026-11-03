@@ -131,7 +131,7 @@ def test_simulated_impulse_responses_use_the_requested_sampling_rate(sampling_ra
     scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(10, 8, 4))
     scene.add_source(Source("s", 2, 4, 1.5))
     scene.add_receiver(Receiver("r", 5, 4, 1.5))
-    # Air absorption above 16 kHz used to fail on a 7- vs 8-band mismatch
+    # air absorption on: its per-band attenuation must match the synthesis bands at either rate
     rirs = scene.simulate(Mono(image_source_order=2, air_absorption=True, ray_tracing=False))
     assert all(ir.sampling_rate == sampling_rate for ir in rirs.values())
 

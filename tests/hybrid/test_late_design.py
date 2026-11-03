@@ -1,4 +1,4 @@
-"""Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, tests/test_late_design.py)."""
+"""Late-field FDN design and rendering: output matrix, feedback matrix, delays and the decay rendered."""
 
 import numpy as np
 import pyFDN
@@ -44,8 +44,8 @@ def test_output_matrix_shape():
 def test_output_matrix_is_orthogonal_for_the_default_grid():
     """C @ C.T diagonal means the late field is diffuse, not directionally biased.
 
-    A default spiral_points grid of the same size leaks 21.5 per cent, which is
-    why equal_area is used.
+    A spiral_points grid of the same size is not orthogonal, which is why
+    equal_area is used.
     """
     dirs = spharpy.samplings.equal_area(n_max=1, n_points=16)
     c = ambisonic_output_matrix(1, dirs)

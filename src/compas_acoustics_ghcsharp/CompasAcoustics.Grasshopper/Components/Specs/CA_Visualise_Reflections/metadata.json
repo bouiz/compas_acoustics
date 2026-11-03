@@ -2,12 +2,10 @@
     "name": "Visualise Reflections",
     "nickname": "Reflections",
     "category": "COMPAS Acoustics",
-    "subcategory": "05 Display",
+    "subcategory": "Display",
     "description": "The specular (image source) reflection paths from the scene's sources to its receivers, by order, drawn in one colour per order (order 0 black). Outputs them as reflections, which Visualise Billiard plays. The Preview button shows or hides the drawing.",
     "exposure": 2,
-    "ghpython": {
-        "isAdvancedMode": true,
-        "iconDisplay": 0,
+    "ports": {
         "inputParameters": [
             {
                 "name": "scene",
@@ -18,7 +16,7 @@
             },
             {
                 "name": "order",
-                "description": "Reflection order(s) to give, 0 for the direct sound; negative orders are left out. Empty (default): the first order.",
+                "description": "Reflection order(s) to draw, 0 for the direct sound; negative orders are left out. Empty (default): the first order.",
                 "optional": true,
                 "scriptParamAccess": 1,
                 "typeHintID": "int"

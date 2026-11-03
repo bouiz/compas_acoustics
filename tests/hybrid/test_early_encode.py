@@ -1,4 +1,4 @@
-"""Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, tests/test_early_encode.py)."""
+"""The early encoder: band gains, delays, ambisonic channel gains and the path renderers."""
 
 import numpy as np
 import pyfar as pf
@@ -8,8 +8,8 @@ from scipy.signal import sosfilt
 
 from compas_acoustics.hybrid.bands import BANDS, N_BANDS
 from compas_acoustics.hybrid.early import ImageSourceSet, encode, render_images, render_signals
-from _compat import image_sources
-from _compat import Material, RoomSpec, ShoeboxGeometry
+from _rooms import box_room, images, pair
+from compas_acoustics.room.geometry import SurfaceMaterial
 
 
 def one_image(azimuth, elevation, delay=0.01, gain=1.0, fs=48000.0):
@@ -49,9 +49,7 @@ def test_output_shape_matches_the_ambisonic_order():
 
 
 def test_sloped_band_gains_are_reproduced_within_a_fraction_of_a_decibel():
-    """The test the band-sum design failed by 8.4 dB.
-
-    A target sloping down 26 dB across the spectrum is what an absorptive room
+    """A target sloping down 26 dB across the spectrum is what an absorptive room
     produces. Reproducing it is the encoder's entire job.
     """
     fs = 48000.0
@@ -158,15 +156,12 @@ def test_images_beyond_the_buffer_are_dropped_not_wrapped():
 
 
 def test_shoebox_end_to_end_produces_a_finite_response():
-    mat = Material.from_scalar(0.2)
-    spec = RoomSpec(
-        geometry=ShoeboxGeometry(
-            (5.0, 4.0, 3.0), {n: mat for n in ShoeboxGeometry.WALL_NAMES}
-        ),
+    spec = pair(
+        geometry=box_room((5.0, 4.0, 3.0), SurfaceMaterial("wall", np.full(N_BANDS, 0.2))),
         source=np.array([1.0, 1.0, 1.0]),
         receiver=np.array([3.0, 2.0, 1.5]),
     )
-    out = encode(image_sources(spec, max_order=3), 1, 4800)
+    out = encode(images(spec, max_order=3), 1, 4800)
     assert out.shape == (4800, 4)
     assert np.all(np.isfinite(out))
     assert np.max(np.abs(out)) > 0.0

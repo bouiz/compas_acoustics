@@ -7,7 +7,7 @@ import sys
 
 import compas_pb
 from compas_invocations2 import build
-from compas_invocations2 import docs
+from compas_invocations2 import docs as ci_docs
 from compas_invocations2 import style
 from compas_invocations2 import tests
 from compas_pb.invocations import generate_proto_classes
@@ -56,6 +56,50 @@ def build_gha(ctx, configuration="Release"):
 
 
 @task
+def docs_components(ctx):
+    """Generate the Grasshopper component pages and the example pages of the docs, and check their images (docs/_ext/ghcomponents)."""
+    with ctx.cd(ctx.base_folder):
+        ctx.run('"{}" docs/_ext/ghcomponents'.format(sys.executable))
+
+
+@task(help={"all": "Run every example, not only those whose output is out of date."})
+def docs_images(ctx, all=False):  # noqa: A002 (the flag is --all)
+    """Run the example scripts headless and save their figures and printed output into docs/_images/examples/."""
+    sys.path.insert(0, os.path.join(ctx.base_folder, "docs", "_ext"))
+    from ghcomponents import fingerprints
+    from ghcomponents.examples import discover
+
+    images = os.path.join(ctx.base_folder, "docs", "_images")
+    record = fingerprints.load()
+    scripts = [e.py for e in discover(os.path.join(ctx.base_folder, "examples")) if e.py]
+    if not all:
+        stale = {s.name for s in fingerprints.stale_files("py", scripts, record, fingerprints.IMAGES)}
+        scripts = [p for p in scripts if p.stem in stale]
+    for script in scripts:
+        out = os.path.join(images, "examples", script.stem)
+        print("Running {}".format(script.name))
+        with ctx.cd(ctx.base_folder):
+            result = ctx.run('"{}" docs/_tools/run_example.py "{}" "{}"'.format(sys.executable, script, out), warn=True)
+        if result.ok:
+            fingerprints.record_file(record, "py", script)
+            fingerprints.save(record)
+    print("Ran {} example(s).".format(len(scripts)))
+
+
+@task(
+    pre=[docs_components],
+    help={
+        "rebuild": "True to clean all previously built docs before starting, otherwise False.",
+        "doctest": "True to run doctests, otherwise False.",
+        "check_links": "True to check all web links in docs for validity, otherwise False.",
+    },
+)
+def docs(ctx, doctest=False, rebuild=False, check_links=False):
+    """Generate the component and example pages, then build the HTML documentation."""
+    ci_docs.docs(ctx, doctest=doctest, rebuild=rebuild, check_links=check_links)
+
+
+@task
 def pre_build(ctx):
     """Generate the files that go into the wheel but are not in git: none, the protobuf bindings are committed."""
 
@@ -84,12 +128,14 @@ def installer_bundle(ctx, output="dist"):
 
 
 ns = Collection(
-    docs.help,
+    ci_docs.help,
     style.check,
     style.lint,
     style.format,
-    docs.docs,
-    docs.linkcheck,
+    docs,
+    docs_components,
+    docs_images,
+    ci_docs.linkcheck,
     tests.test,
     tests.testdocs,
     tests.testcodeblocks,

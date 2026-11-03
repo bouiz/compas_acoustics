@@ -336,7 +336,7 @@ namespace CompasAcoustics.Grasshopper
         }
     }
 
-    /// <summary>Deconstruct Parameter's body: its controls, and a strip of bars when it holds one parameter per band.</summary>
+    /// <summary>Deconstruct Parameter's body: its controls, and a compact chart when it holds one parameter per band.</summary>
     public sealed class ParameterStripUi : ComponentUi
     {
         private const float Height = ChartLayout.StripHeight;

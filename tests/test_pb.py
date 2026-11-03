@@ -141,12 +141,12 @@ def test_the_plugin_is_discovered_through_the_entry_point():
 
 
 @pytest.mark.parametrize("value", [{"a": 1, "b": [1.5, "x", None]}, [1, 2.0, "three"]])
-def test_plain_containers_still_travel(value):
+def test_plain_containers_travel(value):
     assert roundtrip(value) == value
 
 
 # ---------------------------------------------------------------------------
-# Responses, audio, rays and reflections (Task 2)
+# Responses, audio, rays and reflections
 # ---------------------------------------------------------------------------
 
 import numpy as np  # noqa: E402

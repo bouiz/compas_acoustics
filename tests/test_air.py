@@ -48,7 +48,7 @@ def test_without_a_medium_the_air_is_iso_9613_1_at_20_c_and_50_percent():
     np.testing.assert_array_equal(air_attenuation(None), default.air_attenuation(SYNTHESIS_BANDS))
 
 
-# RAVEN's calculateSoundSpeed (Cramer 1993, 400 ppm CO2); pyfar takes 425 ppm, 0.003 m/s slower
+# Cramer (1993) at 400 ppm CO2; pyfar's 425 ppm is 0.003 m/s slower, inside the tolerance
 @pytest.mark.parametrize(("t", "h", "p", "c"), [
     (20.0, 50.0, 101325.0, 343.987),
     (0.0, 0.0, 101325.0, 331.448),

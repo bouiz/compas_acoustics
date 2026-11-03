@@ -6,13 +6,10 @@ using Xunit;
 
 namespace CompasAcoustics.Grasshopper.Tests
 {
-    /// <summary>Every component of the plugin, built outside Rhino, against its spec (the Python component's metadata.json).</summary>
+    /// <summary>Every component of the plugin, built outside Rhino, against its spec (the component's metadata.json).</summary>
     public class AllComponentsTests
     {
-        /// <summary>
-        /// The component types this test host can load: the ones with a right-click menu need System.Windows.Forms, which
-        /// Rhino provides and the test host does not have (<see cref="MenuComponents"/>).
-        /// </summary>
+        /// <summary>The plugin's types that this test host can load.</summary>
         private static Type[] Loadable()
         {
             try
@@ -24,8 +21,6 @@ namespace CompasAcoustics.Grasshopper.Tests
                 return e.Types.Where(t => t != null).ToArray()!;
             }
         }
-
-        public static readonly string[] MenuComponents = { };
 
         public static IEnumerable<object[]> Components() =>
             Loadable().Where(t => t.IsSubclassOf(typeof(ComponentBase)) && !t.IsAbstract).Select(t => new object[] { t.Name });
@@ -43,7 +38,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(spec.Nickname, component.NickName);
             Assert.Equal(spec.Description, component.Description);
             Assert.Equal(ComponentBase.CategoryName, component.Category);
-            Assert.Equal(spec.Subcategory, component.SubCategory);
+            Assert.Equal(ComponentBase.RibbonSubcategory(spec.Subcategory), component.SubCategory);
             Assert.Equal(spec.Inputs.Select(p => p.Name), component.Params.Input.Select(p => p.Name));
             Assert.Equal(spec.Inputs.Select(p => p.Access), component.Params.Input.Select(p => p.Access));
             Assert.Equal(spec.Inputs.Select(p => p.Optional), component.Params.Input.Select(p => p.Optional));
@@ -99,8 +94,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.DoesNotContain("sh_order", new SimulateAmbisonicsComponent().Params.Input.Select(p => p.Name));
             Assert.True(new SimulateAmbisonicsComponent().IsChoice("sh_order"));
             Assert.DoesNotContain("hrtf", new SimulateAmbisonicsComponent().Params.Input.Select(p => p.Name));
-            Assert.All(new ComponentBase[] { new SimulateBinauralComponent(), new SimulateAmbisonicsComponent() },
-                c => Assert.DoesNotContain("output", c.Params.Input.Select(p => p.Name)));
         }
     }
 }

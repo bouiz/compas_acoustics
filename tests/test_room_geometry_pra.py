@@ -183,7 +183,7 @@ def test_a_medium_without_air_absorption_only_sets_the_speed():
 
 
 def test_without_a_medium_the_room_is_in_the_default_medium():
-    # Not pyroomacoustics' own air table (19.3 C, 0.3 % from 343 m/s), which the hybrid never used
+    # The package's default air, not pyroomacoustics' own air table
     from compas_acoustics import AirConditions
 
     room = geometry().to_pra(48000, 1, air_absorption=True)

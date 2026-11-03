@@ -43,7 +43,7 @@ namespace CompasAcoustics.Grasshopper
             g.FillRectangle(Brushes.White, strip);
             if (Body.Shown is not { } material)
                 return;
-            // as Deconstruct Parameter's strip: the bands below, 0 and 1 beside
+            // the bands below, 0 and 1 beside
             var labelWidth = Math.Max(GH_FontServer.StringWidth("0", ChartPainter.Tiny), GH_FontServer.StringWidth("1", ChartPainter.Tiny));
             var chart = MaterialChart.Strip(material.AbsorptionCoefficients.ToList(),
                 material.ScatteringCoefficients.Count > 0 ? material.ScatteringCoefficients.ToList() : null, strip, labelWidth);

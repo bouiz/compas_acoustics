@@ -61,13 +61,11 @@ class RoomTarget:
 
         ``n_slopes=1`` fits one Schroeder slope from -5 dB over ``decay_db`` (30: T30, 20: T20). The shorter
         range stays above the late tail, where a reference whose decay is carried by few long-lived rays is least
-        repeatable (one room at 20k and 40k rays: T30 moved 16-18 % at 250-1000 Hz, T20 5-7 %). ``n_slopes=0`` lets
-        DecayFitNet (Goetz et al. 2022) infer one to three slopes per band, as coupled rooms need; ``decay_db`` is
-        then ignored.
+        repeatable. Any other ``n_slopes`` uses DecayFitNet (Goetz et al. 2022): 0 infers one to three slopes per
+        band, as coupled rooms need, and 2 or 3 force that many; ``decay_db`` is then ignored.
 
-        Forcing two slopes on a single 0.8 s decay returned 0.626 and 0.661 s (auto-detection: one 0.76 s slope):
-        the estimator cannot decline, so the caller must. Slopes are returned fastest first; two closer than about
-        20 dB in level are not resolvable and come back near-identical.
+        A forced count is returned even on a single-slope decay: the estimator cannot decline, so the caller must.
+        Slopes are returned fastest first; slopes close in level are not resolved and come back near-identical.
         """
         rir = np.asarray(rir, dtype=float).ravel()
         if n_slopes == 1:
@@ -117,8 +115,8 @@ class RoomTarget:
     ) -> RoomTarget:
         """Predict a single-slope target from geometry and materials (:func:`~compas_acoustics.room.diffuse.predicted_rt`).
 
-        ``weighting="surface"`` is not a better Eyring: it is closer to a ray tracer in two example rooms only
-        because it under-weights the large absorbing surfaces. ``air_absorption`` defaults to
+        ``model`` and ``weighting`` are those of :func:`~compas_acoustics.room.diffuse.predicted_rt` and
+        :func:`~compas_acoustics.room.diffuse.mean_absorption`. ``air_absorption`` defaults to
         ``spec.air_absorption``, which keeps the decay and the image source gains consistent.
         """
         if air_absorption is None:

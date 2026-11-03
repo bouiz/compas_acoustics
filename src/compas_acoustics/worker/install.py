@@ -45,7 +45,7 @@ def install_worker(wheel, hybrid=False, home=WORKER_HOME, config=CONFIG, python_
     python = home / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
     # On Python >= 3.11 compas_acoustics requires the hybrid method's packages too
     subprocess.run([uv, "pip", "install", "--python", str(python), "compas_acoustics @ {}".format(Path(wheel).resolve().as_uri())], check=True, env=env)
-    # The first import of the scientific stack takes about 30 s; do it here, not on the first Grasshopper call
+    # The first import of the scientific stack is slow; do it here, not on the first Grasshopper call
     subprocess.run([str(python), "-c", "import compas_acoustics.simulation_methods as m; m.Binaural" if hybrid else "import compas_acoustics.worker.api"], check=True, env=env)
     config.parent.mkdir(parents=True, exist_ok=True)
     config.write_text(json.dumps({"python": str(python), "hybrid": hybrid}))

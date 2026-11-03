@@ -89,7 +89,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal((folder, name), AuraliseGroups.SaveTarget(path));
 
         [Fact]
-        public void Auralise_SavesWithAButton_InPlaceOfThreeInputs()
+        public void Auralise_SavesWithAButton()
         {
             Assert.Equal(new[] { "irs", "anechoic_sounds", "mix_sources" }, ComponentSpec.Load("CA_Auralise").Inputs.Select(p => p.Name));
             var auralise = new AuraliseComponent();

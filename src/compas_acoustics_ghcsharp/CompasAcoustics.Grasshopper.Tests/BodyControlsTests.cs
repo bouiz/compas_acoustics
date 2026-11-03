@@ -7,7 +7,7 @@ using Xunit;
 
 namespace CompasAcoustics.Grasshopper.Tests
 {
-    /// <summary>The body controls of the plan of 2026-10-23: typed inputs, toggles, dropdowns with labels, sliders, file buttons.</summary>
+    /// <summary>The body controls: typed inputs, toggles, dropdowns with labels, sliders, file buttons.</summary>
     public class BodyControlsTests
     {
         // the test runner reads these signatures before WinFormsResolver is registered: no plugin type in them
@@ -280,7 +280,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal("Frequency bands", ControlLayout.Title(band));
             Assert.Equal(new[] { "", "0", "1", "2", "3", "4", "5", "6" }, band.Options);
             Assert.Equal(new[] { "Full (A-weighted)", "125 Hz", "250 Hz", "500 Hz", "1 kHz", "2 kHz", "4 kHz", "8 kHz" }, band.Options.Select(o => ControlLayout.Label(band, o)));
-            Assert.DoesNotContain("Play", ComponentSpec.Load("CA_Visualise_Energy_Map").Description);
         }
 
         [Fact]
@@ -380,12 +379,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(13, category.Options.Length);
             Assert.Equal("Other", category.Default);
             Assert.Contains("Stone & Tiles", category.Options);
-        }
-
-        [Fact]
-        public void TheAudioPlayer_HasNoSamplingRateInput()
-        {
-            Assert.Equal(new[] { "audio" }, ComponentSpec.Load("CA_Audio_Player").Inputs.Select(p => p.Name));
         }
     }
 }

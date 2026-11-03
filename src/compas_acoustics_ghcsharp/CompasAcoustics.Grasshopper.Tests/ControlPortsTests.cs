@@ -36,7 +36,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void TheSource_ChoosesItsDirectivityOnTheBody_AndTheDirectivityComponentIsGone()
+        public void TheSource_ChoosesItsDirectivityOnTheBody()
         {
             var source = new SourceComponent();
             var dropdown = source.Controls.OfType<DropdownControl>().Single();
@@ -46,7 +46,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(new[] { "sound_file" }, source.ControlPorts);
             Assert.True(source.IsChoice("directivity"));
             Assert.DoesNotContain("directivity", ComponentSpec.Load("CA_Source").Inputs.Select(p => p.Name));
-            Assert.DoesNotContain("CA_Directivity", ComponentSpec.Names());
         }
 
         [Fact]
@@ -60,9 +59,9 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void APreviewOffByDefault_IsOffInADocumentSavedBeforeIt_AndKeepsWhatIsSavedSince()
+        public void APreviewOffByDefault_IsOffInADocumentWithoutTheKey_AndKeepsASavedValue()
         {
-            // saved before: Grasshopper's own Hidden (false) and no word of ours
+            // without the key: Grasshopper's own Hidden (false) only
             var old = new GH_LooseChunk("component");
             new AcousticObjectComponent().Write(old);
             old.RemoveItem(ComponentBase.PreviewKey);
@@ -71,7 +70,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             var back = new AcousticObjectComponent();
             Assert.True(back.Read(read));
             Assert.True(back.Hidden);
-            // turned on and saved since: on
+            // turned on and saved: on
             var shown = new AcousticObjectComponent { Hidden = false };
             var chunk = new GH_LooseChunk("component");
             shown.Write(chunk);

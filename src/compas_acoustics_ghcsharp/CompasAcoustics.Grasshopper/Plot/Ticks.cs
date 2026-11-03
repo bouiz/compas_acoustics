@@ -4,7 +4,7 @@ using System.Linq;
 
 namespace CompasAcoustics.Grasshopper
 {
-    /// <summary>Axis ticks and curve decimation of Plot 2D, as compas_acoustics_ghpython's plotter computed them.</summary>
+    /// <summary>Axis ticks and curve decimation of Plot 2D.</summary>
     public static class Ticks
     {
         /// <summary>A curve is drawn with the minimum and maximum of each of this many bins along the x axis.</summary>
@@ -34,7 +34,7 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>Nice ticks from at or below ``low`` to at or above ``high``.</summary>
         public static double[] Linear(double low, double high) => Linear(low, high, out _);
 
-        /// <param name="integral">Whether the ticks are whole numbers, which Python labelled as ints.</param>
+        /// <param name="integral">Whether the ticks are whole numbers, which <see cref="Label"/> prints as ints.</param>
         public static double[] Linear(double low, double high, out bool integral)
         {
             integral = false;
@@ -48,7 +48,7 @@ namespace CompasAcoustics.Grasshopper
             return Enumerable.Range(first, last - first + 1).Select(i => Math.Round(i * step, decimals, MidpointRounding.ToEven)).ToArray();
         }
 
-        /// <summary>The y ticks of a bands plot (calculate_ticks): around the values, a step below a minimum that would lie on the axis.</summary>
+        /// <summary>The y ticks of a bands plot: around the values, a step below a minimum that would lie on the axis.</summary>
         public static double[] ForValues(IReadOnlyList<double> values) => ForValues(values, out _);
 
         public static double[] ForValues(IReadOnlyList<double> values, out bool integral)
@@ -104,7 +104,7 @@ namespace CompasAcoustics.Grasshopper
             return lowest.Concat(highest).Where(i => i >= 0).Distinct().OrderBy(i => i).ToArray();
         }
 
-        /// <summary>A tick as Python's ``str`` printed it: an int for whole-number ticks, else the float.</summary>
+        /// <summary>A tick's label: an int for whole-number ticks, else the float as Python's ``str`` prints it.</summary>
         public static string Label(double tick, bool integral) =>
             integral ? ((long)Math.Round(tick)).ToString(System.Globalization.CultureInfo.InvariantCulture) : PythonFormat.Repr(tick);
     }

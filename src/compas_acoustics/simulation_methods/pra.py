@@ -30,18 +30,16 @@ class Mono(SimulationMethod):
     Parameters
     ----------
     image_source_order : int, default=3
-        Last specular order. With ray tracing a room with uneven absorption stops depending on it from 6 to 10;
-        3 is chosen for the cost of the search: T30 did not move between 3 and 6, EDT by up to 15 % and C80 1 dB.
+        Last specular order; with ``ray_tracing`` the ray tracer covers what follows. The search cost grows steeply with the order
+        (:func:`~compas_acoustics.simulation_methods.image_source_search_seconds`).
     ray_tracing : bool, default=True
         Materials without scattering coefficients scatter 0.05 in every band.
     air_absorption : bool, default=True
     n_rays : int or None, default=20000
-        Per source; None: a heuristic of at least 50000. The T30 spread across seeds is about 3.9 % at 20000
-        and 2.6 % at 50000.
+        Per source; None: a heuristic of at least 50000.
     energy_thres : float, default=1e-7
         The product of its reflections in its least absorbed band at which a ray stops; the logged energy is
-        that over the squared distance (Schroeder 2011, eq. 5.54), so the tail has decayed much further. No
-        parameter moved beyond the seed spread between 1e-8 and 1e-4; 1e-8 cost 25 % more in a reverberant room.
+        that over the squared distance (Schroeder 2011, eq. 5.54), so the tail has decayed much further.
     duration : float, optional
         Of the ray-traced responses, in seconds; default 1.5 times the longest Eyring reverberation time, within
         0.5 to 12 s (10 s for a scene that closes no volume), with a warning at the cap. Without ray tracing the
@@ -175,9 +173,9 @@ class Mono(SimulationMethod):
     def _warn_if_cut_short(rirs: dict, fs: int) -> None:
         """Warn when a response ends before 2/3 of its own longest T30.
 
-        The buffer comes from Eyring, which a non-diffuse room can underestimate several times over (0.64 s for
-        a furnished office decaying in 2 s). T30's fit ends 35 dB down, at 0.58 of the reverberation time; a decay
-        cut at 2/3 of it reads T30 2.4 % short (0.7 % at 0.76, 5 % at 0.6), and cuts the hybrid's decay fit.
+        The buffer comes from Eyring, which a non-diffuse room can underestimate several times over. T30's fit
+        ends 35 dB down, at 0.58 of the reverberation time, so a response shorter than 2/3 of it biases T30 and
+        cuts the hybrid's decay fit.
         """
         from compas_acoustics.analyser import Analyser
 

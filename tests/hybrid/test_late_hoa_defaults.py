@@ -2,15 +2,10 @@
 
 ``num_delays`` and ``sh_order`` are coupled twice over: the direction grid has
 to hold exactly one point per delay line, and it has to support the order well
-enough that the delay lines stay decorrelated across ambisonic channels. With
-a fixed default of 16 the second order failed the leakage check at 7.8 per
-cent and the third could not even be built -- ``equal_area`` returns 17 points
-when asked for 16 at ``n_max=3``.
-
-The set of counts that satisfies both is irregular (20, 23, 24, 27 ... for
-second order), so the default is searched for rather than computed.
-
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, tests/test_late_hoa_defaults.py).
+enough that the delay lines stay decorrelated across ambisonic channels.
+``equal_area`` does not always return the count asked for (17 points for 16
+at ``n_max=3``), and the set of counts that satisfies both is irregular, so
+the default is searched for rather than computed.
 """
 
 import numpy as np
@@ -53,6 +48,6 @@ def test_the_grid_depends_on_the_count_alone():
 
 
 def test_a_delay_count_that_cannot_support_the_order_raises():
-    """The guard must not be softened into a silent substitution."""
+    """An order the grid cannot carry raises rather than being replaced."""
     with pytest.raises(ValueError, match="leaks"):
         ambisonic_output_matrix(2, fdn_directions(16))

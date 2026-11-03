@@ -40,7 +40,7 @@ def box_mesh():
 
 
 # ---------------------------------------------------------------------------
-# Task 4: materials and model makers
+# Materials and model makers
 # ---------------------------------------------------------------------------
 
 
@@ -91,12 +91,6 @@ def test_make_receiver_defaults_to_room_aligned_at_one_metre():
 def test_make_receiver_takes_a_direction_and_stays_upright():
     receiver = call("make_receiver", "r", [1, 2, 3], [0, 1, 0])["receiver"]
     assert np.allclose(list(receiver.direction), [0, 1, 0]) and np.allclose(list(receiver.up), [0, 0, 1])
-
-
-def test_make_receiver_has_no_up():
-    import inspect
-
-    assert list(inspect.signature(api.make_receiver).parameters) == ["name", "position", "direction", "frame"]
 
 
 def test_make_receiver_from_a_frame_faces_its_x_axis():
@@ -155,7 +149,7 @@ def test_make_scene_keeps_no_name_as_none_and_validates_the_rate():
 
 
 # ---------------------------------------------------------------------------
-# Task 5: analysis, auralise, play, stop
+# Analysis, auralise, play, stop
 # ---------------------------------------------------------------------------
 
 from pathlib import Path  # noqa: E402
@@ -309,7 +303,7 @@ def test_play_and_stop_reach_the_player(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Task 6: rays, reflections, fitness
+# Rays, reflections, fitness
 # ---------------------------------------------------------------------------
 
 from compas_acoustics import RayField  # noqa: E402
@@ -383,7 +377,7 @@ def test_regularized_fitness_matches_the_function():
 
 
 # ---------------------------------------------------------------------------
-# Task 15: what Check Channel asks about a file
+# What the Check Channel component asks about a file
 # ---------------------------------------------------------------------------
 
 
@@ -405,7 +399,7 @@ def test_sound_info_of_a_missing_or_unreadable_file_is_a_value_error(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Playback control (Grasshopper UI plan, Task 2)
+# Playback control
 # ---------------------------------------------------------------------------
 
 
@@ -514,9 +508,9 @@ def test_energy_map_fixes_its_rays_seed_and_image_source_order():
     # the same map every run: a map has no setting to tune but its grid
     assert "seed" not in result
     assert result["spl_a"] == call("energy_map", scene, [[4, 3, 1.2]])["spl_a"]
-    for removed in ("n_rays", "image_source_order", "seed"):
+    for fixed in ("n_rays", "image_source_order", "seed"):
         with pytest.raises(TypeError):
-            api.energy_map(scene, [[4, 3, 1.2]], **{removed: 1})
+            api.energy_map(scene, [[4, 3, 1.2]], **{fixed: 1})
 
 
 def test_energy_map_rejects_a_source_index_out_of_range():

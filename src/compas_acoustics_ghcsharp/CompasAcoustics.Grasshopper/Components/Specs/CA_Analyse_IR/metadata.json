@@ -2,12 +2,10 @@
     "name": "Analyse Impulse Response",
     "nickname": "AnalyseIR",
     "category": "COMPAS Acoustics",
-    "subcategory": "03 Analysis",
-    "description": "Analyse impulse response (IR) and return acoustic parameters such as EDT, T20, C50, etc., and its time and frequency responses for Plot 2D. Computed in the compas_acoustics worker.",
+    "subcategory": "Analysis",
+    "description": "Analyse an impulse response (IR): acoustic parameters such as EDT, T20 and C50, and its time and frequency responses for Plot 2D. Computed in the compas_acoustics worker.",
     "exposure": 2,
-    "ghpython": {
-        "isAdvancedMode": true,
-        "iconDisplay": 0,
+    "ports": {
         "inputParameters": [
             {
                 "name": "ir",
@@ -20,11 +18,11 @@
         "outputParameters": [
             {
                 "name": "parameters",
-                "description": "List of acoustic parameters ('EDT', 'T20', 'T30', 'C50', 'C80', 'D50', 'DRR', 'Ts', 'STI', with its modulation transfer index per band, 'G', 'SPL', 'LF' and 'LFC'; G and SPL (the sound pressure level from the source's level at 1 m, overall A-weighted) only for a simulated response, LF and LFC, the early lateral energy fractions, only for an ambisonic one)."
+                "description": "List of acoustic parameters: 'EDT', 'T20', 'T30', 'C50', 'C80', 'D50', 'DRR', 'Ts', 'STI' (with its modulation transfer index per band), 'G', 'SPL', 'LF' and 'LFC'. G and SPL (the sound pressure level from the source's level at 1 m, overall A-weighted) only for a simulated response; LF and LFC, the early lateral energy fractions, only for an ambisonic one."
             },
             {
                 "name": "time",
-                "description": "The impulse response against time, for Plot 2D or a panel: the W channel of an ambisonic response, both ears (left, right) of a binaural one. Right-click it to choose the scale: dB (default), the level re the peak floored 100 dB below it, the whole response; or linear, the amplitude: it ends 5 % after the Schroeder curve falls 60 dB, below which the amplitude is invisible. The parameters and the frequency output use the whole response."
+                "description": "The impulse response against time, for Plot 2D or a panel: the W channel of an ambisonic response, both ears (left, right) of a binaural one. Right-click the output to choose the scale: dB (default), the level re the peak, floored 100 dB below it, over the whole response; or linear, the amplitude, ending 5 % after the Schroeder curve has fallen 60 dB, below which the amplitude is not visible. The parameters and the frequency output use the whole response."
             },
             {
                 "name": "frequency",

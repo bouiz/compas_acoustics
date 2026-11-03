@@ -57,11 +57,6 @@ def test_the_ray_field_seed_is_true_42_by_default_false_unseeded_or_an_int():
         scattered(random_seed=1.5)
 
 
-def test_ray_field_has_no_merge_coplanar_argument():
-    with pytest.raises(TypeError):
-        RayField.from_scene(shoebox_scene(), n_rays=5, merge_coplanar=True)
-
-
 def test_omnidirectional_sources_carry_no_pyroomacoustics_directivity():
     assert source_to_pra(Source("s", 1, 1, 1)).directivity is None
     assert source_to_pra(Source("c", 1, 1, 1, directivity="cardioid", direction=[1, 0, 0])).directivity is not None

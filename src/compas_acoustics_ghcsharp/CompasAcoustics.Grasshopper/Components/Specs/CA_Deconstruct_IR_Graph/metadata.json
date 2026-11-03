@@ -2,30 +2,28 @@
     "name": "Deconstruct IR Graph",
     "nickname": "DeIRGraph",
     "category": "COMPAS Acoustics",
-    "subcategory": "02 Simulation",
-    "description": "Deconstruct impulse response graph structure into ImpulseResponse(s). It reads the responses of the simulation method whose component the graph came from: Simulate Mono gives the mono responses, Simulate Binaural the binaural ones, Simulate Ambisonics the ambisonic ones.",
+    "subcategory": "Simulation",
+    "description": "Deconstruct an impulse response graph into ImpulseResponse(s). It reads the responses of the simulation method whose component the graph came from: Simulate Mono gives the mono responses, Simulate Binaural the binaural ones, Simulate Ambisonics the ambisonic ones.",
     "exposure": 2,
-    "ghpython": {
-        "isAdvancedMode": true,
-        "iconDisplay": 0,
+    "ports": {
         "inputParameters": [
             {
                 "name": "ir_graph",
-                "description": "Impulse response graph structure.",
+                "description": "Impulse response graph.",
                 "optional": false,
                 "scriptParamAccess": 0,
                 "typeHintID": "ghdoc"
             },
             {
                 "name": "source_idx",
-                "description": "Index(s) of the source(s) to filter, in the order of the scene's sources. With receiver_idx it picks a source-receiver combination, e.g. to pass a single impulse response to Analyse Impulse Response.",
+                "description": "Index or indices of the source(s) to keep, in the order of the scene's sources. With receiver_idx it picks a source-receiver pair, e.g. to pass a single impulse response to Analyse Impulse Response.",
                 "optional": true,
                 "scriptParamAccess": 1,
                 "typeHintID": "int"
             },
             {
                 "name": "receiver_idx",
-                "description": "Index(s) of the receiver(s) to filter.",
+                "description": "Index or indices of the receiver(s) to keep, in the order of the scene's receivers.",
                 "optional": true,
                 "scriptParamAccess": 1,
                 "typeHintID": "int"

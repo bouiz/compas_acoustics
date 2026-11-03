@@ -225,7 +225,7 @@ namespace CompasAcoustics.Grasshopper
 
         public double GainDb { get; private set; }
 
-        /// <summary>Whether a signal is scaled to full level before playing: the Norm toggle, off by default, saved with the component.</summary>
+        /// <summary>Whether a signal is scaled to full level before playing: the Normalize toggle, off by default, saved with the component.</summary>
         public bool Normalize { get; private set; }
 
         /// <summary>Why the signal cannot play (more than two channels), or the last playback error; shown in the header.</summary>
@@ -307,7 +307,6 @@ namespace CompasAcoustics.Grasshopper
         {
             if (!ReferenceEquals(signal, Signal) || file != File)
             {
-                // another signal: what plays stops
                 if (Transport.State != TransportState.Stopped)
                     Send(Transport.Stop());
                 var before = WaveHeight;

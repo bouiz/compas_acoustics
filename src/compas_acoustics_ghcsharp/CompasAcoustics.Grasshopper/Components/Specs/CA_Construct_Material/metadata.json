@@ -2,23 +2,21 @@
     "name": "Construct Material",
     "nickname": "ConMat",
     "category": "COMPAS Acoustics",
-    "subcategory": "00 Elements",
+    "subcategory": "Elements",
     "description": "Create an AcousticMaterial for AcousticObject(s).",
     "exposure": 2,
-    "ghpython": {
-        "isAdvancedMode": true,
-        "iconDisplay": 0,
+    "ports": {
         "inputParameters": [
             {
                 "name": "absorption",
-                "description": "List of absorption coefficients for each frequency band, or one value for every band.",
+                "description": "Absorption coefficients, one per octave band from 125 Hz to 8 kHz (7 values), or one value for every band.",
                 "optional": false,
                 "scriptParamAccess": 1,
                 "typeHintID": "float"
             },
             {
                 "name": "scattering",
-                "description": "Optional. List of scattering coefficients for each frequency band, or one value for every band.",
+                "description": "Optional. Scattering coefficients, one per octave band from 125 Hz to 8 kHz (7 values), or one value for every band.",
                 "optional": true,
                 "scriptParamAccess": 1,
                 "typeHintID": "float"

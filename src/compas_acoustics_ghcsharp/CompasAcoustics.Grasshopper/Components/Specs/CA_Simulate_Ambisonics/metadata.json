@@ -2,12 +2,10 @@
     "name": "Simulate Ambisonics",
     "nickname": "SimAmbi",
     "category": "COMPAS Acoustics",
-    "subcategory": "02 Simulation",
-    "description": "Simulate ambisonic room impulse responses (ACN, SN3D): image sources, optional edge diffraction around obstacles and at the edges of the room's boundary that open wider than 180 deg, and a directional feedback delay network tail. Needs the worker (Python >= 3.11) and a closed room. Writes the responses to the impulse response graph under 'ambisonics'.",
+    "subcategory": "Simulation",
+    "description": "Simulate ambisonic room impulse responses (ACN, SN3D): image sources, optional edge diffraction around obstacles and at the edges of the room's boundary that open wider than 180 deg, and a directional feedback delay network tail. Choose the ambisonic order on the body: 1 (default) to 7. Needs the worker (Python >= 3.11) and a closed room. Writes the responses to the impulse response graph under 'ambisonics'.",
     "exposure": 2,
-    "ghpython": {
-        "isAdvancedMode": true,
-        "iconDisplay": 0,
+    "ports": {
         "inputParameters": [
             {
                 "name": "scene",
@@ -114,7 +112,7 @@
             },
             {
                 "name": "run",
-                "description": "Press to simulate. The simulation takes seconds to minutes and Grasshopper recomputes on every upstream change, so it runs only when this is true; a button is added when it is not connected. Without it, the responses already on the scene's graph are passed on.",
+                "description": "Simulate when true: the body's Run button, or a Button or Boolean Toggle wired here. The simulation takes seconds to minutes and Grasshopper recomputes on every change of the inputs, so it starts only on a press; otherwise the responses of the last run for this scene are passed on.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "bool"

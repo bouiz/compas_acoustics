@@ -191,7 +191,7 @@ def edge():
     return shoebox(source=(2, 2.5, 1.5), receiver=(5, 2.5, 1.5))
 
 
-def test_data_stored_with_wall_names_and_a_speed_of_sound_still_loads():
+def test_data_stored_with_wall_names_and_a_speed_of_sound_loads():
     data = path().__data__
     data.update(wall_names=["floor"], sound_speed=343.98)
     loaded = SpecularPath.__from_data__(data)
@@ -293,7 +293,7 @@ def test_specular_reflections_are_a_ray_field_of_paths_that_end_at_the_receiver(
     assert field.duration_ms == pytest.approx(max(path.travel_time for path in field))
     points, indices, orders = field.particles(0.0)
     assert len(points) == len(field) and set(orders) == {0}
-    # cut paths are plain rays: they no longer reach the receiver
+    # cut paths are plain rays: they stop short of the receiver
     assert all(type(ray) is Ray for ray in field.truncated(reflection_order=1))
     back = compas.json_loads(compas.json_dumps(field))
     assert isinstance(back, SpecularReflections) and back.paths[3].source.name == scene.sources[0].name

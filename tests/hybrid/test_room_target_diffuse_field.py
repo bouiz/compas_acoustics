@@ -1,21 +1,17 @@
 """``RoomTarget.from_room`` must say when Sabine and Eyring do not apply.
 
 Both models collapse the room to one area-weighted mean absorption and assume
-a diffuse field. Measured against pyroomacoustics, that assumption fails in two
-independent ways, and in both the returned target is confidently wrong with
-nothing in the return value to show it:
+a diffuse field. That assumption fails in two independent ways, in both of
+which the returned reverberation time is too short with nothing in the return
+value to show it:
 
 - absorption concentrated on some surfaces (a carpeted, acoustically treated
-  room): Eyring returned 0.233 s at 8 kHz against an actual 0.83 s, 72 % low;
-- high absorption spread uniformly: at alpha = 0.25 Eyring returns 0.414 s
-  against an image source model's converged 0.58 s, because the spread of
-  reflection order at a given path length makes ``E[(1 - a) ** n]`` exceed
-  ``(1 - a) ** E[n]``.
+  room);
+- high absorption spread uniformly: the spread of reflection order at a given
+  path length makes ``E[(1 - a) ** n]`` exceed ``(1 - a) ** E[n]``.
 
-Neither is a defect this package can fix -- the models are pyrato's and they
-are being used correctly. What it can do is refuse to be silent.
-
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, tests/test_room_target_diffuse_field.py).
+The models are pyrato's and are used correctly; what the target can do is
+refuse to be silent.
 """
 
 import warnings
@@ -25,15 +21,16 @@ import pytest
 
 from compas_acoustics.hybrid.bands import BANDS
 from compas_acoustics.room.diffuse import DiffuseFieldWarning
-from _compat import Material, RoomSpec, ShoeboxGeometry
+from _rooms import box_room, pair
 from compas_acoustics.hybrid.target import RoomTarget
+from compas_acoustics.room.geometry import SurfaceMaterial
 
 DIMS = (7.0, 5.0, 3.0)
 
 
-def spec_with(materials):
-    return RoomSpec(
-        geometry=ShoeboxGeometry(DIMS, materials),
+def spec_with(walls, floor=None, ceiling=None):
+    return pair(
+        geometry=box_room(DIMS, walls, floor=floor, ceiling=ceiling),
         source=np.array([1.5, 1.5, 1.6]),
         receiver=np.array([5.0, 3.0, 1.5]),
         air_absorption=False,
@@ -41,7 +38,7 @@ def spec_with(materials):
 
 
 def uniform(alpha):
-    return {n: Material.from_scalar(alpha) for n in ShoeboxGeometry.WALL_NAMES}
+    return SurfaceMaterial("wall", np.full(BANDS.size, float(alpha)))
 
 
 def treated_room():
@@ -49,12 +46,8 @@ def treated_room():
     wall = np.array([0.10, 0.10, 0.08, 0.06, 0.05, 0.05, 0.05, 0.06])
     floor = np.array([0.05, 0.05, 0.10, 0.25, 0.45, 0.60, 0.65, 0.70])
     ceiling = np.array([0.20, 0.25, 0.45, 0.70, 0.80, 0.85, 0.85, 0.80])
-    materials = {
-        n: Material(wall.copy(), BANDS.copy()) for n in ShoeboxGeometry.WALL_NAMES
-    }
-    materials["floor"] = Material(floor, BANDS.copy())
-    materials["ceiling"] = Material(ceiling, BANDS.copy())
-    return materials
+    return dict(walls=SurfaceMaterial("wall", wall), floor=SurfaceMaterial("floor", floor),
+                ceiling=SurfaceMaterial("ceiling", ceiling))
 
 
 def test_a_uniformly_and_lightly_absorbing_room_warns_about_nothing():
@@ -66,7 +59,7 @@ def test_a_uniformly_and_lightly_absorbing_room_warns_about_nothing():
 
 def test_absorption_concentrated_on_two_surfaces_warns():
     with pytest.warns(DiffuseFieldWarning, match="unevenly distributed"):
-        RoomTarget.from_room(spec_with(treated_room()))
+        RoomTarget.from_room(spec_with(**treated_room()))
 
 
 def test_high_uniform_absorption_warns():
@@ -80,17 +73,12 @@ def test_the_uneven_warning_names_only_the_bands_it_applies_to():
     Porous absorbers do exactly this, so the check has to be per band or it
     either cries wolf across the whole spectrum or misses the top of it.
     """
-    wall = Material.from_scalar(0.10)
+    wall = uniform(0.10)
     # identical to the walls in the lowest band, far from them in the highest
-    porous = Material(
-        np.array([0.10, 0.12, 0.16, 0.25, 0.40, 0.55, 0.70, 0.80]), BANDS.copy()
-    )
-    materials = {n: wall for n in ShoeboxGeometry.WALL_NAMES}
-    materials["floor"] = porous
-    materials["ceiling"] = porous
+    porous = SurfaceMaterial("porous", np.array([0.10, 0.12, 0.16, 0.25, 0.40, 0.55, 0.70, 0.80]))
 
     with pytest.warns(DiffuseFieldWarning, match="unevenly distributed") as record:
-        RoomTarget.from_room(spec_with(materials))
+        RoomTarget.from_room(spec_with(wall, floor=porous, ceiling=porous))
     message = str(record[0].message)
     assert "8000" in message
     assert "62.5" not in message

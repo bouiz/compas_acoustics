@@ -46,7 +46,7 @@ def _xyz(message):
 
 
 def _identify(obj, message):
-    """Give ``obj`` the guid and name of ``message``, as the object it was made from."""
+    """Give ``obj`` the guid of ``message``, as the object it was made from."""
     if message.guid:
         obj._guid = UUID(message.guid)
     return obj

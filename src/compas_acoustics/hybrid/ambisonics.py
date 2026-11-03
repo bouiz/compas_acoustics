@@ -72,8 +72,8 @@ def ambisonic_output_matrix(
     with like across orders (in SN3D the diagonal falls as 1 / (2n + 1)).
 
     The late field is isotropic only if ``C @ C.T`` is diagonal; its off-diagonal entries are the channels'
-    cross-correlation, which depends on how well the grid supports ``sh_order``, so it is measured: a
-    16-point spiral grid leaks 21.5 % (about -13 dB of cross-talk), an equal-area one 2e-14 %.
+    cross-correlation, which depends on how well the grid supports ``sh_order``. The largest of them over the
+    mean diagonal is the leakage; a grid leaking more than ``max_leakage`` raises ``ValueError``.
     """
     sh = spharpy.spherical.spherical_harmonic_basis_real(
         sh_order, directions, normalization=normalization, channel_convention="ACN"
@@ -87,8 +87,8 @@ def ambisonic_output_matrix(
         raise ValueError(
             f"direction grid leaks {leakage:.1%} between ambisonic channels, "
             f"above the {max_leakage:.0%} limit: it does not support sh_order="
-            f"{sh_order}. Leave num_delays unset to have default_num_delays"
-            f"({sh_order}) pick a count that works, or pass a better grid."
+            f"{sh_order}; default_num_delays({sh_order}) gives a number of "
+            f"delay lines whose grid does."
         )
     return C
 
@@ -116,5 +116,5 @@ def default_num_delays(sh_order: int, minimum: int | None = None) -> int:
         return num_delays
     raise ValueError(  # pragma: no cover - no order in range hits this
         f"no equal_area grid between {start} and {4 * start} points supports "
-        f"sh_order={sh_order}; pass num_delays explicitly"
+        f"sh_order={sh_order}"
     )

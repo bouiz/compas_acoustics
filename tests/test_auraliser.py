@@ -17,7 +17,7 @@ def test_valid_instance():
 
 
 def test_uppercase_name_raises():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="lowercase"):
         Auraliser(
             name="Room1",
             impulse_responses={},
@@ -26,7 +26,7 @@ def test_uppercase_name_raises():
 
 
 def test_space_name_raises():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="spaces"):
         Auraliser(
             name="Room 1",
             impulse_responses={},
@@ -35,7 +35,7 @@ def test_space_name_raises():
 
 
 def test_ir_empty():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="empty or invalid"):
         Auraliser(
             name="room1",
             impulse_responses={
@@ -51,17 +51,19 @@ def test_ir_empty():
             },
             anechoic_sounds={
                 "ac1": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                    "info": "speech",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
                 }
             },
         )
 
 
 def test_ir_sampling_rate_negative():
-    with pytest.raises(ValueError):
+    # an explicit auraliser rate, so that the impulse response's own rate is the one checked
+    with pytest.raises(ValueError, match="invalid sample rate"):
         Auraliser(
             name="room1",
+            sampling_rate=sampling_rate_default,
             impulse_responses={
                 "ir1": {
                     "info": "invalid_ir_hoa_order",
@@ -75,35 +77,35 @@ def test_ir_sampling_rate_negative():
             },
             anechoic_sounds={
                 "ac1": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                    "info": "speech",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
                 }
             },
         )
 
 
 def test_sampling_rate_negative():
-    with pytest.raises(ValueError):
-        a = Auraliser(
-            name="room1",
-            impulse_responses={
-                "ir1": {
-                    "info": "invalid_ir_hoa_order",
-                    "sampling_rate": sampling_rate_default,
-                    "ambisonic_order": 2,
-                    "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
-                    "ir": np.zeros([48000,9]),
-                    "normalization": "sn3d",
-                    "channel_order": "acn",
-                },
+    a = Auraliser(
+        name="room1",
+        impulse_responses={
+            "ir1": {
+                "info": "invalid_ir_hoa_order",
+                "sampling_rate": sampling_rate_default,
+                "ambisonic_order": 2,
+                "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
+                "ir": np.zeros([48000,9]),
+                "normalization": "sn3d",
+                "channel_order": "acn",
             },
-            anechoic_sounds={
-                "ac1": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
-                }
-            },
-        )
+        },
+        anechoic_sounds={
+            "ac1": {
+                "info": "speech",
+                "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
+            }
+        },
+    )
+    with pytest.raises(ValueError, match="Sample rate must be a positive"):
         a.sampling_rate = -sampling_rate_default
 
 
@@ -133,12 +135,12 @@ def test_ir_warning_resample():
             },
             anechoic_sounds={
                 "ac1": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                    "info": "speech",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
                 },
                 "ac2": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                    "info": "speech",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
                 }
             },
         )
@@ -162,8 +164,8 @@ def test_ir_warning_ambisonics_order_mismatch():
             },
             anechoic_sounds={
                 "ac1": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                    "info": "speech",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
                 }
             },
         )
@@ -186,8 +188,8 @@ def test_ir_transposed():
             },
             anechoic_sounds={
                 "ac1": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                    "info": "speech",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
                 }
             },
         )
@@ -210,8 +212,8 @@ def test_ir_warning_ambisonics_order_empty():
             },
             anechoic_sounds={
                 "ac1": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                    "info": "speech",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
                 }
             },
         )
@@ -233,8 +235,8 @@ def test_ir_warning_normalization_empty():
             },
             anechoic_sounds={
                 "ac1": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                    "info": "speech",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
                 }
             },
         )
@@ -256,15 +258,15 @@ def test_ir_warning_channel_order_empty():
             },
             anechoic_sounds={
                 "ac1": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                    "info": "speech",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
                 }
             },
         )
 
 
 def test_ir_invalid_ambisonics_order():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="valid channel count"):
         Auraliser(
             name="room1",
             impulse_responses={
@@ -280,8 +282,8 @@ def test_ir_invalid_ambisonics_order():
             },
             anechoic_sounds={
                 "ac1": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                    "info": "speech",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
                 }
             },
         )
@@ -304,8 +306,8 @@ def test_ir_fuma_channel_ordering_raises():
             },
             anechoic_sounds={
                 "ac1": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                    "info": "speech",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
                 }
             },
         )
@@ -328,8 +330,8 @@ def test_warning_ir_n3d_normalization():
             },
             anechoic_sounds={
                 "ac1": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                    "info": "speech",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
                 }
             },
         )
@@ -360,20 +362,20 @@ def test_ir_maximum_length():
         },
         anechoic_sounds={
                 "ac1": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                    "info": "speech",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
                 },
                 "ac2": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                    "info": "speech",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
                 }
             },
     )
     assert a.longest_impulse_response_length == 100000
 
 
-def test_anechoioc_sounds_allowed_extensions():
-    with pytest.raises(ValueError):
+def test_anechoic_sounds_allowed_extensions():
+    with pytest.raises(ValueError, match="must be one of"):
         Auraliser(
             name="room1",
             impulse_responses={
@@ -389,7 +391,7 @@ def test_anechoioc_sounds_allowed_extensions():
             },
             anechoic_sounds={
                 "ac1": {
-                    "info": "whatevs",
+                    "info": "speech",
                     "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp4"),
                 }
             },
@@ -397,14 +399,14 @@ def test_anechoioc_sounds_allowed_extensions():
 
 
 def test_number_of_irs_vs_anechoic_sounds():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="not coherent"):
         Auraliser(
             name="room1",
             impulse_responses={},
             anechoic_sounds={
                 "ac1": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                    "info": "speech",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
                 }
             },
         )
@@ -435,12 +437,12 @@ def test_maximum_ambisonic_order():
         },
         anechoic_sounds={
                 "ac1": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                    "info": "speech",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
                 },
                 "ac2": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                    "info": "speech",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
                 }
             },
     )
@@ -472,12 +474,12 @@ def test_impulse_response_and_anechoic_sounds_count():
         },
         anechoic_sounds={
                 "ac1": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                    "info": "speech",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
                 },
                 "ac2": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                    "info": "speech",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
                 }
             },
     )
@@ -510,7 +512,6 @@ def test_import_anechoic_sound():
     filepath = Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"
     audio = a.import_anechoic_sound(filepath, sampling_rate_default)
 
-    # Assertions
     assert isinstance(audio, np.ndarray), "Audio should be a numpy array"
     assert audio.size > 0, "Audio array should not be empty"
     assert audio.ndim == 1, "Audio should be mono (1D array)"
@@ -571,11 +572,11 @@ def test_convolve_ambisonics():
         },
         anechoic_sounds={
             "ac1": {
-                "info": "whatevs",
+                "info": "speech",
                 "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
             },
             "ac2": {
-                "info": "whatevs",
+                "info": "speech",
                 "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
             }
         },
@@ -583,14 +584,11 @@ def test_convolve_ambisonics():
 
     result = a.convolve()
 
-    # Test 1: result should be a NumPy array
     assert isinstance(result, np.ndarray), f"Expected a NumPy array, got {type(result)}"
 
-    # Test 2: number of channels should match maximum Ambisonics order
     expected_channels = (a.maximum_ambisonics_order + 1) ** 2
     assert result.shape[1] == expected_channels, f"Expected {expected_channels} channels, got {result.shape[1]}"
 
-    # Test 3: number of samples should be >= longest IR length
     longest_ir = max(ir_data['ir'].shape[0] for ir_data in a.impulse_responses.values())
     assert result.shape[0] >= longest_ir, f"Expected at least {longest_ir} samples, got {result.shape[0]}"
 
@@ -620,11 +618,11 @@ def test_export_convolved_sound(tmp_path):
         },
         anechoic_sounds={
             "ac1": {
-                "info": "whatevs",
+                "info": "speech",
                 "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
             },
             "ac2": {
-                "info": "whatevs",
+                "info": "speech",
                 "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
             }
         },

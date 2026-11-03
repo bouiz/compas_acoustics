@@ -12,8 +12,8 @@ A clear and concise description of what the bug is.
 
 Steps to reproduce the behavior:
 
-1. Context [e.g. ST3, Rhino, Blender, ...]
-2. Sample script
+1. Context [Grasshopper or a Python script]
+2. Sample script or `.gh` file
 3. Sample data
 4. See error
 
@@ -25,11 +25,16 @@ A clear and concise description of what you expected to happen.
 
 If applicable, add screenshots to help explain your problem.
 
-**Desktop (please complete the following information):**
+**Environment (please complete the following information):**
 
-- OS: [e.g. iOS]
-- Python version [e.g. 2.7]
-- Python package manager [e.g. macports, pip, conda]
+- compas_acoustics version [e.g. 0.1.0]
+- OS [e.g. Windows 11, macOS 15]
+- Rhino version [e.g. 8.12], or Python version [e.g. 3.12] for scripts
+- How compas_acoustics was installed [installer bundle, pip, editable clone]
+
+**Worker log**
+
+For problems in Grasshopper, attach the worker log: right-click any component and choose "Open worker log".
 
 **Additional context**
 

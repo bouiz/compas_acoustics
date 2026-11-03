@@ -1,4 +1,4 @@
-"""Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, tests/test_bands.py)."""
+"""The octave-band grid of the hybrid synthesis."""
 
 import numpy as np
 import pyFDN

@@ -93,7 +93,7 @@ def test_a_t_junction_seam_still_closes():
 
 
 def test_a_sliver_face_off_an_edge_still_closes():
-    # As in BRAS CR2: a sliver's apex lies a fraction of a millimetre off its own long edge, inside the weld
+    # A sliver's apex lies a fraction of a millimetre off its own long edge, inside the weld
     # tolerance but not on the edge; taking it for a T-junction would make the edge non-manifold.
     walls = [o for o in shoebox_leaves() if not o.name.endswith("floor")]
     apex = [3.5, 5e-4, 0.0]
@@ -197,7 +197,7 @@ def test_from_mesh_matches_from_scene():
     assert mesh.is_closed and mesh.volume == pytest.approx(scene.volume)
 
 
-def test_surfaces_volume_and_area_match_upstream_meshgeometry():
+def test_surfaces_volume_and_area_are_summed_per_material():
     panel = quad("panel", [[3, 1, 0.5], [3, 1, 2.5], [3, 3, 2.5], [3, 3, 0.5]], AcousticMaterial("felt", 0.6, 0.2), role="obstacle")
     g = RoomGeometry.from_scene(scene_of(*shoebox_leaves(), panel))
     surfaces = dict((material.name, area) for area, material in g.surfaces)

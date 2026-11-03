@@ -2,12 +2,10 @@
     "name": "Visualise Billiard",
     "nickname": "Billiard",
     "category": "COMPAS Acoustics",
-    "subcategory": "05 Display",
+    "subcategory": "Display",
     "description": "The rays of a ray field as particles at a time, like a 3D billiard: press Play to animate, or connect a time (a slider scrubs it) for a frozen frame. Play (Stop while playing) and Rewind control the playback; the Preview button shows or hides the particles.",
     "exposure": 2,
-    "ghpython": {
-        "isAdvancedMode": true,
-        "iconDisplay": 0,
+    "ports": {
         "inputParameters": [
             {
                 "name": "ray_field",

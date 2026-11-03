@@ -258,7 +258,7 @@ def wedge1st_ir(fs, c, closed_angle, rs, thetas, zs, rr, thetar, zr, zw, r_irsta
 
                 approxintvalvec = multfact * (P1 + P2 + P3)
 
-            # deviation from the toolbox (which multiplies by 1 - singularterm, so NaN * 0 = NaN)
+            # np.where, not the toolbox's factor 1 - singularterm: a singular term can be NaN, and NaN * 0 = NaN
             approxintvalvec = np.sum(np.where(singularterm, 0.0, approxintvalvec))
 
             ir[arrivalsampnumb] += approxintvalvec.real
@@ -332,7 +332,9 @@ def wedge2nd_ir(cyl_s, cyl_r, cyl_e2_r1, cyl_e1_r2, nu, edge_limits, dz, steps, 
     cyl_s, cyl_r are (r, theta, z) of source and receiver about edges 1 and 2;
     cyl_e2_r1 are the two ends of edge 2 about edge 1, cyl_e1_r2 the ends of
     edge 1 about edge 2; nu = (pi / theta_w1, pi / theta_w2); edge_limits rows
-    are [start, end] along each edge; steps is the element_grid midpoints.
+    are [start, end] along each edge; steps and dz are the element_grid
+    midpoints and element lengths; path_along_plane selects the form for two
+    edges bounding a common plane.
     ir[0] is the sample at r_irstart / c."""
     nu1, nu2 = nu
     nu_closed2 = np.pi / nu2
