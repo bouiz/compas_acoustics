@@ -6,7 +6,11 @@ __pycache__/
 # C extensions
 *.so
 
+# Agent files
 .claude/
+.cursor/
+.superpowers/
+.trail/
 
 # Distribution / packaging
 .Python
