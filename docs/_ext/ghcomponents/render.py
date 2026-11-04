@@ -37,7 +37,8 @@ def first_sentence(text: str) -> str:
 def _table(header: list[str], rows: list[list[str]]) -> str:
     lines = ["| " + " | ".join(header) + " |", "|" + "---|" * len(header)]
     lines += ["| " + " | ".join(row) + " |" for row in rows]
-    return "\n".join(lines) + "\n"
+    # the ca-ports class keeps the port names on one line (docs/assets/css/custom.css)
+    return '<div class="ca-ports" markdown>\n\n' + "\n".join(lines) + "\n\n</div>\n"
 
 
 def _input_row(p: Port) -> list[str]:

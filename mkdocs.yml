@@ -1,5 +1,7 @@
 site_name: COMPAS Acoustics
 site_url: https://gramaziokohler.github.io/compas_acoustics/
+# Write page.html instead of page/index.html, so the built site also navigates when opened from disk (file://).
+use_directory_urls: false
 
 repo_name: gramaziokohler/compas_acoustics
 repo_url: https://github.com/gramaziokohler/compas_acoustics/

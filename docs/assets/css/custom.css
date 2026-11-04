@@ -11,7 +11,20 @@
   margin-right: 0.5rem;
 }
 
-/* Port names in the first column of the component tables stay on one line. */
-.md-typeset td:first-child code {
+/* Port names in the first column of the component tables stay on one line (only there: other tables wrap). */
+.md-typeset .ca-ports td:first-child code {
   white-space: nowrap;
+}
+
+/* The sidebars keep their own scroll when Material's script cannot size them (the built site opened from
+   disk, file://, where the browser blocks the requests it waits on). The script's inline height wins when it runs. */
+@media screen and (min-width: 60em) {
+  .md-sidebar--secondary .md-sidebar__scrollwrap {
+    max-height: calc(100vh - 6rem);
+  }
+}
+@media screen and (min-width: 76.25em) {
+  .md-sidebar--primary .md-sidebar__scrollwrap {
+    max-height: calc(100vh - 6rem);
+  }
 }
