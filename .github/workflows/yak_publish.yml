@@ -38,6 +38,13 @@ jobs:
         run: |
           if ($Env:VERSION) { invoke yakerize --version $Env:VERSION } else { invoke yakerize }
 
+      # before publishing, so that a failed push still leaves the package
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: compas_acoustics_yak
+          path: dist/yak_package/*.yak
+          if-no-files-found: error
+
       - name: Publish to the Yak test server
         shell: pwsh
         env:
