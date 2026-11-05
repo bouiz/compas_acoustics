@@ -7,8 +7,8 @@ url: "https://github.com/gramaziokohler/compas_acoustics"
 keywords:
   - compas
   - acoustics
-  - room acoustics
+  - room-acoustics
   - auralisation
-  - impulse response
-  - ray tracing
+  - impulse-response
+  - ray-tracing
   - grasshopper
