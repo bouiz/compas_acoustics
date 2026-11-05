@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using CompasAcoustics.Pb;
 using Grasshopper.Kernel.Data;
@@ -86,7 +87,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         [InlineData("/renders/take", "/renders", "take")]
         [InlineData("/renders/take.WAV", "/renders", "take")]
         public void ASavedFile_GivesTheFolderAndTheNameOfTheSignals(string path, string folder, string name) =>
-            Assert.Equal((folder, name), AuraliseGroups.SaveTarget(path));
+            Assert.Equal((folder.Replace('/', Path.DirectorySeparatorChar), name), AuraliseGroups.SaveTarget(path));
 
         [Fact]
         public void Auralise_SavesWithAButton()

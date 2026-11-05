@@ -139,7 +139,8 @@ namespace CompasAcoustics.Grasshopper.Tests
             {
                 var name = Encoding.UTF8.GetBytes(relative);
                 buffer.Write(name, 0, name.Length);
-                var bytes = File.ReadAllBytes(path);
+                // a Windows checkout writes CRLF; the hash is of the LF files, as in compas_acoustics.pb.schema_hash
+                var bytes = Encoding.UTF8.GetBytes(File.ReadAllText(path).Replace("\r\n", "\n"));
                 buffer.Write(bytes, 0, bytes.Length);
             }
             var hash = Convert.ToHexString(sha.ComputeHash(buffer.ToArray())).ToLowerInvariant();
