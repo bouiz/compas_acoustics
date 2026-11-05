@@ -22,10 +22,9 @@ The [installation guide](https://gramaziokohler.github.io/compas_acoustics/lates
 pip install compas_acoustics
 ```
 
-**Rhino 8 / Grasshopper** (Windows and macOS): download `compas_acoustics_installer.zip` from the
-[latest release](https://github.com/gramaziokohler/compas_acoustics/releases/latest), unzip it, open
-`compas_acoustics_installer.gh` in Grasshopper, press **Install**, and restart Rhino. The installer adds the plugin and
-creates the worker, the Python 3.12 environment the components compute in.
+**Rhino 8 / Grasshopper** (Windows and macOS): install `compas_acoustics` from Rhino's Package Manager and restart
+Rhino. Then place the **Install Worker** component (Util panel) in Grasshopper and press **Install**: it creates the
+worker, the Python 3.12 environment the components compute in.
 
 For development:
 

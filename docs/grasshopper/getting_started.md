@@ -35,8 +35,8 @@ volume.
 
 ## The worker
 
-The components compute nothing themselves: they send the work to the *worker*, the Python 3.12 environment the
-installer created. It starts with the first component that needs it, a few seconds (half a minute the first time),
+The components compute nothing themselves: they send the work to the *worker*, the Python 3.12 environment
+Install Worker created. It starts with the first component that needs it, a few seconds (half a minute the first time),
 and stops with Rhino.
 
 The [Worker](components/CA_Worker.md) component (Util panel) shows its state, for example
@@ -45,11 +45,11 @@ worker's log file: read it when a component turns red and its message is not eno
 
 Messages you may see:
 
-`No worker: run the compas_acoustics installer.`
-:   The worker was never created on this computer. Run the installer.
+`No worker: use the Install Worker component.`
+:   The worker was never created on this computer. Press **Install** on the [Install Worker](components/CA_Install_Worker.md) component.
 
-`... is not this version's ...: run the installer again.` / `schema mismatch: run the installer again`
-:   The plugin and the worker come from different releases. Run the installer of the plugin's release.
+`... is not this version's ...: use Install Worker again.` / `schema mismatch: use Install Worker again`
+:   The plugin and the worker come from different releases, for example after an update. Press **Install** on the Install Worker component.
 
 `The worker does not answer: ... Recompute to start it again.`
 :   The worker stopped (or was stopped). Recompute the component.

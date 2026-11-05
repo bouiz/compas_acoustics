@@ -1,42 +1,25 @@
 # Install in Rhino 8 and Grasshopper
 
 The Grasshopper components are a compiled plugin, `CompasAcoustics.gha`, for Rhino 8 on Windows and macOS.
-Everything they compute runs in the *worker*, a Python 3.12 environment with `compas_acoustics` that the installer
-creates.
+Everything they compute runs in the *worker*, a Python 3.12 environment with `compas_acoustics`.
 
 ## Install
 
-1. Download `compas_acoustics_installer.zip` from the
-   [latest release](https://github.com/gramaziokohler/compas_acoustics/releases/latest).
-   It holds the wheel, the plugin (`gha/`) and `compas_acoustics_installer.gh`.
-2. Unzip it and open `compas_acoustics_installer.gh` in Grasshopper.
-3. Press **Install**. When the component says *Restart Rhino*, restart Rhino.
+1. In Rhino, run `PackageManager`, search for `compas_acoustics`, install it and restart Rhino.
+2. In Grasshopper, place the **Install Worker** component from the Util panel of the **COMPAS Acoustics** tab.
+3. Press **Install** and wait until the component says *installed*. Its `log` output shows the progress.
 
-The components are then in the **COMPAS Acoustics** tab. The first installation downloads PyTorch for the worker,
-several GB, and takes a few minutes.
+The first installation downloads the worker's packages, up to several GB, and takes a few minutes. Rhino stays
+responsive, and no restart is needed afterwards.
 
-## What the installer does
+## What Install Worker does
 
-* Copies the plugin into Grasshopper's Libraries folder, in a `compas_acoustics` subfolder, and removes the CPython
-  components (`.ghuser`) of earlier versions from UserObjects.
-* Installs `compas_acoustics` into a Rhino script environment, for your own Python scripts in Rhino.
-* Creates the worker with `uv` under `~/.compas_acoustics/workers/` and records it in
-  `~/.compas_acoustics/worker.json`.
+* Fetches `uv` with Rhino's Python, into `~/.compas_acoustics/uv`. Nothing is installed into Rhino's Python.
+* Stops running workers.
+* Creates the worker with `uv` in `~/.compas_acoustics/worker`, with the `compas_acoustics` of the plugin's version
+  from PyPI, and records it in `~/.compas_acoustics/worker.json`.
 
-Installer options, the inputs of the installer component:
-
-`source`
-:   Path of the `.whl` file in the bundle. Empty: the `.whl` file next to the `.gh` file. The plugin must be
-    next to it, in `gha/`.
-
-`venv`
-:   Name of the Rhino script environment that gets `compas_acoustics` too. Empty: `default`.
-
-`worker`
-:   Ignored; the worker is always set up.
-
-On Windows, if Grasshopper reports the plugin as blocked, unblock the files in the Libraries folder
-(*Properties > Unblock*).
+If it says that Rhino's Python is not set up, open Rhino's ScriptEditor once, then press **Install** again.
 
 ## The worker
 
@@ -45,7 +28,7 @@ with Rhino. Every Rhino session starts its own, on a free port of `127.0.0.1`, a
 it answers only requests that carry the token, and exits when Rhino ends or dies.
 
 The worker must run the same `compas_acoustics` version and protobuf schema as the plugin; otherwise the components
-say to run the installer again. To use another interpreter that has this version of `compas_acoustics`, set the
+say to use Install Worker again. To use another interpreter that has this version of `compas_acoustics`, set the
 environment variable `COMPAS_ACOUSTICS_WORKER_PYTHON` to its path. A Python script can use the same worker through
 `compas_acoustics.worker.client()`.
 
@@ -54,12 +37,10 @@ The **Worker** component (Util panel) shows the worker's state; every component'
 
 ## Update
 
-Download the installer of the new release and run it as above. It replaces the plugin and the worker's
-`compas_acoustics`; restart Rhino afterwards.
+Update `compas_acoustics` in Rhino's Package Manager and restart Rhino, then press **Install** on the Install Worker
+component: it replaces the worker with the plugin's new version.
 
 ## Uninstall
 
-1. Close Rhino.
-2. Delete the `compas_acoustics` folder in Grasshopper's Libraries folder (in Grasshopper:
-   *File > Special Folders > Components Folder*).
-3. Delete `~/.compas_acoustics/`, which holds the worker.
+1. Uninstall `compas_acoustics` in Rhino's Package Manager and close Rhino.
+2. Delete `~/.compas_acoustics/`, which holds the worker.

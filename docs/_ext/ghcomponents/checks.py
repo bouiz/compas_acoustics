@@ -7,7 +7,7 @@ from .fingerprints import Stale
 GUIDE = "docs/contributing/docs.md"
 
 CAPTURE = [
-    "Install the current plugin in Rhino 8 (invoke installer-bundle, then run the installer).",
+    "Install the current plugin in Rhino 8 (invoke yakerize, then install the .yak of dist/yak_package).",
     "Open Rhino 8 and Grasshopper.",
     "Open docs/_tools/capture_grasshopper.py in Rhino's ScriptEditor and run it.",
     "Commit docs/_images/ (the PNGs and fingerprints.json).",

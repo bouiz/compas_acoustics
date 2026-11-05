@@ -10,7 +10,7 @@
         "outputParameters": [
             {
                 "name": "python",
-                "description": "The worker's Python interpreter; empty when the installer has not run."
+                "description": "The worker's Python interpreter; empty when no worker is installed."
             },
             {
                 "name": "version",

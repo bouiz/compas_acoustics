@@ -4,6 +4,7 @@
   "CA_Audio_Player": "compas_acoustics.AudioPlayer",
   "CA_Auralise": "compas_acoustics.Auraliser",
   "CA_Channel": null,
+  "CA_Install_Worker": null,
   "CA_Construct_Material": "compas_acoustics.AcousticMaterial",
   "CA_Deconstruct_IR": "compas_acoustics.Analyser.analyse",
   "CA_Deconstruct_IR_Graph": "compas_acoustics.ImpulseResponse",

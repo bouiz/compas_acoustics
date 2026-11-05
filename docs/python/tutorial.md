@@ -85,6 +85,6 @@ signal, to save as a multichannel file for a decoder elsewhere.
 ## Grasshopper
 
 The Grasshopper plugin has a component for each of these steps, in the panels
-`Elements` to `Optimization` of the COMPAS Acoustics category. Install it with the
-installer bundle (see [Install in Rhino 8 and Grasshopper](../installation/grasshopper.md)); the components run
+`Elements` to `Optimization` of the COMPAS Acoustics category. Install it from
+Rhino's Package Manager (see [Install in Rhino 8 and Grasshopper](../installation/grasshopper.md)); the components run
 everything in a Python worker that starts with the first component that needs it.

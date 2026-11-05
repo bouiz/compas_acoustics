@@ -1,0 +1,21 @@
+{
+    "name": "Install Worker",
+    "nickname": "Install",
+    "category": "COMPAS Acoustics",
+    "subcategory": "Util",
+    "description": "Creates the worker, the Python that runs every simulation and analysis, with the compas_acoustics of this plugin's version. Install replaces the worker; the first time it can download several GB and take a few minutes.",
+    "exposure": 2,
+    "ports": {
+        "inputParameters": [],
+        "outputParameters": [
+            {
+                "name": "log",
+                "description": "What the installation did so far."
+            },
+            {
+                "name": "ok",
+                "description": "Whether the worker is installed."
+            }
+        ]
+    }
+}

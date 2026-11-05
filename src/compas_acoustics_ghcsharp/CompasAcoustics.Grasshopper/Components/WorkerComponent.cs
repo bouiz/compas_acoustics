@@ -51,9 +51,9 @@ namespace CompasAcoustics.Grasshopper
             var version = worker.State == WorkerState.Running
                 ? $"compas_acoustics {Worker.Version}, schema ok"
                 : worker.LastError is string error && error.Contains("schema")
-                    ? "schema mismatch: run the installer again"
+                    ? "schema mismatch: use Install Worker again"
                     : $"plugin {Worker.Version}";
-            return new[] { state, worker.Python ?? "no Python: run the installer", version };
+            return new[] { state, worker.Python ?? "no Python: use Install Worker", version };
         }
 
         protected override void Solve(IGH_DataAccess access)

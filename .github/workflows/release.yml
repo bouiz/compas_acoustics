@@ -52,21 +52,6 @@ jobs:
           management-tool: uv
           run-prebuild: true
 
-  installer-bundle:
-    needs: [release, build]
-    if: needs.release.outputs.is-release == 'true'
-    # the Grasshopper plugin builds with the .NET SDK that Windows runners have
-    runs-on: windows-latest
-    steps:
-      - uses: compas-dev/compas-actions/release-assets@v1
-        with:
-          python-version: "3.12"
-          management-tool: uv
-          extras: dev
-          invoke-tasks: installer-bundle
-          paths: dist/compas_acoustics_installer.zip
-          artifact-name: github-release-assets-installer
-
   # the .proto bundle and the bindings of each language: compas_acoustics owns its schema, so it publishes them
   proto-assets:
     needs: [release, build]
@@ -84,7 +69,7 @@ jobs:
 
   # PyPI Trusted Publishing: owner gramaziokohler, repo compas_acoustics, workflow release.yml, environment pypi
   publish:
-    needs: [release, prepare, installer-bundle]
+    needs: [release, prepare]
     if: needs.release.outputs.is-release == 'true'
     runs-on: ubuntu-latest
     environment: pypi
@@ -102,7 +87,7 @@ jobs:
         uses: pypa/gh-action-pypi-publish@v1.14.2
 
   create-release:
-    needs: [release, prepare, installer-bundle, proto-assets, publish]
+    needs: [release, prepare, proto-assets, publish]
     if: needs.release.outputs.is-release == 'true'
     runs-on: ubuntu-latest
     permissions:

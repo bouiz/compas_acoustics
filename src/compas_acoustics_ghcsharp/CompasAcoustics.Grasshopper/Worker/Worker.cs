@@ -222,7 +222,7 @@ namespace CompasAcoustics.Grasshopper
         public WorkerState State =>
             Starting ? WorkerState.Starting : _client != null ? WorkerState.Running : Python == null ? WorkerState.NotConfigured : WorkerState.Stopped;
 
-        /// <summary>The configured interpreter; null when the installer has not run.</summary>
+        /// <summary>The configured interpreter; null when no worker is installed.</summary>
         public string? Python => ConfiguredPython(_getEnv, _home);
 
         /// <summary>The log of the running worker, or of the last one; null before the first start.</summary>
@@ -245,7 +245,7 @@ namespace CompasAcoustics.Grasshopper
 
         private WorkerClient StartProcess()
         {
-            var python = ConfiguredPython(_getEnv, _home) ?? throw new WorkerException("No worker: run the compas_acoustics installer.");
+            var python = ConfiguredPython(_getEnv, _home) ?? throw new WorkerException("No worker: use the Install Worker component.");
             // the port is free when probed, but another worker can take it before this one binds it
             for (var port = 0; port < 3; port++)
             {
@@ -286,7 +286,7 @@ namespace CompasAcoustics.Grasshopper
                 {
                     // something answers, but not this worker's service, e.g. a worker of another compas_acoustics version
                     process.Kill();
-                    throw new WorkerException($"The worker at {python} is not this version's (it answers HTTP {status}): run the installer again.");
+                    throw new WorkerException($"The worker at {python} is not this version's (it answers HTTP {status}): use Install Worker again.");
                 }
                 if (process.HasExited)
                     throw new WorkerException($"The worker at {python} exited while starting:\n{process.Output}");
@@ -321,7 +321,7 @@ namespace CompasAcoustics.Grasshopper
             {
                 Stop(client, process, port);
                 throw new WorkerException($"The worker at {python} runs compas_acoustics {version ?? "?"} (schema {Short(schema)}), the Grasshopper plugin is " +
-                                          $"{Version} (schema {Short(Schema.Hash)}): run the installer again.");
+                                          $"{Version} (schema {Short(Schema.Hash)}): use Install Worker again.");
             }
             SpeedOfSound = info.TryGetValue("speed_of_sound", out var c) && c is double speed ? speed : SpeedOfSound;
             Hybrid = info.TryGetValue("hybrid", out var h) && h is bool hybrid && hybrid;
@@ -347,6 +347,31 @@ namespace CompasAcoustics.Grasshopper
         {
             lock (_lock)
                 StopLocked();
+        }
+
+        /// <summary>Stop this session's worker and ask every other recorded one to shut down, as Install Worker replaces their files.</summary>
+        public void StopAll()
+        {
+            Stop();
+            var folder = Path.Combine(_home, ".compas_acoustics", "workers");
+            if (!Directory.Exists(folder))
+                return;
+            foreach (var record in Directory.GetFiles(folder, "*.json"))
+            {
+                try
+                {
+                    using var json = JsonDocument.Parse(File.ReadAllText(record));
+                    var entry = json.RootElement;
+                    _clientFactory(new Uri($"http://127.0.0.1:{entry.GetProperty("port").GetInt32()}"), entry.GetProperty("token").GetString() ?? "").Shutdown();
+                    SpinWait.SpinUntil(() => !File.Exists(record), TimeSpan.FromSeconds(10));
+                }
+                catch (Exception e) when (e is HttpRequestException || e is OperationCanceledException || e is IOException || e is JsonException ||
+                                          e is KeyNotFoundException || e is InvalidOperationException)
+                {
+                    // the worker is gone already
+                }
+                File.Delete(record);
+            }
         }
 
         private void StopLocked()
