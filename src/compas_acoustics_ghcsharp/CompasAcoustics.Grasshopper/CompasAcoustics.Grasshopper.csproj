@@ -1,6 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- The COMPAS Acoustics Grasshopper plugin. Its components are clients of the compas_acoustics
-  worker:
+  <!-- The COMPAS Acoustics Grasshopper plugin. Its components are clients of the compas_acoustics worker:
        every acoustic computation runs in Python, data travels as compas_pb messages. -->
   <PropertyGroup>
     <TargetFramework>net7.0</TargetFramework>
@@ -17,41 +16,34 @@
     <NoWarn>$(NoWarn);CA1416;NU1701;CS1701;CS1702</NoWarn>
   </PropertyGroup>
   <ItemGroup>
-    <!-- Rhino provides Grasshopper and RhinoCommon at run time; the first Rhino 8 release, so that
-    any Rhino 8 loads the plugin -->
+    <!-- Rhino provides Grasshopper and RhinoCommon at run time; the first Rhino 8 release, so that any Rhino 8 loads the plugin -->
     <PackageReference Include="Grasshopper" Version="8.0.23304.9001" ExcludeAssets="runtime" />
     <!-- Rhino provides System.Drawing at run time (icons) -->
     <PackageReference Include="System.Drawing.Common" Version="7.0.0" ExcludeAssets="runtime" />
     <PackageReference Include="CompasPb" Version="1.0.0" />
   </ItemGroup>
-  <!-- Grasshopper's menus take System.Windows.Forms types. Rhino provides them at run time: .NET's
-  WinForms on Windows,
+  <!-- Grasshopper's menus take System.Windows.Forms types. Rhino provides them at run time: .NET's WinForms on Windows,
        its own System.Windows.Forms 7.0.0.0 on the Mac; the build only needs .NET 7's reference assembly. -->
   <ItemGroup>
     <PackageDownload Include="Microsoft.WindowsDesktop.App.Ref" Version="[7.0.20]" />
     <Reference Include="System.Windows.Forms">
-      <HintPath>
-        $(NuGetPackageRoot)microsoft.windowsdesktop.app.ref/7.0.20/ref/net7.0/System.Windows.Forms.dll</HintPath>
+      <HintPath>$(NuGetPackageRoot)microsoft.windowsdesktop.app.ref/7.0.20/ref/net7.0/System.Windows.Forms.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="System.Windows.Forms.Primitives">
-      <HintPath>
-        $(NuGetPackageRoot)microsoft.windowsdesktop.app.ref/7.0.20/ref/net7.0/System.Windows.Forms.Primitives.dll</HintPath>
+      <HintPath>$(NuGetPackageRoot)microsoft.windowsdesktop.app.ref/7.0.20/ref/net7.0/System.Windows.Forms.Primitives.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>
   <ItemGroup>
     <!-- each component's names, descriptions, ports and icon -->
-    <EmbeddedResource Include="Components\Specs\**\*.json;Components\Specs\**\*.png"
-      LogicalName="Specs/%(RecursiveDir)%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Components\Specs\**\*.json;Components\Specs\**\*.png" LogicalName="Specs/%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="CompasAcoustics.Grasshopper.Tests" />
   </ItemGroup>
-  <!-- Grasshopper loads .gha files; CoreCLR's trusted assemblies (the test host's) must end in
-  .dll, so the build makes both -->
+  <!-- Grasshopper loads .gha files; CoreCLR's trusted assemblies (the test host's) must end in .dll, so the build makes both -->
   <Target Name="CopyToGha" AfterTargets="Build">
-    <Copy SourceFiles="$(TargetPath)" DestinationFiles="$(TargetDir)$(TargetName).gha"
-      SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFiles="$(TargetDir)$(TargetName).gha" SkipUnchangedFiles="true" />
   </Target>
 </Project>
