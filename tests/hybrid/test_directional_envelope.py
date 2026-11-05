@@ -38,7 +38,7 @@ def histograms(g, directions, **kwargs):
 
 # ------------------------------------------------------------- the histogram --
 def test_one_histogram_per_microphone_and_source_binned_by_line():
-    (hist,), = histograms(geometry(), grid())
+    ((hist,),) = histograms(geometry(), grid())
     assert isinstance(hist, DirectionalHistogram)
     assert hist.energy.shape[:2] == (96, 9)
     assert hist.energy.shape[2] == pytest.approx(0.5 / hist.bin_size, abs=1)
@@ -49,7 +49,7 @@ def test_one_histogram_per_microphone_and_source_binned_by_line():
 def test_a_run_longer_than_pyroomacoustics_default_cap_keeps_every_line():
     """libroom sizes each line's histogram for 10 s and doubles only the lines hit later; the lines must still stack."""
     # 500 rays: some of the 96 lines are hit after 10 s, others are not
-    (hist,), = histograms(geometry(absorption=0.02), grid(), duration=12.0, n_rays=500, energy_threshold=1e-8)
+    ((hist,),) = histograms(geometry(absorption=0.02), grid(), duration=12.0, n_rays=500, energy_threshold=1e-8)
     assert hist.energy.shape == (96, 9, 3000)
     assert hist.energy[:, :, 2500:].sum() > 0.0  # rays past 10 s are kept
 
@@ -57,7 +57,7 @@ def test_a_run_longer_than_pyroomacoustics_default_cap_keeps_every_line():
 def test_the_lines_sum_to_pyroomacoustics_own_histogram():
     """Without scattering nothing is random: the omni run and the directional run see the same rays."""
     g = geometry(scattering=0.0)
-    (hist,), = histograms(g, grid())
+    ((hist,),) = histograms(g, grid())
     with pra_octave_grid():
         room = g.to_pra(FS, 3, ray_tracing=True, air_absorption=False)
         room.add_soundsource(pra.SoundSource(SOURCE))
@@ -73,7 +73,7 @@ def test_the_lines_sum_to_pyroomacoustics_own_histogram():
 def test_energy_is_binned_by_the_direction_it_arrives_from():
     """With image source order 0 the direct sound is logged by the rays: in the line facing the source."""
     directions = grid()
-    (hist,), = histograms(geometry(), directions, max_order=0)
+    ((hist,),) = histograms(geometry(), directions, max_order=0)
     first = int(np.flatnonzero(hist.energy.sum(axis=(0, 1)))[0])
     towards_source = np.argmax(directions @ ((SOURCE - RECEIVER) / np.linalg.norm(SOURCE - RECEIVER)))
     assert np.argmax(hist.energy[:, :, first].sum(axis=1)) == towards_source
@@ -81,8 +81,8 @@ def test_energy_is_binned_by_the_direction_it_arrives_from():
 
 def test_air_absorption_attenuates_the_late_bins():
     g = geometry()
-    (dry,), = histograms(g, grid(), air_absorption=False)
-    (damped,), = histograms(g, grid(), air_absorption=True)
+    ((dry,),) = histograms(g, grid(), air_absorption=False)
+    ((damped,),) = histograms(g, grid(), air_absorption=True)
     late = slice(int(0.4 / dry.bin_size), int(0.5 / dry.bin_size))
     ratio = damped.energy[:, 7, late].sum() / dry.energy[:, 7, late].sum()
     # the 8 kHz band in the default air over 0.45 s of travel
@@ -116,13 +116,13 @@ def histogram_of(late, scale=1.0, bin_size=0.004):
     n_bin = round(bin_size * FS)
     bands = octave_band_split(late, FS) ** 2  # (9, N, 96)
     n_bins = N // n_bin
-    per_bin = bands[:, :n_bins * n_bin].reshape(9, n_bins, n_bin, 96).sum(axis=2)  # (9, n_bins, 96)
+    per_bin = bands[:, : n_bins * n_bin].reshape(9, n_bins, n_bin, 96).sum(axis=2)  # (9, n_bins, 96)
     energy = np.transpose(per_bin, (2, 0, 1)) / 96.0
     return DirectionalHistogram(energy=energy * scale, bin_size=n_bin / FS, directions=grid(), bands=BANDS9)
 
 
 def energy_db(x, a, b):
-    return 10 * np.log10(np.sum(x[int(a * FS):int(b * FS)] ** 2, axis=0))
+    return 10 * np.log10(np.sum(x[int(a * FS) : int(b * FS)] ** 2, axis=0))
 
 
 def early_w(late):
@@ -137,7 +137,7 @@ def test_the_shares_are_one_where_the_lines_already_hold_the_rays_distribution()
     late = lines()
     shares = directional_shares(histogram_of(late, 3.0), late, FS)
     assert shares.shape == (N, 96)
-    np.testing.assert_allclose(shares[int(0.1 * FS):], 1.0, atol=0.02)
+    np.testing.assert_allclose(shares[int(0.1 * FS) :], 1.0, atol=0.02)
 
 
 def test_a_louder_directional_target_leaves_the_lines_alone():
@@ -159,7 +159,7 @@ def test_a_quieter_hemisphere_moves_energy_to_the_other_and_keeps_the_total():
     west, east = lost[directions[:, 0] < -0.5], lost[directions[:, 0] > 0.5]
     assert np.all(np.abs(west - east.mean() + 6.0) < 0.5)
     assert np.all(np.abs(east - east.mean()) < 0.5)
-    total = 10 * np.log10(np.sum(shaped[int(0.15 * FS):int(0.6 * FS)] ** 2) / np.sum(late[int(0.15 * FS):int(0.6 * FS)] ** 2))
+    total = 10 * np.log10(np.sum(shaped[int(0.15 * FS) : int(0.6 * FS)] ** 2) / np.sum(late[int(0.15 * FS) : int(0.6 * FS)] ** 2))
     assert abs(total) < 0.2
 
 
@@ -191,7 +191,7 @@ def asymmetric_scene(direction=None):
 def late_level_by_x(result, a=0.15, b=0.6):
     """Mean late energy in dB of the lines facing -x minus those facing +x, in the receiver's frame."""
     x = result.core.line_directions[:, 0]
-    e = np.sum(result.late_lines[int(a * FS):int(b * FS)] ** 2, axis=0)
+    e = np.sum(result.late_lines[int(a * FS) : int(b * FS)] ** 2, axis=0)
     return 10 * np.log10(e[x < -0.5].mean() / e[x > 0.5].mean())
 
 

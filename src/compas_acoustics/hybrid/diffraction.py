@@ -67,8 +67,7 @@ class Edge:
             raise ValueError("an edge needs two distinct ends")
         w = np.cross(self.axis, self.face_a)
         angle = np.arctan2(self.face_b @ w, self.face_b @ self.face_a) % TWO_PI
-        if not (np.isclose(angle, self.theta_w % TWO_PI, atol=1e-6)
-                or np.isclose(self.theta_w, TWO_PI)):
+        if not (np.isclose(angle, self.theta_w % TWO_PI, atol=1e-6) or np.isclose(self.theta_w, TWO_PI)):
             w = -w
         object.__setattr__(self, "_w", w)
 
@@ -145,8 +144,7 @@ def edge_segments(edge: Edge, source: np.ndarray, receiver: np.ndarray) -> np.nd
     the edge's line (about 5 deg subtended there), that bound floored at 0.01 m
     for a point (nearly) on the line."""
     ends, _ = toolbox_frame(edge)
-    nearest = min(np.linalg.norm(np.cross(ends[1] - ends[0], ends[0] - p)) / edge.length
-                  for p in (np.asarray(source), np.asarray(receiver)))
+    nearest = min(np.linalg.norm(np.cross(ends[1] - ends[0], ends[0] - p)) / edge.length for p in (np.asarray(source), np.asarray(receiver)))
     n = max(1, int(np.ceil(edge.length / max(0.087 * nearest, 0.01))))
     z = np.linspace(0.0, edge.length, n + 1)
     return np.stack([z[:-1], z[1:]], axis=1)
@@ -206,6 +204,7 @@ def coplanar_thetas(e1: Edge, e2: Edge) -> tuple[float, float]:
     edge's frame (:func:`toolbox_frame`) picks its own side, so e1 sets it: 0
     about e1, and about e2 0 if e2's frame has the same side, else 2 pi.
     Mirroring both frames leaves the second-order term unchanged."""
+
     def one(a, b):
         return 0.0 if shared_face(a, b) == 0 else a.theta_w
 
@@ -272,10 +271,7 @@ class Occluders:
         with np.errstate(divide="ignore", invalid="ignore"):
             t = (self.offsets - self.normals @ p) / denom
         hits = np.flatnonzero((np.abs(denom) > 1e-12) & (t > 1e-9) & (t < 1.0 - 1e-9))
-        return any(
-            int(i) not in skip and _inside_polygon(self.polygons[i], self.normals[i], p + t[i] * d)
-            for i in hits
-        )
+        return any(int(i) not in skip and _inside_polygon(self.polygons[i], self.normals[i], p + t[i] * d) for i in hits)
 
     def on_enclosure(self, point: np.ndarray, tol: float) -> bool:
         return self.on_polygons(point, tol, range(self.n_obstacle, len(self.polygons)))
@@ -283,9 +279,7 @@ class Occluders:
     def on_polygons(self, point: np.ndarray, tol: float, polygons) -> bool:
         """Does a point lie within ``tol`` of one of the given polygons?"""
         for i in polygons:
-            if abs(self.normals[i] @ point - self.offsets[i]) < tol and _inside_polygon(
-                self.polygons[i], self.normals[i], point
-            ):
+            if abs(self.normals[i] @ point - self.offsets[i]) < tol and _inside_polygon(self.polygons[i], self.normals[i], point):
                 return True
         return False
 
@@ -388,8 +382,7 @@ def _straight_runs(vertices: np.ndarray, pieces: list[tuple[int, int]], toleranc
         p, d = vertices[chain[0]], vertices[chain[-1]] - vertices[chain[0]]
         inner = vertices[chain[1:-1]] - p
         t = inner @ d / (d @ d)
-        return bool(np.all(np.linalg.norm(inner - np.outer(t, d), axis=1) <= tolerance)
-                    and np.all(np.diff(np.concatenate([[0.0], t, [1.0]])) > 0.0))
+        return bool(np.all(np.linalg.norm(inner - np.outer(t, d), axis=1) <= tolerance) and np.all(np.diff(np.concatenate([[0.0], t, [1.0]])) > 0.0))
 
     at: dict[int, list[int]] = {}
     for k, piece in enumerate(pieces):
@@ -436,9 +429,7 @@ def _merge_collinear(pieces):
     """Join (p, q, owners) pieces of one line where they touch."""
     axis = _canonical_axis(pieces[0][0], pieces[0][1])
     origin = pieces[0][0] - (pieces[0][0] @ axis) * axis
-    spans = sorted(
-        (min(p @ axis, q @ axis), max(p @ axis, q @ axis), list(o)) for p, q, o in pieces
-    )
+    spans = sorted((min(p @ axis, q @ axis), max(p @ axis, q @ axis), list(o)) for p, q, o in pieces)
     merged = [spans[0]]
     for lo, hi, owners in spans[1:]:
         if lo <= merged[-1][1] + 1e-9:
@@ -472,10 +463,8 @@ def obstacle_edges(geometry: RoomGeometry) -> list[Edge]:
         centre = points.mean(axis=0)
         normal = {i: (n if n @ (ctr - centre) > 0.0 else -n) for i, (_, n, ctr) in info.items()}
         n0 = normal[faces[0]]
-        planar = all(abs(normal[i] @ n0) > 1.0 - 1e-8 for i in faces) and bool(
-            np.all(np.abs((points - info[faces[0]][2]) @ n0) < 1e-5))
-        free =[s for s in _segments(geometry, faces).values()
-                if not occ.on_polygons((s[0] + s[1]) / 2.0, 2.0 * OBSTACLE_OFFSET, support)]
+        planar = all(abs(normal[i] @ n0) > 1.0 - 1e-8 for i in faces) and bool(np.all(np.abs((points - info[faces[0]][2]) @ n0) < 1e-5))
+        free = [s for s in _segments(geometry, faces).values() if not occ.on_polygons((s[0] + s[1]) / 2.0, 2.0 * OBSTACLE_OFFSET, support)]
         groups: dict[tuple, list] = {}
         if planar:
             for p, q, owners in free:
@@ -487,8 +476,7 @@ def obstacle_edges(geometry: RoomGeometry) -> list[Edge]:
                 groups.setdefault(key, []).append((p, q, owners, u, u, TWO_PI))
         else:
             closed = all(len(owners) == 2 for _, _, owners in free)
-            convex = closed and all(
-                bool(np.all((points - info[i][2]) @ normal[i] < 1e-6)) for i in faces)
+            convex = closed and all(bool(np.all((points - info[i][2]) @ normal[i] < 1e-6)) for i in faces)
             if not convex:
                 material = geometry.obstacle_face_materials[faces[0]]
                 skipped[material] = skipped.get(material, 0) + 1
@@ -503,8 +491,7 @@ def obstacle_edges(geometry: RoomGeometry) -> list[Edge]:
                 mid = (p + q) / 2.0
                 ua = _into_face(axis, normal[i], mid, info[i][2])
                 ub = _into_face(axis, normal[j], mid, info[j][2])
-                key = (tuple(np.round(normal[i], 6)), tuple(np.round(normal[j], 6)),
-                       tuple(np.round(np.cross(axis, p), 6)))
+                key = (tuple(np.round(normal[i], 6)), tuple(np.round(normal[j], 6)), tuple(np.round(np.cross(axis, p), 6)))
                 groups.setdefault(key, []).append((p, q, [i, j], ua, ub, np.pi + np.arccos(cos_ij)))
         for pieces in groups.values():
             _, _, _, ua, ub, theta_w = pieces[0]
@@ -515,7 +502,9 @@ def obstacle_edges(geometry: RoomGeometry) -> list[Edge]:
         warnings.warn(
             f"{total} obstacle component{'s' if total > 1 else ''} ({', '.join(f'{m}: {n}' for m, n in skipped.items())}) "
             f"{'are' if total > 1 else 'is'} neither closed-convex nor planar: no diffraction",
-            ObstacleEdgeWarning, stacklevel=2)
+            ObstacleEdgeWarning,
+            stacklevel=2,
+        )
     return edges
 
 
@@ -553,15 +542,14 @@ def enclosure_edges(geometry: RoomGeometry) -> list[Edge]:
     from a coplanar face elsewhere.
     """
     if not getattr(geometry, "is_closed", True):
-        warnings.warn("the boundary does not close a volume: room-boundary edges are not searched",
-                      ShellEdgeWarning, stacklevel=2)
+        warnings.warn("the boundary does not close a volume: room-boundary edges are not searched", ShellEdgeWarning, stacklevel=2)
         return []
     occ = Occluders.from_geometry(geometry)
     n = len(occ.polygons) - occ.n_obstacle
     sides = _enclosure_sides(geometry, n)
     vertices = geometry.vertices
-    normal = occ.normals[occ.n_obstacle:]
-    polygon = occ.polygons[occ.n_obstacle:]
+    normal = occ.normals[occ.n_obstacle :]
+    polygon = occ.polygons[occ.n_obstacle :]
 
     def in_plane(i, j):
         return float(np.max(np.abs((polygon[j] - polygon[i][0]) @ normal[i]))) <= _MERGE_TOLERANCE
@@ -607,9 +595,8 @@ def enclosure_edges(geometry: RoomGeometry) -> list[Edge]:
         groups.setdefault((find(i), find(j)), {})[frozenset((a, b))] = (i, j, si, sj, knife)
     if skipped:
         warnings.warn(
-            f"{skipped} room-boundary edge pieces open to less than pi at a non-integer "
-            "wedge index: not rendered (convex scatterers only)",
-            ShellEdgeWarning, stacklevel=2)
+            f"{skipped} room-boundary edge pieces open to less than pi at a non-integer wedge index: not rendered (convex scatterers only)", ShellEdgeWarning, stacklevel=2
+        )
     edges: list[Edge] = []
     merge_tolerance = max(_MERGE_TOLERANCE, _t_junction_tolerance(vertices))
     for regions, pieces in groups.items():
@@ -724,8 +711,7 @@ def _wall_hit(occ: Occluders, end: _End, towards: np.ndarray):
     return None
 
 
-def _polyline(occ: Occluders, src: _End, apexes: list[tuple[np.ndarray, frozenset[int]]],
-              rec: _End):
+def _polyline(occ: Occluders, src: _End, apexes: list[tuple[np.ndarray, frozenset[int]]], rec: _End):
     """The real path source (- wall) - apexes (- wall) - receiver, or None.
 
     ``apexes`` pairs each apex with its edge's faces. Returns the points, the
@@ -810,13 +796,13 @@ def diffraction_paths(spec: Pair, *, max_order: int = 1) -> list[DiffractionPath
             pl = _polyline(occ, src, [(apex, frozenset(e.faces))], rec)
             if pl is None or not _clear(occ, pl[0], pl[2]):
                 continue
-            out.append(make(pl, wp.d_constrained,
-                            partial(udfa_transfer, wp, c=c), wp.zone, k))
+            out.append(make(pl, wp.d_constrained, partial(udfa_transfer, wp, c=c), wp.zone, k))
     return [p for p in out if np.any(p.band_gain > 0.0)]
 
 
-def encode_diffraction(paths: list[DiffractionPath], sh_order: int, n_samples: int, fs: float,
-                       *, normalization: str = "NM", extra_weights: np.ndarray | None = None) -> np.ndarray:
+def encode_diffraction(
+    paths: list[DiffractionPath], sh_order: int, n_samples: int, fs: float, *, normalization: str = "NM", extra_weights: np.ndarray | None = None
+) -> np.ndarray:
     """Encode diffracted paths at their arrival directions, as :func:`encode` does images.
 
     ``extra_weights`` (M, K) adds K channels after the ambisonic ones, as :func:`encode`'s does: each
@@ -827,13 +813,10 @@ def encode_diffraction(paths: list[DiffractionPath], sh_order: int, n_samples: i
     if not paths:
         return np.zeros((n_samples, n_ch + n_extra))
     doa = np.array([p.doa for p in paths])
-    sh = spharpy.spherical.spherical_harmonic_basis_real(
-        sh_order, pf.Coordinates(doa[:, 0], doa[:, 1], doa[:, 2]),
-        normalization=normalization, channel_convention="ACN")
+    sh = spharpy.spherical.spherical_harmonic_basis_real(sh_order, pf.Coordinates(doa[:, 0], doa[:, 1], doa[:, 2]), normalization=normalization, channel_convention="ACN")
     weights = sh if extra_weights is None else np.hstack([sh, np.asarray(extra_weights, dtype=float)])
     gains = np.array([p.band_gain / (4.0 * np.pi * p.distance) for p in paths])
-    return render_transfers(np.array([p.delay for p in paths]), [p.transfer for p in paths],
-                            gains, weights, BANDS, fs, n_samples)
+    return render_transfers(np.array([p.delay for p in paths]), [p.transfer for p in paths], gains, weights, BANDS, fs, n_samples)
 
 
 @dataclass(frozen=True)
@@ -868,8 +851,7 @@ def second_order_start(source, receiver, seg1, seg2, c: float, fs: float) -> int
     point of segment 2: the path is at least |SR| and at least the distance
     from S to segment 1 plus that from segment 2 to R. One sample of margin
     keeps rounding at an exact bound from putting the first slot below 1."""
-    shortest = max(np.linalg.norm(receiver - source),
-                   segment_distance(source, *seg1) + segment_distance(receiver, *seg2))
+    shortest = max(np.linalg.norm(receiver - source), segment_distance(source, *seg1) + segment_distance(receiver, *seg2))
     return max(int(np.floor(shortest / c * fs)) - 1, 0)
 
 
@@ -902,8 +884,7 @@ def btms_paths(spec: Pair, *, max_order: int = 1, second_order: bool = True) -> 
 
     def face_reflection(e, u):
         face = next((i for i in e.faces if abs(occ.normals[i] @ u) < 1e-6), e.faces[0])
-        name = (geometry.obstacle_face_materials[face] if face < occ.n_obstacle
-                else geometry.face_materials[face - occ.n_obstacle])
+        name = geometry.obstacle_face_materials[face] if face < occ.n_obstacle else geometry.face_materials[face - occ.n_obstacle]
         return np.sqrt(1.0 - np.asarray(geometry.materials[name].absorption, dtype=float))
 
     sources = _ends(spec.source, occ, max_order >= 1)
@@ -928,14 +909,11 @@ def btms_paths(spec: Pair, *, max_order: int = 1, second_order: bool = True) -> 
                 if pl is None or not _clear(occ, pl[0], pl[2]):
                     continue
                 apex = np.clip((rs * zr + rr * zs) / (rs + rr), z0, z1)
-                shortest = min(np.linalg.norm(p - src.position) + np.linalg.norm(rec.position - p)
-                               for p in (ends[0] + z * unit for z in (z0, z1, apex)))
+                shortest = min(np.linalg.norm(p - src.position) + np.linalg.norm(rec.position - p) for p in (ends[0] + z * unit for z in (z0, z1, apex)))
                 start = max(int(np.floor(shortest / c * fs)) - 1, 0)
-                ir, _, singular, _ = wedge1st_ir(fs, c, TWO_PI - e.theta_w, rs, min(ts, e.theta_w), zs,
-                                                 rr, min(tr, e.theta_w), zr, np.array([z0, z1]), start * c / fs)
+                ir, _, singular, _ = wedge1st_ir(fs, c, TWO_PI - e.theta_w, rs, min(ts, e.theta_w), zs, rr, min(tr, e.theta_w), zr, np.array([z0, z1]), start * c / fs)
                 length = np.linalg.norm(mid - src.position) + np.linalg.norm(rec.position - mid)
-                out.append(BtmsContribution(start, ir, doa_of(pl[0][-2]), gain_of(length, pl[1]),
-                                            1, (k,), bool(np.any(singular))))
+                out.append(BtmsContribution(start, ir, doa_of(pl[0][-2]), gain_of(length, pl[1]), 1, (k,), bool(np.any(singular))))
                 # On a zone boundary wedge1st_ir drops the singular term and the geometric
                 # component is scaled, which keeps the total field continuous (Svensson
                 # and Calamia 2006): 1/2 for an edge hit (Svensson et al. 2025, Eqs. 2-4),
@@ -1023,19 +1001,17 @@ def btms_paths(spec: Pair, *, max_order: int = 1, second_order: bool = True) -> 
                         e1_about_2 = toolbox_cyl(e2, np.array([p0, p1]))
                         if along:
                             e2_about_1[:, 1], e1_about_2[:, 1] = theta_2_about_1, theta_1_about_2
-                        ir = wedge2nd_ir(cyl_s, cyl_r, e2_about_1, e1_about_2, nu, limits, dz, steps,
-                                         along, start * c / fs, c, fs)
+                        ir = wedge2nd_ir(cyl_s, cyl_r, e2_about_1, e1_about_2, nu, limits, dz, steps, along, start * c / fs, c, fs)
                         if thin_plate:
                             ir = 2.0 * ir
-                        length = (np.linalg.norm(m1 - src.position) + np.linalg.norm(m2 - m1)
-                                  + np.linalg.norm(rec.position - m2))
-                        out.append(BtmsContribution(start, ir, doa_of(m2), gain_of(length, ()),
-                                                    2, (i, j), False))
+                        length = np.linalg.norm(m1 - src.position) + np.linalg.norm(m2 - m1) + np.linalg.norm(rec.position - m2)
+                        out.append(BtmsContribution(start, ir, doa_of(m2), gain_of(length, ()), 2, (i, j), False))
     return out
 
 
-def encode_btms(contributions: list[BtmsContribution], sh_order: int, n_samples: int, fs: float,
-                *, normalization: str = "NM", extra_weights: np.ndarray | None = None) -> np.ndarray:
+def encode_btms(
+    contributions: list[BtmsContribution], sh_order: int, n_samples: int, fs: float, *, normalization: str = "NM", extra_weights: np.ndarray | None = None
+) -> np.ndarray:
     """Encode BTMS contributions at their directions; free field 1/r to 1/(4 pi r).
 
     ``extra_weights`` (M, K) adds K channels after the ambisonic ones, as :func:`encode`'s does.
@@ -1045,9 +1021,7 @@ def encode_btms(contributions: list[BtmsContribution], sh_order: int, n_samples:
     if not contributions:
         return np.zeros((n_samples, n_ch + n_extra))
     doa = np.array([p.doa for p in contributions])
-    sh = spharpy.spherical.spherical_harmonic_basis_real(
-        sh_order, pf.Coordinates(doa[:, 0], doa[:, 1], doa[:, 2]),
-        normalization=normalization, channel_convention="ACN")
+    sh = spharpy.spherical.spherical_harmonic_basis_real(sh_order, pf.Coordinates(doa[:, 0], doa[:, 1], doa[:, 2]), normalization=normalization, channel_convention="ACN")
     weights = sh if extra_weights is None else np.hstack([sh, np.asarray(extra_weights, dtype=float)])
     signals = [(p.start, np.outer(p.ir / (4.0 * np.pi), weights[m])) for m, p in enumerate(contributions)]
     return render_signals(signals, np.array([p.band_gain for p in contributions]), BANDS, fs, n_samples)

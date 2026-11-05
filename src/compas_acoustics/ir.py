@@ -14,7 +14,7 @@ from compas_acoustics.defaults import _PackageDtype
 from compas_acoustics.receiver import Receiver
 from compas_acoustics.source import Source
 
-__all__ = ['ImpulseResponse']
+__all__ = ["ImpulseResponse"]
 
 
 class ImpulseResponse(_PackageDtype, Data):
@@ -44,9 +44,19 @@ class ImpulseResponse(_PackageDtype, Data):
         ``'acn'``.
     """
 
-    def __init__(self, name: str, source: Source, receiver: Receiver, ir: np.ndarray, sampling_rate: int,
-                 normalized: bool = True, generation: dict = None, ambisonic_order: int = None, normalization: str = None,
-                 channel_order: str = None):
+    def __init__(
+        self,
+        name: str,
+        source: Source,
+        receiver: Receiver,
+        ir: np.ndarray,
+        sampling_rate: int,
+        normalized: bool = True,
+        generation: dict = None,
+        ambisonic_order: int = None,
+        normalization: str = None,
+        channel_order: str = None,
+    ):
         super().__init__(name=name)
         self.source = source
         self.receiver = receiver
@@ -173,7 +183,7 @@ class ImpulseResponse(_PackageDtype, Data):
             distance = float(np.linalg.norm(np.subtract(self.receiver.position, self.source.position)))
             return int(round(distance / c * self.sampling_rate))
         omni = self._raw_ir if self._raw_ir.ndim == 1 else self._raw_ir[:, 0]
-        return int(np.argmax(omni ** 2))
+        return int(np.argmax(omni**2))
 
     @property
     def metadata(self):
@@ -181,38 +191,40 @@ class ImpulseResponse(_PackageDtype, Data):
         import compas_acoustics
 
         return {
-            'metadata_version': 1,
-            'compas_acoustics_version': compas_acoustics.__version__,
-            'created': datetime.now(timezone.utc).isoformat(timespec='seconds'),
-            'name': self.name,
-            'description': self.description,
-            'sampling_rate': self.sampling_rate,
-            'samples': int(self._raw_ir.shape[0]),
-            'channels': self.n_channels,
-            'generation': self.generation,
-            'normalization': {
-                'method': 'peak',
-                'wav_normalized': True,
-                'factor': self.normalization_factor,
-                'level_db': self.level_db,
+            "metadata_version": 1,
+            "compas_acoustics_version": compas_acoustics.__version__,
+            "created": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "name": self.name,
+            "description": self.description,
+            "sampling_rate": self.sampling_rate,
+            "samples": int(self._raw_ir.shape[0]),
+            "channels": self.n_channels,
+            "generation": self.generation,
+            "normalization": {
+                "method": "peak",
+                "wav_normalized": True,
+                "factor": self.normalization_factor,
+                "level_db": self.level_db,
             },
-            'ambisonics': None if self.ambisonic_order is None else {
-                'order': int(self.ambisonic_order),
-                'normalization': self.normalization,
-                'channel_order': self.channel_order,
+            "ambisonics": None
+            if self.ambisonic_order is None
+            else {
+                "order": int(self.ambisonic_order),
+                "normalization": self.normalization,
+                "channel_order": self.channel_order,
             },
-            'source': {
-                'name': self.source.name,
-                'position': [float(v) for v in self.source.position],
-                'directivity': getattr(self.source, 'directivity', None),
-                'direction': [float(v) for v in self.source.direction],
-                'sound_file': getattr(self.source, 'sound_file', None),
+            "source": {
+                "name": self.source.name,
+                "position": [float(v) for v in self.source.position],
+                "directivity": getattr(self.source, "directivity", None),
+                "direction": [float(v) for v in self.source.direction],
+                "sound_file": getattr(self.source, "sound_file", None),
             },
-            'receiver': {
-                'name': self.receiver.name,
-                'position': [float(v) for v in self.receiver.position],
-                'direction': [float(v) for v in self.receiver.direction],
-                'up': [float(v) for v in self.receiver.up],
+            "receiver": {
+                "name": self.receiver.name,
+                "position": [float(v) for v in self.receiver.position],
+                "direction": [float(v) for v in self.receiver.direction],
+                "up": [float(v) for v in self.receiver.up],
             },
         }
 
@@ -229,8 +241,8 @@ class ImpulseResponse(_PackageDtype, Data):
         import soundfile as sf
 
         wav_path = Path(filepath)
-        json_path = wav_path.with_suffix('.json')
-        sf.write(str(wav_path), self._raw_ir / self.normalization_factor, int(self.sampling_rate), subtype='FLOAT')
+        json_path = wav_path.with_suffix(".json")
+        sf.write(str(wav_path), self._raw_ir / self.normalization_factor, int(self.sampling_rate), subtype="FLOAT")
         json_path.write_text(json.dumps(self.metadata, indent=4))
         return wav_path, json_path
 
@@ -255,33 +267,33 @@ class ImpulseResponse(_PackageDtype, Data):
         import soundfile as sf
 
         wav_path = Path(filepath)
-        json_path = wav_path.with_suffix('.json')
-        data, sampling_rate = sf.read(str(wav_path), dtype='float64')
+        json_path = wav_path.with_suffix(".json")
+        data, sampling_rate = sf.read(str(wav_path), dtype="float64")
         metadata = json.loads(json_path.read_text()) if json_path.exists() else {}
 
-        normalization = metadata.get('normalization', {})
-        if normalization.get('wav_normalized'):
-            data = data * normalization['factor']
+        normalization = metadata.get("normalization", {})
+        if normalization.get("wav_normalized"):
+            data = data * normalization["factor"]
 
         if source is None:
-            source_data = metadata.get('source', {})
-            source = Source(source_data.get('name', 'source'), *source_data.get('position', [0.0, 0.0, 0.0]),
-                            directivity=source_data.get('directivity'))
+            source_data = metadata.get("source", {})
+            source = Source(source_data.get("name", "source"), *source_data.get("position", [0.0, 0.0, 0.0]), directivity=source_data.get("directivity"))
         if receiver is None:
-            receiver_data = metadata.get('receiver', {})
-            receiver = Receiver(receiver_data.get('name', 'receiver'), *receiver_data.get('position', [0.0, 0.0, 0.0]),
-                                direction=receiver_data.get('direction'), up=receiver_data.get('up'))
-        ambisonics = metadata.get('ambisonics') or {}
+            receiver_data = metadata.get("receiver", {})
+            receiver = Receiver(
+                receiver_data.get("name", "receiver"), *receiver_data.get("position", [0.0, 0.0, 0.0]), direction=receiver_data.get("direction"), up=receiver_data.get("up")
+            )
+        ambisonics = metadata.get("ambisonics") or {}
 
         return cls(
-            name=metadata.get('name', wav_path.stem),
+            name=metadata.get("name", wav_path.stem),
             source=source,
             receiver=receiver,
             ir=data,
             sampling_rate=sampling_rate,
             normalized=normalized,
-            generation=metadata.get('generation'),
-            ambisonic_order=ambisonics.get('order'),
-            normalization=ambisonics.get('normalization'),
-            channel_order=ambisonics.get('channel_order'),
+            generation=metadata.get("generation"),
+            ambisonic_order=ambisonics.get("order"),
+            normalization=ambisonics.get("normalization"),
+            channel_order=ambisonics.get("channel_order"),
         )

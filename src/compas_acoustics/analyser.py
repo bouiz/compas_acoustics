@@ -11,11 +11,11 @@ from compas_acoustics.defaults import Defaults
 
 __all__ = ["Analyser", "frequency_response", "time_response"]
 
-_PARAM_NAMES = ['EDT', 'T20', 'T30', 'C50', 'C80', 'D50', 'DRR', 'Ts', 'STI', 'G', 'SPL', 'LF', 'LFC']
+_PARAM_NAMES = ["EDT", "T20", "T30", "C50", "C80", "D50", "DRR", "Ts", "STI", "G", "SPL", "LF", "LFC"]
 
 # pyrato < 1.0 (the only one on Python 3.9) has no `parameters` module
-_PYRATO_PARAMETERS = hasattr(pyrato, 'parameters')
-_STI_SUPPORTED = _PYRATO_PARAMETERS and hasattr(pyrato.parameters, 'speech_transmission_index_indirect')
+_PYRATO_PARAMETERS = hasattr(pyrato, "parameters")
+_STI_SUPPORTED = _PYRATO_PARAMETERS and hasattr(pyrato.parameters, "speech_transmission_index_indirect")
 
 # A-weighting at the octave centres, in dB (IEC 61672-1:2013 Table 3)
 _A_WEIGHTS = {125: -16.1, 250: -8.6, 500: -3.2, 1000: 0.0, 2000: 1.2, 4000: 1.0, 8000: -1.1}
@@ -47,15 +47,15 @@ def _iso3382_start(ir_array, threshold_db=20.0):
     n = energy.size
     peak = int(np.argmax(energy))
     tail = int(round(0.9 * n))
-    if peak == 0 or energy[peak] < 100.0 * np.mean(energy[max(tail - 1, 0):]) or peak + 1 > tail:
+    if peak == 0 or energy[peak] < 100.0 * np.mean(energy[max(tail - 1, 0) :]) or peak + 1 > tail:
         return 0
-    with np.errstate(divide='ignore'):
-        level = 10.0 * np.log10(energy[:peak + 1] / energy[peak])
+    with np.errstate(divide="ignore"):
+        level = 10.0 * np.log10(energy[: peak + 1] / energy[peak])
     below = np.flatnonzero(level < -threshold_db)
     start = int(below[-1]) if below.size else 0
-    earlier = np.flatnonzero(level[:start + 1] > -threshold_db + 6.0)
+    earlier = np.flatnonzero(level[: start + 1] > -threshold_db + 6.0)
     if earlier.size:
-        before = np.flatnonzero(level[:earlier[0] + 1] < -threshold_db)
+        before = np.flatnonzero(level[: earlier[0] + 1] < -threshold_db)
         start = int(before[-1]) if before.size else 0
     return start
 
@@ -67,7 +67,7 @@ def _channels_first(ir):
 
 def _decay_end(ir, trim_db, margin=0.05):
     """Samples of ``ir`` (channels, samples) until the Schroeder curve of all channels falls ``trim_db`` below its start, lengthened by the fraction ``margin``."""
-    remaining = np.cumsum(np.sum(ir ** 2, axis=0)[::-1])[::-1]
+    remaining = np.cumsum(np.sum(ir**2, axis=0)[::-1])[::-1]
     if remaining[0] == 0:
         return ir.shape[1]
     below = np.flatnonzero(remaining <= remaining[0] * 10 ** (-trim_db / 10))
@@ -108,7 +108,7 @@ def time_response(ir, sampling_rate, db=True, trim_db=None):
     """
     ir = _channels_first(ir)
     if trim_db is not None:
-        ir = ir[:, :_decay_end(ir, trim_db)]
+        ir = ir[:, : _decay_end(ir, trim_db)]
     times = np.arange(ir.shape[1]) / sampling_rate
     return times, _level_re_peak(ir) if db else ir
 
@@ -170,7 +170,7 @@ class Analyser:
         self.analysis_data = None
         # Zero-phase bands of self.ir by centre frequency, kept while analyse() runs
         self._bands_from_onset = None
-        sampling_rate = getattr(ir, 'sampling_rate', None)
+        sampling_rate = getattr(ir, "sampling_rate", None)
         self.sampling_rate = int(sampling_rate) if sampling_rate is not None else Defaults().SAMPLING_RATE
 
     @property
@@ -189,14 +189,14 @@ class Analyser:
 
     @staticmethod
     def _on_package_scale(ir):
-        return (getattr(ir, 'generation', None) or {}).get('scale') == 'package'
+        return (getattr(ir, "generation", None) or {}).get("scale") == "package"
 
     @staticmethod
     def _as_mono_array(ir):
         """A 1D array of an impulse response, at the raw level for an ImpulseResponse."""
-        if hasattr(ir, 'denormalized'):
+        if hasattr(ir, "denormalized"):
             ir = ir.denormalized()
-        elif hasattr(ir, 'ir') and hasattr(ir, 'sampling_rate'):
+        elif hasattr(ir, "ir") and hasattr(ir, "sampling_rate"):
             ir = ir.ir
         if not isinstance(ir, (list, np.ndarray)):
             raise TypeError("Impulse response must be a list, numpy array or ImpulseResponse.")
@@ -221,7 +221,7 @@ class Analyser:
 
     @property
     def frequency_bands(self):
-        if hasattr(self, '_frequency_bands'):
+        if hasattr(self, "_frequency_bands"):
             return self._frequency_bands
         return Defaults().DEFAULT_FREQUENCY_BANDS
 
@@ -233,79 +233,79 @@ class Analyser:
 
     @property
     def T30(self):
-        return self.analysis_data['T30'] if self.analysis_data else None
+        return self.analysis_data["T30"] if self.analysis_data else None
 
     @property
     def T20(self):
-        return self.analysis_data['T20'] if self.analysis_data else None
+        return self.analysis_data["T20"] if self.analysis_data else None
 
     @property
     def C50(self):
-        return self.analysis_data['C50'] if self.analysis_data else None
+        return self.analysis_data["C50"] if self.analysis_data else None
 
     @property
     def C80(self):
-        return self.analysis_data['C80'] if self.analysis_data else None
+        return self.analysis_data["C80"] if self.analysis_data else None
 
     @property
     def D50(self):
-        return self.analysis_data['D50'] if self.analysis_data else None
+        return self.analysis_data["D50"] if self.analysis_data else None
 
     @property
     def DRR(self):
-        return self.analysis_data['DRR'] if self.analysis_data else None
+        return self.analysis_data["DRR"] if self.analysis_data else None
 
     @property
     def STI(self):
-        return self.analysis_data['STI'] if self.analysis_data else None
+        return self.analysis_data["STI"] if self.analysis_data else None
 
     @property
     def Ts(self):
-        return self.analysis_data['Ts'] if self.analysis_data else None
+        return self.analysis_data["Ts"] if self.analysis_data else None
 
     @property
     def G(self):
-        return self.analysis_data['G'] if self.analysis_data else None
+        return self.analysis_data["G"] if self.analysis_data else None
 
     @property
     def EDT(self):
-        return self.analysis_data['EDT'] if self.analysis_data else None
+        return self.analysis_data["EDT"] if self.analysis_data else None
 
     @property
     def T20_overall(self):
-        return self.analysis_data['T20_overall'] if self.analysis_data else None
+        return self.analysis_data["T20_overall"] if self.analysis_data else None
 
     @property
     def T30_overall(self):
-        return self.analysis_data['T30_overall'] if self.analysis_data else None
+        return self.analysis_data["T30_overall"] if self.analysis_data else None
 
     @property
     def C50_overall(self):
-        return self.analysis_data['C50_overall'] if self.analysis_data else None
+        return self.analysis_data["C50_overall"] if self.analysis_data else None
 
     @property
     def C80_overall(self):
-        return self.analysis_data['C80_overall'] if self.analysis_data else None
+        return self.analysis_data["C80_overall"] if self.analysis_data else None
 
     @property
     def D50_overall(self):
-        return self.analysis_data['D50_overall'] if self.analysis_data else None
+        return self.analysis_data["D50_overall"] if self.analysis_data else None
 
     @property
     def DRR_overall(self):
-        return self.analysis_data['DRR_overall'] if self.analysis_data else None
+        return self.analysis_data["DRR_overall"] if self.analysis_data else None
 
     @property
     def STI_overall(self):
-        return self.analysis_data['STI_overall'] if self.analysis_data else None
+        return self.analysis_data["STI_overall"] if self.analysis_data else None
 
     @property
     def Ts_overall(self):
-        return self.analysis_data['Ts_overall'] if self.analysis_data else None
+        return self.analysis_data["Ts_overall"] if self.analysis_data else None
 
     @property
     def EDT_overall(self):
-        return self.analysis_data['EDT_overall'] if self.analysis_data else None
+        return self.analysis_data["EDT_overall"] if self.analysis_data else None
 
     def _filter_impulse_response(self, impulse_response, center_frequency):
         sig = pf.Signal(np.asarray(impulse_response, dtype=float), self.sampling_rate)
@@ -318,7 +318,7 @@ class Analyser:
 
     def _band_energies(self, segment, bands) -> dict:
         """Octave-band energies of a time segment; filter delay and ringing stay with the segment."""
-        return {f: float(np.sum(band ** 2)) for f, band in self._band_signals(segment, bands).items()}
+        return {f: float(np.sum(band**2)) for f, band in self._band_signals(segment, bands).items()}
 
     def _direct_sound_onset(self, ir_array) -> int:
         """Index of the direct sound (:func:`_iso3382_start`).
@@ -373,17 +373,17 @@ class Analyser:
         onset = self._direct_sound_onset(ir_array)
         # Trailing zeros are cut: the filters' ringing into them would steepen the end of the integral
         end = int(np.flatnonzero(ir_array)[-1]) + 1 if np.any(ir_array) else len(ir_array)
-        keys = ('EDT', 'T20', 'T30')
+        keys = ("EDT", "T20", "T30")
         # in pyrato.parameters from pyrato 1.0, at the top level of pyrato < 1.0
-        regression = getattr(pyrato, 'parameters', pyrato).reverberation_time_linear_regression
+        regression = getattr(pyrato, "parameters", pyrato).reverberation_time_linear_regression
 
         results = {key: [] for key in keys}
         failed = {}
         for center_freq in self.frequency_bands:
             band, direct = self._band_from_onset(ir_array, center_freq)
-            sig = pf.Signal(band[direct:direct + end - onset], self.sampling_rate)
+            sig = pf.Signal(band[direct : direct + end - onset], self.sampling_rate)
             edc = pyrato.edc.schroeder_integration(sig)
-            with np.errstate(divide='ignore', invalid='ignore'):
+            with np.errstate(divide="ignore", invalid="ignore"):
                 edc = pf.TimeData(edc.time / edc.time[..., :1], edc.times)
                 try:
                     values = [round(float(np.squeeze(regression(edc, key))), 2) for key in keys]
@@ -394,8 +394,9 @@ class Analyser:
             for key, value in zip(keys, values):
                 results[key].append(value)
         if failed:
-            warnings.warn(f"pyrato could not evaluate the decay in the {', '.join(f'{f:g}' for f in failed)} Hz band(s) "
-                          f"({next(iter(failed.values()))}); EDT, T20 and T30 are NaN there.")
+            warnings.warn(
+                f"pyrato could not evaluate the decay in the {', '.join(f'{f:g}' for f in failed)} Hz band(s) ({next(iter(failed.values()))}); EDT, T20 and T30 are NaN there."
+            )
         return results
 
     def clarity_definition(self, impulse_response=None) -> dict:
@@ -412,18 +413,23 @@ class Analyser:
         bands = list(self.frequency_bands)
         early_50, early_80 = (onset + int(round(t * self.sampling_rate)) for t in (0.05, 0.08))
 
-        energies = {name: self._band_energies(segment, bands) for name, segment in (
-            ('early_50', ir_array[onset:early_50]), ('late_50', ir_array[early_50:]),
-            ('early_80', ir_array[onset:early_80]), ('late_80', ir_array[early_80:]),
-        )}
+        energies = {
+            name: self._band_energies(segment, bands)
+            for name, segment in (
+                ("early_50", ir_array[onset:early_50]),
+                ("late_50", ir_array[early_50:]),
+                ("early_80", ir_array[onset:early_80]),
+                ("late_80", ir_array[early_80:]),
+            )
+        }
 
-        results = {'C50': [], 'C80': [], 'D50': []}
+        results = {"C50": [], "C80": [], "D50": []}
         for freq in bands:
-            e_early_50, e_late_50 = energies['early_50'][freq], energies['late_50'][freq]
-            e_early_80, e_late_80 = energies['early_80'][freq], energies['late_80'][freq]
-            results['C50'].append(round(float(10.0 * np.log10((e_early_50 + 1e-12) / (e_late_50 + 1e-12))), 2))
-            results['C80'].append(round(float(10.0 * np.log10((e_early_80 + 1e-12) / (e_late_80 + 1e-12))), 2))
-            results['D50'].append(round(float(e_early_50 / (e_early_50 + e_late_50 + 1e-12) * 100.0), 2))
+            e_early_50, e_late_50 = energies["early_50"][freq], energies["late_50"][freq]
+            e_early_80, e_late_80 = energies["early_80"][freq], energies["late_80"][freq]
+            results["C50"].append(round(float(10.0 * np.log10((e_early_50 + 1e-12) / (e_late_50 + 1e-12))), 2))
+            results["C80"].append(round(float(10.0 * np.log10((e_early_80 + 1e-12) / (e_late_80 + 1e-12))), 2))
+            results["D50"].append(round(float(e_early_50 / (e_early_50 + e_late_50 + 1e-12) * 100.0), 2))
         return results
 
     def direct_to_reverberant_ratio(self, impulse_response=None) -> dict:
@@ -454,10 +460,10 @@ class Analyser:
         bands = list(self.frequency_bands)
         direct = self._band_energies(ir_array[start:end], bands)
         reverberant = self._band_energies(ir_array[end:], bands)
-        filtered = sosfilt(butter(2, (700.0, 4000.0), 'bandpass', fs=self.sampling_rate, output='sos'), ir_array)
+        filtered = sosfilt(butter(2, (700.0, 4000.0), "bandpass", fs=self.sampling_rate, output="sos"), ir_array)
         return {
-            'DRR': [ratio(direct[freq], reverberant[freq]) for freq in bands],
-            'DRR_overall': ratio(np.sum(filtered[start:end] ** 2), np.sum(filtered[end:] ** 2)),
+            "DRR": [ratio(direct[freq], reverberant[freq]) for freq in bands],
+            "DRR_overall": ratio(np.sum(filtered[start:end] ** 2), np.sum(filtered[end:] ** 2)),
         }
 
     def center_time(self, impulse_response=None) -> dict:
@@ -466,21 +472,21 @@ class Analyser:
             impulse_response = self.ir
 
         ir_array = np.asarray(impulse_response, dtype=float)
-        results = {'Ts': []}
+        results = {"Ts": []}
         for freq in self.frequency_bands:
             band, direct = self._band_from_onset(ir_array, freq)
             if not np.any(band):
-                results['Ts'].append(np.nan)
+                results["Ts"].append(np.nan)
                 continue
             if _PYRATO_PARAMETERS:
                 edc = pyrato.edc.schroeder_integration(pf.Signal(band, self.sampling_rate))
                 # measured from the start of the EDC, `direct` samples before the direct sound
                 ts = float(np.squeeze(pyrato.parameters.center_time(edc))) - direct / self.sampling_rate
             else:
-                energy = band ** 2
+                energy = band**2
                 t = (np.arange(band.size) - direct) / self.sampling_rate
                 ts = float(np.sum(t * energy) / np.sum(energy))
-            results['Ts'].append(round(ts, 4))
+            results["Ts"].append(round(ts, 4))
         return results
 
     def speech_transmission_index(self, impulse_response=None, snr=np.inf) -> dict:
@@ -495,11 +501,8 @@ class Analyser:
             ``'mti'`` per octave band 125-8000 Hz and ``'sti'``; NaN where pyrato cannot compute them.
         """
         if not _STI_SUPPORTED:
-            warnings.warn(
-                "STI is not available with pyrato {} (requires pyrato >= 1.0 and Python >= 3.11). "
-                "STI and MTI values are set to NaN.".format(pyrato.__version__)
-            )
-            return {'mti': np.full(7, np.nan), 'sti': np.nan}
+            warnings.warn("STI is not available with pyrato {} (requires pyrato >= 1.0 and Python >= 3.11). STI and MTI values are set to NaN.".format(pyrato.__version__))
+            return {"mti": np.full(7, np.nan), "sti": np.nan}
 
         if impulse_response is None:
             impulse_response = self.ir
@@ -516,7 +519,7 @@ class Analyser:
             snr_app = 10.0 * np.log10(mtf / (1.0 - mtf + 1e-12) + 1e-12)
             mti = np.mean(np.clip((snr_app + 15.0) / 30.0, 0, 1), axis=-1)
             # The public STI function computes the MTF again; its private reduction (Annex A.2.1) halves the cost
-            sti_calc = getattr(pyrato.parameters, '_sti_calc', None)
+            sti_calc = getattr(pyrato.parameters, "_sti_calc", None)
             if sti_calc is not None and mtf.shape == (7, 14):
                 sti_val = round(float(sti_calc(mtf)), 4)
             else:
@@ -525,7 +528,7 @@ class Analyser:
             warnings.warn(f"STI computation failed: {e}")
             mti = np.full(7, np.nan)
             sti_val = np.nan
-        return {'mti': mti, 'sti': sti_val}
+        return {"mti": mti, "sti": sti_val}
 
     def stage_support(self, impulse_response=None) -> dict:
         """ST_early and ST_late per band (Gade; ISO 3382-1:2009 Annex C), for source and receiver 1 m apart.
@@ -545,8 +548,7 @@ class Analyser:
         onset = self._direct_sound_onset(ir_array)
 
         if onset + fs > len(ir_array):
-            warnings.warn(f"Impulse response ends {(len(ir_array) - onset) / fs:.2f} s after the direct sound; "
-                          "the ST_late window (100-1000 ms) is truncated.")
+            warnings.warn(f"Impulse response ends {(len(ir_array) - onset) / fs:.2f} s after the direct sound; the ST_late window (100-1000 ms) is truncated.")
 
         freqs = list(self.frequency_bands)
         overall_bands = [250, 500, 1000, 2000]
@@ -554,15 +556,15 @@ class Analyser:
 
         def segment(window):
             start, stop = (onset + int(round(t * fs)) for t in window)
-            return ir_array[start:min(stop, len(ir_array))]
+            return ir_array[start : min(stop, len(ir_array))]
 
         direct = self._band_energies(segment((0.0, 0.010)), bands)
-        result = {'freqs': freqs}
-        for name, window in {'ST_early': (0.020, 0.100), 'ST_late': (0.100, 1.000)}.items():
+        result = {"freqs": freqs}
+        for name, window in {"ST_early": (0.020, 0.100), "ST_late": (0.100, 1.000)}.items():
             reflected = self._band_energies(segment(window), bands)
             values = {f: 10.0 * np.log10(reflected[f] / direct[f]) if reflected[f] > 0 and direct[f] > 0 else np.nan for f in bands}
             result[name] = [round(float(values[f]), 2) for f in freqs]
-            result[f'{name}_overall'] = round(float(np.nanmean([values[f] for f in overall_bands])), 2)
+            result[f"{name}_overall"] = round(float(np.nanmean([values[f] for f in overall_bands])), 2)
         return result
 
     def sound_strength(self, reference_ir=None, impulse_response=None) -> dict:
@@ -591,7 +593,7 @@ class Analyser:
             reference = np.zeros(self.sampling_rate)
             reference[int(0.1 * self.sampling_rate)] = 1.0 / (4.0 * np.pi * 10.0)
         else:
-            reference_rate = getattr(reference_ir, 'sampling_rate', None)
+            reference_rate = getattr(reference_ir, "sampling_rate", None)
             if reference_rate is not None and int(reference_rate) != self.sampling_rate:
                 raise ValueError(f"Reference impulse response sample rate {reference_rate} Hz differs from {self.sampling_rate} Hz.")
             reference = self._as_mono_array(reference_ir)
@@ -599,7 +601,7 @@ class Analyser:
         freqs = list(self.frequency_bands)
         if not _PYRATO_PARAMETERS:
             warnings.warn("Sound strength G needs pyrato >= 1.0 (pyrato {} is installed); G is NaN.".format(pyrato.__version__))
-            return {'freqs': freqs, 'G': [np.nan] * len(freqs), 'G_overall': np.nan}
+            return {"freqs": freqs, "G": [np.nan] * len(freqs), "G_overall": np.nan}
 
         bands = list(dict.fromkeys(freqs + [500, 1000]))
 
@@ -610,9 +612,9 @@ class Analyser:
         strength = np.asarray(pyrato.parameters.sound_strength(band_edcs(ir_array), band_edcs(reference))).reshape(-1)
         values = dict(zip(bands, strength))
         return {
-            'freqs': freqs,
-            'G': [round(float(values[f]), 2) for f in freqs],
-            'G_overall': round(float((values[500] + values[1000]) / 2), 2),
+            "freqs": freqs,
+            "G": [round(float(values[f]), 2) for f in freqs],
+            "G_overall": round(float((values[500] + values[1000]) / 2), 2),
         }
 
     def sound_pressure_level(self, source_spl=None, impulse_response=None, strength=None) -> dict:
@@ -639,9 +641,9 @@ class Analyser:
         """
         response = self._response if impulse_response is None else impulse_response
         freqs = list(self.frequency_bands)
-        nan = {'freqs': freqs, 'SPL': [np.nan] * len(freqs), 'SPL_overall': np.nan, 'SPL_total': np.nan}
+        nan = {"freqs": freqs, "SPL": [np.nan] * len(freqs), "SPL_overall": np.nan, "SPL_total": np.nan}
         if source_spl is None:
-            source_spl = getattr(getattr(response, 'source', None), 'spl', None)
+            source_spl = getattr(getattr(response, "source", None), "spl", None)
         if source_spl is None:
             warnings.warn("SPL needs the source's level at 1 m: pass source_spl or a response whose source has one.")
             return nan
@@ -653,13 +655,12 @@ class Analyser:
                 warnings.warn("SPL needs a response on the package scale (a simulated one), which keeps its absolute level.")
                 return nan
             strength = self.sound_strength(impulse_response=impulse_response)
-        spl = level + np.asarray(strength['G'], dtype=float) - 20.0
+        spl = level + np.asarray(strength["G"], dtype=float) - 20.0
         weights = np.array([_A_WEIGHTS.get(f, np.nan) for f in freqs])
-        with np.errstate(divide='ignore'):
+        with np.errstate(divide="ignore"):
             total = 10.0 * np.log10(np.nansum(10.0 ** (spl / 10.0))) if np.any(np.isfinite(spl)) else np.nan
             weighted = 10.0 * np.log10(np.nansum(10.0 ** ((spl + weights) / 10.0))) if np.any(np.isfinite(spl + weights)) else np.nan
-        return {'freqs': freqs, 'SPL': [round(float(v), 2) for v in spl], 'SPL_overall': round(float(weighted), 2),
-                'SPL_total': round(float(total), 2)}
+        return {"freqs": freqs, "SPL": [round(float(v), 2) for v in spl], "SPL_overall": round(float(weighted), 2), "SPL_total": round(float(total), 2)}
 
     def lateral_fraction(self, impulse_response=None) -> dict:
         """Early lateral energy fractions J_LF and J_LFC per band (ISO 3382-1:2009 Annex A).
@@ -684,14 +685,14 @@ class Analyser:
         """
         response = self._response if impulse_response is None else impulse_response
         freqs = list(self.frequency_bands)
-        nan = {'freqs': freqs, 'LF': [np.nan] * len(freqs), 'LFC': [np.nan] * len(freqs), 'LF_overall': np.nan, 'LFC_overall': np.nan}
-        if getattr(response, 'ambisonic_order', None) is None or not hasattr(response, 'denormalized'):
+        nan = {"freqs": freqs, "LF": [np.nan] * len(freqs), "LFC": [np.nan] * len(freqs), "LF_overall": np.nan, "LFC_overall": np.nan}
+        if getattr(response, "ambisonic_order", None) is None or not hasattr(response, "denormalized"):
             return nan
         channels = _channels_first(response.denormalized())
         if channels.shape[0] < 4:
             return nan
         w, y, z, x = channels[:4]
-        if (getattr(response, 'normalization', None) or 'sn3d').lower() == 'n3d':
+        if (getattr(response, "normalization", None) or "sn3d").lower() == "n3d":
             x, y, z = (c / np.sqrt(3.0) for c in (x, y, z))
 
         fs = self.sampling_rate
@@ -699,8 +700,8 @@ class Analyser:
             onset = response.direct_sound_index()
         else:
             onset = self._direct_sound_onset(w)
-        source = getattr(response, 'source', None)
-        receiver = getattr(response, 'receiver', None)
+        source = getattr(response, "source", None)
+        receiver = getattr(response, "receiver", None)
         if source is not None and receiver is not None:
             direction = np.asarray(receiver.rotation).T @ (np.asarray(source.position, dtype=float) - np.asarray(receiver.position, dtype=float))
         else:
@@ -725,11 +726,11 @@ class Analyser:
             lf[f] = float(np.sum(lateral_early[f] ** 2)) / total if total > 0 else np.nan
             lfc[f] = float(np.sum(np.abs(lateral_early[f] * omni_lateral[f]))) / total if total > 0 else np.nan
         return {
-            'freqs': freqs,
-            'LF': [round(lf[f], 3) for f in freqs],
-            'LFC': [round(lfc[f], 3) for f in freqs],
-            'LF_overall': round(float(np.nanmean([lf[f] for f in overall_bands])), 3),
-            'LFC_overall': round(float(np.nanmean([lfc[f] for f in overall_bands])), 3),
+            "freqs": freqs,
+            "LF": [round(lf[f], 3) for f in freqs],
+            "LFC": [round(lfc[f], 3) for f in freqs],
+            "LF_overall": round(float(np.nanmean([lf[f] for f in overall_bands])), 3),
+            "LFC_overall": round(float(np.nanmean([lfc[f] for f in overall_bands])), 3),
         }
 
     def _sti_and_strength(self, ir=None) -> dict:
@@ -745,15 +746,17 @@ class Analyser:
         own = None if ir is self.ir else ir
         if _PYRATO_PARAMETERS and (self._package_scale if own is None else self._on_package_scale(own)):
             strength = self.sound_strength(impulse_response=own)
-            g_vector, g_overall = strength['G'], strength['G_overall']
+            g_vector, g_overall = strength["G"], strength["G_overall"]
         else:
             g_vector, g_overall = [np.nan] * len(freqs), np.nan
 
         sti_bands = [125, 250, 500, 1000, 2000, 4000, 8000]
-        sti_vector = [round(sti_data['mti'][sti_bands.index(f)], 2) if f in sti_bands else np.nan for f in freqs]
+        sti_vector = [round(sti_data["mti"][sti_bands.index(f)], 2) if f in sti_bands else np.nan for f in freqs]
         return {
-            'STI': np.array(sti_vector, dtype=float).tolist(), 'STI_overall': round(float(sti_data['sti']), 4),
-            'G': np.array(g_vector, dtype=float).tolist(), 'G_overall': g_overall,
+            "STI": np.array(sti_vector, dtype=float).tolist(),
+            "STI_overall": round(float(sti_data["sti"]), 4),
+            "G": np.array(g_vector, dtype=float).tolist(),
+            "G_overall": g_overall,
         }
 
     def analyse(self, ir=None) -> dict:
@@ -777,32 +780,45 @@ class Analyser:
         # the lateral fractions and SPL need the channels, source and receiver of the response, not its mono array
         response = self._response if ir is self.ir else ir
         lateral = self.lateral_fraction(response)
-        level = getattr(getattr(response, 'source', None), 'spl', None)
-        if level is not None and not all(np.isnan(np.asarray(sti_and_strength['G'], dtype=float))):
-            spl = self.sound_pressure_level(level, strength={'G': sti_and_strength['G']})
+        level = getattr(getattr(response, "source", None), "spl", None)
+        if level is not None and not all(np.isnan(np.asarray(sti_and_strength["G"], dtype=float))):
+            spl = self.sound_pressure_level(level, strength={"G": sti_and_strength["G"]})
         else:
-            spl = {'SPL': [np.nan] * len(self.frequency_bands), 'SPL_overall': np.nan}
+            spl = {"SPL": [np.nan] * len(self.frequency_bands), "SPL_overall": np.nan}
 
         freqs = list(self.frequency_bands)
         param_vectors = {
-            'EDT': rt['EDT'], 'T20': rt['T20'], 'T30': rt['T30'],
-            'C50': clarity['C50'], 'C80': clarity['C80'], 'D50': clarity['D50'],
-            'DRR': drr['DRR'], 'Ts': ct['Ts'], 'STI': sti_and_strength['STI'], 'G': sti_and_strength['G'],
-            'SPL': spl['SPL'], 'LF': lateral['LF'], 'LFC': lateral['LFC'],
+            "EDT": rt["EDT"],
+            "T20": rt["T20"],
+            "T30": rt["T30"],
+            "C50": clarity["C50"],
+            "C80": clarity["C80"],
+            "D50": clarity["D50"],
+            "DRR": drr["DRR"],
+            "Ts": ct["Ts"],
+            "STI": sti_and_strength["STI"],
+            "G": sti_and_strength["G"],
+            "SPL": spl["SPL"],
+            "LF": lateral["LF"],
+            "LFC": lateral["LFC"],
         }
         own_overall = {
-            'STI': sti_and_strength['STI_overall'], 'G': sti_and_strength['G_overall'], 'DRR': drr['DRR_overall'],
-            'LF': lateral['LF_overall'], 'LFC': lateral['LFC_overall'], 'SPL': spl['SPL_overall'],
+            "STI": sti_and_strength["STI_overall"],
+            "G": sti_and_strength["G_overall"],
+            "DRR": drr["DRR_overall"],
+            "LF": lateral["LF_overall"],
+            "LFC": lateral["LFC_overall"],
+            "SPL": spl["SPL_overall"],
         }
 
-        result = {'freqs': freqs}
+        result = {"freqs": freqs}
         for param in _PARAM_NAMES:
             vals = np.array(param_vectors[param], dtype=float)
             result[param] = vals.tolist()
             if param in own_overall:
-                result[f'{param}_overall'] = own_overall[param]
+                result[f"{param}_overall"] = own_overall[param]
             else:
-                result[f'{param}_overall'] = round(float(np.nanmean(vals[[freqs.index(500), freqs.index(1000)]])), 2)
+                result[f"{param}_overall"] = round(float(np.nanmean(vals[[freqs.index(500), freqs.index(1000)]])), 2)
 
         self.analysis_data = result
         return self.analysis_data
@@ -822,13 +838,13 @@ class Analyser:
         params = parameters if parameters else _PARAM_NAMES
         if isinstance(params, str):
             params = [params]
-        freqs = self.analysis_data['freqs']
-        header = (freqs if show_bands else []) + (['Overall'] if show_overall else [])
+        freqs = self.analysis_data["freqs"]
+        header = (freqs if show_bands else []) + (["Overall"] if show_overall else [])
         print()
         print(f"{'':14}" + "".join(f"{str(f):>8}" for f in header))
         print("-" * (14 + 8 * len(header)))
         for p in params:
-            row = (self.analysis_data[p] if show_bands else []) + ([self.analysis_data[f'{p}_overall']] if show_overall else [])
+            row = (self.analysis_data[p] if show_bands else []) + ([self.analysis_data[f"{p}_overall"]] if show_overall else [])
             print(f"{p:14}" + "".join(f"{v:>8.2f}" for v in row))
 
     def plot(self, parameters=None):
@@ -845,10 +861,19 @@ class Analyser:
             parameters = _PARAM_NAMES
 
         units = {
-            'EDT': 'Time (s)', 'T20': 'Time (s)', 'T30': 'Time (s)', 'Ts': 'Time (s)',
-            'C50': 'dB', 'C80': 'dB', 'DRR': 'dB', 'G': 'dB', 'SPL': 'dB',
-            'STI': 'Percentage', 'D50': 'Percentage',
-            'LF': 'Fraction (0-1)', 'LFC': 'Fraction (0-1)',
+            "EDT": "Time (s)",
+            "T20": "Time (s)",
+            "T30": "Time (s)",
+            "Ts": "Time (s)",
+            "C50": "dB",
+            "C80": "dB",
+            "DRR": "dB",
+            "G": "dB",
+            "SPL": "dB",
+            "STI": "Percentage",
+            "D50": "Percentage",
+            "LF": "Fraction (0-1)",
+            "LFC": "Fraction (0-1)",
         }
 
         for param in parameters:
@@ -859,9 +884,9 @@ class Analyser:
                 vmin, vmax = np.min(y_clean), np.max(y_clean)
                 lower_limit = vmin - (abs(vmin) * 0.4)
                 upper_limit = vmax + (abs(vmax) * 0.4)
-                if param == 'STI':
+                if param == "STI":
                     lower_limit, upper_limit = max(0.0, lower_limit), min(1.0, upper_limit)
-                if param == 'D50':
+                if param == "D50":
                     lower_limit, upper_limit = max(0.0, lower_limit), min(100.0, upper_limit)
                 ylim = [lower_limit, upper_limit]
             else:
@@ -870,13 +895,14 @@ class Analyser:
             plt.figure(figsize=(8, 4), num=f"{param}")
             plt.title(f"{param}")
             ax = plt.gca()
-            plt.plot([str(f) for f in self.analysis_data['freqs']], y, marker='o', linewidth=2, label=param)
+            plt.plot([str(f) for f in self.analysis_data["freqs"]], y, marker="o", linewidth=2, label=param)
 
-            if param in ['EDT', 'T20', 'T30']:
+            if param in ["EDT", "T20", "T30"]:
                 from matplotlib.ticker import FormatStrFormatter
                 from matplotlib.ticker import MultipleLocator
+
                 ax.yaxis.set_major_locator(MultipleLocator(0.2))
-                ax.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
+                ax.yaxis.set_major_formatter(FormatStrFormatter("%.1f"))
                 if ylim and (ylim[1] - ylim[0]) < 0.4:
                     mid = (ylim[0] + ylim[1]) / 2
                     ylim = [mid - 0.3, mid + 0.3]
@@ -887,8 +913,8 @@ class Analyser:
                 else:
                     plt.ylim(ylim)
 
-            plt.xlabel('Frequency (Hz)')
-            plt.ylabel(units.get(param, ''))
+            plt.xlabel("Frequency (Hz)")
+            plt.ylabel(units.get(param, ""))
             plt.grid(alpha=0.3)
             plt.tight_layout()
             plt.show()
@@ -909,15 +935,15 @@ class Analyser:
         elif isinstance(parameters, str):
             parameters = [parameters]
 
-        header = ['Parameter'] + [str(f) for f in self.analysis_data['freqs']] + ['Overall']
-        with open(filepath, mode='w', newline='') as f:
+        header = ["Parameter"] + [str(f) for f in self.analysis_data["freqs"]] + ["Overall"]
+        with open(filepath, mode="w", newline="") as f:
             writer = csv.writer(f)
             writer.writerow(header)
             for param in parameters:
                 if param not in _PARAM_NAMES:
                     warnings.warn(f"Parameter '{param}' not available for CSV export.")
                     continue
-                data_row = self.analysis_data[param] + [self.analysis_data[f'{param}_overall']]
+                data_row = self.analysis_data[param] + [self.analysis_data[f"{param}_overall"]]
                 writer.writerow([param] + [round(v, 2) if not np.isnan(v) else "" for v in data_row])
 
         print(f"Selected results successfully saved to: {filepath}")
@@ -928,10 +954,10 @@ class Analyser:
 
         t = np.arange(len(self.ir)) / self.sampling_rate
         plt.figure(figsize=(8, 4), num="Impulse Response")
-        plt.plot(t, self.ir, label='Impulse Response')
-        plt.xlabel('Time (s)')
-        plt.ylabel('Amplitude')
-        plt.title('Impulse Response')
+        plt.plot(t, self.ir, label="Impulse Response")
+        plt.xlabel("Time (s)")
+        plt.ylabel("Amplitude")
+        plt.title("Impulse Response")
         plt.grid(alpha=0.3)
         plt.tight_layout()
         plt.show()
@@ -947,17 +973,14 @@ class Analyser:
         ax = plt.gca()
 
         if smooth is not None:
-            pf.plot.freq(sig, log_reference=ref, ax=ax, linewidth=0.5,
-                         alpha=raw_alpha, color="gray", label="Raw")
+            pf.plot.freq(sig, log_reference=ref, ax=ax, linewidth=0.5, alpha=raw_alpha, color="gray", label="Raw")
             sm_signal, _ = pf.dsp.smooth_fractional_octave(sig, num_fractions=smooth)
-            pf.plot.freq(sm_signal, log_reference=ref, ax=ax, linewidth=1.5,
-                         label=f"1/{smooth} octave smoothing")
+            pf.plot.freq(sm_signal, log_reference=ref, ax=ax, linewidth=1.5, label=f"1/{smooth} octave smoothing")
             ax.legend(loc="best")
         else:
             pf.plot.freq(sig, log_reference=ref, ax=ax, linewidth=1)
 
-        plt.xticks([20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000],
-                   ["20", "50", "100", "200", "500", "1k", "2k", "5k", "10k", "20k"])
+        plt.xticks([20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000], ["20", "50", "100", "200", "500", "1k", "2k", "5k", "10k", "20k"])
         plt.xlim([20, 20000])
         plt.ylim([-60, 10])
         plt.xlabel("Frequency (Hz)")

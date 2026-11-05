@@ -148,10 +148,7 @@ def prepare(
     n_samples = int(np.ceil(duration_s * spec.fs))
 
     directions = fdn_directions(num_delays)
-    delays = [
-        directional_delays(spec, directions, rng=rng + slope)
-        for slope in range(target.n_slopes)
-    ]
+    delays = [directional_delays(spec, directions, rng=rng + slope) for slope in range(target.n_slopes)]
     builds = design_fdn(target, delays, rng=rng)
     if drive_gain is None:
         drive_gain = float(np.sqrt(num_delays))
@@ -165,9 +162,7 @@ def prepare(
         if late_envelope is None:
             raise ValueError("directional_envelope needs late_envelope, the omni reference that sets the level")
         if directional_envelope.energy.shape[0] != num_delays:
-            raise ValueError(
-                f"the directional histogram holds {directional_envelope.energy.shape[0]} directions; the network has {num_delays} lines"
-            )
+            raise ValueError(f"the directional histogram holds {directional_envelope.energy.shape[0]} directions; the network has {num_delays} lines")
 
     driving_set = _select(iss, iss.order == max_order)
     if driving_set.delay.size == 0:
@@ -178,14 +173,8 @@ def prepare(
             UserWarning,
             stacklevel=2,
         )
-    drive = render_images(
-        driving_set, scattering_weights(driving_set.doa, directions, opposite=True), n_samples
-    )
-    line_eq = (
-        directional_absorption_filters(spec, directions)
-        if directional_absorption
-        else None
-    )
+    drive = render_images(driving_set, scattering_weights(driving_set.doa, directions, opposite=True), n_samples)
+    line_eq = directional_absorption_filters(spec, directions) if directional_absorption else None
     tap = None
     if scattering:
         if iss.scattered is None:
@@ -193,15 +182,18 @@ def prepare(
         reflected = _select(iss, (iss.order >= 1) & (iss.order <= max_order))
         if reflected.delay.size:
             free_path = 4.0 * spec.geometry.volume / spec.geometry.surface_area
-            tap = smear(
-                render_images(
-                    replace(reflected, gain=reflected.scattered),
-                    scattering_weights(reflected.doa, directions),
-                    n_samples,
-                ),
-                scattering_decay_time(free_path, spec.speed_of_sound),
-                spec.fs,
-            ) * drive_gain
+            tap = (
+                smear(
+                    render_images(
+                        replace(reflected, gain=reflected.scattered),
+                        scattering_weights(reflected.doa, directions),
+                        n_samples,
+                    ),
+                    scattering_decay_time(free_path, spec.speed_of_sound),
+                    spec.fs,
+                )
+                * drive_gain
+            )
     return HybridCore(
         spec=spec,
         n_samples=n_samples,

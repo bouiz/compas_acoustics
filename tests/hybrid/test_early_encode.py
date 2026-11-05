@@ -145,9 +145,7 @@ def test_w_energy_matches_the_sum_of_image_energies():
         fs=fs,
     )
     out = encode(iss, 1, 8192)
-    np.testing.assert_allclose(
-        np.sum(out[:, 0] ** 2), np.sum(iss.gain[:, 0] ** 2), rtol=0.1
-    )
+    np.testing.assert_allclose(np.sum(out[:, 0] ** 2), np.sum(iss.gain[:, 0] ** 2), rtol=0.1)
 
 
 def test_images_beyond_the_buffer_are_dropped_not_wrapped():

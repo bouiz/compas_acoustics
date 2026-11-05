@@ -40,9 +40,7 @@ class RoomTarget:
             if value.ndim == 1:
                 value = value[:, np.newaxis]
             if value.ndim != 2 or value.shape[0] != N_BANDS:
-                raise ValueError(
-                    f"{name} must have shape ({N_BANDS},) or ({N_BANDS}, n_slopes)"
-                )
+                raise ValueError(f"{name} must have shape ({N_BANDS},) or ({N_BANDS}, n_slopes)")
             object.__setattr__(self, name, value)
         if self.rt.shape != self.level.shape:
             raise ValueError("rt and level must have the same shape")
@@ -54,9 +52,7 @@ class RoomTarget:
         return int(self.rt.shape[1])
 
     @classmethod
-    def from_rir(
-        cls, rir: np.ndarray, fs: float, *, n_slopes: int = 1, decay_db: float = 30.0
-    ) -> RoomTarget:
+    def from_rir(cls, rir: np.ndarray, fs: float, *, n_slopes: int = 1, decay_db: float = 30.0) -> RoomTarget:
         """Estimate the target from a reference impulse response.
 
         ``n_slopes=1`` fits one Schroeder slope from -5 dB over ``decay_db`` (30: T30, 20: T20). The shorter
@@ -81,14 +77,9 @@ class RoomTarget:
 
         from multislope import DecayFitNet
 
-        fit = DecayFitNet(
-            n_slopes=n_slopes, sample_rate=float(fs), filter_frequencies=list(BANDS)
-        ).estimate(rir)
+        fit = DecayFitNet(n_slopes=n_slopes, sample_rate=float(fs), filter_frequencies=list(BANDS)).estimate(rir)
         decay_time = np.asarray(fit.t, dtype=float)
-        amplitude = (
-            np.asarray(fit.a, dtype=float)
-            * np.asarray(fit.norm_vals, dtype=float)[0][:, np.newaxis]
-        )
+        amplitude = np.asarray(fit.a, dtype=float) * np.asarray(fit.norm_vals, dtype=float)[0][:, np.newaxis]
         level = pyFDN.slope_amplitude_to_level(amplitude, decay_time, fs)
 
         # always three columns; a zero decay time marks a slope inactive, kept only if active in every band

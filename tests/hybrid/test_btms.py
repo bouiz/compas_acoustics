@@ -17,12 +17,12 @@ def test_segments_sum_to_the_whole_edge():
     args = (FS, C, np.pi / 2, 1.0, 0.3, 0.0, 1.5, 4.0, 0.7)
     whole, *_ = wedge1st_ir(*args, np.array([-1.0, 2.0]))
     cuts = np.array([-1.0, -0.2, 0.31, 1.1, 2.0])
-    parts = [wedge1st_ir(*args, cuts[i:i + 2])[0] for i in range(4)]
+    parts = [wedge1st_ir(*args, cuts[i : i + 2])[0] for i in range(4)]
     total = np.zeros(max(len(whole), *(len(p) for p in parts)))
     for p in parts:
-        total[:len(p)] += p
+        total[: len(p)] += p
     # the analytic apex approximation (zrelmax = 0.1) is good to ~1.6e-5 of peak and its range moves with the cut
-    np.testing.assert_allclose(total[:len(whole)], whole, rtol=0, atol=5e-5 * np.max(np.abs(whole)))
+    np.testing.assert_allclose(total[: len(whole)], whole, rtol=0, atol=5e-5 * np.max(np.abs(whole)))
 
 
 def test_a_very_short_segment_is_finite_and_small():

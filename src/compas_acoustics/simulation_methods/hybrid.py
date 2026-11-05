@@ -49,9 +49,23 @@ class _HybridMethod(SimulationMethod):
 
     num_delays: int
 
-    def __init__(self, reference=None, tail=None, image_source_order=3, n_slopes=1, decay_db=30.0, duration=None,
-                 directional_absorption=True, late_envelope=None, diffraction=False, air_absorption=None, seed=True,
-                 normalize=True, air=None, scattering=False):
+    def __init__(
+        self,
+        reference=None,
+        tail=None,
+        image_source_order=3,
+        n_slopes=1,
+        decay_db=30.0,
+        duration=None,
+        directional_absorption=True,
+        late_envelope=None,
+        diffraction=False,
+        air_absorption=None,
+        seed=True,
+        normalize=True,
+        air=None,
+        scattering=False,
+    ):
         if tail is not None and tail not in TAILS:
             raise ValueError(f"tail must be None or one of {TAILS}, not {tail!r}")
         if reference is not None and not isinstance(reference, (str, dict, Mono)):
@@ -99,10 +113,7 @@ class _HybridMethod(SimulationMethod):
         geometry = context.geometry
         # the 8 kHz octave's upper edge must lie below Nyquist
         if fs <= 2.0 * 8000.0 * np.sqrt(2.0):
-            raise ValueError(
-                f"the hybrid method needs a sample rate above 22627 Hz, got {fs}: the 8 kHz octave's "
-                "upper edge must lie below Nyquist for the decay estimator"
-            )
+            raise ValueError(f"the hybrid method needs a sample rate above 22627 Hz, got {fs}: the 8 kHz octave's upper edge must lie below Nyquist for the decay estimator")
         if not geometry.is_closed:
             where = f"; first open edge from {geometry.open_edge[0]} to {geometry.open_edge[1]}" if geometry.open_edge else ""
             raise ValueError(f"the hybrid method needs boundary surfaces that close a volume{where}.")
@@ -113,10 +124,7 @@ class _HybridMethod(SimulationMethod):
         rotations = {id(receiver): receiver.rotation for receiver in context.receivers}
         # A fully absorbing surface (an open window, alpha = 1) has no reflection, which the directional
         # absorption filters cannot represent when a delay line sees nothing else; 1 - 1e-6 reflects -60 dB.
-        geometry = replace(geometry, materials={
-            name: replace(material, absorption=np.minimum(material.absorption, 1.0 - 1e-6))
-            for name, material in geometry.materials.items()
-        })
+        geometry = replace(geometry, materials={name: replace(material, absorption=np.minimum(material.absorption, 1.0 - 1e-6)) for name, material in geometry.materials.items()})
         self.results = {}
         if not context.sources or not context.receivers:
             return {}
@@ -133,15 +141,12 @@ class _HybridMethod(SimulationMethod):
         jobs.progress("image sources")
         rooms = [geometry.to_pra(fs, self.image_source_order, ray_tracing=self.scattering, air_absorption=False, air=air)]
         if self.scattering:
-            rooms.append(complementary_scattering(geometry).to_pra(
-                fs, self.image_source_order, ray_tracing=True, air_absorption=False, air=air))
+            rooms.append(complementary_scattering(geometry).to_pra(fs, self.image_source_order, ray_tracing=True, air_absorption=False, air=air))
         with pra_octave_grid():
             for pra_room in rooms:
                 for source in context.sources:
                     pra_room.add_soundsource(source_to_pra(source))
-                pra_room.add_microphone_array(
-                    np.array([receiver.position for receiver in context.receivers], dtype=float).T
-                )
+                pra_room.add_microphone_array(np.array([receiver.position for receiver in context.receivers], dtype=float).T)
                 pra_room.image_source_model()
         room = rooms[0]
         scattered_room = rooms[1] if self.scattering else None
@@ -198,10 +203,7 @@ class _HybridMethod(SimulationMethod):
 
         rirs = {}
         for s, source in enumerate(context.sources):
-            directivity = (
-                None if source.directivity == "omnidirectional"
-                else directivity_to_pra(source.directivity, source.direction)
-            )
+            directivity = None if source.directivity == "omnidirectional" else directivity_to_pra(source.directivity, source.direction)
             for m, receiver in enumerate(context.receivers):
                 jobs.progress("rendering", s * len(context.receivers) + m, len(context.sources) * len(context.receivers))
                 key = context.key(source, receiver)
@@ -270,8 +272,7 @@ class _HybridMethod(SimulationMethod):
 
         if self.tail == "ray_tracing":
             absorption = True if self.air_absorption is None else bool(self.air_absorption)
-            method = Mono(ray_tracing=True, air_absorption=absorption, air=self.air,
-                          duration=self._own_duration(context.geometry, absorption, self.air))
+            method = Mono(ray_tracing=True, air_absorption=absorption, air=self.air, duration=self._own_duration(context.geometry, absorption, self.air))
             references, description = method.compute(context), method.generation
         elif isinstance(self.reference, str):
             references, description = context.scene.impulse_responses(self.reference), self.reference
@@ -285,8 +286,11 @@ class _HybridMethod(SimulationMethod):
             for receiver in context.receivers:
                 key = context.key(source, receiver)
                 if key not in references:
-                    hint = (f"; run a method named {self.reference!r} on this scene first" if isinstance(self.reference, str)
-                            else "; references are matched by source and receiver, so they must come from this scene")
+                    hint = (
+                        f"; run a method named {self.reference!r} on this scene first"
+                        if isinstance(self.reference, str)
+                        else "; references are matched by source and receiver, so they must come from this scene"
+                    )
                     raise ValueError(f"the reference has no response for '{receiver.name}' and '{source.name}'{hint}")
                 response = references[key]
                 if response.sampling_rate != fs:
@@ -298,8 +302,7 @@ class _HybridMethod(SimulationMethod):
         pairs = [references[context.key(s, r)] for s in context.sources for r in context.receivers]
         if any(r.generation.get("method") == "mono" and not r.generation.get("ray_tracing") for r in pairs):
             warnings.warn(
-                "the reference is image sources only, without ray tracing: it has no diffuse decay to fit. "
-                "Use Mono(ray_tracing=True), or tail='eyring'.",
+                "the reference is image sources only, without ray tracing: it has no diffuse decay to fit. Use Mono(ray_tracing=True), or tail='eyring'.",
                 UserWarning,
                 stacklevel=3,
             )
@@ -312,10 +315,7 @@ class _HybridMethod(SimulationMethod):
         else:
             absorption = bool(self.air_absorption)
             if used != {absorption}:
-                raise ValueError(
-                    f"the references were simulated with air_absorption={used}, not {absorption}; "
-                    "the early field and the decay target must agree"
-                )
+                raise ValueError(f"the references were simulated with air_absorption={used}, not {absorption}; the early field and the decay target must agree")
         conditions = {air_or_default(AirConditions.from_dict(r.generation.get("air"))) for r in pairs}
         if self.air is None:
             if len(conditions) != 1:
@@ -324,10 +324,7 @@ class _HybridMethod(SimulationMethod):
         else:
             air = self.air
             if conditions != {air}:
-                raise ValueError(
-                    f"the references were simulated in the air {conditions}, not {air}; "
-                    "the early field and the decay target must share it"
-                )
+                raise ValueError(f"the references were simulated in the air {conditions}, not {air}; the early field and the decay target must share it")
         return references, absorption, air, description
 
 
@@ -423,14 +420,31 @@ class Binaural(_HybridMethod):
     output = "binaural"
     num_delays = MIN_DELAYS
 
-    def __init__(self, reference=None, hrtf=None, *, tail=None, image_source_order=3, n_slopes=1, decay_db=30.0,
-                 duration=None, directional_absorption=True, late_envelope=None, diffraction=False, air_absorption=None,
-                 seed=True, normalize=True, air=None, scattering=False):
+    def __init__(
+        self,
+        reference=None,
+        hrtf=None,
+        *,
+        tail=None,
+        image_source_order=3,
+        n_slopes=1,
+        decay_db=30.0,
+        duration=None,
+        directional_absorption=True,
+        late_envelope=None,
+        diffraction=False,
+        air_absorption=None,
+        seed=True,
+        normalize=True,
+        air=None,
+        scattering=False,
+    ):
         hrtf = "kemar" if hrtf is None else hrtf
         if hrtf != "kemar" and not Path(hrtf).is_file():
             raise ValueError(f"hrtf must be 'kemar' or a SOFA file, not {hrtf!r}")
-        super().__init__(reference, tail, image_source_order, n_slopes, decay_db, duration, directional_absorption,
-                         late_envelope, diffraction, air_absorption, seed, normalize, air, scattering)
+        super().__init__(
+            reference, tail, image_source_order, n_slopes, decay_db, duration, directional_absorption, late_envelope, diffraction, air_absorption, seed, normalize, air, scattering
+        )
         self.hrtf = hrtf
         self._hrtf_set = None
         self._hrtf_loaded = None
@@ -445,8 +459,9 @@ class Binaural(_HybridMethod):
         if self._hrtf_loaded != (path, int(core.fs)):
             self._hrtf_set, self._hrtf_loaded = HrtfSet.from_sofa(path, int(core.fs)), (path, int(core.fs))
         result = self.results[key] = render_binaural(core, self._hrtf_set)
-        return ImpulseResponse(name=key, source=source, receiver=receiver, ir=result.rir, sampling_rate=int(core.fs),
-                               normalized=self.normalize, generation=dict(generation, hrtf=path.name))
+        return ImpulseResponse(
+            name=key, source=source, receiver=receiver, ir=result.rir, sampling_rate=int(core.fs), normalized=self.normalize, generation=dict(generation, hrtf=path.name)
+        )
 
 
 class Ambisonics(_HybridMethod):
@@ -481,15 +496,33 @@ class Ambisonics(_HybridMethod):
     name = "ambisonics"
     output = "ambisonic"
 
-    def __init__(self, reference=None, sh_order=1, normalization="SN3D", *, tail=None, image_source_order=3, n_slopes=1,
-                 decay_db=30.0, duration=None, directional_absorption=True, late_envelope=None, diffraction=False,
-                 air_absorption=None, seed=True, normalize=True, air=None, scattering=False):
+    def __init__(
+        self,
+        reference=None,
+        sh_order=1,
+        normalization="SN3D",
+        *,
+        tail=None,
+        image_source_order=3,
+        n_slopes=1,
+        decay_db=30.0,
+        duration=None,
+        directional_absorption=True,
+        late_envelope=None,
+        diffraction=False,
+        air_absorption=None,
+        seed=True,
+        normalize=True,
+        air=None,
+        scattering=False,
+    ):
         if normalization not in ("SN3D", "N3D"):
             raise ValueError(f"normalization must be 'SN3D' or 'N3D', not {normalization!r}")
         if sh_order < 0:
             raise ValueError("sh_order must be non-negative")
-        super().__init__(reference, tail, image_source_order, n_slopes, decay_db, duration, directional_absorption,
-                         late_envelope, diffraction, air_absorption, seed, normalize, air, scattering)
+        super().__init__(
+            reference, tail, image_source_order, n_slopes, decay_db, duration, directional_absorption, late_envelope, diffraction, air_absorption, seed, normalize, air, scattering
+        )
         self.sh_order = int(sh_order)
         self.normalization = normalization
 
@@ -500,9 +533,18 @@ class Ambisonics(_HybridMethod):
 
     def _response(self, core, key, source, receiver, generation):
         result = self.results[key] = render_ambisonics(core, self.sh_order, self.normalization)
-        return ImpulseResponse(name=key, source=source, receiver=receiver, ir=result.rir, sampling_rate=int(core.fs),
-                               normalized=self.normalize, generation=dict(generation, sh_order=self.sh_order),
-                               ambisonic_order=self.sh_order, normalization=self.normalization.lower(), channel_order="acn")
+        return ImpulseResponse(
+            name=key,
+            source=source,
+            receiver=receiver,
+            ir=result.rir,
+            sampling_rate=int(core.fs),
+            normalized=self.normalize,
+            generation=dict(generation, sh_order=self.sh_order),
+            ambisonic_order=self.sh_order,
+            normalization=self.normalization.lower(),
+            channel_order="acn",
+        )
 
 
 for _method in (Binaural, Ambisonics):

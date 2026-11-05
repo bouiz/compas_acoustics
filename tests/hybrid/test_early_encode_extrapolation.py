@@ -23,11 +23,7 @@ FS = 48000.0
 def images(gain, delays=(0.005, 0.011, 0.017, 0.023)):
     """Several images, so the coherent DC sum has something to sum."""
     delays = np.asarray(delays, dtype=float)
-    g = (
-        np.tile(np.asarray(gain, dtype=float), (delays.size, 1))
-        if np.ndim(gain) == 1
-        else np.full((delays.size, N_BANDS), float(gain))
-    )
+    g = np.tile(np.asarray(gain, dtype=float), (delays.size, 1)) if np.ndim(gain) == 1 else np.full((delays.size, N_BANDS), float(gain))
     az = np.linspace(0.0, 2.0, delays.size)
     return ImageSourceSet(
         delay=delays,

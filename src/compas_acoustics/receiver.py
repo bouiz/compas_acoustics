@@ -6,7 +6,7 @@ from compas.tolerance import TOL
 
 from compas_acoustics.defaults import _PackageDtype
 
-__all__ = ['Receiver']
+__all__ = ["Receiver"]
 
 
 class Receiver(_PackageDtype, Point):
@@ -25,7 +25,7 @@ class Receiver(_PackageDtype, Point):
         Default +z; only its component orthogonal to ``direction`` is used.
     """
 
-    def __init__(self, name: str, x:float, y:float, z:float, direction: Vector = None, radius=0.5, up: Vector = None):
+    def __init__(self, name: str, x: float, y: float, z: float, direction: Vector = None, radius=0.5, up: Vector = None):
         super().__init__(x, y, z)
         self.name = name
         self.direction = direction if direction is not None else Vector(1, 0, 0)
@@ -53,7 +53,7 @@ class Receiver(_PackageDtype, Point):
         return [self.x, self.y, self.z]
 
     @position.setter
-    def position(self, position:list):
+    def position(self, position: list):
         if len(position) != 3:
             raise ValueError("Position must be a list of three float values representing x, y, z coordinates.")
         self.x = position[0]

@@ -1,6 +1,6 @@
 import math
 
-__all__ = ['regularized_fitness']
+__all__ = ["regularized_fitness"]
 
 
 def regularized_fitness(values: list[float], target: float, k: float = 1.0) -> float:

@@ -21,7 +21,6 @@ from compas_acoustics.defaults import _PackageDtype
 __all__ = ["EnergyMap", "map_rays"]
 
 
-
 def map_rays(volume: float, duration: float) -> int:
     """The rays per source that give every point of a map 16000 hits, from 20000 to 250000.
 
@@ -29,7 +28,7 @@ def map_rays(volume: float, duration: float) -> int:
     diffuse field (Vorlaender 2008, Eq. 11.12, with the response length for the bin).
     """
     c = Defaults().DEFAULT_SPEED_OF_SOUND
-    n = math.ceil(16000 * volume / (math.pi * 0.5 ** 2 * c * duration))
+    n = math.ceil(16000 * volume / (math.pi * 0.5**2 * c * duration))
     return int(min(max(n, 20000), 250000))
 
 
@@ -113,8 +112,7 @@ class EnergyMap(_PackageDtype, Data):
         return np.arange(count) * per * self.bin_size, levels
 
     @classmethod
-    def from_scene(cls, scene, points, source_index=None, n_rays=None, image_source_order=1,
-                   duration=None, air_absorption=True, seed=True, ray_spacing=1.0) -> "EnergyMap":
+    def from_scene(cls, scene, points, source_index=None, n_rays=None, image_source_order=1, duration=None, air_absorption=True, seed=True, ray_spacing=1.0) -> "EnergyMap":
         """The energy map of ``scene``'s sources at ``points``.
 
         Parameters
@@ -164,8 +162,7 @@ class EnergyMap(_PackageDtype, Data):
         points = np.asarray([list(p) for p in points], dtype=float).reshape(-1, 3)
         inside = np.array([geometry.is_inside(p) for p in points], dtype=bool)
         if not inside.all():
-            warnings.warn(f"{int((~inside).sum())} of {len(points)} points are outside the room or inside an obstacle and are left out.",
-                          UserWarning, stacklevel=2)
+            warnings.warn(f"{int((~inside).sum())} of {len(points)} points are outside the room or inside an obstacle and are left out.", UserWarning, stacklevel=2)
         if duration is None:
             duration = default_duration(geometry, air_absorption)
         bands = np.asarray(Defaults().DEFAULT_FREQUENCY_BANDS, dtype=float)
@@ -185,7 +182,6 @@ class EnergyMap(_PackageDtype, Data):
         # the rays traced, for a caller's message; not data of the map
         result.n_rays = int(n_rays)
         return result
-
 
 
 def _ray_receivers(points: np.ndarray, spacing: float) -> np.ndarray:
@@ -212,7 +208,7 @@ def _interpolate(receivers: np.ndarray, energy: np.ndarray, points: np.ndarray) 
     distance = np.asarray(distance, dtype=float).reshape(len(points), k)
     index = np.asarray(index).reshape(len(points), k)
     with np.errstate(divide="ignore"):
-        weights = 1.0 / distance ** 2
+        weights = 1.0 / distance**2
     # a point on a receiver takes the receiver's energy alone
     exact = distance[:, 0] < 1e-9
     weights[exact] = 0.0
@@ -240,14 +236,22 @@ def _ray_energy(geometry, sources, mics, fs, order, duration, n_rays, air_absorp
         return total
     jobs.progress("energy map: rays")
     histograms = directional_histograms(
-        geometry, [source_to_pra(s) for s in sources], mics.T, fs, [np.array([[1.0, 0.0, 0.0]])] * len(mics),
-        max_order=order, duration=duration, n_rays=n_rays, air_absorption=air_absorption, seed=seed,
+        geometry,
+        [source_to_pra(s) for s in sources],
+        mics.T,
+        fs,
+        [np.array([[1.0, 0.0, 0.0]])] * len(mics),
+        max_order=order,
+        duration=duration,
+        n_rays=n_rays,
+        air_absorption=air_absorption,
+        seed=seed,
     )
     for m, per_source in enumerate(histograms):
         for source, histogram in zip(sources, per_source):
             index = [int(np.argmin(np.abs(histogram.bands - f))) for f in bands]
             energy = histogram.energy.sum(axis=0)[index, :n_bins]
-            total[m, :, :energy.shape[1]] += energy * _level_weights(source, bands)[:, np.newaxis]
+            total[m, :, : energy.shape[1]] += energy * _level_weights(source, bands)[:, np.newaxis]
     return total
 
 
@@ -305,7 +309,7 @@ def _image_source_energy(geometry, sources, mics, fs, order, air_absorption, ban
                     degrees=False,
                 )
                 gain = gain * np.asarray(response, dtype=float).reshape(1, -1) ** 2
-            energy = gain * np.exp(-np.outer(air, distance)) / (16.0 * np.pi ** 2 * distance ** 2)
+            energy = gain * np.exp(-np.outer(air, distance)) / (16.0 * np.pi**2 * distance**2)
             bins = np.minimum((distance / c / bin_size).astype(int), n_bins - 1)
             for b in range(len(bands)):
                 np.add.at(total[m, b], bins, energy[b] * weights[b])

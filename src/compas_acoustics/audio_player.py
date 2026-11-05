@@ -56,7 +56,7 @@ class AudioPlayer:
             import subprocess
 
             self._active_player = subprocess.Popen(["afplay", file_path])
-        self.sound_type = 'file'
+        self.sound_type = "file"
 
     @staticmethod
     def _refresh_devices(sd):
@@ -89,6 +89,7 @@ class AudioPlayer:
             In seconds from the beginning.
         """
         import numpy as np
+
         self.stop()
 
         if sampling_rate is None:
@@ -108,7 +109,7 @@ class AudioPlayer:
             warnings.warn(f"The sound array peaks at {20 * np.log10(peak):+.1f} dBFS and will clip.")
 
         self._signal, self._rate = audio_data, sampling_rate
-        self.sound_type = 'array'
+        self.sound_type = "array"
         self._start_stream(start)
 
     def _start_stream(self, start):
@@ -118,7 +119,7 @@ class AudioPlayer:
         start = min(max(float(start), 0.0), self.duration)
         self._started = (self._clock(), start)
         self._paused_at = None
-        remaining = self._signal[int(round(start * self._rate)):]
+        remaining = self._signal[int(round(start * self._rate)) :]
         if len(remaining) == 0:
             return
         self._refresh_devices(sd)
@@ -150,19 +151,19 @@ class AudioPlayer:
         """Whether a sound is playing now."""
         if self._active_player is None or self.paused:
             return False
-        if self.sound_type == 'array':
+        if self.sound_type == "array":
             try:
                 return bool(self._active_player.get_stream().active)
             except Exception:
                 return False
-        if self.sound_type == 'file' and self.system == "Darwin":
+        if self.sound_type == "file" and self.system == "Darwin":
             return self._active_player.poll() is None
-        return self.sound_type == 'file'
+        return self.sound_type == "file"
 
     def pause(self):
         """Stop an array's playback and keep its position; :meth:`resume` plays on from it. A file stops."""
-        if self.sound_type != 'array' or self._signal is None or self.paused:
-            if self.sound_type == 'file':
+        if self.sound_type != "array" or self._signal is None or self.paused:
+            if self.sound_type == "file":
                 self.stop()
             return
         position = self.position
@@ -193,7 +194,7 @@ class AudioPlayer:
         if self._active_player is None:
             return
 
-        if self.sound_type == 'file':
+        if self.sound_type == "file":
             if self.system == "Windows":
                 try:
                     # passing None stops any sound currently played asynchronously
@@ -212,7 +213,7 @@ class AudioPlayer:
                 finally:
                     self._active_player = None
 
-        elif self.sound_type == 'array':
+        elif self.sound_type == "array":
             try:
                 self._active_player.stop()
             except Exception as e:

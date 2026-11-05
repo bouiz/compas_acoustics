@@ -23,7 +23,6 @@ class DiffuseFieldWarning(UserWarning):
     """The room violates the assumptions behind Sabine and Eyring."""
 
 
-
 def mean_absorption(geometry, *, weighting: str = "area") -> np.ndarray:
     """Mean absorption coefficient per band, shape (8,).
 
@@ -47,9 +46,7 @@ def _absorption_uniformity(geometry) -> np.ndarray:
     alphas = np.stack([mat.absorption for _, mat in surfaces], axis=0)
     mean = mean_absorption(geometry)
     variance = (areas @ (alphas - mean) ** 2) / areas.sum()
-    return np.where(
-        mean > 0.0, np.sqrt(variance) / np.where(mean > 0.0, mean, 1.0), 0.0
-    )
+    return np.where(mean > 0.0, np.sqrt(variance) / np.where(mean > 0.0, mean, 1.0), 0.0)
 
 
 def _band_list(mask: np.ndarray) -> str:

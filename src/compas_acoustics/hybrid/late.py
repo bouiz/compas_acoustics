@@ -52,12 +52,7 @@ def _nearest_coprime(targets: np.ndarray, tolerance: float = 0.03) -> np.ndarray
             None,
         )
         if pick is None:
-            pick = next(
-                centre + s * k
-                for k in range(centre)
-                for s in (1, -1)
-                if centre + s * k >= 2 and centre + s * k not in chosen
-            )
+            pick = next(centre + s * k for k in range(centre) for s in (1, -1) if centre + s * k >= 2 and centre + s * k not in chosen)
         chosen.append(pick)
         out[idx] = pick
     return out
@@ -86,9 +81,7 @@ def directional_delays(
     if spec.receiver_rotation is not None:
         unit = unit @ spec.receiver_rotation.T
     projected = np.abs(unit @ spec.geometry.area_normals().T).sum(axis=1)
-    free_path_samples = (
-        2.0 * spec.geometry.volume / projected / spec.speed_of_sound * spec.fs
-    )
+    free_path_samples = 2.0 * spec.geometry.volume / projected / spec.speed_of_sound * spec.fs
     generator = np.random.default_rng(rng)
     jitter = 1.0 + spread * generator.uniform(-1.0, 1.0, size=free_path_samples.size)
     return _nearest_coprime(free_path_samples * jitter)
@@ -121,10 +114,7 @@ def design_fdn(
     if delays.ndim == 1:
         delays = np.tile(delays, (n_slopes, 1))
     if delays.shape[0] != n_slopes:
-        raise ValueError(
-            f"delays must be one array, or one per slope ({n_slopes}), got "
-            f"{delays.shape[0]}"
-        )
+        raise ValueError(f"delays must be one array, or one per slope ({n_slopes}), got {delays.shape[0]}")
     num_delays = delays.shape[1]
     if num_delays < 1:
         raise ValueError("delays must hold at least one length")
@@ -133,9 +123,7 @@ def design_fdn(
     weights_db = None
     if n_slopes > 1:
         level = np.asarray(target.level, dtype=float)
-        weights_db = 20.0 * np.log10(
-            level / np.sqrt(np.sum(level**2, axis=1, keepdims=True))
-        )
+        weights_db = 20.0 * np.log10(level / np.sqrt(np.sum(level**2, axis=1, keepdims=True)))
 
     builds = []
     for slope in range(n_slopes):
@@ -156,9 +144,7 @@ def design_fdn(
             build,
             C=C,
             post_delay=pyFDN.decay_to_geq(
-                target.geq_bands(
-                    slope, dc_factor=dc_factor, nyquist_factor=nyquist_factor
-                ),
+                target.geq_bands(slope, dc_factor=dc_factor, nyquist_factor=nyquist_factor),
                 delays[slope],
                 target.fs,
             ),
@@ -204,10 +190,7 @@ def render(
     n_samples, n_delays = drive.shape
     for build in builds:
         if np.asarray(build.delays).size != n_delays:
-            raise ValueError(
-                f"drive must have one column per delay line: got {n_delays} "
-                f"columns for a network of {np.asarray(build.delays).size}"
-            )
+            raise ValueError(f"drive must have one column per delay line: got {n_delays} columns for a network of {np.asarray(build.delays).size}")
     if tap is not None:
         tap = np.asarray(tap, dtype=float)
         if tap.shape != drive.shape:
@@ -217,9 +200,7 @@ def render(
     if line_eq is not None:
         line_eq = np.asarray(line_eq, dtype=float)
         if line_eq.ndim != 3 or line_eq.shape[1:] != (6, n_delays):
-            raise ValueError(
-                f"line_eq must be (n_sections, 6, {n_delays}), got {line_eq.shape}"
-            )
+            raise ValueError(f"line_eq must be (n_sections, 6, {n_delays}), got {line_eq.shape}")
 
     identity = np.eye(n_delays)
     no_direct = np.zeros((n_delays, n_delays))
@@ -240,7 +221,13 @@ def render(
             heard = SOSBank(build.post_delay).process_signal(tap) if build.post_delay is not None else tap
         line_input = drive if heard is None else drive + heard @ np.asarray(build.A).T
         out = pyFDN.process_dss(
-            line_input, build.delays, build.A, identity, identity, no_direct, post_delay=post_delay,
+            line_input,
+            build.delays,
+            build.A,
+            identity,
+            identity,
+            no_direct,
+            post_delay=post_delay,
         )
         # process_dss squeezes its output; restore the lines' axis every time
         total += heard_from_the_lines(np.asarray(out, dtype=float).reshape(n_samples, n_delays), build)

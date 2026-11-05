@@ -15,8 +15,7 @@ WALLS = ("back_wall", "front_wall", "right_wall", "left_wall", "floor", "ceiling
 def box_room(dimensions, walls, floor=None, ceiling=None):
     """A closed shoebox mesh from the origin, one face per wall in ``WALLS`` order; ``walls`` a SurfaceMaterial."""
     lx, ly, lz = (float(d) for d in dimensions)
-    v = np.array([[0, 0, 0], [lx, 0, 0], [lx, ly, 0], [0, ly, 0],
-                  [0, 0, lz], [lx, 0, lz], [lx, ly, lz], [0, ly, lz]], dtype=float)
+    v = np.array([[0, 0, 0], [lx, 0, 0], [lx, ly, 0], [0, ly, 0], [0, 0, lz], [lx, 0, lz], [lx, ly, lz], [0, ly, lz]], dtype=float)
     faces = ((0, 4, 7, 3), (1, 2, 6, 5), (0, 1, 5, 4), (3, 7, 6, 2), (0, 3, 2, 1), (4, 5, 6, 7))
     chosen = dict.fromkeys(WALLS, walls)
     chosen.update({name: m for name, m in (("floor", floor), ("ceiling", ceiling)) if m is not None})

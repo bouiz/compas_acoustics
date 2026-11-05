@@ -8,9 +8,7 @@ from compas_acoustics.hybrid.target import RoomTarget
 
 import importlib.util
 
-needs_multislope = pytest.mark.skipif(
-    importlib.util.find_spec("multislope") is None, reason="multislope is not installed"
-)
+needs_multislope = pytest.mark.skipif(importlib.util.find_spec("multislope") is None, reason="multislope is not installed")
 
 FS = 48000.0
 
@@ -26,10 +24,7 @@ def decaying_noise(decay_times, offsets_db, seed=0, duration=6.0):
     rng = np.random.default_rng(seed)
     n = int(duration * FS)
     t = np.arange(n) / FS
-    energy = sum(
-        10 ** (-off / 10) * 10 ** (-6 * t / T)
-        for T, off in zip(decay_times, offsets_db)
-    )
+    energy = sum(10 ** (-off / 10) * 10 ** (-6 * t / T) for T, off in zip(decay_times, offsets_db))
     return rng.standard_normal(n) * np.sqrt(energy)
 
 
@@ -60,9 +55,7 @@ def test_auto_detection_finds_one_slope_in_a_single_slope_room():
 @needs_multislope
 def test_auto_detection_finds_two_slopes_in_a_coupled_room():
     """0.4 s and 1.8 s, 30 dB apart: separated enough to be resolvable."""
-    target = RoomTarget.from_rir(
-        decaying_noise([0.4, 1.8], [0.0, 30.0]), FS, n_slopes=0
-    )
+    target = RoomTarget.from_rir(decaying_noise([0.4, 1.8], [0.0, 30.0]), FS, n_slopes=0)
     assert target.n_slopes == 2
     fast = np.median(target.rt.min(axis=1))
     slow = np.median(target.rt.max(axis=1))
@@ -73,9 +66,7 @@ def test_auto_detection_finds_two_slopes_in_a_coupled_room():
 
 @needs_multislope
 def test_slopes_are_ordered_fastest_first():
-    target = RoomTarget.from_rir(
-        decaying_noise([0.4, 1.8], [0.0, 30.0]), FS, n_slopes=0
-    )
+    target = RoomTarget.from_rir(decaying_noise([0.4, 1.8], [0.0, 30.0]), FS, n_slopes=0)
     assert np.all(np.diff(target.rt, axis=1) >= 0.0)
 
 
@@ -88,9 +79,7 @@ def test_inactive_slopes_are_dropped_not_carried_as_zeros():
 
 @needs_multislope
 def test_geq_bands_selects_a_slope():
-    target = RoomTarget.from_rir(
-        decaying_noise([0.4, 1.8], [0.0, 30.0]), FS, n_slopes=0
-    )
+    target = RoomTarget.from_rir(decaying_noise([0.4, 1.8], [0.0, 30.0]), FS, n_slopes=0)
     fast = target.geq_bands(slope=0)
     slow = target.geq_bands(slope=1)
     assert fast.shape == (10,)

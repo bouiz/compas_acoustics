@@ -7,7 +7,7 @@ from compas.geometry import Vector
 from compas_acoustics.defaults import Defaults
 from compas_acoustics.defaults import _PackageDtype
 
-__all__ = ['Source']
+__all__ = ["Source"]
 
 
 class Source(_PackageDtype, Point):
@@ -72,7 +72,7 @@ class Source(_PackageDtype, Point):
         return [self.x, self.y, self.z]
 
     @position.setter
-    def position(self, position:list):
+    def position(self, position: list):
         if len(position) != 3:
             raise ValueError("Position must be a list of three float values representing x, y, z coordinates.")
         self.x = position[0]
@@ -102,7 +102,7 @@ class Source(_PackageDtype, Point):
         return self.guid
 
     @classmethod
-    def omni(cls, name: str, x:float, y:float, z:float):
+    def omni(cls, name: str, x: float, y: float, z: float):
         source = cls(name, x, y, z)
         source.description = "omni"
         return source
@@ -118,19 +118,19 @@ class Source(_PackageDtype, Point):
         return source
 
     @classmethod
-    def voice_normal(cls, name: str, x:float, y:float, z:float):
+    def voice_normal(cls, name: str, x: float, y: float, z: float):
         return cls._voice(name, x, y, z, "normal", [45.0, 55.0, 65.0, 69.0, 63.0, 55.8, 50.0, 44.0])
 
     @classmethod
-    def voice_raised(cls, name: str, x:float, y:float, z:float):
+    def voice_raised(cls, name: str, x: float, y: float, z: float):
         return cls._voice(name, x, y, z, "raised", [48.0, 60.0, 70.0, 75.0, 72.0, 64.0, 57.0, 49.0])
 
     @classmethod
-    def voice_loud(cls, name: str, x:float, y:float, z:float):
+    def voice_loud(cls, name: str, x: float, y: float, z: float):
         return cls._voice(name, x, y, z, "loud", [52.0, 64.0, 72.0, 80.0, 80.0, 73.0, 66.0, 55.0])
 
     @classmethod
-    def voice_shouting(cls, name: str, x:float, y:float, z:float):
+    def voice_shouting(cls, name: str, x: float, y: float, z: float):
         return cls._voice(name, x, y, z, "shouting", [52.0, 65.0, 73.0, 84.0, 89.0, 82.0, 75.0, 64.0])
 
     @property

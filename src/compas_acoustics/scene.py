@@ -11,7 +11,7 @@ from compas_acoustics.ir import ImpulseResponse
 from compas_acoustics.receiver import Receiver
 from compas_acoustics.source import Source
 
-__all__ = ['Scene']
+__all__ = ["Scene"]
 
 _log = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ class Scene(_PackageDtype, Data):
     48000
     """
 
-    def __init__(self, name:str, description:str="", sampling_rate:int=None):
+    def __init__(self, name: str, description: str = "", sampling_rate: int = None):
         super().__init__()
         self.name = name
         self.description = description
@@ -55,7 +55,7 @@ class Scene(_PackageDtype, Data):
         return self._sampling_rate
 
     @sampling_rate.setter
-    def sampling_rate(self, sampling_rate:int):
+    def sampling_rate(self, sampling_rate: int):
         if sampling_rate <= 0 or int(sampling_rate) != sampling_rate:
             raise ValueError(f"sampling_rate must be a positive whole number of hertz, got {sampling_rate!r}")
         self._sampling_rate = int(sampling_rate)
@@ -116,7 +116,7 @@ class Scene(_PackageDtype, Data):
         return self._name
 
     @name.setter
-    def name(self, name:str):
+    def name(self, name: str):
         self._name = name
 
     @property
@@ -150,6 +150,7 @@ class Scene(_PackageDtype, Data):
 
     def display_materials_in_viewer(self):
         import compas
+
         if compas.is_rhino():
             raise RuntimeError("Displaying materials is not supported in Rhino.")
         from random import random
@@ -181,7 +182,7 @@ class Scene(_PackageDtype, Data):
         for source in acoustic_object.sources:
             self._register_ir_graph_node(source)
 
-    def add_acoustic_objects(self, acoustic_objects:list):
+    def add_acoustic_objects(self, acoustic_objects: list):
         for acoustic_object in acoustic_objects:
             self.add_acoustic_object(acoustic_object)
 
@@ -195,21 +196,21 @@ class Scene(_PackageDtype, Data):
 
     def _register_ir_graph_node(self, node_data: Union[Source, Receiver]) -> None:
         if isinstance(node_data, Receiver):
-            node_type = 'receiver'
+            node_type = "receiver"
         elif isinstance(node_data, Source):
-            node_type = 'source'
+            node_type = "source"
         else:
             raise ValueError("node_data must be an instance of Receiver or Source")
 
         node_key = str(node_data.guid)
         if not self.ir_graph.has_node(node_key):
-            self.ir_graph.add_node(node_key, attr_dict={'type': node_type, 'data': node_data})
+            self.ir_graph.add_node(node_key, attr_dict={"type": node_type, "data": node_data})
 
     def clear_ir_edges(self) -> None:
         for edge in list(self.ir_graph.edges()):
             self.ir_graph.delete_edge(edge)
 
-    def add_impulse_response(self, source: Source, receiver: Receiver, ir: ImpulseResponse, attribute: str = 'data') -> None:
+    def add_impulse_response(self, source: Source, receiver: Receiver, ir: ImpulseResponse, attribute: str = "data") -> None:
         """Store ``ir`` on the source-receiver edge under ``attribute``.
 
         Each method stores its responses under its name (``'mono'``, ``'binaural'``, ``'ambisonics'``);
@@ -225,9 +226,9 @@ class Scene(_PackageDtype, Data):
 
         source_attrs = self.ir_graph.node_attributes(source_key)
         receiver_attrs = self.ir_graph.node_attributes(receiver_key)
-        if source_attrs.get('type') != 'source':
+        if source_attrs.get("type") != "source":
             raise ValueError(f"Node '{source.name}' is not a source.")
-        if receiver_attrs.get('type') != 'receiver':
+        if receiver_attrs.get("type") != "receiver":
             raise ValueError(f"Node '{receiver.name}' is not a receiver.")
 
         edge = (source_key, receiver_key)
@@ -236,17 +237,17 @@ class Scene(_PackageDtype, Data):
         else:
             self.ir_graph.add_edge(source_key, receiver_key, attr_dict={attribute: ir})
 
-    def populate_ir_graph(self, impulse_responses: Union[dict, Iterable[ImpulseResponse]], attribute: str = 'data') -> None:
+    def populate_ir_graph(self, impulse_responses: Union[dict, Iterable[ImpulseResponse]], attribute: str = "data") -> None:
         """Replace every response stored under ``attribute``; other attributes are kept."""
         for edge in list(self.ir_graph.edges()):
             self.ir_graph.unset_edge_attribute(edge, attribute)
             if not self.ir_graph.edge_attributes(edge):
                 self.ir_graph.delete_edge(edge)
 
-        for ir in (impulse_responses.values() if isinstance(impulse_responses, dict) else impulse_responses):
+        for ir in impulse_responses.values() if isinstance(impulse_responses, dict) else impulse_responses:
             self.add_impulse_response(ir.source, ir.receiver, ir, attribute=attribute)
 
-    def get_impulse_response(self, source: Source, receiver: Receiver, attribute: str = 'data') -> ImpulseResponse:
+    def get_impulse_response(self, source: Source, receiver: Receiver, attribute: str = "data") -> ImpulseResponse:
         source_key = str(source.guid)
         receiver_key = str(receiver.guid)
 
@@ -261,7 +262,7 @@ class Scene(_PackageDtype, Data):
             raise KeyError(f"No '{attribute}' impulse response for source '{source.name}' and receiver '{receiver.name}'.")
         return ir
 
-    def impulse_responses(self, attribute: str = 'data') -> dict:
+    def impulse_responses(self, attribute: str = "data") -> dict:
         """Every response stored under ``attribute``, keyed ``'<receiver guid>_<source guid>'``."""
         out = {}
         for edge in self.ir_graph.edges():
@@ -275,7 +276,7 @@ class Scene(_PackageDtype, Data):
         names = {}
         for edge in self.ir_graph.edges():
             for name in self.ir_graph.edge_attributes(edge):
-                if name != 'data':
+                if name != "data":
                     names.setdefault(name, None)
         return list(names)
 
@@ -297,8 +298,7 @@ class Scene(_PackageDtype, Data):
         from compas_acoustics.simulation_methods import SimulationContext
 
         context = SimulationContext.from_scene(self)
-        _log.info("Running %s at %s Hz on %d sources and %d receivers",
-                  method.name, context.sampling_rate, len(context.sources), len(context.receivers))
+        _log.info("Running %s at %s Hz on %d sources and %d receivers", method.name, context.sampling_rate, len(context.sources), len(context.receivers))
         rirs = method.compute(context)
         self.populate_ir_graph(rirs, attribute=method.name)
         if method.output == "mono":

@@ -28,7 +28,7 @@ from scipy.spatial import cKDTree
 from compas_acoustics.room.air import AirConditions
 from compas_acoustics.room.air import air_or_default
 
-__all__ = ['RoomGeometry', 'SurfaceMaterial', 'SYNTHESIS_BANDS', 'OBSTACLE_OFFSET', 'DEFAULT_SCATTERING', 'pra_octave_grid']
+__all__ = ["RoomGeometry", "SurfaceMaterial", "SYNTHESIS_BANDS", "OBSTACLE_OFFSET", "DEFAULT_SCATTERING", "pra_octave_grid"]
 
 # The synthesis grid; materials start at 125 Hz and 62.5 Hz takes the 125 Hz value
 SYNTHESIS_BANDS = (62.5, 125.0, 250.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0)
@@ -76,9 +76,7 @@ class SurfaceMaterial:
     def from_acoustic_material(cls, material) -> SurfaceMaterial:
         bands = [float(f) for f in material.frequency_bands]
         if bands != list(SYNTHESIS_BANDS[1:]):
-            raise ValueError(
-                f"Material '{material.name}' is on bands {bands}, expected {list(SYNTHESIS_BANDS[1:])}."
-            )
+            raise ValueError(f"Material '{material.name}' is on bands {bands}, expected {list(SYNTHESIS_BANDS[1:])}.")
         surface = cls(
             name=material.name,
             absorption=_extended(material.absorption_coefficients),
@@ -321,21 +319,18 @@ class RoomGeometry:
             material = SurfaceMaterial.from_acoustic_material(acoustic_object.material)
             known = materials.setdefault(material.name, material)
             if not known.same_coefficients(material):
-                raise ValueError(
-                    f"Two different materials are named '{material.name}'; material names must be unique."
-                )
+                raise ValueError(f"Two different materials are named '{material.name}'; material names must be unique.")
             for polygon in _object_polygons(acoustic_object):
                 polygons.append(polygon)
                 groups.append((acoustic_object.role, str(acoustic_object.name), material.name))
         return cls._from_polygons(polygons, groups, materials, merge_coplanar, weld_tolerance)
 
     @classmethod
-    def from_mesh(cls, vertices, faces, face_materials, materials, obstacles=(),
-                  merge_coplanar: bool = False, weld_tolerance: float = 1e-3) -> RoomGeometry:
+    def from_mesh(cls, vertices, faces, face_materials, materials, obstacles=(), merge_coplanar: bool = False, weld_tolerance: float = 1e-3) -> RoomGeometry:
         """A room from shared vertices and faces; ``materials`` maps names to :class:`SurfaceMaterial`, those in ``obstacles`` are obstacles."""
         vertices = np.asarray(vertices, dtype=float)
         polygons = [vertices[list(face)] for face in faces]
-        groups = [('obstacle' if name in obstacles else 'boundary', name, name) for name in face_materials]
+        groups = [("obstacle" if name in obstacles else "boundary", name, name) for name in face_materials]
         unknown = set(obstacles) - set(face_materials)
         if unknown:
             raise ValueError(f"obstacles names groups no face has: {sorted(unknown)}")
@@ -353,14 +348,13 @@ class RoomGeometry:
         faces: List[List[int]] = []
         start = 0
         for polygon in polygons:
-            faces.append([int(i) for i in inverse[start:start + len(polygon)]])
+            faces.append([int(i) for i in inverse[start : start + len(polygon)]])
             start += len(polygon)
 
         extent = float(np.ptp(vertices, axis=0).max())
         if extent > 500.0:
             warnings.warn(
-                f"The model is {extent:g} units across. Coordinates are read as metres; a model drawn in millimetres "
-                "needs scaling by 0.001 first.",
+                f"The model is {extent:g} units across. Coordinates are read as metres; a model drawn in millimetres needs scaling by 0.001 first.",
                 UserWarning,
                 stacklevel=3,
             )
@@ -368,8 +362,7 @@ class RoomGeometry:
         faces, groups, collapsed = _without_collapsed(faces, groups)
         if collapsed:
             warnings.warn(
-                f"{collapsed} faces collapsed to a line or a point when vertices within {weld_tolerance:g} m were "
-                "welded, and were dropped.",
+                f"{collapsed} faces collapsed to a line or a point when vertices within {weld_tolerance:g} m were welded, and were dropped.",
                 UserWarning,
                 stacklevel=3,
             )
@@ -391,7 +384,7 @@ class RoomGeometry:
                     stacklevel=3,
                 )
 
-        boundary = [i for i, group in enumerate(groups) if group[0] == 'boundary']
+        boundary = [i for i, group in enumerate(groups) if group[0] == "boundary"]
         defect = None
         oriented = [faces[i] for i in boundary]
         if boundary:
@@ -423,7 +416,7 @@ class RoomGeometry:
         n = vertices.shape[0]
         fronts, backs, obstacle_groups = [], [], []
         for face, group in zip(faces, groups):
-            if group[0] != 'obstacle':
+            if group[0] != "obstacle":
                 continue
             points = vertices[face]
             _, normal, _ = _polygon_area_and_centroid(points)
@@ -445,8 +438,8 @@ class RoomGeometry:
             materials={name: materials[name] for name in dict.fromkeys(g[2] for g in out_groups)},
             is_closed=is_closed,
             open_edge=open_edge,
-            obstacle_faces=tuple(tuple(face) for face, group in zip(faces, groups) if group[0] == 'obstacle'),
-            obstacle_face_materials=tuple(group[2] for group in groups if group[0] == 'obstacle'),
+            obstacle_faces=tuple(tuple(face) for face, group in zip(faces, groups) if group[0] == "obstacle"),
+            obstacle_face_materials=tuple(group[2] for group in groups if group[0] == "obstacle"),
             mergeable_faces=mergeable,
         )
 
@@ -458,7 +451,7 @@ class RoomGeometry:
         """The air volume: the boundary's, less the volume each closed obstacle encloses. Defined only for a closed room."""
         if not self.is_closed:
             raise ValueError("The room volume is undefined: the boundary surfaces do not close a volume.")
-        boundary = [f for f, role in zip(self.faces, self.face_roles) if role == 'boundary']
+        boundary = [f for f, role in zip(self.faces, self.face_roles) if role == "boundary"]
         drawn = self._drawn_vertices
         enclosed = 0.0
         for faces in self._closed_obstacles.values():
@@ -476,7 +469,7 @@ class RoomGeometry:
         face (a cabinet's base on the floor) is not exposed, and the boundary
         under a standing obstacle stays counted.
         """
-        boundary = [i for i, role in enumerate(self.face_roles) if role == 'boundary']
+        boundary = [i for i, role in enumerate(self.face_roles) if role == "boundary"]
         count = len(self.obstacle_faces)
         first = len(boundary)
         closed = set(self._closed_obstacles)
@@ -529,13 +522,13 @@ class RoomGeometry:
     @cached_property
     def _drawn_vertices(self) -> np.ndarray:
         """The welded vertices of the drawn faces, without the obstacle copies, which follow them in ``vertices``."""
-        first = sum(1 for role in self.face_roles if role == 'boundary')
-        return self.vertices[:min(self.faces[first])] if self.obstacle_faces else self.vertices
+        first = sum(1 for role in self.face_roles if role == "boundary")
+        return self.vertices[: min(self.faces[first])] if self.obstacle_faces else self.vertices
 
     @cached_property
     def _closed_obstacles(self) -> Dict[str, List[Tuple[int, ...]]]:
         """The drawn faces of each obstacle object whose faces close a volume, by object name."""
-        first = sum(1 for role in self.face_roles if role == 'boundary')  # the front copies follow, in obstacle_faces order
+        first = sum(1 for role in self.face_roles if role == "boundary")  # the front copies follow, in obstacle_faces order
         by_object: Dict[str, List[Tuple[int, ...]]] = {}
         for k, face in enumerate(self.obstacle_faces):
             by_object.setdefault(self.face_names[first + k], []).append(face)
@@ -544,7 +537,7 @@ class RoomGeometry:
     @cached_property
     def _triangles(self) -> Dict[str, object]:
         """Fan triangles ``(n, 3, 3)`` of the boundary, and of each obstacle object that closes a volume."""
-        boundary = [f for f, role in zip(self.faces, self.face_roles) if role == 'boundary']
+        boundary = [f for f, role in zip(self.faces, self.face_roles) if role == "boundary"]
         return {
             "boundary": _fan_triangles(self.vertices, boundary),
             "obstacles": [_fan_triangles(self.vertices, faces) for faces in self._closed_obstacles.values()],
@@ -552,7 +545,7 @@ class RoomGeometry:
 
     def without_obstacles(self) -> RoomGeometry:
         """The enclosure alone."""
-        keep = [i for i, role in enumerate(self.face_roles) if role == 'boundary']
+        keep = [i for i, role in enumerate(self.face_roles) if role == "boundary"]
         names = tuple(self.face_materials[i] for i in keep)
         return RoomGeometry(
             vertices=self.vertices,
@@ -607,10 +600,8 @@ class RoomGeometry:
                     np.asarray(resampled.scattering["coeffs"], dtype=float),
                 )
             walls = []
-            for index, (face, material, face_name, role) in enumerate(
-                zip(self.faces, self.face_materials, self.face_names, self.face_roles)
-            ):
-                if enclosure_only and role == 'obstacle':
+            for index, (face, material, face_name, role) in enumerate(zip(self.faces, self.face_materials, self.face_names, self.face_roles)):
+                if enclosure_only and role == "obstacle":
                     continue
                 absorption, scattering = coefficients[material]
                 try:
@@ -621,10 +612,7 @@ class RoomGeometry:
                         name=f"{face_name}_{index}",
                     )
                 except Exception as error:  # RuntimeError for corners off a plane
-                    raise ValueError(
-                        f"pyroomacoustics cannot build a wall from face {index} of '{face_name}' "
-                        f"({len(face)} corners): {error}"
-                    ) from error
+                    raise ValueError(f"pyroomacoustics cannot build a wall from face {index} of '{face_name}' ({len(face)} corners): {error}") from error
                 walls.append(wall)
             try:
                 room = pra.Room(
@@ -689,8 +677,7 @@ def _merge_coplanar(
         while changed and len(poly) > 3:
             changed = False
             for k in range(len(poly)):
-                u, v, w = (vertices[poly[k - 1]], vertices[poly[k]],
-                           vertices[poly[(k + 1) % len(poly)]])
+                u, v, w = (vertices[poly[k - 1]], vertices[poly[k]], vertices[poly[(k + 1) % len(poly)]])
                 side = w - u
                 if np.linalg.norm(np.cross(v - u, side)) <= _MERGE_TOLERANCE * np.linalg.norm(side):
                     del poly[k]
@@ -793,11 +780,7 @@ def _lying_on(points: np.ndarray, polygons) -> List[bool]:
 
 def _fan_triangles(vertices: np.ndarray, faces) -> np.ndarray:
     """Every polygon as a fan of triangles, shape (n, 3, 3)."""
-    triangles = [
-        (vertices[face[0]], vertices[face[k]], vertices[face[k + 1]])
-        for face in faces
-        for k in range(1, len(face) - 1)
-    ]
+    triangles = [(vertices[face[0]], vertices[face[k]], vertices[face[k + 1]]) for face in faces for k in range(1, len(face) - 1)]
     return np.asarray(triangles, dtype=float).reshape(-1, 3, 3)
 
 
@@ -818,6 +801,6 @@ def _winding_number(point: np.ndarray, triangles: np.ndarray) -> float:
 def _merged(vertices, faces, groups):
     """Coplanar faces joined within one object, role and material."""
     keys = ["\x00".join(group) for group in groups]
-    obstacles = tuple(sorted({key for key, group in zip(keys, groups) if group[0] == 'obstacle'}))
+    obstacles = tuple(sorted({key for key, group in zip(keys, groups) if group[0] == "obstacle"}))
     faces, keys = _merge_coplanar(vertices, faces, keys, obstacles)
     return faces, [tuple(key.split("\x00")) for key in keys]

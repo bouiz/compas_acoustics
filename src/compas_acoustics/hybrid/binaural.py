@@ -57,7 +57,7 @@ def render_groups(monos: np.ndarray, groups: np.ndarray, hrtf: HrtfSet, n_sample
     """The two ears, (n, 2): channel ``g`` of ``monos`` (n, G) through the HRIR of measured direction ``groups[g]``."""
     out = np.zeros((n_samples, 2))
     for g, index in enumerate(groups):
-        out += fftconvolve(monos[:, g:g + 1], hrtf.hrirs[index].T, axes=0)[:n_samples]
+        out += fftconvolve(monos[:, g : g + 1], hrtf.hrirs[index].T, axes=0)[:n_samples]
     return out
 
 

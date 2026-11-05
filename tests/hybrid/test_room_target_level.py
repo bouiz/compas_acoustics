@@ -46,9 +46,7 @@ def test_a_spectrally_white_decay_has_level_proportional_to_root_bandwidth():
     rt, _ = pyFDN.estimate_rt_bands(white, fs)
     level, _ = pyFDN.estimate_initial_level_bands(white, rt, fs)
 
-    np.testing.assert_allclose(
-        level / level[-1], np.sqrt(BANDWIDTHS / BANDWIDTHS[-1]), rtol=0.15
-    )
+    np.testing.assert_allclose(level / level[-1], np.sqrt(BANDWIDTHS / BANDWIDTHS[-1]), rtol=0.15)
 
 
 def test_from_room_level_describes_a_spectrally_flat_late_field():

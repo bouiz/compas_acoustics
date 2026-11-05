@@ -1,7 +1,7 @@
 import functools
 import os
 
-__all__ = ['Defaults']
+__all__ = ["Defaults"]
 
 
 class _PackageDtype:
@@ -23,9 +23,9 @@ class Defaults:
     SAMPLING_RATE = 48000
     DEFAULT_FREQUENCY_BANDS = [125, 250, 500, 1000, 2000, 4000, 8000]
     NUMBER_OF_FREQUENCY_BANDS = len(DEFAULT_FREQUENCY_BANDS)
-    MATERIALS_LIBRARY_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), 'materials_library'))
-    HRTF_LIBRARY_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), 'hrtfs_library'))
-    ANECHOIC_SOUNDFILES_LIBRARY_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), 'anechoic_soundfiles_library'))
+    MATERIALS_LIBRARY_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "materials_library"))
+    HRTF_LIBRARY_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "hrtfs_library"))
+    ANECHOIC_SOUNDFILES_LIBRARY_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "anechoic_soundfiles_library"))
 
     @property
     def DEFAULT_SPEED_OF_SOUND(self):

@@ -1,6 +1,5 @@
 """Surface scattering in the hybrid (Ewert et al. 2025)."""
 
-
 import numpy as np
 import pyfar as pf
 import pytest
@@ -75,7 +74,10 @@ def split(scattering):
     spec = pair(s)
     full = image_sources(computed(spec.geometry, s, False), 0, 0, spec)
     parts = image_sources(
-        computed(spec.geometry, s, True), 0, 0, spec,
+        computed(spec.geometry, s, True),
+        0,
+        0,
+        spec,
         scattered_room=computed(complementary_scattering(spec.geometry), s, True),
     )
     assert np.array_equal(full.order, parts.order)
@@ -178,8 +180,14 @@ def test_prepare_assembles_the_tap_from_the_scattered_parts_of_orders_one_to_the
     def subset(mask):
         xyz = parts.doa.cartesian[mask]
         return replace_fields(
-            parts, delay=parts.delay[mask], gain=parts.gain[mask], order=parts.order[mask],
-            doa=pf.Coordinates(xyz[:, 0], xyz[:, 1], xyz[:, 2]), scattered=parts.scattered[mask], wall=parts.wall[mask])
+            parts,
+            delay=parts.delay[mask],
+            gain=parts.gain[mask],
+            order=parts.order[mask],
+            doa=pf.Coordinates(xyz[:, 0], xyz[:, 1], xyz[:, 2]),
+            scattered=parts.scattered[mask],
+            wall=parts.wall[mask],
+        )
 
     def lines(tap_orders):
         n_samples = int(np.ceil(duration * FS))
@@ -191,10 +199,14 @@ def test_prepare_assembles_the_tap_from_the_scattered_parts_of_orders_one_to_the
         reflected = subset(np.isin(parts.order, tap_orders))
         x, y, z = DIMS
         free_path = 4.0 * (x * y * z) / (2.0 * (x * y + y * z + x * z))
-        tap = smear(
-            render_images(replace_fields(reflected, gain=reflected.scattered), scattering_weights(reflected.doa, directions), n_samples),
-            scattering_decay_time(free_path, speed), FS,
-        ) * drive_gain
+        tap = (
+            smear(
+                render_images(replace_fields(reflected, gain=reflected.scattered), scattering_weights(reflected.doa, directions), n_samples),
+                scattering_decay_time(free_path, speed),
+                FS,
+            )
+            * drive_gain
+        )
         return render(builds, drive * drive_gain, tap=tap, line_eq=directional_absorption_filters(spec, directions))
 
     expected = lines(range(1, last + 1))

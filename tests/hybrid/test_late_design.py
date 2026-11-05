@@ -142,15 +142,19 @@ def test_render_rejects_a_drive_with_the_wrong_number_of_lines():
 def test_render_matches_pyfdn_for_an_impulse_through_b():
     """Driving each line with B times an impulse is the impulse-excited network."""
     build = pyFDN.fdn_build_gallery(
-        8, fs=FS, delay_range=(500, 1500), num_outputs=2,
-        io_type="normalized", direct_gain=0.0, rt=1.0, rng=0,
+        8,
+        fs=FS,
+        delay_range=(500, 1500),
+        num_outputs=2,
+        io_type="normalized",
+        direct_gain=0.0,
+        rt=1.0,
+        rng=0,
     )
     n_samples = 4096
     drive = np.zeros((n_samples, 8))
     drive[0] = build.B[:, 0]
-    np.testing.assert_allclose(
-        render([build], drive) @ build.C.T, pyFDN.build_to_impz(build, n_samples)[:, :, 0], atol=1e-9
-    )
+    np.testing.assert_allclose(render([build], drive) @ build.C.T, pyFDN.build_to_impz(build, n_samples)[:, :, 0], atol=1e-9)
 
 
 def test_a_single_line_emerges_after_that_lines_delay():
@@ -160,4 +164,3 @@ def test_a_single_line_emerges_after_that_lines_delay():
     drive[0, 3] = 1.0
     out = render(builds, drive) @ builds[0].C.T
     assert int(np.argmax(np.abs(out[:, 0]) > 1e-12)) == delays[3]
-

@@ -45,8 +45,10 @@ TOP = 2.5
 def corner():
     """Edge along z at the origin; the solid fills the +x, +y quadrant."""
     return Edge(
-        start=np.array([0.0, 0.0, -1.0]), end=np.array([0.0, 0.0, 1.0]),
-        face_a=np.array([1.0, 0.0, 0.0]), face_b=np.array([0.0, 1.0, 0.0]),
+        start=np.array([0.0, 0.0, -1.0]),
+        end=np.array([0.0, 0.0, 1.0]),
+        face_a=np.array([1.0, 0.0, 0.0]),
+        face_b=np.array([0.0, 1.0, 0.0]),
         theta_w=1.5 * np.pi,
     )
 
@@ -86,7 +88,8 @@ def test_face_order_does_not_matter():
     s, r = at(0.3, 2.0, -0.4), at(4.2, 3.0, 0.7)
     np.testing.assert_allclose(
         udfa_transfer(wedge_path(e, s, r), F, c=C),
-        udfa_transfer(wedge_path(flipped, s, r), F, c=C), rtol=1e-10,
+        udfa_transfer(wedge_path(flipped, s, r), F, c=C),
+        rtol=1e-10,
     )
 
 
@@ -100,20 +103,30 @@ def test_rigid_motion_invariance():
     s, r = at(0.3, 2.0, -0.4), at(4.2, 3.0, 0.7)
     np.testing.assert_allclose(
         udfa_transfer(wedge_path(e, s, r), F, c=C),
-        udfa_transfer(wedge_path(moved, rot @ s + shift, rot @ r + shift), F, c=C), rtol=1e-9,
+        udfa_transfer(wedge_path(moved, rot @ s + shift, rot @ r + shift), F, c=C),
+        rtol=1e-9,
     )
 
 
-ROOM_V = np.array([[0, 0, 0], [10, 0, 0], [10, 8, 0], [0, 8, 0],
-                   [0, 0, 4], [10, 0, 4], [10, 8, 4], [0, 8, 4]], dtype=float)
+ROOM_V = np.array([[0, 0, 0], [10, 0, 0], [10, 8, 0], [0, 8, 0], [0, 0, 4], [10, 0, 4], [10, 8, 4], [0, 8, 4]], dtype=float)
 ROOM_F = [(0, 3, 7, 4), (1, 5, 6, 2), (0, 4, 5, 1), (3, 2, 6, 7), (0, 1, 2, 3), (4, 7, 6, 5)]
 TILT = np.linspace(0.8, 1.2, 8)
 SHELF_LO, SHELF_HI = np.array([4.0, 2.0, 0.0002]), np.array([4.6, 6.0, 1.523])
 
 
 def box(lo, hi):
-    v = np.array([[lo[0], lo[1], lo[2]], [hi[0], lo[1], lo[2]], [hi[0], hi[1], lo[2]], [lo[0], hi[1], lo[2]],
-                  [lo[0], lo[1], hi[2]], [hi[0], lo[1], hi[2]], [hi[0], hi[1], hi[2]], [lo[0], hi[1], hi[2]]])
+    v = np.array(
+        [
+            [lo[0], lo[1], lo[2]],
+            [hi[0], lo[1], lo[2]],
+            [hi[0], hi[1], lo[2]],
+            [lo[0], hi[1], lo[2]],
+            [lo[0], lo[1], hi[2]],
+            [hi[0], lo[1], hi[2]],
+            [hi[0], hi[1], hi[2]],
+            [lo[0], hi[1], hi[2]],
+        ]
+    )
     f = [(0, 3, 2, 1), (4, 5, 6, 7), (0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7)]
     return v, f  # bottom first
 
@@ -123,10 +136,8 @@ def room_with(obstacle_v, obstacle_f, name="shelf"):
     names = ["wall"] * 4 + ["floor", "ceiling"] + [name] * len(obstacle_f)
     # frequency-dependent on purpose: with every material flat, pyroomacoustics
     # returns a single band and image_sources refuses the mesh
-    materials = {n: SurfaceMaterial(n, a * TILT) for n, a in
-                 (("wall", 0.1), ("floor", 0.05), ("ceiling", 0.3), (name, 0.1))}
-    return RoomGeometry.from_mesh(vertices=np.vstack([ROOM_V, obstacle_v]), faces=tuple(faces),
-                        face_materials=tuple(names), materials=materials, obstacles=(name,))
+    materials = {n: SurfaceMaterial(n, a * TILT) for n, a in (("wall", 0.1), ("floor", 0.05), ("ceiling", 0.3), (name, 0.1))}
+    return RoomGeometry.from_mesh(vertices=np.vstack([ROOM_V, obstacle_v]), faces=tuple(faces), face_materials=tuple(names), materials=materials, obstacles=(name,))
 
 
 def shelf_room(bottom=True, triangulate=False):
@@ -200,8 +211,7 @@ def test_occluders_block_through_the_shelf_and_not_over_it():
 def test_a_box_on_a_tabletop_does_not_diffract_along_its_bottom():
     top = np.array([[3, 1, 0.75], [7, 1, 0.75], [7, 7, 0.75], [3, 7, 0.75]], dtype=float)
     v, f = box(np.array([4.0, 2.0, 0.7502]), np.array([4.6, 6.0, 1.5]))
-    edges = obstacle_edges(room_with(np.vstack([top, v]), [(0, 1, 2, 3)] + [
-        tuple(4 + i for i in q) for q in f]))
+    edges = obstacle_edges(room_with(np.vstack([top, v]), [(0, 1, 2, 3)] + [tuple(4 + i for i in q) for q in f]))
     wedges = [e for e in edges if e.theta_w == pytest.approx(1.5 * np.pi)]
     assert len(wedges) == 8
     assert not any(np.allclose([e.start[2], e.end[2]], 0.7502) for e in wedges)
@@ -242,8 +252,7 @@ def test_reflection_zone_is_where_the_reflection_exists():
     for _ in range(2000):
         theta_w = 2 * np.pi if rng.random() < 0.5 else rng.uniform(4 * np.pi / 3, 2 * np.pi)
         ts, tr = rng.uniform(0.0, theta_w, 2)
-        near = (abs(ts - tr) - np.pi, ts + tr - np.pi, ts + tr - 2 * theta_w + np.pi,
-                ts, theta_w - ts, tr, theta_w - tr)
+        near = (abs(ts - tr) - np.pi, ts + tr - np.pi, ts + tr - 2 * theta_w + np.pi, ts, theta_w - ts, tr, theta_w - tr)
         if min(abs(x) for x in near) < margin:
             continue
         s, r = point(ts, rng.uniform(0.5, 5.0)), point(tr, rng.uniform(0.5, 5.0))
@@ -271,16 +280,12 @@ def panel_room(split_floor=False, noise=None):
     v.append(PANEL)
     faces.append(tuple(range(n, n + 4)))
     names.append("panel")
-    materials = {name: SurfaceMaterial(name, a * TILT) for name, a in
-                 (("wall", 0.1), ("floor", 0.05), ("ceiling", 0.3), ("panel", 0.1))}
-    return RoomGeometry.from_mesh(vertices=np.vstack(v), faces=tuple(faces), face_materials=tuple(names),
-                        materials=materials, obstacles=("panel",))
+    materials = {name: SurfaceMaterial(name, a * TILT) for name, a in (("wall", 0.1), ("floor", 0.05), ("ceiling", 0.3), ("panel", 0.1))}
+    return RoomGeometry.from_mesh(vertices=np.vstack(v), faces=tuple(faces), face_materials=tuple(names), materials=materials, obstacles=("panel",))
 
 
 def spec_at(source, receiver, geometry=None, **kw):
-    return pair(geometry=panel_room() if geometry is None else geometry,
-                    source=np.asarray(source, float), receiver=np.asarray(receiver, float),
-                    air_absorption=False, **kw)
+    return pair(geometry=panel_room() if geometry is None else geometry, source=np.asarray(source, float), receiver=np.asarray(receiver, float), air_absorption=False, **kw)
 
 
 def direct(paths):
@@ -309,9 +314,7 @@ def test_grazing_pair_is_in_the_view_zone_of_the_top_edge():
 
 def floor_paths(paths, before, after):
     gain = np.sqrt(1 - 0.05 * TILT)
-    return [round(p.distance, 6) for p in paths if p.order == 1
-            and min(abs(p.distance - before), abs(p.distance - after)) < 1e-6
-            and np.allclose(p.band_gain, gain, rtol=1e-6)]
+    return [round(p.distance, 6) for p in paths if p.order == 1 and min(abs(p.distance - before), abs(p.distance - after)) < 1e-6 and np.allclose(p.band_gain, gain, rtol=1e-6)]
 
 
 def expected_floor(s, r):
@@ -380,8 +383,7 @@ def flat(f):
 def test_a_flat_path_renders_exactly_like_an_image_source():
     doa, d, g = np.array([1.0, -2.0, 0.5]), 3.7, np.linspace(0.9, 0.5, 8)
     path = DiffractionPath(d / C, d, doa, g, flat, 0, "view", 0)
-    iss = ImageSourceSet(delay=np.array([d / C]), gain=(g / (4 * np.pi * d))[None, :],
-                         doa=pf.Coordinates(*doa), order=np.array([0]), bands=BANDS.copy(), fs=FS)
+    iss = ImageSourceSet(delay=np.array([d / C]), gain=(g / (4 * np.pi * d))[None, :], doa=pf.Coordinates(*doa), order=np.array([0]), bands=BANDS.copy(), fs=FS)
     np.testing.assert_allclose(encode_diffraction([path], 2, 4096, FS), encode(iss, 2, 4096), atol=1e-14)
 
 
@@ -389,8 +391,7 @@ def test_rendering_is_linear_in_the_transfer():
     doa = np.array([0.0, 1.0, 0.0])
     one = DiffractionPath(0.01, 3.43, doa, np.ones(8), flat, 0, "view", 0)
     two = DiffractionPath(0.01, 3.43, doa, np.ones(8), lambda f: 2 * flat(f), 0, "view", 0)
-    np.testing.assert_allclose(encode_diffraction([two], 1, 2048, FS),
-                               2 * encode_diffraction([one], 1, 2048, FS), atol=1e-14)
+    np.testing.assert_allclose(encode_diffraction([two], 1, 2048, FS), 2 * encode_diffraction([one], 1, 2048, FS), atol=1e-14)
 
 
 def test_diffraction_doas_rotate_like_image_sources():
@@ -413,8 +414,7 @@ def window_db(rir, r):
 
 
 def test_diffraction_off_changes_nothing_and_on_adds_the_paths():
-    spec = pair(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]),
-                    receiver=np.array([8.0, 4.0, 3.0]), air_absorption=False)
+    spec = pair(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]), receiver=np.array([8.0, 4.0, 3.0]), air_absorption=False)
     off = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2), normalization="N3D")
     on = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction=True), normalization="N3D")
     n = off.early.shape[0]
@@ -428,8 +428,7 @@ def test_the_field_is_continuous_across_the_panel_shadow_boundary():
     levels = {}
     for flag in (False, True):
         for z in (3.495, 3.505):
-            spec = pair(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]),
-                            receiver=np.array([8.0, 4.0, z]), air_absorption=False)
+            spec = pair(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]), receiver=np.array([8.0, 4.0, z]), air_absorption=False)
             rir = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction=flag)).early
             levels[flag, z] = window_db(rir, float(np.linalg.norm(spec.receiver - spec.source)))
     assert abs(levels[False, 3.505] - levels[False, 3.495]) > 6.0
@@ -465,8 +464,7 @@ def test_toolbox_cyl_on_a_knife_edge_runs_from_zero_to_two_pi():
         for side in (1.0, -1.0):
             t = toolbox_cyl(e, mid + 0.1 * e.face_a + side * 1e-3 * np.cross(e.axis, e.face_a))[0, 1]
             assert 0.0 <= t < 0.02 or 2 * np.pi - 0.02 < t <= 2 * np.pi
-        assert {toolbox_cyl(e, mid + 0.1 * e.face_a + s * 1e-3 * np.cross(e.axis, e.face_a))[0, 1] < 1.0
-                for s in (1.0, -1.0)} == {True, False}
+        assert {toolbox_cyl(e, mid + 0.1 * e.face_a + s * 1e-3 * np.cross(e.axis, e.face_a))[0, 1] < 1.0 for s in (1.0, -1.0)} == {True, False}
 
 
 def test_segments_cover_the_edge_within_five_degrees():
@@ -481,8 +479,7 @@ def test_segments_cover_the_edge_within_five_degrees():
 
 def test_the_two_top_edges_of_a_box_run_along_its_top_face():
     edges = obstacle_edges(box_geometry())
-    top = [e for e in edges if np.isclose(e.start[2], 1.5) and np.isclose(e.end[2], 1.5)
-           and abs(e.axis[1]) > 1 - 1e-9]
+    top = [e for e in edges if np.isclose(e.start[2], 1.5) and np.isclose(e.end[2], 1.5) and abs(e.axis[1]) > 1 - 1e-9]
     assert len(top) == 2
     assert along_plane(top[0], top[1])
     verticals = [e for e in edges if abs(e.axis[2]) > 1 - 1e-9]
@@ -507,8 +504,7 @@ def test_coplanar_edges_of_a_rotated_box_are_a_pair_at_every_point():
         geometry, rot = rotated_box_geometry(angles)
         y = rot @ np.array([0.0, 1.0, 0.0])
         for face in (1, 0, 2, 3, 4, 5):
-            pair = [e for e in obstacle_edges(geometry)
-                    if face in e.faces and abs(e.axis @ y) > 1 - 1e-9]
+            pair = [e for e in obstacle_edges(geometry) if face in e.faces and abs(e.axis @ y) > 1 - 1e-9]
             if len(pair) != 2:
                 continue
             assert along_plane(pair[0], pair[1])
@@ -546,11 +542,11 @@ def test_btms_segments_of_a_free_edge_sum_to_the_kernel_on_the_whole_edge():
     assert len(part) > 1 and len(part) == len(edge_segments(e, s, r))
     total = np.zeros(4800)
     for p in part:
-        total[p.start:p.start + p.ir.size] += p.ir
+        total[p.start : p.start + p.ir.size] += p.ir
     (rs, ts, zs), (rr, tr, zr) = toolbox_cyl(e, np.array([s, r]))
     whole, *_ = wedge1st_ir(spec.fs, C, 2 * np.pi - e.theta_w, rs, ts, zs, rr, tr, zr, np.array([0.0, e.length]))
     # the analytic apex approximation (zrelmax = 0.1) is good to a few 1e-5 of peak and its range moves with the cut
-    np.testing.assert_allclose(total[:whole.size], whole, atol=5e-5 * np.max(np.abs(whole)))
+    np.testing.assert_allclose(total[: whole.size], whole, atol=5e-5 * np.max(np.abs(whole)))
 
 
 def _btms_total(a, b):
@@ -572,8 +568,7 @@ def test_btms_reciprocity_with_a_segment_boundary_on_the_apex_is_rounding_limite
 
 
 def test_btms_contributions_after_the_render_length_are_dropped():
-    spec = pair(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]),
-                    receiver=np.array([8.0, 4.0, 3.0]), air_absorption=False, speed_of_sound=C)
+    spec = pair(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]), receiver=np.array([8.0, 4.0, 3.0]), air_absorption=False, speed_of_sound=C)
     out = encode_btms(btms_paths(spec, max_order=0, second_order=False), 0, 10, spec.fs)
     assert out.shape == (10, 1) and np.all(out == 0.0)
 
@@ -582,8 +577,7 @@ def test_btms_skips_a_receiver_on_an_edge_line():
     geo = panel_room()
     e = obstacle_edges(geo)[0]
     on_line = e.start + 0.5 * (e.end - e.start)
-    spec = pair(geometry=geo, source=np.array([2.0, 4.0, 1.5]), receiver=on_line,
-                    air_absorption=False, speed_of_sound=C)
+    spec = pair(geometry=geo, source=np.array([2.0, 4.0, 1.5]), receiver=on_line, air_absorption=False, speed_of_sound=C)
     out = encode_btms(btms_paths(spec, max_order=0, second_order=False), 1, 4800, spec.fs)
     assert np.all(np.isfinite(out))
 
@@ -621,12 +615,10 @@ def test_second_order_start_is_a_lower_bound_of_the_path_through_two_long_segmen
     t = np.linspace(0.0, 1.0, 601)
     x = seg1[0] + t[:, None] * (seg1[1] - seg1[0])
     y = seg2[0] + t[:, None] * (seg2[1] - seg2[0])
-    paths = (np.linalg.norm(x - s, axis=1)[:, None] + np.linalg.norm(x[:, None] - y[None], axis=2)
-             + np.linalg.norm(y - r, axis=1)[None, :])
+    paths = np.linalg.norm(x - s, axis=1)[:, None] + np.linalg.norm(x[:, None] - y[None], axis=2) + np.linalg.norm(y - r, axis=1)[None, :]
     true_min = paths.min()
     ends = [seg1[0], seg1[1], seg1.mean(axis=0)], [seg2[0], seg2[1], seg2.mean(axis=0)]
-    brief = min(np.linalg.norm(a - s) + np.linalg.norm(b - a) + np.linalg.norm(r - b)
-                for a in ends[0] for b in ends[1])
+    brief = min(np.linalg.norm(a - s) + np.linalg.norm(b - a) + np.linalg.norm(r - b) for a in ends[0] for b in ends[1])
     assert brief > true_min + C / FS
     assert second_order_start(s, r, seg1, seg2, C, FS) <= int(np.floor(true_min / C * FS))
 
@@ -642,8 +634,7 @@ def test_second_order_segment_pairs_sum_to_the_whole_edge_pair():
     s, r = np.array([2.0, 4.0, 1.45]), np.array([7.0, 4.0, 1.45])
     spec = shelf_spec(s, r)
     edges = obstacle_edges(spec.geometry)
-    top = [k for k, e in enumerate(edges) if np.isclose(e.start[2], 1.5) and np.isclose(e.end[2], 1.5)
-           and abs(e.axis[1]) > 1 - 1e-9]
+    top = [k for k, e in enumerate(edges) if np.isclose(e.start[2], 1.5) and np.isclose(e.end[2], 1.5) and abs(e.axis[1]) > 1 - 1e-9]
     i, j = sorted(top, key=lambda k: edges[k].start[0])
     e1, e2 = edges[i], edges[j]
     part = [p for p in btms_paths(spec, max_order=0) if p.edges == (i, j)]
@@ -651,17 +642,27 @@ def test_second_order_segment_pairs_sum_to_the_whole_edge_pair():
     n = 4800
     total = np.zeros(n)
     for p in part:
-        total[p.start:p.start + p.ir.size] += p.ir[:n - p.start]
+        total[p.start : p.start + p.ir.size] += p.ir[: n - p.start]
     ends1, ends2 = toolbox_frame(e1)[0], toolbox_frame(e2)[0]
     steps, dz = element_grid(np.array([e1.length, e2.length]), C, FS)
     lower = max(np.linalg.norm(s - r), segment_distance(s, *ends1) + segment_distance(r, *ends2))
     start = int(np.floor(lower / C * FS))
-    whole = wedge2nd_ir(toolbox_cyl(e1, s[None])[0], toolbox_cyl(e2, r[None])[0],
-                        toolbox_cyl(e1, ends2), toolbox_cyl(e2, ends1), np.pi / np.array([e1.theta_w, e2.theta_w]),
-                        np.array([[0.0, e1.length], [0.0, e2.length]]), dz, steps, along_plane(e1, e2),
-                        start * C / FS, C, FS)
+    whole = wedge2nd_ir(
+        toolbox_cyl(e1, s[None])[0],
+        toolbox_cyl(e2, r[None])[0],
+        toolbox_cyl(e1, ends2),
+        toolbox_cyl(e2, ends1),
+        np.pi / np.array([e1.theta_w, e2.theta_w]),
+        np.array([[0.0, e1.length], [0.0, e2.length]]),
+        dz,
+        steps,
+        along_plane(e1, e2),
+        start * C / FS,
+        C,
+        FS,
+    )
     ref = np.zeros(n)
-    ref[start:start + whole.size] = whole[:n - start]
+    ref[start : start + whole.size] = whole[: n - start]
     db = 10 * np.log10(np.sum(total**2) / np.sum(ref**2))
     assert abs(db) < 0.1
 
@@ -679,8 +680,9 @@ def test_second_order_is_invariant_under_rotation_with_corner_sharing_pairs():
     def response(deg):
         # the box turned by deg, source and receiver turned by deg - 30: one configuration, two frames
         v, f = box(-half, half)
-        spec = pair(geometry=room_with(v @ rot_z(deg).T + centre, f), source=centre + rot_z(deg - 30) @ s0,
-                        receiver=centre + rot_z(deg - 30) @ r0, air_absorption=False, speed_of_sound=C)
+        spec = pair(
+            geometry=room_with(v @ rot_z(deg).T + centre, f), source=centre + rot_z(deg - 30) @ s0, receiver=centre + rot_z(deg - 30) @ r0, air_absorption=False, speed_of_sound=C
+        )
         second = [p for p in btms_paths(spec, max_order=0) if p.order == 2]
         return encode_btms(second, 0, 4800, spec.fs)[:, 0]
 
@@ -698,8 +700,9 @@ def test_second_order_over_a_free_panel_is_invariant_under_rotation():
     s0, r0 = np.array([-0.2, -0.05, 0.6]), np.array([0.25, 0.05, -0.5])
 
     def response(rot):
-        spec = pair(geometry=room_with(v @ rot.T + centre, [(0, 1, 2, 3)], name="panel"),
-                        source=centre + rot @ s0, receiver=centre + rot @ r0, air_absorption=False, speed_of_sound=C)
+        spec = pair(
+            geometry=room_with(v @ rot.T + centre, [(0, 1, 2, 3)], name="panel"), source=centre + rot @ s0, receiver=centre + rot @ r0, air_absorption=False, speed_of_sound=C
+        )
         second = [p for p in btms_paths(spec, max_order=0) if p.order == 2]
         assert second
         return encode_btms(second, 0, 4800, spec.fs)[:, 0]
@@ -721,8 +724,7 @@ def split_top_box():
 
 def long_top_edges(geometry, z):
     edges = obstacle_edges(geometry)
-    return [e for e in edges if np.isclose(e.start[2], z) and np.isclose(e.end[2], z)
-            and abs(e.axis[1]) > 1 - 1e-9]
+    return [e for e in edges if np.isclose(e.start[2], z) and np.isclose(e.end[2], z) and abs(e.axis[1]) > 1 - 1e-9]
 
 
 def test_a_top_face_split_into_polygons_is_still_one_plane():
@@ -743,11 +745,9 @@ def test_coplanar_tops_of_two_separate_boxes_are_not_along_a_plane():
 
 
 def test_second_order_between_collinear_edges_is_skipped_without_a_warning():
-    v = np.array([[5, 1, 0.5], [5, 3, 0.5], [5, 3, 2.5], [5, 1, 2.5],
-                  [5, 5, 0.5], [5, 7, 0.5], [5, 7, 2.5], [5, 5, 2.5]], dtype=float)
+    v = np.array([[5, 1, 0.5], [5, 3, 0.5], [5, 3, 2.5], [5, 1, 2.5], [5, 5, 0.5], [5, 7, 0.5], [5, 7, 2.5], [5, 5, 2.5]], dtype=float)
     geometry = room_with(v, [(0, 1, 2, 3), (4, 5, 6, 7)], name="panel")
-    spec = pair(geometry=geometry, source=np.array([2.0, 4.0, 3.2]), receiver=np.array([8.0, 4.0, 3.2]),
-                    air_absorption=False, speed_of_sound=C)
+    spec = pair(geometry=geometry, source=np.array([2.0, 4.0, 3.2]), receiver=np.array([8.0, 4.0, 3.2]), air_absorption=False, speed_of_sound=C)
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         out = btms_paths(spec, max_order=0)
@@ -759,16 +759,14 @@ def test_second_order_between_collinear_edges_is_skipped_without_a_warning():
 
 
 def test_true_and_udfa_are_the_same_model():
-    spec = pair(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]),
-                    receiver=np.array([8.0, 4.0, 3.0]), air_absorption=False)
+    spec = pair(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]), receiver=np.array([8.0, 4.0, 3.0]), air_absorption=False)
     a = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction=True))
     b = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction="udfa"))
     np.testing.assert_array_equal(a.rir, b.rir)
 
 
 def test_btms_mode_adds_exactly_the_btms_field():
-    spec = pair(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]),
-                    receiver=np.array([8.0, 4.0, 3.0]), air_absorption=False)
+    spec = pair(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]), receiver=np.array([8.0, 4.0, 3.0]), air_absorption=False)
     off = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2), normalization="N3D")
     on = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction="btms"), normalization="N3D")
     added = encode_btms(btms_paths(spec, max_order=1), 1, off.early.shape[0], spec.fs)
@@ -777,8 +775,7 @@ def test_btms_mode_adds_exactly_the_btms_field():
 
 
 def test_an_unknown_diffraction_model_is_refused():
-    spec = pair(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]),
-                    receiver=np.array([8.0, 4.0, 3.0]))
+    spec = pair(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]), receiver=np.array([8.0, 4.0, 3.0]))
     with pytest.raises(ValueError, match="diffraction"):
         render_ambisonics(prepare(spec, images(spec, 1), RoomTarget.from_room(spec), max_order=0, duration_s=0.1, diffraction="btm"))
 
@@ -786,13 +783,10 @@ def test_an_unknown_diffraction_model_is_refused():
 def edverify_plate():
     """A 1 x 2 m plate (plane y = 0, edge x = 0, -1 <= z <= 1) in a 400 m
     enclosure that absorbs everything."""
-    big = 200.0 * np.array([[-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1],
-                            [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]], float)
+    big = 200.0 * np.array([[-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1], [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]], float)
     plate = np.array([[0, 0, 1], [0, 0, -1], [-1, 0, -1], [-1, 0, 1]], float)
-    mats = {"absorber": SurfaceMaterial("absorber", np.linspace(0.999, 1.0, 8)),
-            "plate": SurfaceMaterial("plate", np.linspace(0.0, 1e-6, 8))}
-    return RoomGeometry.from_mesh(np.vstack([big, plate]), tuple(ROOM_F) + ((8, 9, 10, 11),),
-                        ("absorber",) * 6 + ("plate",), mats, obstacles=("plate",))
+    mats = {"absorber": SurfaceMaterial("absorber", np.linspace(0.999, 1.0, 8)), "plate": SurfaceMaterial("plate", np.linspace(0.0, 1e-6, 8))}
+    return RoomGeometry.from_mesh(np.vstack([big, plate]), tuple(ROOM_F) + ((8, 9, 10, 11),), ("absorber",) * 6 + ("plate",), mats, obstacles=("plate",))
 
 
 @pytest.mark.parametrize("z", [0.0, 1.0], ids=["perpendicular", "skewed"])
@@ -823,8 +817,7 @@ def test_continuity_across_zone_boundaries_as_edverify(z):
 
     def fields(r):
         spec = pair(geometry=geo, source=s, receiver=r, air_absorption=False, speed_of_sound=c)
-        diff = sum(np.sum(p.ir * np.exp(-2j * np.pi * f * (p.start + np.arange(p.ir.size)) / spec.fs))
-                   * p.band_gain[1] for p in btms_paths(spec, max_order=0, second_order=False))
+        diff = sum(np.sum(p.ir * np.exp(-2j * np.pi * f * (p.start + np.arange(p.ir.size)) / spec.fs)) * p.band_gain[1] for p in btms_paths(spec, max_order=0, second_order=False))
         direct = at(s, r, spec.fs) if crossing_x(s, r) > 1e-12 else 0.0
         specular = at(image, r, spec.fs) if crossing_x(image, r) < -1e-12 else 0.0
         return direct + diff, specular + diff
@@ -843,8 +836,7 @@ def test_continuity_across_zone_boundaries_as_edverify(z):
     assert relerr(specular) < 1e-5
 
 
-@pytest.mark.parametrize("mirror, scale", [((1, 1, 1), 2.0 / 3.0), ((1, -1, 1), 1.0 / 3.0)],
-                         ids=["direct", "specular"])
+@pytest.mark.parametrize("mirror, scale", [((1, 1, 1), 2.0 / 3.0), ((1, -1, 1), 1.0 / 3.0)], ids=["direct", "specular"])
 def test_a_path_through_a_corner_is_scaled_once_as_edfindconvexgapaths(mirror, scale):
     # the path through the plate's corner (0, 0, 1) lies on the zone boundaries of
     # both edges meeting there; for such a corner hit the direct sound is scaled to 2/3

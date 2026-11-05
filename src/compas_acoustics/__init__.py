@@ -27,34 +27,34 @@ if TYPE_CHECKING:
     from .simulation_methods.hybrid import Binaural  # noqa: F401
 
 
-__version__ = "0.1.0"
+__version__ = "0.0.0"
 
 __all__ = [
-    'Defaults',
-    'AirConditions',
-    'AcousticMaterial',
-    'MaterialCategory',
-    'MaterialsLibrary',
-    'Source',
-    'Receiver',
-    'AcousticObject',
-    'AcousticObjectsLibrary',
-    'Ray',
-    'ScatteredRay',
-    'RayField',
-    'SpecularPath',
-    'SpecularReflections',
-    'Scene',
-    'Analyser',
-    'EnergyMap',
-    'SimulationMethod',
-    'Mono',
-    'Auraliser',
-    'AudioPlayer',
-    'ImpulseResponse',
-    'RoomGeometry',
-    'regularized_fitness',
-    ]
+    "Defaults",
+    "AirConditions",
+    "AcousticMaterial",
+    "MaterialCategory",
+    "MaterialsLibrary",
+    "Source",
+    "Receiver",
+    "AcousticObject",
+    "AcousticObjectsLibrary",
+    "Ray",
+    "ScatteredRay",
+    "RayField",
+    "SpecularPath",
+    "SpecularReflections",
+    "Scene",
+    "Analyser",
+    "EnergyMap",
+    "SimulationMethod",
+    "Mono",
+    "Auraliser",
+    "AudioPlayer",
+    "ImpulseResponse",
+    "RoomGeometry",
+    "regularized_fitness",
+]
 
 
 def __getattr__(name):
@@ -62,6 +62,7 @@ def __getattr__(name):
     if name in ("Binaural", "Ambisonics"):
         try:
             from . import simulation_methods
+
             return getattr(simulation_methods, name)
         except ImportError as error:
             raise ImportError(f"compas_acoustics.{name} needs Python >= 3.11, where compas_acoustics installs pyFDN") from error

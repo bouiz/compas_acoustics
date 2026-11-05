@@ -23,8 +23,7 @@ WALL = AcousticMaterial("w", 0.2, 0.1)
 
 
 def path(order=1, s=0, r=0):
-    return SpecularPath([[0, 0, 0], [3, 4, 0], [6, 0, 0]], order=order, walls=[2] * order,
-                        image=[0, 8, 0], source_index=s, receiver_index=r)
+    return SpecularPath([[0, 0, 0], [3, 4, 0], [6, 0, 0]], order=order, walls=[2] * order, image=[0, 8, 0], source_index=s, receiver_index=r)
 
 
 def test_path_length_and_travel_time():
@@ -73,8 +72,7 @@ def l_shaped():
 def obstacle():
     # a cabinet in the air on the direct path
     s = shoebox()
-    s.add_acoustic_object(AcousticObject(Mesh.from_shape(Box(1.0, 1.0, 1.0, Frame([3.2, 2.2, 1.5]))), WALL,
-                                         name="cabinet", role="obstacle"))
+    s.add_acoustic_object(AcousticObject(Mesh.from_shape(Box(1.0, 1.0, 1.0, Frame([3.2, 2.2, 1.5]))), WALL, name="cabinet", role="obstacle"))
     return s
 
 

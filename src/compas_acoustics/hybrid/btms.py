@@ -64,18 +64,16 @@ def _quadstep(a, b, fa, fc, fb, tol, rs, rr, zs, zr, nu, sin_nu_phi, cos_nu_phi)
     five-point Simpson, one Richardson step, intervals whose estimates differ
     by more than tol are halved."""
     c = (a + b) / 2.0
-    fd, fe = (betaoverml(x, rs, rr, zs, zr, nu, sin_nu_phi, cos_nu_phi)
-              for x in ((a + c) / 2.0, (c + b) / 2.0))
+    fd, fe = (betaoverml(x, rs, rr, zs, zr, nu, sin_nu_phi, cos_nu_phi) for x in ((a + c) / 2.0, (c + b) / 2.0))
     h = (b - a) / 6.0
     q1 = h * (fa + 4.0 * fc + fb)
     q2 = h / 2.0 * (fa + 4.0 * fd + 2.0 * fc + 4.0 * fe + fb)
     q = q2 + (q2 - q1) / 15.0
     open_ = np.flatnonzero(np.abs(q2 - q) > tol)
     if open_.size:
-        q[open_] = (_quadstep(a[open_], c[open_], fa[open_], fd[open_], fc[open_], tol,
-                              rs, rr, zs, zr, nu, sin_nu_phi, cos_nu_phi)
-                    + _quadstep(c[open_], b[open_], fc[open_], fe[open_], fb[open_], tol,
-                                rs, rr, zs, zr, nu, sin_nu_phi, cos_nu_phi))
+        q[open_] = _quadstep(a[open_], c[open_], fa[open_], fd[open_], fc[open_], tol, rs, rr, zs, zr, nu, sin_nu_phi, cos_nu_phi) + _quadstep(
+            c[open_], b[open_], fc[open_], fe[open_], fb[open_], tol, rs, rr, zs, zr, nu, sin_nu_phi, cos_nu_phi
+        )
     return q
 
 
@@ -85,13 +83,17 @@ def _round_half_away(x):
 
 def _slot_integrals(zstarts, zends, tol, rs, rr, zs, zr, nu, s, c):
     h = 0.13579 * (zends - zstarts)
-    x = np.stack([zstarts, zstarts + h, zstarts + 2 * h, (zstarts + zends) / 2,
-                  zends - 2 * h, zends - h, zends], axis=1)
+    x = np.stack([zstarts, zstarts + h, zstarts + 2 * h, (zstarts + zends) / 2, zends - 2 * h, zends - h, zends], axis=1)
     y = betaoverml(x, rs, rr, zs, zr, nu, s, c)
     args = (tol, rs, rr, zs, zr, nu, s, c)
-    q = np.stack([_quadstep(x[:, 0], x[:, 2], y[:, 0], y[:, 1], y[:, 2], *args),
-                  _quadstep(x[:, 2], x[:, 4], y[:, 2], y[:, 3], y[:, 4], *args),
-                  _quadstep(x[:, 4], x[:, 6], y[:, 4], y[:, 5], y[:, 6], *args)], axis=1)
+    q = np.stack(
+        [
+            _quadstep(x[:, 0], x[:, 2], y[:, 0], y[:, 1], y[:, 2], *args),
+            _quadstep(x[:, 2], x[:, 4], y[:, 2], y[:, 3], y[:, 4], *args),
+            _quadstep(x[:, 4], x[:, 6], y[:, 4], y[:, 5], y[:, 6], *args),
+        ],
+        axis=1,
+    )
     return q.sum(axis=1)
 
 
@@ -151,8 +153,7 @@ def wedge1st_ir(fs, c, closed_angle, rs, thetas, zs, rr, thetar, zr, zw, r_irsta
 
     arrivalsampnumb = int(_round_half_away((R0 - r_irstart) / sampconst))
     if apexincluded and arrivalsampnumb < 0:
-        raise ValueError(
-            f"r_irstart ({r_irstart:.6g} m) is later than the apex arrival ({R0:.6g} m) by more than half a sample")
+        raise ValueError(f"r_irstart ({r_irstart:.6g} m) is later than the apex arrival ({R0:.6g} m) by more than half a sample")
     endsampnumb_apex = int(_round_half_away((Rendnear - r_irstart) / sampconst))
     if tailincluded:
         endsampnumb_tail = int(_round_half_away((Rendfar - r_irstart) / sampconst))
@@ -201,38 +202,33 @@ def wedge1st_ir(fs, c, closed_angle, rs, thetas, zs, rr, thetar, zr, zw, r_irsta
             singularterm = (absnyfivec < 10 * eps) | (np.abs(absnyfivec - 2 * np.pi) < 10 * eps)
 
             # np.where, not a 0/1 factor: the unused series branch takes sqrt of a negative number
-            sqrtB1vec = (np.sqrt(2 * (1 - cosnyfivec)) * R0 * rho / (1 + rho) ** 2 / ny * ~useserialexp
-                         + np.where(useserialexp1, fivec * np.sqrt(1 - (ny * fivec) ** 2 / 12), 0.0)
-                         * R0 * rho / (1 + rho) ** 2
-                         + np.where(useserialexp2, (fivec - 2 * np.pi / ny)
-                                    * np.sqrt(1 - (ny * fivec - 2 * np.pi) ** 2 / 12), 0.0)
-                         * R0 * rho / (1 + rho) ** 2)
+            sqrtB1vec = (
+                np.sqrt(2 * (1 - cosnyfivec)) * R0 * rho / (1 + rho) ** 2 / ny * ~useserialexp
+                + np.where(useserialexp1, fivec * np.sqrt(1 - (ny * fivec) ** 2 / 12), 0.0) * R0 * rho / (1 + rho) ** 2
+                + np.where(useserialexp2, (fivec - 2 * np.pi / ny) * np.sqrt(1 - (ny * fivec - 2 * np.pi) ** 2 / 12), 0.0) * R0 * rho / (1 + rho) ** 2
+            )
 
             if not skewcase:
                 # tempfact < 0 (rs == rr, long path) makes sqrtB3 imaginary, as in the toolbox
                 sqrtB3 = np.sqrt(2) * R0 * rho / (1 + rho) / np.sqrt(complex(tempfact))
                 usespecialcase = np.abs(sqrtB3 - sqrtB1vec) < 1e-14
 
-                fifactvec = ((1 - cosnyfivec) / ny**2 * ~useserialexp
-                             + fivec**2 / 2 * (1 - (ny * fivec) ** 2 / 12) * useserialexp1
-                             + (fivec - 2 * np.pi / ny) ** 2 / 2 * (1 - (ny * fivec - 2 * np.pi) ** 2 / 12)
-                             * useserialexp2)
+                fifactvec = (
+                    (1 - cosnyfivec) / ny**2 * ~useserialexp
+                    + fivec**2 / 2 * (1 - (ny * fivec) ** 2 / 12) * useserialexp1
+                    + (fivec - 2 * np.pi / ny) ** 2 / 2 * (1 - (ny * fivec - 2 * np.pi) ** 2 / 12) * useserialexp2
+                )
 
                 temp1vec = sinnyfivec / ((1 + rho) ** 2 - tempfact * fifactvec + eps * 10)
-                temp1_2vec = ((sinnyfivec + 10 * eps) / ((1 + rho) ** 2 - tempfact * fifactvec)
-                              / (sqrtB1vec + 10 * eps) * np.arctan(zrangespecial / (sqrtB1vec + eps)))
+                temp1_2vec = (sinnyfivec + 10 * eps) / ((1 + rho) ** 2 - tempfact * fifactvec) / (sqrtB1vec + 10 * eps) * np.arctan(zrangespecial / (sqrtB1vec + eps))
                 temp3vec = -1 / sqrtB3 * np.arctan(zrangespecial / sqrtB3)
 
                 approxintvalvec = 2 / ny**2 * rho * (temp1_2vec + temp1vec * temp3vec)
                 approxintvalvec = approxintvalvec * (sinnyfivec != 0) * ~usespecialcase
 
                 if np.any(usespecialcase):
-                    specialcasevalue = 1 / (2 * sqrtB3 * sqrtB3) * (
-                        zrangespecial / (zrangespecial**2 + sqrtB3 * sqrtB3)
-                        + 1 / sqrtB3 * np.arctan(zrangespecial / (sqrtB3 + eps)))
-                    approxintvalvec = approxintvalvec + (
-                        4 * R0 * R0 * rho**3 * sinnyfivec / ny / ny / (1 + rho) ** 4 / tempfact
-                        * specialcasevalue * usespecialcase)
+                    specialcasevalue = 1 / (2 * sqrtB3 * sqrtB3) * (zrangespecial / (zrangespecial**2 + sqrtB3 * sqrtB3) + 1 / sqrtB3 * np.arctan(zrangespecial / (sqrtB3 + eps)))
+                    approxintvalvec = approxintvalvec + (4 * R0 * R0 * rho**3 * sinnyfivec / ny / ny / (1 + rho) ** 4 / tempfact * specialcasevalue * usespecialcase)
             else:
                 B3 = 2 * R0 * R0 * rho * rho / (1 + rho) / (1 + rho) / tempfact
                 B1vec = sqrtB1vec**2
@@ -240,8 +236,7 @@ def wedge1st_ir(fs, c, closed_angle, rs, thetas, zs, rr, thetar, zr, zw, r_irsta
                 E1vec = 4 * R0**2 * rho**3 * sinnyfivec / ny**2 / (1 + rho) ** 4 / tempfact
                 multfact = -E1vec * B2 / (B1vec * B2**2 + (B1vec - B3) ** 2)
 
-                P1 = 0.5 * np.log(abs(B3) * np.abs(zrangespecial**2 + B1vec) / np.abs(B1vec)
-                                  / np.abs(zrangespecial**2 + B2 * zrangespecial + B3))
+                P1 = 0.5 * np.log(abs(B3) * np.abs(zrangespecial**2 + B1vec) / np.abs(B1vec) / np.abs(zrangespecial**2 + B2 * zrangespecial + B3))
                 P2 = (B1vec - B3) / (sqrtB1vec + 10 * eps) / B2 * np.arctan(zrangespecial / (sqrtB1vec + 10 * eps))
                 q = 4 * B3 - B2**2
 
@@ -250,8 +245,7 @@ def wedge1st_ir(fs, c, closed_angle, rs, thetas, zs, rr, thetar, zr, zw, r_irsta
                     F = 2 / sqrtq * (np.arctan((2 * zrangespecial + B2) / sqrtq) - np.arctan(B2 / sqrtq))
                 elif q < 0:
                     sqrtminq = np.sqrt(-q)
-                    F = 1 / sqrtminq * np.log(abs(2 * zrangespecial + B2 - sqrtminq) * abs(B2 + sqrtminq)
-                                              / abs(2 * zrangespecial + B2 + sqrtminq) / abs(B2 - sqrtminq))
+                    F = 1 / sqrtminq * np.log(abs(2 * zrangespecial + B2 - sqrtminq) * abs(B2 + sqrtminq) / abs(2 * zrangespecial + B2 + sqrtminq) / abs(B2 - sqrtminq))
                 else:
                     F = 4 * zrangespecial / B2 / (2 * zrangespecial + B2)
                 P3 = (2 * (B3 - B1vec) - B2**2) / 2 / B2 * F
@@ -264,12 +258,11 @@ def wedge1st_ir(fs, c, closed_angle, rs, thetas, zs, rr, thetar, zr, zw, r_irsta
             ir[arrivalsampnumb] += approxintvalvec.real
 
             if splitinteg:
-                ir[arrivalsampnumb] += _slot_integrals(
-                    np.array([zrangespecial]), zrange_apex[:1], tol, *integ)[0]
+                ir[arrivalsampnumb] += _slot_integrals(np.array([zrangespecial]), zrange_apex[:1], tol, *integ)[0]
 
             qsum = _slot_integrals(zrange_apex[:-1], zrange_apex[1:], tol, *integ)
             # the toolbox's ir(arrivalsampnumb + [2:length(zrange_apex)]), 1-based
-            ir[arrivalsampnumb + 1:arrivalsampnumb + zrange_apex.size] += qsum
+            ir[arrivalsampnumb + 1 : arrivalsampnumb + zrange_apex.size] += qsum
             ir = ir * (-ny / 2 / np.pi)
         else:
             Rend1 = np.sqrt(rs**2 + (zw[0] - zs) ** 2) + np.sqrt(rr**2 + (zw[0] - zr) ** 2)
@@ -279,7 +272,7 @@ def wedge1st_ir(fs, c, closed_angle, rs, thetas, zs, rr, thetar, zr, zw, r_irsta
         if tailincluded:
             qsum = _slot_integrals(zrange_tail[:-1], zrange_tail[1:], tol, *integ)
             # the toolbox's ir(endsampnumb_apex + [1:length(zrange_tail)-1]), 1-based
-            ir[endsampnumb_apex:endsampnumb_apex + zrange_tail.size - 1] += qsum * (-ny / 4 / np.pi)
+            ir[endsampnumb_apex : endsampnumb_apex + zrange_tail.size - 1] += qsum * (-ny / 4 / np.pi)
 
     return ir, initdelay, singularterm, float(zfirst)
 
@@ -298,8 +291,7 @@ def _coordtrans1(points, edge_ends, ref_normal):
     xknown = edge_ends[1] - edge_ends[0]
     xknown = xknown / np.sqrt(np.sum(xknown**2))
     cross = np.cross(n, xknown)
-    a = np.array([[0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]]) @ np.linalg.inv(
-        np.stack([xknown, cross, n], axis=1))
+    a = np.array([[0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]]) @ np.linalg.inv(np.stack([xknown, cross, n], axis=1))
     xyz = (a @ (points - edge_ends[0]).T).T
     r = np.sqrt(xyz[:, 0] ** 2 + xyz[:, 1] ** 2)
     z = xyz[:, 2]
@@ -319,13 +311,11 @@ def element_grid(lengths, c, fs):
     lengths = np.asarray(lengths, dtype=float)
     ndiv = np.ceil(lengths / (c / fs)).astype(int)
     dz = lengths / ndiv
-    idx = np.stack(np.meshgrid(np.arange(1, ndiv[0] + 1), np.arange(1, ndiv[1] + 1), indexing="ij"),
-                   axis=-1).reshape(-1, 2)
+    idx = np.stack(np.meshgrid(np.arange(1, ndiv[0] + 1), np.arange(1, ndiv[1] + 1), indexing="ij"), axis=-1).reshape(-1, 2)
     return (idx - 0.5) / ndiv, dz
 
 
-def wedge2nd_ir(cyl_s, cyl_r, cyl_e2_r1, cyl_e1_r2, nu, edge_limits, dz, steps, path_along_plane,
-                r_irstart, c, fs):
+def wedge2nd_ir(cyl_s, cyl_r, cyl_e2_r1, cyl_e1_r2, nu, edge_limits, dz, steps, path_along_plane, r_irstart, c, fs):
     """Edge-to-edge (second-order) diffraction impulse response of a pair of
     rigid wedges, EDwedge2nd.m with method 'n' and swapbigmatrix = 0.
 
@@ -347,8 +337,7 @@ def wedge2nd_ir(cyl_s, cyl_r, cyl_e2_r1, cyl_e1_r2, nu, edge_limits, dz, steps, 
     r_e2_r2, theta_e2_r2, z_e2_r2 = cyl_e1_r2[1]
 
     closwedang = 2 * np.pi - nu_closed2
-    in_plane = ((abs(theta_e1_r1) < 1e-10 or abs(theta_e1_r1 - (2 * np.pi - closwedang)) < 1e-10)
-                and abs(theta_e1_r1 - theta_e2_r1) < 1e-10)
+    in_plane = (abs(theta_e1_r1) < 1e-10 or abs(theta_e1_r1 - (2 * np.pi - closwedang)) < 1e-10) and abs(theta_e1_r1 - theta_e2_r1) < 1e-10
 
     s1, s2 = steps[:, 0], steps[:, 1]
     b4 = edge_limits[0, 0] + (edge_limits[0, 1] - edge_limits[0, 0]) * s1
@@ -363,14 +352,12 @@ def wedge2nd_ir(cyl_s, cyl_r, cyl_e2_r1, cyl_e1_r2, nu, edge_limits, dz, steps, 
         x1, y1 = r_e1_r1 * np.cos(theta_e1_r1), r_e1_r1 * np.sin(theta_e1_r1)
         x2, y2 = r_e2_r1 * np.cos(theta_e2_r1), r_e2_r1 * np.sin(theta_e2_r1)
         pts = np.stack([x1 + (x2 - x1) * s2, y1 + (y2 - y1) * s2, z_e1_r1 + (z_e2_r1 - z_e1_r1) * s2], axis=1)
-        redge2_re1, thetaedge2_re1, _ = _coordtrans1(
-            pts, np.array([[0.0, 0.0, 0.0], [0.0, 0.0, edge_limits[0, 1]]]), np.array([0.0, 1.0, 0.0]))
+        redge2_re1, thetaedge2_re1, _ = _coordtrans1(pts, np.array([[0.0, 0.0, 0.0], [0.0, 0.0, edge_limits[0, 1]]]), np.array([0.0, 1.0, 0.0]))
 
         x1, y1 = r_e1_r2 * np.cos(theta_e1_r2), r_e1_r2 * np.sin(theta_e1_r2)
         x2, y2 = r_e2_r2 * np.cos(theta_e2_r2), r_e2_r2 * np.sin(theta_e2_r2)
         pts = np.stack([x1 + (x2 - x1) * s1, y1 + (y2 - y1) * s1, z_e1_r2 + (z_e2_r2 - z_e1_r2) * s1], axis=1)
-        redge1_re2, thetaedge1_re2, _ = _coordtrans1(
-            pts, np.array([[0.0, 0.0, 0.0], [0.0, 0.0, edge_limits[1, 1]]]), np.array([0.0, 1.0, 0.0]))
+        redge1_re2, thetaedge1_re2, _ = _coordtrans1(pts, np.array([[0.0, 0.0, 0.0], [0.0, 0.0, edge_limits[1, 1]]]), np.array([0.0, 1.0, 0.0]))
     else:
         redge2_re1 = r_e1_r1 + s2 * (r_e2_r1 - r_e1_r1)
         redge1_re2 = r_e1_r2 + s1 * (r_e2_r2 - r_e1_r2)
@@ -398,17 +385,13 @@ def wedge2nd_ir(cyl_s, cyl_r, cyl_e2_r1, cyl_e1_r2, nu, edge_limits, dz, steps, 
         return sum(_df(nuv, bq, np.pi + a + st * t) for st in (1, -1))
 
     if not path_along_plane:
-        b3 = (multfac * nu1 * nu2 / 16 / np.pi**2 * dz[0] * dz[1]
-              * four(nu1, b1, thetas, thetaedge2_re1) / s2e / e2e)
+        b3 = multfac * nu1 * nu2 / 16 / np.pi**2 * dz[0] * dz[1] * four(nu1, b1, thetas, thetaedge2_re1) / s2e / e2e
         b3 = b3 * four(nu2, b2, thetaedge1_re2, thetar) / e2r
     else:
         if thetas == 0:
-            b3 = (multfac * nu1 * nu2 / 2 / np.pi**2 * dz[0] * dz[1]
-                  * _df(nu1, b1, np.pi + thetaedge2_re1) / s2e / e2e)
+            b3 = multfac * nu1 * nu2 / 2 / np.pi**2 * dz[0] * dz[1] * _df(nu1, b1, np.pi + thetaedge2_re1) / s2e / e2e
         else:
-            b3 = (multfac * nu1 * nu2 / 4 / np.pi**2 * dz[0] * dz[1]
-                  * (_df(nu1, b1, np.pi + thetas + thetaedge2_re1) + _df(nu1, b1, np.pi - thetas + thetaedge2_re1))
-                  / s2e / e2e)
+            b3 = multfac * nu1 * nu2 / 4 / np.pi**2 * dz[0] * dz[1] * (_df(nu1, b1, np.pi + thetas + thetaedge2_re1) + _df(nu1, b1, np.pi - thetas + thetaedge2_re1)) / s2e / e2e
         b3 = b3 * two(nu2, b2, thetaedge1_re2, thetar) / e2r
 
     slots = (s2e + e2e + e2r - r_irstart) / (c / fs) + 1
@@ -416,6 +399,6 @@ def wedge2nd_ir(cyl_s, cyl_r, cyl_e2_r1, cyl_e1_r2, nu, edge_limits, dz, steps, 
     frac = slots - b1i
     first, last = b1i.min(), b1i.max()
     ir = np.zeros(last + 1)
-    ir[first - 1:last] = np.bincount(b1i - first, weights=b3 * (1 - frac))
-    ir[first:last + 1] += np.bincount(b1i - first, weights=b3 * frac)
+    ir[first - 1 : last] = np.bincount(b1i - first, weights=b3 * (1 - frac))
+    ir[first : last + 1] += np.bincount(b1i - first, weights=b3 * frac)
     return ir

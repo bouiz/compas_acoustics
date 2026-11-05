@@ -44,19 +44,12 @@ def _band_damping(source) -> np.ndarray:
     damping = np.asarray(source.damping, dtype=float)
     n_images = np.asarray(source.images).shape[1]
     if damping.ndim != 2 or damping.shape[1] != n_images:
-        raise RuntimeError(
-            f"expected damping of shape (n_bands, {n_images}), got "
-            f"{damping.shape}: the search did not return a per-band "
-            "reflection product"
-        )
+        raise RuntimeError(f"expected damping of shape (n_bands, {n_images}), got {damping.shape}: the search did not return a per-band reflection product")
     if damping.shape[0] == 1 and np.all(np.asarray(source.orders) == 0):
         # searched to order 0 in a room with obstacles, one band is kept: the direct sound is 1 in every band
         damping = np.repeat(damping, N_BANDS, axis=0)
     if damping.shape[0] < N_BANDS:
-        raise RuntimeError(
-            f"the search returned {damping.shape[0]} bands, fewer than the "
-            f"{N_BANDS} this package needs; its octave grid did not align"
-        )
+        raise RuntimeError(f"the search returned {damping.shape[0]} bands, fewer than the {N_BANDS} this package needs; its octave grid did not align")
     # rows above the grid (16 kHz at 48 kHz) are dropped; `encode` extrapolates above the top band
     return damping[:N_BANDS].T
 
@@ -76,9 +69,7 @@ def _first_of_each_position(images: np.ndarray, spec: Pair) -> np.ndarray:
     return keep
 
 
-def image_sources(
-    room, source_index: int, mic_index: int, spec: Pair, directivity=None, scattered_room=None
-) -> ImageSourceSet:
+def image_sources(room, source_index: int, mic_index: int, spec: Pair, directivity=None, scattered_room=None) -> ImageSourceSet:
     """The image sources of one source at one microphone of a computed room.
 
     ``room`` has been searched with every source and microphone of the scene; an image is kept when any
@@ -118,12 +109,8 @@ def image_sources(
     if directivity is not None:
         emitted = np.asarray(source.directions[mic_index], dtype=float)[:, visible]
         azimuth = np.arctan2(emitted[1], emitted[0])
-        colatitude = np.arccos(
-            np.clip(emitted[2] / np.linalg.norm(emitted, axis=0), -1.0, 1.0)
-        )
-        response = directivity.get_response(
-            azimuth=azimuth, colatitude=colatitude, degrees=False
-        )
+        colatitude = np.arccos(np.clip(emitted[2] / np.linalg.norm(emitted, axis=0), -1.0, 1.0))
+        response = directivity.get_response(azimuth=azimuth, colatitude=colatitude, degrees=False)
         gain = gain * np.asarray(response, dtype=float).reshape(-1, 1)
 
     # the rotation's columns are the receiver's axes, so the transpose takes a world vector to its frame
@@ -200,15 +187,11 @@ def encode(
     if np.asarray(iss.delay).size == 0:
         return np.zeros((n_samples, (sh_order + 1) ** 2), dtype=float)
 
-    sh = spharpy.spherical.spherical_harmonic_basis_real(
-        sh_order, iss.doa, normalization=normalization, channel_convention="ACN"
-    )  # (M, n_ch)
+    sh = spharpy.spherical.spherical_harmonic_basis_real(sh_order, iss.doa, normalization=normalization, channel_convention="ACN")  # (M, n_ch)
     return render_images(iss, sh, n_samples)
 
 
-def render_images(
-    iss: ImageSourceSet, weights: np.ndarray, n_samples: int
-) -> np.ndarray:
+def render_images(iss: ImageSourceSet, weights: np.ndarray, n_samples: int) -> np.ndarray:
     """Image sources accumulated onto output channels, (n, n_ch), with ``weights`` (M, n_ch) per image.
 
     ``weights`` are spherical harmonics for ambisonic channels or a routing onto delay lines or HRIRs; every
@@ -218,10 +201,7 @@ def render_images(
         raise ValueError("n_samples must be positive")
     weights = np.asarray(weights, dtype=float)
     if weights.ndim != 2 or weights.shape[0] != np.asarray(iss.delay).size:
-        raise ValueError(
-            f"weights must have shape ({np.asarray(iss.delay).size}, n_channels), "
-            f"got {weights.shape}"
-        )
+        raise ValueError(f"weights must have shape ({np.asarray(iss.delay).size}, n_channels), got {weights.shape}")
     n_ch = weights.shape[1]
 
     # images after the buffer's end would wrap round to its start
@@ -233,7 +213,9 @@ def render_images(
     magnitude = _band_magnitude_fn(freq, iss.bands, iss.fs)
     spectrum = _accumulate(
         lambda m: magnitude(iss.gain[m]) * np.exp(-2j * np.pi * freq * iss.delay[m]),
-        np.flatnonzero(inside), weights, freq.size,
+        np.flatnonzero(inside),
+        weights,
+        freq.size,
     )
     return _finish(spectrum, freq, nfft, n_samples)
 
@@ -246,7 +228,7 @@ def _accumulate(spectrum_of, paths: np.ndarray, weights: np.ndarray, n_freq: int
     weights = np.asarray(weights, dtype=complex)
     spectrum = np.zeros((n_freq, weights.shape[1]), dtype=complex)
     for start in range(0, paths.size, 16):
-        chunk = paths[start:start + 16]
+        chunk = paths[start : start + 16]
         # the spectra as columns, so the product reads them contiguously
         columns = np.empty((n_freq, chunk.size), dtype=complex)
         for k, m in enumerate(chunk):
@@ -298,7 +280,9 @@ def render_transfers(
     magnitude = _band_magnitude_fn(freq, bands, fs)
     spectrum = _accumulate(
         lambda m: transfers[m](freq) * magnitude(gains[m]) * np.exp(-2j * np.pi * freq * delays[m]),
-        np.flatnonzero(delays * fs < n_samples), weights, freq.size,
+        np.flatnonzero(delays * fs < n_samples),
+        weights,
+        freq.size,
     )
     return _finish(spectrum, freq, nfft, n_samples)
 

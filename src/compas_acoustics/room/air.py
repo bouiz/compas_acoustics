@@ -48,8 +48,7 @@ class AirConditions:
             from compas_acoustics.room._pyfar_constants import air_attenuation
 
         frequencies = np.asarray(frequencies, dtype=float)
-        _, m, _ = air_attenuation(self.temperature, frequencies, self.humidity / 100.0,
-                                  atmospheric_pressure=self.pressure)
+        _, m, _ = air_attenuation(self.temperature, frequencies, self.humidity / 100.0, atmospheric_pressure=self.pressure)
         return np.asarray(m.freq, dtype=float).reshape(frequencies.shape)
 
     def to_dict(self) -> dict:

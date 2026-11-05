@@ -23,8 +23,7 @@ from .geometry import SYNTHESIS_BANDS
 from .geometry import RoomGeometry
 from .geometry import pra_octave_grid
 
-__all__ = ['MIN_RAYS', 'MAX_DURATION', 'DURATION_RT_FACTOR', 'DirectionalHistogram', 'default_duration', 'directional_histograms',
-           'image_source_rirs', 'ray_traced_rirs']
+__all__ = ["MIN_RAYS", "MAX_DURATION", "DURATION_RT_FACTOR", "DirectionalHistogram", "default_duration", "directional_histograms", "image_source_rirs", "ray_traced_rirs"]
 
 # Floor on the heuristic ray count, applied only with n_rays=None
 MIN_RAYS = 50_000
@@ -36,8 +35,7 @@ MAX_DURATION = 12.0
 _HIST_BIN = 0.004
 
 
-def default_duration(geometry: RoomGeometry, air_absorption: bool, speed_of_sound: Optional[float] = None, air=None,
-                     factor: float = DURATION_RT_FACTOR) -> float:
+def default_duration(geometry: RoomGeometry, air_absorption: bool, speed_of_sound: Optional[float] = None, air=None, factor: float = DURATION_RT_FACTOR) -> float:
     """How long to simulate this room: ``factor`` times the longest Eyring RT, within 0.5 s and ``MAX_DURATION``.
 
     Eyring only sizes the buffer, so its diffuse-field check is skipped. A scene that closes no volume gets 10 s.
@@ -66,8 +64,7 @@ def _on_package_scale(rir, latency: int, n_samples: int) -> np.ndarray:
     return np.pad(rir, (0, max(0, n_samples - rir.size)))[:n_samples]
 
 
-def image_source_rirs(geometry: RoomGeometry, sources, mic_positions, fs: int, *, max_order: int, air_absorption: bool = True,
-                      air=None) -> List[List[np.ndarray]]:
+def image_source_rirs(geometry: RoomGeometry, sources, mic_positions, fs: int, *, max_order: int, air_absorption: bool = True, air=None) -> List[List[np.ndarray]]:
     """Image-source responses ``[mic][source]`` on the package scale at their natural length; arguments as :func:`ray_traced_rirs`."""
     mic_positions = np.asarray(mic_positions, dtype=float).reshape(3, -1)
     with pra_octave_grid():
@@ -78,10 +75,7 @@ def image_source_rirs(geometry: RoomGeometry, sources, mic_positions, fs: int, *
         room.image_source_model()
         room.compute_rir()
     latency = pra.constants.get("frac_delay_length") // 2
-    return [
-        [_on_package_scale(room.rir[m][s], latency, len(room.rir[m][s]) - latency) for s in range(len(sources))]
-        for m in range(mic_positions.shape[1])
-    ]
+    return [[_on_package_scale(room.rir[m][s], latency, len(room.rir[m][s]) - latency) for s in range(len(sources))] for m in range(mic_positions.shape[1])]
 
 
 def ray_traced_rirs(
@@ -130,10 +124,7 @@ def ray_traced_rirs(
 
     latency = pra.constants.get("frac_delay_length") // 2
     n_samples = round(duration * fs)
-    return [
-        [_on_package_scale(room.rir[m][s], latency, n_samples) for s in range(len(sources))]
-        for m in range(mic_positions.shape[1])
-    ]
+    return [[_on_package_scale(room.rir[m][s], latency, n_samples) for s in range(len(sources))] for m in range(mic_positions.shape[1])]
 
 
 @dataclass(frozen=True)
@@ -213,10 +204,7 @@ def directional_histograms(
         bin_size = float(room.rt_args["hist_bin_size"])
         n_bins = int(np.ceil(duration / bin_size))
         distance = (np.arange(n_bins) + 0.5) * bin_size * room.c
-        damping = (
-            np.exp(-np.asarray(room.air_absorption, dtype=float)[:, np.newaxis] * distance[np.newaxis, :])
-            if air_absorption else np.ones((n_bands, n_bins))
-        )
+        damping = np.exp(-np.asarray(room.air_absorption, dtype=float)[:, np.newaxis] * distance[np.newaxis, :]) if air_absorption else np.ones((n_bands, n_bins))
         histograms = [[] for _ in unit]
         for source in room.sources:
             if source.directivity is None:
@@ -231,8 +219,13 @@ def directional_histograms(
                 lines = [np.asarray(h.get_hist(), dtype=float) for h in room.room_engine.microphones[m].histograms]
                 width = max(n_bins, *(line.shape[1] for line in lines))
                 energy = np.stack([np.pad(line, ((0, 0), (0, width - line.shape[1]))) for line in lines])[:, :, :n_bins]
-                histograms[m].append(DirectionalHistogram(
-                    energy=energy * damping / (4.0 * np.pi) ** 2, bin_size=bin_size, directions=d, bands=bands,
-                ))
+                histograms[m].append(
+                    DirectionalHistogram(
+                        energy=energy * damping / (4.0 * np.pi) ** 2,
+                        bin_size=bin_size,
+                        directions=d,
+                        bands=bands,
+                    )
+                )
             room.room_engine.reset_mics()
     return histograms

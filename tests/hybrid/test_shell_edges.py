@@ -48,8 +48,7 @@ def prism_room(outline, height=H, rotation=None):
     v = np.array(v, float)
     if rotation is not None:
         v = v @ rotation.T
-    return RoomGeometry.from_mesh(v, tuple(faces), tuple(["floor", "ceiling"] + ["wall"] * n),
-                        materials("floor", "ceiling", "wall"))
+    return RoomGeometry.from_mesh(v, tuple(faces), tuple(["floor", "ceiling"] + ["wall"] * n), materials("floor", "ceiling", "wall"))
 
 
 def grid_room(xs, ys, solid, height=H):
@@ -72,8 +71,7 @@ def grid_room(xs, ys, solid, height=H):
             if not air(i, j):
                 continue
             x0, x1, y0, y1 = xs[i], xs[i + 1], ys[j], ys[j + 1]
-            faces += [(vid(x0, y0, 0), vid(x0, y1, 0), vid(x1, y1, 0), vid(x1, y0, 0)),
-                      (vid(x1, y0, height), vid(x1, y1, height), vid(x0, y1, height), vid(x0, y0, height))]
+            faces += [(vid(x0, y0, 0), vid(x0, y1, 0), vid(x1, y1, 0), vid(x1, y0, 0)), (vid(x1, y0, height), vid(x1, y1, height), vid(x0, y1, height), vid(x0, y0, height))]
             names += ["floor", "ceiling"]
             if not air(i + 1, j):
                 faces.append((vid(x1, y0, 0), vid(x1, y1, 0), vid(x1, y1, height), vid(x1, y0, height)))
@@ -101,8 +99,7 @@ def test_a_rectangular_room_has_no_room_edges():
         assert enclosure_edges(prism_room([(0, 0), (8, 0), (8, 6), (0, 6)])) == []
 
 
-@pytest.mark.parametrize("geometry", [prism_room(L_OUTLINE), grid_room([0, 5, 8], [0, 3, 6], {(1, 1)})],
-                         ids=["one-polygon floor", "tiled floor"])
+@pytest.mark.parametrize("geometry", [prism_room(L_OUTLINE), grid_room([0, 5, 8], [0, 3, 6], {(1, 1)})], ids=["one-polygon floor", "tiled floor"])
 def test_an_l_room_has_one_re_entrant_corner(geometry):
     edges = enclosure_edges(geometry)
     assert len(edges) == 1
@@ -136,8 +133,7 @@ def t_junction_l(offset=0.0):
             faces += [(a, b, 2 * n + 1, 2 * n), (2 * n, 2 * n + 1, b + n, a + n)]
         else:
             faces.append((a, b, b + n, a + n))
-    return RoomGeometry.from_mesh(np.array(v, float), tuple(faces),
-                        tuple(["floor", "ceiling"] + ["wall"] * (n + 1)), materials("floor", "ceiling", "wall"))
+    return RoomGeometry.from_mesh(np.array(v, float), tuple(faces), tuple(["floor", "ceiling"] + ["wall"] * (n + 1)), materials("floor", "ceiling", "wall"))
 
 
 def test_a_corner_split_by_a_t_junction_is_one_edge():
@@ -169,8 +165,7 @@ def banded_l(levels):
     for (x0, y0), (x1, y1) in zip(L_OUTLINE, L_OUTLINE[1:] + L_OUTLINE[:1]):
         faces += [(vid(x0, y0, z0), vid(x1, y1, z0), vid(x1, y1, z1), vid(x0, y0, z1)) for z0, z1 in pairwise(zs)]
     v = np.array(sorted(index, key=index.get), float)
-    return RoomGeometry.from_mesh(v, tuple(faces), tuple(["floor", "ceiling"] + ["wall"] * (len(faces) - 2)),
-                        materials("floor", "ceiling", "wall"))
+    return RoomGeometry.from_mesh(v, tuple(faces), tuple(["floor", "ceiling"] + ["wall"] * (len(faces) - 2)), materials("floor", "ceiling", "wall"))
 
 
 @pytest.mark.parametrize("seed", range(5))
@@ -188,8 +183,7 @@ def test_vertex_noise_on_a_corner_of_several_pieces_changes_nothing(seed):
 def test_a_wall_tilted_by_a_microradian_next_to_a_long_floor_is_not_warned_about():
     """3 um off at the top of a 3 m wall: the corner is exact to the mesh
     tolerance, though the 60 m floor would turn the angle into 60 um."""
-    v = np.array([[0, 0, 0], [60, 0, 0], [60, 6, 0], [0, 6, 0],
-                  [0, 0, H], [60 + 3e-6, 0, H], [60 + 3e-6, 6, H], [0, 6, H]], float)
+    v = np.array([[0, 0, 0], [60, 0, 0], [60, 6, 0], [0, 6, 0], [0, 0, H], [60 + 3e-6, 0, H], [60 + 3e-6, 6, H], [0, 6, H]], float)
     faces = ((0, 3, 2, 1), (4, 5, 6, 7), (0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7))
     geometry = RoomGeometry.from_mesh(v, faces, ("floor", "ceiling") + ("wall",) * 4, materials("floor", "ceiling", "wall"))
     with warnings.catch_warnings():
@@ -245,8 +239,7 @@ def test_a_sliver_face_along_the_corner_keeps_the_corner():
             faces += [(3, 12, 9), (3, 4, 10, 12)]
         else:
             faces.append((a, b, b + n, a + n))
-    geometry = RoomGeometry.from_mesh(np.array(v, float), tuple(faces),
-                            tuple(["floor", "ceiling"] + ["wall"] * (n + 1)), materials("floor", "ceiling", "wall"))
+    geometry = RoomGeometry.from_mesh(np.array(v, float), tuple(faces), tuple(["floor", "ceiling"] + ["wall"] * (n + 1)), materials("floor", "ceiling", "wall"))
     edges = enclosure_edges(geometry)
     assert len(edges) == 1
     assert edges[0].length == pytest.approx(H)
@@ -282,10 +275,8 @@ def test_coplanar_faces_of_two_room_boxes_are_not_one_surface():
 
 
 def test_a_room_edge_and_an_obstacle_edge_never_share_a_face():
-    room = Edge(np.array([6.0, 3.0, 0.0]), np.array([6.0, 3.0, 3.0]), np.array([1.0, 0.0, 0.0]),
-                np.array([0.0, 1.0, 0.0]), 1.5 * np.pi, regions=(0, 1))
-    panel = Edge(np.array([7.0, 3.0, 0.5]), np.array([7.0, 3.0, 2.5]), np.array([1.0, 0.0, 0.0]),
-                 np.array([1.0, 0.0, 0.0]), 2 * np.pi, component=0)
+    room = Edge(np.array([6.0, 3.0, 0.0]), np.array([6.0, 3.0, 3.0]), np.array([1.0, 0.0, 0.0]), np.array([0.0, 1.0, 0.0]), 1.5 * np.pi, regions=(0, 1))
+    panel = Edge(np.array([7.0, 3.0, 0.5]), np.array([7.0, 3.0, 2.5]), np.array([1.0, 0.0, 0.0]), np.array([1.0, 0.0, 0.0]), 2 * np.pi, component=0)
     assert shared_face(room, panel) is None and shared_face(panel, room) is None
 
 
@@ -303,8 +294,7 @@ def panel_l_room():
         v += [[x0, y0, 0], [x1, y1, 0], [x1, y1, H], [x0, y0, H]]
         faces.append((n, n + 1, n + 2, n + 3))
         names.append("panel")
-    return RoomGeometry.from_mesh(np.array(v, float), tuple(faces), tuple(names),
-                        materials("wall", "floor", "ceiling", "panel"), obstacles=("panel",))
+    return RoomGeometry.from_mesh(np.array(v, float), tuple(faces), tuple(names), materials("wall", "floor", "ceiling", "panel"), obstacles=("panel",))
 
 
 def box_obstacle_room(rotation=None):
@@ -323,13 +313,11 @@ def box_obstacle_room(rotation=None):
     v = np.array(v, float)
     if rotation is not None:
         v = v @ rotation.T
-    return RoomGeometry.from_mesh(v, tuple(faces), tuple(names),
-                        materials("wall", "floor", "ceiling", "box"), obstacles=("box",))
+    return RoomGeometry.from_mesh(v, tuple(faces), tuple(names), materials("wall", "floor", "ceiling", "box"), obstacles=("box",))
 
 
 def spec_of(geometry, source, receiver):
-    return pair(geometry=geometry, source=np.asarray(source, float), receiver=np.asarray(receiver, float),
-                    air_absorption=False, speed_of_sound=C)
+    return pair(geometry=geometry, source=np.asarray(source, float), receiver=np.asarray(receiver, float), air_absorption=False, speed_of_sound=C)
 
 
 def test_paths_index_diffraction_edges():
@@ -339,8 +327,7 @@ def test_paths_index_diffraction_edges():
     assert [p.edge for p in diffraction_paths(spec_of(g, S_L, [4.0, 4.5, 1.5]), max_order=0)] == [0]
 
 
-@pytest.mark.parametrize("receiver", [[4.0, 4.5, 1.5], [2.0, 4.5, 1.5], [4.0, 2.0, 2.5]],
-                         ids=["shadow", "view, upper leg", "view, lower leg"])
+@pytest.mark.parametrize("receiver", [[4.0, 4.5, 1.5], [2.0, 4.5, 1.5], [4.0, 2.0, 2.5]], ids=["shadow", "view, upper leg", "view, lower leg"])
 def test_a_room_corner_diffracts_as_the_same_corner_built_from_panels(receiver):
     shell = diffraction_paths(spec_of(prism_room(L_OUTLINE), S_L, receiver), max_order=0)
     panels = diffraction_paths(spec_of(panel_l_room(), S_L, receiver), max_order=0)
@@ -353,8 +340,10 @@ def test_a_room_corner_diffracts_as_the_same_corner_built_from_panels(receiver):
 
 
 def test_btms_at_a_room_corner_equals_the_corner_built_from_panels():
-    out = {name: encode_btms(btms_paths(spec_of(g, S_L, [4.0, 4.5, 1.5]), max_order=0), 0, 4800, 48000.0)
-           for name, g in (("shell", prism_room(L_OUTLINE)), ("panels", panel_l_room()))}
+    out = {
+        name: encode_btms(btms_paths(spec_of(g, S_L, [4.0, 4.5, 1.5]), max_order=0), 0, 4800, 48000.0)
+        for name, g in (("shell", prism_room(L_OUTLINE)), ("panels", panel_l_room()))
+    }
     assert np.max(np.abs(out["panels"])) > 0.0
     np.testing.assert_allclose(out["shell"], out["panels"], atol=1e-9 * np.max(np.abs(out["panels"])))
 
@@ -377,10 +366,9 @@ def rotation_z(degrees):
     return np.array([[np.cos(a), -np.sin(a), 0.0], [np.sin(a), np.cos(a), 0.0], [0.0, 0.0, 1.0]])
 
 
-@pytest.mark.parametrize(("source", "receiver"), [([3.0, 1.0, 1.5], [2.0, 5.0, 2.0]),
-                                                  ([3.0, 1.0, 1.5], [4.0, 4.5, 1.7]),
-                                                  (S_L, [4.0, 4.5, 1.7])],
-                         ids=["view", "reflection", "shadow"])
+@pytest.mark.parametrize(
+    ("source", "receiver"), [([3.0, 1.0, 1.5], [2.0, 5.0, 2.0]), ([3.0, 1.0, 1.5], [4.0, 4.5, 1.7]), (S_L, [4.0, 4.5, 1.7])], ids=["view", "reflection", "shadow"]
+)
 def test_a_rotated_room_diffracts_as_the_axis_aligned_room(source, receiver):
     """A room edge lies in the planes of its own faces, so an image in one of
     them reaches the edge with a zero-length wall leg; rounding must not turn
@@ -389,8 +377,7 @@ def test_a_rotated_room_diffracts_as_the_axis_aligned_room(source, receiver):
     base = prism_room(L_OUTLINE)
     turned = RoomGeometry.from_mesh(base.vertices @ rot.T, base.faces, base.face_materials, base.materials)
     specs = (spec_of(base, source, receiver), spec_of(turned, rot @ np.asarray(source), rot @ np.asarray(receiver)))
-    a, b = (sorted(diffraction_paths(s, max_order=1), key=lambda p: (round(p.distance, 9), p.order, p.zone))
-            for s in specs)
+    a, b = (sorted(diffraction_paths(s, max_order=1), key=lambda p: (round(p.distance, 9), p.order, p.zone)) for s in specs)
     assert len(a) == len(b) > 0
     assert [(p.order, p.zone, p.edge) for p in a] == [(p.order, p.zone, p.edge) for p in b]
     np.testing.assert_allclose([p.delay for p in b], [p.delay for p in a], rtol=1e-12)
@@ -439,12 +426,10 @@ def partition_room(as_obstacle):
     faces.append((8, 9, 10, 11))
     names = ["floor", "ceiling"] + ["wall"] * n + ["panel"]
     if as_obstacle:
-        return RoomGeometry.from_mesh(np.array(v, float), tuple(faces), tuple(names),
-                            materials("floor", "ceiling", "wall", "panel"), obstacles=("panel",))
+        return RoomGeometry.from_mesh(np.array(v, float), tuple(faces), tuple(names), materials("floor", "ceiling", "wall", "panel"), obstacles=("panel",))
     faces.append((11, 10, 9, 8))
     names.append("panel")
-    return RoomGeometry.from_mesh(np.array(v, float), tuple(faces), tuple(names),
-                        materials("floor", "ceiling", "wall", "panel"))
+    return RoomGeometry.from_mesh(np.array(v, float), tuple(faces), tuple(names), materials("floor", "ceiling", "wall", "panel"))
 
 
 def test_a_partition_on_an_unsplit_floor_has_no_edge_along_the_floor():
@@ -470,8 +455,7 @@ def test_a_partition_in_the_room_shell_diffracts_as_the_same_partition_built_as_
         np.testing.assert_allclose(a.doa, b.doa, atol=1e-12)
         np.testing.assert_allclose(a.band_gain, b.band_gain, rtol=1e-12)
         np.testing.assert_allclose(a.transfer(F), b.transfer(F), rtol=1e-9, atol=1e-12)
-    w = {name: encode_btms(btms_paths(spec_of(partition_room(flag), s, r), max_order=max_order), 0, 4800, 48000.0)
-         for name, flag in (("shell", False), ("panel", True))}
+    w = {name: encode_btms(btms_paths(spec_of(partition_room(flag), s, r), max_order=max_order), 0, 4800, 48000.0) for name, flag in (("shell", False), ("panel", True))}
     np.testing.assert_allclose(w["shell"], w["panel"], atol=1e-9 * np.max(np.abs(w["panel"])))
 
 
@@ -480,13 +464,17 @@ def tilt(deg):
     return np.array([[1.0, 0.0, 0.0], [0.0, c, -s], [0.0, s, c]])
 
 
-@pytest.mark.parametrize("room, source, receiver", [
-    ("l", [1.7, 2.61, 0.37], [1.37, 3.85, 1.85]),
-    ("l", [1.7, 2.61, 0.37], [4.08, 5.25, 0.65]),
-    ("l", [1.7, 2.61, 0.37], [2.81, 4.44, 1.03]),
-    ("box", [2.0, 4.0, 1.5], [8.0, 4.0, 1.7]),
-    ("box", [2.0, 4.0, 1.5], [8.0, 6.5, 0.6]),
-], ids=["room corner 1", "room corner 2", "room corner 3", "obstacle box 1", "obstacle box 2"])
+@pytest.mark.parametrize(
+    "room, source, receiver",
+    [
+        ("l", [1.7, 2.61, 0.37], [1.37, 3.85, 1.85]),
+        ("l", [1.7, 2.61, 0.37], [4.08, 5.25, 0.65]),
+        ("l", [1.7, 2.61, 0.37], [2.81, 4.44, 1.03]),
+        ("box", [2.0, 4.0, 1.5], [8.0, 4.0, 1.7]),
+        ("box", [2.0, 4.0, 1.5], [8.0, 6.5, 0.6]),
+    ],
+    ids=["room corner 1", "room corner 2", "room corner 3", "obstacle box 1", "obstacle box 2"],
+)
 def test_a_tilted_room_diffracts_as_the_level_room(room, source, receiver):
     """Floor and ceiling tilted 20 deg about x: an apex clipped to an edge end on
     the floor must not gain a zero-length floor reflection (exact t = 1 when level).
@@ -518,8 +506,7 @@ def test_a_large_room_corner_with_a_t_junction_within_the_mesh_tolerance_is_one_
             faces += [(a, b, 2 * n + 1, 2 * n), (2 * n, 2 * n + 1, b + n, a + n)]
         else:
             faces.append((a, b, b + n, a + n))
-    geometry = RoomGeometry.from_mesh(np.array(v, float), tuple(faces),
-                            tuple(["floor", "ceiling"] + ["wall"] * (n + 1)), materials("floor", "ceiling", "wall"))
+    geometry = RoomGeometry.from_mesh(np.array(v, float), tuple(faces), tuple(["floor", "ceiling"] + ["wall"] * (n + 1)), materials("floor", "ceiling", "wall"))
     edges = enclosure_edges(geometry)
     assert len(edges) == 1
     assert edges[0].length == pytest.approx(H, abs=1e-4)

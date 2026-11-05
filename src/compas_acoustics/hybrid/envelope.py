@@ -85,7 +85,7 @@ def octave_band_split(x: np.ndarray, fs: float) -> np.ndarray:
     delay = _N_FILT // 2
     bands = np.empty((response.shape[0], x.shape[0], columns.shape[1]))
     for b in range(response.shape[0]):
-        bands[b] = scipy.fft.irfft(spectrum * response[b][:, np.newaxis], n_fft, axis=0, workers=-1)[delay:delay + x.shape[0]]
+        bands[b] = scipy.fft.irfft(spectrum * response[b][:, np.newaxis], n_fft, axis=0, workers=-1)[delay : delay + x.shape[0]]
     return bands[..., 0] if x.ndim == 1 else bands
 
 
@@ -106,9 +106,7 @@ def _early_end(ref_b: np.ndarray, early_b: np.ndarray, fs: float) -> int:
     return int(max(last))
 
 
-def envelope_gains(
-    reference: np.ndarray, early_w: np.ndarray, late_w: np.ndarray, fs: float
-) -> np.ndarray:
+def envelope_gains(reference: np.ndarray, early_w: np.ndarray, late_w: np.ndarray, fs: float) -> np.ndarray:
     """Per-band gains in [0, 1] for the late field, shape (9, len(late_w)).
 
     ``reference`` is an omnidirectional response of the same source and
@@ -151,9 +149,7 @@ def envelope_gains(
     return gains
 
 
-def shape_late(
-    signals: np.ndarray, early_w: np.ndarray, late_w: np.ndarray, reference: np.ndarray, fs: float
-) -> np.ndarray:
+def shape_late(signals: np.ndarray, early_w: np.ndarray, late_w: np.ndarray, reference: np.ndarray, fs: float) -> np.ndarray:
     """``signals`` (n,) or (n, K) with the gains of :func:`envelope_gains` on every column.
 
     ``signals`` are the late field's channels or the network's lines, whose sum through ``C`` is ``late_w``;
@@ -262,9 +258,7 @@ def directional_shares(histogram, lines: np.ndarray, fs: float) -> np.ndarray:
     return shares
 
 
-def shape_late_directional(
-    lines: np.ndarray, early_w: np.ndarray, late_w: np.ndarray, reference: np.ndarray, histogram, fs: float
-) -> np.ndarray:
+def shape_late_directional(lines: np.ndarray, early_w: np.ndarray, late_w: np.ndarray, reference: np.ndarray, histogram, fs: float) -> np.ndarray:
     """``lines`` (n, n_lines) shaped to the reference's envelope and to the rays' distribution over directions.
 
     :func:`shape_late` with the omni reference, then every line times its :func:`directional_shares`.

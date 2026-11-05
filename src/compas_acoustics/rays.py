@@ -17,7 +17,7 @@ from compas.tolerance import TOL
 from compas_acoustics.defaults import Defaults
 from compas_acoustics.defaults import _PackageDtype
 
-__all__ = ['Ray', 'ScatteredRay', 'RayField', 'SpecularPath', 'SpecularReflections']
+__all__ = ["Ray", "ScatteredRay", "RayField", "SpecularPath", "SpecularReflections"]
 
 
 def _distance(time_ms: float) -> float:
@@ -89,7 +89,7 @@ class Ray(_PackageDtype, Polyline):
             direction=list(self.direction),
             distance_offset=self.distance_offset,
         )
-        scattered = getattr(self, 'scattered_reflections', None)
+        scattered = getattr(self, "scattered_reflections", None)
         if scattered:
             data["scattered_reflections"] = scattered
         return data
@@ -293,7 +293,7 @@ class RayField(_PackageDtype, Data):
         sources = {int(index): source for index, source in data.get("sources", [])}
         field = cls(data["rays"])
         for ray in field.rays:
-            for traced in [ray, *getattr(ray, 'scattered_reflections', [])]:
+            for traced in [ray, *getattr(ray, "scattered_reflections", [])]:
                 traced.source = sources.get(traced.source_index)
         return field
 
@@ -466,7 +466,7 @@ class RayField(_PackageDtype, Data):
         """All scattered rays across every ray in the field."""
         scattered = []
         for ray in self.rays:
-            scattered.extend(getattr(ray, 'scattered_reflections', []))
+            scattered.extend(getattr(ray, "scattered_reflections", []))
         return scattered
 
     @property
@@ -539,7 +539,7 @@ class RayField(_PackageDtype, Data):
                 continue
 
             scattered = []
-            for scattered_ray in getattr(ray, 'scattered_reflections', []):
+            for scattered_ray in getattr(ray, "scattered_reflections", []):
                 truncated_scattered = self._truncate_scattered(scattered_ray, reflection_order, travel_time_ms)
                 if truncated_scattered is not None:
                     scattered.append(truncated_scattered)
@@ -854,8 +854,7 @@ class SpecularPath(Ray):
 
     def _clone_with_points(self, points) -> Ray:
         # A cut path does not reach its receiver: a plain ray
-        return Ray(points, source=self.source, source_index=self.source_index, ray_index=self.ray_index,
-                   direction=self.direction, name=self.name)
+        return Ray(points, source=self.source, source_index=self.source_index, ray_index=self.ray_index, direction=self.direction, name=self.name)
 
 
 class SpecularReflections(RayField):
@@ -943,16 +942,18 @@ class SpecularReflections(RayField):
                         continue
                     kept.append(images[i])
                     hits, path_walls = traced
-                    paths.append(SpecularPath(
-                        [start, *hits, end],
-                        order=int(orders[i]),
-                        walls=path_walls,
-                        image=images[i],
-                        receiver_index=receiver_index,
-                        source=source,
-                        source_index=source_index,
-                        ray_index=len(paths),
-                    ))
+                    paths.append(
+                        SpecularPath(
+                            [start, *hits, end],
+                            order=int(orders[i]),
+                            walls=path_walls,
+                            image=images[i],
+                            receiver_index=receiver_index,
+                            source=source,
+                            source_index=source_index,
+                            ray_index=len(paths),
+                        )
+                    )
                 # another image of the group may have traced a position whose first image did not
                 untraced += sum(1 for image in failed if not _near(kept, image, tolerance))
         if untraced:
@@ -978,8 +979,7 @@ class SpecularReflections(RayField):
         kept = [
             path
             for path in super().filter(source=source, ray_index=ray_index)
-            if (receiver_index is None or path.receiver_index == receiver_index)
-            and (orders is None or path.order in orders)
+            if (receiver_index is None or path.receiver_index == receiver_index) and (orders is None or path.order in orders)
         ]
         return SpecularReflections(kept, name=self.name)
 

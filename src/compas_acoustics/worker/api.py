@@ -138,8 +138,7 @@ def make_material(name, absorption, scattering=None, category=None):
     """An :class:`AcousticMaterial`; an empty ``scattering`` or ``category`` is left to the class's default."""
     from compas_acoustics import AcousticMaterial
 
-    return AcousticMaterial(name=name, absorption_coefficients=list(absorption), scattering_coefficients=list(scattering) if scattering else None,
-                            category=category or None)
+    return AcousticMaterial(name=name, absorption_coefficients=list(absorption), scattering_coefficients=list(scattering) if scattering else None, category=category or None)
 
 
 def make_source(name, position, direction=None, directivity=None, sound_file=None, spl=None):
@@ -153,8 +152,13 @@ def make_source(name, position, direction=None, directivity=None, sound_file=Non
     directivity = directivity or "omnidirectional"
     if directivity not in CARDIOID_P:
         raise ValueError("Input parameter 'directivity' is not valid.")
-    source = Source(name or "my_source", *(position if position is not None else [0, 0, 0]), directivity=directivity,
-                    direction=list(direction) if direction is not None else [1, 0, 0], sound_file=sound_file or None)
+    source = Source(
+        name or "my_source",
+        *(position if position is not None else [0, 0, 0]),
+        directivity=directivity,
+        direction=list(direction) if direction is not None else [1, 0, 0],
+        sound_file=sound_file or None,
+    )
     if spl is not None and len(list(spl)) > 0:
         source.spl = spl
     return source
@@ -243,9 +247,17 @@ TIME_SCALES = ["db", "linear"]
 
 
 def _parameter(name, title, x_unit, y_unit, x_scale, x, values, overall=None, channels=()):
-    return {"name": name, "title": title, "x_unit": x_unit, "y_unit": y_unit, "x_scale": x_scale,
-            "frequencies": [float(v) for v in x], "values": [[float(v) for v in row] for row in values],
-            "overall": None if overall is None else float(overall), "channels": list(channels)}
+    return {
+        "name": name,
+        "title": title,
+        "x_unit": x_unit,
+        "y_unit": y_unit,
+        "x_scale": x_scale,
+        "frequencies": [float(v) for v in x],
+        "values": [[float(v) for v in row] for row in values],
+        "overall": None if overall is None else float(overall),
+        "channels": list(channels),
+    }
 
 
 def _plotted_channels(ir):
@@ -305,11 +317,9 @@ def analysis(ir, time_scale="db"):
         samples, channels = _plotted_channels(ir)
         db = time_scale == "db"
         times, levels = time_response(samples, ir.sampling_rate, db=db, trim_db=None if db else 60.0)
-        time = _parameter("IR", _curve_title("Impulse Response", channels), "Time (s)", "Level (dB)" if db else "Amplitude", "linear",
-                          times, levels, channels=channels)
+        time = _parameter("IR", _curve_title("Impulse Response", channels), "Time (s)", "Level (dB)" if db else "Amplitude", "linear", times, levels, channels=channels)
         frequencies, magnitudes = frequency_response(samples, ir.sampling_rate, num_fractions=3, frequency_range=(20.0, 20000.0))
-        frequency = _parameter("FR", _curve_title("Frequency Response, 1/3 octave", channels), "Frequency (Hz)", "Level (dB)", "log",
-                               frequencies, magnitudes, channels=channels)
+        frequency = _parameter("FR", _curve_title("Frequency Response, 1/3 octave", channels), "Frequency (Hz)", "Level (dB)", "log", frequencies, magnitudes, channels=channels)
     return {"parameters": parameters, "time": time, "frequency": frequency, "warnings": _messages(caught)}
 
 
@@ -381,14 +391,14 @@ def auralise(groups, level="relative", mix_sources=False, save_folder=None, save
                 if mix_sources:
                     tasks = [(receiver_id, ir_groups[receiver_id], sound_groups[receiver_id], f"{r}")]
                 else:
-                    tasks = [(key, {key: ir_groups[receiver_id][key]}, {key: sound_groups[receiver_id][key]}, f"{r}_{j}")
-                             for j, key in enumerate(ir_groups[receiver_id])]
+                    tasks = [(key, {key: ir_groups[receiver_id][key]}, {key: sound_groups[receiver_id][key]}, f"{r}_{j}") for j, key in enumerate(ir_groups[receiver_id])]
                 for name, ir_data, sound_data, suffix in tasks:
                     jobs.progress("rendering", len(renders))
                     task_formats = sorted({formats[key] for key in ir_data})
                     if len(task_formats) > 1:
-                        raise ValueError("The impulse responses at receiver {} are {}: mix responses of one format, or turn mix_sources off.".format(
-                            r, " and ".join(task_formats)))
+                        raise ValueError(
+                            "The impulse responses at receiver {} are {}: mix responses of one format, or turn mix_sources off.".format(r, " and ".join(task_formats))
+                        )
                     auraliser = Auraliser(name=name, impulse_responses=ir_data, anechoic_sounds=sound_data)
                     renders.append((group["branch"], auraliser, auraliser.convolve(), suffix, task_formats[0]))
         gains = Auraliser.render_gains([render[2] for render in renders], level, -1.0)
@@ -431,8 +441,10 @@ def play(sound, normalize=True, gain_db=0.0, start=0.0):
 
     if isinstance(sound, Audio):
         if sound.channels > 2:
-            raise ValueError("A {}-channel ambisonic signal cannot be played here. Save it with Auralise as a multichannel file for an "
-                             "ambisonic decoder, or simulate with Simulate Binaural for headphone playback.".format(sound.channels))
+            raise ValueError(
+                "A {}-channel ambisonic signal cannot be played here. Save it with Auralise as a multichannel file for an "
+                "ambisonic decoder, or simulate with Simulate Binaural for headphone playback.".format(sound.channels)
+            )
         args = (sound.samples, sound.sampling_rate, normalize is not False, float(gain_db or 0.0), float(start or 0.0))
     elif isinstance(sound, str):
         if not os.path.exists(sound):
@@ -467,8 +479,7 @@ def resume():
 def playback_status():
     """``{"playing", "paused", "position", "duration"}`` of what :func:`play` plays, in seconds."""
     player = _player()
-    return {"playing": bool(player.playing), "paused": bool(player.paused), "position": float(player.position),
-            "duration": float(player.duration)}
+    return {"playing": bool(player.playing), "paused": bool(player.paused), "position": float(player.position), "duration": float(player.duration)}
 
 
 def sound_samples(path):
@@ -555,8 +566,14 @@ def energy_map(scene, points, source_index=None):
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         result = EnergyMap.from_scene(scene, points, source_index=None if source_index is None else int(source_index), seed=True)
-    return {"bands": result.bands.tolist(), "inside": [bool(v) for v in result.inside], "spl": result.spl().tolist(),
-            "spl_a": result.spl_a().tolist(), "n_rays": result.n_rays, "warnings": _messages(caught)}
+    return {
+        "bands": result.bands.tolist(),
+        "inside": [bool(v) for v in result.inside],
+        "spl": result.spl().tolist(),
+        "spl_a": result.spl_a().tolist(),
+        "n_rays": result.n_rays,
+        "warnings": _messages(caught),
+    }
 
 
 def specular_reflections(scene, orders=None, source_index=None, receiver_index=None):

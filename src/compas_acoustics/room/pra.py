@@ -54,7 +54,7 @@ def points_to_array(
     return np.array([[*pt] for pt in pts]).T
 
 
-def source_to_pra(src : Source) -> pra.SoundSource:
+def source_to_pra(src: Source) -> pra.SoundSource:
     """A source with its first-order directivity and, if it has one, the first channel of its sound file, peak-normalized."""
     if src.sound_file:
         audio_clean, _ = sf.read(src.sound_file, dtype="float32")
@@ -86,6 +86,4 @@ def receivers_to_pra_mic_array(
 
 def scene_to_pra_room(scene: Scene, fs: int, max_order: int, ray_tracing: bool, air_absorption: bool) -> pra.Room:
     """The scene's room, built by :meth:`RoomGeometry.to_pra`."""
-    return RoomGeometry.from_scene(scene).to_pra(
-        fs, max_order, ray_tracing=ray_tracing, air_absorption=air_absorption
-    )
+    return RoomGeometry.from_scene(scene).to_pra(fs, max_order, ray_tracing=ray_tracing, air_absorption=air_absorption)

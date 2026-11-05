@@ -118,6 +118,7 @@ def test_sti_failure_warns_instead_of_passing_silently(monkeypatch):
 
 # Stage support and strength
 
+
 def make_stage_ir(early_db=-12.0, late_db=-15.0, fs=48000, seed=1):
     """Direct sound at 5 ms plus white reflections with known energies relative to it."""
     rng = np.random.default_rng(seed)
@@ -127,7 +128,7 @@ def make_stage_ir(early_db=-12.0, late_db=-15.0, fs=48000, seed=1):
     for (start, stop), level_db in (((0.020, 0.100), early_db), ((0.100, 1.000), late_db)):
         window = slice(onset + int(start * fs), onset + int(stop * fs))
         noise = rng.standard_normal(window.stop - window.start)
-        ir[window] = noise * np.sqrt(10 ** (level_db / 10) / np.sum(noise ** 2))
+        ir[window] = noise * np.sqrt(10 ** (level_db / 10) / np.sum(noise**2))
     return ir
 
 
@@ -143,7 +144,7 @@ def test_stage_support_recovers_known_energy_ratios():
 
 def test_stage_support_warns_when_late_window_is_truncated():
     with pytest.warns(UserWarning, match="ST_late"):
-        Analyser(make_stage_ir()[:48000 // 2]).stage_support()
+        Analyser(make_stage_ir()[: 48000 // 2]).stage_support()
 
 
 @pytest.mark.skipif(not _PYRATO_PARAMETERS, reason="G needs pyrato >= 1.0")
@@ -272,8 +273,7 @@ def test_a_package_scale_response_is_analysed_from_its_geometric_onset():
     ir = np.concatenate([np.zeros(4560), ir])  # direct sound at 4800 samples = 34.3 m
     clean = ir.copy()
     ir[100] = 50.0  # an early bin louder than the direct sound
-    package = ImpulseResponse("k", Source("s", 0, 0, 0), Receiver("r", 34.3, 0, 0), ir, fs,
-                              generation={"scale": "package"})
+    package = ImpulseResponse("k", Source("s", 0, 0, 0), Receiver("r", 34.3, 0, 0), ir, fs, generation={"scale": "package"})
     support = Analyser(package).stage_support()
     reference = Analyser(clean).stage_support()
     assert support["ST_early_overall"] == pytest.approx(reference["ST_early_overall"], abs=0.1)
@@ -304,8 +304,7 @@ def test_g_is_a_main_parameter_and_needs_no_reference_on_the_package_scale():
     source = Source("s", 0, 0, 0)
     direct = np.zeros(fs)
     direct[int(round(1.0 / 343.0 * fs))] = 1.0 / (4.0 * np.pi * 1.0)
-    ir = ImpulseResponse("near", source, Receiver("r", 1, 0, 0), direct, fs,
-                         generation={"scale": "package"})
+    ir = ImpulseResponse("near", source, Receiver("r", 1, 0, 0), direct, fs, generation={"scale": "package"})
     result = Analyser(ir).analyse()
     assert "G" in _PARAM_NAMES
     np.testing.assert_allclose(result["G"], 20.0, atol=0.01)
@@ -468,7 +467,7 @@ def test_a_ray_traced_tail_that_dies_into_zeros_is_evaluated_in_every_band():
     t = np.arange(int(2.0 * fs)) / fs
     results = []
     for seed in range(3):
-        decay = exponential_decay(1.2, 2.0, seed) * 10 ** (-np.clip(t - 0.8, 0, None) ** 2 * 60)
+        decay = exponential_decay(1.2, 2.0, seed) * 10 ** (-(np.clip(t - 0.8, 0, None) ** 2) * 60)
         analyser = Analyser(np.concatenate([decay, np.zeros(fs)]))
         analyser.sampling_rate = fs
         results.append(analyser.reverberation_times())
@@ -599,6 +598,7 @@ def test_the_time_response_ends_with_its_decay():
 
 # ---------------------------------------------------------------- lateral energy fraction (ISO 3382-1 Annex A) --
 
+
 def _ambisonic(arrivals, source=(0.0, 0.0, 0.0), receiver=(2.0, 0.0, 0.0), facing=(-1.0, 0.0, 0.0), n3d=False, fs=48000):
     """A first-order ACN ambisonic response on the package scale; each arrival ``(time_s, amplitude, doa)``, doa a unit
     vector in the receiver frame, adds ``amplitude * [1, y, z, x]`` (SN3D; N3D: first order times sqrt(3))."""
@@ -608,9 +608,17 @@ def _ambisonic(arrivals, source=(0.0, 0.0, 0.0), receiver=(2.0, 0.0, 0.0), facin
     gain = np.sqrt(3.0) if n3d else 1.0
     for t, a, (x, y, z) in arrivals:
         data[int(round(t * fs))] += a * np.array([1.0, gain * y, gain * z, gain * x])
-    return ImpulseResponse("lf", Source("s", *source), Receiver("r", *receiver, direction=list(facing)), data, fs,
-                           generation={"scale": "package"}, ambisonic_order=1, normalization="n3d" if n3d else "sn3d",
-                           channel_order="acn")
+    return ImpulseResponse(
+        "lf",
+        Source("s", *source),
+        Receiver("r", *receiver, direction=list(facing)),
+        data,
+        fs,
+        generation={"scale": "package"},
+        ambisonic_order=1,
+        normalization="n3d" if n3d else "sn3d",
+        channel_order="acn",
+    )
 
 
 def _direct_time(distance=2.0):
@@ -655,8 +663,7 @@ def test_lateral_fraction_is_nan_for_mono_and_binaural():
     from compas_acoustics import ImpulseResponse, Receiver, Source
 
     mono = make_ir()
-    binaural = ImpulseResponse("b", Source("s", 0, 0, 0), Receiver("r", 2, 0, 0), np.column_stack([mono, mono]), 48000,
-                               generation={"scale": "package"})
+    binaural = ImpulseResponse("b", Source("s", 0, 0, 0), Receiver("r", 2, 0, 0), np.column_stack([mono, mono]), 48000, generation={"scale": "package"})
     for ir in (mono, binaural):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")

@@ -48,9 +48,7 @@ def test_knife_edge_cutoff_matches_eq_9():
 
 def test_single_and_two_term_agree_for_a_source_on_a_knife_plane():
     path = WedgePath.infinite(2 * np.pi, 0.0, np.pi + 0.7, 2.0, 2.0, np.pi / 2)
-    np.testing.assert_allclose(
-        udfa_transfer(path, F, c=C), udfa_single_transfer(path, F, c=C), rtol=1e-12
-    )
+    np.testing.assert_allclose(udfa_transfer(path, F, c=C), udfa_single_transfer(path, F, c=C), rtol=1e-12)
 
 
 @pytest.mark.parametrize("theta_w", [2 * np.pi, 1.5 * np.pi])
@@ -88,11 +86,11 @@ def test_second_reflection_boundary_jump_is_the_reflected_sound():
 @pytest.mark.parametrize(
     "theta_w, theta_s, theta_r",
     [
-        (1.5 * np.pi, 0.0, 1.5 * np.pi),           # both on the faces
+        (1.5 * np.pi, 0.0, 1.5 * np.pi),  # both on the faces
         (1.5 * np.pi, np.pi / 4, np.pi / 4 + np.pi),  # exactly on the ISB
-        (1.5 * np.pi, np.pi / 4, 3 * np.pi / 4),      # exactly on the RSB
-        (1.5 * np.pi, 0.8 * np.pi, 1.2 * np.pi),      # exactly on the second RSB
-        (2 * np.pi, 0.0, np.pi),                      # knife, ISB and RSB together
+        (1.5 * np.pi, np.pi / 4, 3 * np.pi / 4),  # exactly on the RSB
+        (1.5 * np.pi, 0.8 * np.pi, 1.2 * np.pi),  # exactly on the second RSB
+        (2 * np.pi, 0.0, np.pi),  # knife, ISB and RSB together
     ],
 )
 def test_no_nan_on_exact_boundaries(theta_w, theta_s, theta_r):
@@ -168,11 +166,11 @@ def test_finite_single_term_is_the_two_half_wedges():
     # Kirsch and Ewert (2023), Sec. III-B: (g1 H(fc/g1^2) + g2 H(fc/g2^2)) / 2,
     # the finite single term with unit gain (Sec. VII)
     from compas_acoustics.hybrid.udfa import _finite_half_wedge, _half_wedge_gain
+
     path = WedgePath(2 * np.pi, np.pi / 4, np.pi / 4 + np.pi + 1.0, 2.0, 3.0, -0.3, 0.4, 1.5)
     fc = single_term_cutoff(path, C)
     t1, t2 = sorted(((path.length_via(-0.75) - path.d) / C, (path.length_via(0.75) - path.d) / C))
-    expected = (_finite_half_wedge(F, fc, _half_wedge_gain(fc, t1))
-                + _finite_half_wedge(F, fc, _half_wedge_gain(fc, t2))) / 2
+    expected = (_finite_half_wedge(F, fc, _half_wedge_gain(fc, t1)) + _finite_half_wedge(F, fc, _half_wedge_gain(fc, t2))) / 2
     np.testing.assert_allclose(udfa_single_transfer(path, F, c=C), expected, rtol=1e-12)
 
 

@@ -96,8 +96,7 @@ def test_the_binaural_response_is_early_plus_each_line_through_its_hrir():
     hrtf = HrtfSet.from_sofa(DEFAULT_HRTF, FS)
     result = render_binaural(core, hrtf)
     n, lines = core.n_samples, result.late_lines.shape[1]
-    late = sum(fftconvolve(result.late_lines[:, i:i + 1] / np.sqrt(lines), hrtf.hrirs[hrtf.nearest(core.line_directions[i])[0]].T,
-                           axes=0)[:n] for i in range(lines))
+    late = sum(fftconvolve(result.late_lines[:, i : i + 1] / np.sqrt(lines), hrtf.hrirs[hrtf.nearest(core.line_directions[i])[0]].T, axes=0)[:n] for i in range(lines))
     assert result.rir.shape == (n, 2) and result.normalization is None and result.core is core
     np.testing.assert_allclose(result.late, late, atol=1e-12)
     np.testing.assert_allclose(result.rir, result.early + result.late, atol=0)

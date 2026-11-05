@@ -46,8 +46,7 @@ def treated_room():
     wall = np.array([0.10, 0.10, 0.08, 0.06, 0.05, 0.05, 0.05, 0.06])
     floor = np.array([0.05, 0.05, 0.10, 0.25, 0.45, 0.60, 0.65, 0.70])
     ceiling = np.array([0.20, 0.25, 0.45, 0.70, 0.80, 0.85, 0.85, 0.80])
-    return dict(walls=SurfaceMaterial("wall", wall), floor=SurfaceMaterial("floor", floor),
-                ceiling=SurfaceMaterial("ceiling", ceiling))
+    return dict(walls=SurfaceMaterial("wall", wall), floor=SurfaceMaterial("floor", floor), ceiling=SurfaceMaterial("ceiling", ceiling))
 
 
 def test_a_uniformly_and_lightly_absorbing_room_warns_about_nothing():

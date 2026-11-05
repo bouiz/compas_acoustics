@@ -32,16 +32,11 @@ def scan_directions(n_scan: int = SCAN_DIRECTIONS) -> pf.Coordinates:
     """The directions the boundary is sampled along, shape (n_scan,)."""
     directions = spharpy.samplings.equal_area(n_max=0, n_points=n_scan)
     if directions.cshape[0] != n_scan:
-        raise ValueError(
-            f"equal_area returned {directions.cshape[0]} directions for "
-            f"n_scan={n_scan}; pass a count it can produce exactly"
-        )
+        raise ValueError(f"equal_area returned {directions.cshape[0]} directions for n_scan={n_scan}; pass a count it can produce exactly")
     return directions
 
 
-def scanned_absorption(
-    spec: Pair, directions: pf.Coordinates, *, n_scan: int = SCAN_DIRECTIONS
-) -> np.ndarray:
+def scanned_absorption(spec: Pair, directions: pf.Coordinates, *, n_scan: int = SCAN_DIRECTIONS) -> np.ndarray:
     """Absorption coefficient per delay line and band, shape (n_lines, 8).
 
     Each scan direction takes the absorption of the first face its ray from the receiver meets, which holds in
@@ -53,10 +48,7 @@ def scanned_absorption(
 
     hit = _first_hit(faces, spec.receiver, scan)
     if np.any(hit < 0):
-        raise RuntimeError(
-            f"{int(np.sum(hit < 0))} of {hit.size} scanned directions meet no "
-            "boundary; the room is not closed around the receiver"
-        )
+        raise RuntimeError(f"{int(np.sum(hit < 0))} of {hit.size} scanned directions meet no boundary; the room is not closed around the receiver")
     alpha = np.stack([spec.geometry.materials[name].absorption for _, name in faces])
     alpha = alpha[hit][:, :N_BANDS]  # (n_scan, 8)
 
@@ -84,10 +76,6 @@ def absorption_filters(absorption: np.ndarray, fs: float) -> np.ndarray:
     return pyFDN.gain_to_geq(np.hstack((db[:, :1], db, db[:, -1:])).T, float(fs))
 
 
-def directional_absorption_filters(
-    spec: Pair, directions: pf.Coordinates, *, n_scan: int = SCAN_DIRECTIONS
-) -> np.ndarray:
+def directional_absorption_filters(spec: Pair, directions: pf.Coordinates, *, n_scan: int = SCAN_DIRECTIONS) -> np.ndarray:
     """The per-line output filters of this room, the ``line_eq`` of :func:`~compas_acoustics.hybrid.late.render`."""
-    return absorption_filters(
-        scanned_absorption(spec, directions, n_scan=n_scan), spec.fs
-    )
+    return absorption_filters(scanned_absorption(spec, directions, n_scan=n_scan), spec.fs)

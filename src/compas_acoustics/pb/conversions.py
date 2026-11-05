@@ -294,7 +294,7 @@ def _fill_ray(message, ray):
 
 def _ray_data(message):
     data = {
-        "points": [list(message.points[i:i + 3]) for i in range(0, len(message.points), 3)],
+        "points": [list(message.points[i : i + 3]) for i in range(0, len(message.points), 3)],
         "source_index": message.source_index if message.HasField("source_index") else None,
         "ray_index": message.ray_index if message.HasField("ray_index") else None,
         "direction": _xyz(message.direction),
@@ -348,8 +348,7 @@ def _path_to_pb(path):
 
 
 def _path_from_pb(message):
-    path = SpecularPath(order=message.order, walls=list(message.walls), image=_xyz(message.image),
-                        receiver_index=message.receiver_index, **_ray_data(message))
+    path = SpecularPath(order=message.order, walls=list(message.walls), image=_xyz(message.image), receiver_index=message.receiver_index, **_ray_data(message))
     return _identify(path, message)
 
 

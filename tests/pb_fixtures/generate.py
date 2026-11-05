@@ -61,14 +61,12 @@ def scene():
 
 def ir():
     raw = np.array([[1.0, 0.5], [0.5, 0.25], [0.25, 0.125], [0.0, -0.5]]) * 0.1
-    return _identified(ImpulseResponse("ir", source(), receiver(), raw, 48000, normalized=True,
-                                       generation={"method": "test"}), 6)
+    return _identified(ImpulseResponse("ir", source(), receiver(), raw, 48000, normalized=True, generation={"method": "test"}), 6)
 
 
 def rayfield():
     ray = Ray([[0, 0, 1], [3, 0, 1], [3, 4, 1]], source_index=0, ray_index=0)
-    ray.scattered_reflections = [ScatteredRay([[3, 0, 1], [3, 0, 3]], parent_ray_index=0, energy=0.5, origin_reflection_order=1,
-                                              source_index=0, ray_index=0, distance_offset=3.0)]
+    ray.scattered_reflections = [ScatteredRay([[3, 0, 1], [3, 0, 3]], parent_ray_index=0, energy=0.5, origin_reflection_order=1, source_index=0, ray_index=0, distance_offset=3.0)]
     _identified(ray, 7)
     _identified(ray.scattered_reflections[0], 8)
     ray.source = source()

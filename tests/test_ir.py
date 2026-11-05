@@ -11,8 +11,7 @@ sampling_rate_default = 48000
 
 
 def make_ir(data, name="ir", normalized=True, **kwargs):
-    return ImpulseResponse(name, Source("s", 1, 2, 3), Receiver("r", 4, 5, 6), np.asarray(data, dtype=float), sampling_rate_default,
-                           normalized=normalized, **kwargs)
+    return ImpulseResponse(name, Source("s", 1, 2, 3), Receiver("r", 4, 5, 6), np.asarray(data, dtype=float), sampling_rate_default, normalized=normalized, **kwargs)
 
 
 def test_ir_is_peak_normalized_by_default():
@@ -176,21 +175,18 @@ def test_on_the_package_scale_the_onset_is_the_geometric_arrival():
     data = np.zeros(2000)
     data[onset] = 1.0
     data[10] = 5.0  # an early ray-traced bin louder than the direct sound
-    ir = ImpulseResponse("k", Source("s", 0, 0, 0), Receiver("r", 3.43, 0, 0), data, 48000,
-                         generation={"scale": "package"})
+    ir = ImpulseResponse("k", Source("s", 0, 0, 0), Receiver("r", 3.43, 0, 0), data, 48000, generation={"scale": "package"})
     assert ir.direct_sound_index() == onset
     ir.generation = {}
     assert ir.direct_sound_index() == 10
 
 
 def test_a_source_at_the_receiver_has_onset_zero():
-    ir = ImpulseResponse("k", Source("s", 0, 0, 0), Receiver("r", 0, 0, 0), np.ones(10), 48000,
-                         generation={"scale": "package"})
+    ir = ImpulseResponse("k", Source("s", 0, 0, 0), Receiver("r", 0, 0, 0), np.ones(10), 48000, generation={"scale": "package"})
     assert ir.direct_sound_index() == 0
 
 
-@pytest.mark.parametrize("channels, order, expected", [
-    (1, None, "mono"), (1, 0, "mono"), (2, None, "binaural"), (4, 1, "ambisonic"), (4, None, "ambisonic"), (9, 2, "ambisonic")])
+@pytest.mark.parametrize("channels, order, expected", [(1, None, "mono"), (1, 0, "mono"), (2, None, "binaural"), (4, 1, "ambisonic"), (4, None, "ambisonic"), (9, 2, "ambisonic")])
 def test_the_format_follows_the_channels_and_the_ambisonic_order(channels, order, expected):
     data = np.ones((8, channels)) if channels > 1 else np.ones(8)
     assert make_ir(data, ambisonic_order=order).format == expected

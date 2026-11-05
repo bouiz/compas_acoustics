@@ -45,8 +45,7 @@ def box_mesh():
 
 
 def test_every_function_the_service_serves_is_listed():
-    for name in ("materials_library", "material_from_name", "make_material", "make_source", "make_receiver",
-                 "make_acoustic_object", "make_scene"):
+    for name in ("materials_library", "material_from_name", "make_material", "make_source", "make_receiver", "make_acoustic_object", "make_scene"):
         assert name in api.__all__
 
 
@@ -171,8 +170,7 @@ def decay(channels=1, seconds=0.6, rt=0.5, rate=48000, seed=0, level=1.0, source
     raw *= level
     source = source or Source("src", 1, 1, 1.5)
     source._sound_file = VIOLA
-    return ImpulseResponse("ir", source, receiver or Receiver("rec", 4, 3, 1.5), raw if channels > 1 else raw[:, 0], rate,
-                           generation={"method": "test"})
+    return ImpulseResponse("ir", source, receiver or Receiver("rec", 4, 3, 1.5), raw if channels > 1 else raw[:, 0], rate, generation={"method": "test"})
 
 
 def test_analysis_gives_every_parameter_with_its_units_and_the_two_curves():
@@ -221,8 +219,7 @@ def group(irs, branch="{0}", sounds=None):
 
 def two_sources_one_receiver(**kwargs):
     receiver = Receiver("rec", 4, 3, 1.5)
-    return [decay(source=Source("a", 1, 1, 1.5), receiver=receiver, level=1.0, **kwargs),
-            decay(source=Source("b", 2, 1, 1.5), receiver=receiver, level=0.25, seed=1, **kwargs)]
+    return [decay(source=Source("a", 1, 1, 1.5), receiver=receiver, level=1.0, **kwargs), decay(source=Source("b", 2, 1, 1.5), receiver=receiver, level=0.25, seed=1, **kwargs)]
 
 
 def test_auralise_renders_one_signal_per_source_and_receiver():

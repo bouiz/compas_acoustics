@@ -30,7 +30,7 @@ def sounddevice(monkeypatch):
 
 def test_an_array_is_played_normalised_at_the_given_rate(player, sounddevice):
     player.play(np.array([0.0, 0.25, -0.5]), 44100)
-    (data, rate), = sounddevice.played
+    ((data, rate),) = sounddevice.played
     assert rate == 44100 and np.max(np.abs(data)) == pytest.approx(0.99)
 
 
@@ -62,7 +62,7 @@ def test_a_sounddevice_without_the_refresh_functions_just_plays(player, sounddev
 def test_an_array_can_be_played_at_its_rendered_level_and_clipping_is_a_warning_not_a_print(player, sounddevice, capsys):
     with pytest.warns(UserWarning, match="will clip"):
         player.play(np.array([0.0, 2.0]), 48000, normalize=False)
-    (data, _), = sounddevice.played
+    ((data, _),) = sounddevice.played
     assert np.max(data) == 2.0
     assert capsys.readouterr().out == ""
 
@@ -147,7 +147,7 @@ def ramp(seconds=2.0, rate=1000):
 def test_play_applies_gain_and_start(player, sounddevice, stream, clock):
     samples, rate = ramp()
     player.play(samples, rate, normalize=True, gain_db=-6.0206, start=0.5)
-    (data, played_rate), = sounddevice.played
+    ((data, played_rate),) = sounddevice.played
     assert played_rate == rate
     assert np.max(np.abs(data)) == pytest.approx(0.99 / 2, rel=1e-3)
     # the first half second is left out, both channels from one mono signal

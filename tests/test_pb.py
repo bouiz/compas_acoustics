@@ -163,10 +163,15 @@ from compas_acoustics.pb.types import Audio  # noqa: E402
 def stereo_response(**kwargs):
     rng = np.random.default_rng(0)
     raw = rng.normal(size=(64, 2)) * 0.01
-    return ImpulseResponse("ir", Source("src", 1, 1, 1), Receiver("rec", 2, 2, 1), raw, 48000,
-                           generation={"method": "binaural", "seed": np.int64(3), "band": np.float64(0.5),
-                                       "orders": np.array([1, 2])},
-                           **kwargs)
+    return ImpulseResponse(
+        "ir",
+        Source("src", 1, 1, 1),
+        Receiver("rec", 2, 2, 1),
+        raw,
+        48000,
+        generation={"method": "binaural", "seed": np.int64(3), "band": np.float64(0.5), "orders": np.array([1, 2])},
+        **kwargs,
+    )
 
 
 def test_a_response_round_trips_its_raw_samples_and_generation():
@@ -191,8 +196,7 @@ def test_a_mono_response_keeps_its_one_dimensional_shape():
 def test_an_ambisonic_response_keeps_order_and_conventions():
     raw = np.zeros((16, 4))
     raw[0] = [1, 0.5, 0.25, 0.1]
-    ir = ImpulseResponse("ir", Source("s", 0, 0, 1), Receiver("r", 1, 0, 1), raw, 48000,
-                         ambisonic_order=1, normalization="n3d", channel_order="acn")
+    ir = ImpulseResponse("ir", Source("s", 0, 0, 1), Receiver("r", 1, 0, 1), raw, 48000, ambisonic_order=1, normalization="n3d", channel_order="acn")
     loaded = roundtrip(ir)
     assert (loaded.ambisonic_order, loaded.normalization, loaded.channel_order) == (1, "n3d", "acn")
     assert loaded.n_channels == 4
@@ -241,8 +245,7 @@ def test_specular_reflections_round_trip_as_paths():
 
 
 def test_plain_turns_numpy_into_python():
-    assert plain({"a": np.float64(1.5), "b": np.array([[1, 2]]), "c": (np.int32(3),), "d": np.bool_(True)}) == {
-        "a": 1.5, "b": [[1, 2]], "c": [3], "d": True}
+    assert plain({"a": np.float64(1.5), "b": np.array([[1, 2]]), "c": (np.int32(3),), "d": np.bool_(True)}) == {"a": 1.5, "b": [[1, 2]], "c": [3], "d": True}
 
 
 FIXTURES = Path(__file__).parent / "pb_fixtures"

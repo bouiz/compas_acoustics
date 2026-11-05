@@ -318,16 +318,19 @@ def test_a_graph_name_a_dict_and_a_method_give_the_same_result():
         np.testing.assert_allclose(by_method[key].denormalized(), by_dict[key].denormalized())
 
 
-@pytest.mark.parametrize("kwargs", [
-    {"tail": "reference"},
-    {"tail": "eyring", "reference": "mono"},
-    {"tail": "ray_tracing", "reference": "mono"},
-    {"tail": "eyring", "n_slopes": 2},
-    {"tail": "eyring", "late_envelope": True},
-    {"tail": "air"},
-    {"diffraction": "btm"},
-    {"normalization": "FuMa"},
-])
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"tail": "reference"},
+        {"tail": "eyring", "reference": "mono"},
+        {"tail": "ray_tracing", "reference": "mono"},
+        {"tail": "eyring", "n_slopes": 2},
+        {"tail": "eyring", "late_envelope": True},
+        {"tail": "air"},
+        {"diffraction": "btm"},
+        {"normalization": "FuMa"},
+    ],
+)
 def test_conflicting_settings_raise_at_construction(kwargs):
     with pytest.raises(ValueError):
         Ambisonics(**kwargs)

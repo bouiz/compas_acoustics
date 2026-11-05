@@ -27,7 +27,7 @@ def parts(rt=0.8, onset=0.03, seed=0):
 
 
 def energy_db(x, a, b):
-    return 10 * np.log10(np.sum(x[int(a * FS):int(b * FS)] ** 2))
+    return 10 * np.log10(np.sum(x[int(a * FS) : int(b * FS)] ** 2))
 
 
 # ----------------------------------------------------------------- the bank --
@@ -46,11 +46,10 @@ def test_the_band_split_is_pyfar_reconstructing_bank():
 
     x = np.random.default_rng(2).standard_normal((3000, 4)) * np.exp(-np.arange(3000) / 600.0)[:, None]
     padded = np.concatenate([x.T, np.zeros((4, _N_FILT))], axis=1)
-    out = pf.dsp.filter.reconstructing_fractional_octave_bands(
-        pf.Signal(padded, FS), num_fractions=1, frequency_range=(63, _TOP_BAND_HZ), n_samples=_N_FILT)
+    out = pf.dsp.filter.reconstructing_fractional_octave_bands(pf.Signal(padded, FS), num_fractions=1, frequency_range=(63, _TOP_BAND_HZ), n_samples=_N_FILT)
     filtered = out[0] if isinstance(out, tuple) else out
     delay = _N_FILT // 2
-    expected = np.transpose(filtered.time[:, :, delay:delay + 3000], (0, 2, 1))
+    expected = np.transpose(filtered.time[:, :, delay : delay + 3000], (0, 2, 1))
     bands = octave_band_split(x, FS)
     np.testing.assert_allclose(bands, expected, rtol=0, atol=1e-12 * np.max(np.abs(expected)))
     np.testing.assert_allclose(octave_band_split(x[:, 0], FS), expected[:, :, 0], rtol=0, atol=1e-12 * np.max(np.abs(expected)))
@@ -83,8 +82,7 @@ def test_every_channel_gets_the_same_gain():
     early, late = parts()
     reference = early[:, 0] + 0.5 * late[:, 0]
     shaped = shape_late(late, early[:, 0], late[:, 0], reference, FS)
-    ratio = [energy_db(shaped[:, c], 0.15, 0.6) - energy_db(late[:, c], 0.15, 0.6)
-             for c in range(4)]
+    ratio = [energy_db(shaped[:, c], 0.15, 0.6) - energy_db(late[:, c], 0.15, 0.6) for c in range(4)]
     assert np.ptp(ratio) < 0.5
 
 
@@ -94,10 +92,10 @@ def test_the_gain_is_held_once_the_reference_has_decayed_20_db():
     reference = early[:, 0] + 0.5 * late[:, 0]
     burst = reference.copy()
     i = int(1.0 * FS)
-    burst[i:i + int(0.02 * FS)] *= 30.0
+    burst[i : i + int(0.02 * FS)] *= 30.0
     plain = shape_late(late, early[:, 0], late[:, 0], reference, FS)
     bursty = shape_late(late, early[:, 0], late[:, 0], burst, FS)
-    np.testing.assert_allclose(bursty[int(0.9 * FS):], plain[int(0.9 * FS):], atol=1e-9)
+    np.testing.assert_allclose(bursty[int(0.9 * FS) :], plain[int(0.9 * FS) :], atol=1e-9)
 
 
 def test_a_short_reference_holds_its_last_gain():
@@ -141,4 +139,4 @@ def test_a_reference_shapes_only_the_late_field():
     shaped = render_ambisonics(prepare(spec, images(spec, 3), RoomTarget.from_room(spec), max_order=2, duration_s=0.5, late_envelope=reference))
     np.testing.assert_array_equal(shaped.early, plain.early)
     np.testing.assert_allclose(shaped.rir, shaped.early + shaped.late)
-    assert np.sum(shaped.late ** 2) < np.sum(plain.late ** 2)
+    assert np.sum(shaped.late**2) < np.sum(plain.late**2)

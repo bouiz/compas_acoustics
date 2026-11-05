@@ -1,6 +1,5 @@
 """The binaural and ambisonics methods over one hybrid core; the binaural late field per delay line."""
 
-
 import numpy as np
 import pytest
 
@@ -79,8 +78,7 @@ def test_fourth_order_takes_more_lines():
     assert ca.Ambisonics(sh_order=4).num_delays > 96
 
 
-@pytest.mark.parametrize("make", [
-    lambda: ca.Binaural(sh_order=1), lambda: ca.Binaural(normalization="N3D"), lambda: ca.Ambisonics(hrtf="kemar")])
+@pytest.mark.parametrize("make", [lambda: ca.Binaural(sh_order=1), lambda: ca.Binaural(normalization="N3D"), lambda: ca.Ambisonics(hrtf="kemar")])
 def test_the_other_formats_arguments_are_rejected(make):
     with pytest.raises(TypeError):
         make()
@@ -130,7 +128,7 @@ def test_per_line_binaural_with_ideal_ears_is_w(n_directions):
     result = run()
     golden = np.pi * (3.0 - np.sqrt(5.0)) * np.arange(n_directions)
     z = 1.0 - 2.0 * (np.arange(n_directions) + 0.5) / n_directions
-    directions = np.stack([np.sqrt(1 - z ** 2) * np.cos(golden), np.sqrt(1 - z ** 2) * np.sin(golden), z], axis=1)
+    directions = np.stack([np.sqrt(1 - z**2) * np.cos(golden), np.sqrt(1 - z**2) * np.sin(golden), z], axis=1)
     w = result.early[:, 0] + result.late[:, 0]
     ears = render_binaural(result.core, deltas(directions)).rir
     assert np.allclose(ears[:, 0], w, rtol=0, atol=1e-9 * np.abs(w).max())
@@ -148,15 +146,15 @@ def test_shape_late_gives_every_column_the_gains_of_w():
     ambisonic = shape_late(raw @ C.T, early_w, late_w, reference, FS)
     assert lines.shape == raw.shape
     assert np.allclose(lines @ C.T, ambisonic, rtol=0, atol=1e-12 * np.abs(ambisonic).max())
-    assert np.sum(lines ** 2) < np.sum(raw ** 2)
+    assert np.sum(lines**2) < np.sum(raw**2)
 
 
 def direct_ild_db(ir):
     """Left minus right ear level in dB over the 3 ms from the direct sound, before the first reflection."""
     ears = ir.denormalized()
     start = int(np.flatnonzero(np.abs(ears).max(axis=1) > 1e-3 * np.abs(ears).max())[0])
-    window = ears[start:start + int(0.003 * FS)]
-    left, right = np.sum(window ** 2, axis=0)
+    window = ears[start : start + int(0.003 * FS)]
+    left, right = np.sum(window**2, axis=0)
     return 10 * np.log10(left / right)
 
 

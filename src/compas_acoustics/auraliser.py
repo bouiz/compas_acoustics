@@ -7,7 +7,7 @@ from scipy.signal import fftconvolve
 
 from compas_acoustics.defaults import Defaults
 
-__all__ = ['Auraliser']
+__all__ = ["Auraliser"]
 
 
 def _n3d_to_sn3d(ir):
@@ -63,8 +63,7 @@ class Auraliser:
     ('mono', 1)
     """
 
-    def __init__(self, name: str, impulse_responses, anechoic_sounds=None, description: str = None, sampling_rate: int = None,
-                 level: str = "relative", headroom_db: float = -1.0):
+    def __init__(self, name: str, impulse_responses, anechoic_sounds=None, description: str = None, sampling_rate: int = None, level: str = "relative", headroom_db: float = -1.0):
         self.name = name
         self.description = description
         self.level = level
@@ -149,9 +148,9 @@ class Auraliser:
 
     @staticmethod
     def _format_of(data):
-        if data.get('binaural'):
+        if data.get("binaural"):
             return "binaural"
-        return "mono" if data['ambisonic_order'] == 0 else "ambisonic"
+        return "mono" if data["ambisonic_order"] == 0 else "ambisonic"
 
     @property
     def anechoic_sounds(self):
@@ -160,10 +159,10 @@ class Auraliser:
     @anechoic_sounds.setter
     def anechoic_sounds(self, anechoic_sounds):
         if not isinstance(anechoic_sounds, dict):
-            anechoic_sounds = {f"sound_{i}": {'filepath': filepath} for i, filepath in enumerate(anechoic_sounds)}
+            anechoic_sounds = {f"sound_{i}": {"filepath": filepath} for i, filepath in enumerate(anechoic_sounds)}
 
         for sound_id, data in anechoic_sounds.items():
-            filepath = Path(data['filepath'])
+            filepath = Path(data["filepath"])
             extensions = {".wav", ".mp3", ".flac", ".ogg", ".aiff", ".aif"}
             if filepath.suffix.lower() not in extensions:
                 raise ValueError(f"File {filepath} must be one of {extensions}")
@@ -172,7 +171,7 @@ class Auraliser:
 
     @property
     def maximum_ambisonics_order(self):
-        return max((data['ambisonic_order'] for data in self.impulse_responses.values() if not data.get('binaural')), default=0)
+        return max((data["ambisonic_order"] for data in self.impulse_responses.values() if not data.get("binaural")), default=0)
 
     @property
     def format(self):
@@ -188,7 +187,7 @@ class Auraliser:
 
     @property
     def longest_impulse_response_length(self):
-        return max((data['ir'].shape[0] for data in self.impulse_responses.values()), default=0)
+        return max((data["ir"].shape[0] for data in self.impulse_responses.values()), default=0)
 
     def get_impulse_response_count(self):
         return len(self.impulse_responses)
@@ -204,7 +203,7 @@ class Auraliser:
     def _default_sampling_rate(impulse_responses):
         """The sample rate of the first impulse response, or :attr:`Defaults.SAMPLING_RATE` if there are none."""
         if isinstance(impulse_responses, dict):
-            impulse_responses = [data['sampling_rate'] for data in impulse_responses.values()]
+            impulse_responses = [data["sampling_rate"] for data in impulse_responses.values()]
         else:
             impulse_responses = [ir.sampling_rate for ir in impulse_responses]
         return impulse_responses[0] if impulse_responses else Defaults().SAMPLING_RATE
@@ -213,21 +212,21 @@ class Auraliser:
     def _impulse_responses_from_objects(impulse_responses):
         """ImpulseResponse objects in the dict format, keyed by name, at their raw level."""
         impulse_responses = list(impulse_responses)
-        names = [getattr(ir, 'name', None) for ir in impulse_responses]
+        names = [getattr(ir, "name", None) for ir in impulse_responses]
         use_names = all(names) and len(set(names)) == len(names)
 
         converted = {}
         for i, ir in enumerate(impulse_responses):
-            ir_array = np.asarray(ir.denormalized() if hasattr(ir, 'denormalized') else ir.ir, dtype=float)
+            ir_array = np.asarray(ir.denormalized() if hasattr(ir, "denormalized") else ir.ir, dtype=float)
             channels = 1 if ir_array.ndim == 1 else ir_array.shape[1]
-            order = getattr(ir, 'ambisonic_order', None)
+            order = getattr(ir, "ambisonic_order", None)
             converted[names[i] if use_names else f"ir_{i}"] = {
-                'ir': ir_array,
-                'sampling_rate': ir.sampling_rate,
-                'ambisonic_order': int(round(np.sqrt(channels))) - 1 if order is None else int(order),
-                'channel_order': getattr(ir, 'channel_order', None) or 'acn',
-                'normalization': getattr(ir, 'normalization', None) or 'sn3d',
-                'binaural': getattr(ir, 'format', None) == 'binaural',
+                "ir": ir_array,
+                "sampling_rate": ir.sampling_rate,
+                "ambisonic_order": int(round(np.sqrt(channels))) - 1 if order is None else int(order),
+                "channel_order": getattr(ir, "channel_order", None) or "acn",
+                "normalization": getattr(ir, "normalization", None) or "sn3d",
+                "binaural": getattr(ir, "format", None) == "binaural",
             }
         return converted
 
@@ -237,7 +236,7 @@ class Auraliser:
             raise ValueError("anechoic_sounds is required when impulse_responses is a dict.")
         sound_files = []
         for ir in impulse_responses:
-            sound_file = getattr(getattr(ir, 'source', None), 'sound_file', None)
+            sound_file = getattr(getattr(ir, "source", None), "sound_file", None)
             if not sound_file:
                 raise ValueError(f"No anechoic sound given and the source of impulse response '{getattr(ir, 'name', ir)}' has no sound_file.")
             sound_files.append(sound_file)
@@ -245,7 +244,7 @@ class Auraliser:
 
     def _prepare_impulse_response(self, ir_id, data):
         """One impulse response validated, in ACN/SN3D at :attr:`sampling_rate`."""
-        ir = data.get('ir')
+        ir = data.get("ir")
         if ir is None or not isinstance(ir, np.ndarray) or ir.size == 0:
             raise ValueError(f"Impulse response {ir_id} is empty or invalid.")
         ir = np.asarray(ir, dtype=float)
@@ -258,72 +257,73 @@ class Auraliser:
             warnings.warn(f"Impulse response {ir_id} is transposed. Impulse response will be transposed to the correct format")
             ir = ir.T
 
-        if data['sampling_rate'] <= 0:
+        if data["sampling_rate"] <= 0:
             raise ValueError(f"Impulse response {ir_id} has invalid sample rate {data['sampling_rate']}. Must be positive.")
 
-        if data.get('binaural'):
+        if data.get("binaural"):
             if ir.shape[1] != 2:
                 raise ValueError(f"Binaural impulse response {ir_id} must have 2 channels, got {ir.shape[1]}.")
-            data['binaural'] = True
-            data['ambisonic_order'] = None
-            data['ir'] = self._at_sampling_rate(ir_id, ir, data)
+            data["binaural"] = True
+            data["ambisonic_order"] = None
+            data["ir"] = self._at_sampling_rate(ir_id, ir, data)
             return data
-        data['binaural'] = False
+        data["binaural"] = False
 
         order = int(round(np.sqrt(ir.shape[1]))) - 1
         if (order + 1) ** 2 != ir.shape[1]:
             raise ValueError(f"Impulse response {ir_id}, does not have a valid channel count to be a ambisonics impulse response.")
 
         try:
-            given_order = int(data.get('ambisonic_order'))
+            given_order = int(data.get("ambisonic_order"))
         except (TypeError, ValueError):
             given_order = None
         if given_order != order:
-            warnings.warn(f"Mismatch detected between ambisonic order {data.get('ambisonic_order')} and channel count {ir.shape[1]} of {ir_id}. " +
-                          f"Using order {order}.")
-        data['ambisonic_order'] = order
+            warnings.warn(f"Mismatch detected between ambisonic order {data.get('ambisonic_order')} and channel count {ir.shape[1]} of {ir_id}. " + f"Using order {order}.")
+        data["ambisonic_order"] = order
 
-        channel_order = data.get('channel_order')
+        channel_order = data.get("channel_order")
         if not channel_order:
             warnings.warn(f"No channel order noted for {ir_id}. acn assumed.")
-            channel_order = 'acn'
+            channel_order = "acn"
         channel_order = channel_order.lower()
-        if channel_order != 'acn':
+        if channel_order != "acn":
             raise ValueError(f"Impulse response {ir_id} has unknown channel order '{channel_order}'. Must be one of ['acn'].")
 
-        normalization = data.get('normalization')
+        normalization = data.get("normalization")
         if not normalization:
-            normalization = 'sn3d'
+            normalization = "sn3d"
             warnings.warn(f"No normalization noted for {ir_id}. {normalization} assumed.")
         normalization = normalization.lower()
-        if normalization not in ('n3d', 'sn3d'):
+        if normalization not in ("n3d", "sn3d"):
             raise ValueError(f"Impulse response {ir_id} has unknown normalization '{normalization}'. Must be one of ['n3d', 'sn3d'].")
 
-        if normalization == 'n3d':
+        if normalization == "n3d":
             warnings.warn(f"Converting {ir_id} from n3d to sn3d normalization.")
             ir = _n3d_to_sn3d(ir)
-        data['channel_order'] = 'acn'
-        data['normalization'] = 'sn3d'
+        data["channel_order"] = "acn"
+        data["normalization"] = "sn3d"
 
-        data['ir'] = self._at_sampling_rate(ir_id, ir, data)
+        data["ir"] = self._at_sampling_rate(ir_id, ir, data)
         return data
 
     def _at_sampling_rate(self, ir_id, ir, data):
         """The impulse response at :attr:`sampling_rate`, resampled keeping its frequency response (and so its gain)."""
-        if data['sampling_rate'] != self.sampling_rate:
-            warnings.warn(f"Mismatch detected between {ir_id} sample rate of {data['sampling_rate']} Hz, and default sample rate of {self.sampling_rate} Hz. " +
-                          f"Impulse response will be resampled to {self.sampling_rate} Hz.")
-            ir = pf.dsp.resample(pf.Signal(ir.T, data['sampling_rate']), self.sampling_rate, match_amplitude='freq').time.T
-            data['sampling_rate'] = self.sampling_rate
+        if data["sampling_rate"] != self.sampling_rate:
+            warnings.warn(
+                f"Mismatch detected between {ir_id} sample rate of {data['sampling_rate']} Hz, and default sample rate of {self.sampling_rate} Hz. "
+                + f"Impulse response will be resampled to {self.sampling_rate} Hz."
+            )
+            ir = pf.dsp.resample(pf.Signal(ir.T, data["sampling_rate"]), self.sampling_rate, match_amplitude="freq").time.T
+            data["sampling_rate"] = self.sampling_rate
         return ir
 
     def _pairs(self):
         """Pair each impulse response with its anechoic sound filepath, by id when the ids match, otherwise by position."""
         ir_items = list(self.impulse_responses.items())
         if self.impulse_responses.keys() == self.anechoic_sounds.keys():
-            return [(ir_id, ir_data, self.anechoic_sounds[ir_id]['filepath']) for ir_id, ir_data in ir_items]
+            return [(ir_id, ir_data, self.anechoic_sounds[ir_id]["filepath"]) for ir_id, ir_data in ir_items]
         sounds = list(self.anechoic_sounds.values())
-        return [(ir_id, ir_data, sound['filepath']) for (ir_id, ir_data), sound in zip(ir_items, sounds)]
+        return [(ir_id, ir_data, sound["filepath"]) for (ir_id, ir_data), sound in zip(ir_items, sounds)]
 
     def import_anechoic_sound(self, filepath, sampling_rate):
         """An audio file as a mono (samples,) array at ``sampling_rate``, multichannel files mixed down."""
@@ -333,7 +333,7 @@ class Auraliser:
             sound = pf.dsp.average(sound)
 
         if sound.sampling_rate != sampling_rate:
-            sound = pf.dsp.resample(sound, sampling_rate, match_amplitude='time')
+            sound = pf.dsp.resample(sound, sampling_rate, match_amplitude="time")
 
         return sound.time.reshape(-1)
 
@@ -356,7 +356,7 @@ class Auraliser:
         order = self.maximum_ambisonics_order
         summed_impulse_responses = {}
         for ir_id, ir_data, filepath in self._pairs():
-            ir = ir_data['ir'] if self.format == "binaural" else self._at_order(ir_data['ir'], order)
+            ir = ir_data["ir"] if self.format == "binaural" else self._at_order(ir_data["ir"], order)
             key = str(Path(filepath).resolve())
             current = summed_impulse_responses.get(key)
             if current is None:
@@ -364,7 +364,7 @@ class Auraliser:
             else:
                 length = max(current.shape[0], ir.shape[0])
                 current = np.pad(current, ((0, length - current.shape[0]), (0, 0)))
-                current[:ir.shape[0]] += ir
+                current[: ir.shape[0]] += ir
                 summed_impulse_responses[key] = current
 
         convolved = []
@@ -374,7 +374,7 @@ class Auraliser:
 
         convolved_sound_summed = np.zeros((max((c.shape[0] for c in convolved), default=0), self.output_channels))
         for c in convolved:
-            convolved_sound_summed[:c.shape[0]] += c
+            convolved_sound_summed[: c.shape[0]] += c
 
         return convolved_sound_summed
 
@@ -441,6 +441,6 @@ class Auraliser:
         if peak_dbfs > 0:
             warnings.warn(f"Auralised signal peaks at {peak_dbfs:+.1f} dBFS and will clip on playback. Use level 'relative' or 'individual', or a lower gain.")
 
-        pf.io.write_audio(pf.Signal(exported_sound.T, self.sampling_rate), filepath, subtype='FLOAT')
+        pf.io.write_audio(pf.Signal(exported_sound.T, self.sampling_rate), filepath, subtype="FLOAT")
 
         return exported_sound

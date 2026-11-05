@@ -28,7 +28,7 @@ import numpy as np
 
 from compas_acoustics.room.geometry import RoomGeometry
 
-__all__ = ['SimulationContext', 'SimulationMethod', 'image_source_search_seconds']
+__all__ = ["SimulationContext", "SimulationMethod", "image_source_search_seconds"]
 
 
 def _seed(seed):
@@ -45,7 +45,7 @@ def image_source_search_seconds(n_faces: int, order: int) -> float:
 
     An empirical fit growing by a factor ``n_faces / 2.2`` per order.
     """
-    return 1e-6 * n_faces ** 3.4 * (n_faces / 2.2) ** (order - 4)
+    return 1e-6 * n_faces**3.4 * (n_faces / 2.2) ** (order - 4)
 
 
 def _warn_if_the_search_is_slow(geometry, order: int, stacklevel: int = 3) -> None:
@@ -89,8 +89,7 @@ class SimulationContext:
                 # the free-field spreading 1 / (4 pi r) is undefined there
                 if np.linalg.norm(np.subtract(source.position, receiver.position)) < 1e-3:
                     raise ValueError(f"Source '{source.name}' and receiver '{receiver.name}' are at the same position; move one of them.")
-        return cls(scene=scene, geometry=geometry, sources=sources, receivers=receivers,
-                   sampling_rate=scene.sampling_rate, outside=outside)
+        return cls(scene=scene, geometry=geometry, sources=sources, receivers=receivers, sampling_rate=scene.sampling_rate, outside=outside)
 
     @staticmethod
     def key(source, receiver) -> str:

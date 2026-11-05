@@ -77,8 +77,9 @@ def test_an_impulse_response_survives_json():
 def test_an_ambisonic_impulse_response_keeps_its_convention():
     from compas_acoustics import ImpulseResponse
 
-    ir = ImpulseResponse("a", Source("s", 1, 1, 1), Receiver("r", 2, 2, 1), np.random.default_rng(0).normal(size=(64, 4)), 48000,
-                         ambisonic_order=1, normalization="n3d", channel_order="acn")
+    ir = ImpulseResponse(
+        "a", Source("s", 1, 1, 1), Receiver("r", 2, 2, 1), np.random.default_rng(0).normal(size=(64, 4)), 48000, ambisonic_order=1, normalization="n3d", channel_order="acn"
+    )
     copy = json_loads(json_dumps(ir))
     assert (copy.ambisonic_order, copy.normalization, copy.channel_order, copy.n_channels) == (1, "n3d", "acn", 4)
     np.testing.assert_array_equal(copy.denormalized(), ir.denormalized())
@@ -93,8 +94,7 @@ def scattering_scene():
 
 
 def test_a_ray_field_survives_json_with_its_scattered_rays_and_sources():
-    original = RayField.from_scene(scattering_scene(), n_rays=5, max_reflection_order=3, include_scattering=True,
-                                   scatter_density=10, scatter_max_bounces=1, random_seed=42)
+    original = RayField.from_scene(scattering_scene(), n_rays=5, max_reflection_order=3, include_scattering=True, scatter_density=10, scatter_max_bounces=1, random_seed=42)
     assert original.scattered_rays
     copy = json_loads(json_dumps(original))
     assert len(copy) == len(original) and len(copy.scattered_rays) == len(original.scattered_rays)

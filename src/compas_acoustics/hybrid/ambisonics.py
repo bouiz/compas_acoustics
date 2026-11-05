@@ -75,9 +75,7 @@ def ambisonic_output_matrix(
     cross-correlation, which depends on how well the grid supports ``sh_order``. The largest of them over the
     mean diagonal is the leakage; a grid leaking more than ``max_leakage`` raises ``ValueError``.
     """
-    sh = spharpy.spherical.spherical_harmonic_basis_real(
-        sh_order, directions, normalization=normalization, channel_convention="ACN"
-    )
+    sh = spharpy.spherical.spherical_harmonic_basis_real(sh_order, directions, normalization=normalization, channel_convention="ACN")
     C = sh.T / np.sqrt(sh.shape[0])
 
     gram = C @ C.T
@@ -115,6 +113,5 @@ def default_num_delays(sh_order: int, minimum: int | None = None) -> int:
             continue
         return num_delays
     raise ValueError(  # pragma: no cover - no order in range hits this
-        f"no equal_area grid between {start} and {4 * start} points supports "
-        f"sh_order={sh_order}"
+        f"no equal_area grid between {start} and {4 * start} points supports sh_order={sh_order}"
     )

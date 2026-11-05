@@ -129,7 +129,7 @@ class _Handler(BaseHTTPRequestHandler):
             if not authorized(self.server.token, self.headers.get("Authorization")):
                 self._answer(*_error(401, "Unauthorised."))
                 return
-            status = jobs.status(self.path[len("/progress/"):])
+            status = jobs.status(self.path[len("/progress/") :])
             self._answer(*((200, _encode({"result": status})) if status is not None else _error(404, "No such call.")))
         else:
             self._answer(*_error(404, "Not found."))
@@ -150,10 +150,10 @@ class _Handler(BaseHTTPRequestHandler):
             if not authorized(self.server.token, authorization):
                 self._answer(*_error(401, "Unauthorised."))
                 return
-            self._answer(200, _encode({"result": jobs.cancel(self.path[len("/cancel/"):])}))
+            self._answer(200, _encode({"result": jobs.cancel(self.path[len("/cancel/") :])}))
         elif self.path.startswith("/api/"):
             call_id = (self.headers.get("X-Call-Id") or "")[:64] or None
-            self._answer(*dispatch(self.server.token, authorization, self.path[len("/api/"):], body, call_id))
+            self._answer(*dispatch(self.server.token, authorization, self.path[len("/api/") :], body, call_id))
         else:
             self._answer(*_error(404, "Not found."))
 

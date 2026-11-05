@@ -21,7 +21,7 @@ from .base import SimulationMethod
 from .base import _seed
 from .base import _warn_if_the_search_is_slow
 
-__all__ = ['Mono']
+__all__ = ["Mono"]
 
 
 class Mono(SimulationMethod):
@@ -89,13 +89,21 @@ class Mono(SimulationMethod):
         "seed": 42,
     }
 
-    def __init__(self, image_source_order: int = 3, ray_tracing: bool = True, air_absorption: bool = True,
-                 n_rays: Optional[int] = 20_000, energy_thres: float = 1e-7, duration: Optional[float] = None,
-                 receiver_radius: float = 0.5, seed: Union[bool, int] = True, normalize: bool = True,
-                 air: Optional[AirConditions] = None):
+    def __init__(
+        self,
+        image_source_order: int = 3,
+        ray_tracing: bool = True,
+        air_absorption: bool = True,
+        n_rays: Optional[int] = 20_000,
+        energy_thres: float = 1e-7,
+        duration: Optional[float] = None,
+        receiver_radius: float = 0.5,
+        seed: Union[bool, int] = True,
+        normalize: bool = True,
+        air: Optional[AirConditions] = None,
+    ):
         seed = _seed(seed)
-        given = {"n_rays": n_rays, "energy_thres": energy_thres, "duration": duration,
-                 "receiver_radius": receiver_radius, "seed": seed}
+        given = {"n_rays": n_rays, "energy_thres": energy_thres, "duration": duration, "receiver_radius": receiver_radius, "seed": seed}
         if not ray_tracing:
             changed = sorted(k for k, v in given.items() if v != self._RAY_TRACING_DEFAULTS[k])
             if changed:
@@ -126,8 +134,7 @@ class Mono(SimulationMethod):
             "speed_of_sound": air_or_default(self.air).speed_of_sound,
         }
         if self.ray_tracing:
-            generation.update(n_rays=self.n_rays, energy_thres=self.energy_thres, duration=self.duration,
-                              receiver_radius=self.receiver_radius, seed=self.seed)
+            generation.update(n_rays=self.n_rays, energy_thres=self.energy_thres, duration=self.duration, receiver_radius=self.receiver_radius, seed=self.seed)
         return generation
 
     def compute(self, context: SimulationContext) -> dict:
@@ -142,7 +149,10 @@ class Mono(SimulationMethod):
         jobs.progress("ray tracing" if self.ray_tracing else "image sources")
         if self.ray_tracing:
             responses = ray_traced_rirs(
-                context.geometry, sources, mic_positions, fs,
+                context.geometry,
+                sources,
+                mic_positions,
+                fs,
                 max_order=self.image_source_order,
                 duration=self.duration,
                 n_rays=self.n_rays,
@@ -153,8 +163,7 @@ class Mono(SimulationMethod):
                 air=self.air,
             )
         else:
-            responses = image_source_rirs(context.geometry, sources, mic_positions, fs, max_order=self.image_source_order,
-                                          air_absorption=self.air_absorption, air=self.air)
+            responses = image_source_rirs(context.geometry, sources, mic_positions, fs, max_order=self.image_source_order, air_absorption=self.air_absorption, air=self.air)
 
         generation = dict(self.generation, scene=getattr(context.scene, "name", None))
         rirs = {}
@@ -163,7 +172,11 @@ class Mono(SimulationMethod):
                 jobs.progress("responses", m * len(context.sources) + s, len(context.sources) * len(context.receivers))
                 key = context.key(source, receiver)
                 rirs[key] = ImpulseResponse(
-                    name=key, source=source, receiver=receiver, ir=responses[m][s], sampling_rate=fs,
+                    name=key,
+                    source=source,
+                    receiver=receiver,
+                    ir=responses[m][s],
+                    sampling_rate=fs,
                     normalized=self.normalize,
                     generation=generation,
                 )

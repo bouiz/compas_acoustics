@@ -90,8 +90,9 @@ def _worker_environment(token):
 
 def _spawn(python, port, env, log):
     kwargs = {"creationflags": 0x08000000} if os.name == "nt" else {}  # CREATE_NO_WINDOW
-    return subprocess.Popen([python, "-m", "compas_acoustics.worker.service", "--port", str(port)], env=env, stdin=subprocess.DEVNULL,
-                            stdout=log, stderr=subprocess.STDOUT, **kwargs)
+    return subprocess.Popen(
+        [python, "-m", "compas_acoustics.worker.service", "--port", str(port)], env=env, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, **kwargs
+    )
 
 
 def _request(port, path, body=b"", token=None, timeout=None, headers=None):
@@ -125,8 +126,7 @@ class Client:
         self._log = log
 
     def _send(self, path, body=b"", authorize=True, headers=None):
-        return _request(self.port, path, body, self._token if authorize else None,
-                        timeout=None if path.startswith("/api/") else 2, headers=headers)
+        return _request(self.port, path, body, self._token if authorize else None, timeout=None if path.startswith("/api/") else 2, headers=headers)
 
     def ping(self):
         try:
@@ -207,8 +207,7 @@ class Client:
         info = candidate.info()
         if (info["compas_acoustics"], info["fingerprint"]) != (__version__, fingerprint()):
             candidate.stop()
-            raise RuntimeError(f"The worker at {python} runs a different compas_acoustics ({info['compas_acoustics']}) than this Python "
-                               f"({__version__}): run the installer again.")
+            raise RuntimeError(f"The worker at {python} runs a different compas_acoustics ({info['compas_acoustics']}) than this Python ({__version__}): run the installer again.")
         return candidate
 
 

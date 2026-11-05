@@ -51,7 +51,7 @@ def test_the_response_is_early_plus_late():
     assert result.core.driving_images == int(np.sum(iss.order == MAX_ORDER))
     assert result.core.drive_gain == pytest.approx(np.sqrt(96))
     assert result.normalization == "N3D"
-    assert np.sum(result.late ** 2) > 0.0
+    assert np.sum(result.late**2) > 0.0
 
 
 def test_sn3d_is_n3d_over_sqrt_2n_plus_1():

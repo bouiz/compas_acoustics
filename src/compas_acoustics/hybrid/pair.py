@@ -38,11 +38,7 @@ class Pair:
                 raise ValueError(f"{name} must be a length-3 position in metres")
             object.__setattr__(self, name, value)
         rot = np.asarray(self.receiver_rotation, dtype=float)
-        if (
-            rot.shape != (3, 3)
-            or not np.allclose(rot @ rot.T, np.eye(3), atol=1e-8)
-            or not np.isclose(np.linalg.det(rot), 1.0, atol=1e-8)
-        ):
+        if rot.shape != (3, 3) or not np.allclose(rot @ rot.T, np.eye(3), atol=1e-8) or not np.isclose(np.linalg.det(rot), 1.0, atol=1e-8):
             raise ValueError("receiver_rotation must be a 3x3 proper rotation (orthogonal, determinant +1)")
         object.__setattr__(self, "receiver_rotation", rot)
         if not self.geometry.is_closed:

@@ -39,8 +39,11 @@ def traced(g, sources=(SOURCE,), receivers=(RECEIVER,), **kwargs):
     kwargs.setdefault("n_rays", 2000)
     kwargs.setdefault("duration", 0.5)
     return ray_traced_rirs(
-        g, [pra.SoundSource(np.asarray(s, dtype=float)) for s in sources],
-        np.array(receivers, dtype=float).T, FS, **kwargs,
+        g,
+        [pra.SoundSource(np.asarray(s, dtype=float)) for s in sources],
+        np.array(receivers, dtype=float).T,
+        FS,
+        **kwargs,
     )
 
 
@@ -52,7 +55,7 @@ def test_one_response_per_microphone_and_source():
 
 
 def test_the_duration_sets_the_length():
-    (rir,), = traced(geometry(), duration=0.25)
+    ((rir,),) = traced(geometry(), duration=0.25)
     assert rir.shape == (12000,)
 
 
@@ -60,7 +63,7 @@ def test_the_default_length_comes_from_eyring():
     g = geometry()
     expected = default_duration(g, air_absorption=True)
     assert 0.5 <= expected <= 12.0
-    (rir,), = traced(g, duration=None, n_rays=500)
+    ((rir,),) = traced(g, duration=None, n_rays=500)
     assert rir.shape == (round(expected * FS),)
 
 
@@ -88,8 +91,8 @@ def test_a_fully_absorbing_surface_has_a_finite_default():
 
 
 def test_seeded_runs_repeat():
-    (first,), = traced(geometry(), seed=7)
-    (second,), = traced(geometry(), seed=7)
+    ((first,),) = traced(geometry(), seed=7)
+    ((second,),) = traced(geometry(), seed=7)
     np.testing.assert_array_equal(first, second)
 
 
@@ -113,7 +116,7 @@ def test_ray_tracing_is_stochastic_across_seeds():
     a = traced_uniform(uniform(), max_order=6, seed=1)
     b = traced_uniform(uniform(), max_order=6, seed=2)
     assert not np.array_equal(a, b)
-    assert np.isclose(np.sum(a ** 2), np.sum(b ** 2), rtol=0.25)
+    assert np.isclose(np.sum(a**2), np.sum(b**2), rtol=0.25)
 
 
 def test_the_duration_must_be_positive():
@@ -124,12 +127,12 @@ def test_the_duration_must_be_positive():
 def test_there_is_a_tail_beyond_the_image_source_order():
     """The ray tracer gives energy past the end of a low image-source order."""
     rir = traced_uniform(uniform(), max_order=4, duration=0.8)
-    assert np.sum(rir[int(0.4 * FS):] ** 2) > 0.0
+    assert np.sum(rir[int(0.4 * FS) :] ** 2) > 0.0
 
 
 def test_a_material_without_scattering_ray_traces_with_the_default():
     ((rir,),) = traced(geometry(AcousticMaterial("bare", 0.2)), seed=1)
-    assert np.all(np.isfinite(rir)) and np.sum(rir ** 2) > 0.0
+    assert np.all(np.isfinite(rir)) and np.sum(rir**2) > 0.0
 
 
 def simulator(receiver=None, materials=WALL, leaves=6):
@@ -175,8 +178,7 @@ def test_both_modes_meet_the_contract(assert_meets_contract, ray_tracing):
 def test_ism_and_ray_tracing_share_the_direct_sound():
     scene = simulator()
     (ism,) = scene.simulate(Mono(image_source_order=2, air_absorption=False, ray_tracing=False)).values()
-    (traced,) = scene.simulate(Mono(image_source_order=2, air_absorption=False, ray_tracing=True,
-                                        n_rays=2000, duration=0.4, seed=1)).values()
+    (traced,) = scene.simulate(Mono(image_source_order=2, air_absorption=False, ray_tracing=True, n_rays=2000, duration=0.4, seed=1)).values()
     n = ism.direct_sound_index()
     assert n == traced.direct_sound_index()
     a, b = ism.denormalized(), traced.denormalized()
@@ -229,8 +231,7 @@ def test_the_search_time_estimate_grows_with_faces_and_order():
         assert np.allclose(np.array(times[1:]) / times[:-1], n / 2.2)
 
 
-@pytest.mark.parametrize("seconds, message", [(30.0, None), (30.1, "tens of seconds"), (120.0, "tens of seconds"),
-                                              (120.1, "minutes")])
+@pytest.mark.parametrize("seconds, message", [(30.0, None), (30.1, "tens of seconds"), (120.0, "tens of seconds"), (120.1, "minutes")])
 def test_the_search_warns_above_30_seconds_and_names_minutes_above_120(monkeypatch, seconds, message):
     from types import SimpleNamespace
 
@@ -258,8 +259,7 @@ def test_a_slow_image_source_search_warns_before_it_starts(monkeypatch):
 
     scene = simulator()
     for i in range(3):
-        scene.add_acoustic_object(AcousticObject(Mesh.from_shape(Box(0.8, 0.8, 1.0, Frame([2.0 + 1.5 * i, 4.0, 0.5]))), WALL,
-                                                 name=f"box{i}", role="obstacle"))
+        scene.add_acoustic_object(AcousticObject(Mesh.from_shape(Box(0.8, 0.8, 1.0, Frame([2.0 + 1.5 * i, 4.0, 0.5]))), WALL, name=f"box{i}", role="obstacle"))
     monkeypatch.setattr("compas_acoustics.simulation_methods.pra.image_source_rirs", lambda *a, **k: pytest.fail("searched"))
     with pytest.warns(UserWarning, match="image source search over 42 faces"), pytest.raises(pytest.fail.Exception):
         scene.simulate(Method(image_source_order=6, ray_tracing=False))
@@ -269,8 +269,8 @@ def test_ray_tracing_runs_in_the_medium():
     from compas_acoustics import AirConditions
 
     g = geometry(SMOOTH)
-    (cold,), = traced(g, air=AirConditions(temperature=0.0), seed=42)
-    (default,), = traced(g, seed=42)
+    ((cold,),) = traced(g, air=AirConditions(temperature=0.0), seed=42)
+    ((default,),) = traced(g, seed=42)
     assert not np.allclose(cold, default)
 
 
@@ -279,8 +279,7 @@ def test_the_default_duration_follows_the_medium():
 
     g = geometry()
     assert default_duration(g, air_absorption=True, air=None) == default_duration(g, air_absorption=True)
-    dry = default_duration(g, air_absorption=True, speed_of_sound=AirConditions(humidity=10.0).speed_of_sound,
-                           air=AirConditions(humidity=10.0))
+    dry = default_duration(g, air_absorption=True, speed_of_sound=AirConditions(humidity=10.0).speed_of_sound, air=AirConditions(humidity=10.0))
     assert dry != default_duration(g, air_absorption=True)
 
 
@@ -324,6 +323,5 @@ def test_the_image_source_backend_is_what_the_method_returns_without_ray_tracing
     scene.add_receiver(Receiver("r", *RECEIVER))
     (ir,) = scene.simulate(Mono(image_source_order=2, ray_tracing=False, normalize=False)).values()
     context = SimulationContext.from_scene(scene)
-    ((raw,),) = image_source_rirs(context.geometry, [source_to_pra(s) for s in context.sources], RECEIVER.reshape(3, 1), FS,
-                                  max_order=2, air_absorption=True)
+    ((raw,),) = image_source_rirs(context.geometry, [source_to_pra(s) for s in context.sources], RECEIVER.reshape(3, 1), FS, max_order=2, air_absorption=True)
     np.testing.assert_array_equal(raw, ir.denormalized())

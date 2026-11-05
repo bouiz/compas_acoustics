@@ -17,9 +17,21 @@ FS = 48000.0
 def spec(direction=(1, 0, 0)):
     scene = Scene("test")
     wall, floor = AcousticMaterial("wall", 0.1, 0.1), AcousticMaterial("carpet", 0.6, 0.1)
-    scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(7, 5, 3, materials={
-        "floor": floor, "ceiling": wall, "left_wall": wall, "right_wall": wall, "front_wall": wall, "back_wall": wall,
-    }))
+    scene.add_acoustic_objects(
+        AcousticObjectsLibrary.shoebox_room(
+            7,
+            5,
+            3,
+            materials={
+                "floor": floor,
+                "ceiling": wall,
+                "left_wall": wall,
+                "right_wall": wall,
+                "front_wall": wall,
+                "back_wall": wall,
+            },
+        )
+    )
     receiver = Receiver("r", 3.5, 2.5, 1.5, direction=list(direction))
     return Pair(RoomGeometry.from_scene(scene), [1.5, 1.5, 1.6], receiver.position, receiver.rotation, FS)
 
@@ -42,9 +54,7 @@ def test_the_line_facing_the_floor_is_the_most_absorbing():
 def test_turning_the_receiver_about_z_keeps_the_floor_below():
     directions = fdn_directions()
     down = int(np.argmin(directions.cartesian[:, 2]))
-    np.testing.assert_allclose(
-        scanned_absorption(spec((0, 1, 0)), directions)[down], scanned_absorption(spec(), directions)[down]
-    )
+    np.testing.assert_allclose(scanned_absorption(spec((0, 1, 0)), directions)[down], scanned_absorption(spec(), directions)[down])
 
 
 def test_one_filter_bank_per_line():

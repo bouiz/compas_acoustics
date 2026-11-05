@@ -10,7 +10,7 @@ from compas_acoustics import Source
 from compas_acoustics.defaults import _PackageDtype
 from compas_acoustics.materials import AcousticMaterial
 
-__all__ = ['AcousticObject', 'AcousticObjectsLibrary']
+__all__ = ["AcousticObject", "AcousticObjectsLibrary"]
 
 
 def _objects_by_group(objects, names):
@@ -43,7 +43,7 @@ class AcousticObject(_PackageDtype, Data):
         :meth:`assign_materials_by_group`. Not serialised.
     """
 
-    def __init__(self, acoustic_geometry:Mesh, material:AcousticMaterial, x:float=0, y:float=0, z:float=0, name:str=None, role:str='boundary', group:str=None):
+    def __init__(self, acoustic_geometry: Mesh, material: AcousticMaterial, x: float = 0, y: float = 0, z: float = 0, name: str = None, role: str = "boundary", group: str = None):
         super().__init__(name=name)
         self._x = x
         self._y = y
@@ -87,17 +87,17 @@ class AcousticObject(_PackageDtype, Data):
                 tokens = line.split()
                 if not tokens:
                     continue
-                if tokens[0] == 'v':
+                if tokens[0] == "v":
                     vertices.append([float(value) for value in tokens[1:4]])
-                elif tokens[0] == 'g':
+                elif tokens[0] == "g":
                     group = " ".join(tokens[1:]) or None
                     has_groups = True
-                elif tokens[0] == 'o':
+                elif tokens[0] == "o":
                     obj = " ".join(tokens[1:]) or None
-                elif tokens[0] == 'f':
+                elif tokens[0] == "f":
                     indices = []
                     for token in tokens[1:]:
-                        index = int(token.split('/')[0])
+                        index = int(token.split("/")[0])
                         indices.append(len(vertices) + index if index < 0 else index - 1)
                     if len(set(indices)) >= 3:
                         faces.append(indices)
@@ -106,7 +106,7 @@ class AcousticObject(_PackageDtype, Data):
         names = face_groups if has_groups else face_objects
         groups = {}
         for face, group in zip(faces, names):
-            groups.setdefault(group or 'default', []).append(face)
+            groups.setdefault(group or "default", []).append(face)
         if name is None:
             name = os.path.splitext(os.path.basename(filepath))[0]
         objects = []
@@ -137,8 +137,8 @@ class AcousticObject(_PackageDtype, Data):
 
         Examples
         --------
-        >>> furniture = {'chairs': 'obstacle', 'tables': 'obstacle'}
-        >>> objects = AcousticObject.from_obj('office.obj', materials)  # doctest: +SKIP
+        >>> furniture = {"chairs": "obstacle", "tables": "obstacle"}
+        >>> objects = AcousticObject.from_obj("office.obj", materials)  # doctest: +SKIP
         >>> AcousticObject.assign_roles_by_group(objects, furniture)  # doctest: +SKIP
         """
         for group, members in _objects_by_group(objects, roles).items():
@@ -164,8 +164,8 @@ class AcousticObject(_PackageDtype, Data):
 
         Examples
         --------
-        >>> objects = AcousticObject.from_obj('office.obj')  # doctest: +SKIP
-        >>> AcousticObject.assign_materials_by_group(objects, {'chairs': upholstery, 'glass': glass})  # doctest: +SKIP
+        >>> objects = AcousticObject.from_obj("office.obj")  # doctest: +SKIP
+        >>> AcousticObject.assign_materials_by_group(objects, {"chairs": upholstery, "glass": glass})  # doctest: +SKIP
         """
         for group, members in _objects_by_group(objects, materials).items():
             for acoustic_object in members:
@@ -181,12 +181,12 @@ class AcousticObject(_PackageDtype, Data):
         return [self._x, self._y, self._z]
 
     @position.setter
-    def position(self, position:list):
+    def position(self, position: list):
         self._x = position[0]
         self._y = position[1]
         self._z = position[2]
 
-    def add_source(self, source:Source):
+    def add_source(self, source: Source):
         self.sources.append(source)
 
     @property
@@ -205,7 +205,7 @@ class AcousticObject(_PackageDtype, Data):
 
     @role.setter
     def role(self, role):
-        roles = ('boundary', 'obstacle')
+        roles = ("boundary", "obstacle")
         if role not in roles:
             raise ValueError(f"role must be one of {roles}, got {role!r}")
         self._role = role
@@ -244,7 +244,7 @@ class AcousticObjectsLibrary:
     """Factories of commonly used acoustic objects."""
 
     @classmethod
-    def shoebox_room(cls, length:float, width:float, height:float, materials=None, sources:list=None, name:str=None):
+    def shoebox_room(cls, length: float, width: float, height: float, materials=None, sources: list = None, name: str = None):
         """A shoebox room as six surfaces, each its own :class:`AcousticObject`.
 
         Parameters
@@ -271,12 +271,11 @@ class AcousticObjectsLibrary:
             name = f"shoebox_room_{length}x{width}x{height}"
         box_mesh = Mesh.from_shape(box)
 
-        default = AcousticMaterial(name="default", absorption_coefficients=0.1, scattering_coefficients=0.1,
-                                   description="Default material")
+        default = AcousticMaterial(name="default", absorption_coefficients=0.1, scattering_coefficients=0.1, description="Default material")
         if not (materials is None or isinstance(materials, (AcousticMaterial, dict))):
             raise TypeError("materials must be None, an AcousticMaterial, or a dict keyed by surface name.")
         room = []
-        surfaces = ('floor', 'right_wall', 'front_wall', 'left_wall', 'back_wall', 'ceiling')
+        surfaces = ("floor", "right_wall", "front_wall", "left_wall", "back_wall", "ceiling")
         for fkey, surface_name in enumerate(surfaces):
             surface_mesh = Mesh.from_vertices_and_faces(box_mesh.face_coordinates(fkey), [[0, 1, 2, 3]])
             if isinstance(materials, dict):

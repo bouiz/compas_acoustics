@@ -20,7 +20,7 @@ def _assert_meets_contract(rirs, context, method, direct_sound=True):
             omni = raw if raw.ndim == 1 else raw[:, 0]
             distance = float(np.linalg.norm(np.subtract(ir.receiver.position, ir.source.position)))
             n = ir.direct_sound_index()
-            peak = float(np.max(np.abs(omni[max(n - 1, 0):n + 2])))
+            peak = float(np.max(np.abs(omni[max(n - 1, 0) : n + 2])))
             free_field = 1.0 / (4.0 * np.pi * distance)
             assert 0.5 * free_field < peak < 1.2 * free_field, f"{key}: direct sound {peak:.4g}, free field {free_field:.4g}"
         # 2. the context's sample rate

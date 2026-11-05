@@ -1,4 +1,3 @@
-
 import numpy as np
 import pytest
 from compas.datastructures import Mesh
@@ -35,8 +34,7 @@ def test_shoebox_room_surfaces_are_boundaries():
     assert {o.role for o in room} == {"boundary"}
 
 
-L_ROOM = ["v 0 0 0", "v 4 0 0", "v 4 2 0", "v 2 2 0", "v 2 4 0", "v 0 4 0",
-          "v 0 0 2", "v 4 0 2", "v 4 2 2", "v 2 2 2", "v 2 4 2", "v 0 4 2"]
+L_ROOM = ["v 0 0 0", "v 4 0 0", "v 4 2 0", "v 2 2 0", "v 2 4 0", "v 0 4 0", "v 0 0 2", "v 4 0 2", "v 4 2 2", "v 2 2 2", "v 2 4 2", "v 0 4 2"]
 
 
 def write_obj(path, lines):
@@ -45,8 +43,7 @@ def write_obj(path, lines):
 
 
 def test_objects_are_groups_when_there_are_no_groups(tmp_path):
-    lines = L_ROOM + ["o floor", "f 1 6 5 4 3 2", "o ceiling", "f 7 8 9 10 11 12",
-                      "o walls", "f 1 2 8 7", "f 2 3 9 8", "f 3 4 10 9", "f 4 5 11 10", "f 5 6 12 11", "f 6 1 7 12"]
+    lines = L_ROOM + ["o floor", "f 1 6 5 4 3 2", "o ceiling", "f 7 8 9 10 11 12", "o walls", "f 1 2 8 7", "f 2 3 9 8", "f 3 4 10 9", "f 4 5 11 10", "f 5 6 12 11", "f 6 1 7 12"]
     objs = AcousticObject.from_obj(write_obj(tmp_path / "l.obj", lines))
     assert sorted(o.group for o in objs) == ["ceiling", "floor", "walls"]
     assert {o.name for o in objs} == {"l_floor", "l_ceiling", "l_walls"}
@@ -54,8 +51,7 @@ def test_objects_are_groups_when_there_are_no_groups(tmp_path):
 
 
 def test_negative_and_slashed_indices(tmp_path):
-    lines = ["v 0 0 0", "v 1 0 0", "v 1 1 0", "v 0 1 0", "vt 0 0", "vn 0 0 1",
-             "f -4/1/1 -1/1/1 -2/1/1 -3/1/1", "f 1//1 2//1 3//1", "f 1/1 3/1 4/1"]
+    lines = ["v 0 0 0", "v 1 0 0", "v 1 1 0", "v 0 1 0", "vt 0 0", "vn 0 0 1", "f -4/1/1 -1/1/1 -2/1/1 -3/1/1", "f 1//1 2//1 3//1", "f 1/1 3/1 4/1"]
     objs = AcousticObject.from_obj(write_obj(tmp_path / "q.obj", lines))
     assert len(objs) == 1 and objs[0].group == "default"
     mesh = objs[0].acoustic_geometry

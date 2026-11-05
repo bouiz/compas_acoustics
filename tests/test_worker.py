@@ -125,7 +125,7 @@ def test_an_unexpected_error_is_a_500_with_a_traceback(monkeypatch):
 def test_results_travel_as_compas_pb_with_numpy_made_plain():
     status, answer = call("simulate", scene(), "mono", {"image_source_order": 1, "ray_tracing": False})
     assert status == 200
-    (attribute, responses), = answer["responses"].items()
+    ((attribute, responses),) = answer["responses"].items()
     ir = next(iter(responses.values()))
     assert attribute == "mono" and ir.denormalized().ndim == 1
     assert isinstance(answer["warnings"], list)
@@ -418,7 +418,6 @@ def test_the_worker_installs_the_wheel_and_nothing_else(monkeypatch, tmp_path):
         install.install_worker(tmp_path / "compas_acoustics.whl", hybrid=hybrid, home=tmp_path / "worker", config=tmp_path / "worker.json")
         installs = [command[5:] for command in calls if command[:3] == ["uv", "pip", "install"]]
         assert installs == [[f"compas_acoustics @ {(tmp_path / 'compas_acoustics.whl').resolve().as_uri()}"]]
-
 
 
 def test_an_empty_or_zero_result_still_travels(monkeypatch):

@@ -25,14 +25,16 @@ def complementary_scattering(geometry):
     reflects off, so the room gives the specular part, ``prod sqrt(1 - s_i)``, and this one the scattered part,
     ``prod sqrt(s_i)``, both exact at ``s = 0`` and 1. A material without coefficients scatters ``DEFAULT_SCATTERING``.
     """
-    return replace(geometry, materials={
-        name: replace(
-            material,
-            scattering=1.0 - (np.full(len(material.absorption), DEFAULT_SCATTERING)
-                              if material.scattering is None else np.asarray(material.scattering, dtype=float)),
-        )
-        for name, material in geometry.materials.items()
-    })
+    return replace(
+        geometry,
+        materials={
+            name: replace(
+                material,
+                scattering=1.0 - (np.full(len(material.absorption), DEFAULT_SCATTERING) if material.scattering is None else np.asarray(material.scattering, dtype=float)),
+            )
+            for name, material in geometry.materials.items()
+        },
+    )
 
 
 def scattering_decay_time(distance: float, speed_of_sound: float) -> float:
@@ -41,7 +43,7 @@ def scattering_decay_time(distance: float, speed_of_sound: float) -> float:
     Ewert et al. (2025), Sec. 2.1.2: ``T_s = 6 (10**(1/5) - 1) 2R / c``, about ``7 R / c``, for a reflector at
     distance ``R``; for a general room "the mean free path length".
     """
-    return 6.0 * (10.0 ** 0.2 - 1.0) * 2.0 * distance / speed_of_sound
+    return 6.0 * (10.0**0.2 - 1.0) * 2.0 * distance / speed_of_sound
 
 
 def allpass_delays(decay_time: float, fs: float) -> np.ndarray:
@@ -98,9 +100,7 @@ def _unit_normal(vertices: np.ndarray) -> np.ndarray:
     return normal / np.linalg.norm(normal)
 
 
-def _first_hit(
-    faces: list[tuple[np.ndarray, str]], origin: np.ndarray, directions: np.ndarray
-) -> np.ndarray:
+def _first_hit(faces: list[tuple[np.ndarray, str]], origin: np.ndarray, directions: np.ndarray) -> np.ndarray:
     """Index of the first face each ray from ``origin`` meets, -1 for none.
 
     Points within a small tolerance of a face outline count as on it, because
