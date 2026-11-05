@@ -11,6 +11,7 @@ namespace CompasAcoustics.Grasshopper.Tests
     {
         private readonly string _home = Directory.CreateTempSubdirectory("compas_acoustics_install_").FullName;
         private readonly List<string> _calls = new();
+        private readonly List<string> _rhinoPythonCalls = new();
         private readonly List<string> _stops = new();
         private string? _failOn;
 
@@ -31,6 +32,9 @@ namespace CompasAcoustics.Grasshopper.Tests
         {
             var call = Path.GetFileName(program) + " " + string.Join(" ", args);
             _calls.Add(call);
+            // by path: on Windows the worker's Python has the same file name as Rhino's
+            if (program == WorkerInstaller.RhinoPython(_home))
+                _rhinoPythonCalls.Add(call);
             if (args.Contains("uv"))
             {
                 var bin = Path.Combine(args[args.Count - 2], "bin");
@@ -58,10 +62,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         {
             Installer().Install(_ => { });
 
-            var rhino = Path.GetFileName(WorkerInstaller.RhinoPython(_home));
-            var calls = _calls.Where(c => c.StartsWith(rhino + " ")).ToList();
-            Assert.Single(calls);
-            Assert.EndsWith(" uv", calls[0]);
+            Assert.EndsWith(" uv", Assert.Single(_rhinoPythonCalls));
         }
 
         [Fact]
