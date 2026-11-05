@@ -1,0 +1,54 @@
+name: publish_yak
+
+# the test server only, until the package is tested; https://test.yak.rhino3d.com is emptied regularly
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish (e.g. 1.2.3). Leave empty to use the version in pyproject.toml."
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  publish_test_yak:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: compas-dev/compas-actions/setup-python@v1
+        with:
+          python-version: "3.12"
+          management-tool: uv
+          extras: dev
+
+      # the Grasshopper plugin (net7.0) builds with the .NET 8 SDK
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Create the Rhino 8 Yak package
+        shell: pwsh
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ($Env:VERSION) { invoke yakerize --version $Env:VERSION } else { invoke yakerize }
+
+      # before publishing, so that a failed push still leaves the package
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: compas_acoustics_yak
+          path: dist/yak_package/*.yak
+          if-no-files-found: error
+
+      - name: Publish to the Yak test server
+        shell: pwsh
+        env:
+          YAK_TOKEN: ${{ secrets.YAK_DF_TOKEN }}
+        run: |
+          $file = Get-ChildItem -Path dist\yak_package\*.yak -File | Select-Object -ExpandProperty FullName
+          invoke publish-yak --yak-file $file --test-server

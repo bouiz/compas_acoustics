@@ -3,11 +3,13 @@ from __future__ import print_function
 import glob
 import os
 import shutil
+import subprocess
 import sys
 
 import compas_pb
 from compas_invocations2 import build
 from compas_invocations2 import docs as ci_docs
+from compas_invocations2 import grasshopper
 from compas_invocations2 import mkdocs as ci_mkdocs
 from compas_invocations2 import style
 from compas_invocations2 import tests
@@ -18,7 +20,7 @@ from invoke import Collection
 from invoke import task
 
 PLUGIN = os.path.join("src", "compas_acoustics_ghcsharp", "CompasAcoustics.Grasshopper")
-# what the installer copies into Grasshopper's Libraries folder (installer/installer.py GHA_FILES)
+# what the Yak package ships
 GHA_FILES = ["CompasAcoustics.gha", "CompasPb.dll", "Google.Protobuf.dll", "Newtonsoft.Json.dll"]
 
 
@@ -50,11 +52,11 @@ def generate(ctx):
     """Generate the Python and C# bindings of compas_acoustics.pb."""
 
 
-@task(help={"configuration": "Release (default) or Debug"})
-def build_gha(ctx, configuration="Release"):
+@task(help={"configuration": "Release (default) or Debug", "version": "Version of the plugin (default: the version in the .csproj)"})
+def build_gha(ctx, configuration="Release", version=None):
     """Build the Grasshopper plugin (CompasAcoustics.gha and the assemblies it needs) with the .NET SDK."""
     with ctx.cd(ctx.base_folder):
-        ctx.run('dotnet build "{}" -c {} --nologo'.format(PLUGIN, configuration))
+        ctx.run('dotnet build "{}" -c {} --nologo{}'.format(PLUGIN, configuration, " -p:Version={}".format(version) if version else ""))
     return os.path.join(ctx.base_folder, PLUGIN, "bin", configuration, "net7.0")
 
 
@@ -141,27 +143,25 @@ def pre_build(ctx):
     """Prepare the build: sync the pyproject.toml authors from CITATION.cff (the protobuf bindings are committed)."""
 
 
-@task(help={"output": "Folder where the installer bundle is created (default: dist/)"})
-def installer_bundle(ctx, output="dist"):
-    """Build the wheel and the Grasshopper plugin, and zip them with the Grasshopper installer."""
-    base = os.path.dirname(__file__)
-    bundle = os.path.join(base, output, "compas_acoustics_installer")
-    if os.path.isdir(bundle):
-        shutil.rmtree(bundle)
-    os.makedirs(os.path.join(bundle, "gha"))
-    # setuptools copies into build/lib without emptying it, so removed modules would ship again
-    shutil.rmtree(os.path.join(base, "build"), ignore_errors=True)
-
-    with ctx.cd(base):
-        ctx.run('"{}" -m pip wheel --no-deps --wheel-dir "{}" .'.format(sys.executable, bundle))
-    plugin = build_gha(ctx)
+@task(help={"version": "Version of the package (default: the version in pyproject.toml)"})
+def yakerize(ctx, version=None):
+    """Build the Grasshopper plugin and package it for Yak, Rhino's package manager, into dist/yak_package."""
+    # shortcut: grasshopper.yakerize copies .ghuser files only, not a compiled plugin; use it once it takes a .gha
+    base = ctx.base_folder
+    version = version or grasshopper._get_version_from_toml(os.path.join(base, "pyproject.toml"))
+    # Install Worker installs the compas_acoustics of the plugin's version, so the two must agree
+    plugin = build_gha(ctx, version=version)
+    target = os.path.join(base, "dist", "yak_package")
+    shutil.rmtree(target, ignore_errors=True)
+    os.makedirs(os.path.join(target, "misc"))
     for name in GHA_FILES:
-        shutil.copy2(os.path.join(plugin, name), os.path.join(bundle, "gha", name))
-    shutil.copy2(os.path.join(base, "installer", "compas_acoustics_installer.gh"), bundle)
-
-    wheels = glob.glob(os.path.join(bundle, "compas_acoustics-*.whl"))
-    archive = shutil.make_archive(bundle, "zip", os.path.dirname(bundle), os.path.basename(bundle))
-    print("Bundled {}, the Grasshopper plugin and the installer into {}".format(os.path.basename(wheels[0]), archive))
+        shutil.copy2(os.path.join(plugin, name), target)
+    for name in ("README.md", "LICENSE"):
+        shutil.copy2(os.path.join(base, name), os.path.join(target, "misc"))
+    manifest = shutil.copy2(os.path.join(base, "src", "compas_acoustics_ghcsharp", "yak_template", "manifest.yml"), target)
+    grasshopper._set_version_in_manifest(manifest, version)
+    # the yak executable is downloaded outside the target, or it would be packaged too
+    subprocess.run(grasshopper._get_yak_command(os.path.join(base, "dist")) + ["build", "--platform", "any"], cwd=target, check=True)
 
 
 ns = Collection(
@@ -180,7 +180,8 @@ ns = Collection(
     build.release,
     sync_authors,
     pre_build,
-    installer_bundle,
+    yakerize,
+    grasshopper.publish_yak,
     build_gha,
     generate_proto_classes,
     generate_csharp,

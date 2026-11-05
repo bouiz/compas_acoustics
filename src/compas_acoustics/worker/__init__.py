@@ -22,7 +22,7 @@ from pathlib import Path
 CONNECTION_ATTEMPTS = 1200
 PING_SECONDS = 0.1
 CONFIG = Path.home() / ".compas_acoustics" / "worker.json"
-# One file per running worker, {"pid", "port", "token"}, so that the installer can stop them before replacing the environment
+# One file per running worker, {"pid", "port", "token"}, so that Install Worker can stop them before replacing the environment
 WORKERS = Path.home() / ".compas_acoustics" / "workers"
 TOKEN_VARIABLE = "COMPAS_ACOUSTICS_WORKER_TOKEN"
 PARENT_VARIABLE = "COMPAS_ACOUSTICS_WORKER_PARENT"
@@ -207,7 +207,7 @@ class Client:
         info = candidate.info()
         if (info["compas_acoustics"], info["fingerprint"]) != (__version__, fingerprint()):
             candidate.stop()
-            raise RuntimeError(f"The worker at {python} runs a different compas_acoustics ({info['compas_acoustics']}) than this Python ({__version__}): run the installer again.")
+            raise RuntimeError(f"The worker at {python} runs a different compas_acoustics ({info['compas_acoustics']}) than this Python ({__version__}): reinstall the worker.")
         return candidate
 
 
@@ -243,7 +243,7 @@ def stop():
 def stop_running_workers(workers=None):
     """Ask every worker recorded in :data:`WORKERS` to shut down, and forget those that are gone.
 
-    The installer calls this before it replaces the worker environment, whose files a running worker holds open on Windows.
+    ``compas_acoustics.worker.install`` calls this before it replaces the worker environment, whose files a running worker holds open on Windows.
     """
     folder = Path(WORKERS if workers is None else workers)
     for record in sorted(folder.glob("*.json")) if folder.is_dir() else []:
@@ -301,7 +301,7 @@ def analyse(ir):
     Returns
     -------
     tuple of (:class:`compas_acoustics.Analyser`, list of str)
-        The analyser, its :attr:`analysis_data` filled, and the messages of the UserWarnings raised in the worker.
+        The analyser, its :attr:`~compas_acoustics.Analyser.analysis_data` filled, and the messages of the UserWarnings raised in the worker.
     """
     import warnings
 

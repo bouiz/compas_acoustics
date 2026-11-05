@@ -21,7 +21,7 @@ def test_the_wheel_ships_the_package_modules(tmp_path):
     assert "compas_acoustics/hybrid/diffraction.py" in names
     assert "compas_acoustics/simulation_methods/pra.py" in names
     assert "compas_acoustics/worker/service.py" in names
-    # the schema and its Python bindings; the Grasshopper plugin ships in the installer bundle, not in the wheel
+    # the schema and its Python bindings; the Grasshopper plugin ships in the Yak package, not in the wheel
     assert "compas_acoustics/pb/protobuf_defs/compas_acoustics/pb/generated/acoustics.proto" in names
     assert "compas_acoustics/pb/generated/acoustics_pb2.py" in names
     entry_points = next(n for n in names if n.endswith(".dist-info/entry_points.txt"))

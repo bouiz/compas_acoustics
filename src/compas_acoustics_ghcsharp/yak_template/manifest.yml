@@ -1,0 +1,14 @@
+name: compas_acoustics
+version: {{ version }}
+authors:
+  - Gramazio Kohler Research, ETH Zurich
+description: "Room acoustic simulation, analysis and auralisation for COMPAS, with a Grasshopper plugin for Rhino 8."
+url: "https://github.com/gramaziokohler/compas_acoustics"
+keywords:
+  - compas
+  - acoustics
+  - room acoustics
+  - auralisation
+  - impulse response
+  - ray tracing
+  - grasshopper

@@ -12,17 +12,17 @@ answer within ... s*.
 **Cause:** the worker's Python environment is missing or broken, often after an interrupted first installation
 (it downloads several GB), or something blocks local connections on `127.0.0.1`.
 
-**Fix:** run the installer again and wait until it says *Restart Rhino*; restart Rhino. Check that a firewall or
+**Fix:** press **Install** on the Install Worker component and wait until it says *installed*. Check that a firewall or
 security tool allows Rhino's local connections. The log names the Python it tried to start.
 
-## "Run the installer again"
+## "Use Install Worker again"
 
-**Symptom:** *is not this version's*, *runs compas_acoustics <version>* or *schema mismatch: run the installer again*.
+**Symptom:** *is not this version's*, *runs compas_acoustics <version>* or *schema mismatch: use Install Worker again*.
 
 **Cause:** the plugin and the worker come from different releases, for example after updating only one of them, or
 `COMPAS_ACOUSTICS_WORKER_PYTHON` points at an environment with another version.
 
-**Fix:** run the installer of the release you want, then restart Rhino. If you set
+**Fix:** press **Install** on the Install Worker component, which installs the plugin's version. If you set
 `COMPAS_ACOUSTICS_WORKER_PYTHON`, install the same `compas_acoustics` version there or unset it.
 
 ## Binaural or Ambisonics is missing in Python
@@ -60,17 +60,16 @@ xattr -dr com.apple.quarantine "<Components Folder>/compas_acoustics"
 **Symptom:** an older version of a component (for example an Audio Player) appears, or Grasshopper reports a
 component ID conflict.
 
-**Cause:** a copy installed another way: an old Yak package from the Package Manager, CPython components
-(`.ghuser`) of an earlier version in UserObjects, or a developer build folder listed in Grasshopper's settings.
+**Cause:** a copy installed another way: a plugin in Grasshopper's Libraries folder from an earlier installer, CPython
+components (`.ghuser`) of an earlier version in UserObjects, or a developer build folder listed in Grasshopper's settings.
 
-**Fix:** uninstall `compas_acoustics` in Rhino's Package Manager if it is listed there, delete
-`compas_acoustics` files from *File > Special Folders > User Object Folder*, remove extra folders listed by Rhino's
-`GrasshopperDeveloperSettings` command, and restart Rhino. The installer
-removes the old `.ghuser` components itself.
+**Fix:** delete the `compas_acoustics` folder from *File > Special Folders > Components Folder* and `compas_acoustics`
+files from *File > Special Folders > User Object Folder*, remove extra folders listed by Rhino's
+`GrasshopperDeveloperSettings` command, and restart Rhino.
 
 ## Where the logs are
 
 * The worker's log: right-click any component, **Open worker log**. It is a temporary file named
   `compas_acoustics_worker_<process>.log`, one per Rhino session.
-* The installer's log: the `log` output of the installer component.
+* The installation's log: the `log` output of the Install Worker component.
 * The worker's environment: `~/.compas_acoustics/worker.json` names its Python.

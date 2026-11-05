@@ -34,6 +34,6 @@ def test_guids_pair_spec_keys_with_component_guids_including_digits(fixtures):
 
 def test_the_real_specs_all_have_a_guid_and_a_known_subcategory():
     comps = load_components(SPECS_DIR)
-    assert len(comps) == 23
+    assert len(comps) == 24
     assert {c.key for c in comps} <= set(read_component_guids(CSHARP_DIR))
     assert {c.subcategory for c in comps} <= set(read_subcategory_order(COMPONENT_BASE_CS))

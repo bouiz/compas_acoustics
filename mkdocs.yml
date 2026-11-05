@@ -76,6 +76,8 @@ markdown_extensions:
   - pymdownx.superfences
   - toc:
       permalink: true
+      # the API pages' classes and functions, not their methods
+      toc_depth: 3
 
 plugins:
   - search
@@ -97,14 +99,15 @@ plugins:
               ignore_init_summary: true
             filters: public
             group_by_category: true
-            heading_level: 3
+            heading_level: 2
             inherited_members: false
             merge_init_into_class: true
             relative_crossrefs: true
             scoped_crossrefs: true
             separate_signature: true
+            show_category_heading: true
             show_root_heading: true
-            show_root_full_path: false
+            show_root_full_path: true
             show_signature_annotations: true
             show_source: false
             show_symbol_type_heading: true
@@ -126,8 +129,14 @@ nav:
       - grasshopper/getting_started.md
       - Components: grasshopper/components/index.md
       - Examples: grasshopper/examples/index.md
+  - API reference:
+      - compas_acoustics: api/compas_acoustics.md
+      - hybrid: api/compas_acoustics.hybrid.md
+      - pb: api/compas_acoustics.pb.md
+      - room: api/compas_acoustics.room.md
+      - simulation_methods: api/compas_acoustics.simulation_methods.md
+      - worker: api/compas_acoustics.worker.md
   - Reference:
-      - API: api/compas_acoustics.md
       - troubleshooting.md
       - contributing/docs.md
       - changelog.md

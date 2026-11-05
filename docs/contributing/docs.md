@@ -31,7 +31,7 @@ hash of each example file. The checks compare it with the sources.
 ## Make the images
 
 Grasshopper images
-:   Need Rhino 8 with the current plugin installed (`invoke installer-bundle`, then run the installer). Open
+:   Need Rhino 8 with the current plugin installed (`invoke yakerize`, then install the `.yak` of `dist/yak_package`). Open
     Rhino 8 and Grasshopper, open `docs/_tools/capture_grasshopper.py` in Rhino's ScriptEditor and run it. It
     captures what is missing or out of date (component screenshots, and the canvas and viewport of each `.ghx`)
     and updates the fingerprints. Set `ALL = True` at the top of the script to capture everything.

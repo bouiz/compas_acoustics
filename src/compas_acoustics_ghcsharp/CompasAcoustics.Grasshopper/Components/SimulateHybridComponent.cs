@@ -152,7 +152,7 @@ namespace CompasAcoustics.Grasshopper
         {
             await Task.Run(Worker.EnsureStarted, cancel).ConfigureAwait(false);
             if (!Worker.Hybrid)
-                throw new WorkerException($"{Name} needs a worker with pyFDN: run the installer.");
+                throw new WorkerException($"{Name} needs a worker with pyFDN: use Install Worker.");
             return await base.Call(request, callId, cancel).ConfigureAwait(false);
         }
 

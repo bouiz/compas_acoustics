@@ -285,7 +285,7 @@ def test_each_session_starts_its_own_worker_on_a_free_port_with_a_token(fake_wor
 
 def test_a_worker_with_other_sources_is_refused_and_stopped(fake_worker):
     fake_worker.fingerprint = "0" * 64
-    with pytest.raises(RuntimeError, match="run the installer again"):
+    with pytest.raises(RuntimeError, match="reinstall the worker"):
         worker.client()
     assert worker._CLIENT is None
     assert fake_worker.shutdowns == 1

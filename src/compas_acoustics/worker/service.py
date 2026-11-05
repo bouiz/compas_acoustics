@@ -190,7 +190,7 @@ def process_is_alive(pid):
 
 
 def _record(port, token):
-    # The token lets the installer stop this worker before it replaces the environment; the folder is the user's own
+    # The token lets Install Worker stop this worker before it replaces the environment; the folder is the user's own
     WORKERS.mkdir(parents=True, exist_ok=True)
     record = WORKERS / f"{os.getpid()}.json"
     record.write_text(json.dumps({"pid": os.getpid(), "port": port, "token": token}))

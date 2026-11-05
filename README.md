@@ -22,10 +22,9 @@ The [installation guide](https://gramaziokohler.github.io/compas_acoustics/lates
 pip install compas_acoustics
 ```
 
-**Rhino 8 / Grasshopper** (Windows and macOS): download `compas_acoustics_installer.zip` from the
-[latest release](https://github.com/gramaziokohler/compas_acoustics/releases/latest), unzip it, open
-`compas_acoustics_installer.gh` in Grasshopper, press **Install**, and restart Rhino. The installer adds the plugin and
-creates the worker, the Python 3.12 environment the components compute in.
+**Rhino 8 / Grasshopper** (Windows and macOS): install `compas_acoustics` from Rhino's Package Manager and restart
+Rhino. Then place the **Install Worker** component (Util panel) in Grasshopper and press **Install**: it creates the
+worker, the Python 3.12 environment the components compute in.
 
 For development:
 
@@ -47,12 +46,12 @@ scene.add_acoustic_objects(ca.AcousticObjectsLibrary.shoebox_room(8, 6, 3, mater
 scene.add_source(ca.Source("talker", 2, 2, 1.6))
 scene.add_receiver(ca.Receiver("listener", 6, 4, 1.2, direction=[-1, -0.5, 0]))
 
-mono = scene.simulate(ca.Mono(ray_tracing=True))              # pyroomacoustics: image sources + ray tracing
-binaural = scene.simulate(ca.Binaural())                       # needs Python >= 3.11
-ambisonics = scene.simulate(ca.Ambisonics(sh_order=1))         # ACN/SN3D, for a decoder elsewhere
+mono = scene.simulate(ca.Mono(ray_tracing=True))  # pyroomacoustics: image sources + ray tracing
+binaural = scene.simulate(ca.Binaural())  # needs Python >= 3.11
+ambisonics = scene.simulate(ca.Ambisonics(sh_order=1))  # ACN/SN3D, for a decoder elsewhere
 
 speech = ca.Defaults().ANECHOIC_SOUNDFILES_LIBRARY_PATH + "/female_speech.wav"
-signal = ca.Auraliser("room", list(binaural.values()), anechoic_sounds=[speech]).convolve()   # (samples, 2)
+signal = ca.Auraliser("room", list(binaural.values()), anechoic_sounds=[speech]).convolve()  # (samples, 2)
 ```
 
 `Auraliser` convolves and keeps the format of its responses: mono, binaural, or ambisonic ACN/SN3D (AmbiX) to save as a
@@ -88,7 +87,7 @@ the API reference.
 
 The code is released under the [MIT license](https://github.com/gramaziokohler/compas_acoustics/blob/main/LICENSE). The package also ships data under its own licences, some
 stricter than MIT: the HRTF set of `Binaural` is CC BY-SA 3.0 (share-alike), and the two speech recordings are
-CC BY-NC 4.0 (no commercial use). The [License and credits](https://gramaziokohler.github.io/compas_acoustics/latest/license/)
+CC BY-NC 4.0 (no commercial use). The [License and credits](https://gramaziokohler.github.io/compas_acoustics/latest/license.html)
 page lists every source and its licence.
 
 ## Issue Tracker

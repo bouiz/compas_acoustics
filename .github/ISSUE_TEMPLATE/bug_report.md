@@ -30,7 +30,7 @@ If applicable, add screenshots to help explain your problem.
 - compas_acoustics version [e.g. 0.1.0]
 - OS [e.g. Windows 11, macOS 15]
 - Rhino version [e.g. 8.12], or Python version [e.g. 3.12] for scripts
-- How compas_acoustics was installed [installer bundle, pip, editable clone]
+- How compas_acoustics was installed [Package Manager, pip, editable clone]
 
 **Worker log**
 

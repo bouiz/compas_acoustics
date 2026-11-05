@@ -227,6 +227,11 @@ def gear(image, d, accent):
     _dot(d, 48, 48, 12, accent)
 
 
+def install(image, d, accent):
+    d.polygon([(38, 12), (58, 12), (58, 42), (74, 42), (48, 70), (22, 42), (38, 42)], fill=accent)
+    _line(d, [(14, 66), (14, 84), (82, 84), (82, 66)], DARK)
+
+
 GLYPHS = {
     "CA_Acoustic_Object": wall,
     "CA_Analyse_IR": decay,
@@ -237,6 +242,7 @@ GLYPHS = {
     "CA_Deconstruct_IR": bars,
     "CA_Deconstruct_IR_Graph": graph,
     "CA_Deconstruct_Material": deconstruct_material,
+    "CA_Install_Worker": install,
     "CA_Material_Library": library,
     "CA_Model": room,
     "CA_Plot_2D": chart,

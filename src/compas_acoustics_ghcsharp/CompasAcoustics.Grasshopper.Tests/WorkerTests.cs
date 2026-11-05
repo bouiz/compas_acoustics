@@ -52,6 +52,29 @@ namespace CompasAcoustics.Grasshopper.Tests
             return FakeHandler.Result("answered");
         }
 
+        [Fact]
+        public void StopAll_AsksEveryRecordedWorkerToShutDownAndForgetsThem()
+        {
+            var folder = Path.Combine(_home, ".compas_acoustics", "workers");
+            Directory.CreateDirectory(folder);
+            var alive = Path.Combine(folder, "1.json");
+            var broken = Path.Combine(folder, "2.json");
+            File.WriteAllText(alive, "{\"pid\": 1, \"port\": 5000, \"token\": \"secret\"}");
+            File.WriteAllText(broken, "not json");
+            var asked = new List<string>();
+            var worker = new Worker(_starter, (uri, token) => new WorkerClient(uri, token, new FakeHandler((request, body) =>
+            {
+                asked.Add(request.RequestUri!.ToString());
+                File.Delete(alive);
+                return new HttpResponseMessage(HttpStatusCode.OK);
+            })), _ => null, _home, TimeSpan.Zero);
+
+            worker.StopAll();
+
+            Assert.Equal(new[] { "http://127.0.0.1:5000/shutdown" }, asked);
+            Assert.Empty(Directory.GetFiles(folder));
+        }
+
         private Worker Make(Func<string, string?>? getEnv = null) =>
             new Worker(_starter, (uri, token) => new WorkerClient(uri, token, new FakeHandler(Answer)),
                 getEnv ?? (name => name == "COMPAS_ACOUSTICS_WORKER_PYTHON" ? _python : null), _home, TimeSpan.Zero);
@@ -116,7 +139,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             var worker = Make();
             Assert.Throws<WorkerException>(() => worker.EnsureStarted());
             Assert.Equal(WorkerState.Stopped, worker.State);
-            Assert.Contains("run the installer again", worker.LastError);
+            Assert.Contains("use Install Worker again", worker.LastError);
         }
 
         [Fact]
@@ -146,7 +169,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         public void Start_WithoutConfiguredPython_ThrowsWorkerException()
         {
             var error = Assert.Throws<WorkerException>(() => Make(name => null).Call("make_scene"));
-            Assert.Equal("No worker: run the compas_acoustics installer.", error.Message);
+            Assert.Equal("No worker: use the Install Worker component.", error.Message);
             Assert.Empty(_starter.Started);
         }
 
@@ -206,7 +229,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             var error = Assert.Throws<WorkerException>(() => Make().Call("make_scene"));
             Assert.Contains("0.0.1", error.Message);
             Assert.Contains(Worker.Version, error.Message);
-            Assert.Contains("run the installer again", error.Message);
+            Assert.Contains("use Install Worker again", error.Message);
             Assert.Equal(1, _shutdowns);
             _version = Worker.Version;
             _schema = "0000";
@@ -270,7 +293,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             var started = System.Diagnostics.Stopwatch.StartNew();
             var error = Assert.Throws<WorkerException>(() => worker.Call("make_scene"));
             Assert.True(started.Elapsed < TimeSpan.FromSeconds(5));
-            Assert.Contains("run the installer again", error.Message);
+            Assert.Contains("use Install Worker again", error.Message);
             Assert.True(_starter.Processes.Single().Killed);
         }
 

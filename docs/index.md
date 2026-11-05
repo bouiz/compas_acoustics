@@ -17,7 +17,7 @@ compas_acoustics simulates, analyses and auralises the acoustics of rooms modell
 
     Components for Rhino 8 on Windows and macOS: build a room from Rhino geometry, simulate it, read its
     acoustic parameters and listen to it on the canvas. Start with the
-    [installer](installation/grasshopper.md).
+    [installation](installation/grasshopper.md).
 
 -   **[Use in Python](python/tutorial.md)**
 

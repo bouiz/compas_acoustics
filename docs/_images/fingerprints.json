@@ -102,6 +102,14 @@
         "data_origin"
       ]
     },
+    "CA_Install_Worker": {
+      "hash": "80809be503b2",
+      "inputs": [],
+      "outputs": [
+        "log",
+        "ok"
+      ]
+    },
     "CA_Material_Library": {
       "hash": "7df7b453f5a2",
       "inputs": [

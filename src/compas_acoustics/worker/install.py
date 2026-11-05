@@ -1,7 +1,7 @@
 """Create the worker's environment: a uv-managed CPython 3.12 with compas_acoustics, recorded in CONFIG.
 
-Run with the Python whose Grasshopper components will use the worker (Rhino's), after
-compas_acoustics is installed there; the installer does this when its ``worker`` input is set::
+For Python scripts; in Grasshopper the Install Worker component does this. Run with a Python that has
+compas_acoustics, with the wheel to install::
 
     python -m compas_acoustics.worker.install --wheel compas_acoustics-0.1.0-py3-none-any.whl [--hybrid]
 """
@@ -36,7 +36,7 @@ def install_worker(wheel, hybrid=False, home=WORKER_HOME, config=CONFIG, python_
     """Create the worker environment in ``home`` and record its interpreter in ``config``; returns the interpreter."""
     uv = _uv()
     home, config = Path(home), Path(config)
-    # The installer runs this with PYTHONPATH on Rhino's 3.9 packages; the worker's 3.12 must not load them
+    # Run from Rhino, PYTHONPATH is on its 3.9 packages; the worker's 3.12 must not load them
     env = {name: value for name, value in os.environ.items() if name not in ("PYTHONHOME", "PYTHONPATH")}
     # A running worker holds the files of the environment open, which Windows does not let go of
     stop_running_workers()
