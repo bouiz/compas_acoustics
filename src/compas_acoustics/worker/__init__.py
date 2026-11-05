@@ -301,7 +301,7 @@ def analyse(ir):
     Returns
     -------
     tuple of (:class:`compas_acoustics.Analyser`, list of str)
-        The analyser, its :attr:`analysis_data` filled, and the messages of the UserWarnings raised in the worker.
+        The analyser, its :attr:`~compas_acoustics.Analyser.analysis_data` filled, and the messages of the UserWarnings raised in the worker.
     """
     import warnings
 

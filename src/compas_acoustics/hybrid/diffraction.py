@@ -803,9 +803,9 @@ def diffraction_paths(spec: Pair, *, max_order: int = 1) -> list[DiffractionPath
 def encode_diffraction(
     paths: list[DiffractionPath], sh_order: int, n_samples: int, fs: float, *, normalization: str = "NM", extra_weights: np.ndarray | None = None
 ) -> np.ndarray:
-    """Encode diffracted paths at their arrival directions, as :func:`encode` does images.
+    """Encode diffracted paths at their arrival directions, as :func:`~compas_acoustics.hybrid.early.encode` does images.
 
-    ``extra_weights`` (M, K) adds K channels after the ambisonic ones, as :func:`encode`'s does: each
+    ``extra_weights`` (M, K) adds K channels after the ambisonic ones, as :func:`~compas_acoustics.hybrid.early.encode`'s does: each
     path's transfer function is evaluated once for all of them.
     """
     n_ch = (sh_order + 1) ** 2
@@ -1014,7 +1014,7 @@ def encode_btms(
 ) -> np.ndarray:
     """Encode BTMS contributions at their directions; free field 1/r to 1/(4 pi r).
 
-    ``extra_weights`` (M, K) adds K channels after the ambisonic ones, as :func:`encode`'s does.
+    ``extra_weights`` (M, K) adds K channels after the ambisonic ones, as :func:`~compas_acoustics.hybrid.early.encode`'s does.
     """
     n_ch = (sh_order + 1) ** 2
     n_extra = 0 if extra_weights is None else np.asarray(extra_weights).shape[1]

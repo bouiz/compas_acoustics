@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - main
-    tags:
-      - 'v*'
   pull_request:
     branches:
       - main
@@ -18,21 +16,10 @@ env:
   UV_TORCH_BACKEND: cpu
 
 jobs:
+  # only checks that the docs build: release.yml deploys them
   build:
-    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: compas-dev/compas-actions/docs@v1
         with:
-          extras: docs
-
-  deploy:
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: compas-dev/compas-actions/docs@v1
-        with:
-          deploy: true
           extras: docs

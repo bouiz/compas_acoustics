@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+* Changed the API reference to a section with a page per package; the table of contents stops at the classes and functions.
+* Changed the `docs` workflow to only build the docs; `release.yml` deploys them.
+
 ### Removed
 
 
