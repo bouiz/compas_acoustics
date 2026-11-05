@@ -84,7 +84,7 @@ jobs:
 
   # PyPI Trusted Publishing: owner gramaziokohler, repo compas_acoustics, workflow release.yml, environment pypi
   publish:
-    needs: [release, prepare]
+    needs: [release, prepare, installer-bundle]
     if: needs.release.outputs.is-release == 'true'
     runs-on: ubuntu-latest
     environment: pypi

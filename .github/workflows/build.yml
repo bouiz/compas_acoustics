@@ -44,39 +44,10 @@ jobs:
           management-tool: uv
           invoke-tasks: lint test format
 
-  installer-bundle:
+  grasshopper-plugin-test:
     needs: release-change
     if: github.event_name == 'pull_request' || needs.release-change.outputs.is-release != 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7.0.1
-        with:
-          persist-credentials: false
-
-      - uses: compas-dev/compas-actions/setup-python@v1
-        with:
-          python-version: "3.12"
-          management-tool: uv
-          extras: dev
-
-      # the Grasshopper plugin (net7.0) builds with the .NET 8 SDK
-      - uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: 8.0.x
-
-      - name: Build the wheel, the Grasshopper plugin and the installer bundle
-        run: invoke installer-bundle
-
-      - uses: actions/upload-artifact@v7.0.1
-        with:
-          name: compas_acoustics_installer
-          path: dist/compas_acoustics_installer
-          if-no-files-found: error
-
-  grasshopper-plugin:
-    needs: release-change
-    if: github.event_name == 'pull_request' || needs.release-change.outputs.is-release != 'true'
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -87,7 +58,7 @@ jobs:
       - name: Test the Grasshopper plugin
         run: dotnet test src/compas_acoustics_ghcsharp/CompasAcoustics.sln
 
-  hybrid:
+  hybrid-simulation-test:
     needs: release-change
     if: github.event_name == 'pull_request' || needs.release-change.outputs.is-release != 'true'
     runs-on: ubuntu-latest
