@@ -13,8 +13,6 @@
 The authors are listed in [`CITATION.cff`](https://github.com/gramaziokohler/compas_acoustics/blob/main/CITATION.cff)
 and in the citation on the [home page](index.md#how-to-cite), at Gramazio Kohler Research, ETH Zurich.
 
-The `Binaural` and `Ambisonics` methods follow hybrid-rir by Georgios Papadimitriou.
-
 ## Bundled data
 
 The package ships data with its own sources and licences, which can be stricter than the MIT license of the code.
