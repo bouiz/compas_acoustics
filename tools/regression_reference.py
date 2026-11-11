@@ -237,7 +237,8 @@ def compare(ref_dir, new_dir, metric_tol=1e-9):
         added = [d for d in diff if d.strip().startswith("absent")]
         if added:
             print(f"  {len(added)} new test(s)")
-        for line in [d for d in diff if not d.strip().startswith("absent")]:
+        # every change of outcome, and the new tests that do not pass
+        for line in [d for d in diff if not d.strip().startswith("absent") or "-> failure" in d or "-> error" in d]:
             print(line)
         changed = changed or bool(regressions)
     return changed

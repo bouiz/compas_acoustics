@@ -262,12 +262,14 @@ def trace_parallel(spec, mics, dirs, energies, position, n_processes: int, seeds
         )
     acc = [None] * len(mics)
     pool = _ray_pool(n_processes)
-    futures = {pool.submit(_trace_slice, job): len(slices[i]) for i, job in enumerate(jobs)}
+    futures = {pool.submit(_trace_slice, job): i for i, job in enumerate(jobs)}
+    parts = [None] * len(jobs)
     try:
         done = 0
         for future in as_completed(futures):
-            _accumulate(acc, future.result())
-            done += futures[future]
+            i = futures[future]
+            parts[i] = future.result()
+            done += len(slices[i])
             if progress is not None:
                 progress(done, n_total)
     except BaseException:
@@ -275,6 +277,9 @@ def trace_parallel(spec, mics, dirs, energies, position, n_processes: int, seeds
         for future in futures:
             future.cancel()
         raise
+    # summed in slice order, not completion order: float32 sums in another order differ in the last bits
+    for part in parts:
+        _accumulate(acc, part)
     return acc
 
 
