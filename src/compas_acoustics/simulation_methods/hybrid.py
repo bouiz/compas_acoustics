@@ -10,10 +10,13 @@ from __future__ import annotations
 import warnings
 from abc import abstractmethod
 from dataclasses import replace
+from functools import partial
 from pathlib import Path
 
 import numpy as np
 
+from compas_acoustics.directivity import band_gains
+from compas_acoustics.directivity import is_omnidirectional
 from compas_acoustics.hybrid.ambisonics import default_num_delays
 from compas_acoustics.hybrid.ambisonics import render_ambisonics
 from compas_acoustics.hybrid.early import image_sources
@@ -42,6 +45,11 @@ __all__ = ["Binaural", "Ambisonics", "TAILS"]
 
 #: Where the decay target of the late field comes from.
 TAILS = ("reference", "ray_tracing", "eyring", "sabine")
+
+
+def _emitted_gain(directivity, direction):
+    """The source pattern's amplitude per band (8,) towards ``direction`` (3,), for the diffracted paths."""
+    return np.broadcast_to(band_gains(directivity, np.asarray(direction, dtype=float).reshape(3, 1))[0], (8,))
 
 
 class _HybridMethod(SimulationMethod):
@@ -220,7 +228,14 @@ class _HybridMethod(SimulationMethod):
 
         rirs = {}
         for s, source in enumerate(context.sources):
-            directivity = None if source.directivity == "omnidirectional" else directivity_to_pra(source.directivity, source.direction)
+            directivity = None if is_omnidirectional(source.directivity) else directivity_to_pra(source.directivity, source.direction, fs)
+            source_gain = None if directivity is None else partial(_emitted_gain, directivity)
+            if directivity is not None and self.diffraction == "btms":
+                warnings.warn(
+                    f"Source '{source.name}' is directional, but BTMS diffraction radiates omnidirectionally; diffraction='udfa' applies the pattern.",
+                    UserWarning,
+                    stacklevel=3,
+                )
             for m, receiver in enumerate(context.receivers):
                 jobs.progress("rendering", s * len(context.receivers) + m, len(context.sources) * len(context.receivers))
                 key = context.key(source, receiver)
@@ -255,6 +270,7 @@ class _HybridMethod(SimulationMethod):
                     diffraction=self.diffraction or False,
                     rng=rng,
                     scattering=self.scattering,
+                    source_gain=source_gain,
                 )
                 rirs[key] = self._response(core, key, source, receiver, generation)
         return rirs

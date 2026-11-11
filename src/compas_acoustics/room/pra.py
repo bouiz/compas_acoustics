@@ -38,11 +38,16 @@ CARDIOID_P = {
 }
 
 
-def directivity_to_pra(dirt: str, vec: Vector) -> pra.CardioidFamily:
-    """A first-order pattern of :data:`CARDIOID_P` facing ``vec``, gain 1 on axis."""
-    if dirt not in CARDIOID_P:
-        raise ValueError(f"Directivity '{dirt}' is not supported.")
-    return pra.CardioidFamily(orientation=vector_to_pra(vec), p=CARDIOID_P[dirt], gain=1.0)
+def directivity_to_pra(dirt, vec: Vector, fs: Optional[int] = None):
+    """A first-order pattern of :data:`CARDIOID_P` facing ``vec``, gain 1 on axis; or a measured one (a SOFA path or a
+    pyroomacoustics directivity, :func:`compas_acoustics.directivity.to_pra`) at ``fs``, default the package's rate."""
+    if isinstance(dirt, str) and dirt in CARDIOID_P:
+        return pra.CardioidFamily(orientation=vector_to_pra(vec), p=CARDIOID_P[dirt], gain=1.0)
+    from compas_acoustics.directivity import to_pra
+
+    if fs is None:
+        fs = Defaults().SAMPLING_RATE
+    return to_pra(dirt, list(vec), fs)
 
 
 def points_to_array(
@@ -54,8 +59,8 @@ def points_to_array(
     return np.array([[*pt] for pt in pts]).T
 
 
-def source_to_pra(src: Source) -> pra.SoundSource:
-    """A source with its first-order directivity and, if it has one, the first channel of its sound file, peak-normalized."""
+def source_to_pra(src: Source, fs: Optional[int] = None) -> pra.SoundSource:
+    """A source with its directivity (at ``fs`` when measured) and, if it has one, the first channel of its sound file, peak-normalized."""
     if src.sound_file:
         audio_clean, _ = sf.read(src.sound_file, dtype="float32")
         if len(audio_clean.shape) > 1:
@@ -68,7 +73,7 @@ def source_to_pra(src: Source) -> pra.SoundSource:
         position=points_to_array(src.position),
         signal=audio_clean,
         # without a directivity object an omnidirectional source traces the default fibonacci rays
-        directivity=None if src.directivity == "omnidirectional" else directivity_to_pra(src.directivity, src.direction),
+        directivity=None if isinstance(src.directivity, str) and src.directivity == "omnidirectional" else directivity_to_pra(src.directivity, src.direction, fs),
     )
 
 

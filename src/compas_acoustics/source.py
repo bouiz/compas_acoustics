@@ -138,12 +138,17 @@ class Source(_PackageDtype, Point):
         return {
             "name": self.name,
             "point": [float(v) for v in self.position],
-            "directivity": self.directivity,
+            "directivity": self._serialisable_directivity(),
             "direction": [float(v) for v in self.direction],
             "sound_file": self.sound_file,
             "spl": list(self.spl),
             "description": self.description,
         }
+
+    def _serialisable_directivity(self):
+        if not isinstance(self.directivity, str):
+            raise ValueError(f"Source '{self.name}' has a directivity object, which cannot be serialised; give a SOFA file path instead.")
+        return self.directivity
 
     @classmethod
     def __from_data__(cls, data):

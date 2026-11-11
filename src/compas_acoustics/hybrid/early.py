@@ -107,11 +107,11 @@ def image_sources(room, source_index: int, mic_index: int, spec: Pair, directivi
     gain = wall_gain * spreading[:, np.newaxis]
 
     if directivity is not None:
+        from compas_acoustics.directivity import band_gains
+
+        # a broadband pattern scales every band alike, a measured one per band
         emitted = np.asarray(source.directions[mic_index], dtype=float)[:, visible]
-        azimuth = np.arctan2(emitted[1], emitted[0])
-        colatitude = np.arccos(np.clip(emitted[2] / np.linalg.norm(emitted, axis=0), -1.0, 1.0))
-        response = directivity.get_response(azimuth=azimuth, colatitude=colatitude, degrees=False)
-        gain = gain * np.asarray(response, dtype=float).reshape(-1, 1)
+        gain = gain * band_gains(directivity, emitted)
 
     # the rotation's columns are the receiver's axes, so the transpose takes a world vector to its frame
     offset = spec.receiver_rotation.T @ offset

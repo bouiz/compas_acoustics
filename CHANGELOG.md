@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Added `RoomGeometry.open_area` and `has_volume`: a prepared model that does not close takes its leaks as fully absorbing openings (from the share of reflections that escape) and its air volume from the mean free path, so Sabine, Eyring, the default duration and the ray-traced tail's echo density work on it, and `Binaural` and `Ambisonics` run on it with a warning. Scan directions that look out of an opening absorb all.
 
+* Added measured source directivities: `Source.directivity` takes a SOFA file (`"speaker.sofa"`, `"speaker.sofa#Genelec_8020"`), turned to the source's direction, or a pyroomacoustics `Directivity` used as given (`compas_acoustics.directivity`). The image sources and the ray tracer apply it; the hybrid weights each image and each UDFA diffracted path per octave band (`band_gains`), and warns that BTMS diffraction stays omnidirectional. SOFA files are read with sofar (`directivity.read_sofa`), DIRPAT files included, without python-sofa.
+
 ### Changed
 
 * Changed the API reference to a section with a page per package; the table of contents stops at the classes and functions.

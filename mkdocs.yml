@@ -131,6 +131,7 @@ nav:
       - Examples: grasshopper/examples/index.md
   - API reference:
       - compas_acoustics: api/compas_acoustics.md
+      - directivity: api/compas_acoustics.directivity.md
       - geometry: api/compas_acoustics.geometry.md
       - hybrid: api/compas_acoustics.hybrid.md
       - pb: api/compas_acoustics.pb.md

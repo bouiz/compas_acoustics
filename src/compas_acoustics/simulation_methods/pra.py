@@ -8,6 +8,7 @@ from typing import Union
 
 import numpy as np
 
+from compas_acoustics.directivity import is_omnidirectional
 from compas_acoustics.ir import ImpulseResponse
 from compas_acoustics.room.air import AirConditions
 from compas_acoustics.room.air import air_or_default
@@ -157,7 +158,7 @@ class Mono(SimulationMethod):
 
     def _reciprocal(self, context: SimulationContext) -> bool:
         """Whether the receivers emit: asked for, cheaper (more sources than receivers) and exact (omnidirectional sources)."""
-        return self.reciprocity and len(context.sources) > len(context.receivers) and all(s.directivity == "omnidirectional" for s in context.sources)
+        return self.reciprocity and len(context.sources) > len(context.receivers) and all(is_omnidirectional(s.directivity) for s in context.sources)
 
     def compute(self, context: SimulationContext) -> dict:
         if not context.sources or not context.receivers:
@@ -173,7 +174,7 @@ class Mono(SimulationMethod):
             emitters = [pra.SoundSource(position=points_to_array(receiver.position)) for receiver in context.receivers]
             mic_positions = np.array([source.position for source in context.sources], dtype=float).T
         else:
-            emitters = [source_to_pra(source) for source in context.sources]
+            emitters = [source_to_pra(source, fs) for source in context.sources]
             mic_positions = np.array([receiver.position for receiver in context.receivers], dtype=float).T
         from compas_acoustics.worker import jobs
 
