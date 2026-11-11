@@ -60,7 +60,11 @@ def test_an_open_model_runs_with_the_prepared_air_volume():
     prepared = _prepared(box, [source, receiver])
     geometry = ca.RoomGeometry.from_prepared(prepared, {"wall": WALL})
     assert not geometry.is_closed
-    assert geometry.volume == pytest.approx(prepared.air_volume) and prepared.air_volume > 0
+    # the walk's volume, scaled for the mean free path that ends at the openings too
+    assert geometry.open_area > 0 and prepared.air_volume > 0
+    assert geometry.volume == pytest.approx(prepared.air_volume * geometry.surface_area / (geometry.surface_area - geometry.open_area))
+    given = ca.RoomGeometry.from_prepared(prepared, {"wall": WALL}, air_volume=50.0)
+    assert given.volume == 50.0
     rir = _responses(_ca_scene(source, [receiver]), geometry)[0]
     assert np.isfinite(rir).all() and np.abs(rir).max() > 0
 

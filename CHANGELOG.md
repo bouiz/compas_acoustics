@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added `Mono(n_jobs=...)`: the sources run in processes of their own and the processes left over split each source's rays, whose histograms are summed (`compas_acoustics.room.parallel`); image-source responses are unchanged, ray-traced ones repeat for a given seed and `n_jobs`. No `Room` state is written from outside, unlike the removed `n_jobs`. `Binaural` and `Ambisonics` take `n_jobs` for their reference run and directional histograms, and `directional_histograms` takes it too.
 * Added `Mono(reciprocity=True)`: with more sources than receivers, all omnidirectional, the receivers emit, one room per receiver instead of one per source; `generation["reciprocal"]` says whether it applied.
 
+* Added `RoomGeometry.open_area` and `has_volume`: a prepared model that does not close takes its leaks as fully absorbing openings (from the share of reflections that escape) and its air volume from the mean free path, so Sabine, Eyring, the default duration and the ray-traced tail's echo density work on it, and `Binaural` and `Ambisonics` run on it with a warning. Scan directions that look out of an opening absorb all.
+
 ### Changed
 
 * Changed the API reference to a section with a page per package; the table of contents stops at the classes and functions.

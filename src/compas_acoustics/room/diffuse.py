@@ -148,8 +148,8 @@ def predicted_rt(
         models = {"sabine": _sabine, "eyring": _eyring}
     if model not in models:
         raise ValueError(f"model must be one of {sorted(models)}, got {model!r}")
-    if not geometry.is_closed:
-        raise ValueError("A diffuse-field prediction needs a closed room; the boundary surfaces do not close a volume.")
+    if not getattr(geometry, "has_volume", geometry.is_closed):
+        raise ValueError("A diffuse-field prediction needs a closed room or a given air volume; the boundary surfaces do not close a volume.")
     alpha = mean_absorption(geometry, weighting=weighting)
     if speed_of_sound is None:
         speed_of_sound = air_or_default(air).speed_of_sound

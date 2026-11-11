@@ -47,10 +47,13 @@ def scanned_absorption(spec: Pair, directions: pf.Coordinates, *, n_scan: int = 
     scan = scan / np.linalg.norm(scan, axis=1, keepdims=True)
 
     hit = _first_hit(faces, spec.receiver, scan)
-    if np.any(hit < 0):
+    open_room = not spec.geometry.is_closed
+    if np.any(hit < 0) and not open_room:
         raise RuntimeError(f"{int(np.sum(hit < 0))} of {hit.size} scanned directions meet no boundary; the room is not closed around the receiver")
     alpha = np.stack([spec.geometry.materials[name].absorption for _, name in faces])
-    alpha = alpha[hit][:, :N_BANDS]  # (n_scan, 8)
+    # in a room that does not close, a direction meeting nothing looks out of an opening: it absorbs all
+    alpha = np.vstack([alpha, np.ones((1, alpha.shape[1]))])
+    alpha = alpha[np.where(hit < 0, len(faces), hit)][:, :N_BANDS]  # (n_scan, 8)
 
     unit = directions.cartesian
     unit = unit / np.linalg.norm(unit, axis=1, keepdims=True)

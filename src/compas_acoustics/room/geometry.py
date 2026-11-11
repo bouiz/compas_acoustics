@@ -12,6 +12,7 @@ import warnings
 from collections import deque
 from contextlib import contextmanager
 from dataclasses import dataclass
+from dataclasses import replace
 from functools import cached_property
 from typing import Dict
 from typing import Iterator
@@ -29,7 +30,7 @@ from scipy.spatial import cKDTree
 from compas_acoustics.room.air import AirConditions
 from compas_acoustics.room.air import air_or_default
 
-__all__ = ["RoomGeometry", "SurfaceMaterial", "SYNTHESIS_BANDS", "OBSTACLE_OFFSET", "DEFAULT_SCATTERING", "PRA_STATE_LOCK", "pra_octave_grid"]
+__all__ = ["RoomGeometry", "SurfaceMaterial", "SYNTHESIS_BANDS", "OBSTACLE_OFFSET", "DEFAULT_SCATTERING", "PRA_STATE_LOCK", "OPEN_MATERIAL", "pra_octave_grid"]
 
 # The synthesis grid; materials start at 125 Hz and 62.5 Hz takes the 125 Hz value
 SYNTHESIS_BANDS = (62.5, 125.0, 250.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0)
@@ -104,6 +105,10 @@ class SurfaceMaterial:
         if self.scattering is None or other.scattering is None:
             return self.scattering is None and other.scattering is None
         return bool(np.array_equal(self.scattering, other.scattering))
+
+
+#: The material of :attr:`RoomGeometry.open_area`: an opening reflects nothing.
+OPEN_MATERIAL = SurfaceMaterial(name="open", absorption=np.ones(len(SYNTHESIS_BANDS)), scattering=np.zeros(len(SYNTHESIS_BANDS)))
 
 
 def _polygon_area_and_centroid(points: np.ndarray) -> Tuple[float, np.ndarray, np.ndarray]:
@@ -313,6 +318,8 @@ class RoomGeometry:
     check_inside: bool = True
     #: The air volume in m^3 when known otherwise than from a closed boundary (a prepared model's mean free path).
     air_volume: Optional[float] = None
+    #: Area of the openings in m^2, fully absorbing in :attr:`surfaces` and :attr:`surface_area` (a prepared, open model).
+    open_area: float = 0.0
 
     @classmethod
     def from_scene(cls, scene, merge_coplanar: bool = True, weld_tolerance: float = 1e-3, prepare=None) -> RoomGeometry:
@@ -413,10 +420,11 @@ class RoomGeometry:
             raise ValueError("The prepared mesh has no walls (check that its faces have materials).")
         one_sided = ~prepared.two_sided
         closed = bool(one_sided.any()) and bool(np.all(prepared.component_closed[prepared.component[one_sided]]))
-        if air_volume is None and not closed and prepared.air_volume > 0.0:
+        given_volume = air_volume is not None
+        if not given_volume and not closed and prepared.air_volume > 0.0:
             air_volume = float(prepared.air_volume)
         # the walls are welded already; this only joins corners the merge projected a hair apart
-        return cls._from_polygons(
+        geometry = cls._from_polygons(
             polygons,
             groups,
             surface,
@@ -427,6 +435,18 @@ class RoomGeometry:
             check_inside=check_inside,
             air_volume=air_volume,
         )
+        leak = float(getattr(prepared.visibility, "leak_fraction", 0.0)) if prepared.visibility is not None else 0.0
+        if not closed and leak > 0.0:
+            # In a diffuse field the share of reflections that escape is the openings' share of the boundary, so
+            # an opening of S f / (1 - f) absorbs what leaks through the walls the model lacks. The walk's mean free
+            # path runs between walls and openings, 4 V / (S + S_open), while the preparation's volume took it over
+            # the walls alone: scale it up by the same share. Both are diffuse-field estimates.
+            leak = min(leak, 0.99)
+            walls = geometry.surface_area
+            open_area = walls * leak / (1.0 - leak)
+            volume = geometry.air_volume if given_volume else geometry.air_volume * (walls + open_area) / walls
+            geometry = replace(geometry, open_area=open_area, air_volume=volume)
+        return geometry
 
     @classmethod
     def _from_scene_prepared(cls, scene, options) -> RoomGeometry:
@@ -588,6 +608,11 @@ class RoomGeometry:
         return [_polygon_area_and_centroid(self.vertices[list(face)]) for face in self.faces]
 
     @property
+    def has_volume(self) -> bool:
+        """Whether :attr:`volume` is defined: the room closes, or its air volume is given."""
+        return self.is_closed or self.air_volume is not None
+
+    @property
     def volume(self) -> float:
         """The air volume: :attr:`air_volume` when given, else the boundary's, less the volume each closed obstacle
         encloses, defined only for a closed room."""
@@ -636,13 +661,16 @@ class RoomGeometry:
         for i in self._exposed_faces():
             name = self.face_materials[i]
             areas[name] = areas.get(name, 0.0) + geometry[i][0]
-        return [(areas[name], self.materials[name]) for name in areas]
+        surfaces = [(areas[name], self.materials[name]) for name in areas]
+        if self.open_area > 0.0:
+            surfaces.append((self.open_area, OPEN_MATERIAL))
+        return surfaces
 
     @property
     def surface_area(self) -> float:
         """Total area exposed to the air: Sabine's and Eyring's ``S``, and the ``S`` of the mean free path ``4 V / S``."""
         geometry = self._face_geometry()
-        return float(sum(geometry[i][0] for i in self._exposed_faces()))
+        return float(sum(geometry[i][0] for i in self._exposed_faces())) + float(self.open_area)
 
     def area_normals(self) -> np.ndarray:
         """The unit normal of every exposed face scaled by its area, shape (n_exposed, 3); the boundary faces come first."""
@@ -791,6 +819,11 @@ class RoomGeometry:
             return self.is_inside(p)
 
         room.is_inside = is_inside
+        if self.air_volume is not None:
+            # the ray-traced tail's echo density follows the air volume, which pyroomacoustics' own
+            # divergence sum misreads on a model that does not close
+            volume = float(self.air_volume)
+            room.get_volume = lambda: volume
         return room
 
 

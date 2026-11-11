@@ -118,9 +118,19 @@ class _HybridMethod(SimulationMethod):
         # the 8 kHz octave's upper edge must lie below Nyquist
         if fs <= 2.0 * 8000.0 * np.sqrt(2.0):
             raise ValueError(f"the hybrid method needs a sample rate above 22627 Hz, got {fs}: the 8 kHz octave's upper edge must lie below Nyquist for the decay estimator")
-        if not geometry.is_closed:
+        if not geometry.has_volume:
             where = f"; first open edge from {geometry.open_edge[0]} to {geometry.open_edge[1]}" if geometry.open_edge else ""
-            raise ValueError(f"the hybrid method needs boundary surfaces that close a volume{where}.")
+            raise ValueError(
+                f"the hybrid method needs boundary surfaces that close a volume{where}, or a prepared model with its air volume "
+                "(RoomGeometry.from_prepared, or RoomGeometry.from_scene(scene, prepare=PrepareOptions()))."
+            )
+        if not geometry.is_closed:
+            warnings.warn(
+                f"The room does not close: the late field takes the prepared air volume ({geometry.volume:.0f} m^3) and the openings "
+                f"({geometry.open_area:.1f} m^2) as fully absorbing. Check the model's leaks before trusting the decay.",
+                UserWarning,
+                stacklevel=3,
+            )
         if context.outside:
             # in a closed room a point outside is a modelling error
             raise ValueError(f"the hybrid method: {context.outside} lie outside the room")
