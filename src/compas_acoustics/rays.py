@@ -3,6 +3,7 @@ image-source paths between sources and receivers (:meth:`SpecularReflections.fro
 
 import numbers
 import warnings
+from dataclasses import dataclass
 from typing import List
 from typing import Optional
 from typing import Union
@@ -17,7 +18,7 @@ from compas.tolerance import TOL
 from compas_acoustics.defaults import Defaults
 from compas_acoustics.defaults import _PackageDtype
 
-__all__ = ["Ray", "ScatteredRay", "RayField", "SpecularPath", "SpecularReflections"]
+__all__ = ["Ray", "ScatteredRay", "RayField", "SpecularPath", "SpecularReflections", "DiffractedPath", "diffracted_paths"]
 
 
 def _distance(time_ms: float) -> float:
@@ -824,21 +825,27 @@ class SpecularPath(Ray):
     image : :class:`compas.geometry.Point` or list
     receiver_index : int
         The receiver's index in the scene.
+    band_gain : list of float, optional
+        Pressure on the package scale per band of ``SYNTHESIS_BANDS`` (62.5 Hz to 8 kHz): ``prod sqrt(1 - alpha)`` of
+        its walls, ISO 9613-1 air over its length and ``1 / (4 pi length)``; its energy is the square.
     **kwargs
         Of :class:`compas_acoustics.Ray`.
     """
 
-    def __init__(self, points, order: int, walls: List[int], image, receiver_index: int, **kwargs):
+    def __init__(self, points, order: int, walls: List[int], image, receiver_index: int, band_gain=None, **kwargs):
         super().__init__(points, **kwargs)
         self.order = order
         self.walls = list(walls)
         self.image = Point(*image)
         self.receiver_index = receiver_index
+        self.band_gain = None if band_gain is None else [float(g) for g in band_gain]
 
     @property
     def __data__(self):
         data = super().__data__
         data.update(order=self.order, walls=self.walls, image=list(self.image), receiver_index=self.receiver_index)
+        if self.band_gain is not None:
+            data["band_gain"] = self.band_gain
         return data
 
     @classmethod
@@ -919,6 +926,19 @@ class SpecularReflections(RayField):
 
         walls = room.room_engine.walls
         tolerance = 1e-5 * max(float(np.ptp(geometry.vertices, axis=0).max()), 1.0)
+        from compas_acoustics.room.air import AirConditions
+        from compas_acoustics.room.geometry import SYNTHESIS_BANDS
+
+        reflection = {name: np.sqrt(1.0 - np.asarray(m.absorption, dtype=float)) for name, m in geometry.materials.items()}
+        air = AirConditions().air_attenuation(list(SYNTHESIS_BANDS))
+
+        def band_gain(points, path_walls):
+            length = float(sum(np.linalg.norm(np.subtract(b, a)) for a, b in zip(points[:-1], points[1:])))
+            gain = np.exp(-air * length / 2.0) / (4.0 * np.pi * max(length, 1e-9))
+            for w in path_walls:
+                gain = gain * reflection[geometry.face_materials[w]]
+            return gain
+
         paths = []
         untraced = 0
         for s, (source_index, source) in enumerate(sources):
@@ -949,6 +969,7 @@ class SpecularReflections(RayField):
                             walls=path_walls,
                             image=images[i],
                             receiver_index=receiver_index,
+                            band_gain=band_gain([start, *hits, end], path_walls),
                             source=source,
                             source_index=source_index,
                             ray_index=len(paths),
@@ -982,6 +1003,71 @@ class SpecularReflections(RayField):
             if (receiver_index is None or path.receiver_index == receiver_index) and (orders is None or path.order in orders)
         ]
         return SpecularReflections(kept, name=self.name)
+
+
+@dataclass
+class DiffractedPath:
+    """A first-order diffracted path for display: source (- wall) - apex on the edge (- wall) - receiver.
+
+    ``points`` are the polyline's corners; ``band_gain`` its pressure per band of ``SYNTHESIS_BANDS`` without the
+    edge's own filter (walls, air and ``1 / (4 pi distance)``); ``zone`` the receiver's side of the edge
+    (``"shadow"``, ``"view"`` or ``"reflection"``); ``edge`` indexes ``hybrid.diffraction.diffraction_edges``.
+    """
+
+    points: List[List[float]]
+    source_index: int
+    receiver_index: int
+    delay: float
+    distance: float
+    band_gain: List[float]
+    zone: str
+    order: int
+    edge: int
+
+    def to_dict(self) -> dict:
+        return {k: getattr(self, k) for k in self.__dataclass_fields__}
+
+
+def diffracted_paths(scene, max_order: int = 1, geometry=None) -> List[DiffractedPath]:
+    """The first-order diffracted paths (UDFA, as the hybrid methods and ``Mono(diffraction=True)`` use them) from
+    every source to every receiver, with at most one wall reflection when ``max_order`` >= 1. Needs spharpy.
+
+    ``geometry`` defaults to ``RoomGeometry.from_scene(scene)``.
+    """
+    from compas_acoustics.hybrid.diffraction import diffraction_paths
+    from compas_acoustics.hybrid.pair import Pair
+    from compas_acoustics.room.air import AirConditions
+    from compas_acoustics.room.geometry import RoomGeometry
+
+    geometry = RoomGeometry.from_scene(scene) if geometry is None else geometry
+    c = AirConditions().speed_of_sound
+    out = []
+    for s, source in enumerate(scene.sources):
+        for r, receiver in enumerate(scene.receivers):
+            spec = Pair(
+                geometry=geometry,
+                source=np.asarray(source.position, dtype=float),
+                receiver=np.asarray(receiver.position, dtype=float),
+                receiver_rotation=np.eye(3),
+                fs=float(scene.sampling_rate),
+                speed_of_sound=c,
+                require_volume=False,
+            )
+            for path in diffraction_paths(spec, max_order=min(max_order, 1)):
+                out.append(
+                    DiffractedPath(
+                        points=[[float(v) for v in p] for p in path.points],
+                        source_index=s,
+                        receiver_index=r,
+                        delay=float(path.delay),
+                        distance=float(path.distance),
+                        band_gain=[float(g) / (4.0 * np.pi * float(path.distance)) for g in path.band_gain],
+                        zone=str(path.zone),
+                        order=int(path.order),
+                        edge=int(path.edge),
+                    )
+                )
+    return out
 
 
 def _near(images: list, image, tolerance: float) -> bool:

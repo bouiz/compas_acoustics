@@ -14,7 +14,7 @@ from compas.data import json_load
 from compas_acoustics.defaults import Defaults
 from compas_acoustics.defaults import _PackageDtype
 
-__all__ = ["AcousticMaterial", "MaterialCategory", "MaterialsLibrary"]
+__all__ = ["AcousticMaterial", "MaterialCategory", "MaterialsLibrary", "pyroomacoustics_material_names"]
 
 
 class MaterialCategory(str, Enum):
@@ -117,6 +117,25 @@ class AcousticMaterial(_PackageDtype, Data):
         if coefficients is None:
             raise ValueError("You need to provide absorption coefficients.")
         self._absorption_coefficients = coefficients
+
+    @classmethod
+    def from_pyroomacoustics(cls, name: str) -> "AcousticMaterial":
+        """A material of pyroomacoustics' database (``pra.Material(name)``) on the package bands.
+
+        Its absorption, and its scattering when the database has it, at 125 Hz to 8 kHz; a database entry stopping
+        at 4 kHz holds its last value above, as pyroomacoustics does. ``data_origin`` says where it came from.
+        """
+        entry = _pra_material_table().get(name)
+        if entry is None:
+            raise ValueError(f"pyroomacoustics has no material named '{name}'")
+        scattering = _on_package_bands(entry["scattering"]) if "scattering" in entry else None
+        return cls(
+            name=name,
+            absorption_coefficients=_on_package_bands(entry["absorption"]),
+            scattering_coefficients=scattering,
+            description=entry["absorption"].get("description"),
+            data_origin="pyroomacoustics",
+        )
 
     @property
     def scattering_coefficients(self):
@@ -225,6 +244,51 @@ class AcousticMaterial(_PackageDtype, Data):
         return f"AcousticMaterial(name={self.name}, category={self.category.value}, data_origin={self.data_origin}, absorption_coefficients={self.absorption_coefficients}, scattering_coefficients={self.scattering_coefficients}, transmission_coefficients={self.transmission_coefficients})"  # noqa: E501
 
 
+def _pra_material_table() -> dict:
+    """pyroomacoustics' material database, flattened: name to its absorption (and scattering, when it has one) entry."""
+    global _PRA_MATERIALS
+    if _PRA_MATERIALS is None:
+        import json
+
+        import pyroomacoustics as pra
+
+        path = os.path.join(os.path.dirname(pra.__file__), "data", "materials.json")
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        table = {}
+
+        def walk(node, kind):
+            for key, value in node.items():
+                if isinstance(value, dict) and "coeffs" in value:
+                    table.setdefault(key, {})[kind] = value
+                elif isinstance(value, dict):
+                    walk(value, kind)
+
+        walk(data.get("absorption", {}), "absorption")
+        walk(data.get("scattering", {}), "scattering")
+        _PRA_MATERIALS = {k: v for k, v in table.items() if "absorption" in v}
+    return _PRA_MATERIALS
+
+
+_PRA_MATERIALS = None
+
+
+def pyroomacoustics_material_names() -> list:
+    """The names of pyroomacoustics' materials (``pra.Material(name)``), which :meth:`MaterialsLibrary.material_from_name` also finds."""
+    return sorted(_pra_material_table())
+
+
+def _on_package_bands(entry) -> list:
+    """Coefficients at 125 Hz to 8 kHz from a pyroomacoustics entry: the matching centres, the last band held above."""
+    centres = [float(f) for f in entry.get("center_freqs", [125, 250, 500, 1000, 2000, 4000, 8000][: len(entry["coeffs"])])]
+    coeffs = [float(c) for c in entry["coeffs"]]
+    out = []
+    for band in Defaults().DEFAULT_FREQUENCY_BANDS:
+        nearest = int(np.argmin([abs(np.log2(band / c)) for c in centres]))
+        out.append(coeffs[nearest])
+    return out
+
+
 class MaterialsLibrary:
     """The materials of a folder of JSON files, one per material, looked up by name."""
 
@@ -249,6 +313,9 @@ class MaterialsLibrary:
         return self._index
 
     def material_from_name(self, material_name: str) -> AcousticMaterial:
+        """The library's material of that name, else pyroomacoustics' (:meth:`AcousticMaterial.from_pyroomacoustics`)."""
+        if material_name not in self.index and _pra_material_table().get(material_name) is not None:
+            return AcousticMaterial.from_pyroomacoustics(material_name)
         return self.material_from_json(self.path_from_material_name(material_name))
 
     def material_from_json(self, path: str) -> AcousticMaterial:

@@ -26,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added `Mono(diffraction=True)`: the first-order UDFA paths of the obstacles' edges and the room's re-entrant corners, rendered into the mono response as the hybrid renders them, so the level is continuous across shadow boundaries. The band grid no longer needs pyFDN, so the mono method's diffraction runs without the `hybrid` extra.
 * Added diffraction at the convex edges of closed obstacles that are not convex (an L-shaped counter), oriented from their own winding; they were skipped.
 
+* Added `Analyser(ir, channel=...)` (any channel, no warning), `Analyser.decay_curves()` (the energy decay curve per band) and `Analyser.reliability()`: per band, the dynamic range the decay offers, ISO 3382-2's non-linearity of the T20 and T30 fits, and whether EDT, T20 and T30 can be trusted.
+* Added `SpecularPath.band_gain` (walls, air and spreading per band) and `rays.diffracted_paths(scene)`, the UDFA paths with their polylines (`DiffractionPath.points`), zones and band gains, for display.
+* Added `AcousticMaterial.from_pyroomacoustics(name)` and `pyroomacoustics_material_names()`; `MaterialsLibrary.material_from_name` falls back to pyroomacoustics' database for a name the library lacks.
+
 ### Changed
 
 * Changed the API reference to a section with a page per package; the table of contents stops at the classes and functions.
