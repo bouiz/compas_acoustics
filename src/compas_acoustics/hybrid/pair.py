@@ -30,6 +30,8 @@ class Pair:
     speed_of_sound: float = 343.0
     air_absorption: bool = True
     air: Optional[AirConditions] = None
+    #: False for a pair that needs no room volume (the mono method's diffracted paths)
+    require_volume: bool = True
 
     def __post_init__(self) -> None:
         for name in ("source", "receiver"):
@@ -41,7 +43,7 @@ class Pair:
         if rot.shape != (3, 3) or not np.allclose(rot @ rot.T, np.eye(3), atol=1e-8) or not np.isclose(np.linalg.det(rot), 1.0, atol=1e-8):
             raise ValueError("receiver_rotation must be a 3x3 proper rotation (orthogonal, determinant +1)")
         object.__setattr__(self, "receiver_rotation", rot)
-        if not getattr(self.geometry, "has_volume", self.geometry.is_closed):
+        if self.require_volume and not getattr(self.geometry, "has_volume", self.geometry.is_closed):
             raise ValueError("a hybrid response needs a closed room, or a prepared one with its air volume")
 
     def air_attenuation(self) -> np.ndarray:

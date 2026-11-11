@@ -23,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Added measured source directivities: `Source.directivity` takes a SOFA file (`"speaker.sofa"`, `"speaker.sofa#Genelec_8020"`), turned to the source's direction, or a pyroomacoustics `Directivity` used as given (`compas_acoustics.directivity`). The image sources and the ray tracer apply it; the hybrid weights each image and each UDFA diffracted path per octave band (`band_gains`), and warns that BTMS diffraction stays omnidirectional. SOFA files are read with sofar (`directivity.read_sofa`), DIRPAT files included, without python-sofa.
 
+* Added `Mono(diffraction=True)`: the first-order UDFA paths of the obstacles' edges and the room's re-entrant corners, rendered into the mono response as the hybrid renders them, so the level is continuous across shadow boundaries. The band grid no longer needs pyFDN, so the mono method's diffraction runs without the `hybrid` extra.
+* Added diffraction at the convex edges of closed obstacles that are not convex (an L-shaped counter), oriented from their own winding; they were skipped.
+
 ### Changed
 
 * Changed the API reference to a section with a page per package; the table of contents stops at the classes and functions.

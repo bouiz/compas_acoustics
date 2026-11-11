@@ -439,11 +439,26 @@ def _merge_collinear(pieces):
     return [(origin + lo * axis, origin + hi * axis, tuple(sorted(set(o)))) for lo, hi, o in merged]
 
 
+def _outward_normals(geometry: RoomGeometry, faces) -> dict | None:
+    """Unit normals pointing out of a closed obstacle component, from its consistent winding; None if it has none."""
+    from compas_acoustics.room.geometry import _orient
+    from compas_acoustics.room.geometry import _signed_volume
+
+    polygons = [list(geometry.obstacle_faces[i]) for i in faces]
+    flips, _, defect = _orient(geometry.vertices, polygons)
+    if defect is not None:
+        return None
+    wound = [p[::-1] if flip else p for p, flip in zip(polygons, flips)]
+    sign = 1.0 if _signed_volume(geometry.vertices, wound) > 0.0 else -1.0
+    return {i: sign * _polygon_area_and_centroid(geometry.vertices[w])[1] for i, w in zip(faces, wound)}
+
+
 def obstacle_edges(geometry: RoomGeometry) -> list[Edge]:
     """The diffracting edges of a mesh's obstacles.
 
     Closed convex components (shelves, cabinets) give wedges whose exterior
-    angle follows from the dihedral angle; planar components (panels,
+    angle follows from the dihedral angle; closed components that are not
+    convex (an L-shaped counter) give a wedge at each convex edge; planar components (panels,
     tabletops drawn as one surface) give knife edges along their outline.
     Anything else is skipped, with one :class:`ObstacleEdgeWarning` that counts
     the skipped components by material. Edges on an
@@ -451,7 +466,7 @@ def obstacle_edges(geometry: RoomGeometry) -> list[Edge]:
     and a rim lying there (a bottomless box on the floor) still counts as
     closed. ``Edge.component`` indexes :func:`obstacle_components`.
     """
-    occ = Occluders.from_geometry(geometry)
+    occ = _cached(geometry, "occluders", lambda: Occluders.from_geometry(geometry))
     edges: list[Edge] = []
     skipped: dict[str, int] = {}
     for c, faces in enumerate(obstacle_components(geometry)):
@@ -477,7 +492,14 @@ def obstacle_edges(geometry: RoomGeometry) -> list[Edge]:
         else:
             closed = all(len(owners) == 2 for _, _, owners in free)
             convex = closed and all(bool(np.all((points - info[i][2]) @ normal[i] < 1e-6)) for i in faces)
-            if not convex:
+            outward = None
+            if closed and not convex:
+                # a closed solid that is not convex (an L-shaped counter): outward normals from its winding, and only its
+                # convex edges diffract, the re-entrant ones opening less than pi to the air
+                outward = _outward_normals(geometry, faces)
+                if outward is not None:
+                    normal = outward
+            if not closed or (not convex and outward is None):
                 material = geometry.obstacle_face_materials[faces[0]]
                 skipped[material] = skipped.get(material, 0) + 1
                 continue
@@ -485,6 +507,8 @@ def obstacle_edges(geometry: RoomGeometry) -> list[Edge]:
                 cos_ij = float(np.clip(normal[i] @ normal[j], -1.0, 1.0))
                 if cos_ij > 1.0 - 1e-8:
                     continue
+                if not convex and (info[j][2] - (p + q) / 2.0) @ normal[i] > -1e-9:
+                    continue  # re-entrant
                 if tuple(np.round(normal[i], 6)) > tuple(np.round(normal[j], 6)):
                     i, j = j, i
                 axis = _canonical_axis(p, q)
@@ -544,7 +568,7 @@ def enclosure_edges(geometry: RoomGeometry) -> list[Edge]:
     if not getattr(geometry, "is_closed", True):
         warnings.warn("the boundary does not close a volume: room-boundary edges are not searched", ShellEdgeWarning, stacklevel=2)
         return []
-    occ = Occluders.from_geometry(geometry)
+    occ = _cached(geometry, "occluders", lambda: Occluders.from_geometry(geometry))
     n = len(occ.polygons) - occ.n_obstacle
     sides = _enclosure_sides(geometry, n)
     vertices = geometry.vertices
@@ -619,8 +643,25 @@ def enclosure_edges(geometry: RoomGeometry) -> list[Edge]:
 
 def diffraction_edges(geometry: RoomGeometry) -> list[Edge]:
     """Every diffracting edge: the obstacles' (:func:`obstacle_edges`), then
-    the room boundary's (:func:`enclosure_edges`)."""
-    return obstacle_edges(geometry) + enclosure_edges(geometry)
+    the room boundary's (:func:`enclosure_edges`). Kept per geometry: every pair of a run asks for them."""
+    return list(_cached(geometry, "edges", lambda: obstacle_edges(geometry) + enclosure_edges(geometry)))
+
+
+_CACHE: dict = {}
+
+
+def _cached(geometry: RoomGeometry, kind: str, make):
+    """``make()`` once per (geometry, kind): the geometry is immutable, so the edges and occluders it gives are too."""
+    import weakref
+
+    key = (id(geometry), kind)
+    entry = _CACHE.get(key)
+    if entry is not None and entry[0]() is geometry:
+        return entry[1]
+    value = make()
+    ref = weakref.ref(geometry, lambda _, key=key: _CACHE.pop(key, None))
+    _CACHE[key] = (ref, value)
+    return value
 
 
 @dataclass(frozen=True)
@@ -765,7 +806,7 @@ def diffraction_paths(spec: Pair, *, max_order: int = 1, source_gain=None) -> li
         raise ValueError("diffraction needs a RoomGeometry")  # noqa: TRY004
     c = spec.speed_of_sound
     receiver = np.asarray(spec.receiver, dtype=float)
-    occ = Occluders.from_geometry(geometry)
+    occ = _cached(geometry, "occluders", lambda: Occluders.from_geometry(geometry))
     edges = diffraction_edges(geometry)
     air = spec.air_attenuation()
 
@@ -869,7 +910,7 @@ def btms_paths(spec: Pair, *, max_order: int = 1, second_order: bool = True) -> 
         raise ValueError("diffraction needs a RoomGeometry")  # noqa: TRY004
     c, fs = spec.speed_of_sound, spec.fs
     receiver = np.asarray(spec.receiver, dtype=float)
-    occ = Occluders.from_geometry(geometry)
+    occ = _cached(geometry, "occluders", lambda: Occluders.from_geometry(geometry))
     edges = diffraction_edges(geometry)
     air = spec.air_attenuation()
 

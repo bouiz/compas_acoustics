@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import numpy as np
-import pyFDN
 
 from compas_acoustics.room.geometry import SYNTHESIS_BANDS
 
-BAND_EDGES, BANDS = pyFDN.octave_bands()
+try:
+    import pyFDN
+
+    BAND_EDGES, BANDS = pyFDN.octave_bands()
+except ImportError:  # the mono method's diffraction needs the grid, not the network
+    BANDS = np.asarray(SYNTHESIS_BANDS, dtype=float)
+    BAND_EDGES = np.stack([BANDS / np.sqrt(2.0), BANDS * np.sqrt(2.0)], axis=1)
 N_BANDS = BANDS.size
 
 # The estimator's per-band level matches the total energy in each band, so a white decay's level rises

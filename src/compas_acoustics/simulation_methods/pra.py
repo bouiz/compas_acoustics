@@ -59,6 +59,10 @@ class Mono(SimulationMethod):
         over split each source's rays (:func:`~compas_acoustics.room.parallel.split_processes`). Image-source
         responses are unchanged; ray-traced ones differ from a single-process run by Monte-Carlo noise and repeat
         for a given ``seed`` and ``n_jobs``.
+    diffraction : bool or str, default=False
+        True or ``'udfa'`` adds the first-order edge diffraction of the obstacles' edges and the room's re-entrant
+        corners (UDFA, Kirsch and Ewert 2023), with at most one wall reflection before or after the edge, as the
+        hybrid methods do. Needs spharpy (Python >= 3.11).
     reciprocity : bool, default=False
         With more sources than receivers, all omnidirectional, swap their roles: the receivers emit, which costs one
         room per receiver instead of one per source. Exact for the image sources; the ray-traced part is reciprocal
@@ -114,8 +118,13 @@ class Mono(SimulationMethod):
         air: Optional[AirConditions] = None,
         n_jobs: int = 1,
         reciprocity: bool = False,
+        diffraction=False,
     ):
         seed = _seed(seed)
+        model = {False: None, None: None, True: "udfa", "udfa": "udfa"}.get(diffraction, "invalid")
+        if model == "invalid":
+            raise ValueError(f"diffraction must be False, True or 'udfa' for the mono method (BTMS is the hybrid's), not {diffraction!r}")
+        self.diffraction = model
         if int(n_jobs) < 1:
             raise ValueError(f"n_jobs must be at least 1, got {n_jobs!r}")
         self.n_jobs = int(n_jobs)
@@ -154,6 +163,8 @@ class Mono(SimulationMethod):
             generation.update(n_rays=self.n_rays, energy_thres=self.energy_thres, duration=self.duration, receiver_radius=self.receiver_radius, seed=self.seed)
         if self.n_jobs != 1:
             generation["n_jobs"] = self.n_jobs
+        if self.diffraction:
+            generation["diffraction"] = self.diffraction
         return generation
 
     def _reciprocal(self, context: SimulationContext) -> bool:
@@ -203,6 +214,10 @@ class Mono(SimulationMethod):
             # responses[source][receiver] -> [receiver][source]
             responses = [[responses[s][m] for s in range(len(context.sources))] for m in range(len(context.receivers))]
 
+        if self.diffraction:
+            jobs.progress("diffraction")
+            responses = self._with_diffraction(context, responses)
+
         generation = dict(self.generation, scene=getattr(context.scene, "name", None))
         if self.reciprocity:
             generation["reciprocal"] = reciprocal
@@ -223,6 +238,57 @@ class Mono(SimulationMethod):
         if self.ray_tracing and rirs:
             self._warn_if_cut_short(rirs, fs)
         return rirs
+
+    def _with_diffraction(self, context: SimulationContext, responses):
+        """``responses[m][s]`` plus every first-order UDFA path (Kirsch and Ewert 2023), as the hybrid renders them.
+
+        The geometric sound and its reflections come from the image sources, which switch off behind an edge; the
+        diffracted paths make up that step on both sides of each shadow and reflection boundary, so the sum is
+        continuous. Paths have at most one wall reflection, before or after the edge.
+        """
+        from compas_acoustics.directivity import band_gains
+        from compas_acoustics.directivity import is_omnidirectional
+        from compas_acoustics.directivity import to_pra
+        from compas_acoustics.hybrid.bands import BANDS
+        from compas_acoustics.hybrid.diffraction import diffraction_paths
+        from compas_acoustics.hybrid.early import render_transfers
+        from compas_acoustics.hybrid.pair import Pair
+
+        fs = context.sampling_rate
+        air = air_or_default(self.air)
+        out = [list(row) for row in responses]
+        for s, source in enumerate(context.sources):
+            directivity = None if is_omnidirectional(source.directivity) else to_pra(source.directivity, list(source.direction), fs)
+            source_gain = None
+            if directivity is not None:
+
+                def source_gain(direction, directivity=directivity):
+                    return np.broadcast_to(band_gains(directivity, np.asarray(direction, dtype=float).reshape(3, 1))[0], (len(BANDS),))
+
+            for m, receiver in enumerate(context.receivers):
+                spec = Pair(
+                    geometry=context.geometry,
+                    source=np.asarray(source.position, dtype=float),
+                    receiver=np.asarray(receiver.position, dtype=float),
+                    receiver_rotation=np.eye(3),
+                    fs=float(fs),
+                    speed_of_sound=air.speed_of_sound,
+                    air_absorption=self.air_absorption,
+                    air=self.air,
+                    require_volume=False,
+                )
+                paths = diffraction_paths(spec, max_order=min(self.image_source_order, 1), source_gain=source_gain)
+                if not paths:
+                    continue
+                base = np.asarray(out[m][s], dtype=float)
+                n = base.size
+                if not self.ray_tracing:  # natural length: room for the latest path and its filters
+                    n = max(n, int(np.ceil(max(p.delay for p in paths) * fs)) + 1024)
+                gains = np.array([p.band_gain / (4.0 * np.pi * p.distance) for p in paths])
+                rendered = render_transfers(np.array([p.delay for p in paths]), [p.transfer for p in paths], gains, np.ones((len(paths), 1)), BANDS, fs, n)[:, 0]
+                rendered[: base.size] += base
+                out[m][s] = rendered
+        return out
 
     @staticmethod
     def _warn_if_cut_short(rirs: dict, fs: int) -> None:
