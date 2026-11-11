@@ -94,3 +94,25 @@ def materials_by_layer(groups, aliases=None, library=None):
     if missing:
         raise ValueError(f"No library material for {', '.join(missing)}; add them to the aliases")
     return materials
+
+
+def set_scattering_by_layer(materials, scattering):
+    """Override the scattering coefficients of the materials of the named layers.
+
+    Parameters
+    ----------
+    materials : dict
+        Group name to :class:`compas_acoustics.AcousticMaterial`, as :func:`materials_by_layer` returns it
+        (one material instance per group, so overriding one group leaves the others alone).
+    scattering : dict
+        Layer name to one coefficient for every band, or one per band.
+
+    Returns
+    -------
+    dict
+        ``materials``, changed in place.
+    """
+    for group, material in materials.items():
+        if layer_name(group) in scattering:
+            material.scattering_coefficients = scattering[layer_name(group)]
+    return materials
