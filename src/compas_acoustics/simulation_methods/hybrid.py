@@ -65,6 +65,7 @@ class _HybridMethod(SimulationMethod):
         normalize=True,
         air=None,
         scattering=False,
+        n_jobs=1,
     ):
         if tail is not None and tail not in TAILS:
             raise ValueError(f"tail must be None or one of {TAILS}, not {tail!r}")
@@ -101,6 +102,9 @@ class _HybridMethod(SimulationMethod):
         self.normalize = normalize
         self.air = air
         self.scattering = bool(scattering)
+        if int(n_jobs) < 1:
+            raise ValueError(f"n_jobs must be at least 1, got {n_jobs!r}")
+        self.n_jobs = int(n_jobs)
         self.reference_rirs = None
         self.results = {}
 
@@ -173,6 +177,8 @@ class _HybridMethod(SimulationMethod):
             "seed": self.seed,
             "scene": getattr(context.scene, "name", None),
         }
+        if self.n_jobs != 1:
+            generation["n_jobs"] = self.n_jobs
 
         # The longest Eyring RT, against which a given reference's length is checked
         eyring_rt = default_duration(geometry, air_absorption, air=air, factor=1.0)
@@ -199,6 +205,7 @@ class _HybridMethod(SimulationMethod):
                 air_absorption=air_absorption,
                 seed=self.seed,
                 air=air,
+                n_jobs=self.n_jobs,
             )
 
         rirs = {}
@@ -272,7 +279,7 @@ class _HybridMethod(SimulationMethod):
 
         if self.tail == "ray_tracing":
             absorption = True if self.air_absorption is None else bool(self.air_absorption)
-            method = Mono(ray_tracing=True, air_absorption=absorption, air=self.air, duration=self._own_duration(context.geometry, absorption, self.air))
+            method = Mono(ray_tracing=True, air_absorption=absorption, air=self.air, duration=self._own_duration(context.geometry, absorption, self.air), n_jobs=self.n_jobs)
             references, description = method.compute(context), method.generation
         elif isinstance(self.reference, str):
             references, description = context.scene.impulse_responses(self.reference), self.reference
@@ -370,6 +377,9 @@ _ENGINE_PARAMETERS = """
         Surface scattering after Ewert et al. (2025): each image keeps its specular part, ``prod sqrt(1 - s)``,
         in the early field; its scattered part, ``prod sqrt(s)``, enters the delay lines of its hemisphere
         through an allpass cascade. Needs a second image source search.
+    n_jobs : int, default=1
+        Processes for the reference run (``Mono(n_jobs=...)``, when the method runs it) and the directional
+        histograms, whose rays it splits.
 
     Attributes
     ----------
@@ -438,12 +448,27 @@ class Binaural(_HybridMethod):
         normalize=True,
         air=None,
         scattering=False,
+        n_jobs=1,
     ):
         hrtf = "kemar" if hrtf is None else hrtf
         if hrtf != "kemar" and not Path(hrtf).is_file():
             raise ValueError(f"hrtf must be 'kemar' or a SOFA file, not {hrtf!r}")
         super().__init__(
-            reference, tail, image_source_order, n_slopes, decay_db, duration, directional_absorption, late_envelope, diffraction, air_absorption, seed, normalize, air, scattering
+            reference,
+            tail,
+            image_source_order,
+            n_slopes,
+            decay_db,
+            duration,
+            directional_absorption,
+            late_envelope,
+            diffraction,
+            air_absorption,
+            seed,
+            normalize,
+            air,
+            scattering,
+            n_jobs,
         )
         self.hrtf = hrtf
         self._hrtf_set = None
@@ -515,13 +540,28 @@ class Ambisonics(_HybridMethod):
         normalize=True,
         air=None,
         scattering=False,
+        n_jobs=1,
     ):
         if normalization not in ("SN3D", "N3D"):
             raise ValueError(f"normalization must be 'SN3D' or 'N3D', not {normalization!r}")
         if sh_order < 0:
             raise ValueError("sh_order must be non-negative")
         super().__init__(
-            reference, tail, image_source_order, n_slopes, decay_db, duration, directional_absorption, late_envelope, diffraction, air_absorption, seed, normalize, air, scattering
+            reference,
+            tail,
+            image_source_order,
+            n_slopes,
+            decay_db,
+            duration,
+            directional_absorption,
+            late_envelope,
+            diffraction,
+            air_absorption,
+            seed,
+            normalize,
+            air,
+            scattering,
+            n_jobs,
         )
         self.sh_order = int(sh_order)
         self.normalization = normalization
