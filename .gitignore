@@ -157,3 +157,6 @@ src/compas_acoustics_ghcsharp/**/obj/
 docs/grasshopper/components/
 docs/grasshopper/examples/
 docs/python/examples/
+
+# Example outputs (figures, CSVs)
+examples/results/
