@@ -51,7 +51,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         {
             var python = Installer().Install(_ => { });
 
-            Assert.Contains(_calls, c => c.EndsWith("--python " + python + " compas_acoustics==1.2.3"));
+            Assert.Contains(_calls, c => c.EndsWith("--python " + python + " compas_acoustics[hybrid]==1.2.3"));
             using var json = JsonDocument.Parse(File.ReadAllText(Config));
             Assert.Equal(python, json.RootElement.GetProperty("python").GetString());
             Assert.True(json.RootElement.GetProperty("hybrid").GetBoolean());

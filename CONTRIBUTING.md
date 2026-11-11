@@ -12,7 +12,7 @@ In short, this is how that works.
 3. Install the package with its development dependencies:
 
    ```bash
-   pip install -e ".[dev]"
+   pip install -e ".[dev,hybrid]"
    ```
 
 4. Make sure all tests pass:

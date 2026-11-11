@@ -59,7 +59,7 @@ namespace CompasAcoustics.Grasshopper
             log($"Creating a Python {PythonVersion} environment...");
             Run(uv, log, "venv", "--python", PythonVersion, environment);
             log($"Installing compas_acoustics {_version}; the first time this can download several GB...");
-            Run(uv, log, "pip", "install", "--python", python, $"compas_acoustics=={_version}");
+            Run(uv, log, "pip", "install", "--python", python, $"compas_acoustics[hybrid]=={_version}");
             log("Importing compas_acoustics, the first time is slow...");
             Run(python, log, "-c", Warmup);
 

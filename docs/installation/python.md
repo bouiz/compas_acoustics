@@ -45,7 +45,7 @@ To work on `compas_acoustics`, install it from a local clone with the "dev" requ
 ```bash
 git clone https://github.com/gramaziokohler/compas_acoustics.git
 cd compas_acoustics
-pip install -e ".[dev]"
+pip install -e ".[dev,hybrid]"
 ```
 
 See [Contributing to the documentation](../contributing/docs.md) for building the documentation.

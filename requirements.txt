@@ -14,7 +14,4 @@ pyfar >=0.6, <0.8; python_version < "3.11"
 pyrato >=1.0.0; python_version >= "3.11"
 pyrato >=0.4, <1.0; python_version < "3.11"
 spharpy >=1.0; python_version >= "3.11"
-# The hybrid method. pyFDN requires flamo and with it PyTorch, which only its training modules use
-# pyFDN 0.6 removed fdn_build_gallery, which hybrid/late.py calls
-pyFDN >=0.5.0, <0.6; python_version >= "3.11"
-multislope >=0.1.1; python_version >= "3.11"
+# The hybrid methods (Binaural, Ambisonics) need the extra: pip install compas_acoustics[hybrid]

@@ -31,8 +31,11 @@ For development:
 ```bash
 git clone https://github.com/gramaziokohler/compas_acoustics.git
 cd compas_acoustics
-pip install -e ".[dev]"
+pip install -e ".[dev,hybrid]"
 ```
+
+`pip install compas_acoustics` gives the mono method, the analysis, rays and energy maps. The binaural and
+ambisonics methods need the `hybrid` extra (Python >= 3.11): `pip install compas_acoustics[hybrid]`.
 
 ## Getting started
 
@@ -47,7 +50,7 @@ scene.add_source(ca.Source("talker", 2, 2, 1.6))
 scene.add_receiver(ca.Receiver("listener", 6, 4, 1.2, direction=[-1, -0.5, 0]))
 
 mono = scene.simulate(ca.Mono(ray_tracing=True))  # pyroomacoustics: image sources + ray tracing
-binaural = scene.simulate(ca.Binaural())  # needs Python >= 3.11
+binaural = scene.simulate(ca.Binaural())  # needs compas_acoustics[hybrid], Python >= 3.11
 ambisonics = scene.simulate(ca.Ambisonics(sh_order=1))  # ACN/SN3D, for a decoder elsewhere
 
 speech = ca.Defaults().ANECHOIC_SOUNDFILES_LIBRARY_PATH + "/female_speech.wav"

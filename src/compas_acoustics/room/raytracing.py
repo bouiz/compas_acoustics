@@ -110,9 +110,10 @@ def ray_traced_rirs(
         "time_thres": float(duration),
         "hist_bin_size": _HIST_BIN,
     }
-    # The numpy seed only: pyroomacoustics derives the tracer's seed from it. None reseeds both from the OS.
-    pra.random.seed(seed)
     with pra_octave_grid():
+        # The numpy seed only: pyroomacoustics derives the tracer's seed from it. None reseeds both from the OS.
+        # Inside the lock, so that no other thread reseeds or draws between the seed and the tracing.
+        pra.random.seed(seed)
         room = geometry.to_pra(fs, max_order, ray_tracing=True, air_absorption=air_absorption, air=air)
         for source in sources:
             room.add_soundsource(source)
@@ -187,8 +188,11 @@ def directional_histograms(
         "time_thres": float(duration),
         "hist_bin_size": _HIST_BIN,
     }
-    pra.random.seed(seed)
+    from compas_acoustics.worker import jobs
+
     with pra_octave_grid():
+        # inside the lock, as in ray_traced_rirs
+        pra.random.seed(seed)
         room = geometry.to_pra(fs, max_order, ray_tracing=True, air_absorption=air_absorption, air=air)
         for source in sources:
             room.add_soundsource(source)
@@ -206,7 +210,8 @@ def directional_histograms(
         distance = (np.arange(n_bins) + 0.5) * bin_size * room.c
         damping = np.exp(-np.asarray(room.air_absorption, dtype=float)[:, np.newaxis] * distance[np.newaxis, :]) if air_absorption else np.ones((n_bands, n_bins))
         histograms = [[] for _ in unit]
-        for source in room.sources:
+        for s, source in enumerate(room.sources):
+            jobs.progress("directional histograms", s, len(room.sources))
             if source.directivity is None:
                 ray_directions = pra.fibonacci_spherical_sampling(n_rays).T
                 ray_energies = np.ones((n_rays, n_bands))

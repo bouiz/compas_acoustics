@@ -60,7 +60,7 @@ zip-safe = false
 [tool.setuptools.dynamic]
 version = { attr = "compas_acoustics.__version__" }
 dependencies = { file = "requirements.txt" }
-optional-dependencies = { dev = { file = "requirements-dev.txt" }, docs = { file = "requirements-docs.txt" } }
+optional-dependencies = { dev = { file = "requirements-dev.txt" }, docs = { file = "requirements-docs.txt" }, hybrid = { file = "requirements-hybrid.txt" } }
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -26,6 +26,6 @@ def __getattr__(name):
         try:
             hybrid = import_module(f"{__name__}.hybrid")
         except ImportError as error:
-            raise ImportError(f"{name} needs Python >= 3.11, where compas_acoustics installs pyFDN") from error
+            raise ImportError(f"{name} needs the hybrid dependencies: pip install compas_acoustics[hybrid] (Python >= 3.11)") from error
         return getattr(hybrid, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

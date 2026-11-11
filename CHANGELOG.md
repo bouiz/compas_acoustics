@@ -11,11 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Added `invoke yakerize` and `invoke publish-yak`, and the `publish_yak` workflow: the Grasshopper plugin as a Yak package, published to the Yak test server.
 * Added the Install Worker component, which creates the worker with the `compas_acoustics` of the plugin's version from PyPI.
+* Added `compas_acoustics.progress.reporting(callback)`: follow a simulation's stages from any caller and stop it by raising from the callback, without the worker. The directional histograms report per source.
+* Added `room.geometry.PRA_STATE_LOCK`, held while pyroomacoustics' process-wide constants and random generator are set and used, so seeded simulations in threads give the results they give alone.
 
 ### Changed
 
 * Changed the API reference to a section with a page per package; the table of contents stops at the classes and functions.
 * Changed the `docs` workflow to only build the docs; `release.yml` deploys them.
+* Changed pyFDN and multislope, which the binaural and ambisonics methods need (and with them flamo and PyTorch), to the optional `hybrid` extra: `pip install compas_acoustics[hybrid]`. The worker installer and the Install Worker component install it.
+* Changed `import compas_acoustics` to import its public names on first use, so the import no longer loads pyroomacoustics, pyfar or COMPAS until they are needed.
 
 ### Removed
 

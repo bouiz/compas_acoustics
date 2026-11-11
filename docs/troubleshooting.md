@@ -27,13 +27,14 @@ security tool allows Rhino's local connections. The log names the Python it trie
 
 ## Binaural or Ambisonics is missing in Python
 
-**Symptom:** `ca.Binaural` or `ca.Ambisonics` raises `ImportError: ... needs Python >= 3.11`.
+**Symptom:** `ca.Binaural` or `ca.Ambisonics` raises `ImportError: ... needs the hybrid dependencies`.
 
-**Cause:** they need Python 3.11 or newer (pyFDN, spharpy and multislope); on 3.9 and 3.10, Rhino 8's Python among
-them, `compas_acoustics` leaves them out.
+**Cause:** they need pyFDN, spharpy and multislope, which are an optional extra and need Python 3.11 or newer; on 3.9
+and 3.10, Rhino 8's Python among them, they cannot be installed.
 
-**Fix:** use an environment with Python 3.11 or newer. In Grasshopper the Simulate Binaural and Simulate Ambisonics
-components work anyway: they run in the worker, which has Python 3.12.
+**Fix:** in an environment with Python 3.11 or newer, `pip install compas_acoustics[hybrid]` (install torch from
+`https://download.pytorch.org/whl/cpu` first to avoid the CUDA build). In Grasshopper the Simulate Binaural and
+Simulate Ambisonics components work anyway: they run in the worker, which is installed with the extra.
 
 ## macOS blocks the plugin
 
