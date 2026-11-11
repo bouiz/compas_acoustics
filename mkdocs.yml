@@ -131,8 +131,10 @@ nav:
       - Examples: grasshopper/examples/index.md
   - API reference:
       - compas_acoustics: api/compas_acoustics.md
+      - geometry: api/compas_acoustics.geometry.md
       - hybrid: api/compas_acoustics.hybrid.md
       - pb: api/compas_acoustics.pb.md
+      - progress: api/compas_acoustics.progress.md
       - room: api/compas_acoustics.room.md
       - simulation_methods: api/compas_acoustics.simulation_methods.md
       - worker: api/compas_acoustics.worker.md

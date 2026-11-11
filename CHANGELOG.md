@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added the Install Worker component, which creates the worker with the `compas_acoustics` of the plugin's version from PyPI.
 * Added `compas_acoustics.progress.reporting(callback)`: follow a simulation's stages from any caller and stop it by raising from the callback, without the worker. The directional histograms report per source.
 * Added `room.geometry.PRA_STATE_LOCK`, held while pyroomacoustics' process-wide constants and random generator are set and used, so seeded simulations in threads give the results they give alone.
+* Added `compas_acoustics.geometry` (numpy and scipy only, ported from compas_soundscape): `prepare_mesh` welds a raw triangle mesh, orients every face from the side its sources and receivers are on by a random walk of rays (open, non-manifold and unwelded models included), makes surfaces with air on both sides two-sided, classifies faces, merges coplanar triangles into simple polygons and estimates the air volume from the mean free path; `analyze` reports sources outside or inside objects, blocked or separated paths, leaks and holes, the automatic fixes and the image source cost.
+* Added `RoomGeometry.from_prepared`: the room of a prepared mesh, its orientation kept, its two-sided walls as obstacles, its air volume used when it does not close; and `RoomGeometry.from_scene(scene, prepare=PrepareOptions())`, which prepares the scene's own surfaces that way (obstacles stay two-sided).
+* Added `RoomGeometry.check_inside` and `RoomGeometry.air_volume`, and `Scene.simulate(method, geometry=...)` / `SimulationContext.from_scene(scene, geometry)` to simulate a room built otherwise than from the scene.
 
 ### Changed
 

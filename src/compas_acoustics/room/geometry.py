@@ -309,9 +309,13 @@ class RoomGeometry:
     obstacle_face_materials: Tuple[str, ...] = ()
     #: How many faces fewer the room would have with ``merge_coplanar=True`` (0 once merged).
     mergeable_faces: int = 0
+    #: Whether :meth:`is_inside` tests points; False takes every point as in the air (a prepared, open model).
+    check_inside: bool = True
+    #: The air volume in m^3 when known otherwise than from a closed boundary (a prepared model's mean free path).
+    air_volume: Optional[float] = None
 
     @classmethod
-    def from_scene(cls, scene, merge_coplanar: bool = True, weld_tolerance: float = 1e-3) -> RoomGeometry:
+    def from_scene(cls, scene, merge_coplanar: bool = True, weld_tolerance: float = 1e-3, prepare=None) -> RoomGeometry:
         """Collect, weld, orient and validate every surface of ``scene``.
 
         Boundary faces that close a volume are wound outward; otherwise they are kept as drawn, with a
@@ -319,7 +323,14 @@ class RoomGeometry:
         since a wall reflects off one side only. ``merge_coplanar`` joins coplanar faces of one object and
         material into larger walls (a triangulated CAD mesh); ``False`` keeps them and warns where it could.
         ``weld_tolerance``, in metres, is a CAD model's usual absolute tolerance.
+
+        ``prepare``, a :class:`compas_acoustics.geometry.PrepareOptions`, instead orients every face from the side
+        the scene's sources and receivers are on, which also handles models that do not close, and finds thin
+        surfaces with air on both sides (:func:`compas_acoustics.geometry.prepare_mesh`; ``merge_coplanar`` and
+        ``weld_tolerance`` are then the options'). Obstacles stay two-sided.
         """
+        if prepare is not None:
+            return cls._from_scene_prepared(scene, prepare)
         polygons: List[np.ndarray] = []
         groups: List[Tuple[str, str, str]] = []  # (role, object name, material name)
         materials: Dict[str, SurfaceMaterial] = {}
@@ -350,7 +361,124 @@ class RoomGeometry:
         return cls._from_polygons(polygons, groups, dict(materials), merge_coplanar, weld_tolerance)
 
     @classmethod
-    def _from_polygons(cls, polygons, groups, materials, merge_coplanar, weld_tolerance) -> RoomGeometry:
+    def from_prepared(cls, prepared, materials, check_inside: bool = False, air_volume: Optional[float] = None) -> RoomGeometry:
+        """The room of a :class:`compas_acoustics.geometry.PreparedMesh`, its orientation and two-sided faces kept.
+
+        Every merged wall of ``prepared`` becomes a face: one-sided walls are the boundary, wound as prepared (their
+        normals point away from the air), and two-sided walls are obstacles, stored twice as usual. The room is
+        closed when every one-sided face belongs to a closed welded component.
+
+        Parameters
+        ----------
+        prepared : compas_acoustics.geometry.PreparedMesh
+            Whose ``face_material`` holds material names.
+        materials : mapping
+            Material name to :class:`~compas_acoustics.AcousticMaterial` or :class:`SurfaceMaterial`. A face whose
+            ``face_scattering`` is set gets a copy of its material with that scattering in every band.
+        check_inside : bool, default=False
+            False takes every point as in the air: the preparation already reports seeds outside the model
+            (:func:`compas_acoustics.geometry.analyze`).
+        air_volume : float, optional
+            In m^3; default the prepared mesh's (from the mean free path) when the room does not close.
+        """
+        surface: Dict[str, SurfaceMaterial] = {}
+
+        def resolve(name, scattering):
+            if not isinstance(name, str):
+                raise ValueError(f"face materials must be names, got {name!r}; resolve them before RoomGeometry.from_prepared")
+            if name not in materials:
+                raise ValueError(f"materials has no entry for '{name}'")
+            base = materials[name]
+            base = base if isinstance(base, SurfaceMaterial) else SurfaceMaterial.from_acoustic_material(base)
+            if np.isnan(scattering):
+                surface.setdefault(name, base)
+                return name
+            if not 0.0 <= scattering <= 1.0:
+                raise ValueError(f"scattering {scattering} outside [0, 1]")
+            derived = f"{name} (s={scattering:g})"
+            flat = np.full(len(SYNTHESIS_BANDS), float(scattering))
+            surface.setdefault(derived, SurfaceMaterial(name=derived, absorption=base.absorption, scattering=flat, impedance=base.impedance))
+            return derived
+
+        polygons: List[np.ndarray] = []
+        groups: List[Tuple[str, str, str]] = []
+        for wall in prepared.walls:
+            f0 = int(wall.faces[0])
+            obj = int(prepared.face_object[f0])
+            name = prepared.objects[obj] if obj >= 0 else "unnamed"
+            material = resolve(prepared.face_material[f0], float(prepared.face_scattering[f0]))
+            polygons.append(np.asarray(wall.corners, dtype=float))
+            groups.append(("obstacle" if prepared.two_sided[f0] else "boundary", str(name), material))
+        if not polygons:
+            raise ValueError("The prepared mesh has no walls (check that its faces have materials).")
+        one_sided = ~prepared.two_sided
+        closed = bool(one_sided.any()) and bool(np.all(prepared.component_closed[prepared.component[one_sided]]))
+        if air_volume is None and not closed and prepared.air_volume > 0.0:
+            air_volume = float(prepared.air_volume)
+        # the walls are welded already; this only joins corners the merge projected a hair apart
+        return cls._from_polygons(
+            polygons,
+            groups,
+            surface,
+            merge_coplanar=False,
+            weld_tolerance=1e-7,
+            trust_orientation=True,
+            closed=closed,
+            check_inside=check_inside,
+            air_volume=air_volume,
+        )
+
+    @classmethod
+    def _from_scene_prepared(cls, scene, options) -> RoomGeometry:
+        from compas_acoustics.geometry import prepare_mesh
+
+        vertices: List[np.ndarray] = []
+        faces: List[List[int]] = []
+        ranges: Dict[str, List[int]] = {}
+        face_materials: Dict[int, str] = {}
+        forced: List[bool] = []
+        materials: Dict[str, SurfaceMaterial] = {}
+        n = 0
+        for acoustic_object in scene.acoustic_objects:
+            if acoustic_object.material is None:
+                raise ValueError(f"Acoustic object '{acoustic_object.name}' has no material.")
+            material = SurfaceMaterial.from_acoustic_material(acoustic_object.material)
+            known = materials.setdefault(material.name, material)
+            if not known.same_coefficients(material):
+                raise ValueError(f"Two different materials are named '{material.name}'; material names must be unique.")
+            first = len(faces)
+            for polygon in _object_polygons(acoustic_object):
+                vertices.append(polygon)
+                for k in range(1, len(polygon) - 1):
+                    face_materials[len(faces)] = material.name
+                    faces.append([n, n + k, n + k + 1])
+                    forced.append(acoustic_object.role == "obstacle")
+                n += len(polygon)
+            name = str(acoustic_object.name)
+            while name in ranges:  # object names need not be unique
+                name += "'"
+            ranges[name] = [first, len(faces) - 1]
+        if not faces:
+            raise ValueError("The scene has no acoustic surfaces.")
+        seeds = [item.position for item in list(scene.sources) + list(scene.receivers)]
+        prepared = prepare_mesh(np.vstack(vertices), faces, ranges, face_materials, None, seeds, options, force_two_sided=forced)
+        return cls.from_prepared(prepared, materials)
+
+    @classmethod
+    def _from_polygons(
+        cls,
+        polygons,
+        groups,
+        materials,
+        merge_coplanar,
+        weld_tolerance,
+        trust_orientation: bool = False,
+        closed: Optional[bool] = None,
+        check_inside: bool = True,
+        air_volume: Optional[float] = None,
+    ) -> RoomGeometry:
+        if trust_orientation and closed is None:
+            raise ValueError("trust_orientation needs closed")
         if not polygons:
             raise ValueError("The scene has no acoustic surfaces.")
 
@@ -397,11 +525,12 @@ class RoomGeometry:
         boundary = [i for i, group in enumerate(groups) if group[0] == "boundary"]
         defect = None
         oriented = [faces[i] for i in boundary]
-        if boundary:
+        if boundary and not trust_orientation:
             oriented, defect = _orient_outward(vertices, oriented)
-        is_closed = bool(boundary) and defect is None
+        is_closed = bool(closed) if trust_orientation else bool(boundary) and defect is None
         open_edge = None
-        if not is_closed:
+        # a prepared mesh reports its open edges itself (compas_acoustics.geometry.analyze)
+        if not is_closed and not trust_orientation:
             if defect is not None:
                 open_edge = (tuple(vertices[defect[0]].tolist()), tuple(vertices[defect[1]].tolist()))
             where = f" (first open or non-manifold edge from {open_edge[0]} to {open_edge[1]})" if open_edge else ""
@@ -451,6 +580,8 @@ class RoomGeometry:
             obstacle_faces=tuple(tuple(face) for face, group in zip(faces, groups) if group[0] == "obstacle"),
             obstacle_face_materials=tuple(group[2] for group in groups if group[0] == "obstacle"),
             mergeable_faces=mergeable,
+            check_inside=check_inside,
+            air_volume=air_volume,
         )
 
     def _face_geometry(self) -> List[Tuple[float, np.ndarray, np.ndarray]]:
@@ -458,7 +589,10 @@ class RoomGeometry:
 
     @property
     def volume(self) -> float:
-        """The air volume: the boundary's, less the volume each closed obstacle encloses. Defined only for a closed room."""
+        """The air volume: :attr:`air_volume` when given, else the boundary's, less the volume each closed obstacle
+        encloses, defined only for a closed room."""
+        if self.air_volume is not None:
+            return float(self.air_volume)
         if not self.is_closed:
             raise ValueError("The room volume is undefined: the boundary surfaces do not close a volume.")
         boundary = [f for f, role in zip(self.faces, self.face_roles) if role == "boundary"]
@@ -522,8 +656,11 @@ class RoomGeometry:
     def is_inside(self, point) -> bool:
         """Whether ``point`` is in the air: inside a closed boundary (anywhere in an open scene), outside every closed obstacle.
 
-        Decided by generalised winding numbers over the drawn faces, so the obstacle copies play no part.
+        Decided by generalised winding numbers over the drawn faces, so the obstacle copies play no part. Always
+        True when :attr:`check_inside` is False.
         """
+        if not self.check_inside:
+            return True
         point = np.asarray(point, dtype=float).reshape(3)
         if self.is_closed and abs(_winding_number(point, self._triangles["boundary"])) < 0.5:
             return False
@@ -566,6 +703,7 @@ class RoomGeometry:
             materials={name: self.materials[name] for name in dict.fromkeys(names)},
             is_closed=self.is_closed,
             open_edge=self.open_edge,
+            check_inside=self.check_inside,
         )
 
     def to_pra(
