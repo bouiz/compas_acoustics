@@ -114,11 +114,8 @@ def _panel():
 
 
 def test_sofa_files_are_read_with_sofar():
-    path = os.path.join(
-        ca.Defaults().HRTFS_LIBRARY_PATH if hasattr(ca.Defaults(), "HRTFS_LIBRARY_PATH") else os.path.dirname(ca.__file__) + "/hrtfs_library", "KEMAR_FreeFieldComp_48kHz.sofa"
-    )
-    if not os.path.isfile(path):
-        path = os.path.join(os.path.dirname(ca.__file__), "hrtfs_library", "KEMAR_FreeFieldComp_48kHz.sofa")
+    # the HRTF set the package ships: a SimpleFreeFieldHRIR file
+    path = os.path.join(os.path.dirname(ca.__file__), "hrtfs_library", "KEMAR_FreeFieldComp_48kHz.sofa")
     ir, fs, sources, mics, _, _ = read_sofa(path, FS)
     assert fs == FS and ir.ndim == 3 and ir.shape[1] == 2  # (directions, ears, taps)
     assert sources.shape == (3, ir.shape[0]) and mics.shape[0] == 3
