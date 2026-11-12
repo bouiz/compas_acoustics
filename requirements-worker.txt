@@ -1,0 +1,4 @@
+# The Grasshopper worker's wire format (compas_acoustics.pb): pip install compas_acoustics[worker]
+# compas_pb needs protobuf >= 6.31, which hosts pinned to an older protobuf (e.g. tensorflow < 6) cannot install;
+# the library itself (simulation, analysis, geometry) does not need it.
+compas_pb >=1.2, <2.0
