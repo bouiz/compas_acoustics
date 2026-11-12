@@ -16,8 +16,11 @@ from .prepare import FACE_CLASS_SKIPPED
 from .prepare import VISIBILITY_QUALITY
 from .prepare import PreparedMesh
 from .prepare import PrepareOptions
+from .prepare import boundary_closes
 from .prepare import material_key
+from .prepare import obstacle_mask
 from .prepare import prepare_mesh
+from .prepare import standing_objects
 from .report import GeometryIssue
 from .report import GeometryReport
 from .report import Issues
@@ -46,7 +49,10 @@ __all__ = [
     "ReportOptions",
     "Seed",
     "analyze",
+    "boundary_closes",
     "material_key",
+    "obstacle_mask",
     "prepare_mesh",
+    "standing_objects",
     "summarize",
 ]

@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Changed the `docs` workflow to only build the docs; `release.yml` deploys them.
 * Changed pyFDN and multislope, which the binaural and ambisonics methods need (and with them flamo and PyTorch), to the optional `hybrid` extra: `pip install compas_acoustics[hybrid]`. The worker installer and the Install Worker component install it.
 * Changed `import compas_acoustics` to import its public names on first use, so the import no longer loads pyroomacoustics, pyfar or COMPAS until they are needed.
+* Changed `RoomGeometry.from_prepared` to make objects standing in the air obstacles too, not only two-sided walls (`geometry.standing_objects`, `obstacle_mask`, `boundary_closes`): closed furniture, objects of loose faces and bottomless boxes diffract at their own edges and no longer keep the room from closing.
 
 ### Removed
 

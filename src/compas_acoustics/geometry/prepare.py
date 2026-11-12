@@ -58,6 +58,9 @@ __all__ = [
     "PreparedMesh",
     "prepare_mesh",
     "material_key",
+    "standing_objects",
+    "obstacle_mask",
+    "boundary_closes",
 ]
 
 # Face classes. Two-sidedness is orthogonal to the class (PreparedMesh.two_sided): a thin surface is shell when
@@ -376,6 +379,82 @@ def prepare_mesh(
         origin=origin,
         stats=stats,
     )
+
+
+#: How far inside an object's bounding box a source or receiver must lie to keep the object part of the room, in metres.
+_OBJECT_SEED_MARGIN = 1e-3
+#: Signed volume, in m^3, below which a closed set of faces wound away from the air encloses its inside.
+_OBJECT_VOLUME_TOLERANCE = 1e-9
+
+
+def standing_objects(mesh) -> np.ndarray:
+    """Whether each face belongs to an object standing in the air (furniture, a column, a bottomless box), shape (F,).
+
+    Faces are wound away from the air, so a closed welded component the air surrounds encloses its volume inwards
+    (negative signed volume) while a room encloses its air outwards. An object of loose faces that still encloses a
+    volume (:attr:`PreparedMesh.enclosing_objects`) is judged the same way over its faces outside closed components.
+    Any other component is an object when its faces classed :data:`FACE_CLASS_INTERIOR` outweigh, by area, those
+    classed :data:`FACE_CLASS_SHELL`. A set of faces whose bounding box holds a source or receiver is never an object:
+    a solid mass whose cavities are the rooms winds inwards too.
+
+    Parameters
+    ----------
+    mesh : PreparedMesh
+        Or anything with its ``vertices``, ``faces``, ``areas``, ``face_class``, ``face_object``, ``component``,
+        ``component_closed``, ``enclosing_objects`` and ``seeds``.
+    """
+    faces = np.asarray(mesh.faces, dtype=np.int64).reshape(-1, 3)
+    if len(faces) == 0:
+        return np.zeros(0, dtype=bool)
+    points = np.asarray(mesh.vertices, dtype=float)[faces]
+    areas = np.asarray(mesh.areas, dtype=float)
+    face_class = np.asarray(mesh.face_class)
+    component = np.asarray(mesh.component, dtype=np.int64)
+    closed = np.asarray(mesh.component_closed, dtype=bool)
+    face_object = np.asarray(mesh.face_object)
+
+    # Groups: the welded components, then each enclosing object's loose faces; the first ones are judged by volume.
+    group = component.copy()
+    by_volume = list(closed)
+    loose = ~closed[component]
+    for obj in mesh.enclosing_objects:
+        sel = loose & (face_object == obj)
+        if sel.any():
+            group[sel] = len(by_volume)
+            by_volume.append(True)
+    n = len(by_volume)
+
+    weight = np.bincount(group, areas, n)
+    centroid = points.mean(axis=1)
+    centre = np.stack([np.bincount(group, areas * centroid[:, k], n) for k in range(3)], axis=1) / np.maximum(weight, 1e-30)[:, None]
+    q = points - centre[group][:, None, :]
+    volume = np.bincount(group, np.einsum("ij,ij->i", q[:, 0], np.cross(q[:, 1], q[:, 2])) / 6.0, n)
+    interior = np.bincount(group, areas * (face_class == FACE_CLASS_INTERIOR), n)
+    shell = np.bincount(group, areas * (face_class == FACE_CLASS_SHELL), n)
+    standing = np.where(np.asarray(by_volume), volume < -_OBJECT_VOLUME_TOLERANCE, interior > shell)
+
+    seeds = np.asarray(mesh.seeds, dtype=float).reshape(-1, 3)
+    if len(seeds):
+        lo = np.full((n, 3), np.inf)
+        hi = np.full((n, 3), -np.inf)
+        np.minimum.at(lo, group, points.min(axis=1))
+        np.maximum.at(hi, group, points.max(axis=1))
+        inside = (seeds[None] > lo[:, None] + _OBJECT_SEED_MARGIN) & (seeds[None] < hi[:, None] - _OBJECT_SEED_MARGIN)
+        standing &= ~inside.all(axis=2).any(axis=1)
+    return standing[group]
+
+
+def obstacle_mask(mesh) -> np.ndarray:
+    """Which faces are obstacles, shape (F,): the two-sided ones and the objects standing in the air (:func:`standing_objects`)."""
+    return np.asarray(mesh.two_sided, dtype=bool) | standing_objects(mesh)
+
+
+def boundary_closes(mesh, obstacle: Optional[np.ndarray] = None) -> bool:
+    """Whether the room's boundary (every face but the obstacles) closes: each of its faces belongs to a closed welded component."""
+    boundary = ~(obstacle_mask(mesh) if obstacle is None else np.asarray(obstacle, dtype=bool))
+    if not boundary.any():
+        return False
+    return bool(np.all(np.asarray(mesh.component_closed)[np.asarray(mesh.component)[boundary]]))
 
 
 def _classify(tris_before: TriangleSet, tri, verts, normals, total_hits, two_sided, options: PrepareOptions) -> np.ndarray:

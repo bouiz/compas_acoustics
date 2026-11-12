@@ -371,9 +371,10 @@ class RoomGeometry:
     def from_prepared(cls, prepared, materials, check_inside: bool = False, air_volume: Optional[float] = None) -> RoomGeometry:
         """The room of a :class:`compas_acoustics.geometry.PreparedMesh`, its orientation and two-sided faces kept.
 
-        Every merged wall of ``prepared`` becomes a face: one-sided walls are the boundary, wound as prepared (their
-        normals point away from the air), and two-sided walls are obstacles, stored twice as usual. The room is
-        closed when every one-sided face belongs to a closed welded component.
+        Every merged wall of ``prepared`` becomes a face: two-sided walls and the walls of objects standing in the air
+        (furniture, columns: :func:`compas_acoustics.geometry.standing_objects`) are obstacles, stored twice as usual,
+        and the others are the boundary, wound as prepared (their normals point away from the air). The room is
+        closed when every boundary face belongs to a closed welded component.
 
         Parameters
         ----------
@@ -388,7 +389,11 @@ class RoomGeometry:
         air_volume : float, optional
             In m^3; default the prepared mesh's (from the mean free path) when the room does not close.
         """
+        from compas_acoustics.geometry import boundary_closes
+        from compas_acoustics.geometry import obstacle_mask
+
         surface: Dict[str, SurfaceMaterial] = {}
+        obstacle = obstacle_mask(prepared)
 
         def resolve(name, scattering):
             if not isinstance(name, str):
@@ -415,11 +420,10 @@ class RoomGeometry:
             name = prepared.objects[obj] if obj >= 0 else "unnamed"
             material = resolve(prepared.face_material[f0], float(prepared.face_scattering[f0]))
             polygons.append(np.asarray(wall.corners, dtype=float))
-            groups.append(("obstacle" if prepared.two_sided[f0] else "boundary", str(name), material))
+            groups.append(("obstacle" if obstacle[f0] else "boundary", str(name), material))
         if not polygons:
             raise ValueError("The prepared mesh has no walls (check that its faces have materials).")
-        one_sided = ~prepared.two_sided
-        closed = bool(one_sided.any()) and bool(np.all(prepared.component_closed[prepared.component[one_sided]]))
+        closed = boundary_closes(prepared, obstacle)
         given_volume = air_volume is not None
         if not given_volume and not closed and prepared.air_volume > 0.0:
             air_volume = float(prepared.air_volume)

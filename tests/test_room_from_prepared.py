@@ -5,6 +5,7 @@ import warnings
 import numpy as np
 import pytest
 from test_geometry_prepare import _box
+from test_geometry_prepare import _faces_of
 from test_geometry_prepare import _room
 from test_geometry_prepare import _Scene
 
@@ -126,6 +127,82 @@ def test_from_scene_with_prepare_keeps_obstacles_two_sided_and_closes_loose_wall
     geometry = ca.RoomGeometry.from_scene(scene, prepare=PrepareOptions(detect_two_sided=False))
     assert geometry.is_closed and geometry.volume == pytest.approx(72.0)
     assert geometry.face_roles.count("obstacle") == 2
+
+
+FURNITURE = (2.0, 1.5, 0.0, 2.8, 2.1, 0.9)  # 0.8 x 0.6 x 0.9 m on the floor
+SEEDS = [[1.0, 1.0, 1.5], [4.5, 3.0, 1.2], [4.5, 1.0, 1.6], [1.0, 3.2, 0.5]]
+
+
+def _furnished(add_object):
+    box = _Scene()
+    _room(box)
+    add_object(box)
+    prepared = _prepared(box, SEEDS)
+    geometry = ca.RoomGeometry.from_prepared(prepared, {"wall": WALL})
+    return prepared, geometry
+
+
+def _object_edges(geometry):
+    from compas_acoustics.hybrid.diffraction import diffraction_edges
+
+    edges = diffraction_edges(geometry)
+    return [e for e in edges if e.component >= 0], [e for e in edges if e.component < 0]
+
+
+def test_a_closed_object_standing_in_the_room_is_an_obstacle():
+    prepared, geometry = _furnished(lambda s: s.add("cabinet", *_box(*FURNITURE)))
+    cabinet = _faces_of(prepared, "cabinet")
+    assert not prepared.two_sided[cabinet].any() and ca.geometry.standing_objects(prepared)[cabinet].all()
+    assert geometry.is_closed and geometry.face_roles.count("boundary") == 6
+    assert geometry.volume == pytest.approx(72.0 - 0.8 * 0.6 * 0.9)
+    obstacle, room = _object_edges(geometry)
+    assert len(obstacle) == 8 and not room  # the four vertical and four top edges; the base lies on the floor
+
+
+def test_a_bottomless_box_on_the_floor_is_an_obstacle_and_the_room_closes():
+    def add(scene):
+        v, f = _box(*FURNITURE)
+        scene.add("crate", v, f[2:])  # no base: an open component
+
+    prepared, geometry = _furnished(add)
+    assert not prepared.component_closed[prepared.component[_faces_of(prepared, "crate")]].any()
+    assert geometry.is_closed and geometry.face_roles.count("boundary") == 6
+    obstacle, _ = _object_edges(geometry)
+    assert len(obstacle) == 8
+
+
+def test_an_object_of_loose_faces_is_an_obstacle_and_the_room_closes():
+    def add(scene):
+        v, f = _box(*FURNITURE)
+        verts, faces = [], []
+        for a, b in zip(f[0::2], f[1::2]):  # each quad on its own, 2 mm in from its edges: never welded
+            quad = np.array([v[i] for i in dict.fromkeys(a + b)], dtype=float)
+            centre = quad.mean(axis=0)
+            quad = quad + 0.002 * (centre - quad) / np.linalg.norm(centre - quad, axis=1, keepdims=True)
+            k = len(verts)
+            verts += quad.tolist()
+            faces += [[k, k + 1, k + 2], [k, k + 2, k + 3]]
+        scene.add("loose", verts, faces)
+
+    prepared, geometry = _furnished(add)
+    loose = _faces_of(prepared, "loose")
+    assert prepared.objects.index("loose") in prepared.enclosing_objects
+    assert not prepared.component_closed[prepared.component[loose]].any()
+    assert ca.geometry.standing_objects(prepared)[loose].all()
+    assert geometry.is_closed and geometry.face_roles.count("boundary") == 6
+    obstacle, _ = _object_edges(geometry)
+    assert obstacle  # its faces do not share corners: knife edges along each
+
+
+def test_the_room_holding_the_sources_is_never_an_object():
+    box = _Scene()
+    _room(box)
+    prepared = _prepared(box, SEEDS)
+    assert not ca.geometry.standing_objects(prepared).any()
+    # a closed object around a receiver stays part of the room, whatever its winding
+    box.add("cabinet", *_box(*FURNITURE))
+    held = _prepared(box, SEEDS + [[2.4, 1.8, 0.45]])
+    assert not ca.geometry.standing_objects(held)[_faces_of(held, "cabinet")].any()
 
 
 def test_unknown_or_unresolved_materials_raise():
