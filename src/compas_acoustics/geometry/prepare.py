@@ -5,7 +5,8 @@ of every face touches the air the simulation happens in, from where the sources 
 by a diffuse random walk of rays from them (:mod:`.visibility`). Nothing is removed because of topology: open
 edges, non-manifold edges and coincident faces are reported, never pruned. The result is engine-neutral:
 
-- the geometric methods build their room with :meth:`compas_acoustics.RoomGeometry.from_prepared`;
+- the geometric methods build their room with :meth:`compas_acoustics.RoomGeometry.from_prepared`, whose
+  diffracting edges the sector detector (:mod:`.edges`) finds from the walls' normals, two-sided flags and hits;
 - a wave solver voxelises :attr:`PreparedMesh.faces` (single-sheet triangles with a two-sided flag);
 - :func:`compas_acoustics.geometry.report.analyze` turns it into user-facing issues.
 

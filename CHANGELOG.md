@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added `Mono(n_jobs=...)`: the sources run in processes of their own and the processes left over split each source's rays, whose histograms are summed (`compas_acoustics.room.parallel`); image-source responses are unchanged, ray-traced ones repeat for a given seed and `n_jobs`. No `Room` state is written from outside, unlike the removed `n_jobs`. `Binaural` and `Ambisonics` take `n_jobs` for their reference run and directional histograms, and `directional_histograms` takes it too.
 * Added `Mono(reciprocity=True)`: with more sources than receivers, all omnidirectional, the receivers emit, one room per receiver instead of one per source; `generation["reciprocal"]` says whether it applied.
 
-* Added `RoomGeometry.open_area` and `has_volume`: a prepared model that does not close takes its leaks as fully absorbing openings (from the share of reflections that escape) and its air volume from the mean free path, so Sabine, Eyring, the default duration and the ray-traced tail's echo density work on it, and `Binaural` and `Ambisonics` run on it with a warning. Scan directions that look out of an opening absorb all.
+* Added `RoomGeometry.open_area` and `has_volume`: a prepared model that does not close takes its leaks as fully absorbing openings (from the share of reflections that escape) and its air volume from the mean free path, so Sabine, Eyring, the default duration and the ray-traced tail's echo density work on it, and `Binaural` and `Ambisonics` run on it (with a warning when `open_area > 0`). Scan directions that look out of an opening absorb all.
 
 * Added measured source directivities: `Source.directivity` takes a SOFA file (`"speaker.sofa"`, `"speaker.sofa#Genelec_8020"`), turned to the source's direction, or a pyroomacoustics `Directivity` used as given (`compas_acoustics.directivity`). The image sources and the ray tracer apply it; the hybrid weights each image and each UDFA diffracted path per octave band (`band_gains`), and warns that BTMS diffraction stays omnidirectional. SOFA files are read with sofar (`directivity.read_sofa`), DIRPAT files included, without python-sofa.
 
@@ -29,14 +29,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added `Analyser(ir, channel=...)` (any channel, no warning), `Analyser.decay_curves()` (the energy decay curve per band) and `Analyser.reliability()`: per band, the dynamic range the decay offers, ISO 3382-2's non-linearity of the T20 and T30 fits, and whether EDT, T20 and T30 can be trusted.
 * Added `SpecularPath.band_gain` (walls, air and spreading per band) and `rays.diffracted_paths(scene)`, the UDFA paths with their polylines (`DiffractionPath.points`), zones and band gains, for display.
 * Added `AcousticMaterial.from_pyroomacoustics(name)` and `pyroomacoustics_material_names()`; `MaterialsLibrary.material_from_name` falls back to pyroomacoustics' database for a name the library lacks.
+* Added the sector edge detector, `compas_acoustics.geometry.sector_edges` (with `sector_edges_from_room`, `sector_edges_from_prepared`, `prepared_wall_sides`, `RawEdge`, `SectorEdges` and `SectorDiagnostics`): the diffracting edges of any polygons from the air sectors around each of their sides, with no roles, closed boundary or manifold mesh needed.
+* Added `hybrid.diffraction.set_diffraction_edges(geometry, edges)` and `clear_diffraction_edges(geometry)`: every diffracted path of that geometry uses the given subset of its `diffraction_edges` until it is cleared.
+* Added `hybrid.diffraction.AmbiguousEdgeWarning`, counting the edge pieces where the sector detector found faces disagreeing on which side is air.
+* Added `RoomGeometry.drawn_sides` (`room.geometry.DrawnSides`) and the `diffraction_min_excess` (radians) and `diffraction_min_length` (metres) options of `RoomGeometry.from_prepared`.
 
 ### Changed
 
+* Changed the hybrid (`Binaural` / `Ambisonics`) "room does not close" warning to fire only when `open_area > 0`: an unwelded or non-manifold shell with no escaping-ray share is quiet; a real leak still warns that openings are treated as fully absorbing.
 * Changed the API reference to a section with a page per package; the table of contents stops at the classes and functions.
 * Changed the `docs` workflow to only build the docs; `release.yml` deploys them.
 * Changed pyFDN and multislope, which the binaural and ambisonics methods need (and with them flamo and PyTorch), to the optional `hybrid` extra: `pip install compas_acoustics[hybrid]`. The worker installer and the Install Worker component install it.
 * Changed `import compas_acoustics` to import its public names on first use, so the import no longer loads pyroomacoustics, pyfar or COMPAS until they are needed.
 * Changed `RoomGeometry.from_prepared` to make objects standing in the air obstacles too, not only two-sided walls (`geometry.standing_objects`, `obstacle_mask`, `boundary_closes`): closed furniture, objects of loose faces and bottomless boxes diffract at their own edges and no longer keep the room from closing.
+* Changed `diffraction_edges` for rooms of a prepared mesh (`RoomGeometry.from_prepared`, `from_scene(prepare=...)`) to the sector detector over the walls' prepared sides (normal away from the air, two-sided, reached by the air): a room that does not close diffracts at its re-entrant corners and fused pillars, walls the air never reaches give no edge (a room of closed slabs has none), and a closed object standing in the room is one-sided even when declared an obstacle. An object of loose faces that share no side no longer gets knife edges. Rooms built otherwise keep the role-based detectors unchanged.
 
 ### Removed
 

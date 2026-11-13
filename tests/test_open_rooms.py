@@ -62,8 +62,25 @@ def test_an_unprepared_open_room_still_has_no_volume():
 def test_the_hybrid_runs_in_a_prepared_open_room_and_says_so():
     scene = _scene(True)
     geometry = ca.RoomGeometry.from_scene(scene, prepare=PrepareOptions())
+    assert geometry.open_area > 0.0
     with pytest.warns(UserWarning, match="does not close"):
         rirs = scene.simulate(ca.Ambisonics(sh_order=1, image_source_order=1, tail="eyring"), geometry=geometry)
+    ir = next(iter(rirs.values()))
+    assert ir.n_channels == 4 and np.all(np.isfinite(ir.ir))
+
+
+def test_the_hybrid_is_quiet_when_the_shell_is_open_but_nothing_escapes():
+    """Unwelded / non-manifold topology with open_area = 0 is not an acoustic leak: no warning."""
+    from dataclasses import replace
+
+    scene = _scene(False)
+    geometry = ca.RoomGeometry.from_scene(scene, prepare=PrepareOptions())
+    geometry = replace(geometry, is_closed=False, air_volume=float(geometry.volume), open_area=0.0)
+    assert not geometry.is_closed and geometry.open_area == 0.0 and geometry.has_volume
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        rirs = scene.simulate(ca.Ambisonics(sh_order=1, image_source_order=1, tail="eyring"), geometry=geometry)
+    assert not any("does not close" in str(w.message) for w in caught)
     ir = next(iter(rirs.values()))
     assert ir.n_channels == 4 and np.all(np.isfinite(ir.ir))
 

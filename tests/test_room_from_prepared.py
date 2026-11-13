@@ -191,7 +191,9 @@ def test_an_object_of_loose_faces_is_an_obstacle_and_the_room_closes():
     assert ca.geometry.standing_objects(prepared)[loose].all()
     assert geometry.is_closed and geometry.face_roles.count("boundary") == 6
     obstacle, _ = _object_edges(geometry)
-    assert obstacle  # its faces do not share corners: knife edges along each
+    # its faces share no side, and each is one-sided (air outside): the sector detector takes their free sides for
+    # the rims of an opening and finds no edge (the role-based detectors gave each face knife edges)
+    assert obstacle == []
 
 
 def test_the_room_holding_the_sources_is_never_an_object():

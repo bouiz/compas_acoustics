@@ -19,6 +19,7 @@ from compas_acoustics.directivity import band_gains
 from compas_acoustics.directivity import is_omnidirectional
 from compas_acoustics.hybrid.ambisonics import default_num_delays
 from compas_acoustics.hybrid.ambisonics import render_ambisonics
+from compas_acoustics.hybrid.diffraction import _keep_selection
 from compas_acoustics.hybrid.early import image_sources
 from compas_acoustics.hybrid.late import MIN_DELAYS
 from compas_acoustics.hybrid.late import fdn_directions
@@ -132,7 +133,9 @@ class _HybridMethod(SimulationMethod):
                 f"the hybrid method needs boundary surfaces that close a volume{where}, or a prepared model with its air volume "
                 "(RoomGeometry.from_prepared, or RoomGeometry.from_scene(scene, prepare=PrepareOptions()))."
             )
-        if not geometry.is_closed:
+        # Topology alone (unwelded seams, non-manifold edges) is not an acoustic leak: open_area is
+        # derived from the preparation's escaping-ray share. Warn only when openings actually absorb.
+        if not geometry.is_closed and geometry.open_area > 0.0:
             warnings.warn(
                 f"The room does not close: the late field takes the prepared air volume ({geometry.volume:.0f} m^3) and the openings "
                 f"({geometry.open_area:.1f} m^2) as fully absorbing. Check the model's leaks before trusting the decay.",
@@ -146,7 +149,9 @@ class _HybridMethod(SimulationMethod):
         rotations = {id(receiver): receiver.rotation for receiver in context.receivers}
         # A fully absorbing surface (an open window, alpha = 1) has no reflection, which the directional
         # absorption filters cannot represent when a delay line sees nothing else; 1 - 1e-6 reflects -60 dB.
-        geometry = replace(geometry, materials={name: replace(material, absorption=np.minimum(material.absorption, 1.0 - 1e-6)) for name, material in geometry.materials.items()})
+        clamped = replace(geometry, materials={name: replace(material, absorption=np.minimum(material.absorption, 1.0 - 1e-6)) for name, material in geometry.materials.items()})
+        _keep_selection(geometry, clamped)  # the same faces: a diffraction edge selection still holds
+        geometry = clamped
         self.results = {}
         if not context.sources or not context.receivers:
             return {}

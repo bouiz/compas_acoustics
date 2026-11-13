@@ -30,7 +30,7 @@ from scipy.spatial import cKDTree
 from compas_acoustics.room.air import AirConditions
 from compas_acoustics.room.air import air_or_default
 
-__all__ = ["RoomGeometry", "SurfaceMaterial", "SYNTHESIS_BANDS", "OBSTACLE_OFFSET", "DEFAULT_SCATTERING", "PRA_STATE_LOCK", "OPEN_MATERIAL", "pra_octave_grid"]
+__all__ = ["RoomGeometry", "SurfaceMaterial", "DrawnSides", "SYNTHESIS_BANDS", "OBSTACLE_OFFSET", "DEFAULT_SCATTERING", "PRA_STATE_LOCK", "OPEN_MATERIAL", "pra_octave_grid"]
 
 # The synthesis grid; materials start at 125 Hz and 62.5 Hz takes the 125 Hz value
 SYNTHESIS_BANDS = (62.5, 125.0, 250.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0)
@@ -105,6 +105,40 @@ class SurfaceMaterial:
         if self.scattering is None or other.scattering is None:
             return self.scattering is None and other.scattering is None
         return bool(np.array_equal(self.scattering, other.scattering))
+
+
+@dataclass(frozen=True, eq=False)
+class DrawnSides:
+    """Which sides of each drawn polygon the air touches, for the sector edge detector
+    (:func:`compas_acoustics.geometry.sector_edges`).
+
+    :meth:`RoomGeometry.from_prepared` sets it from the prepared mesh's walls. In a room the polygons are those of
+    :class:`~compas_acoustics.hybrid.diffraction.Occluders`, in its order: ``obstacle_faces``, then the boundary faces.
+
+    Attributes
+    ----------
+    normals : (n, 3) ndarray
+        For a one-sided polygon, its normal pointing away from the air; only its side of the polygon's plane is used.
+    two_sided : (n,) ndarray of bool
+        Air on both sides.
+    reached : (n,) ndarray of bool
+        False where the air never touches the polygon: both of its sides are solid.
+    min_excess : float
+        In radians: an air sector must open wider than pi by more than this to diffract.
+    min_length : float
+        In metres: shorter edges are dropped.
+    """
+
+    normals: np.ndarray
+    two_sided: np.ndarray
+    reached: np.ndarray
+    min_excess: float = 1e-4
+    min_length: float = 0.0
+
+    def take(self, indices) -> DrawnSides:
+        """The sides of the polygons ``indices``, in that order."""
+        indices = np.asarray(list(indices), dtype=np.int64)
+        return replace(self, normals=self.normals[indices].reshape(-1, 3), two_sided=self.two_sided[indices], reached=self.reached[indices])
 
 
 #: The material of :attr:`RoomGeometry.open_area`: an opening reflects nothing.
@@ -320,6 +354,10 @@ class RoomGeometry:
     air_volume: Optional[float] = None
     #: Area of the openings in m^2, fully absorbing in :attr:`surfaces` and :attr:`surface_area` (a prepared, open model).
     open_area: float = 0.0
+    #: Which sides of each drawn polygon the air touches (a prepared model): when set,
+    #: :func:`~compas_acoustics.hybrid.diffraction.diffraction_edges` finds the edges by the sector detector from it,
+    #: otherwise by the role-based legacy detectors.
+    drawn_sides: Optional[DrawnSides] = None
 
     @classmethod
     def from_scene(cls, scene, merge_coplanar: bool = True, weld_tolerance: float = 1e-3, prepare=None) -> RoomGeometry:
@@ -368,13 +406,28 @@ class RoomGeometry:
         return cls._from_polygons(polygons, groups, dict(materials), merge_coplanar, weld_tolerance)
 
     @classmethod
-    def from_prepared(cls, prepared, materials, check_inside: bool = False, air_volume: Optional[float] = None) -> RoomGeometry:
+    def from_prepared(
+        cls,
+        prepared,
+        materials,
+        check_inside: bool = False,
+        air_volume: Optional[float] = None,
+        *,
+        diffraction_min_excess: float = 1e-4,
+        diffraction_min_length: float = 0.0,
+    ) -> RoomGeometry:
         """The room of a :class:`compas_acoustics.geometry.PreparedMesh`, its orientation and two-sided faces kept.
 
         Every merged wall of ``prepared`` becomes a face: two-sided walls and the walls of objects standing in the air
         (furniture, columns: :func:`compas_acoustics.geometry.standing_objects`) are obstacles, stored twice as usual,
         and the others are the boundary, wound as prepared (their normals point away from the air). The room is
         closed when every boundary face belongs to a closed welded component.
+
+        The diffracting edges (:func:`~compas_acoustics.hybrid.diffraction.diffraction_edges`) are found by the sector
+        detector (:func:`compas_acoustics.geometry.sector_edges`) from what the preparation knows of each wall
+        (:attr:`drawn_sides`, :func:`compas_acoustics.geometry.prepared_wall_sides`), not from the roles: a room that
+        does not close still diffracts at its re-entrant corners and at the pillars fused into its shell, and a wall
+        the air never reaches gives no edge.
 
         Parameters
         ----------
@@ -388,9 +441,15 @@ class RoomGeometry:
             (:func:`compas_acoustics.geometry.analyze`).
         air_volume : float, optional
             In m^3; default the prepared mesh's (from the mean free path) when the room does not close.
+        diffraction_min_excess : float, default=1e-4
+            In radians: an edge diffracts when its air sector opens wider than pi by more than this (the facets of a
+            tessellated curve open by 2 pi / sides).
+        diffraction_min_length : float, default=0
+            In metres: shorter diffracting edges are dropped.
         """
         from compas_acoustics.geometry import boundary_closes
         from compas_acoustics.geometry import obstacle_mask
+        from compas_acoustics.geometry import prepared_wall_sides
 
         surface: Dict[str, SurfaceMaterial] = {}
         obstacle = obstacle_mask(prepared)
@@ -423,6 +482,8 @@ class RoomGeometry:
             groups.append(("obstacle" if obstacle[f0] else "boundary", str(name), material))
         if not polygons:
             raise ValueError("The prepared mesh has no walls (check that its faces have materials).")
+        normals, two_sided, reached = prepared_wall_sides(prepared)
+        sides = DrawnSides(normals, two_sided, reached, float(diffraction_min_excess), float(diffraction_min_length))
         closed = boundary_closes(prepared, obstacle)
         given_volume = air_volume is not None
         if not given_volume and not closed and prepared.air_volume > 0.0:
@@ -438,6 +499,7 @@ class RoomGeometry:
             closed=closed,
             check_inside=check_inside,
             air_volume=air_volume,
+            sides=sides,
         )
         leak = float(getattr(prepared.visibility, "leak_fraction", 0.0)) if prepared.visibility is not None else 0.0
         if not closed and leak > 0.0:
@@ -500,11 +562,18 @@ class RoomGeometry:
         closed: Optional[bool] = None,
         check_inside: bool = True,
         air_volume: Optional[float] = None,
+        sides: Optional[DrawnSides] = None,
     ) -> RoomGeometry:
+        """``sides``, one entry per input polygon, follows each polygon through the weld, the collapsed faces dropped
+        and the warped ones triangulated, and is stored in the room's drawn order (:attr:`drawn_sides`)."""
         if trust_orientation and closed is None:
             raise ValueError("trust_orientation needs closed")
         if not polygons:
             raise ValueError("The scene has no acoustic surfaces.")
+        if sides is not None and merge_coplanar:
+            raise ValueError("sides cannot follow faces through merge_coplanar")
+        # every face carries the index of the polygon it comes from, through the steps that drop or split faces
+        groups = [(group, k) for k, group in enumerate(groups)]
 
         vertices, inverse = _weld(np.vstack(polygons), weld_tolerance)
         faces: List[List[int]] = []
@@ -531,6 +600,8 @@ class RoomGeometry:
         if not faces:
             raise ValueError("Every face of the scene collapsed when its vertices were welded; check the model's units.")
         faces, groups = _triangulated_where_warped(vertices, faces, groups)
+        source = [k for _, k in groups]
+        groups = [group for group, _ in groups]
 
         mergeable = 0
         if merge_coplanar:
@@ -591,6 +662,10 @@ class RoomGeometry:
             n += 2 * k
         out_faces += fronts + backs
         out_groups += obstacle_groups + obstacle_groups
+        drawn_sides = None
+        if sides is not None:
+            # the drawn order of Occluders: the obstacle polygons, then the boundary faces
+            drawn_sides = sides.take([k for k, group in zip(source, groups) if group[0] == "obstacle"] + [source[i] for i in boundary])
 
         return cls(
             vertices=np.vstack(all_vertices),
@@ -606,6 +681,7 @@ class RoomGeometry:
             mergeable_faces=mergeable,
             check_inside=check_inside,
             air_volume=air_volume,
+            drawn_sides=drawn_sides,
         )
 
     def _face_geometry(self) -> List[Tuple[float, np.ndarray, np.ndarray]]:
@@ -726,6 +802,8 @@ class RoomGeometry:
         """The enclosure alone."""
         keep = [i for i, role in enumerate(self.face_roles) if role == "boundary"]
         names = tuple(self.face_materials[i] for i in keep)
+        n_obstacle = len(self.obstacle_faces)
+        sides = None if self.drawn_sides is None else self.drawn_sides.take(range(n_obstacle, n_obstacle + len(keep)))
         return RoomGeometry(
             vertices=self.vertices,
             faces=tuple(self.faces[i] for i in keep),
@@ -736,6 +814,7 @@ class RoomGeometry:
             is_closed=self.is_closed,
             open_edge=self.open_edge,
             check_inside=self.check_inside,
+            drawn_sides=sides,
         )
 
     def to_pra(
