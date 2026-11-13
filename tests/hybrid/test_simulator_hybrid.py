@@ -510,3 +510,13 @@ def test_a_reference_of_two_thirds_of_its_reverberation_time_is_long_enough():
         Ambisonics()._check_reference_length(1.9, target, 1.3, "rec, src")
     with pytest.warns(UserWarning, match=r"less than 2/3 of its reverberation time \(2.5 s\).* at least 3.8 s"):
         Ambisonics()._check_reference_length(1.5, target, 1.3, "rec, src")
+
+
+def test_a_receiver_without_a_visible_image_beside_a_visible_one_renders():
+    """A reference of order 0 has no image at the receiver behind the panel while the other receiver sees the source."""
+    scene = make([Receiver("behind", 8.0, 4.0, 1.5), Receiver("in_view", 2.0, 7.0, 1.5)], panel=True)
+    reference = Mono(image_source_order=0, n_rays=2000, duration=0.5, seed=1)
+    rirs = scene.simulate(Ambisonics(reference, image_source_order=1, sh_order=1, duration=0.5))
+    for ir in rirs.values():
+        assert np.all(np.isfinite(ir.ir))
+        assert np.sum(ir.ir[int(0.03 * FS) :, 0] ** 2) > 0.0
