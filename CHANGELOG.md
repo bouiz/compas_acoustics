@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Changed the `docs` workflow to only build the docs; `release.yml` deploys them.
 * Changed to pyFDN 0.7 (`fdn_dss_gallery`, `decay_to_graphic_eq`, `gain_to_graphic_eq`, `dss_to_td`), from 0.5, whose API 0.6 removed; the responses are unchanged. `hybrid.late.design_fdn` returns, `render` takes and `HybridCore.builds` holds `(pyFDN.DSS, filters)` pairs in place of `pyFDN.FDNBuild`; a `matrix` other than `"orthogonal"` is seeded by `rng` and takes pyFDN 0.7's lowercase names.
 
+### Fixed
+
+* Fixed `Mono` and the hybrid's references failing with "zero-size array" when one receiver sees none of the image sources up to the simulated order while another receiver sees the same source, and rendering a blocked direct sound when no receiver sees it: such a pair now has no image part (`room.raytracing.image_source_rirs`, `ray_traced_rirs`).
+
 ### Removed
 
 * Removed the Grasshopper installer (`installer/`), `invoke installer-bundle` and the zip of the releases, replaced by the Yak package and Install Worker.

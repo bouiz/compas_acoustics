@@ -223,3 +223,69 @@ def test_wall_factory_errors_are_value_errors(monkeypatch):
         g.to_pra(48000, 1)
     assert "corners are not coplanar" in str(raised.value)
     assert pra.constants.get("octave_bands_base_freq") == 125.0
+
+
+# ------------------------------------------------- pairs without a visible image --
+from compas_acoustics.room.raytracing import image_source_rirs  # noqa: E402
+from compas_acoustics.room.raytracing import ray_traced_rirs  # noqa: E402
+
+SOURCE = [1.5, 2.0, 1.5]
+BEHIND_PANEL = [5.0, 2.0, 1.5]
+IN_VIEW = [1.5, 4.5, 1.5]
+
+
+def responses(render, mics, order=0, extra=None):
+    g = geometry(extra=(panel(),) if extra is None else extra)
+    mics = np.array(mics, dtype=float).T
+    if render == "images":
+        return image_source_rirs(g, [pra.SoundSource(SOURCE)], mics, 48000, max_order=order)
+    return ray_traced_rirs(g, [pra.SoundSource(SOURCE)], mics, 48000, max_order=order, n_rays=2000, duration=0.3, seed=1)
+
+
+@pytest.mark.parametrize("render", ["images", "rays"])
+def test_a_blocked_receiver_beside_a_visible_one_gets_no_image_part(render):
+    blocked, visible = (row[0] for row in responses(render, [BEHIND_PANEL, IN_VIEW]))
+    assert np.all(np.isfinite(blocked))
+    if render == "images":
+        assert not np.any(blocked)
+    else:
+        assert np.sum(blocked**2) > 0.0
+    assert np.sum(visible**2) > 0.0
+
+
+def test_a_source_blocked_at_every_receiver_leaks_no_direct_sound():
+    ((blocked,),) = responses("images", [BEHIND_PANEL])
+    assert not np.any(blocked)
+
+
+@pytest.mark.parametrize("order", [0, 3])
+@pytest.mark.parametrize("render", ["images", "rays"])
+def test_visible_pairs_match_the_rooms_own_responses(render, order):
+    from compas_acoustics.room.geometry import pra_octave_grid
+
+    g = geometry()
+    sources = [pra.SoundSource([1.5, 2.0, 1.5]), pra.SoundSource([2.5, 1.0, 1.2])]
+    mics = np.array([[5.0, 3.0, 1.5], [4.0, 4.0, 1.0]]).T
+    ours = responses_of(g, render, sources, mics, order)
+    pra.random.seed(1)
+    with pra_octave_grid():
+        room = g.to_pra(48000, order, ray_tracing=render == "rays", air_absorption=True)
+        for s in sources:
+            room.add_soundsource(pra.SoundSource(s.position))
+        room.add_microphone_array(pra.MicrophoneArray(mics, 48000))
+        if render == "rays":
+            room.set_ray_tracing(n_rays=2000, receiver_radius=0.5, energy_thres=1e-7, time_thres=0.3, hist_bin_size=0.004)
+        room.compute_rir()
+    latency = pra.constants.get("frac_delay_length") // 2
+    for m in range(2):
+        for s in range(2):
+            expected = np.asarray(room.rir[m][s], dtype=float)[latency:] / (4.0 * np.pi)
+            n = ours[m][s].size
+            expected = np.pad(expected, (0, max(0, n - expected.size)))[:n]
+            np.testing.assert_array_equal(ours[m][s], expected)
+
+
+def responses_of(g, render, sources, mics, order):
+    if render == "images":
+        return image_source_rirs(g, sources, mics, 48000, max_order=order)
+    return ray_traced_rirs(g, sources, mics, 48000, max_order=order, n_rays=2000, duration=0.3, seed=1)

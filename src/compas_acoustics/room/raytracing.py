@@ -17,6 +17,10 @@ from typing import Sequence
 
 import numpy as np
 import pyroomacoustics as pra
+from pyroomacoustics.simulation import compute_ism_rir
+from pyroomacoustics.simulation import compute_rt_rir
+from pyroomacoustics.utilities import design_highpass_filter_sos
+from scipy.signal import sosfiltfilt
 
 from .diffuse import predicted_rt
 from .geometry import SYNTHESIS_BANDS
@@ -64,6 +68,73 @@ def _on_package_scale(rir, latency: int, n_samples: int) -> np.ndarray:
     return np.pad(rir, (0, max(0, n_samples - rir.size)))[:n_samples]
 
 
+def _pair_responses(room) -> List[List[np.ndarray]]:
+    """The room's responses ``[mic][source]`` as pyroomacoustics composes them, except that a pair without a visible
+    image has no image part (the room's own call fails on it, or renders the blocked direct sound when the source is
+    hidden from every microphone)."""
+    if room.simulator_state["ism_needed"] and not room.simulator_state["ism_done"]:
+        room.image_source_model()
+    if room.simulator_state["rt_needed"] and not room.simulator_state["rt_done"]:
+        room.ray_tracing()
+    hpf = None
+    if pra.constants.get("rir_hpf_enable"):
+        hpf = design_highpass_filter_sos(room.fs, pra.constants.get("rir_hpf_fc"), **pra.constants.get("rir_hpf_kwargs"))
+    fdl = pra.constants.get("frac_delay_length")
+    volume = room.get_volume()
+    responses = []
+    for m, mic in enumerate(room.mic_array.R.T):
+        responses.append([])
+        for s, source in enumerate(room.sources):
+            parts = []
+            visible = np.asarray(room.visibility[s][m, :], dtype=bool) if room.simulator_state["ism_needed"] else None
+            if visible is not None and visible.any():
+                parts.append(
+                    compute_ism_rir(
+                        source,
+                        mic,
+                        room.mic_array.directivity[m],
+                        source.directions[m, :, :],
+                        visible,
+                        fdl,
+                        room.c,
+                        room.fs,
+                        room.octave_bands,
+                        min_phase=room.min_phase,
+                        air_abs_coeffs=room.air_absorption,
+                    )
+                )
+            if room.simulator_state["rt_needed"]:
+                t0 = np.linalg.norm(source.position - mic) / room.c
+                parts.append(
+                    compute_rt_rir(
+                        t0.item(),
+                        room.rt_histograms[m][s],
+                        room.rt_directional_responses[m],
+                        room.rt_args["hist_bin_size"],
+                        room.rt_args["hist_bin_size_samples"],
+                        volume,
+                        fdl,
+                        room.c,
+                        room.fs,
+                        room.octave_bands,
+                        air_abs_coeffs=room.air_absorption,
+                    )
+                )
+            if not parts:
+                responses[m].append(np.zeros(fdl))
+                continue
+            if len(parts) == 1:
+                rir = parts[0]
+            else:
+                rir = np.zeros(max(p.shape[0] for p in parts))
+                for p in parts:
+                    rir[: p.shape[0]] += p
+            if hpf is not None:
+                rir = np.ascontiguousarray(sosfiltfilt(hpf, rir))
+            responses[m].append(rir)
+    return responses
+
+
 def image_source_rirs(geometry: RoomGeometry, sources, mic_positions, fs: int, *, max_order: int, air_absorption: bool = True, air=None) -> List[List[np.ndarray]]:
     """Image-source responses ``[mic][source]`` on the package scale at their natural length; arguments as :func:`ray_traced_rirs`."""
     mic_positions = np.asarray(mic_positions, dtype=float).reshape(3, -1)
@@ -72,10 +143,9 @@ def image_source_rirs(geometry: RoomGeometry, sources, mic_positions, fs: int, *
         for source in sources:
             room.add_soundsource(source)
         room.add_microphone_array(pra.MicrophoneArray(mic_positions, fs))
-        room.image_source_model()
-        room.compute_rir()
+        rirs = _pair_responses(room)
     latency = pra.constants.get("frac_delay_length") // 2
-    return [[_on_package_scale(room.rir[m][s], latency, len(room.rir[m][s]) - latency) for s in range(len(sources))] for m in range(mic_positions.shape[1])]
+    return [[_on_package_scale(rir, latency, len(rir) - latency) for rir in row] for row in rirs]
 
 
 def ray_traced_rirs(
@@ -120,11 +190,11 @@ def ray_traced_rirs(
         room.set_ray_tracing(n_rays=n_rays, **options)
         if n_rays is None and room.rt_args["n_rays"] < MIN_RAYS:
             room.set_ray_tracing(n_rays=MIN_RAYS, **options)
-        room.compute_rir()
+        rirs = _pair_responses(room)
 
     latency = pra.constants.get("frac_delay_length") // 2
     n_samples = round(duration * fs)
-    return [[_on_package_scale(room.rir[m][s], latency, n_samples) for s in range(len(sources))] for m in range(mic_positions.shape[1])]
+    return [[_on_package_scale(rir, latency, n_samples) for rir in row] for row in rirs]
 
 
 @dataclass(frozen=True)
