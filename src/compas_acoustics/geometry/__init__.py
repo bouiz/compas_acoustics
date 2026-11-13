@@ -2,9 +2,11 @@
 
 :func:`prepare_mesh` turns a raw triangle mesh (open, non-manifold, unwelded, wound any way) into a
 :class:`PreparedMesh`: welded, oriented from the side the air is on, thin surfaces made two-sided, faces classified,
-coplanar triangles merged into walls, with the air volume. :func:`analyze` reports what will go wrong.
-:meth:`compas_acoustics.RoomGeometry.from_prepared` builds the geometric methods' room from it; a wave solver
-reads :attr:`PreparedMesh.faces` and :attr:`PreparedMesh.two_sided` directly.
+coplanar triangles merged into walls (every face, reached by the air or not), with the air volume. :func:`analyze`
+reports what will go wrong, the objects the air never reaches among it (:meth:`PreparedMesh.unreached_objects`).
+:meth:`compas_acoustics.RoomGeometry.from_prepared` builds the geometric methods' room from it, its two-sided walls
+(:func:`obstacle_mask`) the only obstacles; :func:`standing_objects` labels the objects standing in the air for
+display only. A wave solver reads :attr:`PreparedMesh.faces` and :attr:`PreparedMesh.two_sided` directly.
 
 :func:`sector_edges` finds the diffracting edges of any set of polygons from the air sectors around each side,
 without roles, a closed boundary or a manifold mesh; the room of a prepared mesh gets its edges from it, over the

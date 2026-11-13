@@ -13,6 +13,16 @@ edges, non-manifold edges and coincident faces are reported, never pruned. The r
 The preparation is deterministic (a fixed random seed), so a preview of it shows exactly what is simulated.
 Normals follow the pyroomacoustics convention: they point away from the air.
 
+Every face becomes a wall, reached by the air or not. Whether the air reaches a face is a stochastic, seed-dependent
+observation of the walk, so it never removes geometry (a face wrongly judged unreached would open a hole); the room
+leaves unreached walls out of its surface accounting and its diffraction only. Objects none of whose faces the air
+reaches (:meth:`PreparedMesh.unreached_objects`) are listed by :func:`~compas_acoustics.geometry.analyze`, for the
+caller to leave out of the simulation if it wants a cheaper image source search.
+
+In the room (:meth:`~compas_acoustics.RoomGeometry.from_prepared`) a wall is an obstacle, stored twice, exactly when it
+is two-sided (:func:`obstacle_mask`); every one-sided wall is boundary, the shell, a wall slab and a column standing in
+the room alike. :func:`standing_objects` only labels which faces belong to an object standing in the air, for display.
+
 Ported from compas_soundscape (``backend/services/simulation_mesh_service.py``).
 """
 
@@ -48,6 +58,7 @@ from .topology import signed_volume
 from .topology import weld_vertices
 from .visibility import AirVisibility
 from .visibility import rays_for_budget
+from .visibility import side_enclosures
 from .visibility import walk_from_seeds
 
 __all__ = [
@@ -93,8 +104,11 @@ class PrepareOptions:
         Make a surface two-sided when the air clearly reaches both of its sides.
     quality : float
         Scales the visibility walk's ray budget; see :data:`VISIBILITY_QUALITY`.
-    drop_unreached_faces : bool
-        Leave faces the air never reaches out of the walls (they would still mirror image sources).
+    interior_object_max_depth : float
+        A face whose back looks, within this depth, at the back of another face reached from the same air volume
+        bounds an object standing in the air (:data:`FACE_CLASS_INTERIOR`); beyond it only when both faces belong
+        to one closed solid (a closed welded component or an enclosing object wound into itself). See
+        :func:`_classify`.
     """
 
     weld_tolerance: float = 1e-4
@@ -103,7 +117,6 @@ class PrepareOptions:
     coplanar_distance: float = 1e-3
     detect_two_sided: bool = True
     quality: float = 1.0
-    drop_unreached_faces: bool = False
     # Internals of the walk and the decisions; the defaults are tuned on architectural models.
     min_triangle_area: float = 1e-8
     ray_seed: int = 1234
@@ -158,6 +171,22 @@ class PreparedMesh:
     def air_surface_area(self) -> float:
         """Area of the faces the air reaches, each side counted once it is reached."""
         return float(self.areas[self.air_hits > 0].sum() + self.areas[self.other_hits > 0].sum())
+
+    def unreached_objects(self) -> List[str]:
+        """The ids of the objects none of whose faces the air reaches (all :data:`FACE_CLASS_SKIPPED`), in
+        :attr:`objects` order; objects left without faces (no material) are not listed.
+
+        They are walls of the room all the same, which reflect and cost image sources but are left out of its surface
+        accounting and diffraction; a caller may leave them out of the simulation to make the image source search
+        cheaper.
+        """
+        face_object = np.asarray(self.face_object, dtype=np.int64)
+        owned = face_object >= 0
+        present = np.zeros(len(self.objects), dtype=bool)
+        present[face_object[owned]] = True
+        reached = np.zeros(len(self.objects), dtype=bool)
+        reached[face_object[owned & (np.asarray(self.face_class) != FACE_CLASS_SKIPPED)]] = True
+        return [self.objects[o] for o in np.flatnonzero(present & ~reached)]
 
 
 def material_key(value: Any) -> str:
@@ -307,14 +336,15 @@ def prepare_mesh(
     air_hits = np.where(flip, vis.hits_normal, vis.hits_back)
     other_hits = np.where(flip, vis.hits_back, vis.hits_normal)
 
-    face_class = _classify(tris, tri, verts, normals, air_hits + other_hits, two_sided, options)
+    group, group_closed = _face_groups(labels, closed, face_object, orient.enclosing_objects)
+    solid = group_closed & (_group_volumes(verts, tri, areas, group, len(group_closed)) < -_OBJECT_VOLUME_TOLERANCE)
+    air_enclosure = side_enclosures(vis, len(tri))[np.arange(len(tri)), np.where(flip, 0, 1)]
+    face_class = _classify(tris, tri, verts, normals, air_hits + other_hits, two_sided, air_enclosure, group, solid, options)
     volume, method = _air_volume(vis, verts, tri, areas, air_hits, other_hits, labels, closed)
 
-    # ── Coplanar merge into simulated walls ──────────────────────────────
-    # Faces the air never reaches stay in the mesh (diagnostics, wave-solver export) but, with
-    # drop_unreached_faces, become no wall: the image source model would mirror in them.
-    simulated = (face_class != FACE_CLASS_SKIPPED) if options.drop_unreached_faces else np.ones(len(tri), bool)
-    stats["unreached_faces_dropped"] = int((~simulated).sum())
+    # ── Coplanar merge into walls ────────────────────────────────────────
+    # Every face becomes a wall, reached by the air or not: whether the walk reached a face is a stochastic
+    # observation, and dropping a face on it could open a hole.
     if options.merge_coplanar:
         key_index: Dict[tuple, int] = {}
         keys = np.array(
@@ -325,7 +355,6 @@ def prepare_mesh(
                         float(np.nan_to_num(face_scat[f], nan=-1.0)),
                         bool(two_sided[f]),
                         int(face_object[f]),
-                        bool(simulated[f]),
                     ),
                     len(key_index),
                 )
@@ -336,7 +365,6 @@ def prepare_mesh(
         walls = merge_coplanar(verts, tri, normals, areas, keys, options.coplanar_angle_deg, options.coplanar_distance)
     else:
         walls = [MergedWall(verts[t].copy(), np.array([f])) for f, t in enumerate(tri)]
-    walls = [w for w in walls if simulated[w.faces].all()]  # unreached faces never merge with others
 
     stats.update(
         {
@@ -382,88 +410,95 @@ def prepare_mesh(
     )
 
 
-#: How far inside an object's bounding box a source or receiver must lie to keep the object part of the room, in metres.
-_OBJECT_SEED_MARGIN = 1e-3
-#: Signed volume, in m^3, below which a closed set of faces wound away from the air encloses its inside.
+#: Signed volume, in m^3, below which a closed set of faces wound away from the air encloses a solid (its inside).
 _OBJECT_VOLUME_TOLERANCE = 1e-9
 
 
-def standing_objects(mesh) -> np.ndarray:
-    """Whether each face belongs to an object standing in the air (furniture, a column, a bottomless box), shape (F,).
-
-    Faces are wound away from the air, so a closed welded component the air surrounds encloses its volume inwards
-    (negative signed volume) while a room encloses its air outwards. An object of loose faces that still encloses a
-    volume (:attr:`PreparedMesh.enclosing_objects`) is judged the same way over its faces outside closed components.
-    Any other component is an object when its faces classed :data:`FACE_CLASS_INTERIOR` outweigh, by area, those
-    classed :data:`FACE_CLASS_SHELL`. A set of faces whose bounding box holds a source or receiver is never an object:
-    a solid mass whose cavities are the rooms winds inwards too.
-
-    Parameters
-    ----------
-    mesh : PreparedMesh
-        Or anything with its ``vertices``, ``faces``, ``areas``, ``face_class``, ``face_object``, ``component``,
-        ``component_closed``, ``enclosing_objects`` and ``seeds``.
-    """
-    faces = np.asarray(mesh.faces, dtype=np.int64).reshape(-1, 3)
-    if len(faces) == 0:
-        return np.zeros(0, dtype=bool)
-    points = np.asarray(mesh.vertices, dtype=float)[faces]
-    areas = np.asarray(mesh.areas, dtype=float)
-    face_class = np.asarray(mesh.face_class)
-    component = np.asarray(mesh.component, dtype=np.int64)
-    closed = np.asarray(mesh.component_closed, dtype=bool)
-    face_object = np.asarray(mesh.face_object)
-
-    # Groups: the welded components, then each enclosing object's loose faces; the first ones are judged by volume.
+def _face_groups(component, closed, face_object, enclosing_objects) -> tuple:
+    """``(group, group_closed)``: each face's group, the welded components then each enclosing object's faces outside
+    closed components (:attr:`PreparedMesh.enclosing_objects`), and whether each group encloses a volume."""
+    component = np.asarray(component, dtype=np.int64)
+    closed = np.asarray(closed, dtype=bool)
+    face_object = np.asarray(face_object)
     group = component.copy()
-    by_volume = list(closed)
-    loose = ~closed[component]
-    for obj in mesh.enclosing_objects:
+    closes = list(closed)
+    loose = ~closed[component] if len(component) else np.zeros(0, dtype=bool)
+    for obj in enclosing_objects:
         sel = loose & (face_object == obj)
         if sel.any():
-            group[sel] = len(by_volume)
-            by_volume.append(True)
-    n = len(by_volume)
+            group[sel] = len(closes)
+            closes.append(True)
+    return group, np.asarray(closes, dtype=bool)
 
+
+def _group_volumes(verts, tri, areas, group, n: int) -> np.ndarray:
+    """Signed volume of each group of faces as wound, about the group's centroid (exact for a closed group, whatever
+    its position; the centroid keeps the error of a nearly closed one small)."""
+    if n == 0:
+        return np.zeros(0)
+    points = np.asarray(verts, dtype=float)[np.asarray(tri, dtype=np.int64)]
     weight = np.bincount(group, areas, n)
     centroid = points.mean(axis=1)
     centre = np.stack([np.bincount(group, areas * centroid[:, k], n) for k in range(3)], axis=1) / np.maximum(weight, 1e-30)[:, None]
     q = points - centre[group][:, None, :]
-    volume = np.bincount(group, np.einsum("ij,ij->i", q[:, 0], np.cross(q[:, 1], q[:, 2])) / 6.0, n)
+    return np.bincount(group, np.einsum("ij,ij->i", q[:, 0], np.cross(q[:, 1], q[:, 2])) / 6.0, n)
+
+
+def standing_objects(mesh) -> np.ndarray:
+    """Whether each face belongs to an object standing in the air (furniture, a column, a partition), shape (F,).
+
+    A label for user interfaces only: the room (:meth:`~compas_acoustics.RoomGeometry.from_prepared`) does not read it,
+    a column standing in the room being boundary like a pillar fused into the shell. Each group of faces (a welded
+    component; an enclosing object's loose faces, :attr:`PreparedMesh.enclosing_objects`) is an object when, among the
+    faces the air reaches, those classed :data:`FACE_CLASS_INTERIOR` outweigh by area those classed
+    :data:`FACE_CLASS_SHELL` (see :func:`_classify`). A room's shell, whose faces look out of the model or into
+    another room's air, is no object; a slab whose outer skin the air never reaches is none either.
+
+    Parameters
+    ----------
+    mesh : PreparedMesh
+        Or anything with its ``areas``, ``face_class``, ``face_object``, ``component``, ``component_closed`` and
+        ``enclosing_objects``.
+    """
+    face_class = np.asarray(mesh.face_class)
+    if len(face_class) == 0:
+        return np.zeros(0, dtype=bool)
+    areas = np.asarray(mesh.areas, dtype=float)
+    group, closes = _face_groups(mesh.component, mesh.component_closed, mesh.face_object, mesh.enclosing_objects)
+    n = len(closes)
     interior = np.bincount(group, areas * (face_class == FACE_CLASS_INTERIOR), n)
     shell = np.bincount(group, areas * (face_class == FACE_CLASS_SHELL), n)
-    standing = np.where(np.asarray(by_volume), volume < -_OBJECT_VOLUME_TOLERANCE, interior > shell)
-
-    seeds = np.asarray(mesh.seeds, dtype=float).reshape(-1, 3)
-    if len(seeds):
-        lo = np.full((n, 3), np.inf)
-        hi = np.full((n, 3), -np.inf)
-        np.minimum.at(lo, group, points.min(axis=1))
-        np.maximum.at(hi, group, points.max(axis=1))
-        inside = (seeds[None] > lo[:, None] + _OBJECT_SEED_MARGIN) & (seeds[None] < hi[:, None] - _OBJECT_SEED_MARGIN)
-        standing &= ~inside.all(axis=2).any(axis=1)
-    return standing[group]
+    return (interior > shell)[group]
 
 
 def obstacle_mask(mesh) -> np.ndarray:
-    """Which faces are obstacles, shape (F,): the two-sided ones and the objects standing in the air (:func:`standing_objects`)."""
-    return np.asarray(mesh.two_sided, dtype=bool) | standing_objects(mesh)
+    """Which faces are obstacles, shape (F,): the two-sided ones (``mesh.two_sided``, which holds the surfaces forced
+    two-sided, ``role="obstacle"``). The room stores an obstacle wall twice, one copy per side; every other wall is
+    boundary, one-sided."""
+    return np.asarray(mesh.two_sided, dtype=bool).copy()
 
 
 def boundary_closes(mesh, obstacle: Optional[np.ndarray] = None) -> bool:
-    """Whether the room's boundary (every face but the obstacles) closes: each of its faces belongs to a closed welded component."""
+    """Whether the room's boundary (every face but the obstacles, :func:`obstacle_mask`) is watertight: each of its
+    faces belongs to a closed welded component. Topological only: the room's ``is_closed`` is acoustic
+    (:meth:`~compas_acoustics.RoomGeometry.from_prepared`), and this selects how its volume is found."""
     boundary = ~(obstacle_mask(mesh) if obstacle is None else np.asarray(obstacle, dtype=bool))
     if not boundary.any():
         return False
     return bool(np.all(np.asarray(mesh.component_closed)[np.asarray(mesh.component)[boundary]]))
 
 
-def _classify(tris_before: TriangleSet, tri, verts, normals, total_hits, two_sided, options: PrepareOptions) -> np.ndarray:
+def _classify(tris_before: TriangleSet, tri, verts, normals, total_hits, two_sided, air_enclosure, group, solid, options: PrepareOptions) -> np.ndarray:
     """Shell vs interior.
 
-    One-sided faces: probe from the face away from the air. Crossing the back of another air-facing face within
-    the interior depth means the face bounds an object standing in the air (column, furniture); otherwise it
-    bounds the exterior / solid mass (shell).
+    One-sided faces: probe from the face away from the air. The face bounds an object standing in the air (column,
+    furniture, partition: :data:`FACE_CLASS_INTERIOR`) when the probe meets the back of another face whose air side is
+    reached from the same air volume as its own (``air_enclosure``, the walk's enclosures), and either within
+    ``interior_object_max_depth`` or with both faces in one closed solid (``solid``, by ``group``: a closed component
+    or enclosing object wound into itself, however thick). Otherwise it bounds the exterior, a solid mass or another
+    room's wall (:data:`FACE_CLASS_SHELL`): a wall between two rooms that share no air is shell on both sides. The
+    depth still limits an object that does not close (a bottomless box), since the space behind a face of a closed
+    room's shell can reach the back of the same room's wall across the outside (the arms of a U-shaped room).
 
     Two-sided faces have air on both sides: probe both directions. If sound can leave the model from either side
     the surface is part of the outer shell (e.g. a single-sheet facade); otherwise it stands inside the room
@@ -484,7 +519,9 @@ def _classify(tris_before: TriangleSet, tri, verts, normals, total_hits, two_sid
         hit = g >= 0
         g_safe = np.where(hit, g, 0)
         back_of_seen = hit & (total_hits[g_safe] > 0) & (np.einsum("ij,ij->i", d, normals[g_safe]) < 0)
-        cls[one[back_of_seen & (t <= options.interior_object_max_depth)]] = FACE_CLASS_INTERIOR
+        same_air = (air_enclosure[g_safe] >= 0) & (air_enclosure[g_safe] == air_enclosure[one])
+        enclosed = (group[g_safe] == group[one]) & solid[group[one]]
+        cls[one[back_of_seen & same_air & ((t <= options.interior_object_max_depth) | enclosed)]] = FACE_CLASS_INTERIOR
 
     two = np.flatnonzero(seen & two_sided)
     if len(two):

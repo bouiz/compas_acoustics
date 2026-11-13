@@ -62,6 +62,37 @@ class AirVisibility:
         return self.chord_sum / self.n_chords if self.n_chords else 0.0
 
 
+def seed_enclosures(vis: AirVisibility) -> list[int]:
+    """The air volume (enclosure) of each seed, labelled 0, 1, ...: seeds reaching a common (face, side) share one.
+
+    A face side is therefore reached from one enclosure at most.
+    """
+    sides = [set(s.seen_sides.tolist()) for s in vis.seeds]
+    parent = list(range(len(sides)))
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    for i in range(len(sides)):
+        for j in range(i + 1, len(sides)):
+            if sides[i] & sides[j]:
+                parent[find(i)] = find(j)
+    roots = {r: k for k, r in enumerate(sorted({find(i) for i in range(len(sides))}))}
+    return [roots[find(i)] for i in range(len(sides))]
+
+
+def side_enclosures(vis: AirVisibility, n_faces: int) -> np.ndarray:
+    """The enclosure (:func:`seed_enclosures`) reaching each face side, shape (n_faces, 2): column 0 the side the
+    walk's normal points to, column 1 the other; -1 where no seed reaches it."""
+    out = np.full(2 * n_faces, -1, dtype=np.int64)
+    for seed, label in zip(vis.seeds, seed_enclosures(vis)):
+        out[np.asarray(seed.seen_sides, dtype=np.int64)] = label
+    return out.reshape(n_faces, 2)
+
+
 def _seed_status(escape: float, outside_frac: float, leaky_frac: float) -> str:
     if escape >= outside_frac:
         return SEED_OUTSIDE

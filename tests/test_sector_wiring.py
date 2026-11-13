@@ -182,8 +182,9 @@ def test_a_prepared_open_room_diffracts_at_the_pillar_fused_into_its_shell():
 
 
 def test_a_prepared_room_of_six_closed_slabs_has_no_edges():
-    """Floor, ceiling and four walls, each a closed 0.2 m slab: all of them are objects standing in the air (so
-    obstacles, and no boundary), their outer skins never reached and their inner corners open pi / 2."""
+    """Floor, ceiling and four walls, each a closed 0.2 m slab: all of them one-sided boundary (no obstacle), their
+    outer skins never reached and their inner corners open pi / 2. Nothing escapes, so the room is closed; it does
+    not enclose the air (the slabs' divergence volume is theirs), so its volume is the walk's."""
     t = 0.2
     mesh = _Mesh()
     for name, lo, hi in (
@@ -196,7 +197,8 @@ def test_a_prepared_room_of_six_closed_slabs_has_no_edges():
     ):
         mesh.add(name, *box(lo, hi))
     geometry = room(mesh.prepare([[1.0, 1.0, 1.5], [4.5, 3.0, 1.2], [3.0, 2.0, 2.5]]))
-    assert not geometry.is_closed and "boundary" not in geometry.face_roles
+    assert geometry.is_closed and not geometry.encloses and "obstacle" not in geometry.face_roles
+    assert geometry.air_volume is not None and geometry.open_area == 0.0
     edges, caught = edges_of(geometry)
     assert edges == [] and not caught
 
@@ -215,7 +217,8 @@ def test_a_closed_box_standing_on_the_floor_gives_its_vertical_and_top_edges():
     prepared = shoebox(("cabinet", box((4.0, 3.0, 0.0), (5.0, 4.5, 1.5)))).prepare(SHOEBOX_SEEDS)
     edges, caught = edges_of(room(prepared))
     assert len(edges) == 8 and not caught
-    assert all(e.theta_w == pytest.approx(1.5 * np.pi) and e.component >= 0 for e in edges)
+    # one-sided, so boundary: its edges are boundary edges (component -1, with regions)
+    assert all(e.theta_w == pytest.approx(1.5 * np.pi) and e.component == -1 and len(set(e.regions)) == 2 for e in edges)
     assert sum(abs(e.axis[2]) > 0.99 for e in edges) == 4
     assert sum(np.allclose([e.start[2], e.end[2]], 1.5) for e in edges) == 4
     assert not any(np.allclose([e.start[2], e.end[2]], 0.0) for e in edges)  # none on the floor contact
@@ -225,7 +228,7 @@ def test_a_column_from_floor_to_ceiling_gives_its_four_vertical_edges():
     prepared = shoebox(("column", box((4.0, 3.0, 0.0), (5.0, 4.0, 4.0)))).prepare(SHOEBOX_SEEDS)
     edges, caught = edges_of(room(prepared))
     assert len(edges) == 4 and not caught
-    assert all(abs(e.axis[2]) > 0.99 and e.length == pytest.approx(4.0) and e.component >= 0 for e in edges)
+    assert all(abs(e.axis[2]) > 0.99 and e.length == pytest.approx(4.0) and e.component == -1 for e in edges)
 
 
 def test_a_standing_solid_declared_an_obstacle_is_one_sided():

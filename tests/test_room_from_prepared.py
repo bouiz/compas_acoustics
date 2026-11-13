@@ -149,29 +149,35 @@ def _object_edges(geometry):
     return [e for e in edges if e.component >= 0], [e for e in edges if e.component < 0]
 
 
-def test_a_closed_object_standing_in_the_room_is_an_obstacle():
+def test_a_closed_object_standing_in_the_room_is_boundary():
+    """One-sided, so boundary like the shell (no copies): the room still encloses the air, its volume less the cabinet's."""
     prepared, geometry = _furnished(lambda s: s.add("cabinet", *_box(*FURNITURE)))
     cabinet = _faces_of(prepared, "cabinet")
     assert not prepared.two_sided[cabinet].any() and ca.geometry.standing_objects(prepared)[cabinet].all()
-    assert geometry.is_closed and geometry.face_roles.count("boundary") == 6
+    assert geometry.is_closed and geometry.encloses and geometry.air_volume is None
+    assert geometry.face_roles.count("boundary") == 12 and not geometry.obstacle_faces
     assert geometry.volume == pytest.approx(72.0 - 0.8 * 0.6 * 0.9)
+    # its base lies on the floor, never reached: out of the accounting (the floor under it stays counted)
+    assert geometry.surface_area == pytest.approx(108.0 + 0.8 * 0.6 + 2 * (0.8 + 0.6) * 0.9)
     obstacle, room = _object_edges(geometry)
-    assert len(obstacle) == 8 and not room  # the four vertical and four top edges; the base lies on the floor
+    assert not obstacle and len(room) == 8  # the four vertical and four top edges, now boundary edges; the base lies on the floor
 
 
-def test_a_bottomless_box_on_the_floor_is_an_obstacle_and_the_room_closes():
+def test_a_bottomless_box_on_the_floor_is_boundary_and_the_room_closes():
     def add(scene):
         v, f = _box(*FURNITURE)
         scene.add("crate", v, f[2:])  # no base: an open component
 
     prepared, geometry = _furnished(add)
     assert not prepared.component_closed[prepared.component[_faces_of(prepared, "crate")]].any()
-    assert geometry.is_closed and geometry.face_roles.count("boundary") == 6
-    obstacle, _ = _object_edges(geometry)
-    assert len(obstacle) == 8
+    assert geometry.face_roles.count("boundary") == 11 and not geometry.obstacle_faces
+    # acoustically closed; the boundary is not watertight, so the volume is the walk's
+    assert geometry.is_closed and not geometry.encloses and geometry.air_volume == prepared.air_volume
+    obstacle, room = _object_edges(geometry)
+    assert not obstacle and len(room) == 8
 
 
-def test_an_object_of_loose_faces_is_an_obstacle_and_the_room_closes():
+def test_an_object_of_loose_faces_is_boundary_and_the_room_closes():
     def add(scene):
         v, f = _box(*FURNITURE)
         verts, faces = [], []
@@ -189,11 +195,11 @@ def test_an_object_of_loose_faces_is_an_obstacle_and_the_room_closes():
     assert prepared.objects.index("loose") in prepared.enclosing_objects
     assert not prepared.component_closed[prepared.component[loose]].any()
     assert ca.geometry.standing_objects(prepared)[loose].all()
-    assert geometry.is_closed and geometry.face_roles.count("boundary") == 6
-    obstacle, _ = _object_edges(geometry)
+    assert geometry.is_closed and geometry.face_roles.count("boundary") == 6 + 6 and not geometry.obstacle_faces
+    obstacle, room = _object_edges(geometry)
     # its faces share no side, and each is one-sided (air outside): the sector detector takes their free sides for
     # the rims of an opening and finds no edge (the role-based detectors gave each face knife edges)
-    assert obstacle == []
+    assert obstacle == [] and room == []
 
 
 def test_the_room_holding_the_sources_is_never_an_object():
@@ -201,7 +207,7 @@ def test_the_room_holding_the_sources_is_never_an_object():
     _room(box)
     prepared = _prepared(box, SEEDS)
     assert not ca.geometry.standing_objects(prepared).any()
-    # a closed object around a receiver stays part of the room, whatever its winding
+    # a closed object around a receiver: its faces look into another air volume (the receiver's), so it is no object
     box.add("cabinet", *_box(*FURNITURE))
     held = _prepared(box, SEEDS + [[2.4, 1.8, 0.45]])
     assert not ca.geometry.standing_objects(held)[_faces_of(held, "cabinet")].any()

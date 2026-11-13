@@ -551,7 +551,7 @@ def sector_edges_from_room(
     polygons as drawn (``geometry.obstacle_faces``), then the boundary faces. A room built from a prepared mesh
     carries which sides of each the air touches (``geometry.drawn_sides``, see
     :meth:`~compas_acoustics.RoomGeometry.from_prepared`), and they are used as they are. Otherwise the sides are
-    read from the roles: boundary faces are one-sided with their stored winding (normal out of the air; as drawn
+    read from the roles (a room built otherwise only): boundary faces are one-sided with their stored winding (normal out of the air; as drawn
     when the boundary does not close); an obstacle component
     (:func:`~compas_acoustics.hybrid.diffraction.obstacle_components`) that closes a volume is one-sided with its
     normals into that volume, and any other obstacle polygon is two-sided. Nothing depends on ``geometry.is_closed``.
@@ -641,17 +641,19 @@ def prepared_wall_sides(prepared: PreparedMesh) -> Tuple[np.ndarray, np.ndarray,
     """Which sides of each wall of a prepared mesh (``prepared.walls``) the air touches: ``(normals, two_sided,
     reached)``, as :func:`sector_edges` takes them.
 
-    A wall's normal is its faces' (away from the air); it is two-sided when its faces are, except on an object
-    standing in the air that closes a volume (:func:`~compas_acoustics.geometry.standing_objects` on a closed welded
-    component), whose air is outside only, even when its faces were made two-sided (``force_two_sided``); it is
-    reached when any of its faces was hit from either side by the visibility walk (``air_hits + other_hits > 0``).
+    A wall's normal is its faces' (away from the air); it is two-sided when its faces are, except on a closed welded
+    component the walk never reached from the other side of any of its faces (``other_hits``): a closed solid made
+    two-sided only by force (``force_two_sided``, ``role="obstacle"``) has its air on one side only. It is reached
+    when any of its faces was hit from either side by the visibility walk (``air_hits + other_hits > 0``). Nothing here
+    depends on the room's roles.
     """
-    from .prepare import standing_objects
-
     walls = prepared.walls
     first = np.array([int(w.faces[0]) for w in walls], dtype=np.int64)
     normals = np.asarray(prepared.normals, dtype=float)[first].reshape(-1, 3)
-    solid = standing_objects(prepared) & np.asarray(prepared.component_closed, dtype=bool)[np.asarray(prepared.component, dtype=np.int64)]
+    component = np.asarray(prepared.component, dtype=np.int64)
+    closed = np.asarray(prepared.component_closed, dtype=bool)
+    other_side = np.bincount(component, np.asarray(prepared.other_hits) > 0, len(closed)) > 0
+    solid = closed[component] & ~other_side[component]
     face_two_sided = np.asarray(prepared.two_sided, dtype=bool) & ~solid
     two_sided = np.array([bool(np.any(face_two_sided[w.faces])) for w in walls], dtype=bool)
     hits = np.asarray(prepared.air_hits) + np.asarray(prepared.other_hits)

@@ -1,8 +1,8 @@
 """User-facing issues of a :class:`~compas_acoustics.geometry.prepare.PreparedMesh`: what will go wrong, and why.
 
 :func:`analyze` checks the sources and receivers (outside the model, inside an object, on a surface), the paths
-between them (blocked, or in separate volumes), leaks and holes, the automatic fixes (flipped and two-sided faces)
-and the cost of the image source search. Every issue has a stable ``code``, a ``severity`` (``"error"``,
+between them (blocked, or in separate volumes), leaks and holes, the automatic fixes (flipped and two-sided faces),
+the faces and objects sound never reaches, and the cost of the image source search. Every issue has a stable ``code``, a ``severity`` (``"error"``,
 ``"warning"`` or ``"info"``) and what to highlight (faces, objects, boundary loops, a point or a segment). Checks
 specific to one solver (a wave solver's grid) are left to the caller, which adds them with :meth:`Issues.add`.
 
@@ -29,6 +29,7 @@ from .raycast import point_triangle_distances
 from .raycast import segment_crossings
 from .visibility import SEED_LEAKY
 from .visibility import SEED_OUTSIDE
+from .visibility import seed_enclosures
 
 __all__ = ["Seed", "GeometryIssue", "Issues", "GeometryReport", "ReportOptions", "analyze", "summarize"]
 
@@ -117,22 +118,8 @@ def summarize(issues: Sequence[GeometryIssue]) -> Dict[str, int]:
 
 
 def enclosures(mesh: PreparedMesh) -> List[int]:
-    """Seeds reaching a common (face, side) share the same air volume."""
-    sides = [set(s.seen_sides.tolist()) for s in mesh.visibility.seeds]
-    parent = list(range(len(sides)))
-
-    def find(i):
-        while parent[i] != i:
-            parent[i] = parent[parent[i]]
-            i = parent[i]
-        return i
-
-    for i in range(len(sides)):
-        for j in range(i + 1, len(sides)):
-            if sides[i] & sides[j]:
-                parent[find(i)] = find(j)
-    roots = {r: k for k, r in enumerate(sorted({find(i) for i in range(len(sides))}))}
-    return [roots[find(i)] for i in range(len(sides))]
+    """Seeds reaching a common (face, side) share the same air volume (:func:`.visibility.seed_enclosures`)."""
+    return seed_enclosures(mesh.visibility)
 
 
 def _object_list(mesh: PreparedMesh, face_ids, limit: int) -> List[str]:
@@ -309,12 +296,17 @@ def analyze(
         )
     skipped = np.flatnonzero(mesh.face_class == FACE_CLASS_SKIPPED).tolist()
     if skipped:
+        unreached = mesh.unreached_objects()
+        detail = "Never reached by sound (inside solids or behind the shell). They are kept as reflecting walls, left out of the surface area, the absorption and the diffraction."
+        if unreached:
+            detail += f" {len(unreached)} object(s) have no face reached at all: leaving them out of the simulation makes the image-source search cheaper."
         out.add(
             "info",
             "skipped_faces",
             f"{len(skipped)} skipped face(s)",
-            "Never reached by sound (inside solids or behind the shell). They are kept but do not affect the result.",
+            detail,
             face_ids=skipped,
+            object_ids=unreached,
         )
     for obj in mesh.enclosing_objects:
         out.add(
