@@ -19,6 +19,7 @@ from compas_acoustics.hybrid.diffraction import encode_diffraction
 from compas_acoustics.simulation_methods import Ambisonics
 from compas_acoustics.simulation_methods import Mono
 from compas_acoustics.simulation_methods import SimulationContext
+from compas_acoustics.room.air import AirConditions
 from compas_acoustics.room.geometry import RoomGeometry
 from compas_acoustics.room.geometry import SurfaceMaterial
 
@@ -522,9 +523,11 @@ def test_a_receiver_without_a_visible_image_beside_a_visible_one_renders():
         assert np.sum(ir.ir[int(0.03 * FS) :, 0] ** 2) > 0.0
 
 
-def test_the_directional_histograms_trace_80000_rays(monkeypatch):
-    """At 20000 rays the per-band late directions are mostly ray noise (rms 0.15-0.33 against 0.06-0.17 at 80000)."""
+def test_the_directional_histograms_trace_the_rays_of_a_1_db_share_error(monkeypatch):
+    """Vorlaender (2020, Eq. 11.20) per direction, never fewer than the mono method's own rays."""
     import compas_acoustics.room.raytracing as raytracing
+    from compas_acoustics.hybrid.envelope import histogram_rays
+    from compas_acoustics.hybrid.late import fdn_directions
 
     class Traced(Exception):
         pass
@@ -533,6 +536,26 @@ def test_the_directional_histograms_trace_80000_rays(monkeypatch):
         raise Traced(kwargs["n_rays"])
 
     monkeypatch.setattr(raytracing, "directional_histograms", spy)
-    with pytest.raises(Traced) as traced:
-        make([Receiver("rec", 2.0, 7.0, 1.5)]).simulate(Ambisonics(sh_order=1, duration=0.5, late_envelope=True))
-    assert traced.value.args[0] == 80_000
+    grid = fdn_directions(96).cartesian
+    speed = AirConditions().speed_of_sound
+    for size, floor in (((10, 8, 4), True), ((30, 20, 8), False)):
+        scene = Scene("test")
+        scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(*size, materials=WALL))
+        scene.add_source(Source("src", 2.0, 4.0, 1.5))
+        scene.add_receiver(Receiver("rec", 8.0, 4.0, 1.5))
+        with pytest.raises(Traced) as traced:
+            scene.simulate(Ambisonics(sh_order=1, duration=0.5, late_envelope=True))
+        wanted = histogram_rays(float(np.prod(size)), 0.5, speed, grid)
+        assert (wanted < 20_000) == floor
+        assert traced.value.args[0] == max(20_000, wanted)
+
+
+def test_the_generation_record_holds_the_histogram_rays():
+    from compas_acoustics.hybrid.envelope import histogram_rays
+    from compas_acoustics.hybrid.late import fdn_directions
+
+    scene = make()
+    (ir,) = scene.simulate(Ambisonics(references(scene), sh_order=1, duration=0.5)).values()
+    assert ir.generation["histogram_rays"] == max(20_000, histogram_rays(320.0, 0.5, AirConditions().speed_of_sound, fdn_directions(96).cartesian))
+    (ir,) = scene.simulate(Ambisonics(references(scene), sh_order=1, duration=0.5, late_envelope=False)).values()
+    assert ir.generation["histogram_rays"] is None

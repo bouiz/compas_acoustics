@@ -194,14 +194,63 @@ def test_a_direction_quieter_in_one_band_only_is_quieter_in_that_band_only():
         assert abs(total) < 0.2
 
 
-def test_the_16_khz_band_takes_the_8_khz_shares():
+def test_the_16_khz_band_takes_its_own_shares():
+    """The 16 kHz row of the western directions at -6 dB: the 16 kHz band follows; the 8 kHz row at -20 dB does not reach it."""
     west = grid()[:, 0] < -0.5
     east = grid()[:, 0] > 0.5
     scale = np.ones((96, 9, 1))
-    scale[grid()[:, 0] < 0, 8] = 10 ** (-20 / 10)
+    scale[grid()[:, 0] < 0, 8] = 10 ** (-6 / 10)
     late, shaped = shaped_by(scale)
     lost = band_db(shaped, 8, 0.15, 0.6) - band_db(late, 8, 0.15, 0.6)
-    assert abs(lost[west].mean() - lost[east].mean()) < 0.5
+    assert -6.0 < lost[west].mean() - lost[east].mean() < -4.5
+    scale = np.ones((96, 9, 1))
+    scale[grid()[:, 0] < 0, 7] = 10 ** (-20 / 10)
+    late, shaped = shaped_by(scale)
+    lost = band_db(shaped, 8, 0.15, 0.6) - band_db(late, 8, 0.15, 0.6)
+    assert abs(lost[west].mean() - lost[east].mean()) < 1.5
+
+
+def test_a_histogram_on_other_bands_than_the_lines_is_refused():
+    late = lines()
+    reference = early_w(late) + 3.0 * late.sum(axis=1) / np.sqrt(96)
+    h = histogram_of(late, 3.0)
+    for bands, energy in ((125.0 * 2.0 ** np.arange(9), h.energy), (BANDS9[:7], h.energy[:, :7])):
+        other = DirectionalHistogram(energy=energy, bin_size=h.bin_size, directions=h.directions, bands=bands)
+        with pytest.raises(ValueError, match="bands"):
+            shape_late(late, early_w(late), late.sum(axis=1) / np.sqrt(96), reference, FS, histogram=other)
+
+
+def test_a_histogram_without_a_16_khz_row_gives_that_band_its_last_row():
+    late = lines()
+    reference = early_w(late) + 3.0 * late.sum(axis=1) / np.sqrt(96)
+    h = histogram_of(late, 3.0)
+    eight = DirectionalHistogram(energy=h.energy[:, :8], bin_size=h.bin_size, directions=h.directions, bands=BANDS9[:8])
+    shaped = shape_late(late, early_w(late), late.sum(axis=1) / np.sqrt(96), reference, FS, histogram=eight)
+    assert np.all(np.isfinite(shaped))
+
+
+# --------------------------------------------------------------- the ray count --
+from compas_acoustics.hybrid.envelope import histogram_rays  # noqa: E402
+
+
+def test_the_ray_count_is_the_one_of_a_1_db_error_of_a_directions_slot():
+    """Six directions along the axes share no kernel weight: a direction holds a sixth of the hits, over the Hann
+    window's 2/3 of 100 ms, and sigma = 4.34 / sqrt(hits) = 1 dB."""
+    axes = np.array([[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]], dtype=float)
+    hits = (10 / np.log(10)) ** 2
+    expected = hits * 1000.0 * 6 / (np.pi * 0.5**2 * 340.0 * 0.1 * 2 / 3)
+    assert histogram_rays(1000.0, 0.5, 340.0, axes) == int(np.ceil(expected))
+    window = np.hanning(48002)[1:-1]
+    assert abs(window.sum() ** 2 / (window**2).sum() / window.size - 2 / 3) < 1e-4
+
+
+def test_the_ray_count_grows_with_the_volume_and_falls_with_the_pooled_directions():
+    one = histogram_rays(1000.0, 0.5, 340.0, grid())
+    assert abs(histogram_rays(3000.0, 0.5, 340.0, grid()) / one - 3.0) < 1e-3
+    assert abs(histogram_rays(1000.0, 1.0, 340.0, grid()) / one - 0.25) < 1e-3
+    hits = (10 / np.log(10)) ** 2
+    unpooled = hits * 1000.0 * 96 / (np.pi * 0.5**2 * 340.0 * 0.1 * 2 / 3)
+    assert unpooled / 8 < one < unpooled / 3
 
 
 def test_each_band_holds_its_shares_once_its_own_rays_have_decayed():
