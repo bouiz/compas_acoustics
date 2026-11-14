@@ -258,15 +258,10 @@ def test_a_source_blocked_at_every_receiver_leaks_no_direct_sound():
     assert not np.any(blocked)
 
 
-@pytest.mark.parametrize("order", [0, 3])
-@pytest.mark.parametrize("render", ["images", "rays"])
-def test_visible_pairs_match_the_rooms_own_responses(render, order):
+def rooms_own(g, render, sources, mics, order):
+    """The room's own responses on the package scale, cut to ours' lengths by the caller."""
     from compas_acoustics.room.geometry import pra_octave_grid
 
-    g = geometry()
-    sources = [pra.SoundSource([1.5, 2.0, 1.5]), pra.SoundSource([2.5, 1.0, 1.2])]
-    mics = np.array([[5.0, 3.0, 1.5], [4.0, 4.0, 1.0]]).T
-    ours = responses_of(g, render, sources, mics, order)
     pra.random.seed(1)
     with pra_octave_grid():
         room = g.to_pra(48000, order, ray_tracing=render == "rays", air_absorption=True)
@@ -276,13 +271,39 @@ def test_visible_pairs_match_the_rooms_own_responses(render, order):
         if render == "rays":
             room.set_ray_tracing(n_rays=2000, receiver_radius=0.5, energy_thres=1e-7, time_thres=0.3, hist_bin_size=0.004)
         room.compute_rir()
+        orders = [[np.asarray(s.orders)[np.asarray(room.visibility[i][m], dtype=bool)] for i, s in enumerate(room.sources)] for m in range(mics.shape[1])]
     latency = pra.constants.get("frac_delay_length") // 2
-    for m in range(2):
-        for s in range(2):
-            expected = np.asarray(room.rir[m][s], dtype=float)[latency:] / (4.0 * np.pi)
-            n = ours[m][s].size
-            expected = np.pad(expected, (0, max(0, n - expected.size)))[:n]
-            np.testing.assert_array_equal(ours[m][s], expected)
+    return [[np.asarray(rir, dtype=float)[latency:] / (4.0 * np.pi) for rir in row] for row in room.rir], orders
+
+
+def assert_as_the_rooms_own(ours, own):
+    for ours_row, own_row in zip(ours, own):
+        for mine, expected in zip(ours_row, own_row):
+            np.testing.assert_array_equal(mine, np.pad(expected, (0, max(0, mine.size - expected.size)))[: mine.size])
+
+
+@pytest.mark.parametrize("order", [0, 3])
+@pytest.mark.parametrize("render", ["images", "rays"])
+def test_visible_pairs_match_the_rooms_own_responses(render, order):
+    g = geometry()
+    sources = [pra.SoundSource([1.5, 2.0, 1.5]), pra.SoundSource([2.5, 1.0, 1.2])]
+    mics = np.array([[5.0, 3.0, 1.5], [4.0, 4.0, 1.0]]).T
+    own, _ = rooms_own(g, render, sources, mics, order)
+    assert_as_the_rooms_own(responses_of(g, render, sources, mics, order), own)
+
+
+@pytest.mark.parametrize("order", [1, 3])
+@pytest.mark.parametrize("render", ["images", "rays"])
+def test_a_blocked_direct_sound_keeps_the_visible_reflections(render, order):
+    """Behind the panel the direct sound is blocked and reflections arrive: those are rendered as the room renders them."""
+    g = geometry(extra=(panel(),))
+    sources = [pra.SoundSource(SOURCE)]
+    mics = np.array([BEHIND_PANEL, IN_VIEW], dtype=float).T
+    own, orders = rooms_own(g, render, sources, mics, order)
+    assert 0 not in orders[0][0] and orders[0][0].size and 0 in orders[1][0]
+    ours = responses_of(g, render, sources, mics, order)
+    assert_as_the_rooms_own(ours, own)
+    assert np.sum(ours[0][0] ** 2) > 0.0
 
 
 def responses_of(g, render, sources, mics, order):

@@ -21,15 +21,24 @@ sources is what they do not carry.
   a 16 kHz band keeps the energy above 11.3 kHz out of the 8 kHz estimate; 16 kHz takes the 8 kHz gain.
 
 With a directional histogram, :func:`shape_late` also takes the detection sphere divided into directivity groups,
-each holding a histogram per frequency band (Lentz, Schroeder and Vorlaender 2007, Sec. 2.2; Schroeder 2011,
-Sec. 5.3.4). Schroeder averages the bands into one hit probability per group, as every Poisson event there takes
+each holding a histogram per frequency band (Lentz, Schroeder and Vorlaender 2007, Sec. 2.4 and Fig. 6; Schroeder
+2011, Sec. 5.3.4). Schroeder averages the bands into one hit probability per group, as every Poisson event there takes
 one broadband HRIR; the network's lines are shaped per band anyway, so here each band keeps its own: in band b
 every line is scaled by ``sqrt(p_i / q_i)``, its direction's share of the rays' energy in that band over its
 share of the lines' (:func:`directional_shares`), a per-line, per-band gain as the boundary filters of Kirsch,
 Wendt and van de Par (2023, Eqs. 4-5) are. The lines keep each band's total and take the rays' distribution, so
-a direction facing a surface that absorbs one band decays faster in that band. The bins are first pooled over
-neighbouring directions with the kernel of Kirsch et al. (2023, Eq. 4), ``max(u_i . u_j, 0) ** (N / 6)``,
-since a short bin holds few detections per direction; 16 kHz takes the 8 kHz shares, as it takes the gain.
+a direction facing a surface that absorbs one band decays faster in that band; the 16 kHz band takes the
+histogram's own 16 kHz row.
+
+The package's own choices, without a reference:
+
+- The bins are first pooled over neighbouring directions, since a short bin holds few detections per direction.
+  The weights are those of Kirsch et al. (2023, Eq. 4), ``max(u_i . u_j, 0) ** (N / 6)``, who use them to map
+  96 scanned directions onto fewer sources and not at all with 96; pooling the N groups onto themselves is not
+  theirs.
+- The window of ``SMOOTH_MS`` and the holds, 20 dB down for the gains and 60 dB down for the shares.
+- The ray count of the histogram (:func:`histogram_rays`) applies the 1 dB that Schroeder (2011, Sec. 12.1)
+  takes for a response's envelope to one direction's share.
 """
 
 from __future__ import annotations
@@ -45,6 +54,8 @@ from scipy.signal import fftconvolve
 SMOOTH_MS = 100.0
 # a reference this far from the hybrid over its first 50 ms is on another scale
 SCALE_WARN_DB = 6.0
+# the standard deviation of a direction's energy over one slot that sets the histogram's ray count
+SHARE_ERROR_DB = 1.0
 
 _TOP_BAND_HZ = 16000.0
 _N_FILT = 2**12  # reconstructing bank length; its delay is half of it
@@ -164,12 +175,17 @@ def shape_late(signals: np.ndarray, early_w: np.ndarray, late_w: np.ndarray, ref
     ``early_w`` and ``late_w`` are the W channels of the hybrid's two parts and ``reference`` is on the same
     scale. Warns if ``early_w + late_w`` and the reference disagree by more than ``SCALE_WARN_DB`` over the
     first 50 ms: the reference is on another scale. ``histogram``, a
-    :class:`~compas_acoustics.room.raytracing.DirectionalHistogram` on the directions of the lines (n, n_lines),
-    also gives every band of every line its :func:`directional_shares`.
+    :class:`~compas_acoustics.room.raytracing.DirectionalHistogram` on the directions of the lines, also gives
+    every band of the lines, (n, n_lines), its :func:`directional_shares`. Its bands are the bank's from 62.5 Hz
+    up, at least to 8 kHz; without a 16 kHz row that band takes the 8 kHz one.
     """
     signals = np.asarray(signals, dtype=float)
-    if histogram is not None and signals.ndim != 2:
-        raise ValueError("the directional shares apply to the network's lines, (n, n_lines)")
+    if histogram is not None:
+        if signals.ndim != 2:
+            raise ValueError("the directional shares apply to the network's lines, (n, n_lines)")
+        rows = np.asarray(histogram.bands, dtype=float)
+        if not 8 <= rows.size <= 9 or not np.allclose(rows, 62.5 * 2.0 ** np.arange(rows.size), rtol=0.02):
+            raise ValueError(f"the histogram's bands must be the octaves from 62.5 Hz to 8 or 16 kHz, got {rows.tolist()}")
     early_w = np.asarray(early_w, dtype=float).ravel()
     late_w = np.asarray(late_w, dtype=float).ravel()
     reference = np.asarray(reference, dtype=float).ravel()
@@ -199,29 +215,51 @@ def shape_late(signals: np.ndarray, early_w: np.ndarray, late_w: np.ndarray, ref
         return np.einsum("bn,bnc->nc", gains, bands)
     shaped = np.zeros_like(signals)
     for b, band in enumerate(_octave_bands(signals, fs)):
-        share = directional_shares(histogram, band, fs, min(b, 7))
+        share = directional_shares(histogram, band, fs, min(b, rows.size - 1))
         share *= gains[b][:, np.newaxis]
         share *= band
         shaped += share
     return shaped
 
 
+def _pooling_weights(directions: np.ndarray) -> np.ndarray:
+    """``max(u_i . u_j, 0) ** (N / 6)`` (Kirsch et al. 2023, Eq. 4) with rows summing to one, (N, N)."""
+    unit = np.asarray(directions, dtype=float)
+    unit = unit / np.linalg.norm(unit, axis=1, keepdims=True)
+    weights = np.clip(unit @ unit.T, 0.0, None) ** (unit.shape[0] / 6.0)
+    return weights / weights.sum(axis=1, keepdims=True)
+
+
 def smooth_over_directions(energy: np.ndarray, directions: np.ndarray) -> np.ndarray:
     """``energy`` (n_directions, ...) pooled over neighbouring directions, same shape.
 
-    Kirsch et al. (2023, Eq. 4): direction ``i`` takes the mean of all
-    directions weighted by ``max(u_i . u_j, 0) ** (N / 6)``. The rows of the
-    kernel are normalised, so on a grid whose columns sum alike (an equal-area
-    grid) the energy of every bin is kept to within the grid's unevenness.
+    Direction ``i`` takes the mean of all directions weighted by ``max(u_i . u_j, 0) ** (N / 6)``, the weights
+    of Kirsch et al. (2023, Eq. 4); pooling a grid onto itself with them is the package's choice. The rows of
+    the kernel are normalised, so on a grid whose columns sum alike (an equal-area grid) the energy of every bin
+    is kept to within the grid's unevenness.
     """
     energy = np.asarray(energy, dtype=float)
-    unit = np.asarray(directions, dtype=float)
-    unit = unit / np.linalg.norm(unit, axis=1, keepdims=True)
-    if unit.shape[0] != energy.shape[0]:
-        raise ValueError(f"energy has {energy.shape[0]} directions, directions {unit.shape[0]}")
-    weights = np.clip(unit @ unit.T, 0.0, None) ** (unit.shape[0] / 6.0)
-    weights /= weights.sum(axis=1, keepdims=True)
+    weights = _pooling_weights(directions)
+    if weights.shape[0] != energy.shape[0]:
+        raise ValueError(f"energy has {energy.shape[0]} directions, directions {weights.shape[0]}")
     return np.tensordot(weights, energy, axes=(1, 0))
+
+
+def histogram_rays(volume: float, receiver_radius: float, speed_of_sound: float, directions: np.ndarray) -> int:
+    """The rays at which a direction's energy over one slot has a standard deviation of ``SHARE_ERROR_DB``.
+
+    Vorlaender (2020, Sec. 11.3.7): the hits of a detection sphere of radius r_d within dt are Poisson
+    distributed, N pi r_d^2 c dt / V of them on average, so the level of their energy has the standard deviation
+    4.34 / sqrt(hits) dB (Eq. 11.20). One of n directions holds 1 / n of the hits. The Hann window of
+    ``SMOOTH_MS`` and :func:`smooth_over_directions` weight them, and a weighted sum of Poisson counts has the
+    error of ``sum(w) ** 2 / sum(w ** 2)`` equal ones: 2/3 of the window, and the mean of that ratio over the
+    kernel's rows.
+    """
+    weights = _pooling_weights(directions)
+    pooled = float(np.mean(1.0 / np.sum(weights**2, axis=1)))
+    slot = SMOOTH_MS * 1e-3 * 2.0 / 3.0
+    hits = (10.0 / np.log(10.0) / SHARE_ERROR_DB) ** 2
+    return int(np.ceil(hits * volume * weights.shape[0] / (np.pi * receiver_radius**2 * speed_of_sound * slot * pooled)))
 
 
 def directional_shares(histogram, lines: np.ndarray, fs: float, band: int) -> np.ndarray:

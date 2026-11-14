@@ -17,6 +17,7 @@ import numpy as np
 from compas_acoustics.hybrid.ambisonics import default_num_delays
 from compas_acoustics.hybrid.ambisonics import render_ambisonics
 from compas_acoustics.hybrid.early import image_sources
+from compas_acoustics.hybrid.envelope import histogram_rays
 from compas_acoustics.hybrid.late import MIN_DELAYS
 from compas_acoustics.hybrid.late import fdn_directions
 from compas_acoustics.hybrid.pair import Pair
@@ -42,8 +43,6 @@ __all__ = ["Binaural", "Ambisonics", "TAILS"]
 
 #: Where the decay target of the late field comes from.
 TAILS = ("reference", "ray_tracing", "eyring", "sabine")
-# At 20000 rays the per-band late directions are mostly ray noise
-_HISTOGRAM_RAYS = 80_000
 
 
 class _HybridMethod(SimulationMethod):
@@ -172,6 +171,7 @@ class _HybridMethod(SimulationMethod):
             "directional_absorption": self.directional_absorption,
             "scattering": self.scattering,
             "num_delays": self.num_delays,
+            "histogram_rays": None,
             "seed": self.seed,
             "scene": getattr(context.scene, "name", None),
         }
@@ -187,6 +187,7 @@ class _HybridMethod(SimulationMethod):
             grid = fdn_directions(self.num_delays).cartesian
             grid = grid / np.linalg.norm(grid, axis=1, keepdims=True)
             tracer = Mono(ray_tracing=True)
+            generation["histogram_rays"] = max(tracer.n_rays, histogram_rays(room.get_volume(), tracer.receiver_radius, speed_of_sound, grid))
             histograms = directional_histograms(
                 geometry,
                 [source_to_pra(source) for source in context.sources],
@@ -195,7 +196,7 @@ class _HybridMethod(SimulationMethod):
                 [grid @ rotations[id(receiver)].T for receiver in context.receivers],
                 max_order=self.image_source_order,
                 duration=self._own_duration(geometry, air_absorption, air, output_length=True),
-                n_rays=_HISTOGRAM_RAYS,
+                n_rays=generation["histogram_rays"],
                 receiver_radius=tracer.receiver_radius,
                 energy_threshold=tracer.energy_thres,
                 air_absorption=air_absorption,
@@ -352,8 +353,9 @@ _ENGINE_PARAMETERS = """
     late_envelope : bool, optional
         Shape the late field: attenuated per band to the reference's late energy, each delay line given, per
         octave band, its direction's share of the energy the rays bring in that band (directional histogram,
-        Schroeder 2011). The rays are traced with ``Mono(ray_tracing=True)``'s settings but 80000 rays, at
-        ``image_source_order``, also with a given reference. Default on
+        Schroeder 2011). The rays are traced with ``Mono(ray_tracing=True)``'s settings at ``image_source_order``,
+        also with a given reference, as many as give a direction's energy a standard deviation of 1 dB
+        (Vorlaender 2020, Eq. 11.20) and never fewer than that method's. Default on
         for a reference or ray-tracing tail; an Eyring or Sabine tail has no reference, so ``True`` raises.
     diffraction : {False, True, "udfa", "btms"}, default=False
         Edge diffraction around obstacles and at room edges that open wider than 180 deg; ``True`` is

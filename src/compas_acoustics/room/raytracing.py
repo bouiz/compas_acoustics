@@ -231,7 +231,7 @@ def directional_histograms(
 ) -> List[List[DirectionalHistogram]]:
     """Ray-traced energy per direction of arrival of every source at every microphone, ``[mic][source]``.
 
-    The detection sphere divided into directivity groups (Lentz, Schroeder and Vorlaender 2007; Schroeder 2011,
+    The detection sphere divided into directivity groups (Lentz, Schroeder and Vorlaender 2007, Sec. 2.4; Schroeder 2011,
     Sec. 5.3.4): every detected ray is binned by the direction nearest its last leg. ``directions`` holds one
     ``(n, 3)`` array of unit vectors in room coordinates per microphone. Arguments and rays are those of
     :func:`ray_traced_rirs`: a ray is logged only after ``max_order`` reflections, so the bins hold what the image
