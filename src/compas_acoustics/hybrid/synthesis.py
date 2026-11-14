@@ -28,7 +28,6 @@ from .scattering import scattering_decay_time
 from .scattering import scattering_weights
 from .scattering import smear
 from .envelope import shape_late
-from .envelope import shape_late_directional
 from .late import MIN_DELAYS
 from .late import design_fdn
 from .late import directional_delays
@@ -67,9 +66,7 @@ class HybridCore:
         if self.late_envelope is None:
             return self.lines
         w = self.builds[0][0].C[0]
-        if self.directional_envelope is not None:
-            return shape_late_directional(self.lines, early_w, self.lines @ w, self.late_envelope, self.directional_envelope, self.fs)
-        return shape_late(self.lines, early_w, self.lines @ w, self.late_envelope, self.fs)
+        return shape_late(self.lines, early_w, self.lines @ w, self.late_envelope, self.fs, histogram=self.directional_envelope)
 
 
 @dataclass(frozen=True)
@@ -120,7 +117,7 @@ def prepare(
     matrices, ``rng + slope`` for each slope. ``drive_gain`` defaults to ``sqrt(num_delays)``. ``late_envelope``, a package-scale omnidirectional reference,
     attenuates the lines per band to its late energy (Vorlaender 2020, Sec. 11.9); ``directional_envelope``, a
     :class:`~compas_acoustics.room.raytracing.DirectionalHistogram` on the lines' directions in room coordinates,
-    then gives them the rays' distribution (:func:`~compas_acoustics.hybrid.envelope.shape_late_directional`);
+    then gives every band of them the rays' distribution in that band (:func:`~compas_acoustics.hybrid.envelope.shape_late`);
     the renderer applies both (:meth:`HybridCore.shaped_lines`).
 
     ``diffraction="udfa"`` (``True``) adds edge diffraction (Kirsch and Ewert 2023) around obstacles and at room

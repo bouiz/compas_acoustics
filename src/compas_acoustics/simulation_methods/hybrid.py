@@ -42,6 +42,8 @@ __all__ = ["Binaural", "Ambisonics", "TAILS"]
 
 #: Where the decay target of the late field comes from.
 TAILS = ("reference", "ray_tracing", "eyring", "sabine")
+# At 20000 rays the per-band late directions are mostly ray noise
+_HISTOGRAM_RAYS = 80_000
 
 
 class _HybridMethod(SimulationMethod):
@@ -193,7 +195,7 @@ class _HybridMethod(SimulationMethod):
                 [grid @ rotations[id(receiver)].T for receiver in context.receivers],
                 max_order=self.image_source_order,
                 duration=self._own_duration(geometry, air_absorption, air, output_length=True),
-                n_rays=tracer.n_rays,
+                n_rays=_HISTOGRAM_RAYS,
                 receiver_radius=tracer.receiver_radius,
                 energy_threshold=tracer.energy_thres,
                 air_absorption=air_absorption,
@@ -348,9 +350,10 @@ _ENGINE_PARAMETERS = """
     directional_absorption : bool, default=True
         Weight each delay line with the reflection of the boundary it faces.
     late_envelope : bool, optional
-        Shape the late field: attenuated per band to the reference's late energy, each delay line given its
-        direction's share of the energy the rays bring (directional histogram, Schroeder 2011). The rays are
-        traced by ``Mono(ray_tracing=True)`` at ``image_source_order``, also with a given reference. Default on
+        Shape the late field: attenuated per band to the reference's late energy, each delay line given, per
+        octave band, its direction's share of the energy the rays bring in that band (directional histogram,
+        Schroeder 2011). The rays are traced with ``Mono(ray_tracing=True)``'s settings but 80000 rays, at
+        ``image_source_order``, also with a given reference. Default on
         for a reference or ray-tracing tail; an Eyring or Sabine tail has no reference, so ``True`` raises.
     diffraction : {False, True, "udfa", "btms"}, default=False
         Edge diffraction around obstacles and at room edges that open wider than 180 deg; ``True`` is
