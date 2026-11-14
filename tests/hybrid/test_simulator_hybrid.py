@@ -520,3 +520,19 @@ def test_a_receiver_without_a_visible_image_beside_a_visible_one_renders():
     for ir in rirs.values():
         assert np.all(np.isfinite(ir.ir))
         assert np.sum(ir.ir[int(0.03 * FS) :, 0] ** 2) > 0.0
+
+
+def test_the_directional_histograms_trace_80000_rays(monkeypatch):
+    """At 20000 rays the per-band late directions are mostly ray noise (rms 0.15-0.33 against 0.06-0.17 at 80000)."""
+    import compas_acoustics.room.raytracing as raytracing
+
+    class Traced(Exception):
+        pass
+
+    def spy(*args, **kwargs):
+        raise Traced(kwargs["n_rays"])
+
+    monkeypatch.setattr(raytracing, "directional_histograms", spy)
+    with pytest.raises(Traced) as traced:
+        make([Receiver("rec", 2.0, 7.0, 1.5)]).simulate(Ambisonics(sh_order=1, duration=0.5, late_envelope=True))
+    assert traced.value.args[0] == 80_000
