@@ -559,3 +559,11 @@ def test_the_generation_record_holds_the_histogram_rays():
     assert ir.generation["histogram_rays"] == max(20_000, histogram_rays(320.0, 0.5, AirConditions().speed_of_sound, fdn_directions(96).cartesian))
     (ir,) = scene.simulate(Ambisonics(references(scene), sh_order=1, duration=0.5, late_envelope=False)).values()
     assert ir.generation["histogram_rays"] is None
+
+
+def test_a_silent_reference_is_refused_by_the_names_of_its_pair():
+    """Images alone leave the receiver behind the panel without any energy at order 0: no decay to fit."""
+    scene = make([Receiver("behind", 8.0, 4.0, 1.5), Receiver("in_view", 2.0, 7.0, 1.5)], panel=True)
+    reference = Mono(ray_tracing=False, image_source_order=0)
+    with pytest.raises(ValueError, match="reference of 'behind' and 'src' is silent"):
+        scene.simulate(Ambisonics(reference, image_source_order=1, sh_order=1, duration=0.5))
