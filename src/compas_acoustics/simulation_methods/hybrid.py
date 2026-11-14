@@ -224,6 +224,11 @@ class _HybridMethod(SimulationMethod):
                 if references is not None:
                     # Decay target and late envelope need the absolute (package) level
                     reference = np.asarray(references[key].denormalized(), dtype=float)
+                    if not np.any(reference):
+                        raise ValueError(
+                            f"the reference of '{receiver.name}' and '{source.name}' is silent, so it has no decay to fit: image sources "
+                            "alone give a receiver that sees none of them no energy. Simulate the reference with ray tracing."
+                        )
                     target = RoomTarget.from_rir(reference, fs, n_slopes=self.n_slopes, decay_db=self.decay_db)
                     self._check_reference_length(reference.size / fs, target, eyring_rt, key)
                 else:

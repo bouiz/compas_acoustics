@@ -28,7 +28,9 @@ every line is scaled by ``sqrt(p_i / q_i)``, its direction's share of the rays' 
 share of the lines' (:func:`directional_shares`), a per-line, per-band gain as the boundary filters of Kirsch,
 Wendt and van de Par (2023, Eqs. 4-5) are. The lines keep each band's total and take the rays' distribution, so
 a direction facing a surface that absorbs one band decays faster in that band; the 16 kHz band takes the
-histogram's own 16 kHz row.
+histogram's own 16 kHz row. Shaping the lines of a feedback delay network with such shares is in neither of these
+sources: Schroeder steers a Poisson noise process with one probability per group, and Kirsch's gains are fixed
+boundary filters. Its basis is the comparison with exact image-source shoeboxes.
 
 The package's own choices, without a reference:
 
