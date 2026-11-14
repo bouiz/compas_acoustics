@@ -417,7 +417,7 @@ def test_the_worker_installs_the_wheel_and_nothing_else(monkeypatch, tmp_path):
         calls.clear()
         install.install_worker(tmp_path / "compas_acoustics.whl", hybrid=hybrid, home=tmp_path / "worker", config=tmp_path / "worker.json")
         installs = [command[5:] for command in calls if command[:3] == ["uv", "pip", "install"]]
-        extra = "[hybrid]" if hybrid else ""
+        extra = "[hybrid,worker]" if hybrid else "[worker]"
         assert installs == [[f"compas_acoustics{extra} @ {(tmp_path / 'compas_acoustics.whl').resolve().as_uri()}"]]
 
 

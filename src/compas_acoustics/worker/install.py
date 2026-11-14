@@ -43,8 +43,8 @@ def install_worker(wheel, hybrid=False, home=WORKER_HOME, config=CONFIG, python_
     shutil.rmtree(home, ignore_errors=True)
     subprocess.run([uv, "venv", "--python", python_version, str(home)], check=True, env=env)
     python = home / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
-    # the binaural and ambisonics methods need the [hybrid] extra
-    requirement = "compas_acoustics{} @ {}".format("[hybrid]" if hybrid else "", Path(wheel).resolve().as_uri())
+    # the worker needs the [worker] extra (its wire format), the binaural and ambisonics methods the [hybrid] one
+    requirement = "compas_acoustics{} @ {}".format("[hybrid,worker]" if hybrid else "[worker]", Path(wheel).resolve().as_uri())
     subprocess.run([uv, "pip", "install", "--python", str(python), requirement], check=True, env=env)
     # The first import of the scientific stack is slow; do it here, not on the first Grasshopper call
     subprocess.run([str(python), "-c", "import compas_acoustics.simulation_methods as m; m.Binaural" if hybrid else "import compas_acoustics.worker.api"], check=True, env=env)
