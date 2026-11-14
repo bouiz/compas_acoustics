@@ -1,7 +1,8 @@
 """User-facing issues of a :class:`~compas_acoustics.geometry.prepare.PreparedMesh`: what will go wrong, and why.
 
 :func:`analyze` checks the sources and receivers (outside the model, inside an object, on a surface), the paths
-between them (blocked, or in separate volumes), leaks and holes, the automatic fixes (flipped and two-sided faces),
+between them (blocked, or in separate volumes), leaks and holes, closed surfaces whose side of the air the walk
+contradicts, the automatic fixes (flipped and two-sided faces),
 the faces and objects sound never reaches, and the cost of the image source search. Every issue has a stable ``code``, a ``severity`` (``"error"``,
 ``"warning"`` or ``"info"``) and what to highlight (faces, objects, boundary loops, a point or a segment). Checks
 specific to one solver (a wave solver's grid) are left to the caller, which adds them with :meth:`Issues.add`.
@@ -307,6 +308,22 @@ def analyze(
             detail,
             face_ids=skipped,
             object_ids=unreached,
+        )
+    for conflict in st.get("orientation_conflicts", []):
+        names = list(conflict["objects"]) or ["a closed surface"]
+        side = "holds air (a source or receiver is inside it)" if conflict["air_inside"] else "is solid (no source or receiver is inside it)"
+        if conflict["escaping_seeds"]:
+            why = f"{len(conflict['escaping_seeds'])} source(s)/receiver(s) inside it see most of their rays escape, which a closed surface cannot let happen. "
+        else:
+            why = f"Sound also reaches it from the other side ({conflict['other_hits']} of {conflict['air_hits'] + conflict['other_hits']} hits). "
+        out.add(
+            "warning",
+            "orientation_conflict",
+            f"'{names[0]}': air on both sides of a closed surface" if not conflict["escaping_seeds"] else f"'{names[0]}': closed surface, yet rays escape",
+            f"It is closed and taken as a surface that {side}, reflecting on that side only. {why}"
+            "Check that no source or receiver sits inside a solid and that the surface is modelled as one closed shell.",
+            face_ids=np.flatnonzero(mesh.component == conflict["component"]).tolist(),
+            object_ids=conflict["objects"],
         )
     for obj in mesh.enclosing_objects:
         out.add(

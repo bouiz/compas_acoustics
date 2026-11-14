@@ -2,7 +2,9 @@
 
 Architectural models arrive open, non-manifold, unwelded and wound any way. :func:`prepare_mesh` decides which side
 of every face touches the air the simulation happens in, from where the sources and receivers (the *seeds*) are,
-by a diffuse random walk of rays from them (:mod:`.visibility`). Nothing is removed because of topology: open
+by a diffuse random walk of rays from them (:mod:`.visibility`); a closed surface holds the air when a seed is inside
+it and is a solid otherwise, the walk only cross-checking that (:mod:`.orientation`), and when every seed is outside
+the model the exterior is the air, the walk running from them all. Nothing is removed because of topology: open
 edges, non-manifold edges and coincident faces are reported, never pruned. The result is engine-neutral:
 
 - the geometric methods build their room with :meth:`compas_acoustics.RoomGeometry.from_prepared`, whose
@@ -56,6 +58,7 @@ from .topology import face_normals_and_areas
 from .topology import orient_consistently
 from .topology import signed_volume
 from .topology import weld_vertices
+from .visibility import SEED_OUTSIDE
 from .visibility import AirVisibility
 from .visibility import rays_for_budget
 from .visibility import side_enclosures
@@ -319,6 +322,8 @@ def prepare_mesh(
             orientable=orientable,
             bfs_flip=bfs_flip,
             face_object=face_object,
+            seeds=seed_arr,
+            seed_outside=np.array([s.status == SEED_OUTSIDE for s in vis.seeds], dtype=bool),
         ),
         detect_two_sided=options.detect_two_sided,
         min_hits=options.two_sided_min_hits,
@@ -378,6 +383,8 @@ def prepare_mesh(
             "simulated_walls": len(walls),
             "rays_per_seed": int(rays),
             "leak_fraction": float(vis.leak_fraction),
+            "outdoor": bool(vis.outdoor),
+            "orientation_conflicts": [{**c, "objects": [objects[o] for o in c["objects"]]} for c in orient.conflicts],
         }
     )
     return PreparedMesh(

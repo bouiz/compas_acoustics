@@ -104,6 +104,49 @@ def ray_triangle_t(tris: TriangleSet, o: np.ndarray, d: np.ndarray) -> np.ndarra
     return np.where(hit, t, np.inf)
 
 
+def ray_crossings(tris: TriangleSet, o: np.ndarray, d: np.ndarray, margin: float = 1e-7) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Triangles each ray crosses beyond its origin, for parity (point in solid) tests.
+
+    Args:
+        o, d: (R, 3) origins and unit directions.
+        margin: relative tolerance of a graze.
+    Returns:
+        ``(count (R,), grazing (R,))``: the crossings, and whether the ray passes within ``margin`` (barycentric) of
+        a triangle's edge or vertex, runs in a triangle's plane, or starts on a triangle: there a crossing may be
+        counted twice or missed, so the ray's parity is not to be trusted.
+    """
+    count = np.zeros(len(o), dtype=np.int64)
+    grazing = np.zeros(len(o), dtype=bool)
+    if len(o) == 0 or len(tris) == 0:
+        return count, grazing
+    scale = np.linalg.norm(tris.e1, axis=1) * np.linalg.norm(tris.e2, axis=1)
+    size = np.sqrt(scale)
+    normal = np.cross(tris.e1, tris.e2)
+    normal /= np.maximum(np.linalg.norm(normal, axis=1), 1e-300)[:, None]
+    chunk = max(1, int(1e6 // len(tris)))  # bounds the [chunk x faces] buffers
+    for a in range(0, len(o), chunk):
+        oc, dc = o[a : a + chunk], d[a : a + chunk]
+        pvec = np.cross(dc[:, None, :], tris.e2[None, :, :])
+        det = np.einsum("fk,rfk->rf", tris.e1, pvec)
+        flat = np.abs(det) <= margin * scale  # the ray runs (nearly) in the triangle's plane
+        inv = np.divide(1.0, det, out=np.zeros_like(det), where=~flat)
+        tvec = oc[:, None, :] - tris.v0[None, :, :]
+        u = np.einsum("rfk,rfk->rf", tvec, pvec) * inv
+        qvec = np.cross(tvec, tris.e1[None, :, :])
+        v = np.einsum("rk,rfk->rf", dc, qvec) * inv
+        t = np.einsum("fk,rfk->rf", tris.e2, qvec) * inv
+        lo = np.minimum(np.minimum(u, v), 1.0 - u - v)
+        ahead = t > margin * size
+        crossed = ~flat & (lo > margin) & ahead
+        graze = ~flat & (np.abs(lo) <= margin) & ahead  # through an edge or a vertex
+        graze |= ~flat & (lo >= -margin) & (np.abs(t) <= margin * size)  # starts on the triangle
+        graze |= flat & (np.abs(np.einsum("rfk,fk->rf", tvec, normal)) <= margin * size)  # in its plane
+        count[a : a + chunk] = crossed.sum(axis=1)
+        grazing[a : a + chunk] = graze.any(axis=1)
+    return count, grazing
+
+
 def first_hits(tris: TriangleSet, origins: np.ndarray, dirs: np.ndarray, tmin: float) -> tuple[np.ndarray, np.ndarray]:
     """
     Closest hit of each ray beyond ``tmin``.

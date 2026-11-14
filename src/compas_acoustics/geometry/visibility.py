@@ -52,6 +52,8 @@ class AirVisibility:
     n_chords: int = 0
     rays_per_seed: int = 0
     extra: dict = field(default_factory=dict)
+    # every seed is outside the model: the exterior is the air, and the walk ran from them all (see walk_from_seeds)
+    outdoor: bool = False
 
     @property
     def leak_fraction(self) -> float:
@@ -118,7 +120,12 @@ def walk_from_seeds(
 
     Seeds classified as outside only contribute their primary-ray statistics:
     their rays see the exterior of the model, which must not vote on which
-    side of a wall faces the room.
+    side of a wall faces the room. When every seed is outside (an outdoor
+    scene: a free field, a street), the exterior is the air the simulation
+    happens in: the walk then runs from them all after the primary rays
+    (``vis.outdoor``), their hits voting, while the leak share, the leaks and
+    the mean free path stay those of the seeds inside (none), since rays
+    escaping into a free field are no leaks of a room.
     """
     n_faces = len(tris)
     vis = AirVisibility(
@@ -132,6 +139,34 @@ def walk_from_seeds(
     leak_o: list[np.ndarray] = []
     leak_d: list[np.ndarray] = []
 
+    def walk(o, d, t, f, seen, account):
+        for bounce in range(bounces + 1):
+            hit = f >= 0
+            if bounce > 0 and account:
+                vis.n_reemitted += len(f)
+                vis.n_escaped += int((~hit).sum())
+                vis.chord_sum += float(t[hit].sum())
+                vis.n_chords += int(hit.sum())
+                if (~hit).any():
+                    leak_o.append(o[~hit])
+                    leak_d.append(d[~hit])
+            if not hit.any():
+                break
+            o, d, t, f = o[hit], d[hit], t[hit], f[hit]
+            cos = np.einsum("ij,ij->i", d, normals[f])
+            on_normal_side = cos < 0
+            np.add.at(vis.hits_normal, f[on_normal_side], 1)
+            np.add.at(vis.hits_back, f[~on_normal_side], 1)
+            seen[2 * f + (~on_normal_side)] = True
+            if bounce == bounces:
+                break
+            # Re-emit into the half-space the ray arrived from.
+            side = np.where(on_normal_side[:, None], normals[f], -normals[f])
+            o = o + t[:, None] * d + eps * side
+            d = cosine_hemisphere_directions(side, rng)
+            t, f = first_hits(tris, o, d, tmin=0.0)
+
+    outside: list[tuple] = []
     for seed in np.asarray(seeds, dtype=np.float64).reshape(-1, 3):
         d = uniform_sphere_directions(rays_per_seed, rng)
         o = np.repeat(seed[None, :], rays_per_seed, axis=0)
@@ -146,31 +181,9 @@ def walk_from_seeds(
         mean_hit = float(t[hit].mean()) if hit.any() else float("inf")
 
         if status != SEED_OUTSIDE:
-            for bounce in range(bounces + 1):
-                hit = f >= 0
-                if bounce > 0:
-                    vis.n_reemitted += len(f)
-                    vis.n_escaped += int((~hit).sum())
-                    vis.chord_sum += float(t[hit].sum())
-                    vis.n_chords += int(hit.sum())
-                    if (~hit).any():
-                        leak_o.append(o[~hit])
-                        leak_d.append(d[~hit])
-                if not hit.any():
-                    break
-                o, d, t, f = o[hit], d[hit], t[hit], f[hit]
-                cos = np.einsum("ij,ij->i", d, normals[f])
-                on_normal_side = cos < 0
-                np.add.at(vis.hits_normal, f[on_normal_side], 1)
-                np.add.at(vis.hits_back, f[~on_normal_side], 1)
-                seen[2 * f + (~on_normal_side)] = True
-                if bounce == bounces:
-                    break
-                # Re-emit into the half-space the ray arrived from.
-                side = np.where(on_normal_side[:, None], normals[f], -normals[f])
-                o = o + t[:, None] * d + eps * side
-                d = cosine_hemisphere_directions(side, rng)
-                t, f = first_hits(tris, o, d, tmin=0.0)
+            walk(o, d, t, f, seen, account=True)
+        else:
+            outside.append((len(vis.seeds), o, d, t, f, seen))
 
         vis.seeds.append(
             SeedVisibility(
@@ -183,6 +196,13 @@ def walk_from_seeds(
                 mean_primary_hit_m=mean_hit,
             )
         )
+
+    vis.outdoor = bool(vis.seeds) and len(outside) == len(vis.seeds)
+    if vis.outdoor:
+        for k, o, d, t, f, seen in outside:
+            walk(o, d, t, f, seen, account=False)
+            vis.seeds[k].seen_faces = np.unique(np.flatnonzero(seen) // 2)
+            vis.seeds[k].seen_sides = np.flatnonzero(seen)
 
     if leak_o:
         lo = np.concatenate(leak_o)

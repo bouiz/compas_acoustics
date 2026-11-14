@@ -51,6 +51,7 @@ exclude_docs: |
   _ext/
   _tools/
   grasshopper/notes/
+  validation/
   grasshopper/walkthroughs/
   grasshopper/python_equivalents.json
   _images/fingerprints.json
