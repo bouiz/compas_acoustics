@@ -14,6 +14,7 @@ from compas_acoustics import Source
 from compas_acoustics.hybrid.scattering import complementary_scattering
 from compas_acoustics.room import reflections
 from compas_acoustics.room.geometry import RoomGeometry
+from compas_acoustics.room.geometry import SurfaceMaterial
 from compas_acoustics.room.geometry import pra_octave_grid
 from compas_acoustics.room.pra import source_to_pra
 from compas_acoustics.room.reflections import damping_as_searched
@@ -83,19 +84,14 @@ def test_the_searchs_own_build_is_returned_unchanged():
         assert np.array_equal(d, source.damping)
 
 
-def test_a_path_whose_walls_are_not_singled_out_searches_the_other_room(monkeypatch):
-    """At order 5 every point at one height sends paths through the corners of three walls, which the search
-    accepts from two wall orders whose float32 products differ in the last bit."""
+def test_paths_through_the_corners_of_three_walls_are_read_too():
+    """At order 5 every point at one height sends paths through corners, which the search accepts from several wall
+    orders; its own tests tell which of them it exported."""
     s = scene(panel=False, height=1.75)
     geometry = RoomGeometry.from_scene(s)
     room = searched(geometry, s, 5, True)
-    calls = []
-    search = reflections._searched
-    monkeypatch.setattr(reflections, "_searched", lambda other: calls.append(other) or search(other))
     derived = damping_as_searched(room, built(geometry, s, 5, False))
-    own = searched(geometry, s, 5, False)
-    assert len(calls) == 1
-    for d, source in zip(derived, own.sources):
+    for d, source in zip(derived, searched(geometry, s, 5, False).sources):
         assert np.array_equal(d, source.damping)
 
 
@@ -125,3 +121,130 @@ def test_the_tracer_is_not_moved_by_reading_the_walls():
     searched(geometry, s, 2, True)
     built(geometry, s, 2, False)
     assert np.array_equal(after, pra.random.get_rng().random(4))
+
+
+# ------------------------------------------------ paths the search's float32 decides --
+def panelled_box(x, names):
+    """A 6 x 5 x 3 m box whose walls are split along the planes of ``x`` and y = 2.5 into coplanar panels;
+    ``names(index, axis, low)`` gives each panel's material, by its number, its wall's axis and side. "swap_a" and
+    "swap_b" have the same specular product and different plain ones (absorption and scattering exchanged)."""
+    axes = [np.array([0.0, *x, 6.0]), np.array([0.0, 2.5, 5.0]), np.array([0.0, 3.0])]
+    vertices, index, faces, materials = [], {}, [], []
+
+    def vertex(p):
+        if tuple(p) not in index:
+            index[tuple(p)] = len(vertices)
+            vertices.append(p)
+        return index[tuple(p)]
+
+    for axis in range(3):
+        u, v = [a for a in range(3) if a != axis]
+        for coordinate in (axes[axis][0], axes[axis][-1]):
+            for i in range(len(axes[u]) - 1):
+                for j in range(len(axes[v]) - 1):
+                    quad = []
+                    for a, b in ((i, j), (i + 1, j), (i + 1, j + 1), (i, j + 1)):
+                        p = [0.0, 0.0, 0.0]
+                        p[axis], p[u], p[v] = float(coordinate), float(axes[u][a]), float(axes[v][b])
+                        quad.append(vertex(p))
+                    materials.append(names(len(faces), axis, coordinate == 0.0))
+                    faces.append(tuple(quad))
+    flat = np.ones(8)
+    pool = {
+        "swap_a": SurfaceMaterial("swap_a", 0.15 * flat, 0.6 * flat),
+        "swap_b": SurfaceMaterial("swap_b", 0.6 * flat, 0.15 * flat),
+        "dull": SurfaceMaterial("dull", np.linspace(0.1, 0.4, 8), np.linspace(0.3, 0.05, 8)),
+        "hard": SurfaceMaterial("hard", np.linspace(0.02, 0.06, 8), 0.0 * flat),
+    }
+    return RoomGeometry.from_mesh(np.array(vertices), tuple(faces), tuple(materials), {n: pool[n] for n in set(materials)})
+
+
+def strip_box():
+    """Every panel another material in turn, a 1 cm strip among them."""
+    return panelled_box((3.0, 3.01), lambda index, axis, low: ("swap_a", "swap_b", "dull", "hard")[index % 4])
+
+
+def seam_scene(offset=0.0, y=(1.7, 1.7)):
+    """Source and receivers at one height, mirrored about the seams: reflection points on them, ``offset`` beside."""
+    s = Scene("seams")
+    s.add_source(Source("a", 2.2, y[0], 1.5))
+    s.add_receiver(Receiver("r1", 3.8 + offset, y[1], 1.5))
+    s.add_receiver(Receiver("r2", 2.2, 5.0 - y[0] + offset, 1.5))
+    return s
+
+
+@pytest.mark.parametrize("offset", [0.0, 1e-6, -1e-5, 2e-4, -5e-4])
+@pytest.mark.parametrize("order", [2, 3])
+def test_reflection_points_on_the_seams_of_coplanar_panels(offset, order):
+    """Where a path meets the border of a panel, the search's float32 tests decide which panels reflect it, on
+    the seam and within fractions of a millimetre of it; the damping read from it is still the other room's own."""
+    geometry, s = strip_box(), seam_scene(offset)
+    room = searched(geometry, s, order, True)
+    for other, ray_tracing in ((geometry, False), (complementary_scattering(geometry), True)):
+        derived = damping_as_searched(room, built(other, s, order, ray_tracing))
+        (own,) = searched(other, s, order, ray_tracing).sources
+        assert np.array_equal(derived[0], own.damping)
+
+
+def test_the_sequences_kept_are_the_images_the_search_exported():
+    """Of every sequence of walls ending on an image's last, the search's tests keep as many as it exported at that
+    position off that wall, and the proposals traced back from the receiver hold them all. A kept sequence being one
+    of the search's, a path the proposals missed could cost a search of the other room and not a wrong value."""
+    from itertools import product
+
+    geometry, s = strip_box(), seam_scene()
+    room = searched(geometry, s, 3, True)
+    walls = reflections._Walls(room.room_engine.walls, 6e-4)
+    search = reflections._Search(room.room_engine)
+    (source,) = room.sources
+    visible = np.asarray(room.visibility[0], dtype=bool)
+    images, own = np.asarray(source.images, dtype=np.float32), np.asarray(source.damping)
+    orders, last = np.asarray(source.orders).ravel(), np.asarray(source.walls).ravel()
+    position, mics = np.asarray(source.position, dtype=float).ravel(), np.asarray(room.mic_array.R)
+    shared = 0
+    for k in np.flatnonzero(orders > 0):
+        m = int(np.flatnonzero(visible[:, k])[0])
+        every = [w + (int(last[k]),) for w in product(range(len(room.walls)), repeat=int(orders[k]) - 1)]
+        exported = {w for w in every if search.exported(w, position, mics[:, m], images[:, k], own[:, k])}
+        proposed = reflections._wall_sequences(walls, images[:, k].astype(float), int(orders[k]), int(last[k]), mics[:, m], position)
+        twins = visible[m] & (last == last[k]) & np.all(images == images[:, [k]], axis=0) & np.all(own == own[:, [k]], axis=0)
+        assert len(exported) == np.count_nonzero(twins)
+        assert exported <= set(proposed)
+        shared += len(exported) > 1
+    assert shared > 0
+
+
+@pytest.mark.filterwarnings("ignore:.*lie in one plane")
+def test_two_images_of_one_damping_and_different_walls_search_the_other_room(monkeypatch):
+    """A path off the floor's seam and then a wall is two images, one per floor panel, at one position and off one
+    last wall. The panels' specular products are equal and their plain ones are not, so the search's damping does not
+    tell which image is which."""
+    geometry = panelled_box((3.0,), lambda index, axis, low: ("swap_a" if index % 2 else "swap_b") if axis == 2 and low else "dull")
+    s = seam_scene(y=(2.5, 1.0))
+    room = searched(geometry, s, 2, True)
+    calls = []
+    search = reflections._searched
+    monkeypatch.setattr(reflections, "_searched", lambda other: calls.append(other) or search(other))
+    derived = damping_as_searched(room, built(geometry, s, 2, False))
+    (own,) = searched(geometry, s, 2, False).sources
+    assert len(calls) == 1
+    assert np.array_equal(derived[0], own.damping)
+    images, specular = np.asarray(room.sources[0].images), np.asarray(room.sources[0].damping)
+    pairs = [(j, k) for j in range(images.shape[1]) for k in range(j) if np.array_equal(images[:, j], images[:, k]) and np.array_equal(specular[:, j], specular[:, k])]
+    assert any(not np.array_equal(own.damping[:, j], own.damping[:, k]) for j, k in pairs)
+
+
+def test_an_image_without_a_receiver_that_sees_it_searches_the_other_room(monkeypatch):
+    """pyroomacoustics clears the visibility of a microphone it calls outside the room; such an image has no path to read."""
+    s = scene()
+    geometry = RoomGeometry.from_scene(s)
+    room = searched(geometry, s, 2, True)
+    k = int(np.flatnonzero(np.asarray(room.sources[0].orders).ravel() == 2)[0])
+    room.visibility[0][:, k] = 0
+    calls = []
+    search = reflections._searched
+    monkeypatch.setattr(reflections, "_searched", lambda other: calls.append(other) or search(other))
+    derived = damping_as_searched(room, built(geometry, s, 2, False))
+    assert len(calls) == 1
+    for d, source in zip(derived, searched(geometry, s, 2, False).sources):
+        assert np.array_equal(d, source.damping)
