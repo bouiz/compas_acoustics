@@ -348,3 +348,23 @@ def test_the_band_shares_need_no_more_memory_than_the_band_split():
     _, peak = tracemalloc.get_traced_memory()
     tracemalloc.stop()
     assert peak / late.nbytes < 14.0
+
+
+# ------------------------------------------------- the reference's own rays --
+def test_the_reference_run_sorts_its_own_rays_by_direction():
+    """A copy of every microphone in the reference's run: the responses are those of a run without it, and the
+    histograms those of their own run, the same rays."""
+    from compas_acoustics.room.raytracing import ray_traced_run
+
+    g = geometry(scattering=0.2)
+    settings = dict(max_order=3, duration=0.5, n_rays=5000, air_absorption=True, seed=1)
+    mics = np.stack([RECEIVER, [4.0, 1.5, 2.0]], axis=1)
+    rotated = grid() @ np.array([[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]]).T
+    run = ray_traced_run(g, [pra.SoundSource(SOURCE)], mics, FS, directions=[grid(), rotated], **settings)
+    plain = ray_traced_run(g, [pra.SoundSource(SOURCE)], mics, FS, **settings)
+    alone = directional_histograms(g, [pra.SoundSource(SOURCE)], mics, FS, [grid(), rotated], **settings)
+    assert plain.histograms is None
+    for m in range(2):
+        assert np.array_equal(run.responses[m][0], plain.responses[m][0])
+        assert np.array_equal(run.histograms[m][0].energy, alone[m][0].energy)
+        assert np.array_equal(run.histograms[m][0].directions, alone[m][0].directions)

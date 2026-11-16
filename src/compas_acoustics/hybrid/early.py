@@ -39,9 +39,9 @@ class ImageSourceSet:
             raise ValueError(f"scattered must have shape ({m}, {N_BANDS})")
 
 
-def _band_damping(source) -> np.ndarray:
+def _band_damping(source, damping) -> np.ndarray:
     """A per-band search's reflection products on the package grid, (M, 8)."""
-    damping = np.asarray(source.damping, dtype=float)
+    damping = np.asarray(damping, dtype=float)
     n_images = np.asarray(source.images).shape[1]
     if damping.ndim != 2 or damping.shape[1] != n_images:
         raise RuntimeError(f"expected damping of shape (n_bands, {n_images}), got {damping.shape}: the search did not return a per-band reflection product")
@@ -69,23 +69,25 @@ def _first_of_each_position(images: np.ndarray, spec: Pair) -> np.ndarray:
     return keep
 
 
-def image_sources(room, source_index: int, mic_index: int, spec: Pair, directivity=None, scattered_room=None) -> ImageSourceSet:
+def image_sources(room, source_index: int, mic_index: int, spec: Pair, directivity=None, damping=None, scattered=None) -> ImageSourceSet:
     """The image sources of one source at one microphone of a computed room.
 
     ``room`` has been searched with every source and microphone of the scene; an image is kept when any
     microphone sees it, so this pair's are those visible at ``mic_index``. Delays, per-band gains and
     receiver-relative directions of arrival; the direct sound is order zero; ``wall`` is each image's
-    generating face. The room must be built without air absorption, applied here from the path length.
-    ``directivity`` is evaluated along each image's emission direction from the real source.
+    generating face. Air absorption is applied here from the path length, whatever the room's own setting.
+    ``directivity`` is evaluated along each image's emission direction from the real source. ``damping``, the
+    source's reflection products ``(n_bands, n_images)`` in another build of the room
+    (:func:`~compas_acoustics.room.reflections.damping_as_searched`), replaces the room's own.
 
     An image found more than once is kept once: a path passing exactly through an edge is accepted from both
     wall orderings, which grid layouts (source and receiver at one height) hit routinely.
 
     Surface scattering (Ewert et al. 2025, Sec. 2.1.3) splits each image per band into a specular part,
-    ``prod sqrt(1 - s_i)``, and a scattered part, ``prod sqrt(s_i)``, over its reflections. ``room`` is then
-    built with ``ray_tracing=True``, whose damping holds the specular product, and ``scattered_room`` the same
-    way from :func:`~compas_acoustics.hybrid.scattering.complementary_scattering`; ``scattered`` is the gain
-    of its images, matched by position, zero for the direct sound.
+    ``prod sqrt(1 - s_i)``, and a scattered part, ``prod sqrt(s_i)``, over its reflections. ``damping`` is then
+    that of the room built with ``ray_tracing=True``, which holds the specular product, and ``scattered`` that of
+    the same build from :func:`~compas_acoustics.hybrid.scattering.complementary_scattering`; the scattered gain is
+    zero for the direct sound.
     """
     source = room.sources[source_index]
     visible = np.array(room.visibility[source_index][mic_index], dtype=bool)
@@ -93,41 +95,35 @@ def image_sources(room, source_index: int, mic_index: int, spec: Pair, directivi
     images = np.asarray(source.images, dtype=float)[:, visible]  # (3, M)
     order = np.asarray(source.orders, dtype=int).ravel()[visible]
     wall = np.asarray(source.walls, dtype=int).ravel()[visible]
-    wall_gain = _band_damping(source)[visible]
 
     offset = images - spec.receiver[:, np.newaxis]  # (3, M)
     distance = np.linalg.norm(offset, axis=0)  # (M,)
     delay = distance / spec.speed_of_sound
     spreading = 1.0 / (4.0 * np.pi * distance)
 
-    # m is an energy attenuation coefficient, so pressure loses exp(-m d/2)
-    # over the image's own path length; zero without air absorption.
-    wall_gain = wall_gain * np.exp(-np.outer(distance, spec.air_attenuation()) / 2.0)
-
-    gain = wall_gain * spreading[:, np.newaxis]
-
+    response = None
     if directivity is not None:
         emitted = np.asarray(source.directions[mic_index], dtype=float)[:, visible]
         azimuth = np.arctan2(emitted[1], emitted[0])
         colatitude = np.arccos(np.clip(emitted[2] / np.linalg.norm(emitted, axis=0), -1.0, 1.0))
         response = directivity.get_response(azimuth=azimuth, colatitude=colatitude, degrees=False)
-        gain = gain * np.asarray(response, dtype=float).reshape(-1, 1)
+
+    def gain_of(products):
+        # m is an energy attenuation coefficient, so pressure loses exp(-m d/2)
+        # over the image's own path length; zero without air absorption.
+        wall_gain = _band_damping(source, products)[visible] * np.exp(-np.outer(distance, spec.air_attenuation()) / 2.0)
+        gain = wall_gain * spreading[:, np.newaxis]
+        if response is not None:
+            gain = gain * np.asarray(response, dtype=float).reshape(-1, 1)
+        return gain
+
+    gain = gain_of(source.damping if damping is None else damping)
 
     # the rotation's columns are the receiver's axes, so the transpose takes a world vector to its frame
     offset = spec.receiver_rotation.T @ offset
 
-    scattered = None
-    if scattered_room is not None:
-        scattered = np.zeros_like(gain)
-        other = image_sources(scattered_room, source_index, mic_index, spec, directivity)
-        if other.delay.size != order.size:
-            raise RuntimeError("the scattered room's image sources are not those of the room")
-        if order.size:
-            tolerance = 1e-5 * max(float(np.ptp(spec.geometry.vertices, axis=0).max()), 1.0)
-            gap, match = cKDTree(other.doa.cartesian).query(offset.T)
-            if np.any(gap > tolerance):
-                raise RuntimeError("the scattered room's image sources are not those of the room")
-            scattered = np.where((order > 0)[:, np.newaxis], other.gain[match], 0.0)
+    if scattered is not None:
+        scattered = np.where((order > 0)[:, np.newaxis], gain_of(scattered), 0.0)
 
     return ImageSourceSet(
         delay=delay,

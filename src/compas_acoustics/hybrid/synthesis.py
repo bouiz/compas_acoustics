@@ -175,7 +175,7 @@ def prepare(
     tap = None
     if scattering:
         if iss.scattered is None:
-            raise ValueError("scattering needs image sources with scattered parts: pass image_sources a scattered_room")
+            raise ValueError("scattering needs image sources with scattered parts: pass image_sources the scattered damping")
         reflected = _select(iss, (iss.order >= 1) & (iss.order <= max_order))
         if reflected.delay.size:
             free_path = 4.0 * spec.geometry.volume / spec.geometry.surface_area
