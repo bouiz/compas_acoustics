@@ -227,7 +227,7 @@ def test_wall_factory_errors_are_value_errors(monkeypatch):
 
 # ------------------------------------------------- pairs without a visible image --
 from compas_acoustics.room.raytracing import image_source_rirs  # noqa: E402
-from compas_acoustics.room.raytracing import ray_traced_rirs  # noqa: E402
+from compas_acoustics.room.raytracing import ray_traced_run  # noqa: E402
 
 SOURCE = [1.5, 2.0, 1.5]
 BEHIND_PANEL = [5.0, 2.0, 1.5]
@@ -239,7 +239,7 @@ def responses(render, mics, order=0, extra=None):
     mics = np.array(mics, dtype=float).T
     if render == "images":
         return image_source_rirs(g, [pra.SoundSource(SOURCE)], mics, 48000, max_order=order)
-    return ray_traced_rirs(g, [pra.SoundSource(SOURCE)], mics, 48000, max_order=order, n_rays=2000, duration=0.3, seed=1)
+    return ray_traced_run(g, [pra.SoundSource(SOURCE)], mics, 48000, max_order=order, n_rays=2000, duration=0.3, seed=1).responses
 
 
 @pytest.mark.parametrize("render", ["images", "rays"])
@@ -309,4 +309,4 @@ def test_a_blocked_direct_sound_keeps_the_visible_reflections(render, order):
 def responses_of(g, render, sources, mics, order):
     if render == "images":
         return image_source_rirs(g, sources, mics, 48000, max_order=order)
-    return ray_traced_rirs(g, sources, mics, 48000, max_order=order, n_rays=2000, duration=0.3, seed=1)
+    return ray_traced_run(g, sources, mics, 48000, max_order=order, n_rays=2000, duration=0.3, seed=1).responses

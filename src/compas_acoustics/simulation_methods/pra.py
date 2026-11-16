@@ -13,8 +13,9 @@ from compas_acoustics.room.air import AirConditions
 from compas_acoustics.room.air import air_or_default
 from compas_acoustics.room.pra import source_to_pra
 from compas_acoustics.room.raytracing import DURATION_RT_FACTOR
+from compas_acoustics.room.raytracing import RayTracedRun
 from compas_acoustics.room.raytracing import image_source_rirs
-from compas_acoustics.room.raytracing import ray_traced_rirs
+from compas_acoustics.room.raytracing import ray_traced_run
 
 from .base import SimulationContext
 from .base import SimulationMethod
@@ -138,8 +139,12 @@ class Mono(SimulationMethod):
         return generation
 
     def compute(self, context: SimulationContext) -> dict:
+        return self._run(context)[0]
+
+    def _run(self, context: SimulationContext, directions=None) -> tuple[dict, Optional[RayTracedRun]]:
+        """The responses and, with ray tracing, the run they came from; ``directions`` per receiver as :func:`ray_traced_run`'s."""
         if not context.sources or not context.receivers:
-            return {}
+            return {}, None
         fs = context.sampling_rate
         _warn_if_the_search_is_slow(context.geometry, self.image_source_order)
         sources = [source_to_pra(source) for source in context.sources]
@@ -147,8 +152,9 @@ class Mono(SimulationMethod):
         from compas_acoustics.worker import jobs
 
         jobs.progress("ray tracing" if self.ray_tracing else "image sources")
+        run = None
         if self.ray_tracing:
-            responses = ray_traced_rirs(
+            run = ray_traced_run(
                 context.geometry,
                 sources,
                 mic_positions,
@@ -161,7 +167,9 @@ class Mono(SimulationMethod):
                 air_absorption=self.air_absorption,
                 seed=self.seed,
                 air=self.air,
+                directions=directions,
             )
+            responses = run.responses
         else:
             responses = image_source_rirs(context.geometry, sources, mic_positions, fs, max_order=self.image_source_order, air_absorption=self.air_absorption, air=self.air)
 
@@ -182,7 +190,7 @@ class Mono(SimulationMethod):
                 )
         if self.ray_tracing and rirs:
             self._warn_if_cut_short(rirs, fs)
-        return rirs
+        return rirs, run
 
     @staticmethod
     def _warn_if_cut_short(rirs: dict, fs: int) -> None:
@@ -208,5 +216,5 @@ class Mono(SimulationMethod):
                 f"short and the hybrid's decay fit would be cut. Rerun with a duration of at least "
                 f"{DURATION_RT_FACTOR * longest:.1f} s; the default buffer comes from Eyring, which this room's decay outruns.",
                 UserWarning,
-                stacklevel=4,
+                stacklevel=5,
             )
