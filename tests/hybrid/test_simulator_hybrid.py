@@ -525,8 +525,8 @@ def test_a_receiver_without_a_visible_image_beside_a_visible_one_renders():
 
 @pytest.mark.parametrize("given", [False, True])
 def test_the_directional_histograms_trace_the_rays_of_a_1_db_share_error(monkeypatch, given):
-    """Vorlaender (2020, Eq. 11.20) per direction, never fewer than the mono method's own rays: in the reference the
-    method traces itself, whose rays the histograms share, or in the histograms' own run with a given reference."""
+    """Vorlaender (2020, Eq. 11.20) per direction, also below the mono method's 20000: in the reference the method
+    traces itself, whose rays the histograms share, or in the histograms' own run with a given reference."""
     import compas_acoustics.room.raytracing as raytracing
     import compas_acoustics.simulation_methods.pra as mono
     from compas_acoustics.hybrid.envelope import histogram_rays
@@ -545,7 +545,7 @@ def test_the_directional_histograms_trace_the_rays_of_a_1_db_share_error(monkeyp
     monkeypatch.setattr(mono, "ray_traced_run", spy)
     grid = fdn_directions(96).cartesian
     speed = AirConditions().speed_of_sound
-    for size, floor in (((10, 8, 4), True), ((30, 20, 8), False)):
+    for size, below in (((10, 8, 4), True), ((30, 20, 8), False)):
         scene = Scene("test")
         scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(*size, materials=WALL))
         scene.add_source(Source("src", 2.0, 4.0, 1.5))
@@ -553,8 +553,8 @@ def test_the_directional_histograms_trace_the_rays_of_a_1_db_share_error(monkeyp
         with pytest.raises(Traced) as traced:
             scene.simulate(Ambisonics(Mono(n_rays=2000, duration=0.5) if given else None, sh_order=1, duration=0.5, late_envelope=True))
         wanted = histogram_rays(float(np.prod(size)), 0.5, speed, grid)
-        assert (wanted < 20_000) == floor
-        assert traced.value.args[0] == max(20_000, wanted)
+        assert (wanted < 20_000) == below
+        assert traced.value.args[0] == wanted
 
 
 def test_the_generation_record_holds_the_histogram_rays():
@@ -563,7 +563,7 @@ def test_the_generation_record_holds_the_histogram_rays():
 
     scene = make()
     (ir,) = scene.simulate(Ambisonics(references(scene), sh_order=1, duration=0.5)).values()
-    assert ir.generation["histogram_rays"] == max(20_000, histogram_rays(320.0, 0.5, AirConditions().speed_of_sound, fdn_directions(96).cartesian))
+    assert ir.generation["histogram_rays"] == histogram_rays(320.0, 0.5, AirConditions().speed_of_sound, fdn_directions(96).cartesian)
     (ir,) = scene.simulate(Ambisonics(references(scene), sh_order=1, duration=0.5, late_envelope=False)).values()
     assert ir.generation["histogram_rays"] is None
 
@@ -587,7 +587,7 @@ def test_a_traced_reference_shares_its_search_and_rays_with_the_early_field_and_
     scene = make(panel=True)
     shared = Ambisonics(sh_order=1, scattering=scattering, **settings)
     rirs = scene.simulate(shared)
-    n_rays = max(20_000, histogram_rays(320.0, 0.5, AirConditions().speed_of_sound, fdn_directions(96).cartesian))
+    n_rays = histogram_rays(320.0, 0.5, AirConditions().speed_of_sound, fdn_directions(96).cartesian)
     given = Ambisonics(Mono(n_rays=n_rays, **settings), sh_order=1, scattering=scattering, **settings)
     again = make(panel=True).simulate(given)
     (ir,) = rirs.values()
