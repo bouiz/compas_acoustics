@@ -17,10 +17,6 @@ import pyroomacoustics as pra
 
 __all__ = ["damping_as_searched"]
 
-# Of the room's extent: how far outside the search's own tests a path may fall and still be proposed. It only has to
-# be wide; what is proposed is then put to the search's tests themselves (_Search).
-_LENGTH_TOLERANCE = 1e-4
-
 
 def damping_as_searched(searched: pra.Room, other: pra.Room) -> List[np.ndarray]:
     """Per source, the damping ``(n_bands, n_images)`` that ``other``'s search would give the images of ``searched``.
@@ -36,7 +32,9 @@ def damping_as_searched(searched: pra.Room, other: pra.Room) -> List[np.ndarray]
     products round differently, ``other`` is searched itself.
     """
     extent = max(float(np.ptp(np.hstack([w.corners for w in searched.walls]), axis=1).max()), 1.0)
-    walls = _Walls(searched.room_engine.walls, _LENGTH_TOLERANCE * extent)
+    # How far outside the search's own tests a path may fall and still be proposed, 1e-4 of the room's extent. It
+    # only has to be wide; what is proposed is then put to the search's tests themselves (_Search).
+    walls = _Walls(searched.room_engine.walls, 1e-4 * extent)
     search = _Search(searched.room_engine)
     theirs = _Coefficients(other.room_engine)
     mics = np.asarray(searched.mic_array.R)
@@ -44,14 +42,10 @@ def damping_as_searched(searched: pra.Room, other: pra.Room) -> List[np.ndarray]
     for s, source in enumerate(searched.sources):
         result = _damping_of_source(source, np.asarray(searched.visibility[s], dtype=bool), mics, walls, search, theirs)
         if result is None:
-            return _searched(other)
+            other.image_source_model()
+            return [np.asarray(source.damping) for source in other.sources]
         damping.append(result)
     return damping
-
-
-def _searched(room: pra.Room) -> List[np.ndarray]:
-    room.image_source_model()
-    return [np.asarray(source.damping) for source in room.sources]
 
 
 def _damping_of_source(source, visible: np.ndarray, mics: np.ndarray, walls, search, theirs) -> Optional[np.ndarray]:
@@ -85,7 +79,7 @@ def _damping_of_source(source, visible: np.ndarray, mics: np.ndarray, walls, sea
 class _Walls:
     """The search's walls as planes and polygons, in float64, with its tests widened by ``tolerance`` metres.
 
-    The search (libroom) takes a segment to cross a plane for a parameter within its epsilon of [0, 1], and a point
+    The search takes a segment to cross a plane for a parameter within its epsilon of [0, 1], and a point
     to lie on a polygon's edge where the cross product with the edge is below that epsilon, so up to epsilon over the
     edge's length outside it. In float32 it also accepts points past a corner of a slender polygon, which no margin
     here is sure to cover: a path these tests miss costs a search of the other room, never a wrong value.

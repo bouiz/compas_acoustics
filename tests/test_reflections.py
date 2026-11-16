@@ -66,10 +66,11 @@ def test_the_other_builds_damping_is_their_own_searchs_bit_for_bit(monkeypatch, 
     """The search for ray tracing (specular products) read as the plain room's and as the scattered parts' room."""
     s = scene(panel, height)
     geometry = RoomGeometry.from_scene(s)
-    monkeypatch.setattr(reflections, "_searched", lambda room: pytest.fail("searched the other room"))
     room = searched(geometry, s, order, True)
     for other, ray_tracing in ((geometry, False), (complementary_scattering(geometry), True)):
-        derived = damping_as_searched(room, built(other, s, order, ray_tracing))
+        unsearched = built(other, s, order, ray_tracing)
+        monkeypatch.setattr(unsearched, "image_source_model", lambda: pytest.fail("searched the other room"))
+        derived = damping_as_searched(room, unsearched)
         own = searched(other, s, order, ray_tracing)
         for d, source in zip(derived, own.sources):
             assert d.dtype == source.damping.dtype
@@ -214,6 +215,14 @@ def test_the_sequences_kept_are_the_images_the_search_exported():
     assert shared > 0
 
 
+def searched_other(monkeypatch, room, other):
+    """The damping read from ``room`` for ``other``, and a record of each search of ``other`` it made."""
+    calls = []
+    search = other.image_source_model
+    monkeypatch.setattr(other, "image_source_model", lambda: calls.append(other) or search())
+    return damping_as_searched(room, other), calls
+
+
 @pytest.mark.filterwarnings("ignore:.*lie in one plane")
 def test_two_images_of_one_damping_and_different_walls_search_the_other_room(monkeypatch):
     """A path off the floor's seam and then a wall is two images, one per floor panel, at one position and off one
@@ -222,10 +231,7 @@ def test_two_images_of_one_damping_and_different_walls_search_the_other_room(mon
     geometry = panelled_box((3.0,), lambda index, axis, low: ("swap_a" if index % 2 else "swap_b") if axis == 2 and low else "dull")
     s = seam_scene(y=(2.5, 1.0))
     room = searched(geometry, s, 2, True)
-    calls = []
-    search = reflections._searched
-    monkeypatch.setattr(reflections, "_searched", lambda other: calls.append(other) or search(other))
-    derived = damping_as_searched(room, built(geometry, s, 2, False))
+    derived, calls = searched_other(monkeypatch, room, built(geometry, s, 2, False))
     (own,) = searched(geometry, s, 2, False).sources
     assert len(calls) == 1
     assert np.array_equal(derived[0], own.damping)
@@ -241,10 +247,7 @@ def test_an_image_without_a_receiver_that_sees_it_searches_the_other_room(monkey
     room = searched(geometry, s, 2, True)
     k = int(np.flatnonzero(np.asarray(room.sources[0].orders).ravel() == 2)[0])
     room.visibility[0][:, k] = 0
-    calls = []
-    search = reflections._searched
-    monkeypatch.setattr(reflections, "_searched", lambda other: calls.append(other) or search(other))
-    derived = damping_as_searched(room, built(geometry, s, 2, False))
+    derived, calls = searched_other(monkeypatch, room, built(geometry, s, 2, False))
     assert len(calls) == 1
     for d, source in zip(derived, searched(geometry, s, 2, False).sources):
         assert np.array_equal(d, source.damping)
