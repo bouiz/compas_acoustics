@@ -146,7 +146,7 @@ def _pair_responses(room) -> List[List[np.ndarray]]:
 
 
 def image_source_rirs(geometry: RoomGeometry, sources, mic_positions, fs: int, *, max_order: int, air_absorption: bool = True, air=None) -> List[List[np.ndarray]]:
-    """Image-source responses ``[mic][source]`` on the package scale at their natural length; arguments as :func:`ray_traced_rirs`."""
+    """Image-source responses ``[mic][source]`` on the package scale at their natural length; arguments as :func:`ray_traced_run`."""
     mic_positions = np.asarray(mic_positions, dtype=float).reshape(3, -1)
     with pra_octave_grid():
         room = geometry.to_pra(fs, max_order, air_absorption=air_absorption, air=air)
@@ -333,7 +333,7 @@ def directional_histograms(
     The detection sphere divided into directivity groups (Lentz, Schroeder and Vorlaender 2007, Sec. 2.4; Schroeder 2011,
     Sec. 5.3.4): every detected ray is binned by the direction nearest its last leg. ``directions`` holds one
     ``(n, 3)`` array of unit vectors in room coordinates per microphone. Arguments and rays are those of
-    :func:`ray_traced_rirs`: a ray is logged only after ``max_order`` reflections, so the bins hold what the image
+    :func:`ray_traced_run`: a ray is logged only after ``max_order`` reflections, so the bins hold what the image
     sources do not. The tracing engine is driven directly, since the room's own call would reset an
     omnidirectional receiver to one bin. Air absorption is applied per band on the bins' travel distance.
     """
