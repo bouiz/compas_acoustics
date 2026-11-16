@@ -266,7 +266,7 @@ def rooms_own(g, render, sources, mics, order):
     with pra_octave_grid():
         room = g.to_pra(48000, order, ray_tracing=render == "rays", air_absorption=True)
         for s in sources:
-            room.add_soundsource(pra.SoundSource(s.position))
+            room.add_soundsource(pra.SoundSource(s.position, directivity=s.directivity))
         room.add_microphone_array(pra.MicrophoneArray(mics, 48000))
         if render == "rays":
             room.set_ray_tracing(n_rays=2000, receiver_radius=0.5, energy_thres=1e-7, time_thres=0.3, hist_bin_size=0.004)
@@ -310,3 +310,21 @@ def responses_of(g, render, sources, mics, order):
     if render == "images":
         return image_source_rirs(g, sources, mics, 48000, max_order=order)
     return ray_traced_run(g, sources, mics, 48000, max_order=order, n_rays=2000, duration=0.3, seed=1).responses
+
+
+@pytest.mark.parametrize("copies", [False, True])
+def test_a_directional_source_is_traced_as_the_room_traces_it(copies):
+    """Its rays are drawn as the room draws them, with or without the copies of the receivers that sort them by direction."""
+    from compas_acoustics.room.pra import CARDIOID_P
+
+    def sources():
+        facing = pra.DirectionVector(azimuth=0.4, colatitude=1.3, degrees=False)
+        return [pra.SoundSource([1.5, 2.0, 1.5], directivity=pra.CardioidFamily(orientation=facing, p=CARDIOID_P["cardioid"], gain=1.0)), pra.SoundSource([2.5, 1.0, 1.2])]
+
+    g = geometry(extra=(panel(),))
+    mics = np.array([[5.0, 3.0, 1.5], [4.0, 4.0, 1.0]]).T
+    own, _ = rooms_own(g, "rays", sources(), mics, 2)
+    directions = [np.eye(3), -np.eye(3)] if copies else None
+    run = ray_traced_run(g, sources(), mics, 48000, max_order=2, n_rays=2000, duration=0.3, seed=1, directions=directions)
+    assert_as_the_rooms_own(run.responses, own)
+    assert (run.histograms is not None) == copies
