@@ -258,8 +258,15 @@ class _HybridMethod(SimulationMethod):
                 if references is not None:
                     # Decay target and late envelope need the absolute (package) level
                     reference = np.asarray(references[key].denormalized(), dtype=float)
-                    target = RoomTarget.from_rir(reference, fs, n_slopes=self.n_slopes, decay_db=self.decay_db)
-                    self._check_reference_length(reference.size / fs, target, eyring_rt, key)
+                    if np.any(reference):
+                        target = RoomTarget.from_rir(reference, fs, n_slopes=self.n_slopes, decay_db=self.decay_db)
+                        self._check_reference_length(reference.size / fs, target, eyring_rt, key)
+                    else:
+                        # Nothing reaches the receiver in the reference (a receiver sealed off from the source): it has
+                        # no decay to fit, so the network decays as the room's Eyring RT; the late envelope, still the
+                        # silent reference, keeps the late field as silent as the reference.
+                        warnings.warn(f"The reference of {key} is silent: its late field decays with the room's Eyring RT.", UserWarning, stacklevel=3)
+                        target = RoomTarget.from_room(spec, model="eyring")
                 else:
                     target = RoomTarget.from_room(spec, model=self.tail)
                 core = prepare(

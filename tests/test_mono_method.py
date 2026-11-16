@@ -54,6 +54,22 @@ def test_one_response_per_microphone_and_source():
     assert all(r.shape == (24000,) for row in rirs for r in row)
 
 
+@pytest.mark.parametrize("n_jobs", [1, 2])
+def test_a_microphone_no_image_source_reaches_does_not_fail(n_jobs):
+    # Outside the room, no image source is visible, not even the direct path: pyroomacoustics 0.10.1's
+    # Room.compute_rir fails there on an empty max. The other microphone keeps its response.
+    hidden = [9.0, 3.0, 1.5]
+    sources = [pra.SoundSource(SOURCE), pra.SoundSource(np.array([2.5, 2.0, 1.6]))]
+    mics = np.array([RECEIVER, hidden], dtype=float).T
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        ism = image_source_rirs(geometry(), sources, mics, FS, max_order=2, n_jobs=n_jobs)
+        rays = traced(geometry(), sources=(SOURCE, [2.5, 2.0, 1.6]), receivers=(RECEIVER, hidden), max_order=2, n_jobs=n_jobs, seed=1)
+    assert all(np.abs(r).max() > 0 for r in ism[0])
+    assert all(r.size > 0 and not np.any(r) for r in ism[1])
+    assert all(r.shape == (24000,) for row in rays for r in row)
+
+
 def test_the_duration_sets_the_length():
     ((rir,),) = traced(geometry(), duration=0.25)
     assert rir.shape == (12000,)

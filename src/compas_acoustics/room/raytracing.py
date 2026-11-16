@@ -22,6 +22,7 @@ from .diffuse import predicted_rt
 from .geometry import SYNTHESIS_BANDS
 from .geometry import RoomGeometry
 from .geometry import pra_octave_grid
+from .parallel import compute_rir
 
 __all__ = ["MIN_RAYS", "MAX_DURATION", "DURATION_RT_FACTOR", "DirectionalHistogram", "default_duration", "directional_histograms", "image_source_rirs", "ray_traced_rirs"]
 
@@ -82,7 +83,7 @@ def image_source_rirs(
             room.add_soundsource(source)
         room.add_microphone_array(pra.MicrophoneArray(mic_positions, fs))
         room.image_source_model()
-        room.compute_rir()
+        compute_rir(room)
     latency = pra.constants.get("frac_delay_length") // 2
     return [[_on_package_scale(room.rir[m][s], latency, len(room.rir[m][s]) - latency) for s in range(len(sources))] for m in range(mic_positions.shape[1])]
 
@@ -139,7 +140,7 @@ def ray_traced_rirs(
         room.set_ray_tracing(n_rays=n_rays, **options)
         if n_rays is None and room.rt_args["n_rays"] < MIN_RAYS:
             room.set_ray_tracing(n_rays=MIN_RAYS, **options)
-        room.compute_rir()
+        compute_rir(room)
 
     latency = pra.constants.get("frac_delay_length") // 2
     n_samples = round(duration * fs)
@@ -162,13 +163,13 @@ def _emitter_rirs(geometry, source, mic_positions, fs, max_order, air_absorption
         latency = pra.constants.get("frac_delay_length") // 2
         if tracing is None:
             room.image_source_model()
-            room.compute_rir()
+            compute_rir(room)
             return [_on_package_scale(r[0], latency, len(r[0]) - latency) for r in room.rir]
         room.set_ray_tracing(n_rays=tracing["n_rays"], **tracing["options"])
         if tracing["n_rays"] is None and room.rt_args["n_rays"] < MIN_RAYS:
             room.set_ray_tracing(n_rays=MIN_RAYS, **tracing["options"])
         if ray_processes <= 1:
-            room.compute_rir()
+            compute_rir(room)
             rirs = [r[0] for r in room.rir]
         else:
             room.image_source_model()

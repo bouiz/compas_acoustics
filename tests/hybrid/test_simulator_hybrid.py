@@ -307,6 +307,22 @@ def test_every_tail_meets_the_contract(assert_meets_contract, tail):
     assert all(ir.generation["tail"] == tail for ir in rirs.values())
 
 
+@pytest.mark.parametrize("tail", ["reference", "ray_tracing", "eyring"])
+def test_a_receiver_sealed_off_from_the_source_is_silent(tail):
+    # A floor-to-ceiling partition: no image source reaches the far receiver, not even the direct path, and its
+    # mono reference is silent. pyroomacoustics 0.10.1 failed on the first, the decay fit on the second.
+    scene = make(receivers=[Receiver("far", 8.0, 4.0, 1.5), Receiver("near", 3.0, 3.0, 1.5)])
+    mesh = Mesh.from_vertices_and_faces([[5, 0, 0], [5, 8, 0], [5, 8, 4], [5, 0, 4]], [[0, 1, 2, 3]])
+    scene.add_acoustic_object(AcousticObject(mesh, WALL, name="partition", role="obstacle"))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        reference = references(scene) if tail == "reference" else None
+        rirs = scene.simulate(Ambisonics(reference=reference, tail=tail, seed=0, **FAST))
+    far, near = (rirs[SimulationContext.from_scene(scene).key(scene.sources[0], r)].denormalized() for r in scene.receivers)
+    assert np.all(np.isfinite(far)) and not np.any(far)
+    assert np.abs(near).max() > 0
+
+
 def test_a_graph_name_a_dict_and_a_method_give_the_same_result():
     scene = make()
     refs = references(scene)

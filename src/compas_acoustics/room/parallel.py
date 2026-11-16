@@ -298,6 +298,10 @@ def room_responses(room, histograms: Optional[List[List[List[np.ndarray]]]]) -> 
 
     ``room`` has run ``image_source_model()`` if its image sources are needed, and has omnidirectional microphones.
     ``histograms[m][s]`` is the per-direction list of microphone ``m`` for source ``s``, or None without ray tracing.
+
+    Unlike ``Room.compute_rir`` (pyroomacoustics 0.10.1), a pair that sees no image source, not even the direct
+    path (a microphone shadowed by a wall), gets no image-source part instead of failing on an empty ``max``:
+    its response is the ray-traced part alone, or silence without ray tracing.
     """
     from pyroomacoustics.parameters import constants
     from pyroomacoustics.simulation import compute_ism_rir
@@ -316,7 +320,7 @@ def room_responses(room, histograms: Optional[List[List[List[np.ndarray]]]]) -> 
         out.append([])
         for s, src in enumerate(room.sources):
             parts = []
-            if room.simulator_state["ism_needed"]:
+            if room.simulator_state["ism_needed"] and np.any(room.visibility[s][m, :]):
                 parts.append(
                     compute_ism_rir(
                         src,
@@ -349,10 +353,34 @@ def room_responses(room, histograms: Optional[List[List[List[np.ndarray]]]]) -> 
                         air_abs_coeffs=room.air_absorption,
                     )
                 )
-            rir = np.zeros(max(p.shape[0] for p in parts))
-            for p in parts:
-                rir[: p.shape[0]] += p
+            if not parts:
+                # nothing at all reaches the microphone: a silent response, as long as the fractional delay filter
+                out[m].append(np.zeros(fdl))
+                continue
+            if len(parts) == 1:
+                rir = parts[0]  # as Room.compute_rir: one part is filtered at its own precision
+            else:
+                rir = np.zeros(max(p.shape[0] for p in parts))
+                for p in parts:
+                    rir[: p.shape[0]] += p
             if sos is not None:
                 rir = np.ascontiguousarray(sosfiltfilt(sos, rir))
             out[m].append(rir)
     return out
+
+
+def compute_rir(room) -> None:
+    """``room.compute_rir()`` through :func:`room_responses`, so that a pair seeing no image source does not fail.
+
+    Runs the image source model and the ray tracing ``room`` still needs, then sets ``room.rir`` ``[mic][source]``.
+    """
+    state = room.simulator_state
+    if state["ism_needed"] and not state["ism_done"]:
+        room.image_source_model()
+    histograms = None
+    if state["rt_needed"]:
+        if not state["rt_done"]:
+            room.ray_tracing()
+        histograms = room.rt_histograms
+    room.rir = room_responses(room, histograms)
+    state["rir_done"] = True
