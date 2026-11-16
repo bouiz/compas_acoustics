@@ -277,9 +277,8 @@ class _HybridMethod(SimulationMethod):
 
     @staticmethod
     def _histogram_rays(room, grid) -> int:
-        """The rays of the directional histogram (:func:`~compas_acoustics.hybrid.envelope.histogram_rays`), never fewer than ``Mono``'s."""
-        tracer = Mono(ray_tracing=True)
-        return max(tracer.n_rays, histogram_rays(room.get_volume(), tracer.receiver_radius, float(getattr(room, "c", 343.0)), grid))
+        """The rays of the directional histogram (:func:`~compas_acoustics.hybrid.envelope.histogram_rays`) at ``Mono``'s receiver radius."""
+        return histogram_rays(room.get_volume(), Mono(ray_tracing=True).receiver_radius, float(getattr(room, "c", 343.0)), grid)
 
     def _check_reference_length(self, length, target, eyring_rt, key):
         """Warn when a reference ends before 2/3 of its reverberation time (the fitted or Eyring one, the longer).
@@ -400,8 +399,7 @@ _ENGINE_PARAMETERS = """
         octave band, its direction's share of the energy the rays bring in that band (directional histogram,
         Schroeder 2011). The rays are traced with ``Mono(ray_tracing=True)``'s settings at ``image_source_order``,
         also with a given reference, as many as give a direction's energy a standard deviation of 1 dB
-        (Vorlaender 2020, Eq. 11.20) and never fewer than that method's; with a ray-tracing tail they are the
-        reference's own rays. Default on
+        (Vorlaender 2020, Eq. 11.20); with a ray-tracing tail they are the reference's own rays. Default on
         for a reference or ray-tracing tail; an Eyring or Sabine tail has no reference, so ``True`` raises.
     diffraction : {False, True, "udfa", "btms"}, default=False
         Edge diffraction around obstacles and at room edges that open wider than 180 deg; ``True`` is
