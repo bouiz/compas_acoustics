@@ -210,7 +210,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             var binaural = new SimulateBinauralComponent();
             Assert.Empty(binaural.Controls.OfType<SwitchControl>());
             Assert.True(binaural.HandlesButton("hrtf"));
-            Assert.Equal("HRTF: KEMAR", binaural.ButtonLabel("hrtf"));
+            Assert.Equal("HRTF: KU100", binaural.ButtonLabel("hrtf"));
             ControlState.Choose(binaural, binaural.ControlPort("hrtf")!, "/sets/my_head.sofa");
             Assert.Equal("HRTF: my_head.sofa", binaural.ButtonLabel("hrtf"));
             // Run last, set apart from the controls above it

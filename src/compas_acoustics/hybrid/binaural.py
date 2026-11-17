@@ -14,7 +14,7 @@ from compas_acoustics.defaults import Defaults
 __all__ = ["DEFAULT_HRTF", "HrtfSet", "render_binaural"]
 
 # The HRTF set every binaural rendering uses unless given another
-DEFAULT_HRTF = Path(Defaults().HRTF_LIBRARY_PATH) / "KEMAR_FreeFieldComp_48kHz.sofa"
+DEFAULT_HRTF = Path(Defaults().HRTF_LIBRARY_PATH) / "KU100_HRIR_L2702.sofa"
 
 
 @dataclass(frozen=True)

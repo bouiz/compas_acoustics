@@ -43,7 +43,7 @@ def deltas(directions):
     return HrtfSet(hrirs, np.asarray(directions, dtype=float), FS)
 
 
-def test_binaural_has_two_ears_and_the_kemar_set():
+def test_binaural_has_two_ears_and_the_ku100_set():
     ir = one(room_scene().simulate(ca.Binaural(**FAST)))
     assert ir.n_channels == 2 and ir.ambisonic_order is None and ir.format == "binaural"
     assert ir.generation["method"] == "binaural" and ir.generation["hrtf"] == DEFAULT_HRTF.name
@@ -78,7 +78,7 @@ def test_fourth_order_takes_more_lines():
     assert ca.Ambisonics(sh_order=4).num_delays > 96
 
 
-@pytest.mark.parametrize("make", [lambda: ca.Binaural(sh_order=1), lambda: ca.Binaural(normalization="N3D"), lambda: ca.Ambisonics(hrtf="kemar")])
+@pytest.mark.parametrize("make", [lambda: ca.Binaural(sh_order=1), lambda: ca.Binaural(normalization="N3D"), lambda: ca.Ambisonics(hrtf="ku100")])
 def test_the_other_formats_arguments_are_rejected(make):
     with pytest.raises(TypeError):
         make()
@@ -104,8 +104,8 @@ def test_both_methods_meet_the_contract(assert_meets_contract):
     assert_meets_contract(channels, context, ambisonics)
 
 
-def test_the_hrtf_is_kemar_or_a_sofa_file():
-    assert ca.Binaural().hrtf == "kemar"
+def test_the_hrtf_is_ku100_or_a_sofa_file():
+    assert ca.Binaural().hrtf == "ku100"
     ir = one(room_scene().simulate(ca.Binaural(hrtf=str(DEFAULT_HRTF), **FAST)))
     assert ir.generation["hrtf"] == DEFAULT_HRTF.name
     with pytest.raises(ValueError, match="hrtf"):
@@ -173,10 +173,10 @@ def test_settings_changed_after_construction_are_the_ones_rendered_and_recorded(
     shutil.copy(DEFAULT_HRTF, own)
     ears = ca.Binaural(**FAST)
     room_scene().simulate(ears)
-    kemar = ears._hrtf_set
+    ku100 = ears._hrtf_set
     ears.hrtf = str(own)
     ir = one(room_scene().simulate(ears))
-    assert ir.generation["hrtf"] == "own.sofa" and ears._hrtf_set is not kemar
+    assert ir.generation["hrtf"] == "own.sofa" and ears._hrtf_set is not ku100
     channels = ca.Ambisonics(**FAST)
     room_scene().simulate(channels)
     channels.sh_order = 4

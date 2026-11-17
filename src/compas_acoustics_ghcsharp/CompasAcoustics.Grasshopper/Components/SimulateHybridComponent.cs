@@ -169,7 +169,7 @@ namespace CompasAcoustics.Grasshopper
             var generation = _last?.Generation ?? new Dictionary<string, object?>();
             generation.TryGetValue("tail", out var tail);
             var order = generation.TryGetValue("sh_order", out var sh) ? $", order {sh}" : "";
-            var set = Has("hrtf") ? $", hrtf {(string.IsNullOrEmpty(context.Hrtf) ? "kemar" : Path.GetFileName(context.Hrtf))}" : "";
+            var set = Has("hrtf") ? $", hrtf {(string.IsNullOrEmpty(context.Hrtf) ? "ku100" : Path.GetFileName(context.Hrtf))}" : "";
             return $"{context.Scene.SamplingRate}Hz, {Method}, tail: {tail ?? "auto"}{order}, seed {context.Seed}{set}";
         }
     }
@@ -182,7 +182,7 @@ namespace CompasAcoustics.Grasshopper
         protected override string Method => "binaural";
         protected override string Output => "binaural_ir_graph";
 
-        // empty is KEMAR; the button chooses the user's own SOFA set, and a File Path wired to hrtf wins
+        // empty is the KU 100; the button chooses the user's own SOFA set, and a File Path wired to hrtf wins
         protected override IEnumerable<Control> MethodButtons => new Control[] { new ButtonControl("hrtf", "HRTF...") };
 
         public override bool HandlesButton(string port) => port == "hrtf";
@@ -193,9 +193,9 @@ namespace CompasAcoustics.Grasshopper
                 FileButtons.Choose(this, port, "HRTF set of the binaural responses", "SOFA HRTF set", ".sofa");
         }
 
-        public override string? ButtonLabel(string port) => port == "hrtf" ? FileButtons.Label(this, port, "HRTF: ", "HRTF: KEMAR") : null;
+        public override string? ButtonLabel(string port) => port == "hrtf" ? FileButtons.Label(this, port, "HRTF: ", "HRTF: KU100") : null;
 
-        protected override void AppendMenu(System.Windows.Forms.ToolStripDropDown menu) => FileButtons.AppendClear(this, menu, "hrtf", "Use KEMAR");
+        protected override void AppendMenu(System.Windows.Forms.ToolStripDropDown menu) => FileButtons.AppendClear(this, menu, "hrtf", "Use KU100");
     }
 
     public sealed class SimulateAmbisonicsComponent : SimulateHybridComponent

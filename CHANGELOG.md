@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+* Changed the default HRTF set of `Binaural` to the Neumann KU 100 of TH Koeln (`KU100_HRIR_L2702.sofa`, 2702 directions over the full sphere), replacing the SONICOM KEMAR, which covers elevations from -45 to 90 degrees only; `hrtf="kemar"` is now `hrtf="ku100"`.
 * Changed the API reference to a section with a page per package; the table of contents stops at the classes and functions.
 * Changed the `docs` workflow to only build the docs; `release.yml` deploys them.
 * Changed to pyFDN 0.7 (`fdn_dss_gallery`, `decay_to_graphic_eq`, `gain_to_graphic_eq`, `dss_to_td`), from 0.5, whose API 0.6 removed; the responses are unchanged. `hybrid.late.design_fdn` returns, `render` takes and `HybridCore.builds` holds `(pyFDN.DSS, filters)` pairs in place of `pyFDN.FDNBuild`; a `matrix` other than `"orthogonal"` is seeded by `rng` and takes pyFDN 0.7's lowercase names.

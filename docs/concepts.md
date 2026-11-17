@@ -37,7 +37,7 @@ response per source and receiver.
 | Method | How it works | Use it for |
 |---|---|---|
 | `Mono` | Image sources for the early reflections and ray tracing for the rest, with pyroomacoustics. One channel. | Room acoustic parameters, quick design comparisons. Runs on Python 3.9 and newer, also in Rhino 8. |
-| `Binaural` | A hybrid engine of image sources, edge diffraction and a directional feedback delay network, rendered for two ears with a measured head (KEMAR). | Listening on headphones. Needs Python 3.11 or newer (the worker has it). |
+| `Binaural` | A hybrid engine of image sources, edge diffraction and a directional feedback delay network, rendered for two ears with a measured head (Neumann KU 100). | Listening on headphones. Needs Python 3.11 or newer (the worker has it). |
 | `Ambisonics` | The same hybrid engine, rendered as an ambisonic signal (ACN/SN3D, AmbiX) of a chosen order. | Lateral energy (LF, LFC), and playback on a loudspeaker array through an ambisonic decoder elsewhere. |
 
 ## Room acoustic parameters

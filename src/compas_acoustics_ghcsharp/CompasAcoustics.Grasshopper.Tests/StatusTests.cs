@@ -9,7 +9,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         public void Status_TrimsTo40CharactersAndKeepsTheFullText()
         {
             Assert.Equal(("done, 2 IRs", null), MessageText.Status("done, 2 IRs"));
-            var full = "44100Hz, hybrid, tail: reference, order 1, seed 123, hrtf kemar";
+            var full = "44100Hz, hybrid, tail: reference, order 1, seed 123, hrtf ku100";
             var (shown, kept) = MessageText.Status(full);
             Assert.Equal(40, shown.Length);
             Assert.EndsWith("...", shown);
