@@ -331,7 +331,12 @@ def test_a_graph_name_a_dict_and_a_method_give_the_same_result():
     by_method = scene.simulate(Ambisonics(reference=Mono(ray_tracing=True, **FAST_RT), seed=0, **FAST))
     for key in by_name:
         np.testing.assert_allclose(by_name[key].denormalized(), by_dict[key].denormalized())
-        np.testing.assert_allclose(by_method[key].denormalized(), by_dict[key].denormalized())
+        # The method builds its reference in the same trace as the histogram, not from the stored Mono:
+        # the early part matches exactly, the ray-traced tail in energy.
+        early = slice(0, int(0.02 * FS))
+        np.testing.assert_allclose(by_method[key].denormalized()[early], by_dict[key].denormalized()[early], atol=1e-7)
+        w_method, w_dict = by_method[key].denormalized()[:, 0], by_dict[key].denormalized()[:, 0]
+        assert np.sum(w_method ** 2) == pytest.approx(np.sum(w_dict ** 2), rel=0.05)
 
 
 @pytest.mark.parametrize(

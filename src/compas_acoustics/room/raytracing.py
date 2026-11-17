@@ -34,6 +34,7 @@ __all__ = [
     "image_source_rirs",
     "ray_traced_rirs",
     "stable_seed",
+    "traced_reference",
 ]
 
 # Floor on the heuristic ray count, applied only with n_rays=None
@@ -49,8 +50,8 @@ _HIST_BIN = 0.004
 def stable_seed(seed, *coords) -> Optional[int]:
     """A seed that depends on ``seed`` and coordinates, not on how many other sources share the process.
 
-    Seeded with it, a source and receiver draw the same ray-traced tail when a run is split across processes as
-    when it is traced in one process. ``None`` stays unseeded. Coordinates are quantized to 0.1 mm.
+    Seeded with it, a source and receiver draw the same rays and the same ray-traced tail when a run is split
+    across processes as when it is traced in one process. ``None`` stays unseeded. Coordinates are quantized to 0.1 mm.
     """
     if seed is None:
         return None
@@ -267,6 +268,49 @@ class DirectionalHistogram:
     bands: np.ndarray
 
 
+def traced_reference(
+    geometry: RoomGeometry,
+    sources,
+    mic_positions,
+    fs: int,
+    directions: Sequence[np.ndarray],
+    *,
+    max_order: int = 6,
+    duration: Optional[float] = None,
+    n_rays: Optional[int] = 20000,
+    receiver_radius: float = 0.5,
+    energy_threshold: float = 1e-7,
+    air_absorption: bool = True,
+    seed: Optional[int] = None,
+    air=None,
+    n_jobs: int = 1,
+):
+    """One ray trace: the directional histograms and the mono responses they sum to.
+
+    ``(histograms, rirs)`` with the shapes of :func:`directional_histograms` and :func:`ray_traced_rirs`.
+    The bins of a microphone sum to the omnidirectional histogram, and that histogram is synthesized with
+    the same image sources and the same seed, so the responses match :func:`ray_traced_rirs` for these
+    arguments. Arguments are those of :func:`directional_histograms`.
+    """
+    return _directional_trace(
+        geometry,
+        sources,
+        mic_positions,
+        fs,
+        directions,
+        max_order=max_order,
+        duration=duration,
+        n_rays=n_rays,
+        receiver_radius=receiver_radius,
+        energy_threshold=energy_threshold,
+        air_absorption=air_absorption,
+        seed=seed,
+        air=air,
+        n_jobs=n_jobs,
+        synthesize=True,
+    )
+
+
 def directional_histograms(
     geometry: RoomGeometry,
     sources,
@@ -295,6 +339,44 @@ def directional_histograms(
     ``n_jobs`` > 1 splits each source's rays over that many processes (:func:`~compas_acoustics.room.parallel.trace_parallel`).
     With a ``seed``, each source's rays restart from it, so a source's bins do not depend on the sources traced with it.
     """
+    histograms, _rirs = _directional_trace(
+        geometry,
+        sources,
+        mic_positions,
+        fs,
+        directions,
+        max_order=max_order,
+        duration=duration,
+        n_rays=n_rays,
+        receiver_radius=receiver_radius,
+        energy_threshold=energy_threshold,
+        air_absorption=air_absorption,
+        seed=seed,
+        air=air,
+        n_jobs=n_jobs,
+        synthesize=False,
+    )
+    return histograms
+
+
+def _directional_trace(
+    geometry: RoomGeometry,
+    sources,
+    mic_positions,
+    fs: int,
+    directions: Sequence[np.ndarray],
+    *,
+    max_order: int,
+    duration: Optional[float],
+    n_rays: Optional[int],
+    receiver_radius: float,
+    energy_threshold: float,
+    air_absorption: bool,
+    seed: Optional[int],
+    air,
+    n_jobs: int,
+    synthesize: bool,
+):
     from .parallel import MIN_RAYS_PER_PROCESS
     from .parallel import SLICES_PER_PROCESS
     from .parallel import engine_spec
@@ -341,15 +423,21 @@ def directional_histograms(
         distance = (np.arange(n_bins) + 0.5) * bin_size * room.c
         damping = np.exp(-np.asarray(room.air_absorption, dtype=float)[:, np.newaxis] * distance[np.newaxis, :]) if air_absorption else np.ones((n_bands, n_bins))
         histograms = [[] for _ in unit]
+        # Omni histogram per mic and source, the sum of the directional bins before the package scale,
+        # kept at its full width so the synthesized response matches ray_traced_rirs.
+        omni = [[] for _ in unit]
         parallel = n_jobs > 1 and n_rays >= 2 * MIN_RAYS_PER_PROCESS
         if parallel:
             spec = engine_spec(room)
             mics = [(mic_positions[:, m], np.asarray(d, dtype=np.float32)) for m, d in enumerate(unit)]
         for s, source in enumerate(room.sources):
-            jobs.progress("directional histograms", s, len(room.sources))
-            if seed is not None:
-                # Restart from the run seed: a process that traces only this source draws the same rays.
-                pra.random.seed(int(seed))
+            jobs.progress("ray tracing" if synthesize else "directional histograms", s, len(room.sources))
+            # Restart from the run seed. A process that traces only this source draws the same rays.
+            source_seed = None if seed is None else int(seed)
+            if seed is None:
+                pra.random.seed(None)
+            else:
+                pra.random.seed(source_seed)
             if source.directivity is None:
                 ray_directions = pra.fibonacci_spherical_sampling(n_rays).T
                 ray_energies = np.ones((n_rays, n_bands))
@@ -357,7 +445,7 @@ def directional_histograms(
                 ray_directions, ray_energies = source.directivity.sample_rays(n_rays)
                 ray_energies = np.broadcast_to(ray_energies, (n_rays, n_bands))
             if parallel:
-                seeds = np.random.default_rng(seed).integers(0, 2**62, size=n_jobs * SLICES_PER_PROCESS)
+                seeds = np.random.default_rng(None if source_seed is None else source_seed).integers(0, 2**62, size=n_jobs * SLICES_PER_PROCESS)
                 traced = trace_parallel(spec, mics, ray_directions, ray_energies, source.position, n_jobs, seeds)
             else:
                 room.room_engine.ray_tracing(ray_directions, ray_energies, source.position)
@@ -368,7 +456,8 @@ def directional_histograms(
                 else:
                     lines = [np.asarray(h.get_hist(), dtype=float) for h in room.room_engine.microphones[m].histograms]
                 width = max(n_bins, *(line.shape[1] for line in lines))
-                energy = np.stack([np.pad(line, ((0, 0), (0, width - line.shape[1]))) for line in lines])[:, :, :n_bins]
+                padded = np.stack([np.pad(line, ((0, 0), (0, width - line.shape[1]))) for line in lines])
+                energy = padded[:, :, :n_bins]
                 histograms[m].append(
                     DirectionalHistogram(
                         energy=energy * damping / (4.0 * np.pi) ** 2,
@@ -377,6 +466,26 @@ def directional_histograms(
                         bands=bands,
                     )
                 )
+                omni[m].append(padded.sum(axis=0))
             if not parallel:
                 room.room_engine.reset_mics()
-    return histograms
+        rirs = None
+        if synthesize:
+            # Image sources after the trace: the bins above do not depend on them, and the synthesis
+            # below is what Room.compute_rir adds to those bins.
+            if room.simulator_state["ism_needed"] and not room.simulator_state["ism_done"]:
+                room.image_source_model()
+            from .parallel import room_responses
+
+            latency = pra.constants.get("frac_delay_length") // 2
+            n_samples = round(float(duration) * fs)
+            # one omnidirectional bin: the directional sequence of several bins is not the mono tail
+            packed = [[[hist] for hist in mic] for mic in omni]
+
+            def pair_seed(src_position, mic_position, _seed=seed):
+                # One sequence per pair, so the order of the pairs in this process does not matter.
+                return stable_seed(_seed, src_position, mic_position)
+
+            synthesized = room_responses(room, packed, pair_seed=pair_seed)
+            rirs = [[_on_package_scale(synthesized[m][s], latency, n_samples) for s in range(len(room.sources))] for m in range(len(unit))]
+    return histograms, rirs

@@ -159,8 +159,15 @@ class _HybridMethod(SimulationMethod):
         _warn_if_the_search_is_slow(geometry, self.image_source_order)
         from compas_acoustics.worker import jobs
 
-        jobs.progress("references")
-        references, air_absorption, air, description = self._references(context)
+        mono, unify = self._ray_mono(context)
+        if unify:
+            # One ray trace: the mono reference and the directional histogram are the same rays.
+            jobs.progress("ray tracing")
+            references, histograms, air_absorption, air, description = self._trace_both(context, rotations, mono)
+        else:
+            jobs.progress("references")
+            references, air_absorption, air, description = self._references(context)
+            histograms = None
         self.reference_rirs = references
 
         # Built for ray tracing, an image's damping holds prod sqrt(1 - s), its specular part; the same search
@@ -202,34 +209,20 @@ class _HybridMethod(SimulationMethod):
         }
         if self.n_jobs != 1:
             generation["n_jobs"] = self.n_jobs
+        ray = self._ray_record(mono, references)
+        if ray is not None:
+            generation["n_rays"] = ray["n_rays"]
+            generation["ray_seed"] = ray["seed"]
 
         # The longest Eyring RT, against which a given reference's length is checked
         eyring_rt = default_duration(geometry, air_absorption, air=air, factor=1.0)
 
-        histograms = None
-        if self.late_envelope:
-            from compas_acoustics.room.raytracing import directional_histograms
-
+        if self.late_envelope and histograms is None:
             jobs.progress("directional histograms")
-            grid = fdn_directions(self.num_delays).cartesian
-            grid = grid / np.linalg.norm(grid, axis=1, keepdims=True)
-            tracer = Mono(ray_tracing=True)
-            histograms = directional_histograms(
-                geometry,
-                [source_to_pra(source) for source in context.sources],
-                np.array([receiver.position for receiver in context.receivers], dtype=float).T,
-                fs,
-                [grid @ rotations[id(receiver)].T for receiver in context.receivers],
-                max_order=self.image_source_order,
-                duration=self._own_duration(geometry, air_absorption, air, output_length=True),
-                n_rays=tracer.n_rays,
-                receiver_radius=tracer.receiver_radius,
-                energy_threshold=tracer.energy_thres,
-                air_absorption=air_absorption,
-                seed=self.seed,
-                air=air,
-                n_jobs=self.n_jobs,
-            )
+            histograms = self._trace_histograms(context, rotations, references, air_absorption, air, mono)
+
+        output_duration = self.duration
+        limit = getattr(self, "limit_output", None)
 
         rirs = {}
         for s, source in enumerate(context.sources):
@@ -269,12 +262,17 @@ class _HybridMethod(SimulationMethod):
                         target = RoomTarget.from_room(spec, model="eyring")
                 else:
                     target = RoomTarget.from_room(spec, model=self.tail)
+                pair_duration = output_duration
+                # One length per pair, from that pair's reference. A shared length would follow whichever
+                # pairs share the process, so a split run would render a pair for a different time.
+                if pair_duration is None and limit is not None and references is not None and key in references:
+                    pair_duration = limit({key: references[key]}, fs)
                 core = prepare(
                     spec,
                     image_sources(room, s, m, spec, directivity, scattered_room),
                     target,
                     max_order=self.image_source_order,
-                    duration_s=self.duration,
+                    duration_s=pair_duration,
                     num_delays=self.num_delays,
                     directional_absorption=self.directional_absorption,
                     late_envelope=reference if self.late_envelope else None,
@@ -286,6 +284,150 @@ class _HybridMethod(SimulationMethod):
                 )
                 rirs[key] = self._response(core, key, source, receiver, generation)
         return rirs
+
+    def _ray_mono(self, context):
+        """``(mono, unify)``: the ray configuration, and whether one trace can serve the reference and the histogram.
+
+        ``unify`` needs the late envelope and a ray-traced mono run without diffraction and without a
+        reciprocity swap (the histogram is listener-sided). A dict or a named reference is not traced
+        again. A ``ray_tracing`` tail builds one mono run from this method's seed and order, not a
+        second one with its own defaults.
+        """
+        if isinstance(self.reference, Mono) and self.reference.ray_tracing:
+            mono = self.reference
+            unify = self.late_envelope and not mono.diffraction and not mono._reciprocal(context)
+            return mono, unify
+        if self.tail != "ray_tracing":
+            return None, False
+        absorption = True if self.air_absorption is None else bool(self.air_absorption)
+        mono = Mono(
+            image_source_order=self.image_source_order,
+            ray_tracing=True,
+            air_absorption=absorption,
+            duration=self._own_duration(context.geometry, absorption, self.air),
+            n_jobs=self.n_jobs,
+            seed=False if self.seed is None else self.seed,
+            normalize=False,
+            air=self.air,
+            reciprocity=False,
+        )
+        return mono, self.late_envelope
+
+    def _agree_air(self, mono):
+        """``(air_absorption, air)`` of ``mono``, which must agree with this method when it names them."""
+        absorption = bool(mono.air_absorption)
+        if self.air_absorption is not None and bool(self.air_absorption) != absorption:
+            raise ValueError(
+                f"air_absorption is {bool(self.air_absorption)} but the reference Mono uses {absorption}; "
+                "the early field and the decay target must agree"
+            )
+        air = air_or_default(mono.air if mono.air is not None else self.air)
+        if self.air is not None and mono.air is not None and air_or_default(self.air) != air_or_default(mono.air):
+            raise ValueError(
+                f"the reference Mono was built for the air {air_or_default(mono.air)}, not {air_or_default(self.air)}; "
+                "the early field and the decay target must share it"
+            )
+        return absorption, air
+
+    def _arrival_directions(self, context, rotations):
+        """The delay-line grid in room coordinates, one ``(n, 3)`` array per receiver."""
+        grid = fdn_directions(self.num_delays).cartesian
+        grid = grid / np.linalg.norm(grid, axis=1, keepdims=True)
+        return [grid @ rotations[id(receiver)].T for receiver in context.receivers]
+
+    def _trace_both(self, context, rotations, mono):
+        """The reference responses and the directional histograms of one ray trace."""
+        from compas_acoustics.room.raytracing import traced_reference
+
+        absorption, air = self._agree_air(mono)
+        fs = context.sampling_rate
+        histograms, arrays = traced_reference(
+            context.geometry,
+            [source_to_pra(source, fs) for source in context.sources],
+            np.array([receiver.position for receiver in context.receivers], dtype=float).T,
+            fs,
+            self._arrival_directions(context, rotations),
+            max_order=mono.image_source_order,
+            duration=mono.duration,
+            n_rays=mono.n_rays,
+            receiver_radius=mono.receiver_radius,
+            energy_threshold=mono.energy_thres,
+            air_absorption=absorption,
+            seed=mono.seed,
+            air=air,
+            n_jobs=mono.n_jobs,
+        )
+        generation = dict(mono.generation, scene=getattr(context.scene, "name", None))
+        references = {}
+        for m, receiver in enumerate(context.receivers):
+            for s, source in enumerate(context.sources):
+                key = context.key(source, receiver)
+                references[key] = ImpulseResponse(
+                    name=key,
+                    source=source,
+                    receiver=receiver,
+                    ir=arrays[m][s],
+                    sampling_rate=fs,
+                    normalized=False,
+                    generation=generation,
+                )
+        return references, histograms, absorption, air, mono.generation
+
+    def _trace_histograms(self, context, rotations, references, air_absorption, air, mono):
+        """Directional histograms with the reference's ray parameters, for a reference traced elsewhere."""
+        from compas_acoustics.room.raytracing import directional_histograms
+
+        if mono is not None:
+            n_rays = mono.n_rays
+            receiver_radius = mono.receiver_radius
+            energy_threshold = mono.energy_thres
+            seed = mono.seed
+            max_order = mono.image_source_order
+            duration = mono.duration
+            n_jobs = mono.n_jobs
+            absorption = bool(mono.air_absorption)
+            air_used = air_or_default(mono.air if mono.air is not None else air)
+        else:
+            defaults = Mono._RAY_TRACING_DEFAULTS
+            gen = next(iter(references.values())).generation
+            n_rays = gen.get("n_rays", defaults["n_rays"])
+            receiver_radius = gen.get("receiver_radius", defaults["receiver_radius"])
+            energy_threshold = gen.get("energy_thres", defaults["energy_thres"])
+            seed = gen["seed"] if "seed" in gen else self.seed
+            max_order = int(gen.get("image_source_order", self.image_source_order))
+            duration = gen.get("duration")
+            n_jobs = self.n_jobs
+            absorption = air_absorption
+            air_used = air
+        fs = context.sampling_rate
+        return directional_histograms(
+            context.geometry,
+            [source_to_pra(source, fs) for source in context.sources],
+            np.array([receiver.position for receiver in context.receivers], dtype=float).T,
+            fs,
+            self._arrival_directions(context, rotations),
+            max_order=max_order,
+            duration=duration,
+            n_rays=n_rays,
+            receiver_radius=receiver_radius,
+            energy_threshold=energy_threshold,
+            air_absorption=absorption,
+            seed=seed,
+            air=air_used,
+            n_jobs=n_jobs,
+        )
+
+    @staticmethod
+    def _ray_record(mono, references):
+        """``n_rays`` and ``seed`` of the rays that shaped this run, if it has any."""
+        if mono is not None and mono.ray_tracing:
+            return {"n_rays": mono.n_rays, "seed": mono.seed}
+        if not references:
+            return None
+        gen = next(iter(references.values())).generation
+        if "n_rays" not in gen:
+            return None
+        return {"n_rays": gen.get("n_rays"), "seed": gen.get("seed")}
 
     def _own_duration(self, geometry, air_absorption, air, output_length: bool = False):
         """Length of the runs the method makes itself: the mono method's default, ``DURATION_RT_FACTOR`` times the longest
@@ -316,8 +458,7 @@ class _HybridMethod(SimulationMethod):
             return None, absorption, air_or_default(self.air), None
 
         if self.tail == "ray_tracing":
-            absorption = True if self.air_absorption is None else bool(self.air_absorption)
-            method = Mono(ray_tracing=True, air_absorption=absorption, air=self.air, duration=self._own_duration(context.geometry, absorption, self.air), n_jobs=self.n_jobs)
+            method = self._ray_mono(context)[0]
             references, description = method.compute(context), method.generation
         elif isinstance(self.reference, str):
             references, description = context.scene.impulse_responses(self.reference), self.reference
@@ -375,8 +516,8 @@ class _HybridMethod(SimulationMethod):
 
 _ENGINE_PARAMETERS = """
     tail : {None, "reference", "ray_tracing", "eyring", "sabine"}
-        Where the decay target comes from: fitted to ``reference``; fitted to a ``Mono(ray_tracing=True)`` run
-        of its default settings with the method's ``air_absorption``; or predicted from volume, area and mean
+        Where the decay target comes from: fitted to ``reference``; fitted to one ``Mono(ray_tracing=True)``
+        run that uses this method's image-source order, seed and air; or predicted from volume, area and mean
         absorption (warns where the room is not diffuse). None: ``"reference"`` with a reference, else
         ``"ray_tracing"``.
     image_source_order : int, default=3
@@ -387,16 +528,18 @@ _ENGINE_PARAMETERS = """
     decay_db : float, default=30.0
         Single-slope fit range from -5 dB: 30 is T30, 20 is T20.
     duration : float, optional
-        In seconds; default 1.5 times the longest target RT. A reference the method runs itself has the mono
-        method's default length whatever the output's; the directional histogram takes ``duration``. A reference
-        shorter than 2/3 of its reverberation time warns.
+        In seconds; default 1.5 times the longest target RT. The ray trace a reference tail runs itself has
+        the mono method's default length. A reference shorter than 2/3 of its reverberation time warns.
     directional_absorption : bool, default=True
         Weight each delay line with the reflection of the boundary it faces.
     late_envelope : bool, optional
         Shape the late field: attenuated per band to the reference's late energy, each delay line given its
-        direction's share of the energy the rays bring (directional histogram, Schroeder 2011). The rays are
-        traced by ``Mono(ray_tracing=True)`` at ``image_source_order``, also with a given reference. Default on
-        for a reference or ray-tracing tail; an Eyring or Sabine tail has no reference, so ``True`` raises.
+        direction's share of the energy the rays bring (directional histogram, Schroeder 2011). Those rays are
+        the reference's: one trace, with the reference ``Mono``'s ``n_rays``, ``receiver_radius``,
+        ``energy_thres``, ``seed`` and image-source order (a ``ray_tracing`` tail uses this method's seed and
+        order). Summing the bins is the mono tail. A reference given as a dict or a name on the graph is not
+        traced again; the histogram follows that response's generation instead of the mono defaults. Default
+        on for a reference or ray-tracing tail; an Eyring or Sabine tail has no reference, so ``True`` raises.
     diffraction : {False, True, "udfa", "btms"}, default=False
         Edge diffraction around obstacles and at room edges that open wider than 180 deg; ``True`` is
         ``"udfa"``. ``"btms"`` is far slower than ``"udfa"``.
@@ -416,8 +559,8 @@ _ENGINE_PARAMETERS = """
         in the early field; its scattered part, ``prod sqrt(s)``, enters the delay lines of its hemisphere
         through an allpass cascade. Needs a second image source search.
     n_jobs : int, default=1
-        Processes for the reference run (``Mono(n_jobs=...)``, when the method runs it) and the directional
-        histograms, whose rays it splits.
+        Processes for the one ray trace (the reference and the directional histogram), or for each when the
+        reference was computed elsewhere.
 
     Attributes
     ----------
