@@ -24,7 +24,17 @@ from .geometry import RoomGeometry
 from .geometry import pra_octave_grid
 from .parallel import compute_rir
 
-__all__ = ["MIN_RAYS", "MAX_DURATION", "DURATION_RT_FACTOR", "DirectionalHistogram", "default_duration", "directional_histograms", "image_source_rirs", "ray_traced_rirs"]
+__all__ = [
+    "MIN_RAYS",
+    "MAX_DURATION",
+    "DURATION_RT_FACTOR",
+    "DirectionalHistogram",
+    "default_duration",
+    "directional_histograms",
+    "image_source_rirs",
+    "ray_traced_rirs",
+    "stable_seed",
+]
 
 # Floor on the heuristic ray count, applied only with n_rays=None
 MIN_RAYS = 50_000
@@ -34,6 +44,22 @@ MIN_RAYS = 50_000
 DURATION_RT_FACTOR = 1.5
 MAX_DURATION = 12.0
 _HIST_BIN = 0.004
+
+
+def stable_seed(seed, *coords) -> Optional[int]:
+    """A seed that depends on ``seed`` and coordinates, not on how many other sources share the process.
+
+    Seeded with it, a source and receiver draw the same ray-traced tail when a run is split across processes as
+    when it is traced in one process. ``None`` stays unseeded. Coordinates are quantized to 0.1 mm.
+    """
+    if seed is None:
+        return None
+    mixed = int(seed) & 0xFFFFFFFFFFFFFFFF
+    for coord in coords:
+        for value in np.asarray(coord, dtype=np.float64).reshape(-1):
+            quantized = int(round(float(value) * 1e4)) & 0xFFFFFFFFFFFFFFFF
+            mixed = (mixed * 0x9E3779B185EBCA87 + quantized) & 0xFFFFFFFFFFFFFFFF
+    return mixed % (2**63 - 1) or 1
 
 
 def default_duration(geometry: RoomGeometry, air_absorption: bool, speed_of_sound: Optional[float] = None, air=None, factor: float = DURATION_RT_FACTOR) -> float:
@@ -110,6 +136,10 @@ def ray_traced_rirs(
     ray-traced energy. ``duration`` defaults to :func:`default_duration`; ``n_rays=None`` takes a heuristic raised to ``MIN_RAYS``;
     ``seed`` None draws a fresh one from the OS. ``air`` sets the speed of sound and the air absorption.
 
+    In one process (``n_jobs`` 1) with a ``seed``, each source's rays restart from ``seed`` and each pair's tail from
+    a seed of its own (:func:`~compas_acoustics.room.parallel.compute_rir`): a pair's response is the same whichever
+    other sources and microphones share the run.
+
     ``n_jobs`` > 1 runs the sources in processes of their own and splits each source's rays over the processes left
     (:func:`~compas_acoustics.room.parallel.split_processes`). Each source then draws its own seed from ``seed``,
     so the responses differ from a run in one process by Monte-Carlo noise only, and repeat for a given ``seed``
@@ -140,7 +170,7 @@ def ray_traced_rirs(
         room.set_ray_tracing(n_rays=n_rays, **options)
         if n_rays is None and room.rt_args["n_rays"] < MIN_RAYS:
             room.set_ray_tracing(n_rays=MIN_RAYS, **options)
-        compute_rir(room)
+        compute_rir(room, seed=seed)
 
     latency = pra.constants.get("frac_delay_length") // 2
     n_samples = round(duration * fs)
@@ -263,6 +293,7 @@ def directional_histograms(
     sources do not. The tracing engine is driven directly, since the room's own call would reset an
     omnidirectional receiver to one bin. Air absorption is applied per band on the bins' travel distance.
     ``n_jobs`` > 1 splits each source's rays over that many processes (:func:`~compas_acoustics.room.parallel.trace_parallel`).
+    With a ``seed``, each source's rays restart from it, so a source's bins do not depend on the sources traced with it.
     """
     from .parallel import MIN_RAYS_PER_PROCESS
     from .parallel import SLICES_PER_PROCESS
@@ -316,6 +347,9 @@ def directional_histograms(
             mics = [(mic_positions[:, m], np.asarray(d, dtype=np.float32)) for m, d in enumerate(unit)]
         for s, source in enumerate(room.sources):
             jobs.progress("directional histograms", s, len(room.sources))
+            if seed is not None:
+                # Restart from the run seed: a process that traces only this source draws the same rays.
+                pra.random.seed(int(seed))
             if source.directivity is None:
                 ray_directions = pra.fibonacci_spherical_sampling(n_rays).T
                 ray_energies = np.ones((n_rays, n_bands))
@@ -323,7 +357,7 @@ def directional_histograms(
                 ray_directions, ray_energies = source.directivity.sample_rays(n_rays)
                 ray_energies = np.broadcast_to(ray_energies, (n_rays, n_bands))
             if parallel:
-                seeds = np.random.default_rng(None if seed is None else (seed, s)).integers(0, 2**62, size=n_jobs * SLICES_PER_PROCESS)
+                seeds = np.random.default_rng(seed).integers(0, 2**62, size=n_jobs * SLICES_PER_PROCESS)
                 traced = trace_parallel(spec, mics, ray_directions, ray_energies, source.position, n_jobs, seeds)
             else:
                 room.room_engine.ray_tracing(ray_directions, ray_energies, source.position)

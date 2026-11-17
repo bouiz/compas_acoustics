@@ -37,7 +37,7 @@ from typing import Tuple
 
 import numpy as np
 
-__all__ = ["MIN_RAYS_PER_PROCESS", "SLICES_PER_PROCESS", "split_processes", "process_pool", "engine_spec", "trace_parallel", "room_responses"]
+__all__ = ["MIN_RAYS_PER_PROCESS", "SLICES_PER_PROCESS", "split_processes", "process_pool", "engine_spec", "trace_parallel", "room_responses", "trace_each_source"]
 
 #: Below this many rays per process the spawn and room rebuild cost more than they save.
 MIN_RAYS_PER_PROCESS = 500
@@ -293,11 +293,13 @@ def source_rays(source, n_rays: int, n_bands: int):
     return directions, np.broadcast_to(energies, (n_rays, n_bands))
 
 
-def room_responses(room, histograms: Optional[List[List[List[np.ndarray]]]]) -> List[List[np.ndarray]]:
+def room_responses(room, histograms: Optional[List[List[List[np.ndarray]]]], pair_seed=None) -> List[List[np.ndarray]]:
     """``[mic][source]`` responses of ``room`` from its image sources and given ray histograms, as ``Room.compute_rir``.
 
     ``room`` has run ``image_source_model()`` if its image sources are needed, and has omnidirectional microphones.
     ``histograms[m][s]`` is the per-direction list of microphone ``m`` for source ``s``, or None without ray tracing.
+    ``pair_seed(source_position, mic_position)`` restarts the tail's random sequence for that pair, so a process
+    that renders only some pairs draws the same tail as one that renders all of them.
 
     Unlike ``Room.compute_rir`` (pyroomacoustics 0.10.1), a pair that sees no image source, not even the direct
     path (a microphone shadowed by a wall), gets no image-source part instead of failing on an empty ``max``:
@@ -337,6 +339,14 @@ def room_responses(room, histograms: Optional[List[List[List[np.ndarray]]]]) -> 
                     )
                 )
             if histograms is not None:
+                if pair_seed is not None:
+                    import pyroomacoustics as pra
+
+                    drawn = pair_seed(src.position, mic)
+                    if drawn is None:
+                        pra.random.seed(None)
+                    else:
+                        pra.random.seed(numpy=int(drawn), libroom=int(drawn))
                 t0 = np.linalg.norm(src.position - mic) / room.c
                 parts.append(
                     compute_rt_rir(
@@ -369,18 +379,59 @@ def room_responses(room, histograms: Optional[List[List[List[np.ndarray]]]]) -> 
     return out
 
 
-def compute_rir(room) -> None:
+def compute_rir(room, seed=None) -> None:
     """``room.compute_rir()`` through :func:`room_responses`, so that a pair seeing no image source does not fail.
 
     Runs the image source model and the ray tracing ``room`` still needs, then sets ``room.rir`` ``[mic][source]``.
+
+    With a ``seed``, each source's rays restart from it (:func:`trace_each_source`) and each pair's tail from
+    :func:`~compas_acoustics.room.raytracing.stable_seed` of it and the pair's positions: a pair's response then
+    does not depend on the other sources and microphones of the room, so a run split over processes repeats the
+    run in one. Without, one random sequence runs through the whole room, as pyroomacoustics does.
     """
     state = room.simulator_state
     if state["ism_needed"] and not state["ism_done"]:
         room.image_source_model()
     histograms = None
+    pair_seed = None
     if state["rt_needed"]:
         if not state["rt_done"]:
-            room.ray_tracing()
+            if seed is None:
+                room.ray_tracing()
+            else:
+                trace_each_source(room, seed)
         histograms = room.rt_histograms
-    room.rir = room_responses(room, histograms)
+        if seed is not None:
+            from .raytracing import stable_seed
+
+            def pair_seed(source_position, mic_position):
+                return stable_seed(seed, source_position, mic_position)
+
+    room.rir = room_responses(room, histograms, pair_seed=pair_seed)
     state["rir_done"] = True
+
+
+def trace_each_source(room, seed: int) -> None:
+    """``room.ray_tracing()`` for omnidirectional microphones, with the random generators restarted from ``seed`` before
+    each source, so that a source's rays do not depend on the sources traced before it in the same room.
+
+    Sets ``room.rt_histograms`` ``[mic][source]`` (each the per-direction list, one omnidirectional bin) as
+    pyroomacoustics does, and marks the ray tracing done.
+    """
+    import pyroomacoustics as pra
+
+    engine = room.room_engine
+    n_mics = room.mic_array.M
+    n_bands = len(room.octave_bands.get_bw())
+    for m in range(n_mics):
+        engine.microphones[m].make_omnidirectional()
+    histograms: List[List[List[np.ndarray]]] = [[] for _ in range(n_mics)]
+    for source in room.sources:
+        pra.random.seed(int(seed))
+        directions, energies = source_rays(source, room.rt_args["n_rays"], n_bands)
+        engine.ray_tracing(directions, energies, source.position)
+        for m in range(n_mics):
+            histograms[m].append([h.get_hist() for h in engine.microphones[m].histograms])
+        engine.reset_mics()
+    room.rt_histograms = histograms
+    room.simulator_state["rt_done"] = True
