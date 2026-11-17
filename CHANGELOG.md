@@ -33,10 +33,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added `hybrid.diffraction.set_diffraction_edges(geometry, edges)` and `clear_diffraction_edges(geometry)`: every diffracted path of that geometry uses the given subset of its `diffraction_edges` until it is cleared.
 * Added `hybrid.diffraction.AmbiguousEdgeWarning`, counting the edge pieces where the sector detector found faces disagreeing on which side is air.
 * Added `RoomGeometry.drawn_sides` (`room.geometry.DrawnSides`) and the `diffraction_min_excess` (radians) and `diffraction_min_length` (metres) options of `RoomGeometry.from_prepared`.
+* Added `Analyser.analyse(parameters=...)`: only the requested parameters, and the methods they need, are computed; `("T30", "EDT", "C50", "C80", "D50", "STI")` skips the sound strength, the DRR, the centre time and the lateral fractions.
+* Added `compas_acoustics.analyser.decay_end(ir, trim_db, margin)` (was private): where a response's Schroeder curve has fallen `trim_db`, to cut a response where its reverberation has decayed rather than at the level of its direct sound.
 * Added the `foa` method (the example's `Ambisonics` at first order, without diffraction), `--methods`, `--ignore` and 8 pytest-xdist workers to `tools/regression_reference.py`; a recording holds only `foa` by default, `mono` and `diffraction` on request, and `compare` skips a method recorded on one side only.
 
 ### Changed
 
+* Changed the `Analyser` to compute the same results 5 to 10 times faster: the octave filters run with scipy directly and stop once they have rung out (computing their ringing into the zero padding meant arithmetic on subnormal numbers, 20 to 80 times slower per sample in the high bands); the zero-phase bands are kept for the analyser's lifetime, so `reliability()` and `decay_curves()` after `analyse()` filter nothing again; the STI's modulation transfer function takes one complex exponential per modulation frequency and sample for all bands at once, from pyrato's own filter bank and formula.
 * Changed the hybrid (`Binaural` / `Ambisonics`) "room does not close" warning to fire only when `open_area > 0`: an unwelded or non-manifold shell with no escaping-ray share is quiet; a real leak still warns that openings are treated as fully absorbing.
 * Changed the API reference to a section with a page per package; the table of contents stops at the classes and functions.
 * Changed the `docs` workflow to only build the docs; `release.yml` deploys them.

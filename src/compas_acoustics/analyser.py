@@ -9,9 +9,29 @@ from scipy.signal import sosfilt
 
 from compas_acoustics.defaults import Defaults
 
-__all__ = ["Analyser", "frequency_response", "time_response"]
+__all__ = ["Analyser", "decay_end", "frequency_response", "time_response"]
 
 _PARAM_NAMES = ["EDT", "T20", "T30", "C50", "C80", "D50", "DRR", "Ts", "STI", "G", "SPL", "LF", "LFC"]
+
+# The methods each parameter of analyse() needs
+_PARAM_GROUPS = {
+    "reverberation": ("EDT", "T20", "T30"),
+    "clarity": ("C50", "C80", "D50"),
+    "drr": ("DRR",),
+    "center_time": ("Ts",),
+    "sti": ("STI",),
+    "strength": ("G", "SPL"),
+    "lateral": ("LF", "LFC"),
+}
+
+# A band filter has rung out once its impulse response is this far below its peak (-300 dB): the
+# energy left after that is below 1e-30 of what came before, far under any metric's rounding.
+_RING_OUT = 1e-15
+# The zero padding after a filtered segment (and the longest ring-out kept)
+_RING_PAD_S = 0.5
+# STI: samples per block of the modulation transfer sum (keeps the complex exponentials small)
+_MTF_BLOCK = 1 << 16
+_MODULATION_FREQUENCIES = np.array([0.63, 0.80, 1.0, 1.25, 1.60, 2.0, 2.5, 3.15, 4.0, 5.0, 6.3, 8.0, 10.0, 12.5])
 
 # pyrato < 1.0 (the only one on Python 3.9) has no `parameters` module
 _PYRATO_PARAMETERS = hasattr(pyrato, "parameters")
@@ -33,6 +53,68 @@ def _octave_band_filter(sampling_rate, center_frequency):
         frequency_range=(center_frequency * 0.9, center_frequency * 1.1),
         order=14,
     )
+
+
+def _ring_length(sos, sampling_rate):
+    """Samples until the filter ``sos`` has rung out after an impulse (``_RING_OUT``), at most ``_RING_PAD_S``."""
+    impulse = np.zeros(int(round(_RING_PAD_S * sampling_rate)))
+    impulse[0] = 1.0
+    response = np.abs(sosfilt(sos, impulse))
+    above = np.flatnonzero(response > _RING_OUT * response.max())
+    return int(above[-1]) + 1 if above.size else impulse.size
+
+
+@lru_cache(maxsize=None)
+def _octave_band_sos(sampling_rate, center_frequency):
+    """``(sos, ring length)`` of the band filter of :func:`_octave_band_filter`, or ``(None, 0)`` when its range selects
+    several bands (then it is applied through pyfar)."""
+    coefficients = np.asarray(_octave_band_filter(sampling_rate, center_frequency).coefficients, dtype=float)
+    if coefficients.shape[0] != 1:
+        return None, 0
+    sos = np.ascontiguousarray(coefficients[0])
+    return sos, _ring_length(sos, sampling_rate)
+
+
+@lru_cache(maxsize=None)
+def _sti_filter_bank(sampling_rate):
+    """``[(sos, ring length)]`` of pyrato's STI filter bank, 125 Hz - 8 kHz (``modulation_transfer_function``)."""
+    bank = pf.dsp.filter.fractional_octave_bands(None, num_fractions=1, sampling_rate=sampling_rate, frequency_range=(125, 8000))
+    coefficients = np.asarray(bank.coefficients, dtype=float)
+    return [(np.ascontiguousarray(sos), _ring_length(sos, sampling_rate)) for sos in coefficients]
+
+
+def _filter_until_rung_out(sos, ring, signal):
+    """``sosfilt(sos, signal)``, computed only until the filter has rung out after the last non-zero sample; zero after.
+
+    Past that point the exact output is below ``_RING_OUT`` of the filter's peak response, and computing it means
+    arithmetic on subnormal numbers, which costs 20 to 80 times a normal sample (the high bands ring out within
+    milliseconds of zero padding).
+    """
+    signal = np.asarray(signal, dtype=float)
+    out = np.zeros(signal.size)
+    nonzero = np.flatnonzero(signal)
+    if not nonzero.size:
+        return out
+    stop = min(signal.size, int(nonzero[-1]) + 1 + ring)
+    out[:stop] = sosfilt(sos, signal[:stop])
+    return out
+
+
+def decay_end(ir, trim_db, margin=0.05):
+    """Samples of ``ir`` (channels, samples) until the backward-integrated energy (Schroeder curve) of all channels
+    falls ``trim_db`` below its start, lengthened by the fraction ``margin``; the whole length when it never does.
+
+    The length to keep of a response whose reverberation has decayed by ``trim_db``: it follows the room's decay,
+    not the level of the direct sound.
+    """
+    ir = np.atleast_2d(np.asarray(ir, dtype=float))
+    remaining = np.cumsum(np.sum(ir**2, axis=0)[::-1])[::-1]
+    if remaining[0] == 0:
+        return ir.shape[1]
+    below = np.flatnonzero(remaining <= remaining[0] * 10 ** (-trim_db / 10))
+    if not len(below):
+        return ir.shape[1]
+    return min(ir.shape[1], int(np.ceil(below[0] * (1 + margin))))
 
 
 def _iso3382_start(ir_array, threshold_db=20.0):
@@ -63,17 +145,6 @@ def _iso3382_start(ir_array, threshold_db=20.0):
 def _channels_first(ir):
     """An impulse response as (channels, samples), from (samples,) or (samples, channels)."""
     return np.atleast_2d(np.asarray(ir, dtype=float).T)
-
-
-def _decay_end(ir, trim_db, margin=0.05):
-    """Samples of ``ir`` (channels, samples) until the Schroeder curve of all channels falls ``trim_db`` below its start, lengthened by the fraction ``margin``."""
-    remaining = np.cumsum(np.sum(ir**2, axis=0)[::-1])[::-1]
-    if remaining[0] == 0:
-        return ir.shape[1]
-    below = np.flatnonzero(remaining <= remaining[0] * 10 ** (-trim_db / 10))
-    if not len(below):
-        return ir.shape[1]
-    return min(ir.shape[1], int(np.ceil(below[0] * (1 + margin))))
 
 
 def _level_re_peak(magnitude):
@@ -108,7 +179,7 @@ def time_response(ir, sampling_rate, db=True, trim_db=None):
     """
     ir = _channels_first(ir)
     if trim_db is not None:
-        ir = ir[:, : _decay_end(ir, trim_db)]
+        ir = ir[:, : decay_end(ir, trim_db)]
     times = np.arange(ir.shape[1]) / sampling_rate
     return times, _level_re_peak(ir) if db else ir
 
@@ -181,8 +252,6 @@ class Analyser:
         self._channel = channel
         self.ir = ir
         self.analysis_data = None
-        # Zero-phase bands of self.ir by centre frequency, kept while analyse() runs
-        self._bands_from_onset = None
         sampling_rate = getattr(ir, "sampling_rate", None)
         self.sampling_rate = int(sampling_rate) if sampling_rate is not None else Defaults().SAMPLING_RATE
 
@@ -199,6 +268,9 @@ class Analyser:
         # the spatial parameters need the response's channels, source and receiver
         self._response = ir
         self._ir = self._as_mono_array(ir, getattr(self, "_channel", None))
+        # Zero-phase bands of self.ir by centre frequency (:meth:`_band_from_onset`), shared by the reverberation
+        # times, the centre time, the decay curves and the reliability for as long as the response and rate stay
+        self._bands_from_onset = {}
 
     @staticmethod
     def _on_package_scale(ir):
@@ -237,6 +309,7 @@ class Analyser:
         if not isinstance(sampling_rate, int):
             raise TypeError("Sampling rate must be an integer.")
         self._sampling_rate = sampling_rate
+        self._bands_from_onset = {}  # filtered at another rate
 
     @property
     def frequency_bands(self):
@@ -327,12 +400,18 @@ class Analyser:
         return self.analysis_data["EDT_overall"] if self.analysis_data else None
 
     def _filter_impulse_response(self, impulse_response, center_frequency):
-        sig = pf.Signal(np.asarray(impulse_response, dtype=float), self.sampling_rate)
-        return _octave_band_filter(self.sampling_rate, center_frequency).process(sig).time.squeeze()
+        """The octave band of ``impulse_response`` (same length): the causal IEC filter, run with scipy directly
+        (what pyfar's ``FilterSOS.process`` runs, bit for bit) and only until it has rung out after the last
+        non-zero sample (:func:`_filter_until_rung_out`)."""
+        sos, ring = _octave_band_sos(self.sampling_rate, center_frequency)
+        if sos is None:
+            sig = pf.Signal(np.asarray(impulse_response, dtype=float), self.sampling_rate)
+            return _octave_band_filter(self.sampling_rate, center_frequency).process(sig).time.squeeze()
+        return _filter_until_rung_out(sos, ring, impulse_response)
 
     def _band_signals(self, segment, bands) -> dict:
         """Octave-band signals of a time segment, filtered after windowing and padded 0.5 s so the filters ring out."""
-        padded = np.concatenate([np.asarray(segment, dtype=float), np.zeros(int(0.5 * self.sampling_rate))])
+        padded = np.concatenate([np.asarray(segment, dtype=float), np.zeros(int(_RING_PAD_S * self.sampling_rate))])
         return {f: self._filter_impulse_response(padded, f) for f in bands}
 
     def _band_energies(self, segment, bands) -> dict:
@@ -369,7 +448,7 @@ class Analyser:
         fs = self.sampling_rate
         lead = int(round(0.1 * fs))
         onset = self._direct_sound_onset(ir_array)
-        padded = np.concatenate([np.zeros(lead), ir_array, np.zeros(int(0.5 * fs))])
+        padded = np.concatenate([np.zeros(lead), ir_array, np.zeros(int(_RING_PAD_S * fs))])
         forward = self._filter_impulse_response(padded, center_frequency)
         zero_phase = self._filter_impulse_response(forward[::-1], center_frequency)[::-1]
         band = zero_phase[onset:], lead
@@ -581,11 +660,10 @@ class Analyser:
         min_samples = int(np.ceil(1.6 * self.sampling_rate))
         if ir_array.size < min_samples:
             ir_array = np.pad(ir_array, (0, min_samples - ir_array.size))
-        sig = pf.Signal(ir_array, self.sampling_rate)
         snr_arg = float(snr) if np.ndim(snr) == 0 else snr
         try:
             # (7 octave bands, 14 modulation frequencies)
-            mtf = np.squeeze(np.asarray(pyrato.parameters.modulation_transfer_function(sig, snr=snr_arg)))
+            mtf = self._modulation_transfer_function(ir_array, snr_arg)
             snr_app = 10.0 * np.log10(mtf / (1.0 - mtf + 1e-12) + 1e-12)
             mti = np.mean(np.clip((snr_app + 15.0) / 30.0, 0, 1), axis=-1)
             # The public STI function computes the MTF again; its private reduction (Annex A.2.1) halves the cost
@@ -593,12 +671,42 @@ class Analyser:
             if sti_calc is not None and mtf.shape == (7, 14):
                 sti_val = round(float(sti_calc(mtf)), 4)
             else:
+                sig = pf.Signal(ir_array, self.sampling_rate)
                 sti_val = round(float(np.squeeze(pyrato.parameters.speech_transmission_index_indirect(sig, snr=snr_arg))), 4)
         except Exception as e:
             warnings.warn(f"STI computation failed: {e}")
             mti = np.full(7, np.nan)
             sti_val = np.nan
         return {"mti": mti, "sti": sti_val}
+
+    def _modulation_transfer_function(self, ir_array, snr) -> np.ndarray:
+        """The MTF (7 octave bands 125-8000 Hz, 14 modulation frequencies) of IEC 60268-16:2020 Section 6.1, as
+        ``pyrato.parameters.modulation_transfer_function`` computes it without levels, from the same filter bank.
+
+        Faster, to rounding: each band is filtered only until it has rung out (:func:`_filter_until_rung_out`; the
+        exact rest is below 1e-30 of its energy), and the sum over time takes one complex exponential per modulation
+        frequency and sample for all bands at once (a matrix product, in blocks), not one per band.
+        """
+        fs = self.sampling_rate
+        snr = np.full(7, float(snr)) if np.ndim(snr) == 0 else np.asarray(snr, dtype=float)
+        if snr.shape != (7,):
+            raise ValueError(f"snr must have shape (7,) for 7 octave bands (125 Hz - 8 kHz), but got {snr.shape}.")
+        if np.any(snr < 20):
+            warnings.warn("Input 'snr' should be at least 20 dB for every octave band.", stacklevel=3)
+        bands = np.stack([_filter_until_rung_out(sos, ring, ir_array) for sos, ring in _sti_filter_bank(fs)])
+        energy = bands**2
+        last = np.flatnonzero(np.any(energy > 0, axis=0))
+        stop = int(last[-1]) + 1 if last.size else 0
+        numerator = np.zeros((7, _MODULATION_FREQUENCIES.size), dtype=complex)
+        for start in range(0, stop, _MTF_BLOCK):
+            end = min(stop, start + _MTF_BLOCK)
+            times = np.arange(start, end) / fs
+            numerator += energy[:, start:end] @ np.exp(-2j * np.pi * _MODULATION_FREQUENCIES[:, None] * times).T
+        denominator = np.sum(energy, axis=-1)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            mtf = np.abs(numerator) / denominator[:, None]
+        mtf *= 1 / (1 + 10 ** (-snr[:, None] / 10))
+        return np.clip(mtf, 0, 1)
 
     def stage_support(self, impulse_response=None) -> dict:
         """ST_early and ST_late per band (Gade; ISO 3382-1:2009 Annex C), for source and receiver 1 m apart.
@@ -808,81 +916,90 @@ class Analyser:
 
         The worker computes only these, for a client whose pyrato cannot (:func:`compas_acoustics.worker.analyse`).
         """
+        return {**self._sti(ir), **self._strength(ir)}
+
+    def _sti(self, ir=None) -> dict:
+        """``'STI'`` per band in :attr:`frequency_bands` and ``'STI_overall'``, as :meth:`analyse` gives them."""
         if ir is None:
             ir = self.ir
-        freqs = list(self.frequency_bands)
         sti_data = self.speech_transmission_index(ir)
-        # G needs the absolute level; an array or a normalized-only response has none
+        sti_bands = [125, 250, 500, 1000, 2000, 4000, 8000]
+        sti_vector = [round(sti_data["mti"][sti_bands.index(f)], 2) if f in sti_bands else np.nan for f in self.frequency_bands]
+        return {"STI": np.array(sti_vector, dtype=float).tolist(), "STI_overall": round(float(sti_data["sti"]), 4)}
+
+    def _strength(self, ir=None) -> dict:
+        """``'G'`` per band in :attr:`frequency_bands` and ``'G_overall'``, as :meth:`analyse` gives them (NaN without
+        an absolute level: an array or a normalized-only response)."""
+        if ir is None:
+            ir = self.ir
         own = None if ir is self.ir else ir
         if _PYRATO_PARAMETERS and (self._package_scale if own is None else self._on_package_scale(own)):
             strength = self.sound_strength(impulse_response=own)
-            g_vector, g_overall = strength["G"], strength["G_overall"]
-        else:
-            g_vector, g_overall = [np.nan] * len(freqs), np.nan
+            return {"G": np.array(strength["G"], dtype=float).tolist(), "G_overall": strength["G_overall"]}
+        return {"G": [np.nan] * len(self.frequency_bands), "G_overall": np.nan}
 
-        sti_bands = [125, 250, 500, 1000, 2000, 4000, 8000]
-        sti_vector = [round(sti_data["mti"][sti_bands.index(f)], 2) if f in sti_bands else np.nan for f in freqs]
-        return {
-            "STI": np.array(sti_vector, dtype=float).tolist(),
-            "STI_overall": round(float(sti_data["sti"]), 4),
-            "G": np.array(g_vector, dtype=float).tolist(),
-            "G_overall": g_overall,
-        }
-
-    def analyse(self, ir=None) -> dict:
-        """Every parameter of :data:`_PARAM_NAMES` per band and as ``'<name>_overall'``.
+    def analyse(self, ir=None, parameters=None) -> dict:
+        """The parameters of :data:`_PARAM_NAMES` per band and as ``'<name>_overall'``.
 
         The overall values of EDT, T20, T30, C50, C80, D50 and Ts average 500 and 1000 Hz (ISO 3382-1:2009
         Table A.1); the others have their own.
+
+        Parameters
+        ----------
+        ir : optional
+            Default: the analyser's own response.
+        parameters : list of str, optional
+            The parameters to compute, from :data:`_PARAM_NAMES` (default: all). Only the methods they need run,
+            and the result holds only them: ``("T30", "EDT", "C50", "C80", "D50", "STI")`` skips the sound strength,
+            the DRR, the centre time and the lateral fractions. SPL needs G, which is then computed too.
         """
         if ir is None:
             ir = self.ir
-        # reverberation_times and center_time take the same zero-phase bands
-        self._bands_from_onset = {}
-        try:
-            rt = self.reverberation_times(ir)
-            clarity = self.clarity_definition(ir)
-            drr = self.direct_to_reverberant_ratio(ir)
-            ct = self.center_time(ir)
-        finally:
-            self._bands_from_onset = None
-        sti_and_strength = self._sti_and_strength(ir)
-        # the lateral fractions and SPL need the channels, source and receiver of the response, not its mono array
-        response = self._response if ir is self.ir else ir
-        lateral = self.lateral_fraction(response)
-        level = getattr(getattr(response, "source", None), "spl", None)
-        if level is not None and not all(np.isnan(np.asarray(sti_and_strength["G"], dtype=float))):
-            spl = self.sound_pressure_level(level, strength={"G": sti_and_strength["G"]})
+        if parameters is None:
+            wanted = list(_PARAM_NAMES)
         else:
-            spl = {"SPL": [np.nan] * len(self.frequency_bands), "SPL_overall": np.nan}
+            unknown = sorted(set(parameters) - set(_PARAM_NAMES))
+            if unknown:
+                raise ValueError(f"Unknown parameter(s) {unknown}; choose from {_PARAM_NAMES}.")
+            wanted = [p for p in _PARAM_NAMES if p in set(parameters)]
+
+        def needs(group):
+            return any(p in wanted for p in _PARAM_GROUPS[group])
 
         freqs = list(self.frequency_bands)
-        param_vectors = {
-            "EDT": rt["EDT"],
-            "T20": rt["T20"],
-            "T30": rt["T30"],
-            "C50": clarity["C50"],
-            "C80": clarity["C80"],
-            "D50": clarity["D50"],
-            "DRR": drr["DRR"],
-            "Ts": ct["Ts"],
-            "STI": sti_and_strength["STI"],
-            "G": sti_and_strength["G"],
-            "SPL": spl["SPL"],
-            "LF": lateral["LF"],
-            "LFC": lateral["LFC"],
-        }
-        own_overall = {
-            "STI": sti_and_strength["STI_overall"],
-            "G": sti_and_strength["G_overall"],
-            "DRR": drr["DRR_overall"],
-            "LF": lateral["LF_overall"],
-            "LFC": lateral["LFC_overall"],
-            "SPL": spl["SPL_overall"],
-        }
+        nan_bands = [np.nan] * len(freqs)
+        param_vectors, own_overall = {}, {}
+        # reverberation_times and center_time take the same zero-phase bands (kept by the analyser)
+        if needs("reverberation"):
+            param_vectors.update(self.reverberation_times(ir))
+        if needs("clarity"):
+            param_vectors.update(self.clarity_definition(ir))
+        if needs("drr"):
+            drr = self.direct_to_reverberant_ratio(ir)
+            param_vectors["DRR"], own_overall["DRR"] = drr["DRR"], drr["DRR_overall"]
+        if needs("center_time"):
+            param_vectors.update(self.center_time(ir))
+        if needs("sti"):
+            sti = self._sti(ir)
+            param_vectors["STI"], own_overall["STI"] = sti["STI"], sti["STI_overall"]
+        # the lateral fractions and SPL need the channels, source and receiver of the response, not its mono array
+        response = self._response if ir is self.ir else ir
+        if needs("strength"):
+            strength = self._strength(ir)
+            param_vectors["G"], own_overall["G"] = strength["G"], strength["G_overall"]
+            level = getattr(getattr(response, "source", None), "spl", None)
+            if level is not None and not all(np.isnan(np.asarray(strength["G"], dtype=float))):
+                spl = self.sound_pressure_level(level, strength={"G": strength["G"]})
+            else:
+                spl = {"SPL": nan_bands, "SPL_overall": np.nan}
+            param_vectors["SPL"], own_overall["SPL"] = spl["SPL"], spl["SPL_overall"]
+        if needs("lateral"):
+            lateral = self.lateral_fraction(response)
+            for key in ("LF", "LFC"):
+                param_vectors[key], own_overall[key] = lateral[key], lateral[f"{key}_overall"]
 
         result = {"freqs": freqs}
-        for param in _PARAM_NAMES:
+        for param in wanted:
             vals = np.array(param_vectors[param], dtype=float)
             result[param] = vals.tolist()
             if param in own_overall:
@@ -899,13 +1016,13 @@ class Analyser:
         Parameters
         ----------
         parameters : str or list of str, optional
-            Default: all.
+            Default: all that were analysed.
         show_bands : bool, optional
             Per-band values.
         show_overall : bool, optional
             Overall values.
         """
-        params = parameters if parameters else _PARAM_NAMES
+        params = parameters if parameters else [p for p in _PARAM_NAMES if p in self.analysis_data]
         if isinstance(params, str):
             params = [params]
         freqs = self.analysis_data["freqs"]
@@ -928,7 +1045,7 @@ class Analyser:
                 if param not in _PARAM_NAMES:
                     raise ValueError(f"Parameter '{param}' not found in results. Available parameters: {_PARAM_NAMES}")
         else:
-            parameters = _PARAM_NAMES
+            parameters = [p for p in _PARAM_NAMES if p in self.analysis_data]
 
         units = {
             "EDT": "Time (s)",
