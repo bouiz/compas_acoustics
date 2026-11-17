@@ -1,15 +1,22 @@
 """Record and compare a regression reference: the HIL D 24.1 example and the test suite.
 
 ``record <dir>`` simulates every source-receiver pair of ``examples/hil_d24_1.py`` with the
-example's own ``Mono`` and ``Ambisonics`` settings and stores, per method and pair, the raw
-response (``ImpulseResponse.denormalized()``), its ``generation`` metadata and the full
+example's own settings and stores, per method and pair, the raw response
+(``ImpulseResponse.denormalized()``), its ``generation`` metadata and the full
 ``Analyser.analyse()`` output. It then runs the test suite and stores each test's outcome.
+
+The methods are ``foa`` (the example's ``Ambisonics`` settings at first order, without diffraction),
+``mono`` (its ``Mono``, about 4 minutes) and ``diffraction`` (its ``Ambisonics`` with diffraction,
+about 15 minutes). Only ``foa`` is recorded by default; pass e.g. ``--methods foa,mono,diffraction``
+when a change touches the mono or diffraction rendering. The tests run on 8 pytest-xdist workers.
 
 ``compare <reference dir> <new dir>`` reports what changed between two recordings: responses
 (identical, or the largest difference relative to the reference peak), analysis values, test
-outcomes and run times.
+outcomes and run times. A method recorded in only one of them is listed and skipped.
 
     python tools/regression_reference.py record examples/results/reference/<commit>
+    python tools/regression_reference.py record examples/results/reference/<commit> --methods foa,mono,diffraction
+    python tools/regression_reference.py record <dir> --ignore tests/test_pb.py   # an optional dependency missing
     python tools/regression_reference.py compare examples/results/reference/<a> examples/results/reference/<b>
 """
 
@@ -29,6 +36,11 @@ EXAMPLES = os.path.join(ROOT, "examples")
 
 # Metrics compared with an absolute tolerance (dB for levels and ratios, s for times)
 METRIC_KEYS = ["EDT", "T20", "T30", "C50", "C80", "D50", "DRR", "Ts", "STI", "G", "SPL", "LF", "LFC"]
+
+# The example's simulation methods a recording can hold; ``record`` runs DEFAULT_METHODS unless told otherwise
+METHODS = ("foa", "mono", "diffraction")
+DEFAULT_METHODS = ("foa",)
+DEFAULT_WORKERS = 8
 
 
 def _jsonable(value):
@@ -51,7 +63,7 @@ def _git(*args):
     return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True).stdout.strip()
 
 
-def _simulate_example(out_dir):
+def _simulate_example(out_dir, method_names=DEFAULT_METHODS):
     sys.path.insert(0, EXAMPLES)
     import hil_d24_1 as example
 
@@ -66,10 +78,14 @@ def _simulate_example(out_dir):
     for receiver in receivers:
         scene.add_receiver(receiver)
 
-    methods = {
+    makers = {
+        # first-order ambisonics with the example's hybrid settings, without the diffraction; its reference is the
+        # example's Mono, traced together with the directional histograms (no separate mono run needed)
+        "foa": lambda: ca.Ambisonics(reference=ca.Mono(**example.MONO), **{**example.HYBRID, "sh_order": 1, "diffraction": False}),
         "mono": lambda: ca.Mono(**example.MONO),
         "diffraction": lambda: ca.Ambisonics(reference="mono", **example.HYBRID),
     }
+    methods = {name: makers[name] for name in method_names}
     timings, summary = {}, {}
     for name, make in methods.items():
         start = time.perf_counter()
@@ -90,9 +106,15 @@ def _simulate_example(out_dir):
     return summary
 
 
-def _run_tests(out_dir, workers):
+def _run_tests(out_dir, workers, ignore=()):
+    import importlib.util
+
     xml = os.path.join(out_dir, "pytest.xml")
     cmd = [sys.executable, "-m", "pytest", "tests", "-q", "-p", "no:cacheprovider", f"--junitxml={xml}"]
+    cmd += [f"--ignore={path}" for path in ignore]
+    if workers and importlib.util.find_spec("xdist") is None:
+        print("pytest-xdist is not installed: the tests run serially")
+        workers = 0
     if workers:
         cmd += ["-n", str(workers)]
     start = time.perf_counter()
@@ -105,7 +127,10 @@ def _run_tests(out_dir, workers):
     return {"seconds": round(seconds, 1), "summary": tail[0], "returncode": proc.returncode}
 
 
-def record(out_dir, skip_tests=False, workers=4):
+def record(out_dir, skip_tests=False, workers=DEFAULT_WORKERS, methods=DEFAULT_METHODS, ignore=()):
+    unknown = [m for m in methods if m not in METHODS]
+    if unknown:
+        raise SystemExit(f"unknown method(s) {unknown}; choose from {list(METHODS)}")
     os.makedirs(out_dir, exist_ok=True)
     meta = {
         "commit": _git("rev-parse", "HEAD"),
@@ -119,9 +144,10 @@ def record(out_dir, skip_tests=False, workers=4):
         meta["pyroomacoustics"] = pra.__version__
     except ImportError:
         pass
-    meta["example"] = _simulate_example(out_dir)
+    meta["example"] = _simulate_example(out_dir, methods)
     if not skip_tests:
-        meta["tests"] = _run_tests(out_dir, workers)
+        meta["tests"] = _run_tests(out_dir, workers, ignore)
+        meta["tests"]["ignored"] = list(ignore)
     with open(os.path.join(out_dir, "meta.json"), "w") as f:
         json.dump(meta, f, indent=1)
 
@@ -170,14 +196,13 @@ def compare(ref_dir, new_dir, metric_tol=1e-9):
     print(f"reference {ref_meta['commit'][:8]}{' (dirty)' if ref_meta.get('dirty') else ''} vs new {new_meta['commit'][:8]}{' (dirty)' if new_meta.get('dirty') else ''}")
     changed = False
 
-    for method in ref_meta["example"]:
+    # A method recorded in only one of the two (e.g. diffraction, not recorded by default) is not compared
+    for method in sorted(set(ref_meta["example"]) ^ set(new_meta["example"])):
+        where = "reference" if method in ref_meta["example"] else "new recording"
+        print(f"\n[{method}] recorded only in the {where}: not compared")
+    for method in [m for m in ref_meta["example"] if m in new_meta["example"]]:
         ref_irs = np.load(os.path.join(ref_dir, f"{method}_irs.npz"))
-        new_path = os.path.join(new_dir, f"{method}_irs.npz")
-        if not os.path.exists(new_path):
-            print(f"\n[{method}] missing in the new recording")
-            changed = True
-            continue
-        new_irs = np.load(new_path)
+        new_irs = np.load(os.path.join(new_dir, f"{method}_irs.npz"))
         identical, worst_db, worst_pair, shape_changes = 0, -np.inf, None, []
         for pair in ref_irs.files:
             a = ref_irs[pair]
@@ -250,13 +275,25 @@ def main():
     rec = sub.add_parser("record")
     rec.add_argument("out_dir")
     rec.add_argument("--skip-tests", action="store_true")
-    rec.add_argument("--workers", type=int, default=4, help="pytest-xdist workers (0 = serial)")
+    rec.add_argument("--workers", type=int, default=DEFAULT_WORKERS, help="pytest-xdist workers (0 = serial)")
+    rec.add_argument(
+        "--methods",
+        default=",".join(DEFAULT_METHODS),
+        help=f"comma-separated example methods to simulate, from {','.join(METHODS)} (default: {','.join(DEFAULT_METHODS)})",
+    )
+    rec.add_argument(
+        "--ignore",
+        action="append",
+        default=[],
+        help="a test file to leave out (repeatable), e.g. one whose optional dependency is not installed",
+    )
     cmp_ = sub.add_parser("compare")
     cmp_.add_argument("reference")
     cmp_.add_argument("new")
     args = parser.parse_args()
     if args.command == "record":
-        record(args.out_dir, args.skip_tests, args.workers)
+        methods = tuple(m.strip() for m in args.methods.split(",") if m.strip())
+        record(args.out_dir, args.skip_tests, args.workers, methods, tuple(args.ignore))
     else:
         sys.exit(1 if compare(args.reference, args.new) else 0)
 

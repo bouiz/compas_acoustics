@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added `hybrid.diffraction.set_diffraction_edges(geometry, edges)` and `clear_diffraction_edges(geometry)`: every diffracted path of that geometry uses the given subset of its `diffraction_edges` until it is cleared.
 * Added `hybrid.diffraction.AmbiguousEdgeWarning`, counting the edge pieces where the sector detector found faces disagreeing on which side is air.
 * Added `RoomGeometry.drawn_sides` (`room.geometry.DrawnSides`) and the `diffraction_min_excess` (radians) and `diffraction_min_length` (metres) options of `RoomGeometry.from_prepared`.
+* Added the `foa` method (the example's `Ambisonics` at first order, without diffraction), `--methods`, `--ignore` and 8 pytest-xdist workers to `tools/regression_reference.py`; a recording holds only `foa` by default, `mono` and `diffraction` on request, and `compare` skips a method recorded on one side only.
 
 ### Changed
 
