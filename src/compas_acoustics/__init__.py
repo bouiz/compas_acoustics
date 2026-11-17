@@ -38,7 +38,7 @@ _EXPORTS = {
     "regularized_fitness": ".fitness",
 }
 
-# need the optional hybrid dependencies (``pip install compas_acoustics[hybrid]``, Python >= 3.11)
+# need pyFDN, which compas_acoustics installs on Python >= 3.11
 _HYBRID = ("Binaural", "Ambisonics")
 
 if TYPE_CHECKING:
@@ -85,7 +85,7 @@ def __getattr__(name):
 
             value = getattr(simulation_methods, name)
         except ImportError as error:
-            raise ImportError(f"compas_acoustics.{name} needs the hybrid dependencies: pip install compas_acoustics[hybrid] (Python >= 3.11)") from error
+            raise ImportError(f"compas_acoustics.{name} needs Python >= 3.11, where compas_acoustics installs pyFDN") from error
         globals()[name] = value
         return value
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

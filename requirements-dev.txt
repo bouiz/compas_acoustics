@@ -12,5 +12,3 @@ twine
 wheel
 
 compas_viewer >=2.0, <3.0
-# the worker's wire format, for its tests
-compas_pb >=1.2, <2.0
