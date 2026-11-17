@@ -28,7 +28,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        # ubuntu-latest (26.04) has no Python 3.9 in actions/setup-python; 24.04 has
+        os: [ubuntu-24.04, macos-latest, windows-latest]
         # 3.9 is the Python of Rhino 8
         python: ["3.9", "3.10", "3.11", "3.12"]
         exclude:

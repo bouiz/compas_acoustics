@@ -108,7 +108,7 @@ def test_from_room_and_from_rir_agree_on_a_room_they_both_describe():
     edges, _ = pyFDN.octave_bands()
     weights = target.level[:, 0] / np.sqrt(BANDWIDTHS)
     shaped = np.zeros(n)
-    for weight, sos in zip(weights, pyFDN.octave_band_filterbank(edges, fs, 8)):
+    for weight, sos in zip(weights, pyFDN.octave_band_filterbank(edges, fs, filter_order=8)):
         shaped += weight * sosfilt(sos, noise)
 
     measured = RoomTarget.from_rir(shaped, fs)
