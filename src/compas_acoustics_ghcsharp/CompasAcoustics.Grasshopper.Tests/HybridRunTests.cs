@@ -32,11 +32,34 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void Settings_PassesTheEngineInputsUnderTheMethodsNames_AndNoFormatOfTheirOwn()
         {
-            var settings = HybridRun.Settings("eyring", 4, "udfa", false, 7, false, null, 48000, out _);
+            var settings = HybridRun.Settings("eyring", 4, "udfa", "off", 7, false, null, 48000, out _);
             Assert.Equal(new Dictionary<string, object?>
             {
                 ["tail"] = "eyring", ["image_source_order"] = 4L, ["diffraction"] = "udfa", ["late_envelope"] = false, ["seed"] = 7L, ["normalize"] = false,
             }, settings);
+        }
+
+        [Theory]
+        [InlineData("omni", "omni")]
+        [InlineData("directional", "directional")]
+        [InlineData("off", false)]
+        [InlineData("True", "directional")]
+        [InlineData("true", "directional")]
+        [InlineData("False", false)]
+        public void Settings_PassesTheLateEnvelopeMode_AndReadsTheOldToggle(string choice, object expected)
+        {
+            var settings = HybridRun.Settings(null, null, null, choice, 1, null, null, 48000, out _);
+            Assert.Equal(expected, settings["late_envelope"]);
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("auto")]
+        [InlineData("")]
+        public void Settings_LeavesAnAutoLateEnvelopeToTheMethod(string? choice)
+        {
+            var settings = HybridRun.Settings(null, null, null, choice, 1, null, null, 48000, out _);
+            Assert.False(settings.ContainsKey("late_envelope"));
         }
 
         [Fact]

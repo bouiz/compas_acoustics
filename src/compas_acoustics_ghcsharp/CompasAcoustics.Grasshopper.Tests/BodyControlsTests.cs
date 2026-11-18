@@ -122,8 +122,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             {
                 (new SimulateMonoComponent(), "ray_tracing", true), (new SimulateMonoComponent(), "absorb_air", true),
                 (new SimulateMonoComponent(), "normalize", true),
-                (new SimulateBinauralComponent(), "late_envelope", true), (new SimulateBinauralComponent(), "normalize", true),
-                (new SimulateAmbisonicsComponent(), "late_envelope", true), (new SimulateAmbisonicsComponent(), "normalize", true),
+                (new SimulateBinauralComponent(), "normalize", true), (new SimulateAmbisonicsComponent(), "normalize", true),
                 (new AuraliseComponent(), "mix_sources", false), (new VisualiseRaysComponent(), "scattering", false),
             };
             foreach (var (component, port, on) in defaults)
@@ -224,6 +223,18 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
+        public void TheLateEnvelope_IsADropdownOfItsModes_AutoFirst()
+        {
+            foreach (var component in new ComponentBase[] { new SimulateBinauralComponent(), new SimulateAmbisonicsComponent() })
+            {
+                var dropdown = component.Controls.OfType<DropdownControl>().Single(d => d.Port == "late_envelope");
+                Assert.Equal(new[] { "auto", "omni", "directional", "off" }, dropdown.Options);
+                Assert.Equal("Late envelope", ControlLayout.Title(dropdown));
+                Assert.IsType<global::Grasshopper.Kernel.Parameters.Param_String>(component.ControlPort("late_envelope"));
+            }
+        }
+
+        [Fact]
         public void TheHybridBodies_StartWithTheOrders_ThenTheTail()
         {
             Assert.Equal(new[] { "ism_order", "sh_order", "tail", "diffraction", "late_envelope", "normalize", "run" },
@@ -239,8 +250,10 @@ namespace CompasAcoustics.Grasshopper.Tests
             var binaural = new SimulateBinauralComponent();
             var boxes = ControlLayout.Arrange(binaural.Controls, new RectangleF(0, 0, 150, 0));
             RectangleF Of(string port) => boxes.Single(b => b.Control.Port == port).Bounds;
-            Assert.Equal(ControlLayout.ButtonGap, Of("late_envelope").Top - Of("diffraction").Bottom, 3);
-            Assert.Equal(ControlLayout.ButtonGap, Of("hrtf").Top - Of("late_envelope").Bottom, 3);
+            // Late envelope is a dropdown below Diffraction, as Diffraction is below Tail; then the toggle, HRTF..., Run
+            Assert.Equal(Of("diffraction").Top - Of("tail").Bottom, Of("late_envelope").Top - Of("diffraction").Bottom, 3);
+            Assert.Equal(ControlLayout.ButtonGap, Of("normalize").Top - Of("late_envelope").Bottom, 3);
+            Assert.Equal(ControlLayout.ButtonGap, Of("hrtf").Top - Of("normalize").Bottom, 3);
             Assert.Equal(ControlLayout.ButtonGap, Of("run").Top - Of("hrtf").Bottom, 3);
             // the gap a title leaves: the margin and the empty top of its row
             Assert.Equal(10f, ControlLayout.ButtonGap);
