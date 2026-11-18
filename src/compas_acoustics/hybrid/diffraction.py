@@ -572,6 +572,8 @@ class DiffractionPath:
     order: int
     zone: str
     edge: int
+    #: The polyline source (- wall) - apex (- wall) - receiver, in room coordinates.
+    points: tuple = ()
 
 
 @dataclass(frozen=True)
@@ -754,7 +756,8 @@ def diffraction_paths(pair: Pair, *, max_order: int = 1) -> list[DiffractionPath
                 continue
             points, walls, _ = pl
             length = wp.d_constrained
-            out.append(DiffractionPath(length / c, length, setup.doa(points[-2]), setup.gain(length, walls), partial(udfa_transfer, wp, c=c), len(walls), wp.zone, k))
+            polyline = tuple(np.asarray(p, dtype=float) for p in points)
+            out.append(DiffractionPath(length / c, length, setup.doa(points[-2]), setup.gain(length, walls), partial(udfa_transfer, wp, c=c), len(walls), wp.zone, k, polyline))
     return [p for p in out if np.any(p.band_gain > 0.0)]
 
 
