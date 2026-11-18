@@ -7,7 +7,7 @@ using System.Text.Json;
 namespace CompasAcoustics.Grasshopper
 {
     /// <summary>
-    /// Creates the worker: a uv-managed Python with the compas_acoustics of this plugin's version from PyPI, recorded in
+    /// Creates the worker: a uv-managed Python with the newest compas_acoustics on PyPI that this plugin works with, recorded in
     /// ~/.compas_acoustics/worker.json. Rhino's Python only fetches uv; compas_acoustics is never installed into it.
     /// </summary>
     public sealed class WorkerInstaller
@@ -20,14 +20,14 @@ namespace CompasAcoustics.Grasshopper
         public delegate int Runner(string program, IReadOnlyList<string> args, Action<string> log);
 
         private readonly string _home;
-        private readonly string _version;
+        private readonly string _requirement;
         private readonly Action _stopWorkers;
         private readonly Runner _run;
 
-        public WorkerInstaller(string home, string version, Action stopWorkers, Runner? run = null)
+        public WorkerInstaller(string home, string requirement, Action stopWorkers, Runner? run = null)
         {
             _home = home;
-            _version = version;
+            _requirement = requirement;
             _stopWorkers = stopWorkers;
             _run = run ?? RunProcess;
         }
@@ -58,13 +58,13 @@ namespace CompasAcoustics.Grasshopper
 
             log($"Creating a Python {PythonVersion} environment...");
             Run(uv, log, "venv", "--python", PythonVersion, environment);
-            log($"Installing compas_acoustics {_version}; the first time this can download several GB...");
-            Run(uv, log, "pip", "install", "--python", python, $"compas_acoustics=={_version}");
+            log($"Installing compas_acoustics {_requirement}; the first time this can download several GB...");
+            Run(uv, log, "pip", "install", "--python", python, $"compas_acoustics{_requirement}");
             log("Importing compas_acoustics, the first time is slow...");
             Run(python, log, "-c", Warmup);
 
             File.WriteAllText(Path.Combine(root, "worker.json"), JsonSerializer.Serialize(new { python, hybrid = true }));
-            log($"Installed compas_acoustics {_version} at {python}");
+            log($"Installed compas_acoustics {_requirement} at {python}");
             return python;
         }
 

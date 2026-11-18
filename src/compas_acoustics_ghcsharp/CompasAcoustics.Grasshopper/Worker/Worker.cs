@@ -3,9 +3,12 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Http;
+using System.Linq;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -65,8 +68,37 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>Whether <see cref="Instance"/> was ever asked for, so that closing Rhino does not start one.</summary>
         public static bool Created => _instance.IsValueCreated;
 
-        /// <summary>The plugin's version, which the worker's compas_acoustics must have.</summary>
+        /// <summary>The plugin's version.</summary>
         public static string Version => typeof(Worker).Assembly.GetName().Version!.ToString(3);
+
+        /// <summary>The oldest compas_acoustics the plugin works with (CompasAcousticsVersion in the .csproj).</summary>
+        public static string LibraryVersion =>
+            typeof(Worker).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().Single(a => a.Key == "CompasAcousticsVersion").Value!;
+
+        /// <summary>The compas_acoustics versions the plugin works with, as a pip specifier: e.g. ">=0.1.0,<0.2.0".</summary>
+        public static string Requirement => $">={LibraryVersion},<{Below(Parse(LibraryVersion)!)}";
+
+        /// <summary>Whether the plugin works with this compas_acoustics: from <see cref="LibraryVersion"/> up to its next breaking release.</summary>
+        public static bool Compatible(string? version) => Compatible(version, LibraryVersion);
+
+        internal static bool Compatible(string? version, string minimum)
+        {
+            var v = Parse(version);
+            var min = Parse(minimum)!;
+            return v != null && v >= min && v < Below(min);
+        }
+
+        // semver: in 0.x a minor release may break, after that a major one
+        private static Version Below(Version min) => min.Major == 0 ? new Version(0, min.Minor + 1, 0) : new Version(min.Major + 1, 0, 0);
+
+        // shortcut: a pre-release (0.2.0rc1) counts as its release; pip installs none unless asked to
+        private static Version? Parse(string? version) =>
+            Regex.Match(version ?? "", @"^(\d+)\.(\d+)\.(\d+)") is { Success: true } m
+                ? new Version(int.Parse(m.Groups[1].Value), int.Parse(m.Groups[2].Value), int.Parse(m.Groups[3].Value))
+                : null;
+
+        /// <summary>The compas_acoustics version of the running worker; null before it first answered.</summary>
+        public string? RunningVersion { get; private set; }
 
         public int Port { get; private set; }
 
@@ -317,12 +349,13 @@ namespace CompasAcoustics.Grasshopper
             }
             var version = info.TryGetValue("compas_acoustics", out var v) ? v as string : null;
             var schema = info.TryGetValue("schema", out var s) ? s as string : null;
-            if (version != Version || schema != Schema.Hash)
+            if (!Compatible(version) || schema != Schema.Hash)
             {
                 Stop(client, process, port);
-                throw new WorkerException($"The worker at {python} runs compas_acoustics {version ?? "?"} (schema {Short(schema)}), the Grasshopper plugin is " +
-                                          $"{Version} (schema {Short(Schema.Hash)}): use Install Worker again.");
+                throw new WorkerException($"The worker at {python} runs compas_acoustics {version ?? "?"} (schema {Short(schema)}), the Grasshopper plugin {Version} " +
+                                          $"needs compas_acoustics {Requirement} (schema {Short(Schema.Hash)}): use Install Worker again.");
             }
+            RunningVersion = version;
             SpeedOfSound = info.TryGetValue("speed_of_sound", out var c) && c is double speed ? speed : SpeedOfSound;
             Hybrid = info.TryGetValue("hybrid", out var h) && h is bool hybrid && hybrid;
             Port = port;

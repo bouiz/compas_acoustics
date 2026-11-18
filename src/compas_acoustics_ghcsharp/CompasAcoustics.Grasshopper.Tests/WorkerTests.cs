@@ -13,7 +13,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         private readonly string _home = Directory.CreateTempSubdirectory("compas_acoustics_home_").FullName;
         private readonly string _python;
         private readonly FakeStarter _starter = new();
-        private string _version = Worker.Version;
+        private string _version = Worker.LibraryVersion;
         private string _schema = Schema.Hash;
         private int _pingsBeforeUp;
         private int _foreignPongs;
@@ -228,10 +228,10 @@ namespace CompasAcoustics.Grasshopper.Tests
             _version = "0.0.1";
             var error = Assert.Throws<WorkerException>(() => Make().Call("make_scene"));
             Assert.Contains("0.0.1", error.Message);
-            Assert.Contains(Worker.Version, error.Message);
+            Assert.Contains(Worker.Requirement, error.Message);
             Assert.Contains("use Install Worker again", error.Message);
             Assert.Equal(1, _shutdowns);
-            _version = Worker.Version;
+            _version = Worker.LibraryVersion;
             _schema = "0000";
             error = Assert.Throws<WorkerException>(() => Make().Call("make_scene"));
             Assert.Contains("0000", error.Message);
@@ -310,12 +310,25 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void Version_IsThePackageVersion()
+        public void ThePackageVersion_IsCompatible()
         {
             var init = File.ReadAllText(Path.Combine(InteropTests.RepositoryRoot(), "src", "compas_acoustics", "__init__.py"));
             var python = System.Text.RegularExpressions.Regex.Match(init, "__version__ = \"([^\"]+)\"");
             Assert.True(python.Success, "__version__ is not in src/compas_acoustics/__init__.py");
-            Assert.Equal(python.Groups[1].Value, Worker.Version);
+            Assert.True(Worker.Compatible(python.Groups[1].Value), $"compas_acoustics {python.Groups[1].Value} is not in the plugin's {Worker.Requirement}");
         }
+
+        [Theory]
+        [InlineData("0.1.0", "0.1.0", true)]
+        [InlineData("0.1.7", "0.1.0", true)]
+        [InlineData("0.2.0", "0.1.0", false)]
+        [InlineData("0.0.9", "0.1.0", false)]
+        [InlineData("1.4.2", "1.2.0", true)]
+        [InlineData("1.1.9", "1.2.0", false)]
+        [InlineData("2.0.0", "1.2.0", false)]
+        [InlineData(null, "1.2.0", false)]
+        [InlineData("dev", "1.2.0", false)]
+        public void Compatible_IsUpToTheNextBreakingRelease(string? version, string minimum, bool compatible) =>
+            Assert.Equal(compatible, Worker.Compatible(version, minimum));
     }
 }

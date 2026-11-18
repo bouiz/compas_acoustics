@@ -16,8 +16,9 @@ responsive, and no restart is needed afterwards.
 
 * Fetches `uv` with Rhino's Python, into `~/.compas_acoustics/uv`. Nothing is installed into Rhino's Python.
 * Stops running workers.
-* Creates the worker with `uv` in `~/.compas_acoustics/worker`, with the `compas_acoustics` of the plugin's version
-  from PyPI, and records it in `~/.compas_acoustics/worker.json`.
+* Creates the worker with `uv` in `~/.compas_acoustics/worker`, with the newest `compas_acoustics` on PyPI that the
+  plugin works with (up to the next breaking release, e.g. `>=0.1.0,<0.2.0`), and records it in
+  `~/.compas_acoustics/worker.json`.
 
 If it says that Rhino's Python is not set up, open Rhino's ScriptEditor once, then press **Install** again.
 
@@ -27,8 +28,8 @@ The worker starts with the first component that needs it (a few seconds; half a 
 with Rhino. Every Rhino session starts its own, on a free port of `127.0.0.1`, and shares a random token with it:
 it answers only requests that carry the token, and exits when Rhino ends or dies.
 
-The worker must run the same `compas_acoustics` version and protobuf schema as the plugin; otherwise the components
-say to use Install Worker again. To use another interpreter that has this version of `compas_acoustics`, set the
+The worker must run a `compas_acoustics` version the plugin works with and the plugin's protobuf schema; otherwise the
+components say to use Install Worker again. To use another interpreter that has such a `compas_acoustics`, set the
 environment variable `COMPAS_ACOUSTICS_WORKER_PYTHON` to its path. A Python script can use the same worker through
 `compas_acoustics.worker.client()`.
 
@@ -38,7 +39,8 @@ The **Worker** component (Util panel) shows the worker's state; every component'
 ## Update
 
 Update `compas_acoustics` in Rhino's Package Manager and restart Rhino, then press **Install** on the Install Worker
-component: it replaces the worker with the plugin's new version.
+component: it replaces the worker with the newest `compas_acoustics` the plugin works with. Press **Install** again
+to get a bugfix release of `compas_acoustics` without a new plugin.
 
 ## Uninstall
 
