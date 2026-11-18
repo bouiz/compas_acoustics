@@ -230,8 +230,12 @@ def _ray_tracing(room, directions=None) -> Optional[List[List[list]]]:
         engine.microphones[m].make_omnidirectional()
         room.rt_directional_responses.append({"response": np.ones(1), "is_impulse_response": False})
     if directions is not None:
-        for m, d in enumerate(directions):
+        # every copy is added before any is configured: the engine's microphones live in a C++ vector, and
+        # configuring one while the vector still grows writes through a stale reference (an access violation on
+        # Windows)
+        for m in range(len(directions)):
             engine.add_mic(room.mic_array.R[:, m])
+        for m, d in enumerate(directions):
             engine.microphones[n_mics + m].set_directions(np.asarray(d, dtype=np.float32))
     room.rt_histograms = [[] for _ in range(n_mics)]
     copies = None if directions is None else [[] for _ in range(n_mics)]

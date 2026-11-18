@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Fixed `Mono` and the hybrid's references failing with "zero-size array" when one receiver sees none of the image sources up to the simulated order while another receiver sees the same source, and rendering a blocked direct sound when no receiver sees it: such a pair now has no image part (`room.raytracing.image_source_rirs`, `ray_traced_run`).
 * Fixed the hybrid failing with "rt must be positive" on a reference without any energy (image sources alone at a receiver that sees none): it is refused by the names of its source and receiver.
+* Fixed an access violation on Windows in `ray_traced_run(directions=...)` (the hybrid's traced reference): the directional copies of the microphones are all added to the engine before any is configured.
 
 ### Removed
 
