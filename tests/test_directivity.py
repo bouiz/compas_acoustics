@@ -143,3 +143,12 @@ def test_serialisation_and_the_worker_accept_names_and_files_only():
     assert make_source("s", [0, 0, 0], directivity="speaker.sofa").directivity == "speaker.sofa"
     with pytest.raises(ValueError):
         make_source("s", [0, 0, 0], directivity="speaker.wav")
+
+
+def test_reciprocity_keeps_a_directional_source_emitting():
+    scene = _scene(_front_back(), [1, 0, 0])
+    scene.add_source(ca.Source("t", 3, 2, 1.5))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        ir = next(iter(scene.simulate(ca.Mono(image_source_order=1, ray_tracing=False, reciprocity=True)).values()))
+    assert ir.generation["reciprocal"] is False
