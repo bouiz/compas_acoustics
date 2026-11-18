@@ -634,3 +634,40 @@ def test_omni_keeps_the_early_field():
     level = 10 * np.log10(np.sum(o.rir[a:, 0] ** 2) / np.sum(d.rir[a:, 0] ** 2))
     assert abs(level) < 1.0
     assert not np.allclose(d.late, o.late)
+
+
+def test_omni_traces_its_reference_with_the_rays_of_the_directions_rule(monkeypatch):
+    """The reference of "omni" takes the ray count of the directions' rule, as that of "directional" does, and no
+    directions to sort the rays by."""
+    import compas_acoustics.simulation_methods.pra as mono
+    from compas_acoustics.hybrid.envelope import histogram_rays
+    from compas_acoustics.hybrid.late import fdn_directions
+
+    seen = {}
+    run = mono.ray_traced_run
+
+    def spy(*args, **kwargs):
+        seen.update(n_rays=kwargs["n_rays"], directions=kwargs.get("directions"))
+        return run(*args, **kwargs)
+
+    monkeypatch.setattr(mono, "ray_traced_run", spy)
+    scene = Scene("test")
+    scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(5, 4, 3, materials=WALL))
+    scene.add_source(Source("src", 1.0, 2.0, 1.5))
+    scene.add_receiver(Receiver("rec", 4.0, 2.0, 1.5))
+    scene.simulate(Ambisonics(sh_order=1, duration=0.5, late_envelope="omni"))
+    assert seen["n_rays"] == histogram_rays(60.0, 0.5, AirConditions().speed_of_sound, fdn_directions(96).cartesian)
+    assert seen["directions"] is None
+
+
+def test_omni_and_directional_share_their_reference():
+    scene = Scene("test")
+    scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(5, 4, 3, materials=WALL))
+    scene.add_source(Source("src", 1.0, 2.0, 1.5))
+    scene.add_receiver(Receiver("rec", 4.0, 2.0, 1.5))
+    omni, directional = (Ambisonics(sh_order=1, duration=0.5, seed=3, late_envelope=mode) for mode in ("omni", "directional"))
+    scene.simulate(omni)
+    scene.simulate(directional)
+    (a,), (b,) = omni.reference_rirs.values(), directional.reference_rirs.values()
+    np.testing.assert_array_equal(a.ir, b.ir)
+    assert a.generation["n_rays"] == b.generation["n_rays"]

@@ -58,7 +58,9 @@ from scipy.signal import fftconvolve
 SMOOTH_MS = 100.0
 # a reference this far from the hybrid over its first 50 ms is on another scale
 SCALE_WARN_DB = 6.0
-# the standard deviation of a direction's energy over one slot that sets the histogram's ray count
+# the standard deviation of a direction's energy over one slot that sets the ray count of the reference and its
+# directional histogram. At this count the decay fitted to one reference varies by one to two just noticeable
+# differences of the reverberation time between ray seeds (640 m3 office); a reference given with more rays lowers it
 SHARE_ERROR_DB = 1.0
 
 _TOP_BAND_HZ = 16000.0
@@ -276,7 +278,8 @@ def histogram_rays(volume: float, receiver_radius: float, speed_of_sound: float,
     4.34 / sqrt(hits) dB (Eq. 11.20). One of n directions holds 1 / n of the hits. The Hann window of
     ``SMOOTH_MS`` and :func:`smooth_over_directions` weight them, and a weighted sum of Poisson counts has the
     error of ``sum(w) ** 2 / sum(w ** 2)`` equal ones: 2/3 of the window, and the mean of that ratio over the
-    kernel's rows.
+    kernel's rows. The methods trace their own reference with this count in both late-envelope modes, so that
+    ``"omni"`` and ``"directional"`` shape the late field to one reference.
     """
     weights = _pooling_weights(directions)
     pooled = float(np.mean(1.0 / np.sum(weights**2, axis=1)))

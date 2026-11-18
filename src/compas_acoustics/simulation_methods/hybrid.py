@@ -139,11 +139,14 @@ class _HybridMethod(SimulationMethod):
         _warn_if_the_search_is_slow(geometry, self.image_source_order)
         from compas_acoustics.worker import jobs
 
+        # the lines' grid sets the rays of a reference the method traces in both envelope modes, so that they share
+        # it; only "directional" sorts the rays by these directions
         grid = directions = None
-        if self.late_envelope == "directional":
+        if self.late_envelope:
             grid = fdn_directions(self.num_delays).cartesian
             grid = grid / np.linalg.norm(grid, axis=1, keepdims=True)
-            directions = [grid @ rotations[id(receiver)].T for receiver in context.receivers]
+            if self.late_envelope == "directional":
+                directions = [grid @ rotations[id(receiver)].T for receiver in context.receivers]
         jobs.progress("references")
         references, air_absorption, air, description, run = self._references(context, geometry, grid, directions)
         self.reference_rirs = references
@@ -304,7 +307,7 @@ class _HybridMethod(SimulationMethod):
         :class:`~compas_acoustics.room.raytracing.RayTracedRun` of a reference the method traces itself, else None.
 
         That reference is ``Mono(ray_tracing=True)`` at the method's image source order, seed and air, as long as
-        the longer of ``duration`` and the mono default, and, with the directional late envelope, with the histogram's rays: its
+        the longer of ``duration`` and the mono default, and, with a late envelope, with the histogram's rays: its
         one search and trace also give the early field's images and, on ``directions`` (the lines' per receiver, in
         room coordinates), the histograms.
         """
@@ -405,7 +408,10 @@ _ENGINE_PARAMETERS = """
         energy the rays bring in that band (directional histogram, Schroeder 2011). The rays are traced with
         ``Mono(ray_tracing=True)``'s settings at ``image_source_order``, also with a given reference, as many as
         give a direction's energy a standard deviation of 1 dB (Vorlaender 2020, Eq. 11.20); with a ray-tracing
-        tail they are the reference's own rays. ``False``: the network's own decay to the target, no shaping.
+        tail they are the reference's own rays, and ``"omni"`` traces its reference with the same number, so both
+        modes follow one reference. The decay fitted to such a reference varies by one to two just noticeable
+        differences between ray seeds: pass ``reference=Mono(ray_tracing=True, n_rays=...)`` for a steadier one.
+        ``False``: the network's own decay to the target, no shaping.
         Default ``"omni"`` for a reference or ray-tracing tail. This default is the package's choice: in offices
         the traced late directions mix less than measured ones and those of other geometrical-acoustics models,
         so the shares exaggerate the late anisotropy and change with the rays; ``"directional"`` follows the rays
