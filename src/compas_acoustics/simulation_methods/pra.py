@@ -14,6 +14,7 @@ from compas_acoustics.room.air import air_or_default
 from compas_acoustics.room.pra import source_to_pra
 from compas_acoustics.room.raytracing import DURATION_RT_FACTOR
 from compas_acoustics.room.raytracing import RayTracedRun
+from compas_acoustics.room.raytracing import emitter_rirs
 from compas_acoustics.room.raytracing import image_source_rirs
 from compas_acoustics.room.raytracing import ray_traced_run
 
@@ -54,6 +55,16 @@ class Mono(SimulationMethod):
         Whether the responses are peak-normalized views.
     air : AirConditions, optional
         Its speed of sound and, with ``air_absorption``, its ISO 9613-1 absorption; default ``AirConditions()``.
+    n_jobs : int, default=1
+        Processes. Above 1, every source is simulated in a room of its own, several at once, and the processes left
+        over split each source's rays (:func:`~compas_acoustics.room.parallel.split_processes`). Image-source
+        responses are unchanged; ray-traced ones differ from a single-process run by Monte-Carlo noise and repeat
+        for a given ``seed`` and ``n_jobs``.
+    reciprocity : bool, default=False
+        With more sources than receivers, all omnidirectional, swap their roles: the receivers emit, which costs one
+        room per receiver instead of one per source. Exact for the image sources; the ray-traced part is reciprocal
+        statistically (its detection sphere moves to the other end). ``generation["reciprocal"]`` says whether it
+        was used.
 
     Notes
     -----
@@ -102,8 +113,14 @@ class Mono(SimulationMethod):
         seed: Union[bool, int] = True,
         normalize: bool = True,
         air: Optional[AirConditions] = None,
+        n_jobs: int = 1,
+        reciprocity: bool = False,
     ):
         seed = _seed(seed)
+        if int(n_jobs) < 1:
+            raise ValueError(f"n_jobs must be at least 1, got {n_jobs!r}")
+        self.n_jobs = int(n_jobs)
+        self.reciprocity = bool(reciprocity)
         given = {"n_rays": n_rays, "energy_thres": energy_thres, "duration": duration, "receiver_radius": receiver_radius, "seed": seed}
         if not ray_tracing:
             changed = sorted(k for k, v in given.items() if v != self._RAY_TRACING_DEFAULTS[k])
@@ -136,44 +153,59 @@ class Mono(SimulationMethod):
         }
         if self.ray_tracing:
             generation.update(n_rays=self.n_rays, energy_thres=self.energy_thres, duration=self.duration, receiver_radius=self.receiver_radius, seed=self.seed)
+        if self.n_jobs != 1:
+            generation["n_jobs"] = self.n_jobs
         return generation
 
     def compute(self, context: SimulationContext) -> dict:
-        return self._run(context)[0]
+        return self._run(context, keep_run=False)[0]
 
-    def _run(self, context: SimulationContext, directions=None) -> tuple[dict, Optional[RayTracedRun]]:
-        """The responses and, with ray tracing, the run they came from; ``directions`` per receiver as :func:`ray_traced_run`'s."""
+    def _reciprocal(self, context: SimulationContext) -> bool:
+        """Whether the receivers emit: asked for, cheaper (more sources than receivers) and exact (omnidirectional sources)."""
+        return self.reciprocity and len(context.sources) > len(context.receivers) and all(s.directivity == "omnidirectional" for s in context.sources)
+
+    def _run(self, context: SimulationContext, directions=None, keep_run: bool = True) -> tuple[dict, Optional[RayTracedRun]]:
+        """The responses and, with ray tracing, the run they came from; ``directions`` per receiver as :func:`ray_traced_run`'s.
+
+        ``keep_run`` False lets ``n_jobs`` > 1 simulate every source in a room of its own (:func:`emitter_rirs`),
+        which gives no run; True splits only the rays, in the one room the run keeps.
+        """
         if not context.sources or not context.receivers:
             return {}, None
         fs = context.sampling_rate
         _warn_if_the_search_is_slow(context.geometry, self.image_source_order)
-        sources = [source_to_pra(source) for source in context.sources]
-        mic_positions = np.array([receiver.position for receiver in context.receivers], dtype=float).T
+        reciprocal = directions is None and self._reciprocal(context)
+        if reciprocal:
+            import pyroomacoustics as pra
+
+            from compas_acoustics.room.pra import points_to_array
+
+            emitters = [pra.SoundSource(position=points_to_array(receiver.position)) for receiver in context.receivers]
+            mic_positions = np.array([source.position for source in context.sources], dtype=float).T
+        else:
+            emitters = [source_to_pra(source) for source in context.sources]
+            mic_positions = np.array([receiver.position for receiver in context.receivers], dtype=float).T
         from compas_acoustics.worker import jobs
 
         jobs.progress("ray tracing" if self.ray_tracing else "image sources")
         run = None
-        if self.ray_tracing:
-            run = ray_traced_run(
-                context.geometry,
-                sources,
-                mic_positions,
-                fs,
-                max_order=self.image_source_order,
-                duration=self.duration,
-                n_rays=self.n_rays,
-                receiver_radius=self.receiver_radius,
-                energy_threshold=self.energy_thres,
-                air_absorption=self.air_absorption,
-                seed=self.seed,
-                air=self.air,
-                directions=directions,
-            )
+        tracing = dict(duration=self.duration, n_rays=self.n_rays, receiver_radius=self.receiver_radius, energy_threshold=self.energy_thres)
+        common = dict(max_order=self.image_source_order, air_absorption=self.air_absorption, air=self.air)
+        by_emitter = not keep_run and directions is None and self.n_jobs > 1 and len(emitters) > 1
+        if by_emitter:
+            responses = emitter_rirs(context.geometry, emitters, mic_positions, fs, n_jobs=self.n_jobs, tracing=tracing if self.ray_tracing else None, seed=self.seed, **common)
+        elif self.ray_tracing:
+            run = ray_traced_run(context.geometry, emitters, mic_positions, fs, seed=self.seed, directions=directions, n_jobs=self.n_jobs, **common, **tracing)
             responses = run.responses
         else:
-            responses = image_source_rirs(context.geometry, sources, mic_positions, fs, max_order=self.image_source_order, air_absorption=self.air_absorption, air=self.air)
+            responses = image_source_rirs(context.geometry, emitters, mic_positions, fs, **common)
+        if reciprocal:
+            # responses[source][receiver] -> [receiver][source]
+            responses = [[responses[s][m] for s in range(len(context.sources))] for m in range(len(context.receivers))]
 
         generation = dict(self.generation, scene=getattr(context.scene, "name", None))
+        if self.reciprocity:
+            generation["reciprocal"] = reciprocal
         rirs = {}
         for m, receiver in enumerate(context.receivers):
             for s, source in enumerate(context.sources):

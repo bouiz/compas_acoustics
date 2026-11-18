@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 * Added `room.geometry.PRA_STATE_LOCK`, held while pyroomacoustics' process-wide constants and random generator are set and used, so seeded simulations in threads give the results they give alone.
+* Added `Mono(n_jobs=...)`: the sources run in rooms and processes of their own, and the processes left over split each source's rays, whose histograms are summed (`compas_acoustics.room.parallel`, `room.raytracing.emitter_rirs`). Image-source responses are unchanged, and ray-traced ones repeat for a given seed and `n_jobs`. `ray_traced_run`, `image_source_rirs` and `directional_histograms` take `n_jobs` too, and so do `Binaural` and `Ambisonics`, for their reference run and directional histograms.
+* Added `Mono(reciprocity=True)`: with more sources than receivers, all omnidirectional, the receivers emit, one room per receiver instead of one per source. `generation["reciprocal"]` says whether it applied.
 
 ### Changed
 
