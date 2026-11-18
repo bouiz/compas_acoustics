@@ -258,6 +258,6 @@ def test_mono_runs_in_the_room(build):
     scene.add_receiver(ca.Receiver("r", *receiver))
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        rirs = scene.simulate(ca.Mono(image_source_order=2, ray_tracing=False), geometry=geometry)
+        rirs = scene.simulate(ca.Mono(image_source_order=2, ray_tracing=False, diffraction=True), geometry=geometry)
     rir = next(iter(rirs.values())).denormalized()
     assert np.isfinite(rir).all() and np.abs(rir).max() > 0.0
