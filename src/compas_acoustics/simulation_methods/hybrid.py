@@ -27,6 +27,7 @@ from compas_acoustics.hybrid.ambisonics import render_ambisonics
 from compas_acoustics.hybrid.binaural import DEFAULT_HRTF
 from compas_acoustics.hybrid.binaural import HrtfSet
 from compas_acoustics.hybrid.binaural import render_binaural
+from compas_acoustics.hybrid.diffraction import _keep_selection
 from compas_acoustics.hybrid.early import ImageSourceSet
 from compas_acoustics.hybrid.early import image_sources
 from compas_acoustics.hybrid.envelope import histogram_rays
@@ -174,6 +175,7 @@ class _HybridMethod(SimulationMethod):
         # read before any work, so a receiver facing along its up vector (no orientation) fails early
         rotations = [receiver.rotation for receiver in context.receivers]
         geometry = _without_full_absorption(context.geometry)
+        _keep_selection(context.geometry, geometry)  # the same faces: a diffraction edge selection still holds
         self.results = {}
         if not context.sources or not context.receivers:
             return {}
