@@ -1,9 +1,16 @@
 name: publish_yak
 
-# the test server only, until the package is tested; https://test.yak.rhino3d.com is emptied regularly
 on:
   workflow_dispatch:
     inputs:
+      environment:
+        description: "Yak server to publish to (test.yak.rhino3d.com is emptied regularly)"
+        required: true
+        type: choice
+        default: test
+        options:
+          - test
+          - prod
       version:
         description: "Version to publish (e.g. 1.2.3). Leave empty to use the version in pyproject.toml."
         required: false
@@ -13,7 +20,7 @@ permissions:
   contents: read
 
 jobs:
-  publish_test_yak:
+  publish_yak:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7.0.1
@@ -45,10 +52,11 @@ jobs:
           path: dist/yak_package/*.yak
           if-no-files-found: error
 
-      - name: Publish to the Yak test server
+      - name: Publish to the Yak ${{ inputs.environment }} server
         shell: pwsh
         env:
           YAK_TOKEN: ${{ secrets.YAK_DF_TOKEN }}
+          ENVIRONMENT: ${{ inputs.environment }}
         run: |
           $file = Get-ChildItem -Path dist\yak_package\*.yak -File | Select-Object -ExpandProperty FullName
-          invoke publish-yak --yak-file $file --test-server
+          if ($Env:ENVIRONMENT -eq "test") { invoke publish-yak --yak-file $file --test-server } else { invoke publish-yak --yak-file $file }
