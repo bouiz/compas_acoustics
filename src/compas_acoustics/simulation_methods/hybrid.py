@@ -413,7 +413,7 @@ _ENGINE_PARAMETERS = """
         differences between ray seeds: pass ``reference=Mono(ray_tracing=True, n_rays=...)`` for a steadier one.
         ``False``: the network's own decay to the target, no shaping.
         Default ``"omni"`` for a reference or ray-tracing tail. This default is the package's choice: in offices
-        the traced late directions mix less than measured ones and those of other geometrical-acoustics models,
+        the traced late directions mix less than measured ones and those of another geometrical-acoustics model,
         so the shares exaggerate the late anisotropy and change with the rays; ``"directional"`` follows the rays
         where their directions hold. An Eyring or Sabine tail has no reference: its default is ``False``, and
         ``"omni"`` or ``"directional"`` raises.
