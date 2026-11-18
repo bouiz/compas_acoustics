@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+* Added `room.geometry.PRA_STATE_LOCK`, held while pyroomacoustics' process-wide constants and random generator are set and used, so seeded simulations in threads give the results they give alone.
+
 ### Changed
 
 ### Removed

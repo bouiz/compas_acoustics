@@ -49,6 +49,7 @@ from scipy.signal import sosfiltfilt
 from .diffuse import predicted_rt
 from .geometry import SYNTHESIS_BANDS
 from .geometry import RoomGeometry
+from .geometry import pra_octave_grid
 
 __all__ = [
     "MIN_RAYS",
@@ -224,15 +225,17 @@ def ray_traced_run(
     returns the detected rays' energy by the direction nearest their last leg (``histograms``); the responses are
     unchanged.
     """
-    room, duration, unit = _traced_room(
-        geometry, sources, mic_positions, fs, directions, max_order, duration, n_rays, receiver_radius, energy_threshold, air_absorption, seed, air
-    )
-    room.image_source_model()
-    lines = _ray_tracing(room, unit)
-    rirs = _pair_responses(room)
-    histograms = None
-    if unit is not None:
-        histograms = [[_directional_histogram(room, line, d, duration, air_absorption) for line in per_source] for per_source, d in zip(lines, unit)]
+    # Seeded, built and traced inside the lock, so that no other thread reseeds or draws in between
+    with pra_octave_grid():
+        room, duration, unit = _traced_room(
+            geometry, sources, mic_positions, fs, directions, max_order, duration, n_rays, receiver_radius, energy_threshold, air_absorption, seed, air
+        )
+        room.image_source_model()
+        lines = _ray_tracing(room, unit)
+        rirs = _pair_responses(room)
+        histograms = None
+        if unit is not None:
+            histograms = [[_directional_histogram(room, line, d, duration, air_absorption) for line in per_source] for per_source, d in zip(lines, unit)]
 
     latency = pra.constants.get("frac_delay_length") // 2
     n_samples = round(duration * fs)
@@ -241,7 +244,8 @@ def ray_traced_run(
 
 def _traced_room(geometry, sources, mic_positions, fs, directions, max_order, duration, n_rays, receiver_radius, energy_threshold, air_absorption, seed, air):
     """``(room, duration, unit directions or None)``: the room built for ray tracing with every source and
-    microphone and its tracer set, not yet searched or traced; the arguments are those of :func:`ray_traced_run`."""
+    microphone and its tracer set, not yet searched or traced; the arguments are those of :func:`ray_traced_run`.
+    Its callers hold :func:`~compas_acoustics.room.geometry.pra_octave_grid` from here to the end of the trace."""
     if duration is None:
         duration = default_duration(geometry, air_absorption, air=air)
     if duration <= 0.0:
@@ -395,15 +399,17 @@ def directional_histograms(
     :func:`ray_traced_run`, so order ``max_order`` is in the bins and in the image sources. Air absorption is applied
     per band over each bin's travel distance.
     """
-    room, duration, unit = _traced_room(
-        geometry, sources, mic_positions, fs, directions, max_order, duration, n_rays, receiver_radius, energy_threshold, air_absorption, seed, air
-    )
-    # the engine is driven directly: the room's own ray_tracing would reset an omnidirectional receiver to one bin
-    for m, d in enumerate(unit):
-        room.room_engine.microphones[m].set_directions(np.asarray(d, dtype=np.float32))
-    histograms = [[] for _ in unit]
-    for _ in _each_source_traced(room):
+    # inside the lock, as in ray_traced_run
+    with pra_octave_grid():
+        room, duration, unit = _traced_room(
+            geometry, sources, mic_positions, fs, directions, max_order, duration, n_rays, receiver_radius, energy_threshold, air_absorption, seed, air
+        )
+        # the engine is driven directly: the room's own ray_tracing would reset an omnidirectional receiver to one bin
         for m, d in enumerate(unit):
-            lines = [np.asarray(h.get_hist(), dtype=float) for h in room.room_engine.microphones[m].histograms]
-            histograms[m].append(_directional_histogram(room, lines, d, duration, air_absorption))
+            room.room_engine.microphones[m].set_directions(np.asarray(d, dtype=np.float32))
+        histograms = [[] for _ in unit]
+        for _ in _each_source_traced(room):
+            for m, d in enumerate(unit):
+                lines = [np.asarray(h.get_hist(), dtype=float) for h in room.room_engine.microphones[m].histograms]
+                histograms[m].append(_directional_histogram(room, lines, d, duration, air_absorption))
     return histograms
