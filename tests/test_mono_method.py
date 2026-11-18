@@ -13,7 +13,7 @@ from compas_acoustics.simulation_methods import Mono
 from compas_acoustics.simulation_methods import SimulationContext
 from compas_acoustics.room.raytracing import default_duration
 from compas_acoustics.room.raytracing import image_source_rirs
-from compas_acoustics.room.raytracing import ray_traced_rirs
+from compas_acoustics.room.raytracing import ray_traced_run
 from compas_acoustics.room.diffuse import DiffuseFieldWarning
 from compas_acoustics.room.geometry import RoomGeometry
 
@@ -38,13 +38,13 @@ def geometry(materials=WALL):
 def traced(g, sources=(SOURCE,), receivers=(RECEIVER,), **kwargs):
     kwargs.setdefault("n_rays", 2000)
     kwargs.setdefault("duration", 0.5)
-    return ray_traced_rirs(
+    return ray_traced_run(
         g,
         [pra.SoundSource(np.asarray(s, dtype=float)) for s in sources],
         np.array(receivers, dtype=float).T,
         FS,
         **kwargs,
-    )
+    ).responses
 
 
 def test_one_response_per_microphone_and_source():

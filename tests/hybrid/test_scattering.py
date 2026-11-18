@@ -78,7 +78,7 @@ def split(scattering):
         0,
         0,
         spec,
-        scattered_room=computed(complementary_scattering(spec.geometry), s, True),
+        scattered=computed(complementary_scattering(spec.geometry), s, True).sources[0].damping,
     )
     assert np.array_equal(full.order, parts.order)
     assert np.allclose(full.delay, parts.delay)

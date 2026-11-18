@@ -96,7 +96,7 @@ def test_air_absorption_attenuates_the_late_bins():
 # --------------------------------------------------------- the per-line gains --
 from compas_acoustics.hybrid.envelope import directional_shares  # noqa: E402
 from compas_acoustics.hybrid.envelope import octave_band_split  # noqa: E402
-from compas_acoustics.hybrid.envelope import shape_late_directional  # noqa: E402
+from compas_acoustics.hybrid.envelope import shape_late  # noqa: E402
 from compas_acoustics.hybrid.envelope import smooth_over_directions  # noqa: E402
 
 N = int(1.0 * FS)
@@ -135,17 +135,21 @@ def early_w(late):
 
 def test_the_shares_are_one_where_the_lines_already_hold_the_rays_distribution():
     late = lines()
-    shares = directional_shares(histogram_of(late, 3.0), late, FS)
-    assert shares.shape == (N, 96)
-    np.testing.assert_allclose(shares[int(0.1 * FS) :], 1.0, atol=0.02)
+    bands = octave_band_split(late, FS)
+    for b in range(8):
+        shares = directional_shares(histogram_of(late, 3.0), bands[b], FS, b)
+        assert shares.shape == (N, 96)
+        np.testing.assert_allclose(shares[int(0.1 * FS) :], 1.0, atol=0.02)
 
 
 def test_a_louder_directional_target_leaves_the_lines_alone():
     late = lines()
     reference = early_w(late) + 3.0 * late.sum(axis=1) / np.sqrt(96)
-    shaped = shape_late_directional(late, early_w(late), late.sum(axis=1) / np.sqrt(96), reference, histogram_of(late, 3.0), FS)
-    # the 4 ms bins of the histogram against the samples of the lines: within 1 % of the lines' amplitude
-    np.testing.assert_allclose(shaped, late, atol=0.01 * np.abs(late).max())
+    shaped = shape_late(late, early_w(late), late.sum(axis=1) / np.sqrt(96), reference, FS, histogram=histogram_of(late, 3.0))
+    # the 4 ms bins of the histogram against the samples of the lines: within 1 % of the lines' amplitude once the
+    # 100 ms window is past the lines' onset, 2.5 % before (a band's share over few cycles)
+    np.testing.assert_allclose(shaped[int(0.15 * FS) :], late[int(0.15 * FS) :], atol=0.01 * np.abs(late).max())
+    np.testing.assert_allclose(shaped, late, atol=0.025 * np.abs(late).max())
 
 
 def test_a_quieter_hemisphere_moves_energy_to_the_other_and_keeps_the_total():
@@ -154,13 +158,116 @@ def test_a_quieter_hemisphere_moves_energy_to_the_other_and_keeps_the_total():
     directions = grid()
     scale = np.where(directions[:, 0] < 0, 10 ** (-6 / 10), 1.0)[:, None, None]
     reference = early_w(late) + 3.0 * late.sum(axis=1) / np.sqrt(96)
-    shaped = shape_late_directional(late, early_w(late), late.sum(axis=1) / np.sqrt(96), reference, histogram_of(late, scale), FS)
+    shaped = shape_late(late, early_w(late), late.sum(axis=1) / np.sqrt(96), reference, FS, histogram=histogram_of(late, scale))
     lost = energy_db(shaped, 0.15, 0.6) - energy_db(late, 0.15, 0.6)
     west, east = lost[directions[:, 0] < -0.5], lost[directions[:, 0] > 0.5]
     assert np.all(np.abs(west - east.mean() + 6.0) < 0.5)
     assert np.all(np.abs(east - east.mean()) < 0.5)
     total = 10 * np.log10(np.sum(shaped[int(0.15 * FS) : int(0.6 * FS)] ** 2) / np.sum(late[int(0.15 * FS) : int(0.6 * FS)] ** 2))
     assert abs(total) < 0.2
+
+
+def band_db(x, b, a, c):
+    """Energy in dB of octave band ``b`` of every line between ``a`` and ``c`` seconds."""
+    return energy_db(octave_band_split(x, FS)[b], a, c)
+
+
+def shaped_by(scale):
+    late = lines()
+    reference = early_w(late) + 3.0 * late.sum(axis=1) / np.sqrt(96)
+    return late, shape_late(late, early_w(late), late.sum(axis=1) / np.sqrt(96), reference, FS, histogram=histogram_of(late, scale))
+
+
+def test_a_direction_quieter_in_one_band_only_is_quieter_in_that_band_only():
+    """The 4 kHz row of the western directions at -6 dB: the 4 kHz band follows, 500 Hz does not, each band keeps its total.
+
+    Measured through the same overlapping octave bank, a -6 dB band reads about -5 dB and spills 0.5 dB into 2 kHz."""
+    west = grid()[:, 0] < -0.5
+    east = grid()[:, 0] > 0.5
+    scale = np.ones((96, 9, 1))
+    scale[grid()[:, 0] < 0, 6] = 10 ** (-6 / 10)
+    late, shaped = shaped_by(scale)
+    for b, low, high in ((6, -6.0, -4.5), (3, -0.1, 0.1)):
+        lost = band_db(shaped, b, 0.15, 0.6) - band_db(late, b, 0.15, 0.6)
+        assert low < lost[west].mean() - lost[east].mean() < high
+        total = 10 * np.log10(np.sum(10 ** (band_db(shaped, b, 0.15, 0.6) / 10)) / np.sum(10 ** (band_db(late, b, 0.15, 0.6) / 10)))
+        assert abs(total) < 0.2
+
+
+def test_the_16_khz_band_takes_its_own_shares():
+    """The 16 kHz row of the western directions at -6 dB: the 16 kHz band follows; the 8 kHz row at -20 dB does not reach it."""
+    west = grid()[:, 0] < -0.5
+    east = grid()[:, 0] > 0.5
+    scale = np.ones((96, 9, 1))
+    scale[grid()[:, 0] < 0, 8] = 10 ** (-6 / 10)
+    late, shaped = shaped_by(scale)
+    lost = band_db(shaped, 8, 0.15, 0.6) - band_db(late, 8, 0.15, 0.6)
+    assert -6.0 < lost[west].mean() - lost[east].mean() < -4.5
+    scale = np.ones((96, 9, 1))
+    scale[grid()[:, 0] < 0, 7] = 10 ** (-20 / 10)
+    late, shaped = shaped_by(scale)
+    lost = band_db(shaped, 8, 0.15, 0.6) - band_db(late, 8, 0.15, 0.6)
+    assert abs(lost[west].mean() - lost[east].mean()) < 1.5
+
+
+def test_a_histogram_on_other_bands_than_the_lines_is_refused():
+    late = lines()
+    reference = early_w(late) + 3.0 * late.sum(axis=1) / np.sqrt(96)
+    h = histogram_of(late, 3.0)
+    for bands, energy in ((125.0 * 2.0 ** np.arange(9), h.energy), (BANDS9[:7], h.energy[:, :7])):
+        other = DirectionalHistogram(energy=energy, bin_size=h.bin_size, directions=h.directions, bands=bands)
+        with pytest.raises(ValueError, match="bands"):
+            shape_late(late, early_w(late), late.sum(axis=1) / np.sqrt(96), reference, FS, histogram=other)
+
+
+def test_a_histogram_without_a_16_khz_row_gives_that_band_its_last_row():
+    late = lines()
+    reference = early_w(late) + 3.0 * late.sum(axis=1) / np.sqrt(96)
+    h = histogram_of(late, 3.0)
+    eight = DirectionalHistogram(energy=h.energy[:, :8], bin_size=h.bin_size, directions=h.directions, bands=BANDS9[:8])
+    shaped = shape_late(late, early_w(late), late.sum(axis=1) / np.sqrt(96), reference, FS, histogram=eight)
+    assert np.all(np.isfinite(shaped))
+
+
+# --------------------------------------------------------------- the ray count --
+from compas_acoustics.hybrid.envelope import histogram_rays  # noqa: E402
+
+
+def test_the_ray_count_is_the_one_of_a_1_db_error_of_a_directions_slot():
+    """Six directions along the axes share no kernel weight: a direction holds a sixth of the hits, over the Hann
+    window's 2/3 of 100 ms, and sigma = 4.34 / sqrt(hits) = 1 dB."""
+    axes = np.array([[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]], dtype=float)
+    hits = (10 / np.log(10)) ** 2
+    expected = hits * 1000.0 * 6 / (np.pi * 0.5**2 * 340.0 * 0.1 * 2 / 3)
+    assert histogram_rays(1000.0, 0.5, 340.0, axes) == int(np.ceil(expected))
+    window = np.hanning(48002)[1:-1]
+    assert abs(window.sum() ** 2 / (window**2).sum() / window.size - 2 / 3) < 1e-4
+
+
+def test_the_ray_count_grows_with_the_volume_and_falls_with_the_pooled_directions():
+    one = histogram_rays(1000.0, 0.5, 340.0, grid())
+    assert abs(histogram_rays(3000.0, 0.5, 340.0, grid()) / one - 3.0) < 1e-3
+    assert abs(histogram_rays(1000.0, 1.0, 340.0, grid()) / one - 0.25) < 1e-3
+    hits = (10 / np.log(10)) ** 2
+    unpooled = hits * 1000.0 * 96 / (np.pi * 0.5**2 * 340.0 * 0.1 * 2 / 3)
+    assert unpooled / 8 < one < unpooled / 3
+
+
+def test_each_band_holds_its_shares_once_its_own_rays_have_decayed():
+    """The 8 kHz row decays to -60 dB by about 0.2 s; a western drop in it after 0.4 s must not reach the 8 kHz band."""
+    west = grid()[:, 0] < -0.5
+    east = grid()[:, 0] > 0.5
+    late = lines()
+    h = histogram_of(late)
+    t = (np.arange(h.energy.shape[2]) + 0.5) * h.bin_size
+    energy = h.energy.copy()
+    energy[:, 7] *= 10 ** (-6 * t / 0.2)
+    energy[grid()[:, 0] < 0, 7] *= np.where(t > 0.4, 10 ** (-12 / 10), 1.0)
+    histogram = DirectionalHistogram(energy=energy * 3.0, bin_size=h.bin_size, directions=h.directions, bands=h.bands)
+    reference = early_w(late) + 3.0 * late.sum(axis=1) / np.sqrt(96)
+    shaped = shape_late(late, early_w(late), late.sum(axis=1) / np.sqrt(96), reference, FS, histogram=histogram)
+    lost = band_db(shaped, 7, 0.5, 0.9) - band_db(late, 7, 0.5, 0.9)
+    assert abs(lost[west].mean() - lost[east].mean()) < 0.5
 
 
 def test_smoothing_over_directions_keeps_the_energy_of_every_bin():
@@ -227,3 +334,37 @@ def test_the_envelope_is_on_by_default_and_needs_a_reference():
     assert ca.Ambisonics().late_envelope is True
     with pytest.raises(ValueError, match="late_envelope"):
         ca.Ambisonics(tail="eyring", late_envelope=True)
+
+
+def test_the_band_shares_need_no_more_memory_than_the_band_split():
+    """The bands are split, shaped and summed one at a time: the peak stays near the omni envelope's (about 12 line arrays)."""
+    import tracemalloc
+
+    late = lines()
+    reference = early_w(late) + 3.0 * late.sum(axis=1) / np.sqrt(96)
+    histogram = histogram_of(late, 3.0)
+    tracemalloc.start()
+    shape_late(late, early_w(late), late.sum(axis=1) / np.sqrt(96), reference, FS, histogram=histogram)
+    _, peak = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    assert peak / late.nbytes < 14.0
+
+
+# ------------------------------------------------- the reference's own rays --
+def test_the_reference_run_sorts_its_own_rays_by_direction():
+    """A copy of every microphone in the reference's run: the responses are those of a run without it, and the
+    histograms those of their own run, the same rays."""
+    from compas_acoustics.room.raytracing import ray_traced_run
+
+    g = geometry(scattering=0.2)
+    settings = dict(max_order=3, duration=0.5, n_rays=5000, air_absorption=True, seed=1)
+    mics = np.stack([RECEIVER, [4.0, 1.5, 2.0]], axis=1)
+    rotated = grid() @ np.array([[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]]).T
+    run = ray_traced_run(g, [pra.SoundSource(SOURCE)], mics, FS, directions=[grid(), rotated], **settings)
+    plain = ray_traced_run(g, [pra.SoundSource(SOURCE)], mics, FS, **settings)
+    alone = directional_histograms(g, [pra.SoundSource(SOURCE)], mics, FS, [grid(), rotated], **settings)
+    assert plain.histograms is None
+    for m in range(2):
+        assert np.array_equal(run.responses[m][0], plain.responses[m][0])
+        assert np.array_equal(run.histograms[m][0].energy, alone[m][0].energy)
+        assert np.array_equal(run.histograms[m][0].directions, alone[m][0].directions)

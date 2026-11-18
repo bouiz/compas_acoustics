@@ -19,6 +19,7 @@ from compas_acoustics.hybrid.diffraction import encode_diffraction
 from compas_acoustics.simulation_methods import Ambisonics
 from compas_acoustics.simulation_methods import Mono
 from compas_acoustics.simulation_methods import SimulationContext
+from compas_acoustics.room.air import AirConditions
 from compas_acoustics.room.geometry import RoomGeometry
 from compas_acoustics.room.geometry import SurfaceMaterial
 
@@ -510,3 +511,90 @@ def test_a_reference_of_two_thirds_of_its_reverberation_time_is_long_enough():
         Ambisonics()._check_reference_length(1.9, target, 1.3, "rec, src")
     with pytest.warns(UserWarning, match=r"less than 2/3 of its reverberation time \(2.5 s\).* at least 3.8 s"):
         Ambisonics()._check_reference_length(1.5, target, 1.3, "rec, src")
+
+
+def test_a_receiver_without_a_visible_image_beside_a_visible_one_renders():
+    """A reference of order 0 has no image at the receiver behind the panel while the other receiver sees the source."""
+    scene = make([Receiver("behind", 8.0, 4.0, 1.5), Receiver("in_view", 2.0, 7.0, 1.5)], panel=True)
+    reference = Mono(image_source_order=0, n_rays=2000, duration=0.5, seed=1)
+    rirs = scene.simulate(Ambisonics(reference, image_source_order=1, sh_order=1, duration=0.5))
+    for ir in rirs.values():
+        assert np.all(np.isfinite(ir.ir))
+        assert np.sum(ir.ir[int(0.03 * FS) :, 0] ** 2) > 0.0
+
+
+@pytest.mark.parametrize("given", [False, True])
+def test_the_directional_histograms_trace_the_rays_of_a_1_db_share_error(monkeypatch, given):
+    """Vorlaender (2020, Eq. 11.20) per direction, also below the mono method's 20000: in the reference the method
+    traces itself, whose rays the histograms share, or in the histograms' own run with a given reference."""
+    import compas_acoustics.room.raytracing as raytracing
+    import compas_acoustics.simulation_methods.pra as mono
+    from compas_acoustics.hybrid.envelope import histogram_rays
+    from compas_acoustics.hybrid.late import fdn_directions
+
+    class Traced(Exception):
+        pass
+
+    def spy(*args, **kwargs):
+        if kwargs.get("directions", True) is not None:
+            raise Traced(kwargs["n_rays"])
+        return run(*args, **kwargs)
+
+    run = mono.ray_traced_run
+    monkeypatch.setattr(raytracing, "directional_histograms", spy)
+    monkeypatch.setattr(mono, "ray_traced_run", spy)
+    grid = fdn_directions(96).cartesian
+    speed = AirConditions().speed_of_sound
+    for size, below in (((10, 8, 4), True), ((30, 20, 8), False)):
+        scene = Scene("test")
+        scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(*size, materials=WALL))
+        scene.add_source(Source("src", 2.0, 4.0, 1.5))
+        scene.add_receiver(Receiver("rec", 8.0, 4.0, 1.5))
+        with pytest.raises(Traced) as traced:
+            scene.simulate(Ambisonics(Mono(n_rays=2000, duration=0.5) if given else None, sh_order=1, duration=0.5, late_envelope=True))
+        wanted = histogram_rays(float(np.prod(size)), 0.5, speed, grid)
+        assert (wanted < 20_000) == below
+        assert traced.value.args[0] == wanted
+
+
+def test_the_generation_record_holds_the_histogram_rays():
+    from compas_acoustics.hybrid.envelope import histogram_rays
+    from compas_acoustics.hybrid.late import fdn_directions
+
+    scene = make()
+    (ir,) = scene.simulate(Ambisonics(references(scene), sh_order=1, duration=0.5)).values()
+    assert ir.generation["histogram_rays"] == histogram_rays(320.0, 0.5, AirConditions().speed_of_sound, fdn_directions(96).cartesian)
+    (ir,) = scene.simulate(Ambisonics(references(scene), sh_order=1, duration=0.5, late_envelope=False)).values()
+    assert ir.generation["histogram_rays"] is None
+
+
+def test_a_silent_reference_is_refused_by_the_names_of_its_pair():
+    """Images alone leave the receiver behind the panel without any energy at order 0: no decay to fit."""
+    scene = make([Receiver("behind", 8.0, 4.0, 1.5), Receiver("in_view", 2.0, 7.0, 1.5)], panel=True)
+    reference = Mono(ray_tracing=False, image_source_order=0)
+    with pytest.raises(ValueError, match="reference of 'behind' and 'src' is silent"):
+        scene.simulate(Ambisonics(reference, image_source_order=1, sh_order=1, duration=0.5))
+
+
+@pytest.mark.parametrize("scattering", [False, True])
+def test_a_traced_reference_shares_its_search_and_rays_with_the_early_field_and_the_histograms(scattering):
+    """One search and one trace give what a given reference with its own histogram run gives, bit for bit: the
+    reference is Mono at the method's order, seed and histogram rays, its rays those of the histograms."""
+    from compas_acoustics.hybrid.envelope import histogram_rays
+    from compas_acoustics.hybrid.late import fdn_directions
+
+    settings = dict(image_source_order=2, seed=7)
+    scene = make(panel=True)
+    shared = Ambisonics(sh_order=1, scattering=scattering, **settings)
+    rirs = scene.simulate(shared)
+    n_rays = histogram_rays(320.0, 0.5, AirConditions().speed_of_sound, fdn_directions(96).cartesian)
+    given = Ambisonics(Mono(n_rays=n_rays, **settings), sh_order=1, scattering=scattering, **settings)
+    again = make(panel=True).simulate(given)
+    (ir,) = rirs.values()
+    (other,) = again.values()
+    (reference,) = shared.reference_rirs.values()
+    (expected,) = given.reference_rirs.values()
+    assert reference.generation["image_source_order"] == 2 and reference.generation["seed"] == 7
+    assert reference.generation["n_rays"] == ir.generation["histogram_rays"] == n_rays
+    assert np.array_equal(reference.ir, expected.ir)
+    assert np.array_equal(ir.ir, other.ir)
