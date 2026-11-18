@@ -1,16 +1,17 @@
 # HRTF set
 
 The head-related transfer function set the `Binaural` method uses. The file carries its own
-licence in its SOFA metadata (`GLOBAL_License`); the notes below are copied from there.
+licence in its SOFA metadata (`GLOBAL_License`).
 
-## KEMAR_FreeFieldComp_48kHz.sofa
+## KU100_HRIR_L2702.sofa
 
-From the SONICOM HRTF dataset of Imperial College London (the file's metadata calls it the AXD HRTF database, "HRTF C"): a KEMAR with Knowles EarSim small ears, in-the-ear microphones
-with the blocked-ear-canal method, measured with an exponential sweep, free-field compensated. 828 directions, two ears,
-256 samples at 48 kHz.
+The far-field HRIR compilation of a Neumann KU 100 dummy head by TH Koeln, the dataset's `HRIR_L2702.sofa` renamed: 2702
+directions on a Lebedev grid over the full sphere, measured at 3.25 m in an anechoic chamber, two ears, 128 samples at
+48 kHz. The loudspeaker's response is compensated in magnitude and phase and the low frequencies are extended; the dummy head
+is not compensated (the dataset's common diffuse-field filter is not applied).
 
-Licence: Creative Commons Attribution-ShareAlike 3.0 Unported. Attribute Imperial College London (contact: l.picinali@imperial.ac.uk,
-isaac.engel@imperial.ac.uk). The share-alike condition applies to this data and to adaptations of it, not to the code of this package.
+Licence: the Zenodo record (https://doi.org/10.5281/zenodo.3928297) gives Creative Commons Attribution 3.0 Unported; the file's
+own metadata gives Attribution-ShareAlike 3.0, which is followed here. Attribute Benjamin Bernschuetz, TH Koeln. The share-alike
+condition applies to this data and to adaptations of it, not to the code of this package.
 
-Cite: Engel, I., Daugintis, R., Vicente, T., Hogg, A. O. T., Pauwels, J., Tournier, A. J., Picinali, L. (2023). "The SONICOM HRTF Dataset."
-Journal of the Audio Engineering Society 71(5), 241-253. https://doi.org/10.17743/jaes.2022.0066
+Cite: Bernschuetz, B. (2013). "A Spherical Far Field HRIR/HRTF Compilation of the Neumann KU 100." Fortschritte der Akustik, AIA-DAGA 2013, Merano, 592-595.

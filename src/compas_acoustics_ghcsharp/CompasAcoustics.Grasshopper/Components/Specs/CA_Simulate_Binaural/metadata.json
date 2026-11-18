@@ -112,7 +112,7 @@
             },
             {
                 "name": "hrtf",
-                "description": "HRTF set of the binaural responses. Empty: KEMAR (default). Choose a .sofa file with the HRTF... button, or connect a File Path to one, which takes precedence; the component's message names the set in use.",
+                "description": "HRTF set of the binaural responses. Empty: Neumann KU 100 (default). Choose a .sofa file with the HRTF... button, or connect a File Path to one, which takes precedence; the component's message names the set in use.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "str"

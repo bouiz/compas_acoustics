@@ -446,7 +446,7 @@ class Binaural(_HybridMethod):
         the IR graph (``"mono"``, ``"data"``), a dict as :meth:`Scene.simulate` returns, or a
         :class:`~compas_acoustics.simulation_methods.Mono` to run first.
     hrtf : str or path, optional
-        ``"kemar"`` (None), the KEMAR set of the HRTF library, or a SOFA file.
+        ``"ku100"`` (None), the Neumann KU 100 set of the HRTF library, or a SOFA file.
 
     Examples
     --------
@@ -457,7 +457,7 @@ class Binaural(_HybridMethod):
     >>> scene.add_receiver(ca.Receiver("listener", 4.0, 3.0, 1.2))
     >>> ir = next(iter(scene.simulate(ca.Binaural(tail="eyring")).values()))  # doctest: +SKIP
     >>> ir.n_channels, ir.generation["hrtf"]  # doctest: +SKIP
-    (2, 'KEMAR_FreeFieldComp_48kHz.sofa')
+    (2, 'KU100_HRIR_L2702.sofa')
 
     With a ray-traced reference the decay is fitted to a response you already have.
 
@@ -488,9 +488,9 @@ class Binaural(_HybridMethod):
         air=None,
         scattering=False,
     ):
-        hrtf = "kemar" if hrtf is None else hrtf
-        if hrtf != "kemar" and not Path(hrtf).is_file():
-            raise ValueError(f"hrtf must be 'kemar' or a SOFA file, not {hrtf!r}")
+        hrtf = "ku100" if hrtf is None else hrtf
+        if hrtf != "ku100" and not Path(hrtf).is_file():
+            raise ValueError(f"hrtf must be 'ku100' or a SOFA file, not {hrtf!r}")
         super().__init__(
             reference, tail, image_source_order, n_slopes, decay_db, duration, directional_absorption, late_envelope, diffraction, air_absorption, seed, normalize, air, scattering
         )
@@ -503,7 +503,7 @@ class Binaural(_HybridMethod):
         from compas_acoustics.hybrid.binaural import HrtfSet
         from compas_acoustics.hybrid.binaural import render_binaural
 
-        path = DEFAULT_HRTF if self.hrtf == "kemar" else Path(self.hrtf)
+        path = DEFAULT_HRTF if self.hrtf == "ku100" else Path(self.hrtf)
         # loaded once per run, again only when the set or the rate changed since
         if self._hrtf_loaded != (path, int(core.fs)):
             self._hrtf_set, self._hrtf_loaded = HrtfSet.from_sofa(path, int(core.fs)), (path, int(core.fs))

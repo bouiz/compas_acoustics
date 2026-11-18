@@ -115,6 +115,6 @@ def test_binaural_returns_two_channel_responses_of_the_cores_length():
     method = Binaural(**FAST)
     (ir,) = scene().simulate(method).values()
     assert ir.n_channels == 2 and ir.ambisonic_order is None and ir.format == "binaural"
-    assert ir.generation["hrtf"] == "KEMAR_FreeFieldComp_48kHz.sofa" and ir.generation["method"] == "binaural"
+    assert ir.generation["hrtf"] == "KU100_HRIR_L2702.sofa" and ir.generation["method"] == "binaural"
     (result,) = method.results.values()
     assert ir.denormalized().shape == (result.core.n_samples, 2)
