@@ -8,6 +8,7 @@ from typing import Union
 
 import numpy as np
 
+from compas_acoustics.directivity import is_omnidirectional
 from compas_acoustics.ir import ImpulseResponse
 from compas_acoustics.room.air import AirConditions
 from compas_acoustics.room.air import air_or_default
@@ -187,7 +188,7 @@ class Mono(SimulationMethod):
     def _reciprocal(self, context: SimulationContext) -> bool:
         """Whether the receivers emit: asked for, cheaper (more sources than receivers) and exact (omnidirectional
         sources)."""
-        return self.reciprocity and len(context.sources) > len(context.receivers) and all(s.directivity == "omnidirectional" for s in context.sources)
+        return self.reciprocity and len(context.sources) > len(context.receivers) and all(is_omnidirectional(s.directivity) for s in context.sources)
 
     def _run(self, context: SimulationContext, directions=None, lengthen=None, keep_run: bool = True) -> tuple[dict, Optional[RayTracedRun]]:
         """The responses and, with ray tracing, the run they came from; ``directions`` as :func:`ray_traced_run`'s.
@@ -285,6 +286,8 @@ class Mono(SimulationMethod):
         diffracted paths make up that step on both sides of each shadow and reflection boundary, so the sum is
         continuous. Paths have at most one wall reflection, before or after the edge.
         """
+        from compas_acoustics.directivity import band_gains
+        from compas_acoustics.directivity import to_pra
         from compas_acoustics.hybrid.bands import BANDS
         from compas_acoustics.hybrid.diffraction import diffraction_paths
         from compas_acoustics.hybrid.early import render_transfers
@@ -294,6 +297,13 @@ class Mono(SimulationMethod):
         air = air_or_default(self.air)
         out = [list(row) for row in responses]
         for s, source in enumerate(context.sources):
+            directivity = None if is_omnidirectional(source.directivity) else to_pra(source.directivity, list(source.direction), fs)
+            source_gain = None
+            if directivity is not None:
+
+                def source_gain(direction, directivity=directivity):
+                    return np.broadcast_to(band_gains(directivity, np.asarray(direction, dtype=float).reshape(3, 1))[0], (len(BANDS),))
+
             for m, receiver in enumerate(context.receivers):
                 spec = Pair(
                     geometry=context.geometry,
@@ -306,7 +316,7 @@ class Mono(SimulationMethod):
                     air=self.air,
                     require_volume=False,
                 )
-                paths = diffraction_paths(spec, max_order=min(self.image_source_order, 1))
+                paths = diffraction_paths(spec, max_order=min(self.image_source_order, 1), source_gain=source_gain)
                 if not paths:
                     continue
                 base = np.asarray(out[m][s], dtype=float)

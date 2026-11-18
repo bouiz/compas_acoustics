@@ -7,6 +7,8 @@ import pyroomacoustics as pra
 import pytest
 
 import compas_acoustics as ca
+from compas_acoustics.progress import Cancelled
+from compas_acoustics.progress import reporting
 from compas_acoustics.room.parallel import split_processes
 from compas_acoustics.room.pra import source_to_pra
 from compas_acoustics.room.raytracing import directional_histograms
@@ -113,6 +115,17 @@ def test_a_run_with_split_rays_keeps_its_room_and_sorts_its_rays_by_direction():
     energy, serial_energy = parallel.histograms[0][0].energy, serial.histograms[0][0].energy
     assert energy.shape == serial_energy.shape
     assert energy.sum() == pytest.approx(serial_energy.sum(), rel=0.1)
+
+
+def test_a_cancelled_parallel_run_stops_and_the_next_one_runs():
+    def stop(stage, done, of):
+        if stage == "ray tracing" and done:
+            raise Cancelled()
+
+    with pytest.raises(Cancelled):
+        with reporting(stop):
+            _run(_scene(1), n_jobs=2, **RAYS)
+    assert _run(_scene(1), n_jobs=2, **RAYS)[0]
 
 
 def test_directional_histograms_over_processes_hold_the_same_energy():
