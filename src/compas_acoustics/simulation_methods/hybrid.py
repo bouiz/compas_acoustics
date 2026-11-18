@@ -1,7 +1,8 @@
 """The hybrid methods :class:`Binaural` and :class:`Ambisonics`: image sources, optional edge diffraction, a directional FDN.
 
 One image source search serves every pair and, with a ray-tracing tail, the reference too, whose one ray trace also
-gives the directional histograms with ``late_envelope="directional"``; each pair is prepared by :func:`compas_acoustics.hybrid.synthesis.prepare`
+gives the directional histograms with ``late_envelope="directional"``; a given ``Mono`` reference at the method's
+image source order lends its search to the early field; each pair is prepared by :func:`compas_acoustics.hybrid.synthesis.prepare`
 and rendered by :func:`~compas_acoustics.hybrid.binaural.render_binaural` or
 :func:`~compas_acoustics.hybrid.ambisonics.render_ambisonics`.
 """
@@ -304,9 +305,10 @@ class _HybridMethod(SimulationMethod):
 
     def _references(self, context, geometry, grid, directions):
         """``(references or None, air_absorption, air, description, run)`` for :attr:`tail`; ``run`` is the
-        :class:`~compas_acoustics.room.raytracing.RayTracedRun` of a reference the method traces itself, else None.
+        :class:`~compas_acoustics.room.raytracing.RayTracedRun` of a reference the method traces itself, or of a
+        given ``Mono`` at the method's image source order, whose search then gives the early field's images; else None.
 
-        That reference is ``Mono(ray_tracing=True)`` at the method's image source order, seed and air, as long as
+        A reference the method traces itself is ``Mono(ray_tracing=True)`` at the method's image source order, seed and air, as long as
         the longer of ``duration`` and the mono default, and, with a late envelope, with the histogram's rays: its
         one search and trace also give the early field's images and, on ``directions`` (the lines' per receiver, in
         room coordinates), the histograms.
@@ -330,7 +332,10 @@ class _HybridMethod(SimulationMethod):
         elif isinstance(self.reference, str):
             references, description = context.scene.impulse_responses(self.reference), self.reference
         elif isinstance(self.reference, Mono):
-            references, description = self.reference.compute(context), self.reference.generation
+            references, run = self.reference._run(context)
+            description = self.reference.generation
+            if self.reference.image_source_order != self.image_source_order:
+                run = None
         else:
             references, description = self.reference, "dict"
 

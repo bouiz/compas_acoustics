@@ -603,6 +603,28 @@ def test_a_traced_reference_shares_its_search_and_rays_with_the_early_field_and_
     assert np.array_equal(ir.ir, other.ir)
 
 
+@pytest.mark.parametrize("scattering", [False, True])
+def test_a_given_mono_reference_at_the_methods_order_lends_its_search_to_the_early_field(scattering):
+    """Bit for bit what its responses given as a dict give, with which the early field searches its own room."""
+    settings = dict(sh_order=1, image_source_order=3, scattering=scattering, duration=0.5, seed=0)
+    scene = make(panel=True)
+    by_dict = scene.simulate(Ambisonics(references(scene), **settings))
+    by_method = scene.simulate(Ambisonics(Mono(**FAST_RT), **settings))
+    for key, ir in by_dict.items():
+        assert np.array_equal(by_method[key].ir, ir.ir)
+
+
+@pytest.mark.parametrize("order, searches", [(3, 1), (2, 2)])
+def test_the_early_field_searches_again_only_for_a_reference_at_another_order(monkeypatch, order, searches):
+    import pyroomacoustics as pra
+
+    calls = []
+    search = pra.Room.image_source_model
+    monkeypatch.setattr(pra.Room, "image_source_model", lambda room: calls.append(room) or search(room))
+    make().simulate(Ambisonics(Mono(**FAST_RT), sh_order=1, image_source_order=order, duration=0.5))
+    assert len(calls) == searches
+
+
 def test_omni_traces_no_histogram(monkeypatch):
     """With a given reference no directional histogram is traced; with a ray-traced one the reference traces none."""
     import compas_acoustics.room.raytracing as raytracing
