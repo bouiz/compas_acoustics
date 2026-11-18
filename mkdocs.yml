@@ -51,6 +51,7 @@ exclude_docs: |
   _ext/
   _tools/
   grasshopper/notes/
+  validation/
   grasshopper/walkthroughs/
   grasshopper/python_equivalents.json
   _images/fingerprints.json
@@ -131,6 +132,7 @@ nav:
       - Examples: grasshopper/examples/index.md
   - API reference:
       - compas_acoustics: api/compas_acoustics.md
+      - geometry: api/compas_acoustics.geometry.md
       - hybrid: api/compas_acoustics.hybrid.md
       - lab: api/compas_acoustics.lab.md
       - pb: api/compas_acoustics.pb.md

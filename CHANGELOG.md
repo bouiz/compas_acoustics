@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+* Added `compas_acoustics.geometry` (numpy and scipy only): `prepare_mesh` turns a raw triangle mesh (open, non-manifold, unwelded, wound any way) into a `PreparedMesh`. It welds it, orients every face from the side its sources and receivers are on, by a random walk of rays and, for closed components, a parity test from the seeds. It makes surfaces with air on both sides two-sided, classifies the faces, merges coplanar triangles into simple polygons and estimates the air volume from the mean free path. `analyze` reports what will go wrong: seeds outside the model or inside objects, blocked or separated paths, leaks and holes, orientation conflicts, unreached objects and the image source cost.
+
 ### Changed
 
 ### Removed

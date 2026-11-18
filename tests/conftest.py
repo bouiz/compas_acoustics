@@ -1,7 +1,13 @@
 """Shared test helpers."""
 
+import sys
+from pathlib import Path
+
 import numpy as np
 import pytest
+
+# Test modules import each other's scene builders by name (pytest runs with --import-mode=importlib)
+sys.path.insert(0, str(Path(__file__).parent))
 
 
 def _assert_meets_contract(rirs, context, method, direct_sound=True):
