@@ -49,7 +49,7 @@ namespace CompasAcoustics.Grasshopper
         {
             var state = MessageText.WorkerLine(worker.State, worker.StartedAt is DateTime t ? (DateTime.Now - t).TotalSeconds : null);
             var version = worker.State == WorkerState.Running
-                ? $"compas_acoustics {Worker.Version}, schema ok"
+                ? $"compas_acoustics {worker.RunningVersion}, schema ok"
                 : worker.LastError is string error && error.Contains("schema")
                     ? "schema mismatch: use Install Worker again"
                     : $"plugin {Worker.Version}";
@@ -77,7 +77,7 @@ namespace CompasAcoustics.Grasshopper
             if (worker.LastError is string error && worker.State != WorkerState.Running)
                 Warn(WorkerException.Summary(error));
             access.SetData("python", worker.Python);
-            access.SetData("version", worker.State == WorkerState.Running ? Worker.Version : null);
+            access.SetData("version", worker.State == WorkerState.Running ? worker.RunningVersion : null);
             access.SetData("running", worker.State == WorkerState.Running);
         }
     }

@@ -275,7 +275,7 @@ namespace CompasAcoustics.Grasshopper.Tests
                 }
                 if (path == "/ping") return FakeHandler.Pong();
                 if (path == "/api/info")
-                    return FakeHandler.Result(new Dictionary<string, object?> { ["compas_acoustics"] = Worker.Version, ["schema"] = Schema.Hash, ["hybrid"] = true });
+                    return FakeHandler.Result(new Dictionary<string, object?> { ["compas_acoustics"] = Worker.LibraryVersion, ["schema"] = Schema.Hash, ["hybrid"] = true });
                 if (path.StartsWith("/cancel/"))
                 {
                     _release.Set();

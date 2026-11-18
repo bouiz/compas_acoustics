@@ -12,7 +12,7 @@ on:
           - test
           - prod
       version:
-        description: "Version to publish (e.g. 1.2.3). Leave empty to use the version in pyproject.toml."
+        description: "Plugin version to publish (e.g. 1.2.3). Leave empty to use the version in the .csproj."
         required: false
         type: string
 

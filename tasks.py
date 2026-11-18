@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import glob
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -143,13 +144,13 @@ def pre_build(ctx):
     """Prepare the build: sync the pyproject.toml authors from CITATION.cff (the protobuf bindings are committed)."""
 
 
-@task(help={"version": "Version of the package (default: the version in pyproject.toml)"})
+@task(help={"version": "Version of the plugin (default: the version in the .csproj)"})
 def yakerize(ctx, version=None):
     """Build the Grasshopper plugin and package it for Yak, Rhino's package manager, into dist/yak_package."""
     # shortcut: grasshopper.yakerize copies .ghuser files only, not a compiled plugin; use it once it takes a .gha
     base = ctx.base_folder
-    version = version or grasshopper._get_version_from_toml(os.path.join(base, "pyproject.toml"))
-    # Install Worker installs the compas_acoustics of the plugin's version, so the two must agree
+    # the plugin's own version; the compas_acoustics it installs is CompasAcousticsVersion in the .csproj
+    version = version or re.search(r"<Version>([^<]+)</Version>", open(os.path.join(base, PLUGIN, "CompasAcoustics.Grasshopper.csproj")).read()).group(1)
     plugin = build_gha(ctx, version=version)
     target = os.path.join(base, "dist", "yak_package")
     shutil.rmtree(target, ignore_errors=True)

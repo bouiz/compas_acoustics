@@ -58,7 +58,7 @@ namespace CompasAcoustics.Grasshopper
                 string? error = null;
                 try
                 {
-                    new WorkerInstaller(home, Worker.Version, worker.StopAll).Install(Log);
+                    new WorkerInstaller(home, Worker.Requirement, worker.StopAll).Install(Log);
                 }
                 catch (Exception e)
                 {

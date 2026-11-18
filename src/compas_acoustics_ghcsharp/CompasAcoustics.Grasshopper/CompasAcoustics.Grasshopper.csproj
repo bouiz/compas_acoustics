@@ -5,8 +5,12 @@
     <TargetFramework>net7.0</TargetFramework>
     <AssemblyName>CompasAcoustics</AssemblyName>
     <RootNamespace>CompasAcoustics.Grasshopper</RootNamespace>
-    <!-- equal to compas_acoustics.__version__ (tests/test_gha_version.py) -->
+    <!-- the plugin's version; released separately from compas_acoustics -->
     <Version>0.1.0</Version>
+    <!-- the oldest compas_acoustics the plugin works with; Install Worker takes the newest up to its next breaking
+         release (semver; in 0.x a minor release): >=0.1.0,<0.2.0. compas_acoustics.__version__ must be in that range
+         (tests/test_gha_version.py). -->
+    <CompasAcousticsVersion>0.1.0</CompasAcousticsVersion>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <ImplicitUsings>disable</ImplicitUsings>
@@ -40,6 +44,7 @@
     <EmbeddedResource Include="Components\Specs\**\*.json;Components\Specs\**\*.png" LogicalName="Specs/%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
   <ItemGroup>
+    <AssemblyMetadata Include="CompasAcousticsVersion" Value="$(CompasAcousticsVersion)" />
     <InternalsVisibleTo Include="CompasAcoustics.Grasshopper.Tests" />
   </ItemGroup>
   <!-- Grasshopper loads .gha files; CoreCLR's trusted assemblies (the test host's) must end in .dll, so the build makes both -->

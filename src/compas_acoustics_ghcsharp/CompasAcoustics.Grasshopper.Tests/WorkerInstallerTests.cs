@@ -44,14 +44,14 @@ namespace CompasAcoustics.Grasshopper.Tests
             return _failOn != null && call.Contains(_failOn) ? 3 : 0;
         }
 
-        private WorkerInstaller Installer(string version = "1.2.3") => new(_home, version, () => _stops.Add("stopped"), Run);
+        private WorkerInstaller Installer(string requirement = ">=1.2.3,<2.0.0") => new(_home, requirement, () => _stops.Add("stopped"), Run);
 
         [Fact]
-        public void Install_PinsThePluginsVersionAndRecordsThePython()
+        public void Install_InstallsThePluginsRequirementAndRecordsThePython()
         {
             var python = Installer().Install(_ => { });
 
-            Assert.Contains(_calls, c => c.EndsWith("--python " + python + " compas_acoustics==1.2.3"));
+            Assert.Contains(_calls, c => c.EndsWith("--python " + python + " compas_acoustics>=1.2.3,<2.0.0"));
             using var json = JsonDocument.Parse(File.ReadAllText(Config));
             Assert.Equal(python, json.RootElement.GetProperty("python").GetString());
             Assert.True(json.RootElement.GetProperty("hybrid").GetBoolean());
@@ -72,7 +72,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             var old = Path.Combine(Environment, "old");
             File.WriteAllText(old, "");
             var existedAtStop = false;
-            var installer = new WorkerInstaller(_home, "1.2.3", () => existedAtStop = File.Exists(old), Run);
+            var installer = new WorkerInstaller(_home, ">=1.2.3,<2.0.0", () => existedAtStop = File.Exists(old), Run);
 
             installer.Install(_ => { });
 
@@ -81,7 +81,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Theory]
-        [InlineData("compas_acoustics==")]
+        [InlineData("compas_acoustics>=")]
         [InlineData("import compas_acoustics")]
         public void Install_ThatFails_LeavesNoRecord(string step)
         {
