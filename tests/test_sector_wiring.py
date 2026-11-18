@@ -326,6 +326,30 @@ def test_drawn_sides_follow_the_faces_through_collapse_and_triangulation():
 # ---------------------------------------------------------------------------------------------------------------
 
 
+def test_mono_diffraction_renders_the_fused_pillar_of_an_open_room():
+    """The pillar's corner (4, 3) hides the receiver from the source, both in its view: the direct sound (6.5 m) is
+    blocked, and the sound round the corner (6.51 m) arrives only with diffraction."""
+    source, receiver = [2.0, 4.0, 1.5], [8.0, 1.5, 1.5]
+    prepared = _Mesh().add("room", *grid([0, 4, 6, 10], [0, 3, 5, 8], {(1, 1)}, ceiling=False)).prepare(PILLAR_SEEDS + [source, receiver])
+    geometry = room(prepared)
+    scene = ca.Scene("pillar")
+    scene.add_source(ca.Source("s", *source))
+    scene.add_receiver(ca.Receiver("r", *receiver))
+
+    def response(diffraction):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            rirs = scene.simulate(ca.Mono(image_source_order=1, ray_tracing=False, diffraction=diffraction), geometry=geometry)
+        return next(iter(rirs.values())).denormalized()
+
+    plain, diffracted = response(False), response(True)
+    n = min(len(plain), len(diffracted))
+    assert not np.allclose(plain[:n], diffracted[:n])
+    # the first reflection (off the floor) travels 7.16 m
+    start, end = (int(d / 343.0 * 48000) for d in (6.3, 6.8))
+    assert np.sum(diffracted[start:end] ** 2) > 100.0 * (np.sum(plain[start:end] ** 2) + 1e-30)
+
+
 def _pair(geometry, source, receiver):
     return Pair(geometry, np.asarray(source, float), np.asarray(receiver, float), np.eye(3), 48000)
 
