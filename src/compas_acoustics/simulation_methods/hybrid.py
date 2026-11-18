@@ -17,11 +17,15 @@ from abc import abstractmethod
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from dataclasses import replace
+from functools import partial
 from pathlib import Path
+from typing import Callable
 from typing import Optional
 
 import numpy as np
 
+from compas_acoustics.directivity import band_gains
+from compas_acoustics.directivity import is_omnidirectional
 from compas_acoustics.hybrid.ambisonics import default_num_delays
 from compas_acoustics.hybrid.ambisonics import render_ambisonics
 from compas_acoustics.hybrid.binaural import DEFAULT_HRTF
@@ -80,6 +84,8 @@ class _PairInputs:
     reference: Optional[np.ndarray]
     histogram: Optional[DirectionalHistogram]
     duration: float
+    # the source pattern's amplitude per band towards a direction, for the diffracted paths; None when omnidirectional
+    source_gain: Optional[Callable[[np.ndarray], np.ndarray]] = None
 
 
 def _without_full_absorption(geometry):
@@ -92,6 +98,11 @@ def _without_full_absorption(geometry):
     for name, material in geometry.materials.items():
         materials[name] = replace(material, absorption=np.minimum(material.absorption, 1.0 - 1e-6))
     return replace(geometry, materials=materials)
+
+
+def _emitted_gain(directivity, direction):
+    """The source pattern's amplitude per band (8,) towards ``direction`` (3,), for the diffracted paths."""
+    return np.broadcast_to(band_gains(directivity, np.asarray(direction, dtype=float).reshape(3, 1))[0], (8,))
 
 
 class _HybridMethod(SimulationMethod):
@@ -301,7 +312,14 @@ class _HybridMethod(SimulationMethod):
         eyring_rt = None if references is None else float(predicted_rt(geometry, air_absorption=air_absorption, air=air, warn=False).max())
         inputs = []
         for s, source in enumerate(context.sources):
-            directivity = None if source.directivity == "omnidirectional" else directivity_to_pra(source.directivity, source.direction)
+            directivity = None if is_omnidirectional(source.directivity) else directivity_to_pra(source.directivity, source.direction, fs)
+            source_gain = None if directivity is None else partial(_emitted_gain, directivity)
+            if directivity is not None and self.diffraction == "btms":
+                warnings.warn(
+                    f"Source '{source.name}' is directional, but BTMS diffraction radiates omnidirectionally; diffraction='udfa' applies the pattern.",
+                    UserWarning,
+                    stacklevel=3,
+                )
             for m, receiver in enumerate(context.receivers):
                 key = context.key(source, receiver)
                 pair = Pair(
@@ -348,6 +366,7 @@ class _HybridMethod(SimulationMethod):
                         histogram=None if histograms is None else histograms[m][s],
                         # the package's choice of default length: 1.5 times the pair's longest target RT
                         duration=self.duration if self.duration is not None else 1.5 * float(target.rt.max()),
+                        source_gain=source_gain,
                     )
                 )
         return inputs
@@ -370,6 +389,7 @@ class _HybridMethod(SimulationMethod):
                 diffraction=self.diffraction,
                 rng=rng,
                 scattering=self.scattering,
+                source_gain=item.source_gain,
             )
             return self._response(core, item.key, item.source, item.receiver, generation)
 

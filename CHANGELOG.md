@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+* Added measured source directivities: `Source.directivity` takes a SOFA file (`"speaker.sofa"`, `"speaker.sofa#Genelec_8020"`), turned to the source's direction, or a pyroomacoustics `Directivity` used as given (`compas_acoustics.directivity`). The image sources and the ray tracer apply it. The hybrid weights each image and each UDFA diffracted path per octave band (`band_gains`), and warns that BTMS diffraction stays omnidirectional.
+
 ### Changed
 
 ### Removed

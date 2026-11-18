@@ -84,17 +84,18 @@ def image_sources(room, source_index: int, mic_index: int, pair: Pair, directivi
 
     response = None
     if directivity is not None:
+        from compas_acoustics.directivity import band_gains
+
+        # a broadband pattern scales every band alike, a measured one per band
         emitted = np.asarray(source.directions[mic_index], dtype=float)[:, visible]
-        azimuth = np.arctan2(emitted[1], emitted[0])
-        colatitude = np.arccos(np.clip(emitted[2] / np.linalg.norm(emitted, axis=0), -1.0, 1.0))
-        response = directivity.get_response(azimuth=azimuth, colatitude=colatitude, degrees=False)
+        response = band_gains(directivity, emitted)
 
     def gain_of(products):
         # m is an energy attenuation coefficient, so pressure loses exp(-m d / 2) over the image's own path
         wall_gain = _band_damping(source, products)[visible] * np.exp(-np.outer(distance, pair.air_attenuation()) / 2.0)
         gain = wall_gain * spreading[:, np.newaxis]
         if response is not None:
-            gain = gain * np.asarray(response, dtype=float).reshape(-1, 1)
+            gain = gain * response
         return gain
 
     gain = gain_of(source.damping if damping is None else damping)

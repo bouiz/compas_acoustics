@@ -729,8 +729,11 @@ class _Setup:
         return self.pair.receiver_rotation.T @ d if self.pair.receiver_rotation is not None else d
 
 
-def diffraction_paths(pair: Pair, *, max_order: int = 1) -> list[DiffractionPath]:
+def diffraction_paths(pair: Pair, *, max_order: int = 1, source_gain=None) -> list[DiffractionPath]:
     """Every first-order UDFA path, with at most one wall reflection before or after it.
+
+    ``source_gain(direction)``, the source pattern's amplitude per band towards a direction, weights each path by
+    its first leg; None radiates alike in every direction.
 
     For ``max_order >= 1`` the source's image in a wall gives the paths that
     reflect before they diffract, and the receiver's image those that reflect
@@ -754,7 +757,10 @@ def diffraction_paths(pair: Pair, *, max_order: int = 1) -> list[DiffractionPath
                 continue
             points, walls, _ = pl
             length = wp.d_constrained
-            out.append(DiffractionPath(length / c, length, setup.doa(points[-2]), setup.gain(length, walls), partial(udfa_transfer, wp, c=c), len(walls), wp.zone, k))
+            gain = setup.gain(length, walls)
+            if source_gain is not None:
+                gain = gain * source_gain(points[1] - points[0])
+            out.append(DiffractionPath(length / c, length, setup.doa(points[-2]), gain, partial(udfa_transfer, wp, c=c), len(walls), wp.zone, k))
     return [p for p in out if np.any(p.band_gain > 0.0)]
 
 

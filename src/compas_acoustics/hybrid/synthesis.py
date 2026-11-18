@@ -95,6 +95,7 @@ def prepare(
     diffraction: Literal["udfa", "btms"] | None = None,
     rng: int = 0,
     scattering: bool = False,
+    source_gain=None,
 ) -> HybridCore:
     """The format-neutral part of the hybrid for one pair: its early paths and its delay lines.
 
@@ -140,7 +141,7 @@ def prepare(
 
     paths, contributions = (), ()
     if diffraction == "udfa":
-        paths = tuple(diffraction_paths(pair, max_order=max_order))
+        paths = tuple(diffraction_paths(pair, max_order=max_order, source_gain=source_gain))
     elif diffraction == "btms":
         contributions = tuple(btms_paths(pair, max_order=max_order))
     if directional_envelope is not None:

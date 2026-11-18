@@ -154,7 +154,7 @@ class Mono(SimulationMethod):
             return {}, None
         fs = context.sampling_rate
         _warn_if_the_search_is_slow(context.geometry, self.image_source_order)
-        sources = [source_to_pra(source) for source in context.sources]
+        sources = [source_to_pra(source, fs) for source in context.sources]
         mic_positions = points_to_array([receiver.position for receiver in context.receivers])
         from compas_acoustics.worker import jobs
 
