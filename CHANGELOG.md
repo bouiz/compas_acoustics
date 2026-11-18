@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+* Added `Mono(diffraction=True)`: the first-order UDFA paths of the obstacles' edges and the room's re-entrant corners, rendered into the mono response as the hybrid renders them, so the level is continuous across shadow boundaries. The band grid no longer needs pyFDN, so the mono method's diffraction runs without it.
+
 ### Changed
 
 ### Removed

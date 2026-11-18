@@ -60,6 +60,10 @@ class Mono(SimulationMethod):
         Whether the responses are peak-normalized views.
     air : AirConditions, optional
         Its speed of sound and, with ``air_absorption``, its ISO 9613-1 absorption; default ``AirConditions()``.
+    diffraction : bool or str, default=False
+        True or ``'udfa'`` adds the first-order edge diffraction of the obstacles' edges and the room's re-entrant
+        corners (UDFA, Kirsch and Ewert 2023), with at most one wall reflection before or after the edge, as the
+        hybrid methods do. Needs spharpy (Python >= 3.11).
 
     Examples
     --------
@@ -105,8 +109,13 @@ class Mono(SimulationMethod):
         seed: Union[bool, int] = True,
         normalize: bool = True,
         air: Optional[AirConditions] = None,
+        diffraction=False,
     ):
         seed = _seed(seed)
+        model = {False: None, None: None, True: "udfa", "udfa": "udfa"}.get(diffraction, "invalid")
+        if model == "invalid":
+            raise ValueError(f"diffraction must be False, True or 'udfa' for the mono method (BTMS is the hybrid's), not {diffraction!r}")
+        self.diffraction = model
         given = {"n_rays": n_rays, "energy_thres": energy_thres, "duration": duration, "receiver_radius": receiver_radius, "seed": seed}
         if not ray_tracing:
             changed = sorted(k for k, v in given.items() if v != self._RAY_TRACING_DEFAULTS[k])
@@ -138,6 +147,8 @@ class Mono(SimulationMethod):
         }
         if self.ray_tracing:
             generation.update(n_rays=self.n_rays, energy_thres=self.energy_thres, duration=self.duration, receiver_radius=self.receiver_radius, seed=self.seed)
+        if self.diffraction:
+            generation["diffraction"] = self.diffraction
         return generation
 
     def compute(self, context: SimulationContext) -> dict:
@@ -195,6 +206,10 @@ class Mono(SimulationMethod):
         :meth:`SimulationContext.key`."""
         from compas_acoustics.worker import jobs
 
+        if self.diffraction:
+            jobs.progress("diffraction")
+            responses = self._with_diffraction(context, responses)
+
         generation = dict(self.generation, scene=getattr(context.scene, "name", None))
         rirs = {}
         for m, receiver in enumerate(context.receivers):
@@ -211,6 +226,47 @@ class Mono(SimulationMethod):
                     generation=generation,
                 )
         return rirs
+
+    def _with_diffraction(self, context: SimulationContext, responses):
+        """``responses[m][s]`` plus every first-order UDFA path (Kirsch and Ewert 2023), as the hybrid renders them.
+
+        The geometric sound and its reflections come from the image sources, which switch off behind an edge; the
+        diffracted paths make up that step on both sides of each shadow and reflection boundary, so the sum is
+        continuous. Paths have at most one wall reflection, before or after the edge.
+        """
+        from compas_acoustics.hybrid.bands import BANDS
+        from compas_acoustics.hybrid.diffraction import diffraction_paths
+        from compas_acoustics.hybrid.early import render_transfers
+        from compas_acoustics.hybrid.pair import Pair
+
+        fs = context.sampling_rate
+        air = air_or_default(self.air)
+        out = [list(row) for row in responses]
+        for s, source in enumerate(context.sources):
+            for m, receiver in enumerate(context.receivers):
+                spec = Pair(
+                    geometry=context.geometry,
+                    source=np.asarray(source.position, dtype=float),
+                    receiver=np.asarray(receiver.position, dtype=float),
+                    receiver_rotation=np.eye(3),
+                    fs=float(fs),
+                    speed_of_sound=air.speed_of_sound,
+                    air_absorption=self.air_absorption,
+                    air=self.air,
+                    require_volume=False,
+                )
+                paths = diffraction_paths(spec, max_order=min(self.image_source_order, 1))
+                if not paths:
+                    continue
+                base = np.asarray(out[m][s], dtype=float)
+                n = base.size
+                if not self.ray_tracing:  # natural length: room for the latest path and its filters
+                    n = max(n, int(np.ceil(max(p.delay for p in paths) * fs)) + 1024)
+                gains = np.array([p.band_gain / (4.0 * np.pi * p.distance) for p in paths])
+                rendered = render_transfers(np.array([p.delay for p in paths]), [p.transfer for p in paths], gains, np.ones((len(paths), 1)), BANDS, fs, n)[:, 0]
+                rendered[: base.size] += base
+                out[m][s] = rendered
+        return out
 
     @staticmethod
     def _length_and_rt(rirs: dict, fs: int) -> tuple[float, float]:
