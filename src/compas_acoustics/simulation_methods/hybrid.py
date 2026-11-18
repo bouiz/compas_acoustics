@@ -116,6 +116,7 @@ class _HybridMethod(SimulationMethod):
         normalize=True,
         air=None,
         scattering=False,
+        limit_output=None,
     ):
         if tail is not None and tail not in TAILS:
             raise ValueError(f"tail must be None or one of {TAILS}, not {tail!r}")
@@ -162,6 +163,9 @@ class _HybridMethod(SimulationMethod):
         self.normalize = normalize
         self.air = air
         self.scattering = bool(scattering)
+        if limit_output is not None and not callable(limit_output):
+            raise TypeError("limit_output must be None or a callable limit_output(references, fs) -> seconds or None")
+        self.limit_output = limit_output
         self.reference_rirs = None
         self.results = {}
 
@@ -336,6 +340,8 @@ class _HybridMethod(SimulationMethod):
                     damping=None if damping is None else damping[s],
                     scattered=None if scattered is None else scattered[s],
                 )
+                # the pair's output length, from its own reference (limit_output), decided here on the calling thread
+                duration = self._pair_duration(key, references, fs)
                 inputs.append(
                     _PairInputs(
                         key=key,
@@ -347,7 +353,7 @@ class _HybridMethod(SimulationMethod):
                         reference=reference,
                         histogram=None if histograms is None else histograms[m][s],
                         # the package's choice of default length: 1.5 times the pair's longest target RT
-                        duration=self.duration if self.duration is not None else 1.5 * float(target.rt.max()),
+                        duration=duration if duration is not None else 1.5 * float(target.rt.max()),
                     )
                 )
         return inputs
@@ -398,6 +404,20 @@ class _HybridMethod(SimulationMethod):
             room.add_soundsource(source_to_pra(source))
         room.add_microphone_array(points_to_array([receiver.position for receiver in context.receivers]))
         return room
+
+    def _pair_duration(self, key, references, fs):
+        """The output length of pair ``key``: :attr:`duration` when given, else what :attr:`limit_output` makes of the
+        pair's own reference, else None (the default, from the target's reverberation time).
+
+        One length per pair, from that pair's reference alone: a length shared by the run would follow whichever pairs
+        share it, so a run split over processes would render a pair for another time.
+        """
+        if self.duration is not None or self.limit_output is None or references is None or key not in references:
+            return self.duration
+        seconds = self.limit_output({key: references[key]}, fs)
+        if seconds is not None and seconds <= 0:
+            raise ValueError(f"limit_output gave {seconds!r} s for {key}; it must be positive or None")
+        return seconds
 
     def _check_reference_length(self, length, target, eyring_rt, key):
         """Warn when a reference ends before 2/3 of its reverberation time (the fitted or Eyring one, the longer).
@@ -519,6 +539,11 @@ _ENGINE_PARAMETERS = """
         The rays of every trace the method makes itself: the reference of a ray-tracing tail and the directional
         histograms of a given reference. Default the directions' rule below, at least 20000, which a ``Mono``
         reference also takes by default. Refused when the method traces nothing itself.
+    limit_output : callable, optional
+        ``limit_output(references, fs)``, given ``{key: ImpulseResponse}`` with one pair's reference and the sampling
+        rate, returns that pair's output length in seconds, or None for the default. Used when ``duration`` is not
+        given and the method has a reference (an application trims its exports where the reference has decayed, and
+        can render no longer than that).
     directional_absorption : bool, default=True
         Weight each delay line with the reflection of the boundary it faces.
     late_envelope : {"omni", "directional", False}, optional
@@ -623,6 +648,7 @@ class Binaural(_HybridMethod):
         normalize=True,
         air=None,
         scattering=False,
+        limit_output=None,
     ):
         hrtf = "ku100" if hrtf is None else hrtf
         if hrtf != "ku100" and not Path(hrtf).is_file():
@@ -643,6 +669,7 @@ class Binaural(_HybridMethod):
             normalize=normalize,
             air=air,
             scattering=scattering,
+            limit_output=limit_output,
         )
         self.hrtf = hrtf
         self._hrtf_set = None
@@ -714,6 +741,7 @@ class Ambisonics(_HybridMethod):
         normalize=True,
         air=None,
         scattering=False,
+        limit_output=None,
     ):
         if normalization not in ("SN3D", "N3D"):
             raise ValueError(f"normalization must be 'SN3D' or 'N3D', not {normalization!r}")
@@ -735,6 +763,7 @@ class Ambisonics(_HybridMethod):
             normalize=normalize,
             air=air,
             scattering=scattering,
+            limit_output=limit_output,
         )
         self.sh_order = int(sh_order)
         self.normalization = normalization

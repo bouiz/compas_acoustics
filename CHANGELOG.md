@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+* Added `limit_output` to `Binaural` and `Ambisonics`: a callable that gives each pair's output length from that pair's own reference, when `duration` is not given.
+
 ### Changed
 
 ### Removed
