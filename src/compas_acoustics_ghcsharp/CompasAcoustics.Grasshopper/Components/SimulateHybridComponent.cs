@@ -5,7 +5,11 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using CompasAcoustics.Pb;
+using GH_IO.Serialization;
+using GH_IO.Types;
 using Grasshopper.Kernel;
+using Grasshopper.Kernel.Parameters;
+using Grasshopper.Kernel.Types;
 
 namespace CompasAcoustics.Grasshopper
 {
@@ -18,6 +22,54 @@ namespace CompasAcoustics.Grasshopper
         private HybridRun.LastResult? _last;
 
         protected SimulateHybridComponent(string key) : base(key) { }
+
+        /// <summary>
+        /// A definition saved with the Late envelope toggle that came before its modes keeps its choice: on reads as
+        /// directional, off as off. A shown toggle's boolean does not survive Grasshopper's read into the text input, so it
+        /// is taken from the saved input first; a hidden one is saved as True or False.
+        /// </summary>
+        public override bool Read(GH_IReader reader)
+        {
+            var toggle = SavedToggle(reader, "late_envelope");
+            var read = base.Read(reader);
+            if (ControlPort("late_envelope") is Param_String port)
+            {
+                var value = ControlState.PersistentAll(port).FirstOrDefault();
+                var mode = string.IsNullOrEmpty(value) ? toggle switch { true => "directional", false => "off", _ => null }
+                    : string.Equals(value, "true", StringComparison.OrdinalIgnoreCase) ? "directional"
+                    : string.Equals(value, "false", StringComparison.OrdinalIgnoreCase) ? "off"
+                    : null;
+                if (mode != null)
+                {
+                    port.PersistentData.Clear();
+                    port.PersistentData.Append(new GH_String(mode));
+                }
+            }
+            return read;
+        }
+
+        /// <summary>The boolean in the saved persistent data of the input ``name``, if it held one.</summary>
+        private static bool? SavedToggle(GH_IReader reader, string name)
+        {
+            for (var i = 0; reader.ChunkExists("param_input", i); i++)
+            {
+                var chunk = reader.FindChunk("param_input", i);
+                if (chunk.ItemExists("Name") && chunk.GetString("Name") == name)
+                    return chunk.FindChunk("PersistentData") is { } data ? FirstBoolean(data) : null;
+            }
+            return null;
+        }
+
+        private static bool? FirstBoolean(GH_IReader chunk)
+        {
+            foreach (var item in chunk.Items)
+                if (item.Type == GH_Types.gh_bool)
+                    return item._bool;
+            foreach (var child in chunk.Chunks)
+                if (child is GH_IReader inner && FirstBoolean(inner) is bool value)
+                    return value;
+            return null;
+        }
 
         /// <summary>The worker's method name, which is also the graph attribute of its responses.</summary>
         protected abstract string Method { get; }
@@ -40,7 +92,7 @@ namespace CompasAcoustics.Grasshopper
             .Concat(MethodControls)
             .Append(new DropdownControl("tail", HybridRun.Tails))
             .Append(new DropdownControl("diffraction", HybridRun.Diffraction))
-            .Append(new ToggleControl("late_envelope", "Late envelope", Inline: true))
+            .Append(new DropdownControl("late_envelope", HybridRun.LateEnvelopes))
             .Append(new ToggleControl("normalize", "Normalize", Inline: true))
             .Concat(MethodButtons)
             .Append(new ButtonControl("run", "Run"))
@@ -87,7 +139,7 @@ namespace CompasAcoustics.Grasshopper
             Dictionary<string, ImpulseResponseData>? references;
             try
             {
-                settings = HybridRun.Settings(tail, ismOrder, diffraction, Value<bool>(access, "late_envelope"), seed,
+                settings = HybridRun.Settings(tail, ismOrder, diffraction, Text(access, "late_envelope"), seed,
                     Value<bool>(access, "normalize"), reference, scene.SamplingRate, out references);
             }
             catch (ArgumentException e)

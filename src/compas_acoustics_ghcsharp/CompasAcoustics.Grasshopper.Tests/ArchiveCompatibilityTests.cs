@@ -63,6 +63,48 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(old.Params.Input.Single(p => p.Name == "sound_file").InstanceGuid, fresh.Params.Input.Single(p => p.Name == "sound_file").InstanceGuid);
         }
 
+        private static SimulateAmbisonicsComponent WithTheOldLateEnvelopeToggle(bool on)
+        {
+            // as saved before late_envelope took modes: a boolean input in the same place
+            var old = new SimulateAmbisonicsComponent();
+            var index = old.Params.Input.FindIndex(p => p.Name == "late_envelope");
+            old.Params.UnregisterInputParameter(old.Params.Input[index]);
+            var toggle = new Param_Boolean { Name = "late_envelope", NickName = "late_envelope", Optional = true };
+            toggle.PersistentData.Append(new GH_Boolean(on));
+            old.Params.RegisterInputParam(toggle, index);
+            return old;
+        }
+
+        [Theory]
+        [InlineData(true, "directional")]
+        [InlineData(false, false)]
+        public void ASimulateAmbisonicsSavedWithTheLateEnvelopeToggle_KeepsItsChoice(bool on, object expected)
+        {
+            var fresh = new SimulateAmbisonicsComponent();
+            var (archive, read) = SaveThenRead(WithTheOldLateEnvelopeToggle(on), fresh);
+            Assert.True(read);
+            Assert.Empty(Errors(archive));
+            var value = ControlState.PersistentAll(fresh.ControlPort("late_envelope")!).Single();
+            Assert.Contains(value, HybridRun.LateEnvelopes);
+            Assert.Equal(expected, HybridRun.LateEnvelope(value));
+        }
+
+        [Theory]
+        [InlineData(true, "directional")]
+        [InlineData(false, false)]
+        public void ASimulateAmbisonicsSavedWithTheLateEnvelopeToggleHidden_KeepsItsChoice(bool on, object expected)
+        {
+            var old = WithTheOldLateEnvelopeToggle(on);
+            old.ShowControlPorts(false);
+            var fresh = new SimulateAmbisonicsComponent();
+            var (archive, read) = SaveThenRead(old, fresh);
+            Assert.True(read);
+            Assert.Empty(Errors(archive));
+            var value = fresh.HiddenValue("late_envelope");
+            Assert.Contains(value, HybridRun.LateEnvelopes);
+            Assert.Equal(expected, HybridRun.LateEnvelope(value));
+        }
+
         [Fact]
         public void ASavedSimulateMono_IsFoundByItsGuid_AndReadsItsPortsByName()
         {

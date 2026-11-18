@@ -20,7 +20,8 @@ sources is what they do not carry.
 - Nine bands, 63 Hz to 16 kHz: the top band of a reconstructing bank takes everything above its lower edge, so
   a 16 kHz band keeps the energy above 11.3 kHz out of the 8 kHz estimate; 16 kHz takes the 8 kHz gain.
 
-With a directional histogram, :func:`shape_late` also takes the detection sphere divided into directivity groups,
+With a directional histogram (the methods' ``late_envelope="directional"``; their default ``"omni"`` passes none),
+:func:`shape_late` also takes the detection sphere divided into directivity groups,
 each holding a histogram per frequency band (Lentz, Schroeder and Vorlaender 2007, Sec. 2.4 and Fig. 6; Schroeder
 2011, Sec. 5.3.4). Schroeder averages the bands into one hit probability per group, as every Poisson event there takes
 one broadband HRIR; the network's lines are shaped per band anyway, so here each band keeps its own: in band b
@@ -57,7 +58,9 @@ from scipy.signal import fftconvolve
 SMOOTH_MS = 100.0
 # a reference this far from the hybrid over its first 50 ms is on another scale
 SCALE_WARN_DB = 6.0
-# the standard deviation of a direction's energy over one slot that sets the histogram's ray count
+# the standard deviation of a direction's energy over one slot that sets the ray count of the reference and its
+# directional histogram. At this count the decay fitted to one reference varies by one to two just noticeable
+# differences of the reverberation time between ray seeds (640 m3 office); a reference given with more rays lowers it
 SHARE_ERROR_DB = 1.0
 
 _TOP_BAND_HZ = 16000.0
@@ -275,7 +278,8 @@ def histogram_rays(volume: float, receiver_radius: float, speed_of_sound: float,
     4.34 / sqrt(hits) dB (Eq. 11.20). One of n directions holds 1 / n of the hits. The Hann window of
     ``SMOOTH_MS`` and :func:`smooth_over_directions` weight them, and a weighted sum of Poisson counts has the
     error of ``sum(w) ** 2 / sum(w ** 2)`` equal ones: 2/3 of the window, and the mean of that ratio over the
-    kernel's rows.
+    kernel's rows. The methods trace their own reference with this count in both late-envelope modes, so that
+    ``"omni"`` and ``"directional"`` shape the late field to one reference.
     """
     weights = _pooling_weights(directions)
     pooled = float(np.mean(1.0 / np.sum(weights**2, axis=1)))

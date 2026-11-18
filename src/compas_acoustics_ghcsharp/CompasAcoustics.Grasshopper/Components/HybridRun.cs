@@ -12,6 +12,20 @@ namespace CompasAcoustics.Grasshopper
         // first item is the default
         public static readonly string[] Tails = { "auto", "reference", "ray_tracing", "eyring", "sabine" };
         public static readonly string[] Diffraction = { "none", "udfa", "btms" };
+        public static readonly string[] LateEnvelopes = { "auto", "omni", "directional", "off" };
+
+        /// <summary>
+        /// What the methods take for the Late envelope choice: null for auto (the method's own default by tail), the mode, or
+        /// false for off. A definition saved with the on/off toggle that came before holds True or False.
+        /// </summary>
+        public static object? LateEnvelope(string? choice) => choice?.Trim().ToLowerInvariant() switch
+        {
+            null or "" or "auto" => null,
+            "omni" => "omni",
+            "directional" or "true" => "directional",
+            "off" or "false" => false,
+            _ => choice,
+        };
 
         /// <summary>The responses of the last run, for the scene they were simulated for, and the run's description.</summary>
         public sealed record LastResult(string SceneGuid, IrGraphGoo Graph, IReadOnlyDictionary<string, object?> Generation);
@@ -20,7 +34,7 @@ namespace CompasAcoustics.Grasshopper
         /// The settings both methods take: unset inputs are left out so that the method's own defaults apply, an empty seed
         /// draws a new one. ``references`` are the mono responses of a reference graph by pair key.
         /// </summary>
-        public static Dictionary<string, object?> Settings(string? tail, int? ismOrder, string? diffraction, bool? lateEnvelope, int? seed,
+        public static Dictionary<string, object?> Settings(string? tail, int? ismOrder, string? diffraction, string? lateEnvelope, int? seed,
             bool? normalize, IrGraphGoo? reference, int sceneSamplingRate, out Dictionary<string, ImpulseResponseData>? references)
         {
             references = null;
@@ -41,7 +55,7 @@ namespace CompasAcoustics.Grasshopper
                 ["tail"] = string.IsNullOrEmpty(tail) || tail == "auto" ? null : tail,
                 ["image_source_order"] = ismOrder is int ism ? (long)ism : null,
                 ["diffraction"] = string.IsNullOrEmpty(diffraction) || diffraction == "none" ? null : diffraction,
-                ["late_envelope"] = lateEnvelope,
+                ["late_envelope"] = LateEnvelope(lateEnvelope),
                 // the method's own default is a fixed seed; an empty input draws a new one each run
                 ["seed"] = (long)(seed ?? Random.Shared.Next(int.MaxValue)),
                 ["normalize"] = normalize,

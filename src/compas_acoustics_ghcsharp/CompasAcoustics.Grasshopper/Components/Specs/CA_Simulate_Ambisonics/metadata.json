@@ -91,10 +91,10 @@
             },
             {
                 "name": "late_envelope",
-                "description": "Shape the late field: its level per band to the reference's late energy, and each delay line to its direction's share of the ray-traced energy (default True; off for an Eyring or Sabine tail).",
+                "description": "How the late field follows the reference: auto (omni with a reference or ray-traced tail, off for an Eyring or Sabine tail), omni (its level per band to the reference's late energy), directional (as omni, and each delay line to its direction's share of the ray-traced energy), or off.",
                 "optional": true,
                 "scriptParamAccess": 0,
-                "typeHintID": "bool"
+                "typeHintID": "str"
             },
             {
                 "name": "seed",

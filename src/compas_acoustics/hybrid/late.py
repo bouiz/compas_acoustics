@@ -11,9 +11,24 @@ import pyfar as pf
 import pyFDN
 import spharpy
 from pyFDN.td import SOSBank
+from scipy.signal._sosfilt import _sosfilt
 
 from .pair import Pair
 from .target import RoomTarget
+
+
+class _SOSBank(SOSBank):
+    """pyFDN's cascade per line with the kernel of ``scipy.signal.sosfilt`` called directly, on the same state.
+
+    The network filters every line once per block, at most its shortest delay long, where ``sosfilt``'s checks of
+    its arguments take longer than the filtering; the output is bit-identical.
+    """
+
+    def process_block(self, block):
+        out = np.array(np.asarray(block, dtype=float).T, order="C")
+        for i in range(self.in_channels):
+            _sosfilt(self.sos[i], out[i : i + 1], self._state[i : i + 1])
+        return out.T
 
 
 #: Fewest delay lines at any ambisonic order: Kirsch, Wendt and van de Par (2023, Secs. 1.2 and 3.3) use 96
@@ -208,18 +223,18 @@ def render(
 
     def heard_from_the_lines(out, filters):
         if line_eq is not None:
-            out = SOSBank(line_eq).process_signal(out)
+            out = _SOSBank(line_eq).process_signal(out)
         if filters["post_output"] is not None:
             weight = np.asarray(filters["post_output"], dtype=float)[:, :, :1]
-            out = SOSBank(np.repeat(weight, n_delays, axis=2)).process_signal(out)
+            out = _SOSBank(np.repeat(weight, n_delays, axis=2)).process_signal(out)
         return out
 
     total = np.zeros((n_samples, n_delays), dtype=float)
     for dss, filters in builds:
-        post_delay = SOSBank(filters["post_delay"]) if filters["post_delay"] is not None else None
+        post_delay = _SOSBank(filters["post_delay"]) if filters["post_delay"] is not None else None
         heard = None
         if tap is not None:
-            heard = SOSBank(filters["post_delay"]).process_signal(tap) if filters["post_delay"] is not None else tap
+            heard = _SOSBank(filters["post_delay"]).process_signal(tap) if filters["post_delay"] is not None else tap
         line_input = drive if heard is None else drive + heard @ np.asarray(dss.A).T
         network = pyFDN.dss_to_td(dss.delays, dss.A, identity, identity, no_direct, post_delay=post_delay)
         total += heard_from_the_lines(np.asarray(network.process_signal(line_input), dtype=float), filters)

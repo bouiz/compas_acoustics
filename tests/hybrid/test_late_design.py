@@ -157,6 +157,18 @@ def test_render_matches_pyfdn_for_an_impulse_through_b():
     np.testing.assert_allclose(render([(dss, filters)], drive) @ dss.C.T, pyFDN.dss_to_td(*dss, **filters).impulse_response(n_samples)[:, :, 0], atol=1e-9)
 
 
+def test_the_lines_filters_are_pyfdns_bit_for_bit_block_by_block():
+    from pyFDN.td import SOSBank
+
+    from compas_acoustics.hybrid.late import _SOSBank
+
+    sos = design_fdn(target_with([1.2, 1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4]), delays_of(16))[0][1]["post_delay"]
+    signal = np.random.default_rng(0).standard_normal((3000, 16))
+    ours, theirs = _SOSBank(sos), SOSBank(sos)
+    for start, stop in ((0, 1), (1, 500), (500, 501), (501, 3000)):
+        assert np.array_equal(ours.process_block(signal[start:stop]), theirs.process_block(signal[start:stop]))
+
+
 def test_a_single_line_emerges_after_that_lines_delay():
     delays = delays_of(16)
     builds = design_fdn(target_with(), delays)
