@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 * Added `compas_acoustics.progress.reporting(callback)`: follow a simulation's stages from any caller, and stop it by raising from the callback, without the worker.
+* Added `SpecularPath.band_gain` (walls, air and spreading per band) and `rays.diffracted_paths(scene)`: the UDFA paths with their polylines (`DiffractionPath.points`), zones and band gains, for display.
+* Added `AcousticMaterial.from_pyroomacoustics(name)` and `pyroomacoustics_material_names()`. `MaterialsLibrary.material_from_name` falls back to pyroomacoustics' database for a name the library lacks.
 
 ### Changed
 
