@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 * Added `Analyser(ir, channel=...)` (any channel, no warning), `Analyser.decay_curves()` (the energy decay curve per band) and `Analyser.reliability()`. The latter gives, per band, the dynamic range the decay offers, ISO 3382-2's non-linearity of the T20 and T30 fits, and whether EDT, T20 and T30 can be trusted.
+* Added `Analyser.analyse(parameters=...)`: only the requested parameters, and the methods they need, are computed. For example, `("T30", "EDT", "C50", "C80", "D50", "STI")` skips the sound strength, the DRR, the centre time and the lateral fractions.
+* Added `compas_acoustics.analyser.decay_end(ir, trim_db, margin)` (it was private): where a response's Schroeder curve has fallen `trim_db`, to cut a response where its reverberation has decayed rather than at the level of its direct sound.
 
 ### Changed
 
@@ -17,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Changed `Binaural` and `Ambisonics` with a given `Mono` reference at their `image_source_order` to take the early field's images from the reference's own image source search (`room.reflections.damping_as_searched`), as a ray-tracing tail does, in place of a second search of the room; the responses are bit-identical.
 * Changed `Binaural` and `Ambisonics` to render the source-receiver pairs on threads, as many as fit in about 4 GB at a pair's peak memory; the responses are bit-identical and in the same order.
 * Changed the hybrid's feedback delay network to filter its lines with the kernel of `scipy.signal.sosfilt` called directly, without that function's checks of its arguments in every block; the responses are bit-identical, the network about twice as fast.
+* Changed the `Analyser` to compute the same results 5 to 10 times faster:
 
 ### Removed
 
