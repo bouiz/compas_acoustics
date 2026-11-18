@@ -20,7 +20,8 @@ sources is what they do not carry.
 - Nine bands, 63 Hz to 16 kHz: the top band of a reconstructing bank takes everything above its lower edge, so
   a 16 kHz band keeps the energy above 11.3 kHz out of the 8 kHz estimate; 16 kHz takes the 8 kHz gain.
 
-With a directional histogram, :func:`shape_late` also takes the detection sphere divided into directivity groups,
+With a directional histogram (the methods' ``late_envelope="directional"``; their default ``"omni"`` passes none),
+:func:`shape_late` also takes the detection sphere divided into directivity groups,
 each holding a histogram per frequency band (Lentz, Schroeder and Vorlaender 2007, Sec. 2.4 and Fig. 6; Schroeder
 2011, Sec. 5.3.4). Schroeder averages the bands into one hit probability per group, as every Poisson event there takes
 one broadband HRIR; the network's lines are shaped per band anyway, so here each band keeps its own: in band b

@@ -1,7 +1,7 @@
 """The hybrid methods :class:`Binaural` and :class:`Ambisonics`: image sources, optional edge diffraction, a directional FDN.
 
 One image source search serves every pair and, with a ray-tracing tail, the reference too, whose one ray trace also
-gives the directional histograms; each pair is prepared by :func:`compas_acoustics.hybrid.synthesis.prepare`
+gives the directional histograms with ``late_envelope="directional"``; each pair is prepared by :func:`compas_acoustics.hybrid.synthesis.prepare`
 and rendered by :func:`~compas_acoustics.hybrid.binaural.render_binaural` or
 :func:`~compas_acoustics.hybrid.ambisonics.render_ambisonics`.
 """
@@ -77,6 +77,8 @@ class _HybridMethod(SimulationMethod):
             raise ValueError("tail='reference' needs a reference")
         if tail in ("ray_tracing", "eyring", "sabine") and reference is not None:
             raise ValueError(f"tail={tail!r} takes no reference; pass tail='reference' or leave tail out to use it")
+        if late_envelope is not None and late_envelope is not False and late_envelope not in ("directional", "omni"):
+            raise ValueError(f"late_envelope must be 'directional', 'omni' or False, not {late_envelope!r}")
         if tail in ("eyring", "sabine"):
             if n_slopes != 1:
                 raise ValueError(f"an {tail} tail has one decay slope; n_slopes must be 1, not {n_slopes!r}")
@@ -97,7 +99,9 @@ class _HybridMethod(SimulationMethod):
         self.decay_db = decay_db
         self.duration = duration
         self.directional_absorption = directional_absorption
-        self.late_envelope = self.tail not in ("eyring", "sabine") if late_envelope is None else bool(late_envelope)
+        if late_envelope is None:
+            late_envelope = False if self.tail in ("eyring", "sabine") else "omni"
+        self.late_envelope = late_envelope
         self.diffraction = model
         self.air_absorption = air_absorption
         self.seed = _seed(seed)
@@ -136,7 +140,7 @@ class _HybridMethod(SimulationMethod):
         from compas_acoustics.worker import jobs
 
         grid = directions = None
-        if self.late_envelope:
+        if self.late_envelope == "directional":
             grid = fdn_directions(self.num_delays).cartesian
             grid = grid / np.linalg.norm(grid, axis=1, keepdims=True)
             directions = [grid @ rotations[id(receiver)].T for receiver in context.receivers]
@@ -190,7 +194,7 @@ class _HybridMethod(SimulationMethod):
         if run is not None and run.histograms is not None:
             histograms = run.histograms
             generation["histogram_rays"] = int(run.room.rt_args["n_rays"])
-        elif self.late_envelope:
+        elif self.late_envelope == "directional":
             from compas_acoustics.room.raytracing import directional_histograms
 
             jobs.progress("directional histograms")
@@ -300,7 +304,7 @@ class _HybridMethod(SimulationMethod):
         :class:`~compas_acoustics.room.raytracing.RayTracedRun` of a reference the method traces itself, else None.
 
         That reference is ``Mono(ray_tracing=True)`` at the method's image source order, seed and air, as long as
-        the longer of ``duration`` and the mono default, and, with the late envelope, with the histogram's rays: its
+        the longer of ``duration`` and the mono default, and, with the directional late envelope, with the histogram's rays: its
         one search and trace also give the early field's images and, on ``directions`` (the lines' per receiver, in
         room coordinates), the histograms.
         """
@@ -394,13 +398,19 @@ _ENGINE_PARAMETERS = """
         reference takes ``duration``. A reference shorter than 2/3 of its reverberation time warns.
     directional_absorption : bool, default=True
         Weight each delay line with the reflection of the boundary it faces.
-    late_envelope : bool, optional
-        Shape the late field: attenuated per band to the reference's late energy, each delay line given, per
-        octave band, its direction's share of the energy the rays bring in that band (directional histogram,
-        Schroeder 2011). The rays are traced with ``Mono(ray_tracing=True)``'s settings at ``image_source_order``,
-        also with a given reference, as many as give a direction's energy a standard deviation of 1 dB
-        (Vorlaender 2020, Eq. 11.20); with a ray-tracing tail they are the reference's own rays. Default on
-        for a reference or ray-tracing tail; an Eyring or Sabine tail has no reference, so ``True`` raises.
+    late_envelope : {"omni", "directional", False}, optional
+        How the late field follows the reference. ``"omni"``: attenuated per band to the reference's late energy;
+        the delay lines keep the network's spread over directions, weighted only by ``directional_absorption``.
+        ``"directional"``: as ``"omni"``, and each delay line given, per octave band, its direction's share of the
+        energy the rays bring in that band (directional histogram, Schroeder 2011). The rays are traced with
+        ``Mono(ray_tracing=True)``'s settings at ``image_source_order``, also with a given reference, as many as
+        give a direction's energy a standard deviation of 1 dB (Vorlaender 2020, Eq. 11.20); with a ray-tracing
+        tail they are the reference's own rays. ``False``: the network's own decay to the target, no shaping.
+        Default ``"omni"`` for a reference or ray-tracing tail. This default is the package's choice: in offices
+        the traced late directions mix less than measured ones and those of other geometrical-acoustics models,
+        so the shares exaggerate the late anisotropy and change with the rays; ``"directional"`` follows the rays
+        where their directions hold. An Eyring or Sabine tail has no reference: its default is ``False``, and
+        ``"omni"`` or ``"directional"`` raises.
     diffraction : {False, True, "udfa", "btms"}, default=False
         Edge diffraction around obstacles and at room edges that open wider than 180 deg; ``True`` is
         ``"udfa"``. ``"btms"`` is far slower than ``"udfa"``.

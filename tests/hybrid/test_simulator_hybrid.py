@@ -285,14 +285,14 @@ def test_the_reference_is_on_the_scale_of_the_hybrid():
     refs = references(scene)
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        scene.simulate(Ambisonics(refs, late_envelope=True, **FAST))
+        scene.simulate(Ambisonics(refs, late_envelope="directional", **FAST))
     assert not [w for w in caught if "differs from the hybrid" in str(w.message)]
 
 
 def test_diffraction_and_the_late_envelope_run():
     scene = make(panel=True)
     refs = references(scene)
-    for options in (dict(diffraction=True), dict(late_envelope=True)):
+    for options in (dict(diffraction=True), dict(late_envelope="directional"), dict(late_envelope="omni")):
         (ir,) = scene.simulate(Ambisonics(refs, **FAST, **options)).values()
         assert np.all(np.isfinite(ir.ir))
 
@@ -326,7 +326,9 @@ def test_a_graph_name_a_dict_and_a_method_give_the_same_result():
         {"tail": "eyring", "reference": "mono"},
         {"tail": "ray_tracing", "reference": "mono"},
         {"tail": "eyring", "n_slopes": 2},
-        {"tail": "eyring", "late_envelope": True},
+        {"tail": "eyring", "late_envelope": "directional"},
+        {"tail": "sabine", "late_envelope": "omni"},
+        {"late_envelope": True},
         {"tail": "air"},
         {"diffraction": "btm"},
         {"normalization": "FuMa"},
@@ -340,9 +342,9 @@ def test_conflicting_settings_raise_at_construction(kwargs):
 def test_tail_defaults():
     assert Ambisonics().tail == "ray_tracing"
     assert Ambisonics(reference="mono").tail == "reference"
-    assert Ambisonics().late_envelope and Ambisonics(reference="data").late_envelope
-    assert not Ambisonics(tail="eyring").late_envelope and not Ambisonics(tail="sabine").late_envelope
-    assert not Ambisonics(late_envelope=False).late_envelope
+    assert Ambisonics().late_envelope == "omni" and Ambisonics(reference="data").late_envelope == "omni"
+    assert Ambisonics(tail="eyring").late_envelope is False and Ambisonics(tail="sabine").late_envelope is False
+    assert Ambisonics(late_envelope=False).late_envelope is False
 
 
 def test_eyring_in_an_uneven_room_warns():
@@ -370,10 +372,10 @@ def test_an_image_source_only_reference_warns():
 def test_normalized_references_give_the_raw_level_result():
     scene = make()
     refs = references(scene)
-    normalized = scene.simulate(Ambisonics(reference=refs, late_envelope=True, seed=0, **FAST))
+    normalized = scene.simulate(Ambisonics(reference=refs, late_envelope="directional", seed=0, **FAST))
     for ir in refs.values():
         ir.normalized = False
-    raw = scene.simulate(Ambisonics(reference=refs, late_envelope=True, seed=0, **FAST))
+    raw = scene.simulate(Ambisonics(reference=refs, late_envelope="directional", seed=0, **FAST))
     for key in normalized:
         np.testing.assert_allclose(normalized[key].denormalized(), raw[key].denormalized())
 
@@ -551,7 +553,7 @@ def test_the_directional_histograms_trace_the_rays_of_a_1_db_share_error(monkeyp
         scene.add_source(Source("src", 2.0, 4.0, 1.5))
         scene.add_receiver(Receiver("rec", 8.0, 4.0, 1.5))
         with pytest.raises(Traced) as traced:
-            scene.simulate(Ambisonics(Mono(n_rays=2000, duration=0.5) if given else None, sh_order=1, duration=0.5, late_envelope=True))
+            scene.simulate(Ambisonics(Mono(n_rays=2000, duration=0.5) if given else None, sh_order=1, duration=0.5, late_envelope="directional"))
         wanted = histogram_rays(float(np.prod(size)), 0.5, speed, grid)
         assert (wanted < 20_000) == below
         assert traced.value.args[0] == wanted
@@ -562,10 +564,11 @@ def test_the_generation_record_holds_the_histogram_rays():
     from compas_acoustics.hybrid.late import fdn_directions
 
     scene = make()
-    (ir,) = scene.simulate(Ambisonics(references(scene), sh_order=1, duration=0.5)).values()
+    (ir,) = scene.simulate(Ambisonics(references(scene), sh_order=1, duration=0.5, late_envelope="directional")).values()
     assert ir.generation["histogram_rays"] == histogram_rays(320.0, 0.5, AirConditions().speed_of_sound, fdn_directions(96).cartesian)
-    (ir,) = scene.simulate(Ambisonics(references(scene), sh_order=1, duration=0.5, late_envelope=False)).values()
-    assert ir.generation["histogram_rays"] is None
+    for mode in ("omni", False):
+        (ir,) = scene.simulate(Ambisonics(references(scene), sh_order=1, duration=0.5, late_envelope=mode)).values()
+        assert ir.generation["histogram_rays"] is None
 
 
 def test_a_silent_reference_is_refused_by_the_names_of_its_pair():
@@ -585,10 +588,10 @@ def test_a_traced_reference_shares_its_search_and_rays_with_the_early_field_and_
 
     settings = dict(image_source_order=2, seed=7)
     scene = make(panel=True)
-    shared = Ambisonics(sh_order=1, scattering=scattering, **settings)
+    shared = Ambisonics(sh_order=1, scattering=scattering, late_envelope="directional", **settings)
     rirs = scene.simulate(shared)
     n_rays = histogram_rays(320.0, 0.5, AirConditions().speed_of_sound, fdn_directions(96).cartesian)
-    given = Ambisonics(Mono(n_rays=n_rays, **settings), sh_order=1, scattering=scattering, **settings)
+    given = Ambisonics(Mono(n_rays=n_rays, **settings), sh_order=1, scattering=scattering, late_envelope="directional", **settings)
     again = make(panel=True).simulate(given)
     (ir,) = rirs.values()
     (other,) = again.values()
@@ -598,3 +601,36 @@ def test_a_traced_reference_shares_its_search_and_rays_with_the_early_field_and_
     assert reference.generation["n_rays"] == ir.generation["histogram_rays"] == n_rays
     assert np.array_equal(reference.ir, expected.ir)
     assert np.array_equal(ir.ir, other.ir)
+
+
+def test_omni_traces_no_histogram(monkeypatch):
+    """With a given reference no directional histogram is traced; with a ray-traced one the reference traces none."""
+    import compas_acoustics.room.raytracing as raytracing
+
+    def refuse(*args, **kwargs):
+        raise AssertionError("a directional histogram was traced")
+
+    scene = make()
+    refs = references(scene)
+    monkeypatch.setattr(raytracing, "directional_histograms", refuse)
+    for method in (Ambisonics(refs, late_envelope="omni", **FAST), Ambisonics(tail="ray_tracing", late_envelope="omni", **FAST)):
+        (ir,) = scene.simulate(method).values()
+        (result,) = method.results.values()
+        assert result.core.directional_envelope is None
+        assert result.core.late_envelope is not None
+        assert ir.generation["histogram_rays"] is None
+
+
+def test_omni_keeps_the_early_field():
+    scene = make()
+    refs = references(scene)
+    directional, omni = (Ambisonics(refs, late_envelope=mode, seed=0, **FAST) for mode in ("directional", "omni"))
+    scene.simulate(directional)
+    scene.simulate(omni)
+    (d,), (o,) = directional.results.values(), omni.results.values()
+    np.testing.assert_array_equal(d.early, o.early)
+    fs = d.core.fs
+    a = int(round((np.linalg.norm(d.core.spec.source - d.core.spec.receiver) / d.core.spec.speed_of_sound + 0.08) * fs))
+    level = 10 * np.log10(np.sum(o.rir[a:, 0] ** 2) / np.sum(d.rir[a:, 0] ** 2))
+    assert abs(level) < 1.0
+    assert not np.allclose(d.late, o.late)

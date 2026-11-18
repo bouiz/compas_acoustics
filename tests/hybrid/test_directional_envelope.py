@@ -313,27 +313,46 @@ def test_the_directional_envelope_quietens_the_lines_facing_the_absorbing_wall()
     kwargs = dict(tail="ray_tracing", duration=0.8, directional_absorption=False)
     plain = ca.Ambisonics(late_envelope=False, **kwargs)
     asymmetric_scene().simulate(plain)
-    directional = ca.Ambisonics(late_envelope=True, **kwargs)
+    directional = ca.Ambisonics(late_envelope="directional", **kwargs)
     ir = next(iter(asymmetric_scene().simulate(directional).values()))
-    assert ir.generation["late_envelope"] is True
+    assert ir.generation["late_envelope"] == "directional"
     (plain,), (directional,) = plain.results.values(), directional.results.values()
     assert abs(late_level_by_x(plain)) < 1.0
     assert late_level_by_x(directional) < -1.5
 
 
+def test_the_omni_envelope_leaves_the_lines_alike():
+    """Without the rays' shares the lines keep the network's even spread over directions."""
+    omni = ca.Ambisonics(late_envelope="omni", tail="ray_tracing", duration=0.8, directional_absorption=False)
+    ir = next(iter(asymmetric_scene().simulate(omni).values()))
+    assert ir.generation["late_envelope"] == "omni"
+    assert ir.generation["histogram_rays"] is None
+    (result,) = omni.results.values()
+    assert result.core.directional_envelope is None
+    assert abs(late_level_by_x(result)) < 1.0
+
+
 def test_the_histogram_follows_the_receivers_orientation():
     """Facing -x, the absorbing wall is in front: the quiet lines are those at +x of the receiver's frame."""
-    kwargs = dict(tail="ray_tracing", duration=0.8, directional_absorption=False, late_envelope=True)
+    kwargs = dict(tail="ray_tracing", duration=0.8, directional_absorption=False, late_envelope="directional")
     turned = ca.Ambisonics(**kwargs)
     asymmetric_scene(direction=[-1, 0, 0]).simulate(turned)
     (result,) = turned.results.values()
     assert late_level_by_x(result) > 1.5
 
 
-def test_the_envelope_is_on_by_default_and_needs_a_reference():
-    assert ca.Ambisonics().late_envelope is True
-    with pytest.raises(ValueError, match="late_envelope"):
-        ca.Ambisonics(tail="eyring", late_envelope=True)
+def test_the_late_envelope_values():
+    assert ca.Ambisonics().late_envelope == "omni"
+    assert ca.Ambisonics(reference="mono").late_envelope == "omni"
+    assert ca.Ambisonics(tail="eyring").late_envelope is False
+    assert ca.Ambisonics(late_envelope="directional").late_envelope == "directional"
+    assert ca.Binaural(late_envelope=False).late_envelope is False
+    for value in (True, "on", "Omni", 1):
+        with pytest.raises(ValueError, match="'directional', 'omni' or False"):
+            ca.Ambisonics(late_envelope=value)
+    for value in ("omni", "directional"):
+        with pytest.raises(ValueError, match="late_envelope"):
+            ca.Ambisonics(tail="sabine", late_envelope=value)
 
 
 def test_the_band_shares_need_no_more_memory_than_the_band_split():
