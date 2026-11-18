@@ -17,6 +17,7 @@ from compas_acoustics.hybrid.diffraction import diffraction_edges
 from compas_acoustics.hybrid.diffraction import enclosure_edges
 from compas_acoustics.hybrid.diffraction import encode_diffraction
 from compas_acoustics.simulation_methods import Ambisonics
+from compas_acoustics.simulation_methods import Binaural
 from compas_acoustics.simulation_methods import Mono
 from compas_acoustics.simulation_methods import SimulationContext
 from compas_acoustics.room.air import AirConditions
@@ -612,6 +613,30 @@ def test_a_given_mono_reference_at_the_methods_order_lends_its_search_to_the_ear
     by_method = scene.simulate(Ambisonics(Mono(**FAST_RT), **settings))
     for key, ir in by_dict.items():
         assert np.array_equal(by_method[key].ir, ir.ir)
+
+
+@pytest.mark.parametrize("method", [Ambisonics, Binaural])
+def test_pairs_rendered_together_on_threads_are_each_as_rendered_alone(method):
+    sources = [Source("src", 2.0, 4.0, 1.5), Source("other", 6.0, 2.0, 1.2)]
+    receivers = [Receiver("a", 8.0, 4.0, 1.5), Receiver("b", 3.0, 6.0, 1.2, direction=[0, 1, 0])]
+
+    def scene_of(sources, receivers):
+        scene = Scene("test")
+        scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(10, 8, 4, materials=WALL))
+        for item in sources:
+            scene.add_source(item)
+        for item in receivers:
+            scene.add_receiver(item)
+        return scene
+
+    together = method(tail="eyring", seed=0, **FAST)
+    rirs = scene_of(sources, receivers).simulate(together)
+    keys = [SimulationContext.key(source, receiver) for source in sources for receiver in receivers]
+    assert list(rirs) == list(together.results) == keys
+    for source in sources:
+        for receiver in receivers:
+            (alone,) = scene_of([source], [receiver]).simulate(method(tail="eyring", seed=0, **FAST)).values()
+            assert np.array_equal(rirs[SimulationContext.key(source, receiver)].ir, alone.ir)
 
 
 @pytest.mark.parametrize("order, searches", [(3, 1), (2, 2)])

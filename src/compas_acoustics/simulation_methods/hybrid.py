@@ -9,8 +9,11 @@ and rendered by :func:`~compas_acoustics.hybrid.binaural.render_binaural` or
 
 from __future__ import annotations
 
+import os
+import threading
 import warnings
 from abc import abstractmethod
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from pathlib import Path
 
@@ -24,6 +27,7 @@ from compas_acoustics.hybrid.late import MIN_DELAYS
 from compas_acoustics.hybrid.late import fdn_directions
 from compas_acoustics.hybrid.pair import Pair
 from compas_acoustics.hybrid.scattering import complementary_scattering
+from compas_acoustics.hybrid.synthesis import HybridResult
 from compas_acoustics.hybrid.synthesis import prepare
 from compas_acoustics.hybrid.target import RoomTarget
 from compas_acoustics.ir import ImpulseResponse
@@ -43,6 +47,8 @@ from .base import _warn_if_the_search_is_slow
 from .pra import Mono
 
 __all__ = ["Binaural", "Ambisonics", "TAILS"]
+
+_HRTF_LOCK = threading.Lock()
 
 #: Where the decay target of the late field comes from.
 TAILS = ("reference", "ray_tracing", "eyring", "sabine")
@@ -113,8 +119,8 @@ class _HybridMethod(SimulationMethod):
         self.results = {}
 
     @abstractmethod
-    def _response(self, core, key, source, receiver, generation) -> ImpulseResponse:
-        """Render ``core`` in the method's format, keep the rendering in :attr:`results`, and wrap it."""
+    def _response(self, core, key, source, receiver, generation) -> tuple[HybridResult, ImpulseResponse]:
+        """``core`` rendered in the method's format, and that rendering as the pair's response."""
 
     def compute(self, context: SimulationContext) -> dict:
         fs = context.sampling_rate
@@ -220,11 +226,10 @@ class _HybridMethod(SimulationMethod):
                 air=air,
             )
 
-        rirs = {}
+        pairs = []
         for s, source in enumerate(context.sources):
             directivity = None if source.directivity == "omnidirectional" else directivity_to_pra(source.directivity, source.direction)
             for m, receiver in enumerate(context.receivers):
-                jobs.progress("rendering", s * len(context.receivers) + m, len(context.sources) * len(context.receivers))
                 key = context.key(source, receiver)
                 spec = Pair(
                     geometry=geometry,
@@ -249,29 +254,50 @@ class _HybridMethod(SimulationMethod):
                     self._check_reference_length(reference.size / fs, target, eyring_rt, key)
                 else:
                     target = RoomTarget.from_room(spec, model=self.tail)
-                core = prepare(
+                iss = image_sources(
+                    room,
+                    s,
+                    m,
                     spec,
-                    image_sources(
-                        room,
-                        s,
-                        m,
-                        spec,
-                        directivity,
-                        damping=None if damping is None else damping[s],
-                        scattered=None if scattered is None else scattered[s],
-                    ),
-                    target,
-                    max_order=self.image_source_order,
-                    duration_s=self.duration,
-                    num_delays=self.num_delays,
-                    directional_absorption=self.directional_absorption,
-                    late_envelope=reference if self.late_envelope else None,
-                    directional_envelope=histograms[m][s] if histograms is not None else None,
-                    diffraction=self.diffraction or False,
-                    rng=rng,
-                    scattering=self.scattering,
+                    directivity,
+                    damping=None if damping is None else damping[s],
+                    scattered=None if scattered is None else scattered[s],
                 )
-                rirs[key] = self._response(core, key, source, receiver, generation)
+                pairs.append((key, source, receiver, spec, iss, target, reference, histograms[m][s] if histograms is not None else None))
+
+        def rendered(pair):
+            key, source, receiver, spec, iss, target, reference, histogram = pair
+            core = prepare(
+                spec,
+                iss,
+                target,
+                max_order=self.image_source_order,
+                duration_s=self.duration,
+                num_delays=self.num_delays,
+                directional_absorption=self.directional_absorption,
+                late_envelope=reference if self.late_envelope else None,
+                directional_envelope=histogram,
+                diffraction=self.diffraction or False,
+                rng=rng,
+                scattering=self.scattering,
+            )
+            return self._response(core, key, source, receiver, generation)
+
+        # The pairs render on threads, as many as fit in 4 GB at a pair's peak of about 17 arrays of
+        # (n_samples, num_delays); each renders as alone, and the results are kept in the pairs' order.
+        longest = max(self.duration if self.duration is not None else 1.5 * float(np.max(pair[5].rt)) for pair in pairs)
+        peak = 17 * np.ceil(longest * fs) * self.num_delays * 8
+        workers = max(1, min(len(pairs), os.cpu_count() or 1, int(4e9 // peak)))
+        rirs = {}
+        with ThreadPoolExecutor(workers) as pool:
+            futures = [pool.submit(rendered, pair) for pair in pairs]
+            try:
+                for i, (pair, future) in enumerate(zip(pairs, futures)):
+                    jobs.progress("rendering", i, len(pairs))
+                    self.results[pair[0]], rirs[pair[0]] = future.result()
+            except BaseException:
+                pool.shutdown(cancel_futures=True)
+                raise
         return rirs
 
     def _built(self, geometry, context, air, ray_tracing: bool):
@@ -525,11 +551,12 @@ class Binaural(_HybridMethod):
         from compas_acoustics.hybrid.binaural import render_binaural
 
         path = DEFAULT_HRTF if self.hrtf == "ku100" else Path(self.hrtf)
-        # loaded once per run, again only when the set or the rate changed since
-        if self._hrtf_loaded != (path, int(core.fs)):
-            self._hrtf_set, self._hrtf_loaded = HrtfSet.from_sofa(path, int(core.fs)), (path, int(core.fs))
-        result = self.results[key] = render_binaural(core, self._hrtf_set)
-        return ImpulseResponse(
+        # loaded once per run by the first pair to get here, again only when the set or the rate changed since
+        with _HRTF_LOCK:
+            if self._hrtf_loaded != (path, int(core.fs)):
+                self._hrtf_set, self._hrtf_loaded = HrtfSet.from_sofa(path, int(core.fs)), (path, int(core.fs))
+        result = render_binaural(core, self._hrtf_set)
+        return result, ImpulseResponse(
             name=key, source=source, receiver=receiver, ir=result.rir, sampling_rate=int(core.fs), normalized=self.normalize, generation=dict(generation, hrtf=path.name)
         )
 
@@ -602,8 +629,8 @@ class Ambisonics(_HybridMethod):
         return default_num_delays(self.sh_order)
 
     def _response(self, core, key, source, receiver, generation):
-        result = self.results[key] = render_ambisonics(core, self.sh_order, self.normalization)
-        return ImpulseResponse(
+        result = render_ambisonics(core, self.sh_order, self.normalization)
+        return result, ImpulseResponse(
             name=key,
             source=source,
             receiver=receiver,
