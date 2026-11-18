@@ -46,6 +46,7 @@ The package's own choices, without a reference:
 from __future__ import annotations
 
 import warnings
+from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 
 import numpy as np
@@ -115,6 +116,25 @@ def _smoothed_energy(bands: np.ndarray, fs: float, ms: float) -> np.ndarray:
     window = np.hanning(n + 2)[1:-1]
     window /= window.sum()
     return np.maximum(fftconvolve(bands**2, window[np.newaxis, :], mode="same", axes=1), 0.0)
+
+
+def _smoothed_over_time(x: np.ndarray, window: np.ndarray) -> np.ndarray:
+    """``x`` (n, K) convolved column by column with ``window``, centred and cut to ``n`` samples.
+
+    The arithmetic of ``fftconvolve(x, window[:, np.newaxis], mode="same", axes=0)``, the same FFT length included,
+    on all cores: the columns go in groups of eight, a multiple of the number scipy's transforms vectorise over, so
+    each column is rounded as in one call. ``workers=-1`` splits them anywhere and moves the shares by ~1e-12.
+    """
+    n, width = x.shape[0], window.size
+    n_fft = scipy.fft.next_fast_len(n + width - 1, real=True)
+    spectrum = scipy.fft.rfft(window[:, np.newaxis], n_fft, axis=0)
+    start = (width - 1) // 2
+
+    def smoothed(columns):
+        return scipy.fft.irfft(scipy.fft.rfft(x[:, columns], n_fft, axis=0) * spectrum, n_fft, axis=0)[start : start + n]
+
+    with ThreadPoolExecutor() as pool:
+        return np.concatenate(list(pool.map(smoothed, [slice(i, i + 8) for i in range(0, x.shape[1], 8)])), axis=1)
 
 
 def _early_end(ref_b: np.ndarray, early_b: np.ndarray, fs: float) -> int:
@@ -289,8 +309,8 @@ def directional_shares(histogram, lines: np.ndarray, fs: float, band: int) -> np
     rays = smooth_over_directions(energy[:, band], histogram.directions)  # (n_lines, n_bins)
     m = min(rays.shape[1] * bin_samples, n)
     rays = np.repeat(rays, bin_samples, axis=1)[:, :m].T  # (m, n_lines)
-    e_rays = np.maximum(fftconvolve(rays, hann[:, np.newaxis], mode="same", axes=0), 0.0)
-    e_lines = np.maximum(fftconvolve(lines[:m] ** 2, hann[:, np.newaxis], mode="same", axes=0), 0.0)
+    e_rays = np.maximum(_smoothed_over_time(rays, hann), 0.0)
+    e_lines = np.maximum(_smoothed_over_time(lines[:m] ** 2, hann), 0.0)
     e_lines = smooth_over_directions(e_lines.T, histogram.directions).T
     p = e_rays / np.where(e_rays.sum(axis=1, keepdims=True) > 0.0, e_rays.sum(axis=1, keepdims=True), 1.0)
     q = e_lines / np.where(e_lines.sum(axis=1, keepdims=True) > 0.0, e_lines.sum(axis=1, keepdims=True), 1.0)
