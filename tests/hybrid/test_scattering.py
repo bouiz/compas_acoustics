@@ -117,7 +117,7 @@ def test_tap_is_heard_through_the_lines_attenuation_filters():
     directions = fdn_directions()
     builds = design_fdn(RoomTarget.from_room(spec, model="eyring"), [directional_delays(spec, directions)])
     line = 3
-    delay = int(np.asarray(builds[0].delays)[line])
+    delay = int(np.asarray(builds[0][0].delays)[line])
     tap = np.zeros((6000, directions.csize))
     tap[delay + 50, line] = 1.0
     drive = np.zeros_like(tap)

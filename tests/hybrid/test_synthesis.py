@@ -112,7 +112,7 @@ def test_prepare_is_format_neutral():
     spec, iss = setup()
     core = prepare(spec, iss, TARGET, max_order=MAX_ORDER, duration_s=0.5)
     assert core.lines.shape == (core.n_samples, 96) and core.late_envelope is None
-    assert core.builds[0].C.shape == (1, 96) and core.line_directions.shape == (96, 3)
+    assert core.builds[0][0].C.shape == (1, 96) and core.line_directions.shape == (96, 3)
     first, second = render_ambisonics(core), render_ambisonics(core, sh_order=2, normalization="N3D")
     assert second.rir.shape == (core.n_samples, 9) and second.normalization == "N3D" and second.core is core
     np.testing.assert_allclose(second.early[:, 0], first.early[:, 0], rtol=0, atol=1e-12 * np.max(np.abs(first.early)))

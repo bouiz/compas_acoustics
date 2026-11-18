@@ -54,7 +54,7 @@ class HybridCore:
     images: ImageSourceSet  # orders 0 .. max_order
     diffraction_paths: tuple[DiffractionPath, ...]
     btms_contributions: tuple[BtmsContribution, ...]
-    builds: list[pyFDN.FDNBuild]
+    builds: list[tuple[pyFDN.DSS, dict]]  # (network, filters) per decay slope
     lines: np.ndarray  # (n, num_delays), each line as heard from its direction, before the late envelope
     line_directions: np.ndarray  # (num_delays, 3), unit vectors in the receiver's frame
     late_envelope: np.ndarray | None
@@ -66,7 +66,7 @@ class HybridCore:
         """The lines after the late envelope, given ``early_w``, the omnidirectional (N3D W) early field."""
         if self.late_envelope is None:
             return self.lines
-        w = self.builds[0].C[0]
+        w = self.builds[0][0].C[0]
         if self.directional_envelope is not None:
             return shape_late_directional(self.lines, early_w, self.lines @ w, self.late_envelope, self.directional_envelope, self.fs)
         return shape_late(self.lines, early_w, self.lines @ w, self.late_envelope, self.fs)

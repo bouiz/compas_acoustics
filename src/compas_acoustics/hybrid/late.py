@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import replace
 from functools import cache
 from math import gcd
 
@@ -95,15 +94,18 @@ def design_fdn(
     dc_factor: float = 1.0,
     nyquist_factor: float = 0.5,
     rng: int = 0,
-) -> list[pyFDN.FDNBuild]:
+) -> list[tuple[pyFDN.DSS, dict]]:
     """Design one FDN per decay slope of ``target``, with one output: the lines' omnidirectional sum.
+
+    Each network is a ``(pyFDN.DSS, filters)`` pair as ``pyFDN.fdn_dss_gallery`` returns it, ``filters`` holding
+    its ``"post_delay"`` attenuation and its ``"post_output"`` slope weight (None for one slope).
 
     ``delays`` (samples) is one array shared by every slope or one per slope. ``C`` is the W row of the
     ambisonic output matrix, ``1 / sqrt(N)`` per line, which the late envelope compares with its reference;
     renderers project the lines themselves (:func:`render`). Each slope's attenuation follows ``target.rt``
     (:meth:`~compas_acoustics.hybrid.target.RoomTarget.geq_bands` with ``dc_factor`` and ``nyquist_factor``)
-    and its feedback matrix is seeded ``rng + slope``; any ``matrix`` other than ``"orthogonal"`` is taken
-    from ``pyFDN.fdn_matrix_gallery``, which draws from NumPy's global state.
+    and its feedback matrix is seeded ``rng + slope``, also any ``matrix`` other than ``"orthogonal"``, taken
+    from ``pyFDN.fdn_matrix_gallery``.
 
     A multi-exponential decay sums independent networks with one input, each weighted per band by
     ``level_k / sqrt(sum_j level_j ** 2)`` as an output filter, which keeps the slopes' level ratios and one
@@ -127,8 +129,7 @@ def design_fdn(
 
     builds = []
     for slope in range(n_slopes):
-        # the seeded entry point; the matrix galleries draw from NumPy's global state
-        build = pyFDN.fdn_build_gallery(
+        dss, filters = pyFDN.fdn_dss_gallery(
             num_delays,
             fs=target.fs,
             delays=delays[slope],
@@ -139,11 +140,11 @@ def design_fdn(
             rng=rng + slope,
         )
         if matrix != "orthogonal":
-            build = replace(build, A=pyFDN.fdn_matrix_gallery(num_delays, matrix))
-        build = replace(
-            build,
-            C=C,
-            post_delay=pyFDN.decay_to_geq(
+            dss = dss._replace(A=pyFDN.fdn_matrix_gallery(num_delays, matrix, rng=rng + slope))
+        dss = dss._replace(C=C)
+        filters = dict(
+            filters,
+            post_delay=pyFDN.decay_to_graphic_eq(
                 target.geq_bands(slope, dc_factor=dc_factor, nyquist_factor=nyquist_factor),
                 delays[slope],
                 target.fs,
@@ -151,14 +152,14 @@ def design_fdn(
         )
         if weights_db is not None:
             db = weights_db[:, slope]
-            sos = pyFDN.gain_to_geq(np.concatenate(([db[0]], db, [db[-1]])), target.fs)
-            build = replace(build, post_output=sos[:, :, np.newaxis])
-        builds.append(build)
+            sos = pyFDN.gain_to_graphic_eq(np.concatenate(([db[0]], db, [db[-1]])), target.fs)
+            filters["post_output"] = sos[:, :, np.newaxis]
+        builds.append((dss, filters))
     return builds
 
 
 def render(
-    builds: Sequence[pyFDN.FDNBuild],
+    builds: Sequence[tuple[pyFDN.DSS, dict]],
     drive: np.ndarray,
     *,
     tap: np.ndarray | None = None,
@@ -173,7 +174,7 @@ def render(
     ``line_eq``, an SOS bank (n_sections, 6, num_delays), filters each line on its way out, after the feedback
     is taken, so it colours a direction without touching the decay: the directional boundary absorption of
     Kirsch et al. (2023). The lines go through an identity output matrix and are filtered here, as are the
-    builds' slope weights (``post_output``).
+    networks' slope weights (``post_output``).
 
     ``tap``, of the same shape, enters each line skipping its delay, "initially skipping the FDN delays" (Ewert
     et al. 2025, Sec. 3.1.2): it passes the attenuation filters ``f``, is heard at once and recirculates, exactly
@@ -182,20 +183,20 @@ def render(
     """
     builds = list(builds)
     if not builds:
-        raise ValueError("builds must contain at least one FDNBuild")
+        raise ValueError("builds must contain at least one network")
     drive = np.asarray(drive, dtype=float)
     if drive.ndim != 2:
         raise ValueError("drive must be 2-D (n_samples, num_delays)")
 
     n_samples, n_delays = drive.shape
-    for build in builds:
-        if np.asarray(build.delays).size != n_delays:
-            raise ValueError(f"drive must have one column per delay line: got {n_delays} columns for a network of {np.asarray(build.delays).size}")
+    for dss, _ in builds:
+        if np.asarray(dss.delays).size != n_delays:
+            raise ValueError(f"drive must have one column per delay line: got {n_delays} columns for a network of {np.asarray(dss.delays).size}")
     if tap is not None:
         tap = np.asarray(tap, dtype=float)
         if tap.shape != drive.shape:
             raise ValueError(f"tap must have the shape of drive, {drive.shape}")
-        if any(np.asarray(b.A).ndim != 2 for b in builds):
+        if any(np.asarray(dss.A).ndim != 2 for dss, _ in builds):
             raise ValueError("tap needs a static feedback matrix")
     if line_eq is not None:
         line_eq = np.asarray(line_eq, dtype=float)
@@ -205,32 +206,23 @@ def render(
     identity = np.eye(n_delays)
     no_direct = np.zeros((n_delays, n_delays))
 
-    def heard_from_the_lines(out, build):
+    def heard_from_the_lines(out, filters):
         if line_eq is not None:
             out = SOSBank(line_eq).process_signal(out)
-        if build.post_output is not None:
-            weight = np.asarray(build.post_output, dtype=float)[:, :, :1]
+        if filters["post_output"] is not None:
+            weight = np.asarray(filters["post_output"], dtype=float)[:, :, :1]
             out = SOSBank(np.repeat(weight, n_delays, axis=2)).process_signal(out)
         return out
 
     total = np.zeros((n_samples, n_delays), dtype=float)
-    for build in builds:
-        post_delay = SOSBank(build.post_delay) if build.post_delay is not None else None
+    for dss, filters in builds:
+        post_delay = SOSBank(filters["post_delay"]) if filters["post_delay"] is not None else None
         heard = None
         if tap is not None:
-            heard = SOSBank(build.post_delay).process_signal(tap) if build.post_delay is not None else tap
-        line_input = drive if heard is None else drive + heard @ np.asarray(build.A).T
-        out = pyFDN.process_dss(
-            line_input,
-            build.delays,
-            build.A,
-            identity,
-            identity,
-            no_direct,
-            post_delay=post_delay,
-        )
-        # process_dss squeezes its output; restore the lines' axis every time
-        total += heard_from_the_lines(np.asarray(out, dtype=float).reshape(n_samples, n_delays), build)
+            heard = SOSBank(filters["post_delay"]).process_signal(tap) if filters["post_delay"] is not None else tap
+        line_input = drive if heard is None else drive + heard @ np.asarray(dss.A).T
+        network = pyFDN.dss_to_td(dss.delays, dss.A, identity, identity, no_direct, post_delay=post_delay)
+        total += heard_from_the_lines(np.asarray(network.process_signal(line_input), dtype=float), filters)
         if heard is not None:
-            total += heard_from_the_lines(heard, build)
+            total += heard_from_the_lines(heard, filters)
     return total

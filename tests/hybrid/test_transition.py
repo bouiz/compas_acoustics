@@ -63,7 +63,7 @@ def test_images_above_the_rendered_order_are_ignored():
 def test_the_network_is_heard_one_line_after_the_last_order():
     spec, iss = pair(2)
     result = render_ambisonics(prepare(spec, iss, TARGET, max_order=2, duration_s=0.3))
-    first = iss.delay[iss.order == 2].min() * FS + np.asarray(result.core.builds[0].delays).min()
+    first = iss.delay[iss.order == 2].min() * FS + np.asarray(result.core.builds[0][0].delays).min()
     energy = result.late[:, 0] ** 2
     # before that only the zero-phase band magnitude's pre-ringing, each image entering some 48 lines of
     # its opposite hemisphere; a drive heard at once would put the whole last order there

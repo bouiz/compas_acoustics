@@ -73,7 +73,7 @@ def absorption_filters(absorption: np.ndarray, fs: float) -> np.ndarray:
         raise ValueError("absorption coefficients must lie in [0, 1)")
 
     db = 10.0 * np.log10(1.0 - absorption)  # pressure, 20 log10 sqrt(1 - a)
-    return pyFDN.gain_to_geq(np.hstack((db[:, :1], db, db[:, -1:])).T, float(fs))
+    return pyFDN.gain_to_graphic_eq(np.hstack((db[:, :1], db, db[:, -1:])).T, float(fs))
 
 
 def directional_absorption_filters(spec: Pair, directions: pf.Coordinates, *, n_scan: int = SCAN_DIRECTIONS) -> np.ndarray:
