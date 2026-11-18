@@ -750,8 +750,11 @@ def _clear(occ: Occluders, points: list[np.ndarray], on: list[frozenset[int]]) -
     return not any(occ.blocked(a, b, sa | sb) for (a, sa), (b, sb) in pairwise(zip(points, on)))
 
 
-def diffraction_paths(spec: Pair, *, max_order: int = 1) -> list[DiffractionPath]:
+def diffraction_paths(spec: Pair, *, max_order: int = 1, source_gain=None) -> list[DiffractionPath]:
     """Every first-order UDFA path, with at most one wall reflection before or after it.
+
+    ``source_gain(direction)``, the source pattern's amplitude per band towards a direction, weights each path by
+    its first leg; None radiates alike in every direction.
 
     For ``max_order >= 1`` the source's image in a wall gives the paths that
     reflect before they diffract, and the receiver's image those that reflect
@@ -778,6 +781,8 @@ def diffraction_paths(spec: Pair, *, max_order: int = 1) -> list[DiffractionPath
         gain = np.exp(-air * length / 2.0)
         for face in walls:
             gain = gain * reflection(face)
+        if source_gain is not None:
+            gain = gain * source_gain(points[1] - points[0])
         return DiffractionPath(length / c, length, doa, gain, transfer, len(walls), zone, edge)
 
     sources = _ends(spec.source, occ, max_order >= 1)
