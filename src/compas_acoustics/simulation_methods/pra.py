@@ -71,6 +71,11 @@ class Mono(SimulationMethod):
         room per receiver instead of one per source. Exact for the image sources; the ray-traced part is reciprocal
         statistically (its detection sphere moves to the other end). ``generation["reciprocal"]`` says whether it
         was used.
+    per_pair_seeds : bool, default=False
+        With a ``seed``, restart each source's rays from it and each pair's ray-traced tail from a seed of its own
+        (:func:`~compas_acoustics.room.raytracing.stable_seed`), so a pair's response does not depend on the other
+        sources and receivers of the run: a caller may split the pairs over runs and get the joint run's responses.
+        Off, one random sequence runs through the room, as in pyroomacoustics.
 
     Examples
     --------
@@ -118,12 +123,16 @@ class Mono(SimulationMethod):
         air: Optional[AirConditions] = None,
         n_jobs: int = 1,
         reciprocity: bool = False,
+        per_pair_seeds: bool = False,
     ):
         seed = _seed(seed)
         if int(n_jobs) < 1:
             raise ValueError(f"n_jobs must be at least 1, got {n_jobs!r}")
         self.n_jobs = int(n_jobs)
         self.reciprocity = bool(reciprocity)
+        if per_pair_seeds and not ray_tracing:
+            raise ValueError("per_pair_seeds only applies with ray_tracing=True")
+        self.per_pair_seeds = bool(per_pair_seeds)
         given = {"n_rays": n_rays, "energy_thres": energy_thres, "duration": duration, "receiver_radius": receiver_radius, "seed": seed}
         if not ray_tracing:
             changed = sorted(k for k, v in given.items() if v != self._RAY_TRACING_DEFAULTS[k])
@@ -157,6 +166,8 @@ class Mono(SimulationMethod):
             generation.update(n_rays=self.n_rays, energy_thres=self.energy_thres, duration=self.duration, receiver_radius=self.receiver_radius, seed=self.seed)
         if self.n_jobs != 1:
             generation["n_jobs"] = self.n_jobs
+        if self.per_pair_seeds:
+            generation["per_pair_seeds"] = True
         return generation
 
     def compute(self, context: SimulationContext) -> dict:
@@ -213,7 +224,7 @@ class Mono(SimulationMethod):
         duration = self.duration
         while True:
             jobs.progress("simulating")
-            tracing = dict(duration=duration, n_rays=self.n_rays, receiver_radius=self.receiver_radius, energy_threshold=self.energy_thres)
+            tracing = dict(duration=duration, n_rays=self.n_rays, receiver_radius=self.receiver_radius, energy_threshold=self.energy_thres, per_pair_seeds=self.per_pair_seeds)
             if by_emitter:
                 run = None
                 responses = emitter_rirs(context.geometry, emitters, mic_positions, fs, n_jobs=self.n_jobs, tracing=tracing, seed=self.seed, **common)

@@ -63,6 +63,7 @@ __all__ = [
     "emitter_rirs",
     "image_source_rirs",
     "ray_traced_run",
+    "stable_seed",
 ]
 
 # Floor on the default ray count (the package's choice)
@@ -77,6 +78,22 @@ DURATION_RT_FACTOR = 1.5
 MAX_DURATION = 12.0
 # pyroomacoustics' default histogram bin
 _HIST_BIN = 0.004
+
+
+def stable_seed(seed, *coords) -> Optional[int]:
+    """A seed that depends on ``seed`` and coordinates, not on how many other sources share the process.
+
+    Seeded with it, a source and receiver draw the same ray-traced tail when a run is split across processes as when
+    it is traced in one process. ``None`` stays unseeded. Coordinates are quantized to 0.1 mm.
+    """
+    if seed is None:
+        return None
+    mixed = int(seed) & 0xFFFFFFFFFFFFFFFF
+    for coord in coords:
+        for value in np.asarray(coord, dtype=np.float64).reshape(-1):
+            quantized = int(round(float(value) * 1e4)) & 0xFFFFFFFFFFFFFFFF
+            mixed = (mixed * 0x9E3779B185EBCA87 + quantized) & 0xFFFFFFFFFFFFFFFF
+    return mixed % (2**63 - 1) or 1
 
 
 def default_rays(volume: float, receiver_radius: float, speed_of_sound: float) -> int:
@@ -121,10 +138,13 @@ def _on_package_scale(rir, latency: int, n_samples: int) -> np.ndarray:
     return np.pad(rir, (0, max(0, n_samples - rir.size)))[:n_samples]
 
 
-def _pair_responses(room) -> List[List[np.ndarray]]:
+def _pair_responses(room, seed=None) -> List[List[np.ndarray]]:
     """The room's responses ``[mic][source]`` as pyroomacoustics composes them, except that a pair without a visible
     image has no image part (the room's own call fails on it, or renders the blocked direct sound when the source is
-    hidden from every microphone)."""
+    hidden from every microphone).
+
+    With a ``seed``, each pair's ray-traced tail restarts its random sequence from :func:`stable_seed` of it and the
+    pair's positions, so a run that renders only some pairs draws the same tails as one that renders them all."""
     if room.simulator_state["ism_needed"] and not room.simulator_state["ism_done"]:
         room.image_source_model()
     if room.simulator_state["rt_needed"] and not room.simulator_state["rt_done"]:
@@ -157,6 +177,9 @@ def _pair_responses(room) -> List[List[np.ndarray]]:
                     )
                 )
             if room.simulator_state["rt_needed"]:
+                if seed is not None:
+                    drawn = stable_seed(seed, source.position, mic)
+                    pra.random.seed(numpy=drawn, libroom=drawn)
                 t0 = np.linalg.norm(source.position - mic) / room.c
                 parts.append(
                     compute_rt_rir(
@@ -225,6 +248,7 @@ def ray_traced_run(
     air=None,
     directions: Optional[Sequence[np.ndarray]] = None,
     n_jobs: int = 1,
+    per_pair_seeds: bool = False,
 ) -> RayTracedRun:
     """Monaural responses of every source at every microphone from one image source search and one ray trace.
 
@@ -234,6 +258,11 @@ def ray_traced_run(
     the air absorption. ``directions``, one ``(n, 3)`` array of unit vectors in room coordinates per microphone, also
     returns the detected rays' energy by the direction nearest their last leg (``histograms``); the responses are
     unchanged.
+
+    ``per_pair_seeds`` with a ``seed`` restarts each source's rays from it and each pair's tail from a seed of its own
+    (:func:`stable_seed`): a pair's response is then the same whichever other sources and microphones share the run,
+    so a caller may split the pairs over processes and get the joint run's responses. Off, one random sequence runs
+    through the whole room, as in pyroomacoustics' own ``Room.compute_rir``, whose responses these then equal.
 
     ``n_jobs`` > 1 splits each source's rays over that many processes
     (:func:`~compas_acoustics.room.parallel.trace_parallel`) and sums their histograms; the image source search stays
@@ -246,8 +275,8 @@ def ray_traced_run(
             geometry, sources, mic_positions, fs, directions, max_order, duration, n_rays, receiver_radius, energy_threshold, air_absorption, seed, air
         )
         room.image_source_model()
-        lines = _ray_tracing(room, unit, n_jobs=n_jobs, seed=seed)
-        rirs = _pair_responses(room)
+        lines = _ray_tracing(room, unit, n_jobs=n_jobs, seed=seed, per_source=per_pair_seeds)
+        rirs = _pair_responses(room, seed if per_pair_seeds else None)
         histograms = None
         if unit is not None:
             histograms = [[_directional_histogram(room, line, d, duration, air_absorption) for line in per_source] for per_source, d in zip(lines, unit)]
@@ -283,13 +312,16 @@ def _traced_room(geometry, sources, mic_positions, fs, directions, max_order, du
     return room, duration, unit
 
 
-def _each_source_traced(room):
+def _each_source_traced(room, seed=None):
     """Traces the rays of every source in turn, as pyroomacoustics' ``Room.ray_tracing`` does, yielding while the
-    receivers hold that source's histograms and resetting them after."""
+    receivers hold that source's histograms and resetting them after. With a ``seed``, each source's rays restart from
+    it, so a run that traces only this source draws the same rays."""
     engine = room.room_engine
     n_rays = room.rt_args["n_rays"]
     n_bands = len(room.octave_bands.get_bw()) if room.is_multi_band else 1
     for source in room.sources:
+        if seed is not None:
+            pra.random.seed(int(seed))
         if source.directivity is None:
             ray_directions = pra.fibonacci_spherical_sampling(n_rays).T
             ray_energies = np.ones((n_rays, n_bands))
@@ -301,10 +333,11 @@ def _each_source_traced(room):
         engine.reset_mics()
 
 
-def _ray_tracing(room, directions=None, n_jobs: int = 1, seed=None) -> Optional[List[List[list]]]:
+def _ray_tracing(room, directions=None, n_jobs: int = 1, seed=None, per_source: bool = False) -> Optional[List[List[list]]]:
     """pyroomacoustics' ``Room.ray_tracing`` for omnidirectional microphones, call for call, so its random draws and
     responses are the same; with ``directions`` a copy of every microphone, added after the image source search, sorts
-    the same rays by direction. Returns the copies' raw histograms ``[mic][source]``, else None.
+    the same rays by direction. Returns the copies' raw histograms ``[mic][source]``, else None. With ``per_source``
+    and a ``seed``, each source's rays restart from it.
 
     ``n_jobs`` > 1 traces each source's rays in slices over that many processes, every microphone and copy in each
     slice, seeded from ``seed`` (:func:`~compas_acoustics.room.parallel.trace_parallel`)."""
@@ -327,7 +360,7 @@ def _ray_tracing(room, directions=None, n_jobs: int = 1, seed=None) -> Optional[
             engine.microphones[n_mics + m].set_directions(np.asarray(d, dtype=np.float32))
     room.rt_histograms = [[] for _ in range(n_mics)]
     copies = None if directions is None else [[] for _ in range(n_mics)]
-    for _ in _each_source_traced(room):
+    for _ in _each_source_traced(room, seed if per_source else None):
         for m in range(n_mics):
             room.rt_histograms[m].append([h.get_hist() for h in engine.microphones[m].histograms])
             if copies is not None:
@@ -509,6 +542,7 @@ def directional_histograms(
     seed: Optional[int] = None,
     air=None,
     n_jobs: int = 1,
+    per_pair_seeds: bool = False,
 ) -> List[List[DirectionalHistogram]]:
     """Ray-traced energy per direction of arrival, ``[mic][source]``.
 
@@ -517,7 +551,8 @@ def directional_histograms(
     unit vectors in room coordinates per microphone; the other arguments and the rays are those of
     :func:`ray_traced_run`, so order ``max_order`` is in the bins and in the image sources. Air absorption is applied
     per band over each bin's travel distance. ``n_jobs`` > 1 splits each source's rays over that many processes
-    (:func:`~compas_acoustics.room.parallel.trace_parallel`).
+    (:func:`~compas_acoustics.room.parallel.trace_parallel`). ``per_pair_seeds`` with a ``seed`` restarts each source's
+    rays from it, so a source's bins do not depend on the sources traced with it.
     """
     from compas_acoustics.worker import jobs
 
@@ -534,7 +569,7 @@ def directional_histograms(
         for m, d in enumerate(unit):
             room.room_engine.microphones[m].set_directions(np.asarray(d, dtype=np.float32))
         histograms = [[] for _ in unit]
-        for s, _ in enumerate(_each_source_traced(room)):
+        for s, _ in enumerate(_each_source_traced(room, seed if per_pair_seeds else None)):
             jobs.progress("directional histograms", s, len(room.sources))
             for m, d in enumerate(unit):
                 lines = [np.asarray(h.get_hist(), dtype=float) for h in room.room_engine.microphones[m].histograms]
