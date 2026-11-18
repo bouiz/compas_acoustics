@@ -135,6 +135,72 @@ def test_the_hybrid_methods_record_n_jobs():
     assert ir.generation["n_jobs"] == 2
 
 
+def _split_scene(sources, receivers):
+    scene = _scene(0, 0)
+    for name, position in sources.items():
+        scene.add_source(ca.Source(name, *position))
+    for name, position in receivers.items():
+        scene.add_receiver(ca.Receiver(name, *position))
+    return scene
+
+
+SPLIT_SOURCES = {"s0": (1.5, 2.5, 1.5), "s1": (4.5, 1.5, 1.2)}
+SPLIT_RECEIVERS = {"r0": (3.0, 3.5, 1.5), "r1": (2.0, 1.0, 1.4)}
+
+
+def _by_names(responses):
+    return {(ir.source.name, ir.receiver.name): ir.denormalized() for ir in responses.values()}
+
+
+@pytest.mark.parametrize("method", ["mono", "ambisonics"])
+def test_a_pair_is_the_same_whichever_pairs_share_the_run(method):
+    """With a seed, a pair's rays and tail restart for it: the run of every pair at once equals runs of some of them.
+
+    So a caller may split the pairs over processes, by source or by receiver, and get the joint run's responses.
+    """
+
+    def run(sources, receivers):
+        scene = _split_scene({k: SPLIT_SOURCES[k] for k in sources}, {k: SPLIT_RECEIVERS[k] for k in receivers})
+        if method == "mono":
+            simulation = ca.Mono(seed=5, per_pair_seeds=True, **RAYS)
+        else:
+            pytest.importorskip("pyFDN")
+            reference = ca.Mono(image_source_order=1, n_rays=2000, duration=0.5, seed=5, normalize=False, per_pair_seeds=True)
+            simulation = ca.Ambisonics(reference=reference, image_source_order=1, seed=5, normalize=False, per_pair_seeds=True)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            return _by_names(scene.simulate(simulation))
+
+    joint = run(SPLIT_SOURCES, SPLIT_RECEIVERS)
+    parts = {}
+    for name in SPLIT_SOURCES:
+        parts.update(run([name], SPLIT_RECEIVERS))
+    by_receiver = {}
+    for name in SPLIT_RECEIVERS:
+        by_receiver.update(run(SPLIT_SOURCES, [name]))
+    assert set(parts) == set(by_receiver) == set(joint)
+    for key, response in joint.items():
+        for part in (parts, by_receiver):
+            assert part[key].shape == response.shape
+            np.testing.assert_allclose(part[key], response, rtol=1e-6, atol=1e-9)
+
+
+@pytest.mark.parametrize("n_jobs", [1, 2])
+def test_a_source_bins_are_the_same_whichever_sources_share_the_trace(n_jobs):
+    from compas_acoustics.room.pra import source_to_pra
+
+    context = SimulationContext.from_scene(_split_scene(SPLIT_SOURCES, SPLIT_RECEIVERS))
+    sources = [source_to_pra(s) for s in context.sources]
+    grid = np.array([[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]], dtype=float)
+    mics = np.array([r.position for r in context.receivers]).T
+    kwargs = dict(max_order=1, duration=0.5, n_rays=2000, seed=3, n_jobs=n_jobs, per_pair_seeds=True)
+    joint = directional_histograms(context.geometry, sources, mics, 48000, [grid, grid], **kwargs)
+    for s, source in enumerate(sources):
+        alone = directional_histograms(context.geometry, [source], mics, 48000, [grid, grid], **kwargs)
+        for m in range(mics.shape[1]):
+            np.testing.assert_array_equal(alone[m][0].energy, joint[m][s].energy)
+
+
 def test_n_jobs_must_be_positive():
     with pytest.raises(ValueError):
         ca.Mono(n_jobs=0)
