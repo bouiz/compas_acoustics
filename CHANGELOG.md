@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added `hybrid.diffraction.set_diffraction_edges(geometry, edges)` and `clear_diffraction_edges(geometry)`: every diffracted path of that geometry uses the given subset of its `diffraction_edges` until it is cleared.
 * Added `hybrid.diffraction.AmbiguousEdgeWarning`, which counts the edge pieces where the sector detector found faces disagreeing on which side is air.
 * Added diffraction at the convex edges of closed obstacles that are not convex (an L-shaped counter), oriented from their own winding; they were skipped.
+* Added `examples/benchmarks/` (the HIL D 24.1 lecture room, simulated with `Mono` and `Ambisonics`) and `tools/regression_reference.py` and `tools/prepared_geometry.py`, which record a commit's results on it and compare two recordings.
 
 ### Changed
 
