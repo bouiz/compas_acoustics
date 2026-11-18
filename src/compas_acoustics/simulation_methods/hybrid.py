@@ -116,6 +116,7 @@ class _HybridMethod(SimulationMethod):
         normalize=True,
         air=None,
         scattering=False,
+        n_jobs=1,
     ):
         if tail is not None and tail not in TAILS:
             raise ValueError(f"tail must be None or one of {TAILS}, not {tail!r}")
@@ -162,6 +163,9 @@ class _HybridMethod(SimulationMethod):
         self.normalize = normalize
         self.air = air
         self.scattering = bool(scattering)
+        if int(n_jobs) < 1:
+            raise ValueError(f"n_jobs must be at least 1, got {n_jobs!r}")
+        self.n_jobs = int(n_jobs)
         self.reference_rirs = None
         self.results = {}
 
@@ -218,6 +222,8 @@ class _HybridMethod(SimulationMethod):
             "seed": self.seed,
             "scene": getattr(context.scene, "name", None),
         }
+        if self.n_jobs != 1:
+            generation["n_jobs"] = self.n_jobs
         histograms, generation["histogram_rays"] = self._histograms(context, geometry, room, run, grid, directions, air_absorption, air)
 
         inputs = self._pair_inputs(context, geometry, room, rotations, references, damping, scattered, histograms, air_absorption, air)
@@ -280,6 +286,7 @@ class _HybridMethod(SimulationMethod):
             air_absorption=air_absorption,
             seed=self.seed,
             air=air,
+            n_jobs=self.n_jobs,
         )
         return histograms, n_rays
 
@@ -437,7 +444,7 @@ class _HybridMethod(SimulationMethod):
                 duration = max(duration, self.duration)
             volume_room = geometry.to_pra(context.sampling_rate, 0, air=air_or_default(self.air))
             n_rays = self._rays(volume_room.get_volume(), float(volume_room.c), grid)
-            method = Mono(self.image_source_order, ray_tracing=True, air_absorption=absorption, n_rays=n_rays, duration=duration, seed=self.seed, air=self.air)
+            method = Mono(self.image_source_order, ray_tracing=True, air_absorption=absorption, n_rays=n_rays, duration=duration, seed=self.seed, air=self.air, n_jobs=self.n_jobs)
             references, run = method._run(context, directions, lengthen=True)
             description = method.generation
         elif isinstance(self.reference, str):
@@ -552,6 +559,9 @@ _ENGINE_PARAMETERS = """
         Surface scattering after Ewert et al. (2025): each image keeps its specular part, ``prod sqrt(1 - s)``, in the
         early field; its scattered part, ``prod sqrt(s)``, enters the delay lines of its hemisphere through an allpass
         cascade. Both come from the one image source search.
+    n_jobs : int, default=1
+        Processes for the reference run (``Mono(n_jobs=...)``, when the method runs it) and the directional
+        histograms, whose rays it splits.
 
     Attributes
     ----------
@@ -623,6 +633,7 @@ class Binaural(_HybridMethod):
         normalize=True,
         air=None,
         scattering=False,
+        n_jobs=1,
     ):
         hrtf = "ku100" if hrtf is None else hrtf
         if hrtf != "ku100" and not Path(hrtf).is_file():
@@ -643,6 +654,7 @@ class Binaural(_HybridMethod):
             normalize=normalize,
             air=air,
             scattering=scattering,
+            n_jobs=n_jobs,
         )
         self.hrtf = hrtf
         self._hrtf_set = None
@@ -714,6 +726,7 @@ class Ambisonics(_HybridMethod):
         normalize=True,
         air=None,
         scattering=False,
+        n_jobs=1,
     ):
         if normalization not in ("SN3D", "N3D"):
             raise ValueError(f"normalization must be 'SN3D' or 'N3D', not {normalization!r}")
@@ -735,6 +748,7 @@ class Ambisonics(_HybridMethod):
             normalize=normalize,
             air=air,
             scattering=scattering,
+            n_jobs=n_jobs,
         )
         self.sh_order = int(sh_order)
         self.normalization = normalization
