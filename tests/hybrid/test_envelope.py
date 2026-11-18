@@ -8,7 +8,7 @@ from compas_acoustics.hybrid.synthesis import prepare
 from compas_acoustics.hybrid.ambisonics import render_ambisonics
 from compas_acoustics.hybrid.target import RoomTarget
 from compas_acoustics.room.geometry import SurfaceMaterial
-from compas_acoustics.hybrid.envelope import envelope_gains, octave_band_split, shape_late
+from compas_acoustics.hybrid.envelope import _smoothed_over_time, envelope_gains, octave_band_split, shape_late
 
 FS = 48000.0
 N = int(1.6 * FS)
@@ -36,6 +36,16 @@ def test_the_band_split_sums_back_to_the_input():
     bands = octave_band_split(x, FS)
     assert bands.shape == (9, 4000, 3)
     np.testing.assert_allclose(bands.sum(axis=0), x, atol=1e-6)
+
+
+@pytest.mark.parametrize("n, columns", [(9600, 96), (4801, 3), (4799, 96), (20000, 1), (9600, 100)])
+def test_the_smoothing_over_time_is_fftconvolve_bit_for_bit(n, columns):
+    from scipy.signal import fftconvolve
+
+    x = np.random.default_rng(2).random((n, columns)) ** 4
+    window = np.hanning(4802)[1:-1]
+    window /= window.sum()
+    np.testing.assert_array_equal(_smoothed_over_time(x, window), fftconvolve(x, window[:, np.newaxis], mode="same", axes=0))
 
 
 def test_the_band_split_is_pyfar_reconstructing_bank():
