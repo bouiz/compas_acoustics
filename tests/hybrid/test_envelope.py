@@ -1,16 +1,14 @@
-"""The ray-traced late envelope imposed on the network output.
-
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, tests/test_envelope.py).
-"""
+"""The ray-traced late envelope imposed on the network output."""
 
 import numpy as np
 import pytest
 
-from _compat import Material, RoomSpec, ShoeboxGeometry, image_sources
+from _rooms import box_room, images, pair
 from compas_acoustics.hybrid.synthesis import prepare
 from compas_acoustics.hybrid.ambisonics import render_ambisonics
 from compas_acoustics.hybrid.target import RoomTarget
-from compas_acoustics.hybrid.envelope import envelope_gains, octave_band_split, shape_late
+from compas_acoustics.room.geometry import SurfaceMaterial
+from compas_acoustics.hybrid.envelope import _smoothed_over_time, envelope_gains, octave_band_split, shape_late
 
 FS = 48000.0
 N = int(1.6 * FS)
@@ -29,7 +27,7 @@ def parts(rt=0.8, onset=0.03, seed=0):
 
 
 def energy_db(x, a, b):
-    return 10 * np.log10(np.sum(x[int(a * FS):int(b * FS)] ** 2))
+    return 10 * np.log10(np.sum(x[int(a * FS) : int(b * FS)] ** 2))
 
 
 # ----------------------------------------------------------------- the bank --
@@ -40,6 +38,16 @@ def test_the_band_split_sums_back_to_the_input():
     np.testing.assert_allclose(bands.sum(axis=0), x, atol=1e-6)
 
 
+@pytest.mark.parametrize("n, columns", [(9600, 96), (4801, 3), (4799, 96), (20000, 1), (9600, 100)])
+def test_the_smoothing_over_time_is_fftconvolve_bit_for_bit(n, columns):
+    from scipy.signal import fftconvolve
+
+    x = np.random.default_rng(2).random((n, columns)) ** 4
+    window = np.hanning(4802)[1:-1]
+    window /= window.sum()
+    np.testing.assert_array_equal(_smoothed_over_time(x, window), fftconvolve(x, window[:, np.newaxis], mode="same", axes=0))
+
+
 def test_the_band_split_is_pyfar_reconstructing_bank():
     """pyfar's linear-phase bank applied by pyfar itself, its delay removed, to 1e-12; one channel and several."""
     import pyfar as pf
@@ -48,11 +56,10 @@ def test_the_band_split_is_pyfar_reconstructing_bank():
 
     x = np.random.default_rng(2).standard_normal((3000, 4)) * np.exp(-np.arange(3000) / 600.0)[:, None]
     padded = np.concatenate([x.T, np.zeros((4, _N_FILT))], axis=1)
-    out = pf.dsp.filter.reconstructing_fractional_octave_bands(
-        pf.Signal(padded, FS), num_fractions=1, frequency_range=(63, _TOP_BAND_HZ), n_samples=_N_FILT)
+    out = pf.dsp.filter.reconstructing_fractional_octave_bands(pf.Signal(padded, FS), num_fractions=1, frequency_range=(63, _TOP_BAND_HZ), n_samples=_N_FILT)
     filtered = out[0] if isinstance(out, tuple) else out
     delay = _N_FILT // 2
-    expected = np.transpose(filtered.time[:, :, delay:delay + 3000], (0, 2, 1))
+    expected = np.transpose(filtered.time[:, :, delay : delay + 3000], (0, 2, 1))
     bands = octave_band_split(x, FS)
     np.testing.assert_allclose(bands, expected, rtol=0, atol=1e-12 * np.max(np.abs(expected)))
     np.testing.assert_allclose(octave_band_split(x[:, 0], FS), expected[:, :, 0], rtol=0, atol=1e-12 * np.max(np.abs(expected)))
@@ -85,8 +92,7 @@ def test_every_channel_gets_the_same_gain():
     early, late = parts()
     reference = early[:, 0] + 0.5 * late[:, 0]
     shaped = shape_late(late, early[:, 0], late[:, 0], reference, FS)
-    ratio = [energy_db(shaped[:, c], 0.15, 0.6) - energy_db(late[:, c], 0.15, 0.6)
-             for c in range(4)]
+    ratio = [energy_db(shaped[:, c], 0.15, 0.6) - energy_db(late[:, c], 0.15, 0.6) for c in range(4)]
     assert np.ptp(ratio) < 0.5
 
 
@@ -96,10 +102,10 @@ def test_the_gain_is_held_once_the_reference_has_decayed_20_db():
     reference = early[:, 0] + 0.5 * late[:, 0]
     burst = reference.copy()
     i = int(1.0 * FS)
-    burst[i:i + int(0.02 * FS)] *= 30.0
+    burst[i : i + int(0.02 * FS)] *= 30.0
     plain = shape_late(late, early[:, 0], late[:, 0], reference, FS)
     bursty = shape_late(late, early[:, 0], late[:, 0], burst, FS)
-    np.testing.assert_allclose(bursty[int(0.9 * FS):], plain[int(0.9 * FS):], atol=1e-9)
+    np.testing.assert_allclose(bursty[int(0.9 * FS) :], plain[int(0.9 * FS) :], atol=1e-9)
 
 
 def test_a_short_reference_holds_its_last_gain():
@@ -120,9 +126,8 @@ def test_a_reference_on_another_scale_warns():
 
 # -------------------------------------------------------------- the pipeline --
 def shoebox():
-    mat = Material.from_scalar(0.2)
-    return RoomSpec(
-        geometry=ShoeboxGeometry((7.0, 5.0, 3.0), {n: mat for n in ShoeboxGeometry.WALL_NAMES}),
+    return pair(
+        geometry=box_room((7.0, 5.0, 3.0), SurfaceMaterial("wall", np.full(8, 0.2))),
         source=np.array([1.5, 1.5, 1.6]),
         receiver=np.array([5.0, 3.0, 1.5]),
         fs=FS,
@@ -132,16 +137,16 @@ def shoebox():
 
 def test_without_a_reference_nothing_changes():
     spec = shoebox()
-    default = render_ambisonics(prepare(spec, image_sources(spec, 3), RoomTarget.from_room(spec), max_order=2, duration_s=0.5))
-    none = render_ambisonics(prepare(spec, image_sources(spec, 3), RoomTarget.from_room(spec), max_order=2, duration_s=0.5, late_envelope=None))
+    default = render_ambisonics(prepare(spec, images(spec, 3), RoomTarget.from_room(spec), max_order=2, duration_s=0.5))
+    none = render_ambisonics(prepare(spec, images(spec, 3), RoomTarget.from_room(spec), max_order=2, duration_s=0.5, late_envelope=None))
     np.testing.assert_array_equal(default.rir, none.rir)
 
 
 def test_a_reference_shapes_only_the_late_field():
     spec = shoebox()
-    plain = render_ambisonics(prepare(spec, image_sources(spec, 3), RoomTarget.from_room(spec), max_order=2, duration_s=0.5))
+    plain = render_ambisonics(prepare(spec, images(spec, 3), RoomTarget.from_room(spec), max_order=2, duration_s=0.5))
     reference = plain.early[:, 0] + 0.5 * plain.late[:, 0]
-    shaped = render_ambisonics(prepare(spec, image_sources(spec, 3), RoomTarget.from_room(spec), max_order=2, duration_s=0.5, late_envelope=reference))
+    shaped = render_ambisonics(prepare(spec, images(spec, 3), RoomTarget.from_room(spec), max_order=2, duration_s=0.5, late_envelope=reference))
     np.testing.assert_array_equal(shaped.early, plain.early)
     np.testing.assert_allclose(shaped.rir, shaped.early + shaped.late)
-    assert np.sum(shaped.late ** 2) < np.sum(plain.late ** 2)
+    assert np.sum(shaped.late**2) < np.sum(plain.late**2)

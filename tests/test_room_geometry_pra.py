@@ -183,7 +183,7 @@ def test_a_medium_without_air_absorption_only_sets_the_speed():
 
 
 def test_without_a_medium_the_room_is_in_the_default_medium():
-    # Not pyroomacoustics' own air table (19.3 C, 0.3 % from 343 m/s), which the hybrid never used
+    # The package's default air, not pyroomacoustics' own air table
     from compas_acoustics import AirConditions
 
     room = geometry().to_pra(48000, 1, air_absorption=True)
@@ -201,8 +201,10 @@ def test_a_warped_wall_simulates():
     for obj in AcousticObjectsLibrary.shoebox_room(7, 5, 3, materials=WALL):
         mesh = obj.acoustic_geometry
         face = next(iter(mesh.faces()))
-        corners = [np.add(mesh.vertex_coordinates(v), [0, 0, 2e-3]) if np.allclose(mesh.vertex_coordinates(v), [0, 0, 3])
-                   else mesh.vertex_coordinates(v) for v in mesh.face_vertices(face)]
+        corners = [
+            np.add(mesh.vertex_coordinates(v), [0, 0, 2e-3]) if np.allclose(mesh.vertex_coordinates(v), [0, 0, 3]) else mesh.vertex_coordinates(v)
+            for v in mesh.face_vertices(face)
+        ]
         mesh = Mesh.from_vertices_and_faces([list(map(float, c)) for c in corners], [[0, 1, 2, 3]])
         scene.add_acoustic_object(AcousticObject(mesh, WALL, name=obj.name))
     scene.add_source(Source("s", 1.5, 1.5, 1.6))
@@ -221,3 +223,108 @@ def test_wall_factory_errors_are_value_errors(monkeypatch):
         g.to_pra(48000, 1)
     assert "corners are not coplanar" in str(raised.value)
     assert pra.constants.get("octave_bands_base_freq") == 125.0
+
+
+# ------------------------------------------------- pairs without a visible image --
+from compas_acoustics.room.raytracing import image_source_rirs  # noqa: E402
+from compas_acoustics.room.raytracing import ray_traced_run  # noqa: E402
+
+SOURCE = [1.5, 2.0, 1.5]
+BEHIND_PANEL = [5.0, 2.0, 1.5]
+IN_VIEW = [1.5, 4.5, 1.5]
+
+
+def responses(render, mics, order=0, extra=None):
+    g = geometry(extra=(panel(),) if extra is None else extra)
+    mics = np.array(mics, dtype=float).T
+    if render == "images":
+        return image_source_rirs(g, [pra.SoundSource(SOURCE)], mics, 48000, max_order=order)
+    return ray_traced_run(g, [pra.SoundSource(SOURCE)], mics, 48000, max_order=order, n_rays=2000, duration=0.3, seed=1).responses
+
+
+@pytest.mark.parametrize("render", ["images", "rays"])
+def test_a_blocked_receiver_beside_a_visible_one_gets_no_image_part(render):
+    blocked, visible = (row[0] for row in responses(render, [BEHIND_PANEL, IN_VIEW]))
+    assert np.all(np.isfinite(blocked))
+    if render == "images":
+        assert not np.any(blocked)
+    else:
+        assert np.sum(blocked**2) > 0.0
+    assert np.sum(visible**2) > 0.0
+
+
+def test_a_source_blocked_at_every_receiver_leaks_no_direct_sound():
+    ((blocked,),) = responses("images", [BEHIND_PANEL])
+    assert not np.any(blocked)
+
+
+def rooms_own(g, render, sources, mics, order):
+    """The room's own responses on the package scale, cut to ours' lengths by the caller."""
+    from compas_acoustics.room.geometry import pra_octave_grid
+
+    pra.random.seed(1)
+    with pra_octave_grid():
+        room = g.to_pra(48000, order, ray_tracing=render == "rays", air_absorption=True)
+        for s in sources:
+            room.add_soundsource(pra.SoundSource(s.position, directivity=s.directivity))
+        room.add_microphone_array(pra.MicrophoneArray(mics, 48000))
+        if render == "rays":
+            room.set_ray_tracing(n_rays=2000, receiver_radius=0.5, energy_thres=1e-7, time_thres=0.3, hist_bin_size=0.004)
+        room.compute_rir()
+        orders = [[np.asarray(s.orders)[np.asarray(room.visibility[i][m], dtype=bool)] for i, s in enumerate(room.sources)] for m in range(mics.shape[1])]
+    latency = pra.constants.get("frac_delay_length") // 2
+    return [[np.asarray(rir, dtype=float)[latency:] / (4.0 * np.pi) for rir in row] for row in room.rir], orders
+
+
+def assert_as_the_rooms_own(ours, own):
+    for ours_row, own_row in zip(ours, own):
+        for mine, expected in zip(ours_row, own_row):
+            np.testing.assert_array_equal(mine, np.pad(expected, (0, max(0, mine.size - expected.size)))[: mine.size])
+
+
+@pytest.mark.parametrize("order", [0, 3])
+@pytest.mark.parametrize("render", ["images", "rays"])
+def test_visible_pairs_match_the_rooms_own_responses(render, order):
+    g = geometry()
+    sources = [pra.SoundSource([1.5, 2.0, 1.5]), pra.SoundSource([2.5, 1.0, 1.2])]
+    mics = np.array([[5.0, 3.0, 1.5], [4.0, 4.0, 1.0]]).T
+    own, _ = rooms_own(g, render, sources, mics, order)
+    assert_as_the_rooms_own(responses_of(g, render, sources, mics, order), own)
+
+
+@pytest.mark.parametrize("order", [1, 3])
+@pytest.mark.parametrize("render", ["images", "rays"])
+def test_a_blocked_direct_sound_keeps_the_visible_reflections(render, order):
+    """Behind the panel the direct sound is blocked and reflections arrive: those are rendered as the room renders them."""
+    g = geometry(extra=(panel(),))
+    sources = [pra.SoundSource(SOURCE)]
+    mics = np.array([BEHIND_PANEL, IN_VIEW], dtype=float).T
+    own, orders = rooms_own(g, render, sources, mics, order)
+    assert 0 not in orders[0][0] and orders[0][0].size and 0 in orders[1][0]
+    ours = responses_of(g, render, sources, mics, order)
+    assert_as_the_rooms_own(ours, own)
+    assert np.sum(ours[0][0] ** 2) > 0.0
+
+
+def responses_of(g, render, sources, mics, order):
+    if render == "images":
+        return image_source_rirs(g, sources, mics, 48000, max_order=order)
+    return ray_traced_run(g, sources, mics, 48000, max_order=order, n_rays=2000, duration=0.3, seed=1).responses
+
+
+@pytest.mark.parametrize("copies", [False, True])
+def test_a_directional_source_is_traced_as_the_room_traces_it(copies):
+    """Its rays are drawn as the room draws them, with or without the copies of the receivers that sort them by direction."""
+    from compas_acoustics.room.pra import CARDIOID_P
+
+    def sources():
+        facing = pra.DirectionVector(azimuth=0.4, colatitude=1.3, degrees=False)
+        return [pra.SoundSource([1.5, 2.0, 1.5], directivity=pra.CardioidFamily(orientation=facing, p=CARDIOID_P["cardioid"], gain=1.0)), pra.SoundSource([2.5, 1.0, 1.2])]
+
+    g = geometry(extra=(panel(),))
+    mics = np.array([[5.0, 3.0, 1.5], [4.0, 4.0, 1.0]]).T
+    own, _ = rooms_own(g, "rays", sources(), mics, 2)
+    directions = [np.eye(3), -np.eye(3)] if copies else None
+    run = ray_traced_run(g, sources(), mics, 48000, max_order=2, n_rays=2000, duration=0.3, seed=1, directions=directions)
+    assert_as_the_rooms_own(run.responses, own)
+    assert (run.histograms is not None) == copies

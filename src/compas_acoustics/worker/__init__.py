@@ -1,12 +1,10 @@
-"""Run compas_acoustics in a second interpreter, the worker, and call it over HTTP with compas_pb payloads.
+"""Run compas_acoustics in a second interpreter, the worker, and call it over HTTP with protobuf payloads.
 
-Rhino 8 runs CPython 3.9, where the binaural and ambisonics methods and pyrato's STI and G are not available. The worker is a local
-HTTP service (:mod:`compas_acoustics.worker.service`) in another Python with compas_acoustics installed (see
-:mod:`compas_acoustics.worker.install`); :func:`client` starts it on first use, and the Grasshopper plugin starts its own.
-Arguments and results travel as compas_pb messages (:mod:`compas_acoustics.pb`): scenes, responses and audio included.
-
-Every session starts its own worker, on a free port of 127.0.0.1, and shares a random token with it: calls
-without the token are refused. The worker stops when the session ends, and when the session dies without saying so.
+On Python 3.9 the binaural and ambisonics methods, STI and G are not available. The worker is a local HTTP service
+(:mod:`compas_acoustics.worker.service`) in a Python >= 3.11 with compas_acoustics installed
+(:mod:`compas_acoustics.worker.install`); :func:`client` starts it on first use. Arguments and results travel as
+:mod:`compas_acoustics.pb` messages. Every session starts its own worker on a free port of 127.0.0.1 with a random
+token, without which calls are refused; it stops when the session ends or dies.
 """
 
 import atexit
@@ -20,12 +18,11 @@ import tempfile
 import time
 from pathlib import Path
 
-SERVICE = "compas_acoustics.worker.service"
 # Pings, PING_SECONDS apart, before giving up on a starting worker; the first start of a fresh environment imports uncached
 CONNECTION_ATTEMPTS = 1200
 PING_SECONDS = 0.1
 CONFIG = Path.home() / ".compas_acoustics" / "worker.json"
-# One file per running worker, {"pid", "port", "token"}, so that the installer can stop them before replacing the environment
+# One file per running worker, {"pid", "port", "token"}, so that Install Worker can stop them before replacing the environment
 WORKERS = Path.home() / ".compas_acoustics" / "workers"
 TOKEN_VARIABLE = "COMPAS_ACOUSTICS_WORKER_TOKEN"
 PARENT_VARIABLE = "COMPAS_ACOUSTICS_WORKER_PARENT"
@@ -84,7 +81,7 @@ def _free_port():
 
 
 def _worker_environment(token):
-    # PYTHONHOME and PYTHONPATH would load this (Rhino's 3.9) Python's packages into the 3.12 worker
+    # PYTHONHOME and PYTHONPATH would load this Python's packages into the worker
     env = {name: value for name, value in os.environ.items() if name not in ("PYTHONHOME", "PYTHONPATH")}
     env[TOKEN_VARIABLE] = token
     env[PARENT_VARIABLE] = str(os.getpid())
@@ -93,8 +90,9 @@ def _worker_environment(token):
 
 def _spawn(python, port, env, log):
     kwargs = {"creationflags": 0x08000000} if os.name == "nt" else {}  # CREATE_NO_WINDOW
-    return subprocess.Popen([python, "-m", SERVICE, "--port", str(port)], env=env, stdin=subprocess.DEVNULL,
-                            stdout=log, stderr=subprocess.STDOUT, **kwargs)
+    return subprocess.Popen(
+        [python, "-m", "compas_acoustics.worker.service", "--port", str(port)], env=env, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, **kwargs
+    )
 
 
 def _request(port, path, body=b"", token=None, timeout=None, headers=None):
@@ -128,8 +126,7 @@ class Client:
         self._log = log
 
     def _send(self, path, body=b"", authorize=True, headers=None):
-        return _request(self.port, path, body, self._token if authorize else None,
-                        timeout=None if path.startswith("/api/") else 2, headers=headers)
+        return _request(self.port, path, body, self._token if authorize else None, timeout=None if path.startswith("/api/") else 2, headers=headers)
 
     def ping(self):
         try:
@@ -206,12 +203,11 @@ class Client:
             time.sleep(PING_SECONDS)
         else:
             candidate.stop()
-            raise RuntimeError(f"The worker at {python} did not answer within {CONNECTION_ATTEMPTS * 0.1:.0f} s.")
+            raise RuntimeError(f"The worker at {python} did not answer within {CONNECTION_ATTEMPTS * PING_SECONDS:.0f} s.")
         info = candidate.info()
         if (info["compas_acoustics"], info["fingerprint"]) != (__version__, fingerprint()):
             candidate.stop()
-            raise RuntimeError(f"The worker at {python} runs a different compas_acoustics ({info['compas_acoustics']}) than this Python "
-                               f"({__version__}): run the installer again.")
+            raise RuntimeError(f"The worker at {python} runs a different compas_acoustics ({info['compas_acoustics']}) than this Python ({__version__}): reinstall the worker.")
         return candidate
 
 
@@ -247,7 +243,7 @@ def stop():
 def stop_running_workers(workers=None):
     """Ask every worker recorded in :data:`WORKERS` to shut down, and forget those that are gone.
 
-    The installer calls this before it replaces the worker environment, whose files a running worker holds open on Windows.
+    ``compas_acoustics.worker.install`` calls this before it replaces the worker environment, whose files a running worker holds open on Windows.
     """
     folder = Path(WORKERS if workers is None else workers)
     for record in sorted(folder.glob("*.json")) if folder.is_dir() else []:
@@ -292,16 +288,6 @@ def simulate(scene, method, settings, references=None):
     return responses, result["warnings"]
 
 
-#: The parameters that need pyrato >= 1.0, which Rhino 8's Python 3.9 cannot install
-NEEDS_PYRATO_1 = ("STI", "G")
-
-
-def _pyrato_has_parameters():
-    from compas_acoustics import analyser
-
-    return analyser._STI_SUPPORTED
-
-
 def analyse(ir):
     """Analyse ``ir`` here, with STI and G from the worker when this Python's pyrato cannot compute them.
 
@@ -314,16 +300,17 @@ def analyse(ir):
 
     Returns
     -------
-    tuple of (:class:`compas_acoustics.AcousticAnalyser`, list of str)
-        The analyser, its :attr:`analysis_data` filled, and the messages of the UserWarnings raised in the worker.
+    tuple of (:class:`compas_acoustics.Analyser`, list of str)
+        The analyser, its :attr:`~compas_acoustics.Analyser.analysis_data` filled, and the messages of the UserWarnings raised in the worker.
     """
     import warnings
 
-    from compas_acoustics import AcousticAnalyser
+    from compas_acoustics import Analyser
     from compas_acoustics import ImpulseResponse
+    from compas_acoustics import analyser as analysis
 
-    analyser = AcousticAnalyser(ir)
-    if _pyrato_has_parameters() or worker_python() is None or not isinstance(ir, ImpulseResponse):
+    analyser = Analyser(ir)
+    if analysis._STI_SUPPORTED or worker_python() is None or not isinstance(ir, ImpulseResponse):
         analyser.analyse()
         return analyser, []
     with warnings.catch_warnings():
@@ -331,7 +318,7 @@ def analyse(ir):
         warnings.filterwarnings("ignore", message="STI is not available")
         analyser.analyse()
     result = client().analyse(ir)
-    for name in NEEDS_PYRATO_1:
+    for name in ("STI", "G"):
         analyser.analysis_data[name] = result["analysis"][name]
         analyser.analysis_data[f"{name}_overall"] = result["analysis"][f"{name}_overall"]
     return analyser, result["warnings"]

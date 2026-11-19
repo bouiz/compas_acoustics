@@ -1,9 +1,6 @@
-"""Simulation methods: interchangeable ways to compute a scene's impulse responses.
+"""Interchangeable ways to compute a scene's impulse responses (contract: :mod:`.base`).
 
-See :mod:`compas_acoustics.simulation_methods.base` for the contract every method meets.
-:class:`Mono` is always available; :class:`Binaural` and :class:`Ambisonics`, the
-hybrid engine of :mod:`compas_acoustics.simulation_methods.hybrid`, need pyFDN (Python >= 3.11),
-so they are imported on first use.
+:class:`Binaural` and :class:`Ambisonics` need pyFDN (Python >= 3.11), so they are imported on first use.
 """
 
 from importlib import import_module
@@ -23,11 +20,9 @@ if TYPE_CHECKING:
 # Binaural and Ambisonics are left out: a star import would load pyFDN, or fail without it
 __all__ = ["SimulationContext", "SimulationMethod", "Mono", "image_source_search_seconds"]
 
-_HYBRID = ("Binaural", "Ambisonics", "TAILS")
-
 
 def __getattr__(name):
-    if name in _HYBRID:
+    if name in ("Binaural", "Ambisonics", "TAILS"):
         try:
             hybrid = import_module(f"{__name__}.hybrid")
         except ImportError as error:

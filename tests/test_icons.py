@@ -9,7 +9,7 @@ import pytest
 PIL = pytest.importorskip("PIL")
 
 ROOT = Path(__file__).resolve().parents[1]
-SPECS = ROOT / "csharp" / "CompasAcoustics.Grasshopper" / "Components" / "Specs"
+SPECS = ROOT / "src" / "compas_acoustics_ghcsharp" / "CompasAcoustics.Grasshopper" / "Components" / "Specs"
 
 
 def _icons():
@@ -49,3 +49,13 @@ def test_icons_are_reproducible():
     icons = _icons()
     for name in _names():
         assert icons.draw(name).tobytes() == icons.draw(name).tobytes()
+
+
+def test_the_docs_have_each_icon_at_four_times_the_size():
+    from PIL import Image
+
+    icons = _icons()
+    for name in _names():
+        image = Image.open(ROOT / "docs" / "_images" / "icons" / (name + ".png"))
+        assert image.size == (96, 96), name
+        assert image.tobytes() == icons.draw(name, size=96).tobytes(), f"{name}: run python tools/icons.py"

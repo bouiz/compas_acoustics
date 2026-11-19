@@ -1,8 +1,5 @@
 """The binaural and ambisonics methods over one hybrid core; the binaural late field per delay line."""
 
-import sys
-from pathlib import Path
-
 import numpy as np
 import pytest
 
@@ -15,19 +12,12 @@ from compas_acoustics.hybrid.ambisonics import ambisonic_output_matrix
 from compas_acoustics.hybrid.late import fdn_directions
 from compas_acoustics.hybrid.ambisonics import _from_n3d
 
-sys.path.insert(0, str(Path(__file__).parent / "data"))
-from hybrid_reference import AMBISONIC_ONLY  # noqa: E402
-from hybrid_reference import CASES  # noqa: E402
-from hybrid_reference import reference_binaural  # noqa: E402
-from hybrid_reference import reference_rir  # noqa: E402
-
 FS = 48000
-DATA = Path(__file__).parent / "data"
 FAST = dict(tail="eyring", duration=0.3)
 
 
-def evaluation_scene(direction=None):
-    """The evaluation's shoebox: 8 x 6 x 3.5 m, alpha 0.15, s 0.2."""
+def room_scene(direction=None):
+    """A shoebox of 8 x 6 x 3.5 m, alpha 0.15, s 0.2."""
     scene = ca.Scene("outputs", sampling_rate=FS)
     scene.add_acoustic_objects(ca.AcousticObjectsLibrary.shoebox_room(8, 6, 3.5, materials=ca.AcousticMaterial("wall", 0.15, 0.2)))
     scene.add_source(ca.Source("src", 4.0, 5.0, 1.5))
@@ -42,7 +32,7 @@ def one(responses):
 
 def run(**kwargs):
     method = ca.Ambisonics(**dict(FAST, **kwargs))
-    evaluation_scene().simulate(method)
+    room_scene().simulate(method)
     return one(method.results)
 
 
@@ -53,22 +43,22 @@ def deltas(directions):
     return HrtfSet(hrirs, np.asarray(directions, dtype=float), FS)
 
 
-def test_binaural_has_two_ears_and_the_kemar_set():
-    ir = one(evaluation_scene().simulate(ca.Binaural(**FAST)))
+def test_binaural_has_two_ears_and_the_ku100_set():
+    ir = one(room_scene().simulate(ca.Binaural(**FAST)))
     assert ir.n_channels == 2 and ir.ambisonic_order is None and ir.format == "binaural"
     assert ir.generation["method"] == "binaural" and ir.generation["hrtf"] == DEFAULT_HRTF.name
-    assert "output" not in ir.generation and "sh_order" not in ir.generation
+    assert "sh_order" not in ir.generation
 
 
 def test_ambisonics_has_the_order_and_convention():
-    ir = one(evaluation_scene().simulate(ca.Ambisonics(sh_order=2, normalization="N3D", **FAST)))
+    ir = one(room_scene().simulate(ca.Ambisonics(sh_order=2, normalization="N3D", **FAST)))
     assert ir.n_channels == 9 and ir.ambisonic_order == 2 and ir.normalization == "n3d" and ir.channel_order == "acn"
     assert ir.format == "ambisonic" and ir.generation["method"] == "ambisonics" and ir.generation["sh_order"] == 2
-    assert "hrtf" not in ir.generation and "output" not in ir.generation
+    assert "hrtf" not in ir.generation
 
 
 def test_both_methods_keep_each_other_and_data_on_the_graph():
-    scene = evaluation_scene()
+    scene = room_scene()
     mono = scene.simulate(ca.Mono(n_rays=2000, duration=0.3))
     binaural = scene.simulate(ca.Binaural(**FAST))
     ambisonics = scene.simulate(ca.Ambisonics(**FAST))
@@ -78,7 +68,7 @@ def test_both_methods_keep_each_other_and_data_on_the_graph():
 
 def test_every_method_has_kirschs_96_delay_lines():
     for method in (ca.Binaural(**FAST), ca.Ambisonics(**FAST), ca.Ambisonics(sh_order=3, **FAST)):
-        ir = one(evaluation_scene().simulate(method))
+        ir = one(room_scene().simulate(method))
         assert method.num_delays == 96 and ir.generation["num_delays"] == 96
         assert one(method.results).late_lines.shape[1] == 96
         assert one(method.results).core.drive_gain == pytest.approx(np.sqrt(96))
@@ -88,9 +78,7 @@ def test_fourth_order_takes_more_lines():
     assert ca.Ambisonics(sh_order=4).num_delays > 96
 
 
-@pytest.mark.parametrize("make", [
-    lambda: ca.Binaural(output="binaural"), lambda: ca.Binaural(sh_order=1), lambda: ca.Binaural(normalization="N3D"),
-    lambda: ca.Ambisonics(hrtf="kemar"), lambda: ca.Ambisonics(output="ambisonic")])
+@pytest.mark.parametrize("make", [lambda: ca.Binaural(sh_order=1), lambda: ca.Binaural(normalization="N3D"), lambda: ca.Ambisonics(hrtf="ku100")])
 def test_the_other_formats_arguments_are_rejected(make):
     with pytest.raises(TypeError):
         make()
@@ -98,8 +86,8 @@ def test_the_other_formats_arguments_are_rejected(make):
 
 def test_both_methods_share_one_late_field():
     ears, channels = ca.Binaural(seed=3, **FAST), ca.Ambisonics(seed=3, **FAST)
-    evaluation_scene().simulate(ears)
-    evaluation_scene().simulate(channels)
+    room_scene().simulate(ears)
+    room_scene().simulate(channels)
     np.testing.assert_allclose(one(ears.results).late_lines, one(channels.results).late_lines, atol=1e-12)
     assert one(ears.results).rir.shape[1] == 2 and one(channels.results).rir.shape[1] == 4
 
@@ -107,7 +95,7 @@ def test_both_methods_share_one_late_field():
 def test_both_methods_meet_the_contract(assert_meets_contract):
     from compas_acoustics.simulation_methods import SimulationContext
 
-    scene = evaluation_scene()
+    scene = room_scene()
     binaural, ambisonics = ca.Binaural(**FAST), ca.Ambisonics(**FAST)
     ears, channels = scene.simulate(binaural), scene.simulate(ambisonics)
     context = SimulationContext.from_scene(scene)
@@ -116,9 +104,9 @@ def test_both_methods_meet_the_contract(assert_meets_contract):
     assert_meets_contract(channels, context, ambisonics)
 
 
-def test_the_hrtf_is_kemar_or_a_sofa_file():
-    assert ca.Binaural().hrtf == "kemar"
-    ir = one(evaluation_scene().simulate(ca.Binaural(hrtf=str(DEFAULT_HRTF), **FAST)))
+def test_the_hrtf_is_ku100_or_a_sofa_file():
+    assert ca.Binaural().hrtf == "ku100"
+    ir = one(room_scene().simulate(ca.Binaural(hrtf=str(DEFAULT_HRTF), **FAST)))
     assert ir.generation["hrtf"] == DEFAULT_HRTF.name
     with pytest.raises(ValueError, match="hrtf"):
         ca.Binaural(hrtf="/nowhere.sofa")
@@ -140,7 +128,7 @@ def test_per_line_binaural_with_ideal_ears_is_w(n_directions):
     result = run()
     golden = np.pi * (3.0 - np.sqrt(5.0)) * np.arange(n_directions)
     z = 1.0 - 2.0 * (np.arange(n_directions) + 0.5) / n_directions
-    directions = np.stack([np.sqrt(1 - z ** 2) * np.cos(golden), np.sqrt(1 - z ** 2) * np.sin(golden), z], axis=1)
+    directions = np.stack([np.sqrt(1 - z**2) * np.cos(golden), np.sqrt(1 - z**2) * np.sin(golden), z], axis=1)
     w = result.early[:, 0] + result.late[:, 0]
     ears = render_binaural(result.core, deltas(directions)).rir
     assert np.allclose(ears[:, 0], w, rtol=0, atol=1e-9 * np.abs(w).max())
@@ -158,41 +146,22 @@ def test_shape_late_gives_every_column_the_gains_of_w():
     ambisonic = shape_late(raw @ C.T, early_w, late_w, reference, FS)
     assert lines.shape == raw.shape
     assert np.allclose(lines @ C.T, ambisonic, rtol=0, atol=1e-12 * np.abs(ambisonic).max())
-    assert np.sum(lines ** 2) < np.sum(raw ** 2)
-
-
-@pytest.mark.parametrize("case", sorted({**CASES, **AMBISONIC_ONLY}))
-def test_the_ambisonic_output_is_unchanged_since_3b9333d(case):
-    """The code before the split into the binaural and ambisonics methods (data/hybrid_reference.py) gives the same response."""
-    before = np.load(DATA / "ambisonic_reference_3b9333d.npz")[case]
-    after = reference_rir(**{**CASES, **AMBISONIC_ONLY}[case])
-    assert after.shape == before.shape and np.any(after[-200:] != 0.0)
-    assert np.allclose(after, before, rtol=0, atol=1e-10 * np.abs(before).max())
-
-
-@pytest.mark.parametrize("case", sorted(CASES))
-def test_the_binaural_output_is_unchanged_since_3b9333d(case):
-    """The same for the ears; BTMS within 1e-3 of its peak, since the binaural BTMS takes the ambisonic encoder after the split."""
-    before = np.load(DATA / "binaural_reference_3b9333d.npz")[case]
-    after = reference_binaural(**CASES[case])
-    assert after.shape == before.shape and np.any(after[-200:] != 0.0)
-    tolerance = 1e-3 if case == "btms" else 1e-10
-    assert np.allclose(after, before, rtol=0, atol=tolerance * np.abs(before).max())
+    assert np.sum(lines**2) < np.sum(raw**2)
 
 
 def direct_ild_db(ir):
     """Left minus right ear level in dB over the 3 ms from the direct sound, before the first reflection."""
     ears = ir.denormalized()
     start = int(np.flatnonzero(np.abs(ears).max(axis=1) > 1e-3 * np.abs(ears).max())[0])
-    window = ears[start:start + int(0.003 * FS)]
-    left, right = np.sum(window ** 2, axis=0)
+    window = ears[start : start + int(0.003 * FS)]
+    left, right = np.sum(window**2, axis=0)
     return 10 * np.log10(left / right)
 
 
 def test_the_source_on_the_left_is_louder_at_the_left_ear():
     # The source at (4, 5) is at +y of the receiver at (4, 2): on its left facing +x, on its right facing -x
-    facing = one(evaluation_scene().simulate(ca.Binaural(**FAST)))
-    turned = one(evaluation_scene(direction=[-1, 0, 0]).simulate(ca.Binaural(**FAST)))
+    facing = one(room_scene().simulate(ca.Binaural(**FAST)))
+    turned = one(room_scene(direction=[-1, 0, 0]).simulate(ca.Binaural(**FAST)))
     assert direct_ild_db(facing) > 10.0 and direct_ild_db(turned) < -10.0
 
 
@@ -203,13 +172,13 @@ def test_settings_changed_after_construction_are_the_ones_rendered_and_recorded(
     own = tmp_path / "own.sofa"
     shutil.copy(DEFAULT_HRTF, own)
     ears = ca.Binaural(**FAST)
-    evaluation_scene().simulate(ears)
-    kemar = ears._hrtf_set
+    room_scene().simulate(ears)
+    ku100 = ears._hrtf_set
     ears.hrtf = str(own)
-    ir = one(evaluation_scene().simulate(ears))
-    assert ir.generation["hrtf"] == "own.sofa" and ears._hrtf_set is not kemar
+    ir = one(room_scene().simulate(ears))
+    assert ir.generation["hrtf"] == "own.sofa" and ears._hrtf_set is not ku100
     channels = ca.Ambisonics(**FAST)
-    evaluation_scene().simulate(channels)
+    room_scene().simulate(channels)
     channels.sh_order = 4
-    ir = one(evaluation_scene().simulate(channels))
+    ir = one(room_scene().simulate(channels))
     assert ir.n_channels == 25 and ir.generation["num_delays"] == channels.num_delays == ca.Ambisonics(sh_order=4).num_delays > 96

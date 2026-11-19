@@ -163,7 +163,7 @@ def _unconverged(entries, exact, nominal):
         return None, []
     frequencies = sorted({float(u["frequency"]) for u in entries})
     bodies = [b for b in ("sample", "reference") if any(u["body"] == b for u in entries)]
-    standard = list(Defaults._DEFAULT_FREQUENCY_BANDS)
+    standard = list(Defaults.DEFAULT_FREQUENCY_BANDS)
     octaves = set()
     for f in frequencies:
         band = int(np.argmin(np.abs(np.log(exact) - np.log(f))))  # a simulation frequency is within 2^(1/9) of its band's exact centre

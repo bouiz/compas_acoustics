@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata from this file."
+title: "compas_acoustics: room acoustic simulation, analysis and auralisation for COMPAS"
+type: software
+license: MIT
+repository-code: "https://github.com/gramaziokohler/compas_acoustics"
+url: "https://gramaziokohler.github.io/compas_acoustics/latest/"
+authors:
+  - given-names: "Achilleas"
+    family-names: "Xydis"
+    email: "xydis@arch.ethz.ch"
+  - given-names: "Georgios"
+    family-names: "Papadimitriou"
+    email: "papadimitriou@arch.ethz.ch"
+  - given-names: "Hao Cheng"
+    family-names: "Wang"
+    alias: "Jerry"
+    email: "jerry84562890727@gmail.com"
+  - given-names: "Gardar"
+    family-names: "Edvaldsson"
+    email: "edvaldsson@arch.ethz.ch"
+  - given-names: "Gonzalo"
+    family-names: "Casas"
+    email: "casas@arch.ethz.ch"

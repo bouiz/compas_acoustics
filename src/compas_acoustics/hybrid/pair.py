@@ -1,9 +1,4 @@
-"""One source-receiver pair of a scene, as the ported modules see it.
-
-Stands in for hybrid-rir's ``RoomSpec`` with the same attribute names, so the
-ported function bodies, which keep the parameter name ``spec``, read as
-upstream's.
-"""
+"""One source-receiver pair of a scene, the ``spec`` the hybrid modules take."""
 
 from __future__ import annotations
 
@@ -21,6 +16,12 @@ from .bands import N_BANDS
 
 @dataclass(frozen=True, eq=False)
 class Pair:
+    """A source and a receiver in a closed room, positions in metres.
+
+    The columns of ``receiver_rotation`` are the receiver's axes in room coordinates; ``air`` None is
+    ``AirConditions()``.
+    """
+
     geometry: RoomGeometry
     source: np.ndarray
     receiver: np.ndarray
@@ -37,21 +38,14 @@ class Pair:
                 raise ValueError(f"{name} must be a length-3 position in metres")
             object.__setattr__(self, name, value)
         rot = np.asarray(self.receiver_rotation, dtype=float)
-        if (
-            rot.shape != (3, 3)
-            or not np.allclose(rot @ rot.T, np.eye(3), atol=1e-8)
-            or not np.isclose(np.linalg.det(rot), 1.0, atol=1e-8)
-        ):
+        if rot.shape != (3, 3) or not np.allclose(rot @ rot.T, np.eye(3), atol=1e-8) or not np.isclose(np.linalg.det(rot), 1.0, atol=1e-8):
             raise ValueError("receiver_rotation must be a 3x3 proper rotation (orthogonal, determinant +1)")
         object.__setattr__(self, "receiver_rotation", rot)
         if not self.geometry.is_closed:
             raise ValueError("a hybrid response needs a closed room")
 
     def air_attenuation(self) -> np.ndarray:
-        """Energy attenuation coefficient of the air per metre on the band grid, zero without air absorption.
-
-        As upstream ``RoomSpec.air_attenuation``, in the pair's air conditions: ``AirConditions()`` without them.
-        """
+        """Energy attenuation coefficient per metre on the band grid in the pair's air, zero without air absorption."""
         if not self.air_absorption:
             return np.zeros(N_BANDS)
         return air_attenuation(self.air)

@@ -1,13 +1,4 @@
-"""Binaural rendering of the hybrid: an HRTF per path and per delay line.
-
-The hybrid's binaural rendering (:func:`render_binaural`) works on the paths and lines themselves, without
-spherical harmonics: every image source and diffracted path is filtered with the
-head-related transfer function measured nearest its direction of arrival, as
-RAVEN renders its image sources, and every delay line of the late field with the
-one nearest the line's direction, as RAZR renders its feedback delay network
-and RAVEN the directivity groups of its ray-tracing histogram. compas_acoustics has no ambisonic-to-binaural decoder: ambisonic
-responses are saved or convolved as they are, for a decoder elsewhere.
-"""
+"""Binaural rendering of the hybrid: every early path and every delay line through the HRIR measured nearest its direction."""
 
 from __future__ import annotations
 
@@ -23,7 +14,7 @@ from compas_acoustics.defaults import Defaults
 __all__ = ["DEFAULT_HRTF", "HrtfSet", "render_binaural"]
 
 # The HRTF set every binaural rendering uses unless given another
-DEFAULT_HRTF = Path(Defaults().HRTF_LIBRARY_PATH) / "KEMAR_FreeFieldComp_48kHz.sofa"
+DEFAULT_HRTF = Path(Defaults().HRTF_LIBRARY_PATH) / "KU100_HRIR_L2702.sofa"
 
 
 @dataclass(frozen=True)
@@ -66,7 +57,7 @@ def render_groups(monos: np.ndarray, groups: np.ndarray, hrtf: HrtfSet, n_sample
     """The two ears, (n, 2): channel ``g`` of ``monos`` (n, G) through the HRIR of measured direction ``groups[g]``."""
     out = np.zeros((n_samples, 2))
     for g, index in enumerate(groups):
-        out += fftconvolve(monos[:, g:g + 1], hrtf.hrirs[index].T, axes=0)[:n_samples]
+        out += fftconvolve(monos[:, g : g + 1], hrtf.hrirs[index].T, axes=0)[:n_samples]
     return out
 
 
@@ -74,17 +65,12 @@ def render_binaural(core, hrtf: HrtfSet):
     """A :class:`~compas_acoustics.hybrid.synthesis.HybridCore` at the two ears, (n, 2), as a
     :class:`~compas_acoustics.hybrid.synthesis.HybridResult`.
 
-    Early part: every image, diffracted path and BTMS contribution keeps the band
-    magnitude, fractional delay and radiation taper of its ambisonic encoding;
-    instead of the spherical harmonics of its direction it takes the HRIR
-    measured nearest to it. The paths sharing a measured direction are summed
-    first, so each HRIR is applied once. Late part: line ``i`` after the late
-    envelope (:meth:`~compas_acoustics.hybrid.synthesis.HybridCore.shaped_lines`, fitted
-    against the paths' omnidirectional sum), over ``sqrt(N)``, through the HRIR measured nearest
-    ``core.line_directions[i]``, lines sharing an HRIR summed first, as RAZR
-    renders its FDN output and RAVEN its directivity groups. ``1 / sqrt(N)`` is
-    the W row of the ambisonic output matrix, so each ear receives the plane
-    waves the ambisonic late field's W describes.
+    Early part: every image, diffracted path and BTMS contribution has the band magnitude, fractional delay
+    and radiation taper of :func:`~compas_acoustics.hybrid.early.render_images` and goes through the HRIR
+    measured nearest its direction; paths sharing an HRIR are summed first. Late part: line ``i`` after the late envelope
+    (:meth:`~compas_acoustics.hybrid.synthesis.HybridCore.shaped_lines`, fitted against the paths' omnidirectional
+    sum), over ``sqrt(N)`` (the W row of the ambisonic output matrix), through the HRIR nearest
+    ``core.line_directions[i]``.
     """
     # pyFDN, on Python >= 3.11 only; the Auraliser imports this module without it
     from compas_acoustics.hybrid.diffraction import encode_btms
@@ -96,7 +82,7 @@ def render_binaural(core, hrtf: HrtfSet):
         raise ValueError(f"the HRTF set has sample rate {hrtf.sampling_rate}; the response has {core.fs}")
     n = core.n_samples
     images, paths, contributions = core.images, list(core.diffraction_paths), list(core.btms_contributions)
-    # an empty Coordinates set has no cartesian (pyfar raises)
+    # an empty Coordinates set has no cartesian
     image_doa = np.asarray(images.doa.cartesian, dtype=float).reshape(-1, 3) if np.asarray(images.delay).size else np.zeros((0, 3))
     doa = np.vstack([image_doa] + [np.array([p.doa for p in group], dtype=float).reshape(-1, 3) for group in (paths, contributions)])
     early, early_w = np.zeros((n, 2)), np.zeros(n)

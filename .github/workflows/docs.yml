@@ -4,16 +4,22 @@ on:
   push:
     branches:
       - main
-    tags:
-      - 'v*'
   pull_request:
     branches:
       - main
 
+permissions:
+  contents: read
+
+env:
+  # pyFDN -> flamo -> torch; without the CPU backend uv takes the CUDA build, whose ~5 GB fills the runner's disk
+  UV_TORCH_BACKEND: cpu
+
 jobs:
-  docs:
+  # only checks that the docs build: release.yml deploys them
+  build:
     runs-on: ubuntu-latest
     steps:
-      - uses: compas-dev/compas-actions.docs@v4
+      - uses: compas-dev/compas-actions/docs@v1
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          extras: docs

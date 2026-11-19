@@ -6,7 +6,6 @@ import numpy as np
 import pytest
 
 from compas_acoustics import AirConditions
-from compas_acoustics.room.diffuse import _air_absorption_coefficient
 from compas_acoustics.room.air import speed_of_sound
 
 try:
@@ -47,15 +46,17 @@ def test_without_a_medium_the_air_is_iso_9613_1_at_20_c_and_50_percent():
     default = AirConditions(temperature=20.0, humidity=50.0, pressure=101325.0)
     assert AirConditions() == default
     np.testing.assert_array_equal(air_attenuation(None), default.air_attenuation(SYNTHESIS_BANDS))
-    np.testing.assert_array_equal(_air_absorption_coefficient(), default.air_attenuation(SYNTHESIS_BANDS))
 
 
-# RAVEN's calculateSoundSpeed (Cramer 1993, 400 ppm CO2); pyfar takes 425 ppm, 0.003 m/s slower
-@pytest.mark.parametrize(("t", "h", "p", "c"), [
-    (20.0, 50.0, 101325.0, 343.987),
-    (0.0, 0.0, 101325.0, 331.448),
-    (20.0, 0.0, 101325.0, 343.359),
-])
+# Cramer (1993) at 400 ppm CO2; pyfar's 425 ppm is 0.003 m/s slower, inside the tolerance
+@pytest.mark.parametrize(
+    ("t", "h", "p", "c"),
+    [
+        (20.0, 50.0, 101325.0, 343.987),
+        (0.0, 0.0, 101325.0, 331.448),
+        (20.0, 0.0, 101325.0, 343.359),
+    ],
+)
 def test_speed_of_sound_is_cramers(t, h, p, c):
     assert AirConditions(temperature=t, humidity=h, pressure=p).speed_of_sound == pytest.approx(c, abs=5e-3)
 
@@ -73,8 +74,7 @@ def test_humid_air_is_faster_and_absorbs_differently():
     assert humid.air_attenuation([8000.0])[0] < dry.air_attenuation([8000.0])[0]
 
 
-@pytest.mark.parametrize("conditions", [dict(humidity=0.0), dict(temperature=0.0), dict(temperature=30.0),
-                                        dict(pressure=75e3), dict(pressure=102e3), dict(humidity=100.0)])
+@pytest.mark.parametrize("conditions", [dict(humidity=0.0), dict(temperature=0.0), dict(temperature=30.0), dict(pressure=75e3), dict(pressure=102e3), dict(humidity=100.0)])
 def test_the_edges_of_the_valid_range_are_finite(conditions):
     air = AirConditions(**conditions)
     m = air.air_attenuation(np.geomspace(62.5, 16000.0, 9))
@@ -82,8 +82,7 @@ def test_the_edges_of_the_valid_range_are_finite(conditions):
     assert np.isfinite(air.speed_of_sound) and air.speed_of_sound > 300.0
 
 
-@pytest.mark.parametrize("conditions", [dict(temperature=-1.0), dict(temperature=31.0), dict(humidity=-1.0),
-                                        dict(humidity=101.0), dict(pressure=74e3), dict(pressure=103e3)])
+@pytest.mark.parametrize("conditions", [dict(temperature=-1.0), dict(temperature=31.0), dict(humidity=-1.0), dict(humidity=101.0), dict(pressure=74e3), dict(pressure=103e3)])
 def test_outside_the_valid_range_raises(conditions):
     with pytest.raises(ValueError):
         AirConditions(**conditions)
@@ -172,7 +171,7 @@ def test_air_matches_pyfar_constants(t, h, p):
     from compas_acoustics.room import _pyfar_constants as ours
 
     f = np.array([62.5, 125, 250, 500, 1000, 2000, 4000, 8000, 16000])
-    np.testing.assert_allclose(ours.speed_of_sound_cramer(t, h / 100, atmospheric_pressure=p),
-                               constants.speed_of_sound_cramer(t, h / 100, atmospheric_pressure=p), rtol=1e-12)
-    np.testing.assert_allclose(ours.air_attenuation(t, f, h / 100, atmospheric_pressure=p)[1].freq,
-                               constants.air_attenuation(t, f, h / 100, atmospheric_pressure=p)[1].freq, rtol=1e-12)
+    np.testing.assert_allclose(ours.speed_of_sound_cramer(t, h / 100, atmospheric_pressure=p), constants.speed_of_sound_cramer(t, h / 100, atmospheric_pressure=p), rtol=1e-12)
+    np.testing.assert_allclose(
+        ours.air_attenuation(t, f, h / 100, atmospheric_pressure=p)[1].freq, constants.air_attenuation(t, f, h / 100, atmospheric_pressure=p)[1].freq, rtol=1e-12
+    )

@@ -1,7 +1,6 @@
 from typing import TYPE_CHECKING
 
 from .defaults import Defaults
-# from .tools import Tools
 from .room import AirConditions
 from .materials import AcousticMaterial
 from .materials import MaterialCategory
@@ -14,7 +13,7 @@ from .room import RoomGeometry
 from .rays import Ray, ScatteredRay, RayField
 from .rays import SpecularPath, SpecularReflections
 from .scene import Scene
-from .analyser import AcousticAnalyser
+from .analyser import Analyser
 from .energy_map import EnergyMap
 from .simulation_methods import SimulationMethod, Mono
 from .auraliser import Auraliser
@@ -29,41 +28,37 @@ if TYPE_CHECKING:
     from .simulation_methods.hybrid import Ambisonics  # noqa: F401
     from .simulation_methods.hybrid import Binaural  # noqa: F401
 
-__author__ = ["Achilleas Xydis"]
-__copyright__ = "Gramazio Kohler Research"
-__license__ = "MIT License"
-__email__ = "xydis@arch.ethz.ch"
-__version__ = "0.1.0"
+
+__version__ = "0.1.1"
 
 __all__ = [
-    'Defaults',
-    'AirConditions',
-    'AcousticMaterial',
-    'MaterialCategory',
-    'MaterialsLibrary',
-    'Source',
-    'Receiver',
-    'AcousticObject',
-    'AcousticObjectsLibrary',
-    'Ray',
-    'ScatteredRay',
-    'RayField',
-    'SpecularPath',
-    'SpecularReflections',
-    'Scene',
-    'AcousticAnalyser',
-    'EnergyMap',
-    'SimulationMethod',
-    'Mono',
-    'Auraliser',
-    'AudioPlayer',
-    # 'Tools',
-    'ImpulseResponse',
-    'RoomGeometry',
-    'regularized_fitness',
-    'ScatteringResult',
-    'ScatteringSample',
-    ]
+    "Defaults",
+    "AirConditions",
+    "AcousticMaterial",
+    "MaterialCategory",
+    "MaterialsLibrary",
+    "Source",
+    "Receiver",
+    "AcousticObject",
+    "AcousticObjectsLibrary",
+    "Ray",
+    "ScatteredRay",
+    "RayField",
+    "SpecularPath",
+    "SpecularReflections",
+    "Scene",
+    "Analyser",
+    "EnergyMap",
+    "SimulationMethod",
+    "Mono",
+    "Auraliser",
+    "AudioPlayer",
+    "ImpulseResponse",
+    "RoomGeometry",
+    "regularized_fitness",
+    "ScatteringResult",
+    "ScatteringSample",
+]
 
 
 def __getattr__(name):
@@ -71,6 +66,7 @@ def __getattr__(name):
     if name in ("Binaural", "Ambisonics"):
         try:
             from . import simulation_methods
+
             return getattr(simulation_methods, name)
         except ImportError as error:
             raise ImportError(f"compas_acoustics.{name} needs Python >= 3.11, where compas_acoustics installs pyFDN") from error

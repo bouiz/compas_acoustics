@@ -1,8 +1,7 @@
-"""Functions the worker serves; called through :func:`compas_acoustics.worker.client` or the Grasshopper plugin, never directly.
+"""Functions the worker serves, called through :func:`compas_acoustics.worker.client` or the Grasshopper plugin.
 
-Arguments and results are what compas_pb carries (:mod:`compas_acoustics.pb`): compas_acoustics and COMPAS Data
-objects, dicts, lists and numbers. A function raises ValueError or TypeError for input it cannot use; the service
-answers those with their message.
+Arguments and results are what :mod:`compas_acoustics.pb` carries: Data objects, dicts, lists and numbers. Unusable
+input raises ValueError or TypeError, which the service answers with its message.
 """
 
 import importlib.util
@@ -114,12 +113,12 @@ def simulate(scene, method, settings, references=None):
 
 def analyse(ir):
     """STI and G of ``ir``, for a client whose pyrato cannot compute them: ``{"analysis": {...}, "warnings": [str]}``."""
-    from compas_acoustics import AcousticAnalyser
+    from compas_acoustics import Analyser
 
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         # the client computes every other parameter itself
-        analysis = AcousticAnalyser(ir)._sti_and_strength()
+        analysis = Analyser(ir)._sti_and_strength()
     return {"analysis": analysis, "warnings": _messages(caught)}
 
 
@@ -148,12 +147,7 @@ def make_material(name, absorption, scattering=None, category=None):
     """An :class:`AcousticMaterial`; an empty ``scattering`` or ``category`` is left to the class's default."""
     from compas_acoustics import AcousticMaterial
 
-    return AcousticMaterial(name=name, absorption_coefficients=list(absorption), scattering_coefficients=list(scattering) if scattering else None,
-                            category=category or None)
-
-
-#: The source directivities, as Source and Directivity offer them
-DIRECTIVITIES = ["bidirectional", "hypercardioid", "supercardioid", "cardioid", "omnidirectional"]
+    return AcousticMaterial(name=name, absorption_coefficients=list(absorption), scattering_coefficients=list(scattering) if scattering else None, category=category or None)
 
 
 def make_source(name, position, direction=None, directivity=None, sound_file=None, spl=None):
@@ -162,12 +156,18 @@ def make_source(name, position, direction=None, directivity=None, sound_file=Non
     ``spl``, the source's level on its axis at 1 m per band (one value for every band), keeps the default when None.
     """
     from compas_acoustics import Source
+    from compas_acoustics.room.pra import CARDIOID_P
 
     directivity = directivity or "omnidirectional"
-    if directivity not in DIRECTIVITIES:
+    if directivity not in CARDIOID_P:
         raise ValueError("Input parameter 'directivity' is not valid.")
-    source = Source(name or "my_source", *(position if position is not None else [0, 0, 0]), directivity=directivity,
-                    direction=list(direction) if direction is not None else [1, 0, 0], sound_file=sound_file or None)
+    source = Source(
+        name or "my_source",
+        *(position if position is not None else [0, 0, 0]),
+        directivity=directivity,
+        direction=list(direction) if direction is not None else [1, 0, 0],
+        sound_file=sound_file or None,
+    )
     if spl is not None and len(list(spl)) > 0:
         source.spl = spl
     return source
@@ -253,16 +253,20 @@ PARAMETERS = {
     "LFC": ("Lateral Energy Fraction, cosine (LFC)", "Frequency (Hz)", "Fraction (0-1)"),
 }
 TIME_SCALES = ["db", "linear"]
-# The frequency axis of a frequency response
-FREQUENCY_AXIS = (20.0, 20000.0)
-# An amplitude plot of a time response ends where its Schroeder curve falls this far, in dB
-LINEAR_TIME_TRIM_DB = 60.0
 
 
 def _parameter(name, title, x_unit, y_unit, x_scale, x, values, overall=None, channels=()):
-    return {"name": name, "title": title, "x_unit": x_unit, "y_unit": y_unit, "x_scale": x_scale,
-            "frequencies": [float(v) for v in x], "values": [[float(v) for v in row] for row in values],
-            "overall": None if overall is None else float(overall), "channels": list(channels)}
+    return {
+        "name": name,
+        "title": title,
+        "x_unit": x_unit,
+        "y_unit": y_unit,
+        "x_scale": x_scale,
+        "frequencies": [float(v) for v in x],
+        "values": [[float(v) for v in row] for row in values],
+        "overall": None if overall is None else float(overall),
+        "channels": list(channels),
+    }
 
 
 def _plotted_channels(ir):
@@ -288,8 +292,8 @@ def analysis(ir, time_scale="db"):
     Parameters
     ----------
     ir : :class:`compas_acoustics.ImpulseResponse`
-    time_scale : str
-        ``'db'``: the time response as its level in dB re the peak; ``'linear'``: its amplitude, ending 60 dB down its decay.
+    time_scale : str, optional
+        ``'db'`` (default): the time response as its level in dB re the peak; ``'linear'``: its amplitude, ending 60 dB down its decay.
 
     Returns
     -------
@@ -300,7 +304,7 @@ def analysis(ir, time_scale="db"):
     """
     import math
 
-    from compas_acoustics import AcousticAnalyser
+    from compas_acoustics import Analyser
     from compas_acoustics.analyser import frequency_response
     from compas_acoustics.analyser import time_response
 
@@ -309,7 +313,7 @@ def analysis(ir, time_scale="db"):
         raise ValueError(f"Input parameter 'time_scale' must be one of {TIME_SCALES}: 'db' or 'linear'.")
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        analyser = AcousticAnalyser(ir)
+        analyser = Analyser(ir)
         analyser.analyse()
         data = analyser.analysis_data
         bands = analyser.frequency_bands
@@ -321,12 +325,10 @@ def analysis(ir, time_scale="db"):
             parameters.append(_parameter(name, title, x_unit, y_unit, "bands", bands, [values], data[f"{name}_overall"]))
         samples, channels = _plotted_channels(ir)
         db = time_scale == "db"
-        times, levels = time_response(samples, ir.sampling_rate, db=db, trim_db=None if db else LINEAR_TIME_TRIM_DB)
-        time = _parameter("IR", _curve_title("Impulse Response", channels), "Time (s)", "Level (dB)" if db else "Amplitude", "linear",
-                          times, levels, channels=channels)
-        frequencies, magnitudes = frequency_response(samples, ir.sampling_rate, num_fractions=3, frequency_range=FREQUENCY_AXIS)
-        frequency = _parameter("FR", _curve_title("Frequency Response, 1/3 octave", channels), "Frequency (Hz)", "Level (dB)", "log",
-                               frequencies, magnitudes, channels=channels)
+        times, levels = time_response(samples, ir.sampling_rate, db=db, trim_db=None if db else 60.0)
+        time = _parameter("IR", _curve_title("Impulse Response", channels), "Time (s)", "Level (dB)" if db else "Amplitude", "linear", times, levels, channels=channels)
+        frequencies, magnitudes = frequency_response(samples, ir.sampling_rate, num_fractions=3, frequency_range=(20.0, 20000.0))
+        frequency = _parameter("FR", _curve_title("Frequency Response, 1/3 octave", channels), "Frequency (Hz)", "Level (dB)", "log", frequencies, magnitudes, channels=channels)
     return {"parameters": parameters, "time": time, "frequency": frequency, "warnings": _messages(caught)}
 
 
@@ -335,7 +337,6 @@ def analysis(ir, time_scale="db"):
 # =============================================================================
 
 LEVELS = ["relative", "individual", "none"]
-HEADROOM_DB = -1.0
 
 
 def auralise(groups, level="relative", mix_sources=False, save_folder=None, save_name=None):
@@ -346,9 +347,9 @@ def auralise(groups, level="relative", mix_sources=False, save_folder=None, save
     groups : list of dict
         One per Grasshopper branch: ``{"branch": str, "irs": [ImpulseResponse], "sounds": [path or None]}``; a None
         sound is the sound file of the response's source.
-    level : str
-        ``'relative'`` (one gain for every signal of the call, the loudest at -1 dBFS), ``'individual'`` or ``'none'``.
-    mix_sources : bool
+    level : str, optional
+        ``'relative'`` (default; one gain for every signal of the call, the loudest at -1 dBFS), ``'individual'`` or ``'none'``.
+    mix_sources : bool, optional
         One signal per receiver, its sources summed; else one per source and receiver.
     save_folder, save_name : str, optional
         With a folder, each signal is also written there as ``<save_name or 'convolved_sound'>_mic_<suffix>.wav``.
@@ -399,17 +400,17 @@ def auralise(groups, level="relative", mix_sources=False, save_folder=None, save
                 if mix_sources:
                     tasks = [(receiver_id, ir_groups[receiver_id], sound_groups[receiver_id], f"{r}")]
                 else:
-                    tasks = [(key, {key: ir_groups[receiver_id][key]}, {key: sound_groups[receiver_id][key]}, f"{r}_{j}")
-                             for j, key in enumerate(ir_groups[receiver_id])]
+                    tasks = [(key, {key: ir_groups[receiver_id][key]}, {key: sound_groups[receiver_id][key]}, f"{r}_{j}") for j, key in enumerate(ir_groups[receiver_id])]
                 for name, ir_data, sound_data, suffix in tasks:
                     jobs.progress("rendering", len(renders))
                     task_formats = sorted({formats[key] for key in ir_data})
                     if len(task_formats) > 1:
-                        raise ValueError("The impulse responses at receiver {} are {}: mix responses of one format, or turn mix_sources off.".format(
-                            r, " and ".join(task_formats)))
+                        raise ValueError(
+                            "The impulse responses at receiver {} are {}: mix responses of one format, or turn mix_sources off.".format(r, " and ".join(task_formats))
+                        )
                     auraliser = Auraliser(name=name, impulse_responses=ir_data, anechoic_sounds=sound_data)
                     renders.append((group["branch"], auraliser, auraliser.convolve(), suffix, task_formats[0]))
-        gains = Auraliser.render_gains([render[2] for render in renders], level, HEADROOM_DB)
+        gains = Auraliser.render_gains([render[2] for render in renders], level, -1.0)
         signals = []
         peak = -np.inf
         for (branch, auraliser, signal, suffix, ir_format), gain in zip(renders, gains):
@@ -449,8 +450,10 @@ def play(sound, normalize=True, gain_db=0.0, start=0.0):
 
     if isinstance(sound, Audio):
         if sound.channels > 2:
-            raise ValueError("A {}-channel ambisonic signal cannot be played here. Save it with Auralise as a multichannel file for an "
-                             "ambisonic decoder, or simulate with Simulate Binaural for headphone playback.".format(sound.channels))
+            raise ValueError(
+                "A {}-channel ambisonic signal cannot be played here. Save it with Auralise as a multichannel file for an "
+                "ambisonic decoder, or simulate with Simulate Binaural for headphone playback.".format(sound.channels)
+            )
         args = (sound.samples, sound.sampling_rate, normalize is not False, float(gain_db or 0.0), float(start or 0.0))
     elif isinstance(sound, str):
         if not os.path.exists(sound):
@@ -485,8 +488,7 @@ def resume():
 def playback_status():
     """``{"playing", "paused", "position", "duration"}`` of what :func:`play` plays, in seconds."""
     player = _player()
-    return {"playing": bool(player.playing), "paused": bool(player.paused), "position": float(player.position),
-            "duration": float(player.duration)}
+    return {"playing": bool(player.playing), "paused": bool(player.paused), "position": float(player.position), "duration": float(player.duration)}
 
 
 def sound_samples(path):
@@ -556,8 +558,8 @@ def ray_field(scene, source_index=None, n_rays=500, max_order=10, direction=None
 def energy_map(scene, points, source_index=None):
     """The sound pressure level of the scene's sources over ``points``, as Visualise Energy Map colours it.
 
-    The settings are fixed, as Pachyderm's mapping fixes its own: the image sources up to order 1, the rays of
-    :func:`compas_acoustics.energy_map.map_rays`, seeded with 42, so that the same scene gives the same map.
+    The settings are fixed: image sources up to order 1, the rays of :func:`compas_acoustics.energy_map.map_rays`,
+    seeded with 42, so that the same scene gives the same map.
 
     Returns
     -------
@@ -573,8 +575,14 @@ def energy_map(scene, points, source_index=None):
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         result = EnergyMap.from_scene(scene, points, source_index=None if source_index is None else int(source_index), seed=True)
-    return {"bands": result.bands.tolist(), "inside": [bool(v) for v in result.inside], "spl": result.spl().tolist(),
-            "spl_a": result.spl_a().tolist(), "n_rays": result.n_rays, "warnings": _messages(caught)}
+    return {
+        "bands": result.bands.tolist(),
+        "inside": [bool(v) for v in result.inside],
+        "spl": result.spl().tolist(),
+        "spl_a": result.spl_a().tolist(),
+        "n_rays": result.n_rays,
+        "warnings": _messages(caught),
+    }
 
 
 def specular_reflections(scene, orders=None, source_index=None, receiver_index=None):
@@ -751,8 +759,7 @@ def run_scattering_lab(sample, method="geometric", preset=None, band_range="iso"
             # the service answers a ValueError with its message and an ImportError with a traceback
             raise ValueError(str(error)) from error
     messages, notes = _split_notes(_messages(caught), HEURISTIC_NOTES)
-    return {"result": result, "scattering_coefficients": result.scattering_coefficients, "octave_bands": list(result.octave_bands),
-            "warnings": messages, "notes": notes}
+    return {"result": result, "scattering_coefficients": result.scattering_coefficients, "octave_bands": list(result.octave_bands), "warnings": messages, "notes": notes}
 
 
 _BALLOON_MIN_RADIUS = 0.03  # the fraction of the radius at and below the floor: a balloon that collapses to a point is not a mesh
@@ -835,8 +842,7 @@ def polar_balloon(result, preview=0, octave=1000, body="sample", radius=1.0, flo
     colatitude, azimuth = float(result.source_colatitude[index]), float(result.source_azimuth[index])
     theta, phi = np.radians(colatitude), np.radians(azimuth)
     source = 1.2 * radius * np.array([np.sin(theta) * np.cos(phi), np.sin(theta) * np.sin(phi), np.cos(theta)])
-    return {"mesh": mesh, "levels": [float(v) for v in levels], "source": [float(v) for v in source],
-            "label": f"θ {colatitude:g}°, φ {azimuth:g}°, {octave} Hz, {body}"}
+    return {"mesh": mesh, "levels": [float(v) for v in levels], "source": [float(v) for v in source], "label": f"θ {colatitude:g}°, φ {azimuth:g}°, {octave} Hz, {body}"}
 
 
 #: The note of :func:`lab_material` for a scattering from the geometric method (a note, not a warning)

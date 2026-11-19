@@ -1,4 +1,4 @@
-"""Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, tests/test_late_design.py)."""
+"""Late-field FDN design and rendering: output matrix, feedback matrix, delays and the decay rendered."""
 
 import numpy as np
 import pyFDN
@@ -30,10 +30,10 @@ def delays_of(n, lo=500, hi=1500, seed=0):
 
 def impulse_response(builds, n_samples):
     """Every line fed 1 / sqrt(N) of an impulse: the impulse-excited FDN, through the output matrix."""
-    n = np.asarray(builds[0].delays).size
+    n = np.asarray(builds[0][0].delays).size
     drive = np.zeros((n_samples, n))
     drive[0] = 1.0 / np.sqrt(n)
-    return render(builds, drive) @ builds[0].C.T
+    return render(builds, drive) @ builds[0][0].C.T
 
 
 def test_output_matrix_shape():
@@ -44,8 +44,8 @@ def test_output_matrix_shape():
 def test_output_matrix_is_orthogonal_for_the_default_grid():
     """C @ C.T diagonal means the late field is diffuse, not directionally biased.
 
-    A default spiral_points grid of the same size leaks 21.5 per cent, which is
-    why equal_area is used.
+    A spiral_points grid of the same size is not orthogonal, which is why
+    equal_area is used.
     """
     dirs = spharpy.samplings.equal_area(n_max=1, n_points=16)
     c = ambisonic_output_matrix(1, dirs)
@@ -67,29 +67,29 @@ def test_output_matrix_w_row_is_constant():
 
 
 def test_design_produces_a_valid_build():
-    (build,) = design_fdn(target_with(), delays_of(16))
-    assert isinstance(build, pyFDN.FDNBuild)
-    assert build.A.shape == (16, 16)
-    assert build.C.shape == (1, 16) and np.allclose(build.C, 1 / np.sqrt(16))
-    assert build.post_delay is not None
-    assert build.post_output is None
+    ((dss, filters),) = design_fdn(target_with(), delays_of(16))
+    assert isinstance(dss, pyFDN.DSS)
+    assert dss.A.shape == (16, 16)
+    assert dss.C.shape == (1, 16) and np.allclose(dss.C, 1 / np.sqrt(16))
+    assert filters["post_delay"] is not None
+    assert filters["post_output"] is None
 
 
 def test_the_given_delays_are_used():
     delays = delays_of(16)
-    (build,) = design_fdn(target_with(), delays)
-    np.testing.assert_array_equal(build.delays, delays)
+    ((dss, _),) = design_fdn(target_with(), delays)
+    np.testing.assert_array_equal(dss.delays, delays)
 
 
 def test_design_is_reproducible_under_a_seed():
-    (a,) = design_fdn(target_with(), delays_of(16), rng=7)
-    (b,) = design_fdn(target_with(), delays_of(16), rng=7)
+    ((a, _),) = design_fdn(target_with(), delays_of(16), rng=7)
+    ((b, _),) = design_fdn(target_with(), delays_of(16), rng=7)
     np.testing.assert_allclose(a.A, b.A)
 
 
 def test_feedback_matrix_is_orthogonal():
-    (build,) = design_fdn(target_with(), delays_of(16))
-    np.testing.assert_allclose(build.A @ build.A.T, np.eye(16), atol=1e-10)
+    ((dss, _),) = design_fdn(target_with(), delays_of(16))
+    np.testing.assert_allclose(dss.A @ dss.A.T, np.eye(16), atol=1e-10)
 
 
 def test_rendered_rt_matches_a_flat_target():
@@ -121,8 +121,8 @@ def test_multi_slope_weights_keep_level_ratios_and_total_initial_energy():
     )
     builds = design_fdn(target, [delays_of(16, seed=0), delays_of(16, seed=1)])
     w = []
-    for build in builds:
-        _, h = sosfreqz(build.post_output[:, :, 0], worN=[1000.0], fs=FS)
+    for _, filters in builds:
+        _, h = sosfreqz(filters["post_output"][:, :, 0], worN=[1000.0], fs=FS)
         w.append(np.abs(h[0]))
     assert w[1] / w[0] == pytest.approx(0.25, rel=0.05)
     assert w[0] ** 2 + w[1] ** 2 == pytest.approx(1.0, rel=0.05)
@@ -141,16 +141,32 @@ def test_render_rejects_a_drive_with_the_wrong_number_of_lines():
 
 def test_render_matches_pyfdn_for_an_impulse_through_b():
     """Driving each line with B times an impulse is the impulse-excited network."""
-    build = pyFDN.fdn_build_gallery(
-        8, fs=FS, delay_range=(500, 1500), num_outputs=2,
-        io_type="normalized", direct_gain=0.0, rt=1.0, rng=0,
+    dss, filters = pyFDN.fdn_dss_gallery(
+        8,
+        fs=FS,
+        delay_range=(500, 1500),
+        num_outputs=2,
+        io_type="normalized",
+        direct_gain=0.0,
+        rt=1.0,
+        rng=0,
     )
     n_samples = 4096
     drive = np.zeros((n_samples, 8))
-    drive[0] = build.B[:, 0]
-    np.testing.assert_allclose(
-        render([build], drive) @ build.C.T, pyFDN.build_to_impz(build, n_samples)[:, :, 0], atol=1e-9
-    )
+    drive[0] = dss.B[:, 0]
+    np.testing.assert_allclose(render([(dss, filters)], drive) @ dss.C.T, pyFDN.dss_to_td(*dss, **filters).impulse_response(n_samples)[:, :, 0], atol=1e-9)
+
+
+def test_the_lines_filters_are_pyfdns_bit_for_bit_block_by_block():
+    from pyFDN.td import SOSBank
+
+    from compas_acoustics.hybrid.late import _SOSBank
+
+    sos = design_fdn(target_with([1.2, 1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4]), delays_of(16))[0][1]["post_delay"]
+    signal = np.random.default_rng(0).standard_normal((3000, 16))
+    ours, theirs = _SOSBank(sos), SOSBank(sos)
+    for start, stop in ((0, 1), (1, 500), (500, 501), (501, 3000)):
+        assert np.array_equal(ours.process_block(signal[start:stop]), theirs.process_block(signal[start:stop]))
 
 
 def test_a_single_line_emerges_after_that_lines_delay():
@@ -158,6 +174,5 @@ def test_a_single_line_emerges_after_that_lines_delay():
     builds = design_fdn(target_with(), delays)
     drive = np.zeros((4096, 16))
     drive[0, 3] = 1.0
-    out = render(builds, drive) @ builds[0].C.T
+    out = render(builds, drive) @ builds[0][0].C.T
     assert int(np.argmax(np.abs(out[:, 0]) > 1e-12)) == delays[3]
-

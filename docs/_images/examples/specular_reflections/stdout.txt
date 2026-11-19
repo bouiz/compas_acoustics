@@ -1,0 +1,3 @@
+order 0: 1 paths, the first after 11.07 ms
+order 1: 6 paths, the first after 13.91 ms
+order 2: 18 paths, the first after 18.59 ms

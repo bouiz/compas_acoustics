@@ -1,12 +1,7 @@
-"""Diffuse-field prediction of a room's reverberation: Sabine and Eyring through pyrato.
+"""Diffuse-field prediction of a room's reverberation, Sabine and Eyring.
 
-Used for the length of a ray-traced simulation (:func:`compas_acoustics.room.raytracing.default_duration`)
-and, in the binaural and ambisonics methods, for a decay target that needs no reference response
-(``tail="eyring"`` of :class:`~compas_acoustics.Binaural` and :class:`~compas_acoustics.Ambisonics`). Base package: pyrato only, no pyFDN.
-
-``DiffuseFieldWarning`` through ``_warn_if_not_diffuse`` and ``_air_absorption_coefficient``:
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ 8a70661, src/room.py). Two warning texts name this package's API instead of upstream's.
-``predicted_rt`` is the reverberation-time part of upstream ``RoomTarget.from_room``.
+Sizes ray-traced simulations (:func:`compas_acoustics.room.raytracing.default_duration`) and gives the hybrid
+methods a decay target without a reference (``tail="eyring"``, ``"sabine"``).
 """
 
 from __future__ import annotations
@@ -19,52 +14,20 @@ import pyrato
 
 from compas_acoustics.room.air import AirConditions
 from compas_acoustics.room.air import air_or_default
-from compas_acoustics.room.air import speed_of_sound as _speed_of_sound
 from compas_acoustics.room.geometry import SYNTHESIS_BANDS
 
 __all__ = ["DiffuseFieldWarning", "air_attenuation", "mean_absorption", "predicted_rt"]
-
-BANDS = np.array(SYNTHESIS_BANDS)
-Geometry = object  # upstream's union of room types; here a RoomGeometry
 
 
 class DiffuseFieldWarning(UserWarning):
     """The room violates the assumptions behind Sabine and Eyring."""
 
 
-# Both thresholds were calibrated against pyroomacoustics' image source model at
-# order 20 plus ray tracing, over four room shapes and scattering coefficients
-# from 0 to 0.6, at 1 kHz.
-#
-# _UNEVEN_CV: holding the area-weighted mean absorption fixed and moving it onto
-# the floor and ceiling, Eyring's error grows monotonically with the spread of
-# absorption across surfaces -- -1 % at a coefficient of variation of 0.20,
-# -14 % at 0.41, -29 % at 0.76, -47 % at 0.96. It crosses 10 % near 0.3.
-#
-# _HIGH_ABSORPTION: with absorption uniform, Eyring is within 3 % of the
-# reference near alpha = 0.12 in every room shape tested, and falls away on both
-# sides. Only the high side is warned about, deliberately. Below alpha = 0.1 the
-# discrepancy is dominated by the scattering coefficient the reference assumes
-# -- at alpha = 0.05 the reference spans 3.13 s at scattering 0 down to 2.08 s
-# at 0.3, straddling Eyring's 2.32 s -- and Eyring takes no scattering
-# coefficient to account for it. At alpha = 0.25 and above the predicted
-# RT is at least 18 % low for every scattering coefficient tested, so there the
-# warning holds regardless of that assumption.
-_UNEVEN_CV = 0.3
-_HIGH_ABSORPTION = 0.25
-
-
-def mean_absorption(geometry: Geometry, *, weighting: str = "area") -> np.ndarray:
+def mean_absorption(geometry, *, weighting: str = "area") -> np.ndarray:
     """Mean absorption coefficient per band, shape (8,).
 
-    This is the adapter between this package's geometry types and pyrato's
-    parametric reverberation models, which take a scalar or array of mean
-    absorption. The reverberation model itself is not implemented here.
-
-    ``weighting="area"`` weights each surface by its area, which is what
-    Sabine and Eyring are derived with. ``weighting="surface"`` takes the plain
-    mean over the surfaces; on a shoebox that is the mean over the six walls. It is not the same quantity, and it differs
-    whenever the absorbing surfaces are not the largest ones.
+    ``weighting="area"`` weights each surface by its area, as Sabine and Eyring are derived; ``"surface"`` takes
+    the plain mean over the surfaces, which differs whenever the absorbing surfaces are not the largest.
     """
     surfaces = geometry.surfaces
     areas = np.array([area for area, _ in surfaces], dtype=float)
@@ -76,67 +39,58 @@ def mean_absorption(geometry: Geometry, *, weighting: str = "area") -> np.ndarra
     raise ValueError(f"weighting must be 'area' or 'surface', got {weighting!r}")
 
 
-def _absorption_uniformity(geometry: Geometry) -> np.ndarray:
-    """Area-weighted coefficient of variation of absorption per band, shape (8,).
-
-    Zero when every surface shares one coefficient, which is the case both
-    diffuse-field models are derived for.
-    """
+def _absorption_uniformity(geometry) -> np.ndarray:
+    """Area-weighted coefficient of variation of absorption per band, shape (8,); zero for one coefficient everywhere."""
     surfaces = geometry.surfaces
     areas = np.array([area for area, _ in surfaces], dtype=float)
     alphas = np.stack([mat.absorption for _, mat in surfaces], axis=0)
     mean = mean_absorption(geometry)
     variance = (areas @ (alphas - mean) ** 2) / areas.sum()
-    return np.where(
-        mean > 0.0, np.sqrt(variance) / np.where(mean > 0.0, mean, 1.0), 0.0
-    )
+    return np.where(mean > 0.0, np.sqrt(variance) / np.where(mean > 0.0, mean, 1.0), 0.0)
 
 
 def _band_list(mask: np.ndarray) -> str:
-    return ", ".join(f"{b:g}" for b in BANDS[mask])
+    return ", ".join(f"{b:g}" for b in np.array(SYNTHESIS_BANDS)[mask])
 
 
-def _warn_if_not_diffuse(geometry: Geometry, model: str) -> None:
-    """Warn when the room breaks the assumption both models rest on.
+def _warn_if_not_diffuse(geometry, model: str) -> None:
+    """Warn with :class:`DiffuseFieldWarning` in the bands where the room breaks the diffuse-field assumption.
 
-    Neither failure is fixable here: the models are pyrato's and they are being
-    used correctly. What is fixable is that ``from_room`` used to return a
-    confidently wrong number with nothing in the return value to show it, and
-    the rest of the pipeline then works perfectly on that number -- the FDN
-    reproduces it to under 1 %, and the result
-    looks entirely plausible.
+    The late field reproduces the predicted decay, right or wrong. Sabine and Eyring underestimate the decay of
+    a room whose absorption is unevenly distributed, more the larger the spread, and of a highly absorbing room,
+    where the reflection order at a given path length spreads. The thresholds are an area-weighted coefficient
+    of variation of absorption above 0.3 and a mean absorption of 0.25 or more.
     """
     mean = mean_absorption(geometry)
     uniformity = _absorption_uniformity(geometry)
     name = model.capitalize()
+    uneven_cv, high_absorption = 0.3, 0.25
 
-    uneven = uniformity > _UNEVEN_CV
+    uneven = uniformity > uneven_cv
     if np.any(uneven):
         warnings.warn(
             f"{name} assumes a diffuse field, but this room's absorption is "
             f"unevenly distributed across its surfaces in the "
             f"{_band_list(uneven)} Hz band(s) (area-weighted coefficient of "
             f"variation up to {uniformity[uneven].max():.2f}, warning above "
-            f"{_UNEVEN_CV}). Measured against a ray tracer, the predicted "
-            f"reverberation time is then up to 47 % low, and the synthesised "
-            f"T30 with it. tail='ray_tracing' (Binaural, Ambisonics) simulates the decay "
-            f"from this same geometry instead and lands within 4 %; "
+            f"{uneven_cv}). The predicted reverberation time is then too short, "
+            f"and the synthesised T30 with it. tail='ray_tracing' (Binaural, Ambisonics) "
+            f"simulates the decay from this same geometry instead; "
             f"reference=... fits it (RoomTarget.from_rir) to a response you already have.",
             DiffuseFieldWarning,
             stacklevel=3,
         )
 
-    absorbing = mean >= _HIGH_ABSORPTION
+    absorbing = mean >= high_absorption
     if np.any(absorbing):
         warnings.warn(
             f"this room is too absorbing for {name} in the "
             f"{_band_list(absorbing)} Hz band(s) (mean absorption up to "
-            f"{mean[absorbing].max():.2f}, warning at {_HIGH_ABSORPTION} and "
+            f"{mean[absorbing].max():.2f}, warning at {high_absorption} and "
             f"above). A diffuse-field model treats every reflection as drawing "
             f"the mean absorption, but the spread of reflection order at a "
-            f"given path length makes the real decay slower: measured 18 to "
-            f"31 % slower than predicted, for every scattering coefficient "
-            f"tested. Use tail='ray_tracing' (Binaural, Ambisonics), which needs the same "
+            f"given path length makes the real decay slower than predicted. "
+            f"Use tail='ray_tracing' (Binaural, Ambisonics), which needs the same "
             f"geometry and no measurement, or reference=... "
             f"(RoomTarget.from_rir) if you have a response already.",
             DiffuseFieldWarning,
@@ -144,22 +98,9 @@ def _warn_if_not_diffuse(geometry: Geometry, model: str) -> None:
         )
 
 
-def _air_absorption_coefficient() -> np.ndarray:
-    """Energy attenuation coefficient m per metre on ``SYNTHESIS_BANDS``, of the default air.
-
-    Upstream's name for the air when none is given. It was a fixed table, ISO 9613-1
-    at 10 C and 70 % rounded, documented as 20 C and 50 %; it is now ISO 9613-1 at
-    20 C and 50 % (:class:`~compas_acoustics.room.air.AirConditions`), as every method uses.
-    """
-    return air_attenuation(None)
-
-
 def air_attenuation(air: Optional[AirConditions] = None) -> np.ndarray:
-    """Energy attenuation coefficient of the air per metre on ``SYNTHESIS_BANDS``, shape (8,).
-
-    ISO 9613-1 at the air's conditions, ``AirConditions()`` (20 C, 50 %) without one.
-    """
-    return air_or_default(air).air_attenuation(BANDS)
+    """Energy attenuation coefficient ``m`` per metre on ``SYNTHESIS_BANDS`` (8,), ISO 9613-1; default ``AirConditions()``."""
+    return air_or_default(air).air_attenuation(np.array(SYNTHESIS_BANDS))
 
 
 def _infinite_without_absorption(reverberation_time, mean_absorption):
@@ -180,10 +121,6 @@ def _eyring(volume, surface_area, mean_absorption, speed_of_sound):
     return _infinite_without_absorption(rt, mean_absorption)
 
 
-# pyrato < 1.0 (Python 3.9, Rhino 8) has no `parametric` module
-_CLOSED_FORM = {"sabine": _sabine, "eyring": _eyring}
-
-
 def predicted_rt(
     geometry,
     *,
@@ -194,16 +131,12 @@ def predicted_rt(
     air: Optional[AirConditions] = None,
     warn: bool = True,
 ) -> np.ndarray:
-    """Reverberation time per band on ``SYNTHESIS_BANDS``, shape (8,), from Sabine or Eyring.
+    """Reverberation time per band on ``SYNTHESIS_BANDS`` (8,), Sabine or Eyring on :func:`mean_absorption`.
 
-    The RT of upstream ``RoomTarget.from_room``: pyrato's model on the mean
-    absorption (:func:`mean_absorption`), and, with ``air_absorption``, the
-    ``4 m V`` term applied in closed form. Warns with :class:`DiffuseFieldWarning`
-    where the room breaks the diffuse-field assumption, unless ``warn`` is False.
-    ``air`` sets the air's attenuation (see :func:`air_attenuation`) and, unless
-    ``speed_of_sound`` is given, the speed of sound.
-    The mean absorption is held below 1 so that a fully absorbing room gives a
-    finite (zero) time rather than a division error.
+    ``weighting`` is that of :func:`mean_absorption`. With ``air_absorption`` the ``4 m V`` term is added in
+    closed form. Warns with :class:`DiffuseFieldWarning` where the room is not diffuse, unless ``warn`` is False.
+    ``air`` sets the attenuation and, unless ``speed_of_sound`` is given, the speed of sound. The mean absorption
+    is held below 1, so a fully absorbing room gives a finite time rather than a division error.
     """
     if hasattr(pyrato, "parametric"):
         models = {
@@ -211,14 +144,15 @@ def predicted_rt(
             "eyring": pyrato.parametric.reverberation_time_eyring,
         }
     else:
-        models = _CLOSED_FORM
+        # pyrato < 1.0 (Python 3.9) has no `parametric` module
+        models = {"sabine": _sabine, "eyring": _eyring}
     if model not in models:
         raise ValueError(f"model must be one of {sorted(models)}, got {model!r}")
     if not geometry.is_closed:
         raise ValueError("A diffuse-field prediction needs a closed room; the boundary surfaces do not close a volume.")
     alpha = mean_absorption(geometry, weighting=weighting)
     if speed_of_sound is None:
-        speed_of_sound = _speed_of_sound(air)
+        speed_of_sound = air_or_default(air).speed_of_sound
     if warn:
         _warn_if_not_diffuse(geometry, model)
     rt = np.asarray(

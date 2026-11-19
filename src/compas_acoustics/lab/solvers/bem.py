@@ -82,7 +82,7 @@ _BIG = (
 )
 
 
-def plan_splits(frequencies, nominal_octaves=Defaults._DEFAULT_FREQUENCY_BANDS) -> List[np.ndarray]:
+def plan_splits(frequencies, nominal_octaves=Defaults.DEFAULT_FREQUENCY_BANDS) -> List[np.ndarray]:
     """The frequencies grouped by the octave band whose centre is nearest on a log scale, low to high.
 
     With the lab's simulation frequencies (three per one-third-octave band) every split holds the bands of one octave

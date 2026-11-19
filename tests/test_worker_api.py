@@ -42,13 +42,12 @@ def box_mesh():
 
 
 # ---------------------------------------------------------------------------
-# Task 4: materials and model makers
+# Materials and model makers
 # ---------------------------------------------------------------------------
 
 
 def test_every_function_the_service_serves_is_listed():
-    for name in ("materials_library", "material_from_name", "make_material", "make_source", "make_receiver",
-                 "make_acoustic_object", "make_scene"):
+    for name in ("materials_library", "material_from_name", "make_material", "make_source", "make_receiver", "make_acoustic_object", "make_scene"):
         assert name in api.__all__
 
 
@@ -93,12 +92,6 @@ def test_make_receiver_defaults_to_room_aligned_at_one_metre():
 def test_make_receiver_takes_a_direction_and_stays_upright():
     receiver = call("make_receiver", "r", [1, 2, 3], [0, 1, 0])["receiver"]
     assert np.allclose(list(receiver.direction), [0, 1, 0]) and np.allclose(list(receiver.up), [0, 0, 1])
-
-
-def test_make_receiver_has_no_up():
-    import inspect
-
-    assert list(inspect.signature(api.make_receiver).parameters) == ["name", "position", "direction", "frame"]
 
 
 def test_make_receiver_from_a_frame_faces_its_x_axis():
@@ -157,7 +150,7 @@ def test_make_scene_keeps_no_name_as_none_and_validates_the_rate():
 
 
 # ---------------------------------------------------------------------------
-# Task 5: analysis, auralise, play, stop
+# Analysis, auralise, play, stop
 # ---------------------------------------------------------------------------
 
 from pathlib import Path  # noqa: E402
@@ -179,8 +172,7 @@ def decay(channels=1, seconds=0.6, rt=0.5, rate=48000, seed=0, level=1.0, source
     raw *= level
     source = source or Source("src", 1, 1, 1.5)
     source._sound_file = VIOLA
-    return ImpulseResponse("ir", source, receiver or Receiver("rec", 4, 3, 1.5), raw if channels > 1 else raw[:, 0], rate,
-                           generation={"method": "test"})
+    return ImpulseResponse("ir", source, receiver or Receiver("rec", 4, 3, 1.5), raw if channels > 1 else raw[:, 0], rate, generation={"method": "test"})
 
 
 def test_analysis_gives_every_parameter_with_its_units_and_the_two_curves():
@@ -229,8 +221,7 @@ def group(irs, branch="{0}", sounds=None):
 
 def two_sources_one_receiver(**kwargs):
     receiver = Receiver("rec", 4, 3, 1.5)
-    return [decay(source=Source("a", 1, 1, 1.5), receiver=receiver, level=1.0, **kwargs),
-            decay(source=Source("b", 2, 1, 1.5), receiver=receiver, level=0.25, seed=1, **kwargs)]
+    return [decay(source=Source("a", 1, 1, 1.5), receiver=receiver, level=1.0, **kwargs), decay(source=Source("b", 2, 1, 1.5), receiver=receiver, level=0.25, seed=1, **kwargs)]
 
 
 def test_auralise_renders_one_signal_per_source_and_receiver():
@@ -311,7 +302,7 @@ def test_play_and_stop_reach_the_player(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Task 6: rays, reflections, fitness
+# Rays, reflections, fitness
 # ---------------------------------------------------------------------------
 
 from compas_acoustics import RayField  # noqa: E402
@@ -385,7 +376,7 @@ def test_regularized_fitness_matches_the_function():
 
 
 # ---------------------------------------------------------------------------
-# Task 15: what Check Channel asks about a file
+# What the Check Channel component asks about a file
 # ---------------------------------------------------------------------------
 
 
@@ -407,7 +398,7 @@ def test_sound_info_of_a_missing_or_unreadable_file_is_a_value_error(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Playback control (Grasshopper UI plan, Task 2)
+# Playback control
 # ---------------------------------------------------------------------------
 
 
@@ -516,9 +507,9 @@ def test_energy_map_fixes_its_rays_seed_and_image_source_order():
     # the same map every run: a map has no setting to tune but its grid
     assert "seed" not in result
     assert result["spl_a"] == call("energy_map", scene, [[4, 3, 1.2]])["spl_a"]
-    for removed in ("n_rays", "image_source_order", "seed"):
+    for fixed in ("n_rays", "image_source_order", "seed"):
         with pytest.raises(TypeError):
-            api.energy_map(scene, [[4, 3, 1.2]], **{removed: 1})
+            api.energy_map(scene, [[4, 3, 1.2]], **{fixed: 1})
 
 
 def test_energy_map_rejects_a_source_index_out_of_range():
@@ -553,7 +544,7 @@ def test_make_scattering_sample_as_drawn_and_disc():
 
     drawn = call("make_scattering_sample", _flat_quad(), name="drawn")
     assert isinstance(drawn, ScatteringSample) and drawn.mode == "as_drawn" and drawn.name == "drawn"
-    assert drawn.diameter == pytest.approx(2 ** 0.5)
+    assert drawn.diameter == pytest.approx(2**0.5)
     disc = call("make_scattering_sample", sine_tile(0.1, 0.01), mode="disc", diameter=0.4, period=[0.1, 0.05], baseplate=0.02, symmetry="rotational")
     assert disc.mode == "disc" and disc.diameter == 0.4 and disc.period == (0.1, 0.05) and disc.baseplate == 0.02 and disc.symmetry == "rotational"
     assert disc.sample.number_of_faces() > 0

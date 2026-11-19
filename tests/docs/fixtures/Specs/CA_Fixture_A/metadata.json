@@ -1,0 +1,47 @@
+{
+    "name": "Fixture A",
+    "nickname": "FixA",
+    "category": "COMPAS Acoustics",
+    "subcategory": "Elements",
+    "description": "Make a fixture. It has two inputs.",
+    "exposure": 2,
+    "ports": {
+        "inputParameters": [
+            {
+                "name": "order",
+                "description": "The order.",
+                "optional": false,
+                "scriptParamAccess": 0,
+                "typeHintID": "int",
+                "namedValues": [
+                    [
+                        "0",
+                        0
+                    ],
+                    [
+                        "1",
+                        1
+                    ],
+                    [
+                        "2",
+                        2
+                    ]
+                ]
+            },
+            {
+                "name": "weights",
+                "description": "The weights.",
+                "optional": true,
+                "scriptParamAccess": 1,
+                "typeHintID": "float",
+                "default": 0.25
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "result",
+                "description": "The result."
+            }
+        ]
+    }
+}

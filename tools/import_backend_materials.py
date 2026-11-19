@@ -1,6 +1,6 @@
 """Import acoustic materials from simulation backends into the compas_acoustics materials library.
 
-Materials are fetched straight from the upstream GitHub repositories, converted to
+Materials are fetched from the backends' GitHub repositories, converted to
 :class:`compas_acoustics.AcousticMaterial` (7 octave bands, 125 Hz - 8 kHz), assigned a
 :class:`compas_acoustics.MaterialCategory` and written to the materials library as
 ``<key>_from_<backend>.json``, named ``"<key> (from <backend>)"``.
@@ -23,10 +23,6 @@ Backends:
   ``AcousticMaterial`` requires absorption.
 * misuka (BSD-3/MIT): has no material database, materials are defined per scene
   (see its tutorials). The script checks for one and reports it if it ever appears.
-
-edg-acoustics is intentionally not imported: it is GPL-3.0 licensed and only ships
-three example boundary conditions (carpet, panel, hard wall), fitted for
-normal incidence below 3 kHz.
 """
 
 import argparse

@@ -101,7 +101,7 @@ def fold_to_octaves(values, nominal):
         ``(octaves, means)``: the octave centres with at least one band and their means on the last axis.
     """
     values = np.asarray(values, dtype=float)
-    standard = list(Defaults._DEFAULT_FREQUENCY_BANDS)
+    standard = list(Defaults.DEFAULT_FREQUENCY_BANDS)
     owner = np.array([_nearest_octave(f, standard) for f in nominal])
     octaves = [o for o in standard if np.any(owner == o)]
     means = np.stack([values[..., owner == o].mean(axis=-1) for o in octaves], axis=-1)
@@ -121,12 +121,12 @@ def fill_octaves(octaves, values):
     Returns
     -------
     tuple
-        ``(filled, pairs)``: values on the 7 octaves of ``Defaults._DEFAULT_FREQUENCY_BANDS`` and the ``(filled, source)`` pairs.
+        ``(filled, pairs)``: values on the 7 octaves of ``Defaults.DEFAULT_FREQUENCY_BANDS`` and the ``(filled, source)`` pairs.
     """
     values = np.asarray(values, dtype=float)
     index = {o: k for k, o in enumerate(octaves)}
     columns, pairs = [], []
-    for o in Defaults._DEFAULT_FREQUENCY_BANDS:
+    for o in Defaults.DEFAULT_FREQUENCY_BANDS:
         if o in index:
             columns.append(values[..., index[o]])
         else:

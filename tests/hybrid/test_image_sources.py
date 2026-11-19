@@ -10,7 +10,7 @@ from compas_acoustics import Scene
 from compas_acoustics import Source
 from compas_acoustics.hybrid.early import image_sources
 from compas_acoustics.hybrid.pair import Pair
-from compas_acoustics.hybrid.target import _air_absorption_coefficient
+from compas_acoustics.room.diffuse import air_attenuation
 from compas_acoustics.room.pra import directivity_to_pra
 from compas_acoustics.room.pra import receivers_to_pra_mic_array
 from compas_acoustics.room.pra import source_to_pra
@@ -57,7 +57,9 @@ def test_the_direct_sound_has_the_free_field_delay_and_gain():
 def test_each_receiver_gets_only_the_images_it_sees():
     panel = AcousticObject(
         Mesh.from_vertices_and_faces([[3, 0.5, 0.5], [3, 0.5, 2.5], [3, 2.5, 2.5], [3, 2.5, 0.5]], [[0, 1, 2, 3]]),
-        WALL, name="panel", role="obstacle",
+        WALL,
+        name="panel",
+        role="obstacle",
     )
     source = Source("s", 1.5, 1.5, 1.6)
     hidden, seen = Receiver("hidden", 5, 1.5, 1.6), Receiver("seen", 5, 4.5, 1.5)
@@ -69,11 +71,13 @@ def test_each_receiver_gets_only_the_images_it_sees():
 
 
 def test_a_shared_room_gives_each_pair_the_images_of_its_own_room():
-    """Upstream builds one room per source and receiver; the per-pair visibility
-    mask of a shared room must reproduce that, obstacles included."""
+    """The per-pair visibility mask of a room shared by several receivers gives
+    each pair the images of a room built for that pair alone, obstacles included."""
     panel = AcousticObject(
         Mesh.from_vertices_and_faces([[3, 0.5, 0.5], [3, 0.5, 2.5], [3, 2.5, 2.5], [3, 2.5, 0.5]], [[0, 1, 2, 3]]),
-        WALL, name="panel", role="obstacle",
+        WALL,
+        name="panel",
+        role="obstacle",
     )
     source = Source("s", 1.5, 1.5, 1.6)
     receivers = [Receiver("a", 5, 1.5, 1.6), Receiver("b", 5, 4.5, 1.5)]
@@ -114,9 +118,7 @@ def test_air_absorption_darkens_by_the_path_length():
     dry = image_sources(room, 0, 0, pair(geometry, source, receiver))
     wet = image_sources(room, 0, 0, pair(geometry, source, receiver, air_absorption=True))
     d = dry.delay * 343.0
-    np.testing.assert_allclose(
-        wet.gain / dry.gain, np.exp(-np.outer(d, _air_absorption_coefficient()) / 2.0), rtol=1e-12
-    )
+    np.testing.assert_allclose(wet.gain / dry.gain, np.exp(-np.outer(d, air_attenuation()) / 2.0), rtol=1e-12)
 
 
 def test_a_medium_sets_the_air_the_images_cross():
@@ -127,8 +129,7 @@ def test_a_medium_sets_the_air_the_images_cross():
     geometry, room = computed([source], [receiver])
     air = AirConditions(temperature=20.0, humidity=10.0)
     dry = image_sources(room, 0, 0, pair(geometry, source, receiver))
-    wet = image_sources(room, 0, 0, Pair(geometry, source.position, receiver.position, receiver.rotation,
-                                         float(FS), 343.0, True, air))
+    wet = image_sources(room, 0, 0, Pair(geometry, source.position, receiver.position, receiver.rotation, float(FS), 343.0, True, air))
     d = dry.delay * 343.0
     expected = np.exp(-np.outer(d, air.air_attenuation(SYNTHESIS_BANDS)) / 2.0)
     np.testing.assert_allclose(wet.gain / dry.gain, expected, rtol=1e-12)

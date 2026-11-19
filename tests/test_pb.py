@@ -129,7 +129,7 @@ def test_the_schema_hash_follows_the_proto_text():
     root = Path(compas_acoustics.pb.PROTOBUF_DEFS)
     for path in sorted(root.rglob("*.proto")):
         digest.update(path.relative_to(root).as_posix().encode())
-        digest.update(path.read_bytes())
+        digest.update(path.read_bytes().replace(b"\r\n", b"\n"))
     assert compas_acoustics.pb.SCHEMA == digest.hexdigest()
 
 
@@ -141,12 +141,12 @@ def test_the_plugin_is_discovered_through_the_entry_point():
 
 
 @pytest.mark.parametrize("value", [{"a": 1, "b": [1.5, "x", None]}, [1, 2.0, "three"]])
-def test_plain_containers_still_travel(value):
+def test_plain_containers_travel(value):
     assert roundtrip(value) == value
 
 
 # ---------------------------------------------------------------------------
-# Responses, audio, rays and reflections (Task 2)
+# Responses, audio, rays and reflections
 # ---------------------------------------------------------------------------
 
 import numpy as np  # noqa: E402
@@ -169,10 +169,15 @@ from lab_shapes import sine_tile  # noqa: E402
 def stereo_response(**kwargs):
     rng = np.random.default_rng(0)
     raw = rng.normal(size=(64, 2)) * 0.01
-    return ImpulseResponse("ir", Source("src", 1, 1, 1), Receiver("rec", 2, 2, 1), raw, 48000,
-                           generation={"method": "binaural", "seed": np.int64(3), "band": np.float64(0.5),
-                                       "orders": np.array([1, 2])},
-                           **kwargs)
+    return ImpulseResponse(
+        "ir",
+        Source("src", 1, 1, 1),
+        Receiver("rec", 2, 2, 1),
+        raw,
+        48000,
+        generation={"method": "binaural", "seed": np.int64(3), "band": np.float64(0.5), "orders": np.array([1, 2])},
+        **kwargs,
+    )
 
 
 def test_a_response_round_trips_its_raw_samples_and_generation():
@@ -197,8 +202,7 @@ def test_a_mono_response_keeps_its_one_dimensional_shape():
 def test_an_ambisonic_response_keeps_order_and_conventions():
     raw = np.zeros((16, 4))
     raw[0] = [1, 0.5, 0.25, 0.1]
-    ir = ImpulseResponse("ir", Source("s", 0, 0, 1), Receiver("r", 1, 0, 1), raw, 48000,
-                         ambisonic_order=1, normalization="n3d", channel_order="acn")
+    ir = ImpulseResponse("ir", Source("s", 0, 0, 1), Receiver("r", 1, 0, 1), raw, 48000, ambisonic_order=1, normalization="n3d", channel_order="acn")
     loaded = roundtrip(ir)
     assert (loaded.ambisonic_order, loaded.normalization, loaded.channel_order) == (1, "n3d", "acn")
     assert loaded.n_channels == 4
@@ -247,8 +251,7 @@ def test_specular_reflections_round_trip_as_paths():
 
 
 def test_plain_turns_numpy_into_python():
-    assert plain({"a": np.float64(1.5), "b": np.array([[1, 2]]), "c": (np.int32(3),), "d": np.bool_(True)}) == {
-        "a": 1.5, "b": [[1, 2]], "c": [3], "d": True}
+    assert plain({"a": np.float64(1.5), "b": np.array([[1, 2]]), "c": (np.int32(3),), "d": np.bool_(True)}) == {"a": 1.5, "b": [[1, 2]], "c": [3], "d": True}
 
 
 # =============================================================================
@@ -302,8 +305,18 @@ def test_a_scattering_result_round_trips_every_field():
         assert getattr(loaded, field).shape == getattr(result, field).shape
         assert np.allclose(getattr(loaded, field), getattr(result, field), atol=0.06), field  # stored rounded to 0.1 dB
     for field in (
-        "method", "bands", "s_bands", "octave_bands", "s_octaves", "filled_octaves", "polar_source_indices", "unconverged_octaves", "warnings",
-        "generation", "d_bands", "d_octaves",
+        "method",
+        "bands",
+        "s_bands",
+        "octave_bands",
+        "s_octaves",
+        "filled_octaves",
+        "polar_source_indices",
+        "unconverged_octaves",
+        "warnings",
+        "generation",
+        "d_bands",
+        "d_octaves",
     ):
         assert getattr(loaded, field) == getattr(result, field), field
     assert loaded.scattering_coefficients == result.scattering_coefficients
@@ -329,8 +342,18 @@ def _makers():
     return module.FIXTURES
 
 
-@pytest.mark.parametrize("name, kind", [("scene", Scene), ("source", Source), ("ir", ImpulseResponse), ("rayfield", RayField), ("audio", Audio),
-                                        ("scattering_sample", ScatteringSample), ("scattering_result", ScatteringResult)])
+@pytest.mark.parametrize(
+    "name, kind",
+    [
+        ("scene", Scene),
+        ("source", Source),
+        ("ir", ImpulseResponse),
+        ("rayfield", RayField),
+        ("audio", Audio),
+        ("scattering_sample", ScatteringSample),
+        ("scattering_result", ScatteringResult),
+    ],
+)
 def test_the_interop_fixtures_decode_to_what_the_generator_makes(name, kind):
     import base64
 

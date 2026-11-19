@@ -1,0 +1,2 @@
+Traced 1000 rays into the 25 degree cone.
+500 rays emitted from source_1.

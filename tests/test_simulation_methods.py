@@ -49,8 +49,7 @@ class Delta(SimulationMethod):
                 if self.broken == "generation":
                     generation.pop("method")
                 key = context.key(source, receiver)
-                rirs[key] = ImpulseResponse(key, source, receiver, data, fs,
-                                            normalized=self.broken != "normalized", generation=generation)
+                rirs[key] = ImpulseResponse(key, source, receiver, data, fs, normalized=self.broken != "normalized", generation=generation)
         if self.broken == "missing":
             rirs.popitem()
         return rirs

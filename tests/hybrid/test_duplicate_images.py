@@ -34,8 +34,13 @@ def images(source, receiver, order):
 
 def shoebox(source, receiver, order):
     with pra_octave_grid():
-        box = pra.ShoeBox(list(DIMS), fs=FS, max_order=order, use_rand_ism=False, materials=pra.Material(
-            {"description": "wall", "coeffs": ALPHA, "center_freqs": [125, 250, 500, 1000, 2000, 4000, 8000]}))
+        box = pra.ShoeBox(
+            list(DIMS),
+            fs=FS,
+            max_order=order,
+            use_rand_ism=False,
+            materials=pra.Material({"description": "wall", "coeffs": ALPHA, "center_freqs": [125, 250, 500, 1000, 2000, 4000, 8000]}),
+        )
         box.add_source(list(source))
         box.add_microphone(list(receiver))
         box.image_source_model()

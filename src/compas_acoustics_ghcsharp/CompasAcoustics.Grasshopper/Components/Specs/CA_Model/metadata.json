@@ -1,0 +1,49 @@
+{
+    "name": "Acoustic Scene",
+    "nickname": "Scene",
+    "category": "COMPAS Acoustics",
+    "subcategory": "Model",
+    "description": "Create an acoustic scene with the specified objects, sources and receivers. Choose its sampling rate on the body: 44.1, 48 (default) or 96 kHz.",
+    "exposure": 2,
+    "ports": {
+        "inputParameters": [
+            {
+                "name": "objects",
+                "description": "List of AcousticObject objects.",
+                "optional": false,
+                "scriptParamAccess": 1,
+                "typeHintID": "ghdoc",
+                "flatten": true
+            },
+            {
+                "name": "sources",
+                "description": "List of Source objects.",
+                "optional": false,
+                "scriptParamAccess": 1,
+                "typeHintID": "ghdoc",
+                "flatten": true
+            },
+            {
+                "name": "receivers",
+                "description": "List of Receiver objects.",
+                "optional": false,
+                "scriptParamAccess": 1,
+                "typeHintID": "ghdoc",
+                "flatten": true
+            },
+            {
+                "name": "name",
+                "description": "Name of the room scene.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "str"
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "scene",
+                "description": "Room scene object."
+            }
+        ]
+    }
+}

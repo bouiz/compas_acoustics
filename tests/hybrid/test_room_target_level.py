@@ -2,11 +2,9 @@
 
 pyFDN's ``level`` is the linear *amplitude* ``L`` of the per-octave-band decay
 ``L * 10 ** (-3 t / T)``, as returned by ``estimate_initial_level_bands``. That
-is neither an energy nor a spectral density, and ``from_room`` predicted it
-from diffuse-field theory as though it were both. These tests pin the two
-conversions that were missing.
-
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, tests/test_room_target_level.py).
+is neither an energy nor a spectral density, so predicting it from
+diffuse-field theory in ``from_room`` takes two conversions; these tests pin
+them.
 """
 
 import numpy as np
@@ -15,19 +13,15 @@ import pytest
 from scipy.signal import sosfilt
 
 from compas_acoustics.hybrid.bands import BANDS, BANDWIDTHS
-from _compat import Material, RoomSpec, ShoeboxGeometry
+from _rooms import box_room, pair
 from compas_acoustics.hybrid.target import RoomTarget
+from compas_acoustics.room.geometry import SurfaceMaterial
 
 
 def spec_with(alpha, dims=(8.0, 6.0, 3.0)):
-    material = (
-        Material.from_scalar(alpha)
-        if np.isscalar(alpha)
-        else Material(np.asarray(alpha, dtype=float), BANDS.copy())
-    )
-    geom = ShoeboxGeometry(dims, {n: material for n in ShoeboxGeometry.WALL_NAMES})
-    return RoomSpec(
-        geometry=geom,
+    material = SurfaceMaterial("wall", np.full(BANDS.size, float(alpha)) if np.isscalar(alpha) else np.asarray(alpha, dtype=float))
+    return pair(
+        geometry=box_room(dims, material),
         source=np.array([2.0, 2.0, 1.5]),
         receiver=np.array([5.0, 4.0, 1.5]),
     )
@@ -52,9 +46,7 @@ def test_a_spectrally_white_decay_has_level_proportional_to_root_bandwidth():
     rt, _ = pyFDN.estimate_rt_bands(white, fs)
     level, _ = pyFDN.estimate_initial_level_bands(white, rt, fs)
 
-    np.testing.assert_allclose(
-        level / level[-1], np.sqrt(BANDWIDTHS / BANDWIDTHS[-1]), rtol=0.15
-    )
+    np.testing.assert_allclose(level / level[-1], np.sqrt(BANDWIDTHS / BANDWIDTHS[-1]), rtol=0.15)
 
 
 def test_from_room_level_describes_a_spectrally_flat_late_field():
@@ -97,8 +89,7 @@ def test_from_room_and_from_rir_agree_on_a_room_they_both_describe():
     """The two constructors must produce levels a caller can compare.
 
     ``from_rir`` measures with pyFDN's estimator, so it is in pyFDN's units by
-    construction. ``from_room`` predicts, and used to predict a different
-    quantity entirely. Synthesising a decay with the shape ``from_room``
+    construction; ``from_room`` predicts. Synthesising a decay with the shape ``from_room``
     specifies and measuring it back must return that same shape.
     """
     fs = 48000.0
@@ -117,7 +108,7 @@ def test_from_room_and_from_rir_agree_on_a_room_they_both_describe():
     edges, _ = pyFDN.octave_bands()
     weights = target.level[:, 0] / np.sqrt(BANDWIDTHS)
     shaped = np.zeros(n)
-    for weight, sos in zip(weights, pyFDN.octave_band_filterbank(edges, fs, 8)):
+    for weight, sos in zip(weights, pyFDN.octave_band_filterbank(edges, fs, filter_order=8)):
         shaped += weight * sosfilt(sos, noise)
 
     measured = RoomTarget.from_rir(shaped, fs)

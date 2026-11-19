@@ -2,20 +2,26 @@ from __future__ import print_function
 
 import glob
 import os
+import re
 import shutil
+import subprocess
 import sys
 
 import compas_pb
 from compas_invocations2 import build
-from compas_invocations2 import docs
+from compas_invocations2 import docs as ci_docs
+from compas_invocations2 import grasshopper
+from compas_invocations2 import mkdocs as ci_mkdocs
 from compas_invocations2 import style
 from compas_invocations2 import tests
+from compas_pb.invocations import create_class_assets
+from compas_pb.invocations import create_proto_bundle
 from compas_pb.invocations import generate_proto_classes
 from invoke import Collection
 from invoke import task
 
-PLUGIN = os.path.join("csharp", "CompasAcoustics.Grasshopper")
-# what the installer copies into Grasshopper's Libraries folder (installer/installer.py GHA_FILES)
+PLUGIN = os.path.join("src", "compas_acoustics_ghcsharp", "CompasAcoustics.Grasshopper")
+# what the Yak package ships
 GHA_FILES = ["CompasAcoustics.gha", "CompasPb.dll", "Google.Protobuf.dll", "Newtonsoft.Json.dll"]
 
 
@@ -47,61 +53,142 @@ def generate(ctx):
     """Generate the Python and C# bindings of compas_acoustics.pb."""
 
 
-@task(help={"configuration": "Release (default) or Debug"})
-def build_gha(ctx, configuration="Release"):
+@task(help={"configuration": "Release (default) or Debug", "version": "Version of the plugin (default: the version in the .csproj)"})
+def build_gha(ctx, configuration="Release", version=None):
     """Build the Grasshopper plugin (CompasAcoustics.gha and the assemblies it needs) with the .NET SDK."""
     with ctx.cd(ctx.base_folder):
-        ctx.run('dotnet build "{}" -c {} --nologo'.format(PLUGIN, configuration))
+        ctx.run('dotnet build "{}" -c {} --nologo{}'.format(PLUGIN, configuration, " -p:Version={}".format(version) if version else ""))
     return os.path.join(ctx.base_folder, PLUGIN, "bin", configuration, "net7.0")
 
 
 @task
+def docs_components(ctx):
+    """Generate the Grasshopper component pages and the example pages of the docs, and check their images (docs/_ext/ghcomponents)."""
+    with ctx.cd(ctx.base_folder):
+        ctx.run('"{}" docs/_ext/ghcomponents'.format(sys.executable))
+
+
+@task(help={"all": "Run every example, not only those whose output is out of date."})
+def docs_images(ctx, all=False):  # noqa: A002 (the flag is --all)
+    """Run the example scripts headless and save their figures and printed output into docs/_images/examples/."""
+    sys.path.insert(0, os.path.join(ctx.base_folder, "docs", "_ext"))
+    from ghcomponents import fingerprints
+    from ghcomponents.examples import discover
+
+    images = os.path.join(ctx.base_folder, "docs", "_images")
+    record = fingerprints.load()
+    scripts = [e.py for e in discover(os.path.join(ctx.base_folder, "examples")) if e.py]
+    if not all:
+        stale = {s.name for s in fingerprints.stale_files("py", scripts, record, fingerprints.IMAGES)}
+        scripts = [p for p in scripts if p.stem in stale]
+    for script in scripts:
+        out = os.path.join(images, "examples", script.stem)
+        print("Running {}".format(script.name))
+        with ctx.cd(ctx.base_folder):
+            result = ctx.run('"{}" docs/_tools/run_example.py "{}" "{}"'.format(sys.executable, script, out), warn=True)
+        if result.ok:
+            fingerprints.record_file(record, "py", script)
+            fingerprints.save(record)
+    print("Ran {} example(s).".format(len(scripts)))
+
+
+@task(
+    pre=[docs_components],
+    help={
+        "clean": "True to clean the site directory before building, otherwise False.",
+        "verbose": "True to nicely format the output, otherwise False.",
+    },
+)
+def docs(ctx, clean=False, verbose=False):
+    """Generate the component and example pages, then build the HTML documentation with MkDocs into dist/docs."""
+    # any pre-docs docs related task runs here
+    ci_mkdocs.docs(ctx, clean=clean, verbose=verbose)
+
+
+@task
+def sync_authors(ctx):
+    """Write the authors of CITATION.cff into pyproject.toml, names only.
+
+    CITATION.cff is the only author list edited by hand; `pre-build` runs this, so a release picks up new authors.
+    The docs read CITATION.cff directly (docs/_ext/mkdocs_hooks.py).
+    """
+    import tomlkit
+    import yaml
+
+    with open(os.path.join(ctx.base_folder, "CITATION.cff"), encoding="utf-8") as file:
+        cff = yaml.safe_load(file)
+
+    # people carry given-names/family-names, organizations a single "name". Names only: PyPI shows just the
+    # first author when emails are present (https://github.com/pypi/warehouse/issues/12877)
+    names = [" ".join(filter(None, (author.get("given-names"), author.get("family-names")))) or author.get("name", "") for author in cff["authors"]]
+
+    path = os.path.join(ctx.base_folder, "pyproject.toml")
+    with open(path, encoding="utf-8") as file:
+        pyproject = tomlkit.parse(file.read())
+
+    authors = tomlkit.array()
+    authors.multiline(True)
+    for name in names:
+        entry = tomlkit.inline_table()
+        entry["name"] = name
+        authors.append(entry)
+    pyproject["project"]["authors"] = authors
+
+    with open(path, "w", encoding="utf-8") as file:
+        file.write(tomlkit.dumps(pyproject))
+    print("Synced {} authors from CITATION.cff into pyproject.toml".format(len(names)))
+
+
+@task(pre=[sync_authors])
 def pre_build(ctx):
-    """Generate the files that go into the wheel but are not in git: none, the protobuf bindings are committed."""
+    """Prepare the build: sync the pyproject.toml authors from CITATION.cff (the protobuf bindings are committed)."""
 
 
-@task(help={"output": "Folder where the installer bundle is created (default: dist/)"})
-def installer_bundle(ctx, output="dist"):
-    """Build the wheel and the Grasshopper plugin, and zip them with the Grasshopper installer."""
-    base = os.path.dirname(__file__)
-    bundle = os.path.join(base, output, "compas_acoustics_installer")
-    if os.path.isdir(bundle):
-        shutil.rmtree(bundle)
-    os.makedirs(os.path.join(bundle, "gha"))
-    # setuptools copies into build/lib without emptying it, so removed modules would ship again
-    shutil.rmtree(os.path.join(base, "build"), ignore_errors=True)
-
-    with ctx.cd(base):
-        ctx.run('"{}" -m pip wheel --no-deps --wheel-dir "{}" .'.format(sys.executable, bundle))
-    plugin = build_gha(ctx)
+@task(help={"version": "Version of the plugin (default: the version in the .csproj)"})
+def yakerize(ctx, version=None):
+    """Build the Grasshopper plugin and package it for Yak, Rhino's package manager, into dist/yak_package."""
+    # shortcut: grasshopper.yakerize copies .ghuser files only, not a compiled plugin; use it once it takes a .gha
+    base = ctx.base_folder
+    # the plugin's own version; the compas_acoustics it installs is CompasAcousticsVersion in the .csproj
+    version = version or re.search(r"<Version>([^<]+)</Version>", open(os.path.join(base, PLUGIN, "CompasAcoustics.Grasshopper.csproj")).read()).group(1)
+    plugin = build_gha(ctx, version=version)
+    target = os.path.join(base, "dist", "yak_package")
+    shutil.rmtree(target, ignore_errors=True)
+    os.makedirs(os.path.join(target, "misc"))
     for name in GHA_FILES:
-        shutil.copy2(os.path.join(plugin, name), os.path.join(bundle, "gha", name))
-    shutil.copy2(os.path.join(base, "installer", "compas_acoustics_installer.gh"), bundle)
-
-    wheels = glob.glob(os.path.join(bundle, "compas_acoustics-*.whl"))
-    archive = shutil.make_archive(bundle, "zip", os.path.dirname(bundle), os.path.basename(bundle))
-    print("Bundled {}, the Grasshopper plugin and the installer into {}".format(os.path.basename(wheels[0]), archive))
+        shutil.copy2(os.path.join(plugin, name), target)
+    for name in ("README.md", "LICENSE"):
+        shutil.copy2(os.path.join(base, name), os.path.join(target, "misc"))
+    manifest = shutil.copy2(os.path.join(base, "src", "compas_acoustics_ghcsharp", "yak_template", "manifest.yml"), target)
+    grasshopper._set_version_in_manifest(manifest, version)
+    # the yak executable is downloaded outside the target, or it would be packaged too
+    subprocess.run(grasshopper._get_yak_command(os.path.join(base, "dist")) + ["build", "--platform", "any"], cwd=target, check=True)
 
 
 ns = Collection(
-    docs.help,
+    ci_docs.help,
     style.check,
     style.lint,
     style.format,
-    docs.docs,
-    docs.linkcheck,
+    docs,
+    docs_components,
+    docs_images,
     tests.test,
     tests.testdocs,
     tests.testcodeblocks,
     build.prepare_changelog,
     build.clean,
     build.release,
+    sync_authors,
     pre_build,
-    installer_bundle,
+    yakerize,
+    grasshopper.publish_yak,
     build_gha,
     generate_proto_classes,
     generate_csharp,
     generate,
+    create_proto_bundle,
+    create_class_assets,
 )
 ns.configure(
     {
@@ -110,5 +197,8 @@ ns.configure(
         "proto_folder": os.path.join("src", "compas_acoustics", "pb", "protobuf_defs", "compas_acoustics", "pb", "generated"),
         "proto_include_paths": [os.path.join("src", "compas_acoustics", "pb", "protobuf_defs"), compas_pb.PROTOBUF_DEFS],
         "proto_out_folder": "src",
+        # invoke create-class-assets: the .proto bundle and the bindings of each language, as release assets
+        "package_name": "compas_acoustics",
+        "generated_folder": os.path.join("dist", "generated"),
     }
 )

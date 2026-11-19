@@ -1,0 +1,9 @@
+{
+    "name": "Fixture B",
+    "nickname": "FixB",
+    "category": "COMPAS Acoustics",
+    "subcategory": "Model",
+    "description": "A fixture with no ports.",
+    "exposure": 2,
+    "ports": {}
+}

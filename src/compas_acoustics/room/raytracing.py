@@ -1,17 +1,10 @@
-"""pyroomacoustics runs on a room: monaural responses from image sources alone or with ray tracing, and the rays' energy per direction.
+"""Monaural responses from image sources alone or with ray tracing, and the rays' energy per direction.
 
-The backend of :class:`~compas_acoustics.simulation_methods.Mono` (:func:`image_source_rirs`,
-:func:`ray_traced_rirs`) and of the binaural and ambisonics methods (their reference run, their directional histograms
-and the length of both, :func:`default_duration`). The ray tracing is ported by hand from hybrid-rir
-(gpapadimitri/hybrid-rir, src/room.py: ``RoomSpec.ray_traced_rir``, ``_trace_rays`` and
-``_default_simulation_duration``) to trace every source and microphone of a scene in one room, without pyFDN.
-
-With ray tracing pyroomacoustics runs in its hybrid mode: specular reflections up to
-``max_order`` from the image source model, everything later from a stochastic
-ray tracer that also carries the scattered energy. Responses are returned on
-the package scale, spreading ``1 / (4 pi r)`` and the direct sound on its
-geometric sample (pyroomacoustics spreads as ``1 / r`` and delays by half its
-fractional-delay kernel).
+The backend of :class:`~compas_acoustics.simulation_methods.Mono` and of the hybrid methods' reference runs and
+directional histograms. With ray tracing, specular reflections up to ``max_order`` come from the image sources and
+everything later from pyroomacoustics' stochastic ray tracer, which also carries the scattered energy. Responses are
+on the package scale: spreading ``1 / (4 pi r)``, the direct sound on its geometric sample (pyroomacoustics spreads
+as ``1 / r`` and delays by half its fractional-delay kernel).
 """
 
 from __future__ import annotations
@@ -24,48 +17,47 @@ from typing import Sequence
 
 import numpy as np
 import pyroomacoustics as pra
+from pyroomacoustics.simulation import compute_ism_rir
+from pyroomacoustics.simulation import compute_rt_rir
+from pyroomacoustics.utilities import design_highpass_filter_sos
+from scipy.signal import sosfiltfilt
 
 from .diffuse import predicted_rt
 from .geometry import SYNTHESIS_BANDS
 from .geometry import RoomGeometry
 from .geometry import pra_octave_grid
 
-__all__ = ['MIN_RAYS', 'OPEN_ROOM_DURATION', 'MAX_DURATION', 'DURATION_RT_FACTOR', 'DirectionalHistogram', 'default_duration', 'directional_histograms',
-           'image_source_rirs', 'ray_traced_rirs']
+__all__ = [
+    "MIN_RAYS",
+    "MAX_DURATION",
+    "DURATION_RT_FACTOR",
+    "DirectionalHistogram",
+    "RayTracedRun",
+    "default_duration",
+    "directional_histograms",
+    "image_source_rirs",
+    "ray_traced_run",
+]
 
-# Floor on pyroomacoustics' own ray count, applied only with n_rays=None.
+# Floor on the heuristic ray count, applied only with n_rays=None
 MIN_RAYS = 50_000
-# A response lasts this many times the longest Eyring RT, clipped to the range below, in seconds, for the
-# mono method and for the runs the hybrid makes itself. ODEON asks for at least 2/3 of the longest RT
-# and RAZR takes 1.0 (op.len_rt_factor); 1.5 keeps T30 where Eyring underestimates the decay by 18 to 31 %
-# (diffuse.py). Measured over five shoeboxes: the hybrid's response is identical at 1.5, 2.0 and 2.5 (nothing
-# reads past 1.5), and 1.0 moves T30 at 125 Hz by 9 to 20 %. Where a room outruns Eyring altogether (a furnished
-# office: 2 s against 0.64 s) no factor helps, and the methods warn about the length instead.
+# A response lasts this many times the longest Eyring RT, within 0.5 s and MAX_DURATION. The margin over 1 keeps the
+# T30 evaluation range inside the response where Eyring underestimates the decay; a room whose decay outlasts it is
+# caught by the methods' length warnings.
 DURATION_RT_FACTOR = 1.5
-MIN_DURATION = 0.5
 MAX_DURATION = 12.0
-# Buffer for a scene that does not close a volume and so has no Eyring estimate.
-OPEN_ROOM_DURATION = 10.0
 _HIST_BIN = 0.004
 
 
-def default_duration(geometry: RoomGeometry, air_absorption: bool, speed_of_sound: Optional[float] = None, air=None,
-                     factor: float = DURATION_RT_FACTOR) -> float:
-    """How long to simulate this room, from the Eyring prediction.
+def default_duration(geometry: RoomGeometry, air_absorption: bool, speed_of_sound: Optional[float] = None, air=None, factor: float = DURATION_RT_FACTOR) -> float:
+    """How long to simulate this room: ``factor`` times the longest Eyring RT, within 0.5 s and ``MAX_DURATION``.
 
-    ``factor`` times the longest predicted RT, within ``MIN_DURATION`` and
-    ``MAX_DURATION``. Eyring is not accurate enough to be a decay target, but it
-    sizes a buffer (``DURATION_RT_FACTOR``). The diffuse-field check is skipped because nothing acoustic is being claimed.
-    A scene that does not close a volume has no Eyring estimate and gets
-    ``OPEN_ROOM_DURATION``.
-
-    A prediction long enough to hit ``MAX_DURATION`` warns: the rays of such a
-    room live for hundreds of reflections and the run takes seconds per source,
-    and more often than not it is a material with no low-frequency absorption on
-    a large surface rather than the room intended.
+    Eyring only sizes the buffer, so its diffuse-field check is skipped. A scene that closes no volume gets 10 s.
+    Hitting ``MAX_DURATION`` warns: the rays then live for hundreds of reflections, and the cause is usually a
+    large surface without low-frequency absorption.
     """
     if not geometry.is_closed:
-        return OPEN_ROOM_DURATION
+        return 10.0
     rt = predicted_rt(geometry, air_absorption=air_absorption, speed_of_sound=speed_of_sound, air=air, warn=False)
     longest = int(np.argmax(rt))
     if factor * rt[longest] > MAX_DURATION:
@@ -78,7 +70,7 @@ def default_duration(geometry: RoomGeometry, air_absorption: bool, speed_of_soun
             UserWarning,
             stacklevel=2,
         )
-    return float(np.clip(factor * rt[longest], MIN_DURATION, MAX_DURATION))
+    return float(np.clip(factor * rt[longest], 0.5, MAX_DURATION))
 
 
 def _on_package_scale(rir, latency: int, n_samples: int) -> np.ndarray:
@@ -86,26 +78,87 @@ def _on_package_scale(rir, latency: int, n_samples: int) -> np.ndarray:
     return np.pad(rir, (0, max(0, n_samples - rir.size)))[:n_samples]
 
 
-def image_source_rirs(geometry: RoomGeometry, sources, mic_positions, fs: int, *, max_order: int, air_absorption: bool = True,
-                      air=None) -> List[List[np.ndarray]]:
-    """Image-source responses of every source at every microphone, ``[mic][source]``, on the package scale, at their
-    natural length. The arguments are those of :func:`ray_traced_rirs`."""
+def _pair_responses(room) -> List[List[np.ndarray]]:
+    """The room's responses ``[mic][source]`` as pyroomacoustics composes them, except that a pair without a visible
+    image has no image part (the room's own call fails on it, or renders the blocked direct sound when the source is
+    hidden from every microphone)."""
+    if room.simulator_state["ism_needed"] and not room.simulator_state["ism_done"]:
+        room.image_source_model()
+    if room.simulator_state["rt_needed"] and not room.simulator_state["rt_done"]:
+        room.ray_tracing()
+    hpf = None
+    if pra.constants.get("rir_hpf_enable"):
+        hpf = design_highpass_filter_sos(room.fs, pra.constants.get("rir_hpf_fc"), **pra.constants.get("rir_hpf_kwargs"))
+    fdl = pra.constants.get("frac_delay_length")
+    volume = room.get_volume()
+    responses = []
+    for m, mic in enumerate(room.mic_array.R.T):
+        responses.append([])
+        for s, source in enumerate(room.sources):
+            parts = []
+            visible = np.asarray(room.visibility[s][m, :], dtype=bool) if room.simulator_state["ism_needed"] else None
+            if visible is not None and visible.any():
+                parts.append(
+                    compute_ism_rir(
+                        source,
+                        mic,
+                        room.mic_array.directivity[m],
+                        source.directions[m, :, :],
+                        visible,
+                        fdl,
+                        room.c,
+                        room.fs,
+                        room.octave_bands,
+                        min_phase=room.min_phase,
+                        air_abs_coeffs=room.air_absorption,
+                    )
+                )
+            if room.simulator_state["rt_needed"]:
+                t0 = np.linalg.norm(source.position - mic) / room.c
+                parts.append(
+                    compute_rt_rir(
+                        t0.item(),
+                        room.rt_histograms[m][s],
+                        room.rt_directional_responses[m],
+                        room.rt_args["hist_bin_size"],
+                        room.rt_args["hist_bin_size_samples"],
+                        volume,
+                        fdl,
+                        room.c,
+                        room.fs,
+                        room.octave_bands,
+                        air_abs_coeffs=room.air_absorption,
+                    )
+                )
+            if not parts:
+                responses[m].append(np.zeros(fdl))
+                continue
+            if len(parts) == 1:
+                rir = parts[0]
+            else:
+                rir = np.zeros(max(p.shape[0] for p in parts))
+                for p in parts:
+                    rir[: p.shape[0]] += p
+            if hpf is not None:
+                rir = np.ascontiguousarray(sosfiltfilt(hpf, rir))
+            responses[m].append(rir)
+    return responses
+
+
+def image_source_rirs(geometry: RoomGeometry, sources, mic_positions, fs: int, *, max_order: int, air_absorption: bool = True, air=None) -> List[List[np.ndarray]]:
+    """Image-source responses ``[mic][source]`` on the package scale at their natural length; arguments as :func:`ray_traced_run`."""
     mic_positions = np.asarray(mic_positions, dtype=float).reshape(3, -1)
     with pra_octave_grid():
         room = geometry.to_pra(fs, max_order, air_absorption=air_absorption, air=air)
         for source in sources:
             room.add_soundsource(source)
         room.add_microphone_array(pra.MicrophoneArray(mic_positions, fs))
-        room.image_source_model()
-        room.compute_rir()
+        rirs = _pair_responses(room)
     latency = pra.constants.get("frac_delay_length") // 2
-    return [
-        [_on_package_scale(room.rir[m][s], latency, len(room.rir[m][s]) - latency) for s in range(len(sources))]
-        for m in range(mic_positions.shape[1])
-    ]
+    return [[_on_package_scale(rir, latency, len(rir) - latency) for rir in row] for row in rirs]
 
 
-def ray_traced_rirs(
+def ray_traced_run(
     geometry: RoomGeometry,
     sources,
     mic_positions,
@@ -119,33 +172,30 @@ def ray_traced_rirs(
     air_absorption: bool = True,
     seed: Optional[int] = None,
     air=None,
-) -> List[List[np.ndarray]]:
-    """Monaural responses of every source at every microphone, ``[mic][source]``.
+    directions: Optional[Sequence[np.ndarray]] = None,
+) -> RayTracedRun:
+    """Monaural responses of every source at every microphone from one image source search and one ray trace.
 
-    ``sources`` are ``pra.SoundSource`` objects; ``mic_positions`` is ``(3, M)``.
-    Every material must carry scattering. ``max_order`` splits specular from
-    ray-traced energy; hybrid-rir measured 6 to 10 as the range where the
-    decay stops depending on it. ``duration`` defaults to
-    :func:`default_duration`. ``n_rays=None`` takes pyroomacoustics' heuristic,
-    raised to ``MIN_RAYS``. ``seed`` seeds pyroomacoustics' generators; None
-    draws a fresh seed from the OS. Without scattering nothing is random.
-    ``air`` (:class:`AirConditions`) sets the speed of sound and the air absorption (see :meth:`RoomGeometry.to_pra`).
+    ``sources`` are ``pra.SoundSource``; ``mic_positions`` is ``(3, M)``. ``max_order`` splits specular from
+    ray-traced energy. ``duration`` defaults to :func:`default_duration`; ``n_rays=None`` takes a heuristic raised to ``MIN_RAYS``;
+    ``seed`` None draws a fresh one from the OS. ``air`` sets the speed of sound and the air absorption.
+    ``directions``, one ``(n, 3)`` array of unit vectors in room coordinates per microphone, adds a copy of every
+    microphone that sorts each detected ray by the direction nearest its last leg, as :func:`directional_histograms`
+    does: the copies log the rays of the responses, which they leave unchanged.
     """
     if duration is None:
         duration = default_duration(geometry, air_absorption, air=air)
     if duration <= 0.0:
         raise ValueError(f"duration must be positive, got {duration!r}")
     mic_positions = np.asarray(mic_positions, dtype=float).reshape(3, -1)
+    unit = None if directions is None else _unit_directions(directions, mic_positions.shape[1])
     options = {
         "receiver_radius": receiver_radius,
         "energy_thres": energy_threshold,
         "time_thres": float(duration),
         "hist_bin_size": _HIST_BIN,
     }
-    # numpy only, as hybrid-rir: seeding libroom as well draws different
-    # noise for the ray-traced tail (same envelope, 0.1 dB per window),
-    # which breaks sample parity with upstream. Repeatable either way.
-    # None reseeds from the OS rather than continuing an earlier run's stream.
+    # The numpy seed only: pyroomacoustics derives the tracer's seed from it. None reseeds both from the OS.
     pra.random.seed(seed)
     with pra_octave_grid():
         room = geometry.to_pra(fs, max_order, ray_tracing=True, air_absorption=air_absorption, air=air)
@@ -155,34 +205,114 @@ def ray_traced_rirs(
         room.set_ray_tracing(n_rays=n_rays, **options)
         if n_rays is None and room.rt_args["n_rays"] < MIN_RAYS:
             room.set_ray_tracing(n_rays=MIN_RAYS, **options)
-        room.compute_rir()
+        room.image_source_model()
+        lines = _ray_tracing(room, unit)
+        rirs = _pair_responses(room)
+        histograms = None
+        if unit is not None:
+            histograms = [[_directional_histogram(room, line, d, duration, air_absorption) for line in per_source] for per_source, d in zip(lines, unit)]
 
     latency = pra.constants.get("frac_delay_length") // 2
     n_samples = round(duration * fs)
-    return [
-        [_on_package_scale(room.rir[m][s], latency, n_samples) for s in range(len(sources))]
-        for m in range(mic_positions.shape[1])
-    ]
+    return RayTracedRun(room=room, responses=[[_on_package_scale(rir, latency, n_samples) for rir in row] for row in rirs], histograms=histograms)
+
+
+def _ray_tracing(room, directions=None) -> Optional[List[List[list]]]:
+    """pyroomacoustics' ``Room.ray_tracing`` for omnidirectional microphones, call for call, so its random
+    draws and responses are the same; with ``directions`` a copy of every microphone, added after the image source
+    search, sorts the same rays by direction. Returns the copies' raw histograms ``[mic][source]``, else None."""
+    engine = room.room_engine
+    n_mics = room.mic_array.M
+    n_rays = room.rt_args["n_rays"]
+    n_bands = len(room.octave_bands.get_bw()) if room.is_multi_band else 1
+    room.rt_directional_responses = []
+    for m in range(n_mics):
+        engine.microphones[m].make_omnidirectional()
+        room.rt_directional_responses.append({"response": np.ones(1), "is_impulse_response": False})
+    if directions is not None:
+        for m in range(n_mics):
+            engine.add_mic(room.mic_array.R[:, m])
+        # A microphone with directions holds a search tree on its own memory and is not safe to copy: all copies
+        # are added before any gets its directions, so no later addition moves one (MSVC grows the list by half).
+        for m, d in enumerate(directions):
+            engine.microphones[n_mics + m].set_directions(np.asarray(d, dtype=np.float32))
+    room.rt_histograms = [[] for _ in range(n_mics)]
+    copies = None if directions is None else [[] for _ in range(n_mics)]
+    for source in room.sources:
+        if source.directivity is None:
+            ray_directions = pra.fibonacci_spherical_sampling(n_rays).T
+            ray_energies = np.ones((n_rays, n_bands))
+        else:
+            ray_directions, ray_energies = source.directivity.sample_rays(n_rays)
+            ray_energies = np.broadcast_to(ray_energies, (n_rays, n_bands))
+        engine.ray_tracing(ray_directions, ray_energies, source.position)
+        for m in range(n_mics):
+            room.rt_histograms[m].append([h.get_hist() for h in engine.microphones[m].histograms])
+            if copies is not None:
+                copies[m].append([np.asarray(h.get_hist(), dtype=float) for h in engine.microphones[n_mics + m].histograms])
+        engine.reset_mics()
+    room.simulator_state["rt_done"] = True
+    return copies
+
+
+def _unit_directions(directions, n_mics: int) -> List[np.ndarray]:
+    if len(directions) != n_mics:
+        raise ValueError(f"directions must hold one array per microphone ({n_mics}), got {len(directions)}")
+    unit = []
+    for d in directions:
+        d = np.asarray(d, dtype=float)
+        if d.ndim != 2 or d.shape[1] != 3 or d.shape[0] < 1:
+            raise ValueError("each microphone's directions must be (n, 3)")
+        unit.append(d / np.linalg.norm(d, axis=1, keepdims=True))
+    return unit
+
+
+def _directional_histogram(room, lines: list, directions: np.ndarray, duration: float, air_absorption: bool) -> DirectionalHistogram:
+    """One microphone's raw histograms of one source on the package scale, air absorption applied per bin."""
+    bin_size = float(room.rt_args["hist_bin_size"])
+    n_bins = int(np.ceil(duration / bin_size))
+    n_bands = len(room.octave_bands.get_bw())
+    distance = (np.arange(n_bins) + 0.5) * bin_size * room.c
+    damping = np.exp(-np.asarray(room.air_absorption, dtype=float)[:, np.newaxis] * distance[np.newaxis, :]) if air_absorption else np.ones((n_bands, n_bins))
+    # every line's histogram is sized for the default 10 s and doubled only for lines hit later
+    width = max(n_bins, *(line.shape[1] for line in lines))
+    energy = np.stack([np.pad(line, ((0, 0), (0, width - line.shape[1]))) for line in lines])[:, :, :n_bins]
+    return DirectionalHistogram(
+        energy=energy * damping / (4.0 * np.pi) ** 2,
+        bin_size=bin_size,
+        directions=directions,
+        bands=np.asarray(room.octave_bands.centers, dtype=float),
+    )
 
 
 @dataclass(frozen=True)
 class DirectionalHistogram:
     """The ray-traced energy of one source at one receiver, per direction of arrival, band and time bin.
 
-    ``energy`` is ``(n_directions, n_bands, n_bins)``: the energy of the pressure
-    response on the package scale (``1 / (4 pi r)``) that arrives within each
-    bin of ``bin_size`` seconds, from the direction of ``directions`` (unit
-    vectors in room coordinates) nearest to its last leg, in the octave band of
-    ``bands``. Time runs from the emission, as :func:`ray_traced_rirs` returns
-    it. The sum over the directions is pyroomacoustics' own histogram on the
-    package scale; the sum over the bins is the energy the rays carry beyond the
-    image source order of the run.
+    ``energy`` is ``(n_directions, n_bands, n_bins)``: the package-scale energy arriving within each bin of
+    ``bin_size`` seconds from emission, from the one of ``directions`` (unit vectors in room coordinates) nearest
+    its last leg, in each band of ``bands``. Summed over the directions it is the omnidirectional histogram;
+    over the bins, the energy the rays carry past the run's image source order.
     """
 
     energy: np.ndarray
     bin_size: float
     directions: np.ndarray
     bands: np.ndarray
+
+
+@dataclass(frozen=True)
+class RayTracedRun:
+    """One image source search and one ray trace of a scene (:func:`ray_traced_run`).
+
+    ``responses[mic][source]`` are on the package scale; ``histograms[mic][source]`` hold the rays' energy per
+    direction where directions were asked for, else None; ``room`` is the searched room, built for ray tracing, whose
+    image sources the hybrid methods take up.
+    """
+
+    room: pra.Room
+    responses: List[List[np.ndarray]]
+    histograms: Optional[List[List[DirectionalHistogram]]]
 
 
 def directional_histograms(
@@ -203,33 +333,19 @@ def directional_histograms(
 ) -> List[List[DirectionalHistogram]]:
     """Ray-traced energy per direction of arrival of every source at every microphone, ``[mic][source]``.
 
-    RAVEN's detection sphere divided into "directivity groups" (Lentz, Schroeder
-    and Vorlaender 2007; Schroeder 2011, Sec. 5.3.4): pyroomacoustics' receiver
-    keeps one histogram per direction and bins every detected ray by the
-    direction, nearest in angle, its last leg arrives from
-    (``libroom_src/microphone.hpp``, ``get_dir_bin``). ``directions`` holds one
-    ``(n, 3)`` array of unit vectors in room coordinates per microphone; a
-    receiver's own frame is the caller's business. The arguments are those of
-    :func:`ray_traced_rirs`, and the rays are the same: pyroomacoustics logs a
-    specular ray only after ``max_order`` reflections, so the bins hold what
-    the image sources of that order do not. ``Room.ray_tracing`` would reset an
-    omnidirectional receiver to one bin, so the engine is driven directly, as
-    that method does. Air absorption is applied per band on the bins' travel
-    distance, as pyroomacoustics applies it to its tail.
+    The detection sphere divided into directivity groups (Lentz, Schroeder and Vorlaender 2007, Sec. 2.4; Schroeder 2011,
+    Sec. 5.3.4): every detected ray is binned by the direction nearest its last leg. ``directions`` holds one
+    ``(n, 3)`` array of unit vectors in room coordinates per microphone. Arguments and rays are those of
+    :func:`ray_traced_run`: a ray is logged only after ``max_order`` reflections, so the bins hold what the image
+    sources do not. The tracing engine is driven directly, since the room's own call would reset an
+    omnidirectional receiver to one bin. Air absorption is applied per band on the bins' travel distance.
     """
     if duration is None:
         duration = default_duration(geometry, air_absorption, air=air)
     if duration <= 0.0:
         raise ValueError(f"duration must be positive, got {duration!r}")
     mic_positions = np.asarray(mic_positions, dtype=float).reshape(3, -1)
-    if len(directions) != mic_positions.shape[1]:
-        raise ValueError(f"directions must hold one array per microphone ({mic_positions.shape[1]}), got {len(directions)}")
-    unit = []
-    for d in directions:
-        d = np.asarray(d, dtype=float)
-        if d.ndim != 2 or d.shape[1] != 3 or d.shape[0] < 1:
-            raise ValueError("each microphone's directions must be (n, 3)")
-        unit.append(d / np.linalg.norm(d, axis=1, keepdims=True))
+    unit = _unit_directions(directions, mic_positions.shape[1])
     options = {
         "receiver_radius": receiver_radius,
         "energy_thres": energy_threshold,
@@ -247,16 +363,8 @@ def directional_histograms(
             room.set_ray_tracing(n_rays=MIN_RAYS, **options)
         n_rays = room.rt_args["n_rays"]
         n_bands = len(room.octave_bands.get_bw())
-        bands = np.asarray(room.octave_bands.centers, dtype=float)
         for m, d in enumerate(unit):
             room.room_engine.microphones[m].set_directions(np.asarray(d, dtype=np.float32))
-        bin_size = float(room.rt_args["hist_bin_size"])
-        n_bins = int(np.ceil(duration / bin_size))
-        distance = (np.arange(n_bins) + 0.5) * bin_size * room.c
-        damping = (
-            np.exp(-np.asarray(room.air_absorption, dtype=float)[:, np.newaxis] * distance[np.newaxis, :])
-            if air_absorption else np.ones((n_bands, n_bins))
-        )
         histograms = [[] for _ in unit]
         for source in room.sources:
             if source.directivity is None:
@@ -267,12 +375,7 @@ def directional_histograms(
                 ray_energies = np.broadcast_to(ray_energies, (n_rays, n_bands))
             room.room_engine.ray_tracing(ray_directions, ray_energies, source.position)
             for m, d in enumerate(unit):
-                # libroom sizes every line's histogram for its default 10 s and doubles only the lines hit later
                 lines = [np.asarray(h.get_hist(), dtype=float) for h in room.room_engine.microphones[m].histograms]
-                width = max(n_bins, *(line.shape[1] for line in lines))
-                energy = np.stack([np.pad(line, ((0, 0), (0, width - line.shape[1]))) for line in lines])[:, :, :n_bins]
-                histograms[m].append(DirectionalHistogram(
-                    energy=energy * damping / (4.0 * np.pi) ** 2, bin_size=bin_size, directions=d, bands=bands,
-                ))
+                histograms[m].append(_directional_histogram(room, lines, d, duration, air_absorption))
             room.room_engine.reset_mics()
     return histograms

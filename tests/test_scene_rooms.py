@@ -57,11 +57,6 @@ def test_the_ray_field_seed_is_true_42_by_default_false_unseeded_or_an_int():
         scattered(random_seed=1.5)
 
 
-def test_ray_field_has_no_merge_coplanar_argument():
-    with pytest.raises(TypeError):
-        RayField.from_scene(shoebox_scene(), n_rays=5, merge_coplanar=True)
-
-
 def test_omnidirectional_sources_carry_no_pyroomacoustics_directivity():
     assert source_to_pra(Source("s", 1, 1, 1)).directivity is None
     assert source_to_pra(Source("c", 1, 1, 1, directivity="cardioid", direction=[1, 0, 0])).directivity is not None
@@ -118,8 +113,7 @@ def test_left_wall_is_on_the_receivers_left():
     # a receiver at the centre facing +x has +y on its left (receiver frame: x facing, y left, z up)
     width = 5
     room = AcousticObjectsLibrary.shoebox_room(7, width, 3)
-    centroid_y = {w: next(o for o in room if o.name.endswith(w)).acoustic_geometry.centroid()[1]
-                  for w in ("left_wall", "right_wall", "front_wall")}
+    centroid_y = {w: next(o for o in room if o.name.endswith(w)).acoustic_geometry.centroid()[1] for w in ("left_wall", "right_wall", "front_wall")}
     assert centroid_y["left_wall"] == pytest.approx(width)
     assert centroid_y["right_wall"] == pytest.approx(0.0)
     assert centroid_y["front_wall"] == pytest.approx(width / 2)

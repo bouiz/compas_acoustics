@@ -1,0 +1,30 @@
+:root > * {
+  --md-primary-fg-color:        #0092d2;
+  --md-primary-fg-color--light: #0092d2;
+  --md-primary-fg-color--dark:  #0092d2;
+}
+
+/* The component icons on the Grasshopper component overview: their own size, not the card's width. */
+.ca-component-icon {
+  width: 48px;
+  vertical-align: middle;
+  margin-right: 0.5rem;
+}
+
+/* Port names in the first column of the component tables stay on one line (only there: other tables wrap). */
+.md-typeset .ca-ports td:first-child code {
+  white-space: nowrap;
+}
+
+/* The sidebars keep their own scroll when Material's script cannot size them (the built site opened from
+   disk, file://, where the browser blocks the requests it waits on). The script's inline height wins when it runs. */
+@media screen and (min-width: 60em) {
+  .md-sidebar--secondary .md-sidebar__scrollwrap {
+    max-height: calc(100vh - 6rem);
+  }
+}
+@media screen and (min-width: 76.25em) {
+  .md-sidebar--primary .md-sidebar__scrollwrap {
+    max-height: calc(100vh - 6rem);
+  }
+}

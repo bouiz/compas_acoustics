@@ -39,9 +39,7 @@ def corners_of(obj):
 
 
 def assert_outward(geometry, centre=CENTRE):
-    for (vertices, _), area_normal, role in zip(
-        geometry.faces_with_materials(), geometry.area_normals(), geometry.face_roles
-    ):
+    for (vertices, _), area_normal, role in zip(geometry.faces_with_materials(), geometry.area_normals(), geometry.face_roles):
         if role == "boundary":
             assert (vertices.mean(axis=0) - centre) @ area_normal > 0.0
 
@@ -93,7 +91,7 @@ def test_a_t_junction_seam_still_closes():
 
 
 def test_a_sliver_face_off_an_edge_still_closes():
-    # As in BRAS CR2: a sliver's apex lies a fraction of a millimetre off its own long edge, inside the weld
+    # A sliver's apex lies a fraction of a millimetre off its own long edge, inside the weld
     # tolerance but not on the edge; taking it for a T-junction would make the edge non-manifold.
     walls = [o for o in shoebox_leaves() if not o.name.endswith("floor")]
     apex = [3.5, 5e-4, 0.0]
@@ -197,7 +195,7 @@ def test_from_mesh_matches_from_scene():
     assert mesh.is_closed and mesh.volume == pytest.approx(scene.volume)
 
 
-def test_surfaces_volume_and_area_match_upstream_meshgeometry():
+def test_surfaces_volume_and_area_are_summed_per_material():
     panel = quad("panel", [[3, 1, 0.5], [3, 1, 2.5], [3, 3, 2.5], [3, 3, 0.5]], AcousticMaterial("felt", 0.6, 0.2), role="obstacle")
     g = RoomGeometry.from_scene(scene_of(*shoebox_leaves(), panel))
     surfaces = dict((material.name, area) for area, material in g.surfaces)
@@ -287,14 +285,30 @@ def test_mergeable_faces_are_counted_and_warned_about():
 
 def test_an_obj_file_reads_one_object_per_group(tmp_path):
     obj = tmp_path / "box.obj"
-    lines = ["v 0 0 0", "v 4 0 0", "v 4 3 0", "v 0 3 0", "v 0 0 2.5", "v 4 0 2.5", "v 4 3 2.5", "v 0 3 2.5",
-             "g walls", "f 1 2 6 5", "f 2 3 7 6", "g floor", "f 1 4 3 2", "g ceiling", "f 5 6 7 8",
-             "g walls", "f 3 4 8 7", "f 4 1 5 8"]  # a recurring group, as Rhino writes them
+    lines = [
+        "v 0 0 0",
+        "v 4 0 0",
+        "v 4 3 0",
+        "v 0 3 0",
+        "v 0 0 2.5",
+        "v 4 0 2.5",
+        "v 4 3 2.5",
+        "v 0 3 2.5",
+        "g walls",
+        "f 1 2 6 5",
+        "f 2 3 7 6",
+        "g floor",
+        "f 1 4 3 2",
+        "g ceiling",
+        "f 5 6 7 8",
+        "g walls",
+        "f 3 4 8 7",
+        "f 4 1 5 8",
+    ]  # a recurring group, as Rhino writes them
     obj.write_text("\n".join(lines) + "\n")
     carpet = AcousticMaterial("carpet", 0.3, 0.1)
     room = AcousticObject.from_obj(str(obj), {"floor": carpet, "ceiling": WALL, "walls": WALL})
-    assert [(o.name, o.acoustic_geometry.number_of_faces()) for o in room] == [
-        ("box_walls", 4), ("box_floor", 1), ("box_ceiling", 1)]
+    assert [(o.name, o.acoustic_geometry.number_of_faces()) for o in room] == [("box_walls", 4), ("box_floor", 1), ("box_ceiling", 1)]
     assert room[1].material is carpet
     g = RoomGeometry.from_scene(scene_of(*room))
     assert g.is_closed and g.volume == pytest.approx(30.0)
@@ -311,8 +325,23 @@ def test_an_obj_file_reads_one_object_per_group(tmp_path):
 
 def test_roles_are_assigned_by_group_after_reading(tmp_path):
     obj = tmp_path / "box.obj"
-    lines = ["v 0 0 0", "v 4 0 0", "v 4 3 0", "v 0 3 0", "v 0 0 2.5", "v 4 0 2.5", "v 4 3 2.5", "v 0 3 2.5",
-             "g walls", "f 1 2 6 5", "f 2 3 7 6", "g floor", "f 1 4 3 2", "g ceiling", "f 5 6 7 8"]
+    lines = [
+        "v 0 0 0",
+        "v 4 0 0",
+        "v 4 3 0",
+        "v 0 3 0",
+        "v 0 0 2.5",
+        "v 4 0 2.5",
+        "v 4 3 2.5",
+        "v 0 3 2.5",
+        "g walls",
+        "f 1 2 6 5",
+        "f 2 3 7 6",
+        "g floor",
+        "f 1 4 3 2",
+        "g ceiling",
+        "f 5 6 7 8",
+    ]
     obj.write_text("\n".join(lines) + "\n")
     objects = AcousticObject.from_obj(str(obj), WALL)
     assert {o.role for o in objects} == {"boundary"}
@@ -328,9 +357,25 @@ def test_roles_are_assigned_by_group_after_reading(tmp_path):
 
 def test_materials_are_assigned_by_group_after_reading(tmp_path):
     obj = tmp_path / "box.obj"
-    lines = ["v 0 0 0", "v 4 0 0", "v 4 3 0", "v 0 3 0", "v 0 0 2.5", "v 4 0 2.5", "v 4 3 2.5", "v 0 3 2.5",
-             "g walls", "f 1 2 6 5", "f 2 3 7 6", "f 3 4 8 7", "f 4 1 5 8", "g floor", "f 1 4 3 2",
-             "g ceiling", "f 5 6 7 8"]
+    lines = [
+        "v 0 0 0",
+        "v 4 0 0",
+        "v 4 3 0",
+        "v 0 3 0",
+        "v 0 0 2.5",
+        "v 4 0 2.5",
+        "v 4 3 2.5",
+        "v 0 3 2.5",
+        "g walls",
+        "f 1 2 6 5",
+        "f 2 3 7 6",
+        "f 3 4 8 7",
+        "f 4 1 5 8",
+        "g floor",
+        "f 1 4 3 2",
+        "g ceiling",
+        "f 5 6 7 8",
+    ]
     obj.write_text("\n".join(lines) + "\n")
     objects = AcousticObject.from_obj(str(obj))
     assert [o.material for o in objects] == [None, None, None]

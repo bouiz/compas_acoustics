@@ -17,7 +17,7 @@ def test_valid_instance():
 
 
 def test_uppercase_name_raises():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="lowercase"):
         Auraliser(
             name="Room1",
             impulse_responses={},
@@ -26,7 +26,7 @@ def test_uppercase_name_raises():
 
 
 def test_space_name_raises():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="spaces"):
         Auraliser(
             name="Room 1",
             impulse_responses={},
@@ -35,7 +35,7 @@ def test_space_name_raises():
 
 
 def test_ir_empty():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="empty or invalid"):
         Auraliser(
             name="room1",
             impulse_responses={
@@ -43,7 +43,7 @@ def test_ir_empty():
                     "info": "invalid_ir_hoa_order",
                     "sampling_rate": sampling_rate_default,
                     "ambisonic_order": 2,
-                    "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
+                    "mic_position": [0.0, 0.0, 1.5],  # x, y, z in meters
                     "ir": [],
                     "normalization": "sn3d",
                     "channel_order": "acn",
@@ -51,59 +51,61 @@ def test_ir_empty():
             },
             anechoic_sounds={
                 "ac1": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                    "info": "speech",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
                 }
             },
         )
 
 
 def test_ir_sampling_rate_negative():
-    with pytest.raises(ValueError):
+    # an explicit auraliser rate, so that the impulse response's own rate is the one checked
+    with pytest.raises(ValueError, match="invalid sample rate"):
         Auraliser(
             name="room1",
+            sampling_rate=sampling_rate_default,
             impulse_responses={
                 "ir1": {
                     "info": "invalid_ir_hoa_order",
                     "sampling_rate": -sampling_rate_default,
                     "ambisonic_order": 2,
-                    "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
-                    "ir": np.zeros([48000,9]),
+                    "mic_position": [0.0, 0.0, 1.5],  # x, y, z in meters
+                    "ir": np.zeros([48000, 9]),
                     "normalization": "sn3d",
                     "channel_order": "acn",
                 },
             },
             anechoic_sounds={
                 "ac1": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                    "info": "speech",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
                 }
             },
         )
 
 
 def test_sampling_rate_negative():
-    with pytest.raises(ValueError):
-        a = Auraliser(
-            name="room1",
-            impulse_responses={
-                "ir1": {
-                    "info": "invalid_ir_hoa_order",
-                    "sampling_rate": sampling_rate_default,
-                    "ambisonic_order": 2,
-                    "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
-                    "ir": np.zeros([48000,9]),
-                    "normalization": "sn3d",
-                    "channel_order": "acn",
-                },
+    a = Auraliser(
+        name="room1",
+        impulse_responses={
+            "ir1": {
+                "info": "invalid_ir_hoa_order",
+                "sampling_rate": sampling_rate_default,
+                "ambisonic_order": 2,
+                "mic_position": [0.0, 0.0, 1.5],  # x, y, z in meters
+                "ir": np.zeros([48000, 9]),
+                "normalization": "sn3d",
+                "channel_order": "acn",
             },
-            anechoic_sounds={
-                "ac1": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
-                }
-            },
-        )
+        },
+        anechoic_sounds={
+            "ac1": {
+                "info": "speech",
+                "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
+            }
+        },
+    )
+    with pytest.raises(ValueError, match="Sample rate must be a positive"):
         a.sampling_rate = -sampling_rate_default
 
 
@@ -116,30 +118,30 @@ def test_ir_warning_resample():
                     "info": "invalid_ir_hoa_order",
                     "sampling_rate": sampling_rate_default,
                     "ambisonic_order": 2,
-                    "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
-                    "ir": np.zeros([96000,9]),
+                    "mic_position": [0.0, 0.0, 1.5],  # x, y, z in meters
+                    "ir": np.zeros([96000, 9]),
                     "normalization": "sn3d",
                     "channel_order": "acn",
                 },
                 "ir2": {
                     "info": "invalid_ir_hoa_order",
-                    "sampling_rate": sampling_rate_default*2,
+                    "sampling_rate": sampling_rate_default * 2,
                     "ambisonic_order": 2,
-                    "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
-                    "ir": np.zeros([96000,9]),
+                    "mic_position": [0.0, 0.0, 1.5],  # x, y, z in meters
+                    "ir": np.zeros([96000, 9]),
                     "normalization": "sn3d",
                     "channel_order": "acn",
                 },
             },
             anechoic_sounds={
                 "ac1": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                    "info": "speech",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
                 },
                 "ac2": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
-                }
+                    "info": "speech",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
+                },
             },
         )
         assert a.impulse_responses["ir2"]["sampling_rate"] == sampling_rate_default
@@ -154,16 +156,16 @@ def test_ir_warning_ambisonics_order_mismatch():
                     "info": "ambisonics_order_mismatch",
                     "sampling_rate": sampling_rate_default,
                     "ambisonic_order": 3,
-                    "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
-                    "ir": np.zeros([48000,9]),
+                    "mic_position": [0.0, 0.0, 1.5],  # x, y, z in meters
+                    "ir": np.zeros([48000, 9]),
                     "normalization": "sn3d",
                     "channel_order": "acn",
                 },
             },
             anechoic_sounds={
                 "ac1": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                    "info": "speech",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
                 }
             },
         )
@@ -178,16 +180,16 @@ def test_ir_transposed():
                     "info": "ambisonics_order_mismatch",
                     "sampling_rate": sampling_rate_default,
                     "ambisonic_order": 2,
-                    "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
-                    "ir": np.zeros([9,48000]),
+                    "mic_position": [0.0, 0.0, 1.5],  # x, y, z in meters
+                    "ir": np.zeros([9, 48000]),
                     "normalization": "sn3d",
                     "channel_order": "acn",
                 },
             },
             anechoic_sounds={
                 "ac1": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                    "info": "speech",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
                 }
             },
         )
@@ -202,16 +204,16 @@ def test_ir_warning_ambisonics_order_empty():
                     "info": "ambisonics_order_empty",
                     "sampling_rate": sampling_rate_default,
                     "ambisonic_order": [],
-                    "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
-                    "ir": np.zeros([48000,9]),
+                    "mic_position": [0.0, 0.0, 1.5],  # x, y, z in meters
+                    "ir": np.zeros([48000, 9]),
                     "normalization": "sn3d",
                     "channel_order": "acn",
                 },
             },
             anechoic_sounds={
                 "ac1": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                    "info": "speech",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
                 }
             },
         )
@@ -226,15 +228,15 @@ def test_ir_warning_normalization_empty():
                     "info": "ambisonics_order_empty",
                     "sampling_rate": sampling_rate_default,
                     "ambisonic_order": [],
-                    "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
-                    "ir": np.zeros([48000,9]),
+                    "mic_position": [0.0, 0.0, 1.5],  # x, y, z in meters
+                    "ir": np.zeros([48000, 9]),
                     "channel_order": "acn",
                 },
             },
             anechoic_sounds={
                 "ac1": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                    "info": "speech",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
                 }
             },
         )
@@ -249,22 +251,22 @@ def test_ir_warning_channel_order_empty():
                     "info": "ambisonics_order_empty",
                     "sampling_rate": sampling_rate_default,
                     "ambisonic_order": [],
-                    "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
-                    "ir": np.zeros([48000,9]),
+                    "mic_position": [0.0, 0.0, 1.5],  # x, y, z in meters
+                    "ir": np.zeros([48000, 9]),
                     "normalization": "sn3d",
                 },
             },
             anechoic_sounds={
                 "ac1": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                    "info": "speech",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
                 }
             },
         )
 
 
 def test_ir_invalid_ambisonics_order():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="valid channel count"):
         Auraliser(
             name="room1",
             impulse_responses={
@@ -272,16 +274,16 @@ def test_ir_invalid_ambisonics_order():
                     "info": "invalid_ir_hoa_order",
                     "sampling_rate": sampling_rate_default,
                     "ambisonic_order": 2,
-                    "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
-                    "ir": np.zeros([48000,8]),
+                    "mic_position": [0.0, 0.0, 1.5],  # x, y, z in meters
+                    "ir": np.zeros([48000, 8]),
                     "normalization": "sn3d",
                     "channel_order": "acn",
                 },
             },
             anechoic_sounds={
                 "ac1": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                    "info": "speech",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
                 }
             },
         )
@@ -296,16 +298,16 @@ def test_ir_fuma_channel_ordering_raises():
                     "info": "fuma_not_supported",
                     "sampling_rate": sampling_rate_default,
                     "ambisonic_order": 1,
-                    "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
-                    "ir": np.zeros([48000,4]),
+                    "mic_position": [0.0, 0.0, 1.5],  # x, y, z in meters
+                    "ir": np.zeros([48000, 4]),
                     "normalization": "sn3d",
                     "channel_order": "fuma",
                 },
             },
             anechoic_sounds={
                 "ac1": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                    "info": "speech",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
                 }
             },
         )
@@ -320,16 +322,16 @@ def test_warning_ir_n3d_normalization():
                     "info": "invalid_ir_hoa_order",
                     "sampling_rate": sampling_rate_default,
                     "ambisonic_order": 2,
-                    "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
-                    "ir": np.zeros([48000,9]),
+                    "mic_position": [0.0, 0.0, 1.5],  # x, y, z in meters
+                    "ir": np.zeros([48000, 9]),
                     "normalization": "n3d",
                     "channel_order": "acn",
                 },
             },
             anechoic_sounds={
                 "ac1": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                    "info": "speech",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
                 }
             },
         )
@@ -340,40 +342,40 @@ def test_ir_maximum_length():
         name="room1",
         impulse_responses={
             "ir1": {
-                    "info": "maximum_ambisonic_order",
-                    "sampling_rate": sampling_rate_default,
-                    "ambisonic_order": 2,
-                    "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
-                    "ir": np.zeros([100000,9]),
-                    "normalization": "sn3d",
-                    "channel_order": "acn",
-                },
+                "info": "maximum_ambisonic_order",
+                "sampling_rate": sampling_rate_default,
+                "ambisonic_order": 2,
+                "mic_position": [0.0, 0.0, 1.5],  # x, y, z in meters
+                "ir": np.zeros([100000, 9]),
+                "normalization": "sn3d",
+                "channel_order": "acn",
+            },
             "ir2": {
-                    "info": "maximum_ambisonic_order",
-                    "sampling_rate": sampling_rate_default,
-                    "ambisonic_order": 4,
-                    "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
-                    "ir": np.zeros([48000,25]),
-                    "normalization": "sn3d",
-                    "channel_order": "acn",
-                },
+                "info": "maximum_ambisonic_order",
+                "sampling_rate": sampling_rate_default,
+                "ambisonic_order": 4,
+                "mic_position": [0.0, 0.0, 1.5],  # x, y, z in meters
+                "ir": np.zeros([48000, 25]),
+                "normalization": "sn3d",
+                "channel_order": "acn",
+            },
         },
         anechoic_sounds={
-                "ac1": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
-                },
-                "ac2": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
-                }
+            "ac1": {
+                "info": "speech",
+                "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
             },
+            "ac2": {
+                "info": "speech",
+                "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
+            },
+        },
     )
     assert a.longest_impulse_response_length == 100000
 
 
-def test_anechoioc_sounds_allowed_extensions():
-    with pytest.raises(ValueError):
+def test_anechoic_sounds_allowed_extensions():
+    with pytest.raises(ValueError, match="must be one of"):
         Auraliser(
             name="room1",
             impulse_responses={
@@ -381,15 +383,15 @@ def test_anechoioc_sounds_allowed_extensions():
                     "info": "ambisonics_order_mismatch",
                     "sampling_rate": sampling_rate_default,
                     "ambisonic_order": 2,
-                    "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
-                    "ir": np.zeros([48000,9]),
+                    "mic_position": [0.0, 0.0, 1.5],  # x, y, z in meters
+                    "ir": np.zeros([48000, 9]),
                     "normalization": "sn3d",
                     "channel_order": "acn",
                 },
             },
             anechoic_sounds={
                 "ac1": {
-                    "info": "whatevs",
+                    "info": "speech",
                     "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp4"),
                 }
             },
@@ -397,14 +399,14 @@ def test_anechoioc_sounds_allowed_extensions():
 
 
 def test_number_of_irs_vs_anechoic_sounds():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="not coherent"):
         Auraliser(
             name="room1",
             impulse_responses={},
             anechoic_sounds={
                 "ac1": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
+                    "info": "speech",
+                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
                 }
             },
         )
@@ -415,34 +417,34 @@ def test_maximum_ambisonic_order():
         name="room1",
         impulse_responses={
             "ir1": {
-                    "info": "maximum_ambisonic_order",
-                    "sampling_rate": sampling_rate_default,
-                    "ambisonic_order": 2,
-                    "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
-                    "ir": np.zeros([48000,9]),
-                    "normalization": "sn3d",
-                    "channel_order": "acn",
-                },
+                "info": "maximum_ambisonic_order",
+                "sampling_rate": sampling_rate_default,
+                "ambisonic_order": 2,
+                "mic_position": [0.0, 0.0, 1.5],  # x, y, z in meters
+                "ir": np.zeros([48000, 9]),
+                "normalization": "sn3d",
+                "channel_order": "acn",
+            },
             "ir2": {
-                    "info": "maximum_ambisonic_order",
-                    "sampling_rate": sampling_rate_default,
-                    "ambisonic_order": 4,
-                    "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
-                    "ir": np.zeros([48000,25]),
-                    "normalization": "sn3d",
-                    "channel_order": "acn",
-                },
+                "info": "maximum_ambisonic_order",
+                "sampling_rate": sampling_rate_default,
+                "ambisonic_order": 4,
+                "mic_position": [0.0, 0.0, 1.5],  # x, y, z in meters
+                "ir": np.zeros([48000, 25]),
+                "normalization": "sn3d",
+                "channel_order": "acn",
+            },
         },
         anechoic_sounds={
-                "ac1": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
-                },
-                "ac2": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
-                }
+            "ac1": {
+                "info": "speech",
+                "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
             },
+            "ac2": {
+                "info": "speech",
+                "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
+            },
+        },
     )
     assert a.maximum_ambisonics_order == 4
 
@@ -452,34 +454,34 @@ def test_impulse_response_and_anechoic_sounds_count():
         name="room1",
         impulse_responses={
             "ir1": {
-                    "info": "ir_count",
-                    "sampling_rate": sampling_rate_default,
-                    "ambisonic_order": 2,
-                    "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
-                    "ir": np.zeros([48000,9]),
-                    "normalization": "sn3d",
-                    "channel_order": "acn",
-                },
+                "info": "ir_count",
+                "sampling_rate": sampling_rate_default,
+                "ambisonic_order": 2,
+                "mic_position": [0.0, 0.0, 1.5],  # x, y, z in meters
+                "ir": np.zeros([48000, 9]),
+                "normalization": "sn3d",
+                "channel_order": "acn",
+            },
             "ir2": {
-                    "info": "ir_count",
-                    "sampling_rate": sampling_rate_default,
-                    "ambisonic_order": 4,
-                    "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
-                    "ir": np.zeros([48000,25]),
-                    "normalization": "sn3d",
-                    "channel_order": "acn",
-                },
+                "info": "ir_count",
+                "sampling_rate": sampling_rate_default,
+                "ambisonic_order": 4,
+                "mic_position": [0.0, 0.0, 1.5],  # x, y, z in meters
+                "ir": np.zeros([48000, 25]),
+                "normalization": "sn3d",
+                "channel_order": "acn",
+            },
         },
         anechoic_sounds={
-                "ac1": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
-                },
-                "ac2": {
-                    "info": "whatevs",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.mp3"),
-                }
+            "ac1": {
+                "info": "speech",
+                "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
             },
+            "ac2": {
+                "info": "speech",
+                "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
+            },
+        },
     )
     assert a.get_impulse_response_count() == 2
     assert a.get_anechoic_sounds_count() == 2
@@ -487,30 +489,29 @@ def test_impulse_response_and_anechoic_sounds_count():
 
 def test_import_anechoic_sound():
     a = Auraliser(
-            name="room1",
-            impulse_responses={
-                "ir1": {
-                    "info": "invalid_ir_hoa_order",
-                    "sampling_rate": sampling_rate_default,
-                    "ambisonic_order": 2,
-                    "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
-                    "ir": np.zeros([48000,9]),
-                    "normalization": "sn3d",
-                    "channel_order": "acn",
-                },
+        name="room1",
+        impulse_responses={
+            "ir1": {
+                "info": "invalid_ir_hoa_order",
+                "sampling_rate": sampling_rate_default,
+                "ambisonic_order": 2,
+                "mic_position": [0.0, 0.0, 1.5],  # x, y, z in meters
+                "ir": np.zeros([48000, 9]),
+                "normalization": "sn3d",
+                "channel_order": "acn",
             },
-            anechoic_sounds={
-                "ac1": {
-                    "info": "anechoic_sound_test",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
-                }
-            },
-        )
+        },
+        anechoic_sounds={
+            "ac1": {
+                "info": "anechoic_sound_test",
+                "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
+            }
+        },
+    )
 
     filepath = Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"
     audio = a.import_anechoic_sound(filepath, sampling_rate_default)
 
-    # Assertions
     assert isinstance(audio, np.ndarray), "Audio should be a numpy array"
     assert audio.size > 0, "Audio array should not be empty"
     assert audio.ndim == 1, "Audio should be mono (1D array)"
@@ -518,25 +519,25 @@ def test_import_anechoic_sound():
 
 def test_convolve_matches_numpy_convolution():
     a = Auraliser(
-            name="room1",
-            impulse_responses={
-                "ir1": {
-                    "info": "convolve",
-                    "sampling_rate": sampling_rate_default,
-                    "ambisonic_order": 0,
-                    "mic_position": [0.0, 0.0, 1.5],   # x, y, z in meters
-                    "ir": np.array([[1.0], [0.5], [0.0], [0.25]]),
-                    "normalization": "sn3d",
-                    "channel_order": "acn",
-                },
+        name="room1",
+        impulse_responses={
+            "ir1": {
+                "info": "convolve",
+                "sampling_rate": sampling_rate_default,
+                "ambisonic_order": 0,
+                "mic_position": [0.0, 0.0, 1.5],  # x, y, z in meters
+                "ir": np.array([[1.0], [0.5], [0.0], [0.25]]),
+                "normalization": "sn3d",
+                "channel_order": "acn",
             },
-            anechoic_sounds={
-                "ac1": {
-                    "info": "anechoic_sound_test",
-                    "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
-                }
-            },
-        )
+        },
+        anechoic_sounds={
+            "ac1": {
+                "info": "anechoic_sound_test",
+                "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
+            }
+        },
+    )
 
     output = a.convolve()
 
@@ -571,27 +572,24 @@ def test_convolve_ambisonics():
         },
         anechoic_sounds={
             "ac1": {
-                "info": "whatevs",
+                "info": "speech",
                 "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
             },
             "ac2": {
-                "info": "whatevs",
+                "info": "speech",
                 "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
-            }
+            },
         },
     )
 
     result = a.convolve()
 
-    # Test 1: result should be a NumPy array
     assert isinstance(result, np.ndarray), f"Expected a NumPy array, got {type(result)}"
 
-    # Test 2: number of channels should match maximum Ambisonics order
     expected_channels = (a.maximum_ambisonics_order + 1) ** 2
     assert result.shape[1] == expected_channels, f"Expected {expected_channels} channels, got {result.shape[1]}"
 
-    # Test 3: number of samples should be >= longest IR length
-    longest_ir = max(ir_data['ir'].shape[0] for ir_data in a.impulse_responses.values())
+    longest_ir = max(ir_data["ir"].shape[0] for ir_data in a.impulse_responses.values())
     assert result.shape[0] >= longest_ir, f"Expected at least {longest_ir} samples, got {result.shape[0]}"
 
 
@@ -620,13 +618,13 @@ def test_export_convolved_sound(tmp_path):
         },
         anechoic_sounds={
             "ac1": {
-                "info": "whatevs",
+                "info": "speech",
                 "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
             },
             "ac2": {
-                "info": "whatevs",
+                "info": "speech",
                 "filepath": str(Path(__file__).parent / "test_data" / "test_auraliser_anechoic_sound.wav"),
-            }
+            },
         },
     )
 
@@ -639,6 +637,7 @@ def test_export_convolved_sound(tmp_path):
 
 
 # Helpers for the behaviour tests below
+
 
 def ir_entry(ir, sampling_rate=sampling_rate_default, **kwargs):
     entry = {
@@ -812,13 +811,13 @@ def test_impulse_response_objects_without_sound_raise():
 
 # Formats
 
+
 def auraliser(order=1, binaural=False):
     ir = np.ones((32, 2 if binaural else (order + 1) ** 2))
     return Auraliser("room1", {"ir1": ir_entry(ir, binaural=binaural)}, {"ac1": {"filepath": "a.wav"}})
 
 
-@pytest.mark.parametrize("order, binaural, fmt, channels", [(0, False, "mono", 1), (1, False, "ambisonic", 4),
-                                                            (2, False, "ambisonic", 9), (None, True, "binaural", 2)])
+@pytest.mark.parametrize("order, binaural, fmt, channels", [(0, False, "mono", 1), (1, False, "ambisonic", 4), (2, False, "ambisonic", 9), (None, True, "binaural", 2)])
 def test_the_format_is_that_of_the_impulse_responses(order, binaural, fmt, channels):
     a = auraliser(order, binaural)
     assert a.format == fmt and a.output_channels == channels
@@ -875,6 +874,7 @@ def test_sampling_rate_defaults_to_project_rate_without_impulse_responses():
 
 
 # Output level
+
 
 def test_render_gains_relative_keeps_level_differences():
     loud, quiet = np.full((10, 2), 0.5), np.full((10, 2), 0.05)
@@ -942,8 +942,7 @@ def test_an_n3d_impulse_response_is_auralised_in_sn3d(tmp_path):
     sound = write_sound(tmp_path / "s.wav", np.array([1.0]))
     n3d = np.zeros((8, 4))  # (samples, channels); one sample would read as transposed
     n3d[0] = [1.0, np.sqrt(3.0), 0.0, 0.0]  # a left source in N3D
-    ir = ImpulseResponse("a", Source("s", 1, 0, 0, sound_file=sound), Receiver("r", 0, 0, 0), n3d, 48000,
-                         ambisonic_order=1, normalization="n3d", channel_order="acn")
+    ir = ImpulseResponse("a", Source("s", 1, 0, 0, sound_file=sound), Receiver("r", 0, 0, 0), n3d, 48000, ambisonic_order=1, normalization="n3d", channel_order="acn")
     with pytest.warns(UserWarning, match="n3d to sn3d"):
         out = Auraliser("room1", [ir]).convolve()
     np.testing.assert_allclose(out[0], [1.0, 1.0, 0.0, 0.0], atol=1e-12)
@@ -978,7 +977,6 @@ def test_binaural_impulse_response_objects_are_recognised(tmp_path):
     from compas_acoustics.source import Source
 
     sound = write_sound(tmp_path / "s.wav", np.array([1.0, 0.0]))
-    ir = ImpulseResponse("ir_b", Source("a", 1, 0, 0, sound_file=sound), Receiver("r", 0, 0, 0),
-                         np.ones((8, 2)), sampling_rate_default)
+    ir = ImpulseResponse("ir_b", Source("a", 1, 0, 0, sound_file=sound), Receiver("r", 0, 0, 0), np.ones((8, 2)), sampling_rate_default)
     a = Auraliser("room1", [ir])
     assert a.impulse_responses["ir_b"]["binaural"] is True and a.format == "binaural"

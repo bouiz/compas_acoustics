@@ -6,7 +6,8 @@ and the client's process id in ``COMPAS_ACOUSTICS_WORKER_PARENT``. The worker ex
 
 Routes, on 127.0.0.1:
 
-* ``GET /ping``: ``200 pong``, without the token, to tell a started worker.
+* ``GET /ping``: ``200 pong <id>``, without the token, to tell a started worker; ``<id>`` is the first 16 hex
+  digits of the token's SHA-256, so a client tells its own worker from another one on a reused port.
 * ``POST /api/<function>``: a function of :data:`compas_acoustics.worker.api.__all__`. The body is
   ``compas_pb.pb_dump_bts({"args": [...], "kwargs": {...}})``, the answer ``pb_dump_bts({"result": result})``
   (compas_pb refuses an empty or zero top-level value, so the result is always wrapped).
@@ -24,6 +25,7 @@ ValueError or TypeError of a function (its message), 500 for any other exception
 
 import argparse
 import atexit
+import hashlib
 import hmac
 import json
 import os
@@ -34,14 +36,12 @@ import traceback
 from http.server import BaseHTTPRequestHandler
 from http.server import ThreadingHTTPServer
 
+from compas_acoustics.worker import CONTENT_TYPE
 from compas_acoustics.worker import PARENT_VARIABLE
 from compas_acoustics.worker import TOKEN_VARIABLE
 from compas_acoustics.worker import WORKERS
 
 __all__ = ["WorkerService", "dispatch", "process_is_alive", "start_service"]
-
-PARENT_CHECK_SECONDS = 2.0
-CONTENT_TYPE = "application/x-protobuf"
 
 
 def _encode(value):
@@ -115,6 +115,8 @@ class _Handler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
+        # HTTP/1.0 closes after each answer; without the header .NET's HttpClient at times reuses the closed connection
+        self.send_header("Connection", "close")
         self.end_headers()
         self.wfile.write(body)
 
@@ -122,12 +124,12 @@ class _Handler(BaseHTTPRequestHandler):
         from compas_acoustics.worker import jobs
 
         if self.path == "/ping":
-            self._answer(200, b"pong", "text/plain")
+            self._answer(200, b"pong " + hashlib.sha256(self.server.token.encode()).hexdigest()[:16].encode(), "text/plain")
         elif self.path.startswith("/progress/"):
             if not authorized(self.server.token, self.headers.get("Authorization")):
                 self._answer(*_error(401, "Unauthorised."))
                 return
-            status = jobs.status(self.path[len("/progress/"):])
+            status = jobs.status(self.path[len("/progress/") :])
             self._answer(*((200, _encode({"result": status})) if status is not None else _error(404, "No such call.")))
         else:
             self._answer(*_error(404, "Not found."))
@@ -148,10 +150,10 @@ class _Handler(BaseHTTPRequestHandler):
             if not authorized(self.server.token, authorization):
                 self._answer(*_error(401, "Unauthorised."))
                 return
-            self._answer(200, _encode({"result": jobs.cancel(self.path[len("/cancel/"):])}))
+            self._answer(200, _encode({"result": jobs.cancel(self.path[len("/cancel/") :])}))
         elif self.path.startswith("/api/"):
             call_id = (self.headers.get("X-Call-Id") or "")[:64] or None
-            self._answer(*dispatch(self.server.token, authorization, self.path[len("/api/"):], body, call_id))
+            self._answer(*dispatch(self.server.token, authorization, self.path[len("/api/") :], body, call_id))
         else:
             self._answer(*_error(404, "Not found."))
 
@@ -188,7 +190,7 @@ def process_is_alive(pid):
 
 
 def _record(port, token):
-    # The token lets the installer stop this worker before it replaces the environment; the folder is the user's own
+    # The token lets Install Worker stop this worker before it replaces the environment; the folder is the user's own
     WORKERS.mkdir(parents=True, exist_ok=True)
     record = WORKERS / f"{os.getpid()}.json"
     record.write_text(json.dumps({"pid": os.getpid(), "port": port, "token": token}))
@@ -202,7 +204,7 @@ def _record(port, token):
 
 def _exit_with_the_client(pid, record):
     while process_is_alive(pid):
-        time.sleep(PARENT_CHECK_SECONDS)
+        time.sleep(2.0)
     record.unlink(missing_ok=True)
     os._exit(0)
 
@@ -224,7 +226,7 @@ def start_service(port, token, parent=None, host="127.0.0.1"):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, required=True)
-    # accepted for clients that still pass it; the worker never reloads modules
+    # accepted and ignored: the worker never reloads modules
     parser.add_argument("--no-autoreload", action="store_true")
     token = os.environ.pop(TOKEN_VARIABLE, None)
     if not token:

@@ -1,93 +1,53 @@
 """A ray-traced energy envelope imposed on the network output.
 
-The late field of a room whose absorption is unevenly distributed does not
-decay exponentially from the transition order on: the part of the field that
-reaches the absorbing surfaces dies early. The network of Wendt et al. (2014)
-assumes the opposite,
-a diffuse field from its input onwards, and so starts at the full energy of
-the last image order and decays at the target rate from there. In the AVARIG
-offices that leaves the late field 5 dB over Odeon at 200-800 ms (median of
-60 pairs) and the EDT at twice Odeon's.
+In a room with unevenly distributed absorption the late field does not decay exponentially from the transition
+order: the part reaching the absorbing surfaces dies early, while the network of Wendt et al. (2014) assumes a
+diffuse field from its input on. This module follows the hybrid approach for non-Sabinean rooms (Vorlaender
+2020, Sec. 11.9 and 16.5.5): ray tracing estimates the envelope M^2(dt, f), and a synthetic fine structure is
+shaped to it (Heinz 1993; Schroeder 2011). The fine structure is the network's own dense, directional output;
+only its per-band energy over time changes. Per band b, with E the smoothed energies of the omnidirectional
+signals on the package scale,
 
-The remedy here is the hybrid approach Vorlaender describes for such
-"non-Sabinean" rooms (Auralization, 2nd ed., 2020, Sec. 11.9 and 16.5.5):
-ray tracing estimates the late impulse response envelope M^2(dt, f), and a
-synthetic fine structure is shaped to it ("noise shaping", Heinz 1993;
-Schroeder 2011), with M^2(dt) = H_j^2 n_j (his Eq. 11.52). Here the fine
-structure is the network's own output, which is dense (normalized echo
-density about 1) and carries the directions, and only its per-band energy
-over time is changed. Using the network as the carrier is this package's
-choice; no precedent for it was found.
+    g_b(t) = min(1, sqrt(max(E_ref,b - E_early,b, 0) / E_late,b)),
 
-Per octave band b, with E the smoothed energies of the omnidirectional (W)
-signals and the reference on the package's scale,
+the same on every channel; a ray is logged only after the image source order, so the reference minus the image
+sources is what they do not carry.
 
-    g_b(t) = min(1, sqrt(max(E_ref,b - E_early,b, 0) / E_late,b)).
+- Smoothing: a Hann window of ``SMOOTH_MS``, which averages out the reference's stochastic fine structure.
+- Attenuate only: the gains are capped at 1, so a hybrid quieter than its reference stays so.
+- Hold: once the reference band's energy decay curve has fallen 20 dB its gain is frozen, the ratio over the
+  preceding ``SMOOTH_MS``, never before the early images end (:func:`_early_end`) plus that window.
+- Nine bands, 63 Hz to 16 kHz: the top band of a reconstructing bank takes everything above its lower edge, so
+  a 16 kHz band keeps the energy above 11.3 kHz out of the 8 kHz estimate; 16 kHz takes the 8 kHz gain.
 
-pyroomacoustics logs a specular ray only after ``ism_order`` reflections
-(``libroom_src/room.cpp``), so its reference minus the image sources is the
-energy the image sources do not carry. The same gain goes on every channel.
+With a directional histogram (the methods' ``late_envelope="directional"``; their default ``"omni"`` passes none),
+:func:`shape_late` also takes the detection sphere divided into directivity groups,
+each holding a histogram per frequency band (Lentz, Schroeder and Vorlaender 2007, Sec. 2.4 and Fig. 6; Schroeder
+2011, Sec. 5.3.4). Schroeder averages the bands into one hit probability per group, as every Poisson event there takes
+one broadband HRIR; the network's lines are shaped per band anyway, so here each band keeps its own: in band b
+every line is scaled by ``sqrt(p_i / q_i)``, its direction's share of the rays' energy in that band over its
+share of the lines' (:func:`directional_shares`), a per-line, per-band gain as the boundary filters of Kirsch,
+Wendt and van de Par (2023, Eqs. 4-5) are. The lines keep each band's total and take the rays' distribution, so
+a direction facing a surface that absorbs one band decays faster in that band; the 16 kHz band takes the
+histogram's own 16 kHz row. Shaping the lines of a feedback delay network with such shares is in neither of these
+sources: Schroeder steers a Poisson noise process with one probability per group, and Kirsch's gains are fixed
+boundary filters. Its basis is the comparison with exact image-source shoeboxes.
 
-The constants below are design choices, measured on 60 source-receiver pairs
-in six furnished offices against Odeon, not taken from a reference:
+The package's own choices, without a reference:
 
-- ``SMOOTH_MS``: the reference envelope fluctuates by 6-10 dB at the 10 ms
-  Vorlaender cites (a few strong late ray arrivals; more rays did not reduce
-  it), and following it puts audible swells into the tail. 100 ms leaves 3-4 dB
-  while still following the correction, which builds up over 100-300 ms.
-- Attenuate only: allowing the gain above 1 brightened the onset of the tail
-  by up to 13 dB at 8 kHz in some pairs, an audible step right after the early
-  reflections, and up to 20 dB in every band where the image sources are
-  empty. Without boosts nothing was lost in accuracy. The price: a hybrid that
-  is quieter than its reference stays so (a diffuse shoebox, 4 dB).
-- ``HOLD_DB``: once the reference band has decayed 20 dB its gain is frozen
-  and the network decays at its own target rate, at the corrected level. The
-  held value is a ratio of energies over the preceding ``SMOOTH_MS``, and the
-  hold is never earlier than the end of the early images plus that window, so
-  it always comes from late-field energy. Holding later, or on the late field's
-  own decay, brought the swells back; holding at -10 dB of the late field gave
-  outliers of 10 dB.
-- Nine bands, 63 Hz to 16 kHz: a reconstructing bank puts everything above
-  its top band's lower edge into that band, and the reference has energy up to
-  Nyquist that the hybrid, extrapolating above 8 kHz, does not. With an
-  8 kHz top band that mismatch read as a 15 dB boost. The 16 kHz band takes the
-  8 kHz gain.
-
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, src/envelope.py).
-``shape_late`` takes the W channels apart from the signals it shapes, so that
-it shapes the delay lines, from which both outputs are rendered; the gains are
-upstream's.
-
-The directional envelope
-------------------------
-:func:`shape_late_directional` adds RAVEN's directional histogram (Lentz,
-Schroeder and Vorlaender 2007, Sec. 2.2: the detection sphere divided into
-"directivity groups", each ray's energy added to the group of its time and
-direction of arrival; Schroeder 2011, Sec. 5.3.4), which pyroomacoustics keeps
-per receiver direction (:func:`compas_acoustics.room.raytracing.directional_histograms`).
-RAVEN shapes the level of each time slot with the omni energy spectral density
-and uses the directional histogram only as the distribution of directions the
-impulses of that slot are allotted to, one distribution for all bands. Here
-the level is the omni envelope above, unchanged, and every delay line is then
-scaled by ``sqrt(p_i / q_i)``, its direction's share of the rays' energy over
-its share of the lines' energy (:func:`directional_shares`), so the lines take
-the rays' distribution and keep their total: a direction facing an absorbing
-wall decays faster, as the rays say it does, which one gain on every line
-cannot express. Shaping an FDN carrier this way has no precedent, as the omni
-envelope has none.
-
-Before that the bins are pooled over neighbouring directions with the weights
-of Kirsch, Wendt and van de Par (2023, Eq. 4), ``max(u_i . u_j, 0) ** (N /
-6)``, the kernel the directional absorption uses: at 96 lines a bin of 4 ms
-holds a handful of detections per direction (RAVEN's rule of thumb, ``N = V /
-((sigma / 4.34) ** 2 pi r ** 2 c dt)`` particles for sigma dB per bin, asks
-for about a hundred times the rays of the omni histogram at the same
-precision), and the kernel pools roughly the nearest ring.
+- The bins are first pooled over neighbouring directions, since a short bin holds few detections per direction.
+  The weights are those of Kirsch et al. (2023, Eq. 4), ``max(u_i . u_j, 0) ** (N / 6)``, who use them to map
+  96 scanned directions onto fewer sources and not at all with 96; pooling the N groups onto themselves is not
+  theirs.
+- The window of ``SMOOTH_MS`` and the holds, 20 dB down for the gains and 60 dB down for the shares.
+- The ray count of the histogram (:func:`histogram_rays`) applies the 1 dB that Schroeder (2011, Sec. 12.1)
+  takes for a response's envelope to one direction's share.
 """
 
 from __future__ import annotations
 
 import warnings
+from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 
 import numpy as np
@@ -96,15 +56,12 @@ import scipy.fft
 from scipy.signal import fftconvolve
 
 SMOOTH_MS = 100.0
-HOLD_DB = -20.0
-# the directional shares follow the rays until their energy has decayed this far: RAVEN traces its
-# particles until they have lost 63 dB (itaRavenProject, energyLoss_DetectionSphere = 63), and a ray
-# tracer's detections per bin do not thin out as the energy decays, as a reference response's late part does
-SHARES_HOLD_DB = -60.0
-# the early images have ended once they stay this far below the reference
-EARLY_END_DB = -13.0
 # a reference this far from the hybrid over its first 50 ms is on another scale
 SCALE_WARN_DB = 6.0
+# the standard deviation of a direction's energy over one slot that sets the ray count of the reference and its
+# directional histogram. At this count the decay fitted to one reference varies by one to two just noticeable
+# differences of the reverberation time between ray seeds (640 m3 office); a reference given with more rays lowers it
+SHARE_ERROR_DB = 1.0
 
 _TOP_BAND_HZ = 16000.0
 _N_FILT = 2**12  # reconstructing bank length; its delay is half of it
@@ -112,7 +69,7 @@ _N_FILT = 2**12  # reconstructing bank length; its delay is half of it
 
 @lru_cache(maxsize=None)
 def _reconstructing_bank(fs: float) -> np.ndarray:
-    """pyfar's amplitude-preserving octave bank, 63 Hz to 16 kHz, as FIR coefficients (9, _N_FILT)."""
+    """The amplitude-preserving octave bank, 63 Hz to 16 kHz, as FIR coefficients (9, _N_FILT)."""
     with warnings.catch_warnings():
         # the second return value (frequencies) is deprecated; both forms are handled
         warnings.filterwarnings("ignore", message="Return parameter 'frequencies'")
@@ -129,28 +86,32 @@ def _reconstructing_bank(fs: float) -> np.ndarray:
 
 @lru_cache(maxsize=8)
 def _bank_response(fs: float, n_fft: int) -> np.ndarray:
-    """The bank's spectrum on an ``n_fft`` grid, (9, n_fft // 2 + 1); the four splits of one run share it."""
+    """The bank's spectrum on an ``n_fft`` grid, (9, n_fft // 2 + 1); the splits of one :func:`shape_late` call share it."""
     return scipy.fft.rfft(_reconstructing_bank(fs), n_fft, axis=1)
 
 
 def octave_band_split(x: np.ndarray, fs: float) -> np.ndarray:
     """Octave bands 63 Hz to 16 kHz that sum back to ``x``, shape (9, n[, C]).
 
-    pyfar's amplitude-preserving bank, linear phase, with its delay removed.
-    The bank is applied as one FFT per channel and one inverse FFT per band,
-    zero-padded past ``n + _N_FILT - 1`` so the circular product is the linear
-    convolution pyfar computes.
+    The amplitude-preserving linear-phase bank with its delay removed, as one FFT per channel and one inverse
+    per band, zero-padded past ``n + _N_FILT - 1`` so the circular product is the linear convolution.
     """
     x = np.asarray(x, dtype=float)
     columns = x.reshape(x.shape[0], -1)
+    bands = np.empty((9, x.shape[0], columns.shape[1]))
+    for b, band in enumerate(_octave_bands(columns, fs)):
+        bands[b] = band
+    return bands[..., 0] if x.ndim == 1 else bands
+
+
+def _octave_bands(columns: np.ndarray, fs: float):
+    """The bands of :func:`octave_band_split` of ``columns`` (n, C), one (n, C) array at a time."""
     n_fft = scipy.fft.next_fast_len(columns.shape[0] + _N_FILT - 1, real=True)
     spectrum = scipy.fft.rfft(columns, n_fft, axis=0, workers=-1)
     response = _bank_response(float(fs), n_fft)
     delay = _N_FILT // 2
-    bands = np.empty((response.shape[0], x.shape[0], columns.shape[1]))
     for b in range(response.shape[0]):
-        bands[b] = scipy.fft.irfft(spectrum * response[b][:, np.newaxis], n_fft, axis=0, workers=-1)[delay:delay + x.shape[0]]
-    return bands[..., 0] if x.ndim == 1 else bands
+        yield scipy.fft.irfft(spectrum * response[b][:, np.newaxis], n_fft, axis=0, workers=-1)[delay : delay + columns.shape[0]]
 
 
 def _smoothed_energy(bands: np.ndarray, fs: float, ms: float) -> np.ndarray:
@@ -160,19 +121,36 @@ def _smoothed_energy(bands: np.ndarray, fs: float, ms: float) -> np.ndarray:
     return np.maximum(fftconvolve(bands**2, window[np.newaxis, :], mode="same", axes=1), 0.0)
 
 
+def _smoothed_over_time(x: np.ndarray, window: np.ndarray) -> np.ndarray:
+    """``x`` (n, K) convolved column by column with ``window``, centred and cut to ``n`` samples.
+
+    The arithmetic of ``fftconvolve(x, window[:, np.newaxis], mode="same", axes=0)``, the same FFT length included,
+    on all cores: the columns go in groups of eight, a multiple of the number scipy's transforms vectorise over, so
+    each column is rounded as in one call. ``workers=-1`` splits them anywhere and moves the shares by ~1e-12.
+    """
+    n, width = x.shape[0], window.size
+    n_fft = scipy.fft.next_fast_len(n + width - 1, real=True)
+    spectrum = scipy.fft.rfft(window[:, np.newaxis], n_fft, axis=0)
+    start = (width - 1) // 2
+
+    def smoothed(columns):
+        return scipy.fft.irfft(scipy.fft.rfft(x[:, columns], n_fft, axis=0) * spectrum, n_fft, axis=0)[start : start + n]
+
+    with ThreadPoolExecutor() as pool:
+        return np.concatenate(list(pool.map(smoothed, [slice(i, i + 8) for i in range(0, x.shape[1], 8)])), axis=1)
+
+
 def _early_end(ref_b: np.ndarray, early_b: np.ndarray, fs: float) -> int:
-    """First sample after which the early images stay below the reference."""
+    """First sample after which the early images stay 13 dB below the reference in every band, both smoothed over 10 ms."""
     e_ref = _smoothed_energy(ref_b, fs, 10.0)
     e_early = _smoothed_energy(early_b, fs, 10.0)
     present = e_early > 1e-6 * e_early.max(axis=1, keepdims=True)
-    above = present & (e_early > 10 ** (EARLY_END_DB / 10) * e_ref)
+    above = present & (e_early > 10 ** (-13.0 / 10) * e_ref)
     last = [np.flatnonzero(a)[-1] + 1 if a.any() else 0 for a in above]
     return int(max(last))
 
 
-def envelope_gains(
-    reference: np.ndarray, early_w: np.ndarray, late_w: np.ndarray, fs: float
-) -> np.ndarray:
+def envelope_gains(reference: np.ndarray, early_w: np.ndarray, late_w: np.ndarray, fs: float) -> np.ndarray:
     """Per-band gains in [0, 1] for the late field, shape (9, len(late_w)).
 
     ``reference`` is an omnidirectional response of the same source and
@@ -200,7 +178,7 @@ def envelope_gains(
     earliest = _early_end(ref_b[:8], early_b[:8], fs) + window
     for k in range(gains.shape[0]):
         edc = np.cumsum((ref_b[k] ** 2)[::-1])[::-1]
-        below = np.flatnonzero(edc <= 10 ** (HOLD_DB / 10) * edc[0])
+        below = np.flatnonzero(edc <= 10 ** (-20.0 / 10) * edc[0])
         hold = int(below[0]) if below.size else m - 1
         hold = min(max(hold, earliest), m - 1)
         start = max(hold - window, 0)
@@ -215,21 +193,24 @@ def envelope_gains(
     return gains
 
 
-def shape_late(
-    signals: np.ndarray, early_w: np.ndarray, late_w: np.ndarray, reference: np.ndarray, fs: float
-) -> np.ndarray:
-    """``signals`` with the reference's envelope imposed, same shape as ``signals``.
+def shape_late(signals: np.ndarray, early_w: np.ndarray, late_w: np.ndarray, reference: np.ndarray, fs: float, histogram=None) -> np.ndarray:
+    """``signals`` (n,) or (n, K) with the gains of :func:`envelope_gains` on every column.
 
-    ``signals`` are the late field's parts, (n,) or (n, K): its ambisonic
-    channels, or the network's lines, whose sum through ``C`` is ``late_w``.
-    ``early_w`` and ``late_w`` are the W channels of the hybrid's two parts,
-    (n,); ``reference`` is (n,) on the same scale. The gains of
-    :func:`envelope_gains` go on every column alike. Warns if ``early_w +
-    late_w`` and the reference disagree by more than ``SCALE_WARN_DB`` over the
-    first 50 ms, which means the reference is on another scale (normalized, or
-    with a different source level).
+    ``signals`` are the late field's channels or the network's lines, whose sum through ``C`` is ``late_w``;
+    ``early_w`` and ``late_w`` are the W channels of the hybrid's two parts and ``reference`` is on the same
+    scale. Warns if ``early_w + late_w`` and the reference disagree by more than ``SCALE_WARN_DB`` over the
+    first 50 ms: the reference is on another scale. ``histogram``, a
+    :class:`~compas_acoustics.room.raytracing.DirectionalHistogram` on the directions of the lines, also gives
+    every band of the lines, (n, n_lines), its :func:`directional_shares`. Its bands are the bank's from 62.5 Hz
+    up, at least to 8 kHz; without a 16 kHz row that band takes the 8 kHz one.
     """
     signals = np.asarray(signals, dtype=float)
+    if histogram is not None:
+        if signals.ndim != 2:
+            raise ValueError("the directional shares apply to the network's lines, (n, n_lines)")
+        rows = np.asarray(histogram.bands, dtype=float)
+        if not 8 <= rows.size <= 9 or not np.allclose(rows, 62.5 * 2.0 ** np.arange(rows.size), rtol=0.02):
+            raise ValueError(f"the histogram's bands must be the octaves from 62.5 Hz to 8 or 16 kHz, got {rows.tolist()}")
     early_w = np.asarray(early_w, dtype=float).ravel()
     late_w = np.asarray(late_w, dtype=float).ravel()
     reference = np.asarray(reference, dtype=float).ravel()
@@ -246,53 +227,76 @@ def shape_late(
                 "the reference differs from the hybrid by more than "
                 f"{SCALE_WARN_DB:.0f} dB over the first 50 ms; it must be on the "
                 "package's scale (free-field direct sound 1 / (4 pi r)), as "
-                "RoomSpec.ray_traced_rir returns it",
+                "Mono returns it",
                 UserWarning,
                 stacklevel=2,
             )
 
     gains = envelope_gains(reference, early_w, late_w, fs)
-    bands = octave_band_split(signals, fs)
-    if signals.ndim == 1:
-        return np.einsum("bn,bn->n", gains, bands)
-    return np.einsum("bn,bnc->nc", gains, bands)
+    if histogram is None:
+        bands = octave_band_split(signals, fs)
+        if signals.ndim == 1:
+            return np.einsum("bn,bn->n", gains, bands)
+        return np.einsum("bn,bnc->nc", gains, bands)
+    shaped = np.zeros_like(signals)
+    for b, band in enumerate(_octave_bands(signals, fs)):
+        share = directional_shares(histogram, band, fs, min(b, rows.size - 1))
+        share *= gains[b][:, np.newaxis]
+        share *= band
+        shaped += share
+    return shaped
 
 
-# ------------------------------------------------------ the directional envelope --
+def _pooling_weights(directions: np.ndarray) -> np.ndarray:
+    """``max(u_i . u_j, 0) ** (N / 6)`` (Kirsch et al. 2023, Eq. 4) with rows summing to one, (N, N)."""
+    unit = np.asarray(directions, dtype=float)
+    unit = unit / np.linalg.norm(unit, axis=1, keepdims=True)
+    weights = np.clip(unit @ unit.T, 0.0, None) ** (unit.shape[0] / 6.0)
+    return weights / weights.sum(axis=1, keepdims=True)
+
+
 def smooth_over_directions(energy: np.ndarray, directions: np.ndarray) -> np.ndarray:
     """``energy`` (n_directions, ...) pooled over neighbouring directions, same shape.
 
-    Kirsch et al. (2023, Eq. 4): direction ``i`` takes the mean of all
-    directions weighted by ``max(u_i . u_j, 0) ** (N / 6)``. The rows of the
-    kernel are normalised, so on a grid whose columns sum alike (an equal-area
-    grid) the energy of every bin is kept to within the grid's unevenness.
+    Direction ``i`` takes the mean of all directions weighted by ``max(u_i . u_j, 0) ** (N / 6)``, the weights
+    of Kirsch et al. (2023, Eq. 4); pooling a grid onto itself with them is the package's choice. The rows of
+    the kernel are normalised, so on a grid whose columns sum alike (an equal-area grid) the energy of every bin
+    is kept to within the grid's unevenness.
     """
     energy = np.asarray(energy, dtype=float)
-    unit = np.asarray(directions, dtype=float)
-    unit = unit / np.linalg.norm(unit, axis=1, keepdims=True)
-    if unit.shape[0] != energy.shape[0]:
-        raise ValueError(f"energy has {energy.shape[0]} directions, directions {unit.shape[0]}")
-    weights = np.clip(unit @ unit.T, 0.0, None) ** (unit.shape[0] / 6.0)
-    weights /= weights.sum(axis=1, keepdims=True)
+    weights = _pooling_weights(directions)
+    if weights.shape[0] != energy.shape[0]:
+        raise ValueError(f"energy has {energy.shape[0]} directions, directions {weights.shape[0]}")
     return np.tensordot(weights, energy, axes=(1, 0))
 
 
+def histogram_rays(volume: float, receiver_radius: float, speed_of_sound: float, directions: np.ndarray) -> int:
+    """The rays at which a direction's energy over one slot has a standard deviation of ``SHARE_ERROR_DB``.
+
+    Vorlaender (2020, Sec. 11.3.7): the hits of a detection sphere of radius r_d within dt are Poisson
+    distributed, N pi r_d^2 c dt / V of them on average, so the level of their energy has the standard deviation
+    4.34 / sqrt(hits) dB (Eq. 11.20). One of n directions holds 1 / n of the hits. The Hann window of
+    ``SMOOTH_MS`` and :func:`smooth_over_directions` weight them, and a weighted sum of Poisson counts has the
+    error of ``sum(w) ** 2 / sum(w ** 2)`` equal ones: 2/3 of the window, and the mean of that ratio over the
+    kernel's rows. The methods trace their own reference with this count in both late-envelope modes, so that
+    ``"omni"`` and ``"directional"`` shape the late field to one reference.
+    """
+    weights = _pooling_weights(directions)
+    pooled = float(np.mean(1.0 / np.sum(weights**2, axis=1)))
+    slot = SMOOTH_MS * 1e-3 * 2.0 / 3.0
+    hits = (10.0 / np.log(10.0) / SHARE_ERROR_DB) ** 2
+    return int(np.ceil(hits * volume * weights.shape[0] / (np.pi * receiver_radius**2 * speed_of_sound * slot * pooled)))
 
 
-def directional_shares(histogram, lines: np.ndarray, fs: float) -> np.ndarray:
-    """The factor on every delay line that gives the lines the rays' distribution over directions, (n, n_lines).
+def directional_shares(histogram, lines: np.ndarray, fs: float, band: int) -> np.ndarray:
+    """The factor on every delay line that gives one band of the lines the rays' distribution over directions, (n, n_lines).
 
-    ``histogram`` is a :class:`~compas_acoustics.room.raytracing.DirectionalHistogram`
-    whose directions are the lines', in the same order; ``lines`` are the
-    network's lines as heard, (n, n_lines); both start at the emission. Per
-    time slot, ``p_i`` is direction ``i``'s share of the rays' energy summed
-    over the bands (RAVEN's "ray probability for each directivity group", one
-    distribution for all bands) and ``q_i`` the line's share of the lines'
-    energy, both after :func:`smooth_over_directions`; the factor is
-    ``sqrt(p_i / q_i)``, both smoothed over ``SMOOTH_MS``, so the lines' total
-    energy is kept and only its distribution over directions changes. The
-    shares are held once the rays' energy has decayed ``SHARES_HOLD_DB``,
-    RAVEN's particle cutoff, and never before the lines have started.
+    ``histogram`` is a :class:`~compas_acoustics.room.raytracing.DirectionalHistogram` on the lines' directions;
+    ``lines`` (n, n_lines) are one octave band of the network's lines as heard and ``band`` the histogram's row of
+    that band; both start at the emission. Per time slot ``p_i`` is direction ``i``'s share of the rays' energy in
+    the band and ``q_i`` the line's share of the lines', both after :func:`smooth_over_directions` and over
+    ``SMOOTH_MS``. The shares are held once the band's rays have decayed 60 dB (detections per bin do not thin
+    out with the energy, as a reference's late part does), never before the lines start.
     """
     lines = np.asarray(lines, dtype=float)
     if lines.ndim != 2:
@@ -306,11 +310,11 @@ def directional_shares(histogram, lines: np.ndarray, fs: float) -> np.ndarray:
     hann = np.hanning(window + 2)[1:-1]
     hann /= hann.sum()
 
-    rays = smooth_over_directions(energy.sum(axis=1), histogram.directions)  # (n_lines, n_bins)
+    rays = smooth_over_directions(energy[:, band], histogram.directions)  # (n_lines, n_bins)
     m = min(rays.shape[1] * bin_samples, n)
     rays = np.repeat(rays, bin_samples, axis=1)[:, :m].T  # (m, n_lines)
-    e_rays = np.maximum(fftconvolve(rays, hann[:, np.newaxis], mode="same", axes=0), 0.0)
-    e_lines = np.maximum(fftconvolve(lines[:m] ** 2, hann[:, np.newaxis], mode="same", axes=0), 0.0)
+    e_rays = np.maximum(_smoothed_over_time(rays, hann), 0.0)
+    e_lines = np.maximum(_smoothed_over_time(lines[:m] ** 2, hann), 0.0)
     e_lines = smooth_over_directions(e_lines.T, histogram.directions).T
     p = e_rays / np.where(e_rays.sum(axis=1, keepdims=True) > 0.0, e_rays.sum(axis=1, keepdims=True), 1.0)
     q = e_lines / np.where(e_lines.sum(axis=1, keepdims=True) > 0.0, e_lines.sum(axis=1, keepdims=True), 1.0)
@@ -323,7 +327,7 @@ def directional_shares(histogram, lines: np.ndarray, fs: float) -> np.ndarray:
     present = np.flatnonzero(total > 1e-6 * total.max())
     earliest = (int(present[0]) if present.size else 0) + window
     edc = np.cumsum(rays.sum(axis=1)[::-1])[::-1]
-    below = np.flatnonzero(edc <= 10 ** (SHARES_HOLD_DB / 10) * edc[0])
+    below = np.flatnonzero(edc <= 10 ** (-60.0 / 10) * edc[0])
     hold = int(below[0]) if below.size else m - 1
     hold = min(max(hold, earliest), m - 1)
     start = max(hold - window, 0)
@@ -336,16 +340,3 @@ def directional_shares(histogram, lines: np.ndarray, fs: float) -> np.ndarray:
     if m < n:
         shares = np.concatenate([shares, np.repeat(shares[-1:], n - m, axis=0)])
     return shares
-
-
-def shape_late_directional(
-    lines: np.ndarray, early_w: np.ndarray, late_w: np.ndarray, reference: np.ndarray, histogram, fs: float
-) -> np.ndarray:
-    """``lines`` (n, n_lines) shaped to the reference's envelope and to the rays' distribution over directions.
-
-    :func:`shape_late` with the omni reference, then every line times its
-    :func:`directional_shares`. RAVEN's two uses of its histogram: the energy
-    envelope per band, and the directions the impulses of each time slot
-    come from.
-    """
-    return shape_late(lines, early_w, late_w, reference, fs) * directional_shares(histogram, lines, fs)

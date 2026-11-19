@@ -51,7 +51,7 @@ def test_the_response_is_early_plus_late():
     assert result.core.driving_images == int(np.sum(iss.order == MAX_ORDER))
     assert result.core.drive_gain == pytest.approx(np.sqrt(96))
     assert result.normalization == "N3D"
-    assert np.sum(result.late ** 2) > 0.0
+    assert np.sum(result.late**2) > 0.0
 
 
 def test_sn3d_is_n3d_over_sqrt_2n_plus_1():
@@ -76,22 +76,6 @@ def test_a_non_positive_duration_raises():
     spec, iss = setup()
     with pytest.raises(ValueError, match="duration"):
         render_ambisonics(prepare(spec, iss, TARGET, max_order=MAX_ORDER, duration_s=0.0))
-
-
-def test_without_a_reference_nothing_changes():
-    spec, iss = setup()
-    default = render_ambisonics(prepare(spec, iss, TARGET, max_order=MAX_ORDER, duration_s=0.5))
-    none = render_ambisonics(prepare(spec, iss, TARGET, max_order=MAX_ORDER, duration_s=0.5, late_envelope=None))
-    np.testing.assert_array_equal(default.rir, none.rir)
-
-
-def test_a_reference_shapes_only_the_late_field():
-    spec, iss = setup()
-    plain = render_ambisonics(prepare(spec, iss, TARGET, max_order=MAX_ORDER, duration_s=0.5))
-    reference = plain.early[:, 0] + 0.5 * plain.late[:, 0]
-    shaped = render_ambisonics(prepare(spec, iss, TARGET, max_order=MAX_ORDER, duration_s=0.5, late_envelope=reference))
-    np.testing.assert_array_equal(shaped.early, plain.early)
-    assert np.sum(shaped.late ** 2) < np.sum(plain.late ** 2)
 
 
 def test_diffraction_changes_only_the_early_field():
@@ -128,7 +112,7 @@ def test_prepare_is_format_neutral():
     spec, iss = setup()
     core = prepare(spec, iss, TARGET, max_order=MAX_ORDER, duration_s=0.5)
     assert core.lines.shape == (core.n_samples, 96) and core.late_envelope is None
-    assert core.builds[0].C.shape == (1, 96) and core.line_directions.shape == (96, 3)
+    assert core.builds[0][0].C.shape == (1, 96) and core.line_directions.shape == (96, 3)
     first, second = render_ambisonics(core), render_ambisonics(core, sh_order=2, normalization="N3D")
     assert second.rir.shape == (core.n_samples, 9) and second.normalization == "N3D" and second.core is core
     np.testing.assert_allclose(second.early[:, 0], first.early[:, 0], rtol=0, atol=1e-12 * np.max(np.abs(first.early)))

@@ -1,27 +1,13 @@
-"""Edge diffraction around obstacles and at the room's own corners, as
-pseudo-sources of the early field.
+"""Edge diffraction around obstacles and at the room's own corners, as pseudo-sources of the early field.
 
-Geometry first: which edges diffract (:func:`diffraction_edges`: the
-obstacles' :func:`obstacle_edges` and the room boundary's
-:func:`enclosure_edges`), what blocks a path (:class:`Occluders`), and the
-wedge-frame path over an edge (:func:`wedge_path`). The acoustics is in
-:mod:`hybrid_rir.udfa`.
-
-Every free edge of an obstacle, and every room edge opening wider than pi, diffracts by the universal diffraction filter
-approximation (Kirsch and Ewert 2023), and an object is the sum of its
-edges' paths, as the paper composes flat objects (Sec. VI). Higher-order
-diffraction between edges is not rendered: the three-sided barrier of Kirsch
-and Ewert (2024, :class:`hybrid_rir.udfa.DoubleEdgePath`) is defined for an
-infinite double edge, and the papers give no rule for applying it to a
-finite obstacle.
-
-For ``max_order >= 1`` one enclosure-wall reflection is allowed before the
-diffraction (the source's image in that wall) or after it (the receiver's
-image).
-
-Ported from hybrid-rir (gpapadimitri/hybrid-rir @ a272da7, src/diffraction.py).
-Reads a RoomGeometry, which carries upstream RoomGeometry's attribute names; room edges are searched only
-on a closed boundary (RoomGeometry.is_closed).
+The geometry is here: which edges diffract (:func:`diffraction_edges`), what blocks a path (:class:`Occluders`)
+and the wedge-frame path over an edge (:func:`wedge_path`); the acoustics is in :mod:`~compas_acoustics.hybrid.udfa`
+and :mod:`~compas_acoustics.hybrid.btms`. The diffracting edges are every free obstacle edge and, on a closed
+boundary, every room edge opening wider than pi. :func:`diffraction_paths` renders them to first order by the
+universal diffraction filter approximation (Kirsch and Ewert 2023), an object being the sum of its edges' paths
+(Sec. VI); the three-sided barrier of Kirsch and Ewert (2024) is defined for an infinite double edge only and is
+not used here. :func:`btms_paths` renders first order by BTMS and, on the direct path, second order. For
+``max_order >= 1`` one enclosure reflection is allowed before or after a first-order edge.
 """
 
 from __future__ import annotations
@@ -47,12 +33,6 @@ from .udfa import WedgePath, udfa_transfer
 
 TWO_PI = 2.0 * np.pi
 
-# Edges closer than this to an enclosure face or another obstacle are not free
-# edges: a shelf on the floor has its bottom rim there, and the floor fills its
-# open side.
-ON_ENCLOSURE = 2.0 * OBSTACLE_OFFSET
-_PARALLEL = 1.0 - 1e-8
-
 
 @dataclass(frozen=True)
 class Edge:
@@ -61,8 +41,9 @@ class Edge:
     ``face_a`` and ``face_b`` point from the edge into each face,
     perpendicular to it. ``theta_w`` is the open (exterior) angle from face A
     to face B; for a knife edge the two faces coincide and it is 2 pi.
-    ``faces`` indexes the polygons of :class:`Occluders` that meet at the edge.
-    ``regions`` is set on edges of the room's boundary only
+    ``faces`` indexes the polygons of :class:`Occluders` that meet at the edge,
+    ``component`` the obstacle component (:func:`obstacle_components`; -1 on
+    the room's boundary). ``regions`` is set on edges of the room's boundary only
     (:func:`enclosure_edges`): the coplanar connected surface that face A and
     face B belong to.
     """
@@ -86,8 +67,7 @@ class Edge:
             raise ValueError("an edge needs two distinct ends")
         w = np.cross(self.axis, self.face_a)
         angle = np.arctan2(self.face_b @ w, self.face_b @ self.face_a) % TWO_PI
-        if not (np.isclose(angle, self.theta_w % TWO_PI, atol=1e-6)
-                or np.isclose(self.theta_w, TWO_PI)):
+        if not (np.isclose(angle, self.theta_w % TWO_PI, atol=1e-6) or np.isclose(self.theta_w, TWO_PI)):
             w = -w
         object.__setattr__(self, "_w", w)
 
@@ -138,7 +118,7 @@ def wedge_path(edge: Edge, source: np.ndarray, receiver: np.ndarray) -> WedgePat
 
 def toolbox_frame(edge: Edge) -> tuple[np.ndarray, np.ndarray]:
     """The edge's ends in EDtoolbox order and the reference face's normal into
-    the air: x into face A, y = z cross x into the open region (R2)."""
+    the air: x into face A, y = z cross x into the open region."""
     w = np.cross(edge.axis, edge.face_a)
     if w @ edge._w > 0.0:
         return np.array([edge.start, edge.end]), w
@@ -159,12 +139,12 @@ def toolbox_cyl(edge: Edge, points: np.ndarray) -> np.ndarray:
 
 
 def edge_segments(edge: Edge, source: np.ndarray, receiver: np.ndarray) -> np.ndarray:
-    """Segment limits (k, 2) along the edge in the toolbox's z, each
-    subtending at most about 5 deg at the nearer of source and receiver, and
-    at least 0.01 m long where a point is (nearly) on the edge's line."""
+    """Limits (k, 2) of equal segments along the edge in the toolbox's z, each
+    at most 0.087 times the distance of the nearer of source and receiver from
+    the edge's line (about 5 deg subtended there), that bound floored at 0.01 m
+    for a point (nearly) on the line."""
     ends, _ = toolbox_frame(edge)
-    nearest = min(np.linalg.norm(np.cross(ends[1] - ends[0], ends[0] - p)) / edge.length
-                  for p in (np.asarray(source), np.asarray(receiver)))
+    nearest = min(np.linalg.norm(np.cross(ends[1] - ends[0], ends[0] - p)) / edge.length for p in (np.asarray(source), np.asarray(receiver)))
     n = max(1, int(np.ceil(edge.length / max(0.087 * nearest, 0.01))))
     z = np.linspace(0.0, edge.length, n + 1)
     return np.stack([z[:-1], z[1:]], axis=1)
@@ -208,7 +188,7 @@ def shared_face(e1: Edge, e2: Edge, tol: float = 1e-6) -> int | None:
 def along_plane(e1: Edge, e2: Edge, tol: float = 1e-6) -> bool:
     """Do the two edges, of one obstacle or both of the room's boundary,
     bound a common plane (:func:`shared_face`), so the path between them runs
-    along a surface (R3)?"""
+    along a surface?"""
     return shared_face(e1, e2, tol) is not None
 
 
@@ -219,12 +199,12 @@ def coplanar_thetas(e1: Edge, e2: Edge) -> tuple[float, float]:
     the other edge's line (a shared corner) has no angle, and on a knife edge
     rounding puts a point of the panel at 0 or 2 pi - eps.
 
-    A knife edge's faces are one plane, and the toolbox gives every edge of a
-    thin plate the same reference side (theta = 0 approached from the front
-    plane's normal), so the path runs along one side of the panel. Here each
-    edge's frame picks its side, so e1 sets it: 0 about e1, and about e2 0 if
-    e2's frame has the same side, else 2 pi. Mirroring both frames leaves the
-    second-order term unchanged."""
+    A knife edge's faces are one plane, and the path along a thin plate runs
+    along one side of the panel, so both angles must refer to that side. Each
+    edge's frame (:func:`toolbox_frame`) picks its own side, so e1 sets it: 0
+    about e1, and about e2 0 if e2's frame has the same side, else 2 pi.
+    Mirroring both frames leaves the second-order term unchanged."""
+
     def one(a, b):
         return 0.0 if shared_face(a, b) == 0 else a.theta_w
 
@@ -248,7 +228,7 @@ class ObstacleEdgeWarning(UserWarning):
 
 class ShellEdgeWarning(UserWarning):
     """Edges of the room's boundary opening less than pi at a non-integer wedge
-    index, which neither reference implementation renders."""
+    index, which are not rendered, or a boundary that is not closed."""
 
 
 def _inside_polygon(points: np.ndarray, normal: np.ndarray, x: np.ndarray) -> bool:
@@ -291,10 +271,7 @@ class Occluders:
         with np.errstate(divide="ignore", invalid="ignore"):
             t = (self.offsets - self.normals @ p) / denom
         hits = np.flatnonzero((np.abs(denom) > 1e-12) & (t > 1e-9) & (t < 1.0 - 1e-9))
-        return any(
-            int(i) not in skip and _inside_polygon(self.polygons[i], self.normals[i], p + t[i] * d)
-            for i in hits
-        )
+        return any(int(i) not in skip and _inside_polygon(self.polygons[i], self.normals[i], p + t[i] * d) for i in hits)
 
     def on_enclosure(self, point: np.ndarray, tol: float) -> bool:
         return self.on_polygons(point, tol, range(self.n_obstacle, len(self.polygons)))
@@ -302,9 +279,7 @@ class Occluders:
     def on_polygons(self, point: np.ndarray, tol: float, polygons) -> bool:
         """Does a point lie within ``tol`` of one of the given polygons?"""
         for i in polygons:
-            if abs(self.normals[i] @ point - self.offsets[i]) < tol and _inside_polygon(
-                self.polygons[i], self.normals[i], point
-            ):
+            if abs(self.normals[i] @ point - self.offsets[i]) < tol and _inside_polygon(self.polygons[i], self.normals[i], point):
                 return True
         return False
 
@@ -388,7 +363,8 @@ def _enclosure_sides(geometry: RoomGeometry, n: int) -> dict[frozenset, list]:
             p0, d = vertices[a], vertices[b] - vertices[a]
             t = (points - p0) @ d / (d @ d)
             off = np.linalg.norm(points - p0 - np.outer(t, d), axis=1)
-            inner = np.flatnonzero((t > 0.0) & (t < 1.0) & (off < tolerance))
+            # the endpoints' own t can land one ulp inside (0, 1) (see room.geometry._split_at_t_junctions)
+            inner = np.flatnonzero((t > 0.0) & (t < 1.0) & (off < tolerance) & (own != a) & (own != b))
             chain = [a, *own[inner[np.argsort(t[inner])]].tolist(), b]
             for p, q in pairwise(chain):
                 entry = out.setdefault(frozenset((p, q)), [[], []])
@@ -406,8 +382,7 @@ def _straight_runs(vertices: np.ndarray, pieces: list[tuple[int, int]], toleranc
         p, d = vertices[chain[0]], vertices[chain[-1]] - vertices[chain[0]]
         inner = vertices[chain[1:-1]] - p
         t = inner @ d / (d @ d)
-        return bool(np.all(np.linalg.norm(inner - np.outer(t, d), axis=1) <= tolerance)
-                    and np.all(np.diff(np.concatenate([[0.0], t, [1.0]])) > 0.0))
+        return bool(np.all(np.linalg.norm(inner - np.outer(t, d), axis=1) <= tolerance) and np.all(np.diff(np.concatenate([[0.0], t, [1.0]])) > 0.0))
 
     at: dict[int, list[int]] = {}
     for k, piece in enumerate(pieces):
@@ -454,9 +429,7 @@ def _merge_collinear(pieces):
     """Join (p, q, owners) pieces of one line where they touch."""
     axis = _canonical_axis(pieces[0][0], pieces[0][1])
     origin = pieces[0][0] - (pieces[0][0] @ axis) * axis
-    spans = sorted(
-        (min(p @ axis, q @ axis), max(p @ axis, q @ axis), list(o)) for p, q, o in pieces
-    )
+    spans = sorted((min(p @ axis, q @ axis), max(p @ axis, q @ axis), list(o)) for p, q, o in pieces)
     merged = [spans[0]]
     for lo, hi, owners in spans[1:]:
         if lo <= merged[-1][1] + 1e-9:
@@ -490,10 +463,8 @@ def obstacle_edges(geometry: RoomGeometry) -> list[Edge]:
         centre = points.mean(axis=0)
         normal = {i: (n if n @ (ctr - centre) > 0.0 else -n) for i, (_, n, ctr) in info.items()}
         n0 = normal[faces[0]]
-        planar = all(abs(normal[i] @ n0) > _PARALLEL for i in faces) and bool(
-            np.all(np.abs((points - info[faces[0]][2]) @ n0) < 1e-5))
-        free = [s for s in _segments(geometry, faces).values()
-                if not occ.on_polygons((s[0] + s[1]) / 2.0, ON_ENCLOSURE, support)]
+        planar = all(abs(normal[i] @ n0) > 1.0 - 1e-8 for i in faces) and bool(np.all(np.abs((points - info[faces[0]][2]) @ n0) < 1e-5))
+        free = [s for s in _segments(geometry, faces).values() if not occ.on_polygons((s[0] + s[1]) / 2.0, 2.0 * OBSTACLE_OFFSET, support)]
         groups: dict[tuple, list] = {}
         if planar:
             for p, q, owners in free:
@@ -505,15 +476,14 @@ def obstacle_edges(geometry: RoomGeometry) -> list[Edge]:
                 groups.setdefault(key, []).append((p, q, owners, u, u, TWO_PI))
         else:
             closed = all(len(owners) == 2 for _, _, owners in free)
-            convex = closed and all(
-                bool(np.all((points - info[i][2]) @ normal[i] < 1e-6)) for i in faces)
+            convex = closed and all(bool(np.all((points - info[i][2]) @ normal[i] < 1e-6)) for i in faces)
             if not convex:
                 material = geometry.obstacle_face_materials[faces[0]]
                 skipped[material] = skipped.get(material, 0) + 1
                 continue
             for p, q, (i, j) in free:
                 cos_ij = float(np.clip(normal[i] @ normal[j], -1.0, 1.0))
-                if cos_ij > _PARALLEL:
+                if cos_ij > 1.0 - 1e-8:
                     continue
                 if tuple(np.round(normal[i], 6)) > tuple(np.round(normal[j], 6)):
                     i, j = j, i
@@ -521,8 +491,7 @@ def obstacle_edges(geometry: RoomGeometry) -> list[Edge]:
                 mid = (p + q) / 2.0
                 ua = _into_face(axis, normal[i], mid, info[i][2])
                 ub = _into_face(axis, normal[j], mid, info[j][2])
-                key = (tuple(np.round(normal[i], 6)), tuple(np.round(normal[j], 6)),
-                       tuple(np.round(np.cross(axis, p), 6)))
+                key = (tuple(np.round(normal[i], 6)), tuple(np.round(normal[j], 6)), tuple(np.round(np.cross(axis, p), 6)))
                 groups.setdefault(key, []).append((p, q, [i, j], ua, ub, np.pi + np.arccos(cos_ij)))
         for pieces in groups.values():
             _, _, _, ua, ub, theta_w = pieces[0]
@@ -533,7 +502,9 @@ def obstacle_edges(geometry: RoomGeometry) -> list[Edge]:
         warnings.warn(
             f"{total} obstacle component{'s' if total > 1 else ''} ({', '.join(f'{m}: {n}' for m, n in skipped.items())}) "
             f"{'are' if total > 1 else 'is'} neither closed-convex nor planar: no diffraction",
-            ObstacleEdgeWarning, stacklevel=2)
+            ObstacleEdgeWarning,
+            stacklevel=2,
+        )
     return edges
 
 
@@ -545,22 +516,21 @@ def enclosure_edges(geometry: RoomGeometry) -> list[Edge]:
     Ewert 2024, Sec. 3, first-order diffraction at a room corner). A seam
     between coplanar faces (pi) and a rectangular corner (pi / 2) have an
     integer wedge index nu = pi / theta_w, where the diffracted field
-    vanishes (Kirsch and Ewert 2023, Eq. 3); EDtoolbox switches such edges
-    off (EDedgeo.m). Edges opening less than pi at a non-integer nu are left
-    out, with :class:`ShellEdgeWarning`, as in both reference implementations:
-    EDtoolbox v0.5 handles external convex problems only, and RoomAcoustiCpp
-    keeps edges wider than pi (``Room::FindEdge``). Two faces with opposite
+    vanishes (Kirsch and Ewert 2023, Eq. 3), and are skipped. Edges opening
+    less than pi at a non-integer nu are left out, with
+    :class:`ShellEdgeWarning`: :class:`Edge` takes theta_w in (pi, 2 pi]
+    only. Two faces with opposite
     normals in one plane (a panel of zero thickness drawn into the enclosure)
     meet at a knife edge, theta_w = 2 pi. A piece lying on another face of the
     enclosure (a partition standing on an unsplit floor) is no edge, as
-    RoomAcoustiCpp's ``IsCoplanarEdge`` and :func:`obstacle_edges` treat it.
+    :func:`obstacle_edges` treats it.
 
     The edge pieces are the sides of the enclosure's faces, split at
     T-junctions by its own vertices as ``RoomGeometry`` splits them to check
     the mesh is closed, and matched by vertex index. Pieces between the same
     two surfaces join where they share a vertex and stay on one line.
     "Coplanar" and "integer" are judged in metres, to the tolerance
-    pyroomacoustics resolves planes to (``_MERGE_TOLERANCE``); "on one line",
+    walls are resolved to (``_MERGE_TOLERANCE``); "on one line",
     to the larger of that and the tolerance at which the mesh accepted the
     T-junction. Vertex noise below ``_MERGE_TOLERANCE`` changes nothing, and
     T-junction offsets along a face up to the mesh's own tolerance keep a
@@ -572,15 +542,14 @@ def enclosure_edges(geometry: RoomGeometry) -> list[Edge]:
     from a coplanar face elsewhere.
     """
     if not getattr(geometry, "is_closed", True):
-        warnings.warn("the boundary does not close a volume: room-boundary edges are not searched",
-                      ShellEdgeWarning, stacklevel=2)
+        warnings.warn("the boundary does not close a volume: room-boundary edges are not searched", ShellEdgeWarning, stacklevel=2)
         return []
     occ = Occluders.from_geometry(geometry)
     n = len(occ.polygons) - occ.n_obstacle
     sides = _enclosure_sides(geometry, n)
     vertices = geometry.vertices
-    normal = occ.normals[occ.n_obstacle:]
-    polygon = occ.polygons[occ.n_obstacle:]
+    normal = occ.normals[occ.n_obstacle :]
+    polygon = occ.polygons[occ.n_obstacle :]
 
     def in_plane(i, j):
         return float(np.max(np.abs((polygon[j] - polygon[i][0]) @ normal[i]))) <= _MERGE_TOLERANCE
@@ -626,9 +595,8 @@ def enclosure_edges(geometry: RoomGeometry) -> list[Edge]:
         groups.setdefault((find(i), find(j)), {})[frozenset((a, b))] = (i, j, si, sj, knife)
     if skipped:
         warnings.warn(
-            f"{skipped} room-boundary edge pieces open to less than pi at a non-integer "
-            "wedge index: not rendered, as in EDtoolbox (convex scatterers only) and RoomAcoustiCpp",
-            ShellEdgeWarning, stacklevel=2)
+            f"{skipped} room-boundary edge pieces open to less than pi at a non-integer wedge index: not rendered (convex scatterers only)", ShellEdgeWarning, stacklevel=2
+        )
     edges: list[Edge] = []
     merge_tolerance = max(_MERGE_TOLERANCE, _t_junction_tolerance(vertices))
     for regions, pieces in groups.items():
@@ -664,7 +632,7 @@ class DiffractionPath:
     ``doa`` is in the receiver's frame, ``edge`` indexes
     :func:`diffraction_edges`, ``order`` counts the wall
     reflections on the path (0 or 1) and ``zone`` is the receiver's zone
-    around the edge (:attr:`hybrid_rir.udfa.WedgePath.zone`).
+    around the edge (:attr:`compas_acoustics.hybrid.udfa.WedgePath.zone`).
     """
 
     delay: float
@@ -675,11 +643,6 @@ class DiffractionPath:
     order: int
     zone: str
     edge: int
-
-
-# A reflection point this close to a polygon's outline counts as on it, so a
-# point on a seam between two faces of one wall is accepted exactly once.
-ON_OUTLINE = 1e-6
 
 
 @dataclass(frozen=True)
@@ -720,7 +683,8 @@ def _on_face(polygon: np.ndarray, normal: np.ndarray, x: np.ndarray) -> bool:
     for p, q in zip(polygon, np.roll(polygon, -1, axis=0)):
         d = q - p
         t = float(np.clip((x - p) @ d / (d @ d), 0.0, 1.0))
-        if np.linalg.norm(x - p - t * d) < ON_OUTLINE:
+        # on the outline within 1e-6, so a point on a seam between two faces of one wall is accepted once
+        if np.linalg.norm(x - p - t * d) < 1e-6:
             return True
     return False
 
@@ -747,8 +711,7 @@ def _wall_hit(occ: Occluders, end: _End, towards: np.ndarray):
     return None
 
 
-def _polyline(occ: Occluders, src: _End, apexes: list[tuple[np.ndarray, frozenset[int]]],
-              rec: _End):
+def _polyline(occ: Occluders, src: _End, apexes: list[tuple[np.ndarray, frozenset[int]]], rec: _End):
     """The real path source (- wall) - apexes (- wall) - receiver, or None.
 
     ``apexes`` pairs each apex with its edge's faces. Returns the points, the
@@ -788,7 +751,7 @@ def _clear(occ: Occluders, points: list[np.ndarray], on: list[frozenset[int]]) -
 
 
 def diffraction_paths(spec: Pair, *, max_order: int = 1) -> list[DiffractionPath]:
-    """Every diffracted path, with at most one wall reflection before or after it.
+    """Every first-order UDFA path, with at most one wall reflection before or after it.
 
     For ``max_order >= 1`` the source's image in a wall gives the paths that
     reflect before they diffract, and the receiver's image those that reflect
@@ -833,16 +796,16 @@ def diffraction_paths(spec: Pair, *, max_order: int = 1) -> list[DiffractionPath
             pl = _polyline(occ, src, [(apex, frozenset(e.faces))], rec)
             if pl is None or not _clear(occ, pl[0], pl[2]):
                 continue
-            out.append(make(pl, wp.d_constrained,
-                            partial(udfa_transfer, wp, c=c), wp.zone, k))
+            out.append(make(pl, wp.d_constrained, partial(udfa_transfer, wp, c=c), wp.zone, k))
     return [p for p in out if np.any(p.band_gain > 0.0)]
 
 
-def encode_diffraction(paths: list[DiffractionPath], sh_order: int, n_samples: int, fs: float,
-                       *, normalization: str = "NM", extra_weights: np.ndarray | None = None) -> np.ndarray:
-    """Encode diffracted paths at their arrival directions, as :func:`encode` does images.
+def encode_diffraction(
+    paths: list[DiffractionPath], sh_order: int, n_samples: int, fs: float, *, normalization: str = "NM", extra_weights: np.ndarray | None = None
+) -> np.ndarray:
+    """Encode diffracted paths at their arrival directions, as :func:`~compas_acoustics.hybrid.early.encode` does images.
 
-    ``extra_weights`` (M, K) adds K channels after the ambisonic ones, as :func:`encode`'s does: each
+    ``extra_weights`` (M, K) adds K channels after the ambisonic ones, as :func:`~compas_acoustics.hybrid.early.encode`'s does: each
     path's transfer function is evaluated once for all of them.
     """
     n_ch = (sh_order + 1) ** 2
@@ -850,23 +813,21 @@ def encode_diffraction(paths: list[DiffractionPath], sh_order: int, n_samples: i
     if not paths:
         return np.zeros((n_samples, n_ch + n_extra))
     doa = np.array([p.doa for p in paths])
-    sh = spharpy.spherical.spherical_harmonic_basis_real(
-        sh_order, pf.Coordinates(doa[:, 0], doa[:, 1], doa[:, 2]),
-        normalization=normalization, channel_convention="ACN")
+    sh = spharpy.spherical.spherical_harmonic_basis_real(sh_order, pf.Coordinates(doa[:, 0], doa[:, 1], doa[:, 2]), normalization=normalization, channel_convention="ACN")
     weights = sh if extra_weights is None else np.hstack([sh, np.asarray(extra_weights, dtype=float)])
     gains = np.array([p.band_gain / (4.0 * np.pi * p.distance) for p in paths])
-    return render_transfers(np.array([p.delay for p in paths]), [p.transfer for p in paths],
-                            gains, weights, BANDS, fs, n_samples)
+    return render_transfers(np.array([p.delay for p in paths]), [p.transfer for p in paths], gains, weights, BANDS, fs, n_samples)
 
 
 @dataclass(frozen=True)
 class BtmsContribution:
     """One BTMS segment (first order) or segment pair (second order).
 
-    ``ir`` is the toolbox's response (free field 1/r) starting at sample
+    ``ir`` is the BTMS response (free field 1/r) starting at sample
     ``start``; ``doa`` in the receiver frame; ``edges`` indexes
-    :func:`diffraction_edges`. Order 0 is the scaled geometric component of a
-    path exactly on a zone boundary of edge ``edges[0]``.
+    :func:`diffraction_edges`; ``singular`` flags a path on a zone boundary.
+    Order 0 is the scaled geometric component of a path exactly on a zone
+    boundary of edge ``edges[0]``.
     """
 
     start: int
@@ -890,15 +851,14 @@ def second_order_start(source, receiver, seg1, seg2, c: float, fs: float) -> int
     point of segment 2: the path is at least |SR| and at least the distance
     from S to segment 1 plus that from segment 2 to R. One sample of margin
     keeps rounding at an exact bound from putting the first slot below 1."""
-    shortest = max(np.linalg.norm(receiver - source),
-                   segment_distance(source, *seg1) + segment_distance(receiver, *seg2))
+    shortest = max(np.linalg.norm(receiver - source), segment_distance(source, *seg1) + segment_distance(receiver, *seg2))
     return max(int(np.floor(shortest / c * fs)) - 1, 0)
 
 
 def btms_paths(spec: Pair, *, max_order: int = 1, second_order: bool = True) -> list[BtmsContribution]:
     """First-order BTMS over every edge segment, with at most one wall
-    reflection before or after; second order (direct paths) when
-    ``second_order``."""
+    reflection before or after, plus the order-0 geometric components on zone
+    boundaries; second order (direct paths) when ``second_order``."""
     geometry = spec.geometry
     if not isinstance(geometry, RoomGeometry):
         raise ValueError("diffraction needs a RoomGeometry")  # noqa: TRY004
@@ -924,8 +884,7 @@ def btms_paths(spec: Pair, *, max_order: int = 1, second_order: bool = True) -> 
 
     def face_reflection(e, u):
         face = next((i for i in e.faces if abs(occ.normals[i] @ u) < 1e-6), e.faces[0])
-        name = (geometry.obstacle_face_materials[face] if face < occ.n_obstacle
-                else geometry.face_materials[face - occ.n_obstacle])
+        name = geometry.obstacle_face_materials[face] if face < occ.n_obstacle else geometry.face_materials[face - occ.n_obstacle]
         return np.sqrt(1.0 - np.asarray(geometry.materials[name].absorption, dtype=float))
 
     sources = _ends(spec.source, occ, max_order >= 1)
@@ -950,25 +909,21 @@ def btms_paths(spec: Pair, *, max_order: int = 1, second_order: bool = True) -> 
                 if pl is None or not _clear(occ, pl[0], pl[2]):
                     continue
                 apex = np.clip((rs * zr + rr * zs) / (rs + rr), z0, z1)
-                shortest = min(np.linalg.norm(p - src.position) + np.linalg.norm(rec.position - p)
-                               for p in (ends[0] + z * unit for z in (z0, z1, apex)))
+                shortest = min(np.linalg.norm(p - src.position) + np.linalg.norm(rec.position - p) for p in (ends[0] + z * unit for z in (z0, z1, apex)))
                 start = max(int(np.floor(shortest / c * fs)) - 1, 0)
-                ir, _, singular, _ = wedge1st_ir(fs, c, TWO_PI - e.theta_w, rs, min(ts, e.theta_w), zs,
-                                                 rr, min(tr, e.theta_w), zr, np.array([z0, z1]), start * c / fs)
+                ir, _, singular, _ = wedge1st_ir(fs, c, TWO_PI - e.theta_w, rs, min(ts, e.theta_w), zs, rr, min(tr, e.theta_w), zr, np.array([z0, z1]), start * c / fs)
                 length = np.linalg.norm(mid - src.position) + np.linalg.norm(rec.position - mid)
-                out.append(BtmsContribution(start, ir, doa_of(pl[0][-2]), gain_of(length, pl[1]),
-                                            1, (k,), bool(np.any(singular))))
-                # On a zone boundary the toolbox drops the singular term and scales the
-                # geometric component, which keeps the total field continuous (Svensson
+                out.append(BtmsContribution(start, ir, doa_of(pl[0][-2]), gain_of(length, pl[1]), 1, (k,), bool(np.any(singular))))
+                # On a zone boundary wedge1st_ir drops the singular term and the geometric
+                # component is scaled, which keeps the total field continuous (Svensson
                 # and Calamia 2006): 1/2 for an edge hit (Svensson et al. 2025, Eqs. 2-4),
                 # and for a corner hit 2/3 for the direct sound and 1/3 for a specular
                 # reflection (EDfindconvexGApaths.m).
-                # The image sources drop that component there (pyroomacoustics occludes a
-                # path within about 1 mm of an obstacle's edge), so it is added here, as
-                # EDmakefirstorderirs.m places a pulse: split linearly between the two
-                # samples around its arrival. Once per component: the edges meeting at a
-                # corner, an apex on a segment end, and a wall image before or after the
-                # edge would otherwise count it again.
+                # The image sources omit that component there (a path within about 1 mm of an
+                # obstacle's edge is occluded), so it is added here as a pulse split
+                # linearly between the two samples around its arrival (EDmakefirstorderirs.m).
+                # Once per component: the edges meeting at a corner, an apex on a segment
+                # end, and a wall image before or after the edge would otherwise count it again.
                 apex_length = float(np.hypot(rs + rr, zr - zs))
                 za = (rs * zr + rr * zs) / (rs + rr)
                 end = ends[0] if abs(za) < 1e-9 else ends[1] if abs(za - e.length) < 1e-9 else None
@@ -1046,31 +1001,27 @@ def btms_paths(spec: Pair, *, max_order: int = 1, second_order: bool = True) -> 
                         e1_about_2 = toolbox_cyl(e2, np.array([p0, p1]))
                         if along:
                             e2_about_1[:, 1], e1_about_2[:, 1] = theta_2_about_1, theta_1_about_2
-                        ir = wedge2nd_ir(cyl_s, cyl_r, e2_about_1, e1_about_2, nu, limits, dz, steps,
-                                         along, start * c / fs, c, fs)
+                        ir = wedge2nd_ir(cyl_s, cyl_r, e2_about_1, e1_about_2, nu, limits, dz, steps, along, start * c / fs, c, fs)
                         if thin_plate:
                             ir = 2.0 * ir
-                        length = (np.linalg.norm(m1 - src.position) + np.linalg.norm(m2 - m1)
-                                  + np.linalg.norm(rec.position - m2))
-                        out.append(BtmsContribution(start, ir, doa_of(m2), gain_of(length, ()),
-                                                    2, (i, j), False))
+                        length = np.linalg.norm(m1 - src.position) + np.linalg.norm(m2 - m1) + np.linalg.norm(rec.position - m2)
+                        out.append(BtmsContribution(start, ir, doa_of(m2), gain_of(length, ()), 2, (i, j), False))
     return out
 
 
-def encode_btms(contributions: list[BtmsContribution], sh_order: int, n_samples: int, fs: float,
-                *, normalization: str = "NM", extra_weights: np.ndarray | None = None) -> np.ndarray:
+def encode_btms(
+    contributions: list[BtmsContribution], sh_order: int, n_samples: int, fs: float, *, normalization: str = "NM", extra_weights: np.ndarray | None = None
+) -> np.ndarray:
     """Encode BTMS contributions at their directions; free field 1/r to 1/(4 pi r).
 
-    ``extra_weights`` (M, K) adds K channels after the ambisonic ones, as :func:`encode`'s does.
+    ``extra_weights`` (M, K) adds K channels after the ambisonic ones, as :func:`~compas_acoustics.hybrid.early.encode`'s does.
     """
     n_ch = (sh_order + 1) ** 2
     n_extra = 0 if extra_weights is None else np.asarray(extra_weights).shape[1]
     if not contributions:
         return np.zeros((n_samples, n_ch + n_extra))
     doa = np.array([p.doa for p in contributions])
-    sh = spharpy.spherical.spherical_harmonic_basis_real(
-        sh_order, pf.Coordinates(doa[:, 0], doa[:, 1], doa[:, 2]),
-        normalization=normalization, channel_convention="ACN")
+    sh = spharpy.spherical.spherical_harmonic_basis_real(sh_order, pf.Coordinates(doa[:, 0], doa[:, 1], doa[:, 2]), normalization=normalization, channel_convention="ACN")
     weights = sh if extra_weights is None else np.hstack([sh, np.asarray(extra_weights, dtype=float)])
     signals = [(p.start, np.outer(p.ir / (4.0 * np.pi), weights[m])) for m, p in enumerate(contributions)]
     return render_signals(signals, np.array([p.band_gain for p in contributions]), BANDS, fs, n_samples)
