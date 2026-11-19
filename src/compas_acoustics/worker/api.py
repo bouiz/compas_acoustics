@@ -147,10 +147,11 @@ def make_source(name, position, direction=None, directivity=None, sound_file=Non
     ``spl``, the source's level on its axis at 1 m per band (one value for every band), keeps the default when None.
     """
     from compas_acoustics import Source
+    from compas_acoustics.directivity import is_sofa
     from compas_acoustics.room.pra import CARDIOID_P
 
     directivity = directivity or "omnidirectional"
-    if directivity not in CARDIOID_P:
+    if directivity not in CARDIOID_P and not is_sofa(directivity):
         raise ValueError("Input parameter 'directivity' is not valid.")
     source = Source(
         name or "my_source",
