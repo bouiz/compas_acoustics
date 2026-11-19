@@ -16,7 +16,7 @@ from .bands import N_BANDS
 
 @dataclass(frozen=True, eq=False)
 class Pair:
-    """A source and a receiver in a closed room, positions in metres.
+    """A source and a receiver in a room with a volume (closed, or prepared with its air volume), positions in metres.
 
     The columns of ``receiver_rotation`` are the receiver's axes in room coordinates; ``air`` None is
     ``AirConditions()``.
@@ -41,8 +41,8 @@ class Pair:
         if rot.shape != (3, 3) or not np.allclose(rot @ rot.T, np.eye(3), atol=1e-8) or not np.isclose(np.linalg.det(rot), 1.0, atol=1e-8):
             raise ValueError("receiver_rotation must be a 3x3 proper rotation (orthogonal, determinant +1)")
         object.__setattr__(self, "receiver_rotation", rot)
-        if not self.geometry.is_closed:
-            raise ValueError("a hybrid response needs a closed room")
+        if not getattr(self.geometry, "has_volume", self.geometry.is_closed):
+            raise ValueError("a hybrid response needs a closed room, or a prepared one with its air volume")
 
     def air_attenuation(self) -> np.ndarray:
         """Energy attenuation coefficient per metre on the band grid in the pair's air, zero without air absorption."""
