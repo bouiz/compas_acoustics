@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added `RoomGeometry.from_prepared(prepared, materials)`: the room of a prepared mesh, its orientation kept. Its two-sided walls are its only obstacles. Its surface accounting (`surfaces`, `surface_area`, `area_normals`) counts the walls the air reaches. It is closed when at most `CLOSED_LEAK_TOLERANCE` of the walk's reflections escape, and it takes the preparation's air volume when the boundary does not enclose the air. `RoomGeometry.from_scene(scene, prepare=PrepareOptions())` prepares the scene's own surfaces that way.
 * Added `RoomGeometry.open_area`, `has_volume`, `air_volume`, `encloses`, `check_inside` and `drawn_sides` (`room.geometry.DrawnSides`). A prepared model that leaks takes its leaks as fully absorbing openings, so Sabine, Eyring, the default duration, the ray-traced tail's echo density, `Binaural` and `Ambisonics` work on it. The hybrid methods warn when `open_area > 0`.
 * Added `Scene.simulate(method, geometry=...)` and `SimulationContext.from_scene(scene, geometry)`, to simulate a room built otherwise than from the scene's acoustic objects.
+* Added the sector edge detector, `compas_acoustics.geometry.sector_edges` (with `sector_edges_from_room`, `sector_edges_from_prepared`, `RawEdge`, `SectorEdges` and `SectorDiagnostics`). It finds the diffracting edges of any polygons from the air sectors around each of their sides, with no roles, closed boundary or manifold mesh needed. `diffraction_edges` uses it for rooms of a prepared mesh, with the new `diffraction_min_excess` (radians) and `diffraction_min_length` (metres) options of `RoomGeometry.from_prepared`. Other rooms keep the role-based detectors.
+* Added `hybrid.diffraction.set_diffraction_edges(geometry, edges)` and `clear_diffraction_edges(geometry)`: every diffracted path of that geometry uses the given subset of its `diffraction_edges` until it is cleared.
+* Added `hybrid.diffraction.AmbiguousEdgeWarning`, which counts the edge pieces where the sector detector found faces disagreeing on which side is air.
+* Added diffraction at the convex edges of closed obstacles that are not convex (an L-shaped counter), oriented from their own winding; they were skipped.
 
 ### Changed
 
@@ -20,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Changed `Binaural` and `Ambisonics` with a given `Mono` reference at their `image_source_order` to take the early field's images from the reference's own image source search (`room.reflections.damping_as_searched`), as a ray-tracing tail does, in place of a second search of the room; the responses are bit-identical.
 * Changed `Binaural` and `Ambisonics` to render the source-receiver pairs on threads, as many as fit in about 4 GB at a pair's peak memory; the responses are bit-identical and in the same order.
 * Changed the hybrid's feedback delay network to filter its lines with the kernel of `scipy.signal.sosfilt` called directly, without that function's checks of its arguments in every block; the responses are bit-identical, the network about twice as fast.
+* Changed `diffraction_edges` to keep the edges and occluders per geometry (weak references), since every pair of a run asks for them; it returns a fresh list each time.
 
 ### Removed
 
