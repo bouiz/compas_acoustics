@@ -86,6 +86,7 @@ class _HybridMethod(SimulationMethod):
         scattering=False,
         n_jobs=1,
         per_pair_seeds=False,
+        limit_output=None,
     ):
         if tail is not None and tail not in TAILS:
             raise ValueError(f"tail must be None or one of {TAILS}, not {tail!r}")
@@ -130,6 +131,9 @@ class _HybridMethod(SimulationMethod):
             raise ValueError(f"n_jobs must be at least 1, got {n_jobs!r}")
         self.n_jobs = int(n_jobs)
         self.per_pair_seeds = bool(per_pair_seeds)
+        if limit_output is not None and not callable(limit_output):
+            raise TypeError("limit_output must be None or a callable limit_output(references, fs) -> seconds or None")
+        self.limit_output = limit_output
         self.reference_rirs = None
         self.results = {}
 
@@ -305,16 +309,18 @@ class _HybridMethod(SimulationMethod):
                     damping=None if damping is None else damping[s],
                     scattered=None if scattered is None else scattered[s],
                 )
-                pairs.append((key, source, receiver, spec, iss, target, reference, histograms[m][s] if histograms is not None else None, source_gain))
+                # the pair's output length, from its own reference (limit_output), decided here on the calling thread
+                duration = self._pair_duration(key, references, fs)
+                pairs.append((key, source, receiver, spec, iss, target, reference, histograms[m][s] if histograms is not None else None, source_gain, duration))
 
         def rendered(pair):
-            key, source, receiver, spec, iss, target, reference, histogram, source_gain = pair
+            key, source, receiver, spec, iss, target, reference, histogram, source_gain, duration = pair
             core = prepare(
                 spec,
                 iss,
                 target,
                 max_order=self.image_source_order,
-                duration_s=self.duration,
+                duration_s=duration,
                 num_delays=self.num_delays,
                 directional_absorption=self.directional_absorption,
                 late_envelope=reference if self.late_envelope else None,
@@ -328,7 +334,7 @@ class _HybridMethod(SimulationMethod):
 
         # The pairs render on threads, as many as fit in 4 GB at a pair's peak of about 17 arrays of
         # (n_samples, num_delays); each renders as alone, and the results are kept in the pairs' order.
-        longest = max(self.duration if self.duration is not None else 1.5 * float(np.max(pair[5].rt)) for pair in pairs)
+        longest = max(pair[-1] if pair[-1] is not None else 1.5 * float(np.max(pair[5].rt)) for pair in pairs)
         peak = 17 * np.ceil(longest * fs) * self.num_delays * 8
         workers = max(1, min(len(pairs), os.cpu_count() or 1, int(4e9 // peak)))
         rirs = {}
@@ -356,6 +362,20 @@ class _HybridMethod(SimulationMethod):
     def _histogram_rays(room, grid) -> int:
         """The rays of the directional histogram (:func:`~compas_acoustics.hybrid.envelope.histogram_rays`) at ``Mono``'s receiver radius."""
         return histogram_rays(room.get_volume(), Mono(ray_tracing=True).receiver_radius, float(getattr(room, "c", 343.0)), grid)
+
+    def _pair_duration(self, key, references, fs):
+        """The output length of pair ``key``: :attr:`duration` when given, else what :attr:`limit_output` makes of the
+        pair's own reference, else None (the default, from the target's reverberation time).
+
+        One length per pair, from that pair's reference alone: a length shared by the run would follow whichever pairs
+        share it, so a run split over processes would render a pair for another time.
+        """
+        if self.duration is not None or self.limit_output is None or references is None or key not in references:
+            return self.duration
+        seconds = self.limit_output({key: references[key]}, fs)
+        if seconds is not None and seconds <= 0:
+            raise ValueError(f"limit_output gave {seconds!r} s for {key}; it must be positive or None")
+        return seconds
 
     def _check_reference_length(self, length, target, eyring_rt, key):
         """Warn when a reference ends before 2/3 of its reverberation time (the fitted or Eyring one, the longer).
@@ -483,6 +503,11 @@ _ENGINE_PARAMETERS = """
         In seconds; default 1.5 times the longest target RT. A reference the method runs itself has the mono
         method's default length, or ``duration`` where that is longer; a directional histogram traced for a given
         reference takes ``duration``. A reference shorter than 2/3 of its reverberation time warns.
+    limit_output : callable, optional
+        ``limit_output(references, fs)``, given ``{key: ImpulseResponse}`` with one pair's reference and the sampling
+        rate, returns that pair's output length in seconds, or None for the default. Used when ``duration`` is not
+        given and the method has a reference (an application trims its exports where the reference has decayed, and
+        can render no longer than that).
     directional_absorption : bool, default=True
         Weight each delay line with the reflection of the boundary it faces.
     late_envelope : {"omni", "directional", False}, optional
@@ -595,6 +620,7 @@ class Binaural(_HybridMethod):
         scattering=False,
         n_jobs=1,
         per_pair_seeds=False,
+        limit_output=None,
     ):
         hrtf = "ku100" if hrtf is None else hrtf
         if hrtf != "ku100" and not Path(hrtf).is_file():
@@ -616,6 +642,7 @@ class Binaural(_HybridMethod):
             scattering,
             n_jobs,
             per_pair_seeds,
+            limit_output,
         )
         self.hrtf = hrtf
         self._hrtf_set = None
@@ -690,6 +717,7 @@ class Ambisonics(_HybridMethod):
         scattering=False,
         n_jobs=1,
         per_pair_seeds=False,
+        limit_output=None,
     ):
         if normalization not in ("SN3D", "N3D"):
             raise ValueError(f"normalization must be 'SN3D' or 'N3D', not {normalization!r}")
@@ -712,6 +740,7 @@ class Ambisonics(_HybridMethod):
             scattering,
             n_jobs,
             per_pair_seeds,
+            limit_output,
         )
         self.sh_order = int(sh_order)
         self.normalization = normalization
