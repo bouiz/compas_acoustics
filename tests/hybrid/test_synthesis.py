@@ -66,6 +66,14 @@ def test_an_unknown_normalization_raises():
         render_ambisonics(prepare(pair, iss, TARGET, max_order=MAX_ORDER, duration_s=0.5), normalization="FuMa")
 
 
+def test_prepare_announces_its_steps_without_changing_the_core():
+    pair, iss = setup()
+    steps = []
+    followed = prepare(pair, iss, TARGET, max_order=MAX_ORDER, duration_s=0.5, on_step=steps.append)
+    assert steps == ["early reflections", "late reverberation"]
+    np.testing.assert_array_equal(followed.lines, prepare(pair, iss, TARGET, max_order=MAX_ORDER, duration_s=0.5).lines)
+
+
 def test_diffraction_in_a_rectangular_room_without_obstacles_changes_nothing():
     pair, iss = setup()
     plain = render_ambisonics(prepare(pair, iss, TARGET, max_order=MAX_ORDER, duration_s=0.5))

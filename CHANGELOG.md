@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 * Changed `import compas_acoustics` to import its public names on first use, so the import no longer loads pyroomacoustics, pyfar or COMPAS until they are needed.
+* Changed the `simulating` stage of `Binaural` and `Ambisonics` into its steps, `simulating: early reflections`, `simulating: late reverberation` and `simulating: ambisonic encoding` (or `binaural encoding`), each with the pairs past it, reported while the pairs render rather than between them; `hybrid.synthesis.prepare` takes `on_step(name)`. The responses are bit-identical.
 
 ### Removed
 

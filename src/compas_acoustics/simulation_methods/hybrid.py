@@ -11,10 +11,13 @@ reference at the same image source order shares its search too. Each pair is pre
 from __future__ import annotations
 
 import os
+import queue
 import threading
 import warnings
 from abc import abstractmethod
+from concurrent.futures import FIRST_COMPLETED
 from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import wait
 from dataclasses import dataclass
 from dataclasses import replace
 from pathlib import Path
@@ -62,6 +65,7 @@ from .pra import Mono
 __all__ = ["Binaural", "Ambisonics", "TAILS"]
 
 _HRTF_LOCK = threading.Lock()
+_REPORT_INTERVAL_S = 0.25  # how often the rendering pairs' steps are reported
 
 #: Where the decay target of the late field comes from.
 TAILS = ("reference", "ray_tracing", "eyring", "sabine")
@@ -353,10 +357,17 @@ class _HybridMethod(SimulationMethod):
         return inputs
 
     def _rendered(self, inputs, rng, generation, fs) -> dict:
-        """The pairs rendered on threads, the responses by key in the pairs' order; :attr:`results` filled."""
+        """The pairs rendered on threads, the responses by key in the pairs' order; :attr:`results` filled.
+
+        Every pair goes through three steps, early reflections, late reverberation and the output's encoding; the
+        pool threads post ``(pair, step)`` and the calling thread reports the slowest pair's step as
+        ``simulating: <step>``."""
         from compas_acoustics.worker import jobs
 
-        def rendered(item):
+        steps = ("early reflections", "late reverberation", f"{self.output} encoding")
+        events = queue.SimpleQueue()
+
+        def rendered(k, item):
             core = prepare(
                 item.pair,
                 item.iss,
@@ -370,8 +381,33 @@ class _HybridMethod(SimulationMethod):
                 diffraction=self.diffraction,
                 rng=rng,
                 scattering=self.scattering,
+                on_step=lambda name: events.put((k, steps.index(name))),
             )
-            return self._response(core, item.key, item.source, item.receiver, generation)
+            events.put((k, 2))
+            response = self._response(core, item.key, item.source, item.receiver, generation)
+            events.put((k, len(steps)))
+            return response
+
+        reached = [0] * len(inputs)  # the step each pair is in; len(steps) once it is rendered
+        last = [None]
+
+        def report():
+            """``simulating: <step>`` of the slowest pair, ``done`` the pairs past that step."""
+            while True:
+                try:
+                    k, s = events.get_nowait()
+                except queue.Empty:
+                    break
+                reached[k] = max(reached[k], s)
+            first = min(reached)
+            if first == len(steps):
+                return
+            now = (f"simulating: {steps[first]}", sum(r > first for r in reached), len(inputs))
+            if now != last[0]:
+                last[0] = now
+                jobs.progress(*now)
+            else:
+                jobs.check()
 
         # As many threads as keep the pairs' peak memory under 4 GB (about 17 arrays of (n_samples, num_delays) per
         # pair; cap and estimate are the package's); results do not depend on the thread count and keep the pairs'
@@ -381,10 +417,16 @@ class _HybridMethod(SimulationMethod):
         workers = max(1, min(len(inputs), os.cpu_count() or 1, int(4e9 // peak)))
         rirs = {}
         with ThreadPoolExecutor(workers) as pool:
-            futures = [pool.submit(rendered, item) for item in inputs]
+            futures = [pool.submit(rendered, k, item) for k, item in enumerate(inputs)]
             try:
-                for i, (item, future) in enumerate(zip(inputs, futures)):
-                    jobs.progress("simulating", i, len(inputs))
+                pending = set(futures)
+                report()
+                while pending:
+                    done, pending = wait(pending, timeout=_REPORT_INTERVAL_S, return_when=FIRST_COMPLETED)
+                    for future in done:
+                        future.result()  # a failed pair stops the run now, not after the others
+                    report()
+                for item, future in zip(inputs, futures):
                     self.results[item.key], rirs[item.key] = future.result()
             except BaseException:
                 pool.shutdown(cancel_futures=True)
