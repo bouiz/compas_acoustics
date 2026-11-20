@@ -30,7 +30,7 @@ class Pair:
     speed_of_sound: float = 343.0
     air_absorption: bool = True
     air: Optional[AirConditions] = None
-    #: False for a pair that needs no room volume (diffracted paths for display)
+    #: False for a pair that needs no room volume (diffracted paths: the mono method's, and those for display)
     require_volume: bool = True
 
     def __post_init__(self) -> None:
