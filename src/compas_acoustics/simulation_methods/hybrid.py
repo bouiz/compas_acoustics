@@ -15,10 +15,13 @@ import warnings
 from abc import abstractmethod
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
+from functools import partial
 from pathlib import Path
 
 import numpy as np
 
+from compas_acoustics.directivity import band_gains
+from compas_acoustics.directivity import is_omnidirectional
 from compas_acoustics.hybrid.ambisonics import default_num_delays
 from compas_acoustics.hybrid.ambisonics import render_ambisonics
 from compas_acoustics.hybrid.diffraction import _keep_selection
@@ -53,6 +56,11 @@ _HRTF_LOCK = threading.Lock()
 
 #: Where the decay target of the late field comes from.
 TAILS = ("reference", "ray_tracing", "eyring", "sabine")
+
+
+def _emitted_gain(directivity, direction):
+    """The source pattern's amplitude per band (8,) towards ``direction`` (3,), for the diffracted paths."""
+    return np.broadcast_to(band_gains(directivity, np.asarray(direction, dtype=float).reshape(3, 1))[0], (8,))
 
 
 class _HybridMethod(SimulationMethod):
@@ -255,7 +263,14 @@ class _HybridMethod(SimulationMethod):
 
         pairs = []
         for s, source in enumerate(context.sources):
-            directivity = None if source.directivity == "omnidirectional" else directivity_to_pra(source.directivity, source.direction)
+            directivity = None if is_omnidirectional(source.directivity) else directivity_to_pra(source.directivity, source.direction, fs)
+            source_gain = None if directivity is None else partial(_emitted_gain, directivity)
+            if directivity is not None and self.diffraction == "btms":
+                warnings.warn(
+                    f"Source '{source.name}' is directional, but BTMS diffraction radiates omnidirectionally; diffraction='udfa' applies the pattern.",
+                    UserWarning,
+                    stacklevel=3,
+                )
             for m, receiver in enumerate(context.receivers):
                 key = context.key(source, receiver)
                 spec = Pair(
@@ -290,10 +305,10 @@ class _HybridMethod(SimulationMethod):
                     damping=None if damping is None else damping[s],
                     scattered=None if scattered is None else scattered[s],
                 )
-                pairs.append((key, source, receiver, spec, iss, target, reference, histograms[m][s] if histograms is not None else None))
+                pairs.append((key, source, receiver, spec, iss, target, reference, histograms[m][s] if histograms is not None else None, source_gain))
 
         def rendered(pair):
-            key, source, receiver, spec, iss, target, reference, histogram = pair
+            key, source, receiver, spec, iss, target, reference, histogram, source_gain = pair
             core = prepare(
                 spec,
                 iss,
@@ -307,6 +322,7 @@ class _HybridMethod(SimulationMethod):
                 diffraction=self.diffraction or False,
                 rng=rng,
                 scattering=self.scattering,
+                source_gain=source_gain,
             )
             return self._response(core, key, source, receiver, generation)
 
