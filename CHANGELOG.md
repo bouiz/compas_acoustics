@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Changed `Binaural` and `Ambisonics` to render the source-receiver pairs on threads, as many as fit in about 4 GB at a pair's peak memory; the responses are bit-identical and in the same order.
 * Changed the hybrid's feedback delay network to filter its lines with the kernel of `scipy.signal.sosfilt` called directly, without that function's checks of its arguments in every block; the responses are bit-identical, the network about twice as fast.
 * Changed `import compas_acoustics` to import its public names on first use, so the import no longer loads pyroomacoustics, pyfar or COMPAS until they are needed.
-* Changed the `rendering` stage of `Binaural` and `Ambisonics` into its steps, `rendering: early reflections`, `rendering: late reverberation` and `rendering: ambisonic encoding` (or `binaural encoding`), each with the pairs past it, reported while the pairs render rather than between them; `hybrid.synthesis.prepare` takes `on_step(name)`. The responses are bit-identical.
+* Changed the `rendering` stage of `Binaural` and `Ambisonics` into its steps, `rendering: early reflections`, `rendering: late reverberation` and `rendering: ambisonic encoding` (or `binaural encoding`), each with the pairs past it, reported while the pairs render rather than between them; `hybrid.synthesis.prepare` takes `on_step(name)`. The responses are bit-identical. The Grasshopper components' running message names the step and the pair (`late reverberation (FDN), pair 3/4`) and shows a ray count as what is traced (`ray tracing 6,200/20,000`).
 
 ### Removed
 
