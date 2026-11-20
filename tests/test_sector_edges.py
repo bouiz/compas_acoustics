@@ -34,7 +34,7 @@ from compas_acoustics.room.geometry import _polygon_area_and_centroid  # noqa: E
 
 H = 3.0
 TILT = np.linspace(0.8, 1.2, 8)
-EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
+EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples", "benchmarks")
 
 
 def materials(*names):
@@ -192,7 +192,7 @@ def partition_on_split_wall():
 
 
 def hil():
-    """examples/hil_d24_1.obj, loaded as examples/hil_d24_1.py loads it."""
+    """examples/benchmarks/hil_d24_1.obj, loaded as examples/benchmarks/hil_d24_1.py loads it."""
     sys.path.insert(0, EXAMPLES)
     try:
         from hil_d24_1 import OBJ_PATH
@@ -370,7 +370,7 @@ def test_hil_d24_1():
     try:
         geometry = hil()
     except Exception as error:  # noqa: BLE001 - the example needs the materials library and the OBJ
-        pytest.skip(f"examples/hil_d24_1 does not load: {error}")
+        pytest.skip(f"examples/benchmarks/hil_d24_1 does not load: {error}")
     t0 = time.perf_counter()
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
