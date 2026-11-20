@@ -93,6 +93,21 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
+        public void Describe_NamesTheHybridStepsAndCountsRaysAsDone()
+        {
+            static string? Report(string stage, long? done, long? of) =>
+                WorkerJob.Describe(new Dictionary<string, object?> { ["stage"] = stage, ["done"] = done, ["of"] = of });
+
+            Assert.Equal("late reverberation (FDN), pair 3/4", Report("simulating: late reverberation", 2, 4));
+            Assert.Equal("early reflections, pair 1/4", Report("simulating: early reflections", 0, 4));
+            Assert.Equal("ambisonic encoding, pair 4/4", Report("simulating: ambisonic encoding", 3, 4));
+            Assert.Equal("binaural encoding", Report("simulating: binaural encoding", null, null));
+            // rays are an amount: what is traced, with separators; items never count past the total
+            Assert.Equal("ray tracing 6,200/20,000", Report("ray tracing", 6200, 20000));
+            Assert.Equal("ray tracing 2/2", Report("ray tracing", 2, 2));
+        }
+
+        [Fact]
         public void RunningText_ShowsMinutesSecondsAndProgress()
         {
             Assert.Equal("running 0:42", BackgroundRuns.RunningText(42.4, null));
