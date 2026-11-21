@@ -205,7 +205,7 @@ class Mono(SimulationMethod):
             emitters = [pra.SoundSource(position=points_to_array(receiver.position)) for receiver in context.receivers]
             mic_positions = np.array([source.position for source in context.sources], dtype=float).T
         else:
-            emitters = [source_to_pra(source) for source in context.sources]
+            emitters = [source_to_pra(source, fs) for source in context.sources]
             mic_positions = np.array([receiver.position for receiver in context.receivers], dtype=float).T
         from compas_acoustics.worker import jobs
 
