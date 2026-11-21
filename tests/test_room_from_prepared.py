@@ -142,6 +142,15 @@ def _furnished(add_object):
     return prepared, geometry
 
 
+def _object_edges(geometry):
+    """``(obstacle edges, room edges)``; skips the rest of the test where spharpy, which hybrid.diffraction needs, is missing."""
+    pytest.importorskip("spharpy")
+    from compas_acoustics.hybrid.diffraction import diffraction_edges
+
+    edges = diffraction_edges(geometry)
+    return [e for e in edges if e.component >= 0], [e for e in edges if e.component < 0]
+
+
 def test_a_closed_object_standing_in_the_room_is_boundary():
     """One-sided, so boundary like the shell (no copies): the room still encloses the air, its volume less the cabinet's."""
     prepared, geometry = _furnished(lambda s: s.add("cabinet", *_box(*FURNITURE)))
@@ -152,6 +161,8 @@ def test_a_closed_object_standing_in_the_room_is_boundary():
     assert geometry.volume == pytest.approx(72.0 - 0.8 * 0.6 * 0.9)
     # its base lies on the floor, never reached: out of the accounting (the floor under it stays counted)
     assert geometry.surface_area == pytest.approx(108.0 + 0.8 * 0.6 + 2 * (0.8 + 0.6) * 0.9)
+    obstacle, room = _object_edges(geometry)
+    assert not obstacle and len(room) == 8  # the four vertical and four top edges, now boundary edges; the base lies on the floor
 
 
 def test_a_bottomless_box_on_the_floor_is_boundary_and_the_room_closes():
@@ -164,6 +175,8 @@ def test_a_bottomless_box_on_the_floor_is_boundary_and_the_room_closes():
     assert geometry.face_roles.count("boundary") == 11 and not geometry.obstacle_faces
     # acoustically closed; the boundary is not watertight, so the volume is the walk's
     assert geometry.is_closed and not geometry.encloses and geometry.air_volume == prepared.air_volume
+    obstacle, room = _object_edges(geometry)
+    assert not obstacle and len(room) == 8
 
 
 def test_an_object_of_loose_faces_is_boundary_and_the_room_closes():
@@ -185,6 +198,10 @@ def test_an_object_of_loose_faces_is_boundary_and_the_room_closes():
     assert not prepared.component_closed[prepared.component[loose]].any()
     assert ca.geometry.standing_objects(prepared)[loose].all()
     assert geometry.is_closed and geometry.face_roles.count("boundary") == 6 + 6 and not geometry.obstacle_faces
+    obstacle, room = _object_edges(geometry)
+    # its faces share no side, and each is one-sided (air outside): the sector detector takes their free sides for
+    # the rims of an opening and finds no edge (the role-based detectors gave each face knife edges)
+    assert obstacle == [] and room == []
 
 
 def test_the_room_holding_the_sources_is_never_an_object():

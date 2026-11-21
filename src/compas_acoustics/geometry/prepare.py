@@ -7,8 +7,9 @@ it and is a solid otherwise, the walk only cross-checking that (:mod:`.orientati
 the model the exterior is the air, the walk running from them all. Nothing is removed because of topology: open
 edges, non-manifold edges and coincident faces are reported, never pruned. The result is engine-neutral:
 
-- the geometric methods build their room with :meth:`compas_acoustics.RoomGeometry.from_prepared`, which reads
-  which sides of each wall the air touches (:func:`prepared_wall_sides`);
+- the geometric methods build their room with :meth:`compas_acoustics.RoomGeometry.from_prepared`, whose
+  diffracting edges the sector detector (:mod:`.edges`) finds from the walls' normals, two-sided flags and hits
+  (:func:`prepared_wall_sides`);
 - a wave solver voxelises :attr:`PreparedMesh.faces` (single-sheet triangles with a two-sided flag);
 - :func:`compas_acoustics.geometry.report.analyze` turns it into user-facing issues.
 
