@@ -72,6 +72,14 @@ def test_the_duration_defaults_to_one_and_a_half_reverberation_times():
     assert render_ambisonics(prepare(spec, iss, TARGET, max_order=MAX_ORDER)).rir.shape[0] == int(np.ceil(0.9 * FS))
 
 
+def test_prepare_announces_its_steps_without_changing_the_core():
+    spec, iss = setup()
+    steps = []
+    followed = prepare(spec, iss, TARGET, max_order=MAX_ORDER, duration_s=0.5, on_step=steps.append)
+    assert steps == ["early reflections", "late reverberation"]
+    np.testing.assert_array_equal(followed.lines, prepare(spec, iss, TARGET, max_order=MAX_ORDER, duration_s=0.5).lines)
+
+
 def test_a_non_positive_duration_raises():
     spec, iss = setup()
     with pytest.raises(ValueError, match="duration"):

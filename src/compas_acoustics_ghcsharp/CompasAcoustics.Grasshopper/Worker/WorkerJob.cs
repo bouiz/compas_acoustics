@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -120,15 +121,37 @@ namespace CompasAcoustics.Grasshopper
                 ProgressText = text;
         }
 
-        /// <summary>A report as text: ``stage``, ``stage 3`` or ``stage 3/4`` (``done`` counts the finished items).</summary>
+        /// <summary>The hybrid's rendering steps report as ``rendering: <step>``, ``done`` the pairs past the step.</summary>
+        private const string RenderingStep = "rendering: ";
+
+        /// <summary>Above this many, the counts are an amount (rays), shown as done; at or below it, items, shown as the current one.</summary>
+        private const long ItemsAtMost = 100;
+
+        private static readonly IReadOnlyDictionary<string, string> StepLabels = new Dictionary<string, string>
+        {
+            ["late reverberation"] = "late reverberation (FDN)",
+        };
+
+        /// <summary>
+        /// A report as text: ``stage``, ``stage 3`` or ``stage 3/4`` for items (``done`` counts the finished ones, so the
+        /// current one is ``done + 1``), ``stage 6,200/20,000`` for an amount such as rays, and
+        /// ``late reverberation (FDN), pair 3/4`` for a rendering step of the hybrid.
+        /// </summary>
         public static string? Describe(IDictionary<string, object?>? report)
         {
             if (report == null || !report.TryGetValue("stage", out var stage) || stage is not string text)
                 return null;
+            var step = text.StartsWith(RenderingStep, StringComparison.Ordinal) ? text.Substring(RenderingStep.Length) : null;
+            var label = step == null ? text : StepLabels.TryGetValue(step, out var named) ? named : step;
             if (!report.TryGetValue("done", out var done) || done == null)
-                return text;
-            var current = Convert.ToInt64(done) + 1;
-            return report.TryGetValue("of", out var of) && of != null ? $"{text} {current}/{Convert.ToInt64(of)}" : $"{text} {current}";
+                return label;
+            var count = Convert.ToInt64(done);
+            long? total = report.TryGetValue("of", out var of) && of != null ? Convert.ToInt64(of) : null;
+            if (total > ItemsAtMost)
+                return string.Format(CultureInfo.InvariantCulture, "{0} {1:N0}/{2:N0}", label, count, total);
+            var current = total is long n ? Math.Min(count + 1, n) : count + 1;
+            var counted = total is long all ? $"{current}/{all}" : $"{current}";
+            return step == null ? $"{label} {counted}" : $"{label}, pair {counted}";
         }
     }
 }

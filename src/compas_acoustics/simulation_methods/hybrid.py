@@ -10,10 +10,13 @@ and rendered by :func:`~compas_acoustics.hybrid.binaural.render_binaural` or
 from __future__ import annotations
 
 import os
+import queue
 import threading
 import warnings
 from abc import abstractmethod
+from concurrent.futures import FIRST_COMPLETED
 from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import wait
 from dataclasses import replace
 from functools import partial
 from pathlib import Path
@@ -53,6 +56,7 @@ from .pra import Mono
 __all__ = ["Binaural", "Ambisonics", "TAILS"]
 
 _HRTF_LOCK = threading.Lock()
+_REPORT_INTERVAL_S = 0.25  # how often the rendering pairs' steps are reported
 
 #: Where the decay target of the late field comes from.
 TAILS = ("reference", "ray_tracing", "eyring", "sabine")
@@ -313,7 +317,11 @@ class _HybridMethod(SimulationMethod):
                 duration = self._pair_duration(key, references, fs)
                 pairs.append((key, source, receiver, spec, iss, target, reference, histograms[m][s] if histograms is not None else None, source_gain, duration))
 
-        def rendered(pair):
+        # Every pair goes through these steps; the pool threads post (pair, step) and this thread reports
+        steps = ("early reflections", "late reverberation", f"{self.output} encoding")
+        events = queue.SimpleQueue()
+
+        def rendered(k, pair):
             key, source, receiver, spec, iss, target, reference, histogram, source_gain, duration = pair
             core = prepare(
                 spec,
@@ -329,8 +337,33 @@ class _HybridMethod(SimulationMethod):
                 rng=rng,
                 scattering=self.scattering,
                 source_gain=source_gain,
+                on_step=lambda name: events.put((k, steps.index(name))),
             )
-            return self._response(core, key, source, receiver, generation)
+            events.put((k, 2))
+            response = self._response(core, key, source, receiver, generation)
+            events.put((k, len(steps)))
+            return response
+
+        reached = [0] * len(pairs)  # the step each pair is in; len(steps) once it is rendered
+        last = [None]
+
+        def report():
+            """``rendering: <step>`` of the slowest pair, ``done`` the pairs past that step."""
+            while True:
+                try:
+                    k, s = events.get_nowait()
+                except queue.Empty:
+                    break
+                reached[k] = max(reached[k], s)
+            first = min(reached)
+            if first == len(steps):
+                return
+            now = (f"rendering: {steps[first]}", sum(r > first for r in reached), len(pairs))
+            if now != last[0]:
+                last[0] = now
+                jobs.progress(*now)
+            else:
+                jobs.check()
 
         # The pairs render on threads, as many as fit in 4 GB at a pair's peak of about 17 arrays of
         # (n_samples, num_delays); each renders as alone, and the results are kept in the pairs' order.
@@ -339,10 +372,16 @@ class _HybridMethod(SimulationMethod):
         workers = max(1, min(len(pairs), os.cpu_count() or 1, int(4e9 // peak)))
         rirs = {}
         with ThreadPoolExecutor(workers) as pool:
-            futures = [pool.submit(rendered, pair) for pair in pairs]
+            futures = [pool.submit(rendered, k, pair) for k, pair in enumerate(pairs)]
             try:
-                for i, (pair, future) in enumerate(zip(pairs, futures)):
-                    jobs.progress("rendering", i, len(pairs))
+                pending = set(futures)
+                report()
+                while pending:
+                    done, pending = wait(pending, timeout=_REPORT_INTERVAL_S, return_when=FIRST_COMPLETED)
+                    for future in done:
+                        future.result()  # a failed pair stops the run now, not after the others
+                    report()
+                for pair, future in zip(pairs, futures):
                     self.results[pair[0]], rirs[pair[0]] = future.result()
             except BaseException:
                 pool.shutdown(cancel_futures=True)
