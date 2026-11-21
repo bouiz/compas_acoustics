@@ -105,12 +105,10 @@ def test_sti_of_short_ir_matches_zero_padded_ir():
 
 @needs_sti
 def test_sti_failure_warns_instead_of_passing_silently(monkeypatch):
-    import pyrato
-
     def fail(*args, **kwargs):
         raise ValueError("boom")
 
-    monkeypatch.setattr(pyrato.parameters, "modulation_transfer_function", fail)
+    monkeypatch.setattr(Analyser, "_modulation_transfer_function", fail)
     with pytest.warns(UserWarning, match="STI computation failed: boom"):
         result = Analyser(make_ir()).speech_transmission_index()
     assert np.isnan(result["sti"])
@@ -518,6 +516,7 @@ def test_each_octave_filter_is_designed_once(monkeypatch):
 
     monkeypatch.setattr(pf.dsp.filter, "fractional_octave_bands", counted)
     analysis._octave_band_filter.cache_clear()
+    analysis._octave_band_sos.cache_clear()
     # not analyse(): pyrato's STI designs its own filters
     for seed in range(2):
         analyser = Analyser(make_ir(seed=seed))
@@ -526,8 +525,7 @@ def test_each_octave_filter_is_designed_once(monkeypatch):
     assert len(designs) == len(Defaults().DEFAULT_FREQUENCY_BANDS)
 
 
-def test_analyse_filters_the_bands_of_the_decay_once_for_the_reverberation_times_and_center_time(monkeypatch):
-    analyser = Analyser(make_ir())
+def _filter_counter(monkeypatch):
     calls = []
     filter_band = Analyser._filter_impulse_response
 
@@ -542,12 +540,86 @@ def test_analyse_filters_the_bands_of_the_decay_once_for_the_reverberation_times
         run()
         return len(calls)
 
+    return count
+
+
+def test_the_bands_of_the_decay_are_filtered_once_per_analyser(monkeypatch):
+    # The zero-phase bands are shared by the reverberation times, the centre time, the decay curves and the
+    # reliability, for the analyser's lifetime: reliability() after analyse() filters nothing again.
+    count = _filter_counter(monkeypatch)
+    analyser = Analyser(make_ir())
     alone = count(analyser.center_time)
-    others = sum(count(run) for run in (analyser.reverberation_times, analyser.clarity_definition, analyser.direct_to_reverberant_ratio))
     assert alone > 0
-    assert count(analyser.analyse) == others
-    # the bands are kept only for the analysis
-    assert count(analyser.center_time) == alone
+    for run in (analyser.reverberation_times, analyser.decay_curves, analyser.reliability, analyser.center_time):
+        assert count(run) == 0, run.__name__
+
+    analysed = Analyser(make_ir())
+    clarity = count(Analyser(make_ir()).clarity_definition)
+    drr = count(Analyser(make_ir()).direct_to_reverberant_ratio)
+    assert count(analysed.analyse) == alone + clarity + drr
+    assert count(analysed.reliability) == 0
+
+    # another sampling rate filters again
+    analysed.sampling_rate = 44100
+    assert count(analysed.reverberation_times) == alone
+
+
+def test_a_parameter_subset_matches_the_full_analysis(monkeypatch):
+    full = Analyser(make_ir()).analyse()
+    wanted = ("T30", "EDT", "C50", "C80", "D50", "STI")
+    count = _filter_counter(monkeypatch)
+    subset_analyser = Analyser(make_ir())
+    filtered = count(lambda: subset_analyser.analyse(parameters=wanted))
+    subset = subset_analyser.analysis_data
+    assert set(subset) == {"freqs", *wanted, *(f"{p}_overall" for p in wanted)}
+    for key in subset:
+        np.testing.assert_equal(subset[key], full[key], err_msg=key)
+    # no DRR, centre time or strength: fewer band filters than the whole analysis
+    assert filtered < count(Analyser(make_ir()).analyse)
+    with pytest.raises(ValueError):
+        Analyser(make_ir()).analyse(parameters=["RT60"])
+
+
+def test_filtering_stops_once_the_filter_has_rung_out():
+    # The band of a segment with 0.5 s of zero padding, computed only until the filter has rung out, is the
+    # band filtered over the whole padding to well below any rounding of a metric.
+    import pyfar as pf
+
+    from compas_acoustics.analyser import _octave_band_filter
+
+    fs = Defaults().SAMPLING_RATE
+    analyser = Analyser(make_ir())
+    segment = make_ir(duration=0.08, seed=4)
+    padded = np.concatenate([segment, np.zeros(fs // 2)])
+    for f in analyser.frequency_bands:
+        fast = analyser._filter_impulse_response(padded, f)
+        exact = _octave_band_filter(fs, f).process(pf.Signal(padded, fs)).time.squeeze()
+        assert fast.shape == exact.shape
+        assert np.max(np.abs(fast - exact)) <= 1e-12 * np.max(np.abs(exact)), f
+        assert np.sum(fast**2) == pytest.approx(np.sum(exact**2), rel=1e-12)
+
+
+@needs_sti
+def test_the_modulation_transfer_function_is_pyratos():
+    import pyfar as pf
+    import pyrato
+
+    for seed in range(2):
+        ir = make_ir(seed=seed)
+        analyser = Analyser(ir)
+        expected = np.squeeze(np.asarray(pyrato.parameters.modulation_transfer_function(pf.Signal(ir, analyser.sampling_rate))))
+        np.testing.assert_allclose(analyser._modulation_transfer_function(ir, np.inf), expected, rtol=1e-9, atol=1e-12)
+
+
+def test_decay_end_follows_the_energy_decay():
+    from compas_acoustics.analyser import decay_end
+
+    fs = Defaults().SAMPLING_RATE
+    t = np.arange(3 * fs) / fs
+    ir = np.exp(-6.907755278982137 * t)  # 60 dB per second
+    assert decay_end(ir, 30.0, margin=0.0) / fs == pytest.approx(0.5, abs=0.01)
+    assert decay_end(ir[None, :], 60.0) / fs == pytest.approx(1.05, abs=0.01)
+    assert decay_end(np.zeros(100), 60.0) == 100
 
 
 @pytest.mark.parametrize("name", ["C50", "C80", "D50", "Ts", "EDT", "T20", "T30"])
