@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+* Changed the UDFA low-passes (`hybrid.udfa.fractional_lowpass`, `first_order_lowpass`) to evaluate in polar form with real arithmetic instead of complex powers over every frequency bin; the transfer functions agree to 1e-14 relative, the fractional low-pass is about twice as fast, and encoding the diffraction paths of an ambisonic response about 1.6 times.
+
 ### Removed
 
 
