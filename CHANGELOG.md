@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added `hybrid.diffraction.set_diffraction_edges(geometry, edges)` and `clear_diffraction_edges(geometry)`: every diffracted path of that geometry uses the given subset of its `diffraction_edges` until it is cleared.
 * Added `hybrid.diffraction.AmbiguousEdgeWarning`, which counts the edge pieces where the sector detector found faces disagreeing on which side is air.
 * Added diffraction at the convex edges of closed obstacles that are not convex (an L-shaped counter), oriented from their own winding; they were skipped.
+* Added `Analyser(ir, channel=...)` (any channel, no warning), `Analyser.decay_curves()` (the energy decay curve per band) and `Analyser.reliability()`. The latter gives, per band, the dynamic range the decay offers, ISO 3382-2's non-linearity of the T20 and T30 fits, and whether EDT, T20 and T30 can be trusted.
+* Added `Analyser.analyse(parameters=...)`: only the requested parameters, and the methods they need, are computed. For example, `("T30", "EDT", "C50", "C80", "D50", "STI")` skips the sound strength, the DRR, the centre time and the lateral fractions.
+* Added `compas_acoustics.analyser.decay_end(ir, trim_db, margin)` (it was private): where a response's Schroeder curve has fallen `trim_db`, to cut a response where its reverberation has decayed rather than at the level of its direct sound.
 
 ### Changed
 
@@ -25,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Changed `Binaural` and `Ambisonics` to render the source-receiver pairs on threads, as many as fit in about 4 GB at a pair's peak memory; the responses are bit-identical and in the same order.
 * Changed the hybrid's feedback delay network to filter its lines with the kernel of `scipy.signal.sosfilt` called directly, without that function's checks of its arguments in every block; the responses are bit-identical, the network about twice as fast.
 * Changed `diffraction_edges` to keep the edges and occluders per geometry (weak references), since every pair of a run asks for them; it returns a fresh list each time.
+* Changed the `Analyser` to compute the same results 5 to 10 times faster:
 
 ### Removed
 
