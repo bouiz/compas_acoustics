@@ -76,6 +76,8 @@ class _HybridMethod(SimulationMethod):
         normalize=True,
         air=None,
         scattering=False,
+        n_jobs=1,
+        per_pair_seeds=False,
     ):
         if tail is not None and tail not in TAILS:
             raise ValueError(f"tail must be None or one of {TAILS}, not {tail!r}")
@@ -116,6 +118,10 @@ class _HybridMethod(SimulationMethod):
         self.normalize = normalize
         self.air = air
         self.scattering = bool(scattering)
+        if int(n_jobs) < 1:
+            raise ValueError(f"n_jobs must be at least 1, got {n_jobs!r}")
+        self.n_jobs = int(n_jobs)
+        self.per_pair_seeds = bool(per_pair_seeds)
         self.reference_rirs = None
         self.results = {}
 
@@ -211,6 +217,10 @@ class _HybridMethod(SimulationMethod):
             "seed": self.seed,
             "scene": getattr(context.scene, "name", None),
         }
+        if self.n_jobs != 1:
+            generation["n_jobs"] = self.n_jobs
+        if self.per_pair_seeds:
+            generation["per_pair_seeds"] = True
 
         # The longest Eyring RT, against which a given reference's length is checked
         eyring_rt = default_duration(geometry, air_absorption, air=air, factor=1.0)
@@ -239,6 +249,8 @@ class _HybridMethod(SimulationMethod):
                 air_absorption=air_absorption,
                 seed=self.seed,
                 air=air,
+                n_jobs=self.n_jobs,
+                per_pair_seeds=self.per_pair_seeds,
             )
 
         pairs = []
@@ -367,7 +379,17 @@ class _HybridMethod(SimulationMethod):
             n_rays = Mono().n_rays
             if grid is not None:
                 n_rays = self._histogram_rays(geometry.to_pra(context.sampling_rate, 0, air=air_or_default(self.air)), grid)
-            method = Mono(self.image_source_order, ray_tracing=True, air_absorption=absorption, n_rays=n_rays, duration=duration, seed=self.seed, air=self.air)
+            method = Mono(
+                self.image_source_order,
+                ray_tracing=True,
+                air_absorption=absorption,
+                n_rays=n_rays,
+                duration=duration,
+                seed=self.seed,
+                air=self.air,
+                n_jobs=self.n_jobs,
+                per_pair_seeds=self.per_pair_seeds,
+            )
             references, run = method._run(context, directions)
             description = method.generation
         elif isinstance(self.reference, str):
@@ -481,6 +503,12 @@ _ENGINE_PARAMETERS = """
         Surface scattering after Ewert et al. (2025): each image keeps its specular part, ``prod sqrt(1 - s)``,
         in the early field; its scattered part, ``prod sqrt(s)``, enters the delay lines of its hemisphere
         through an allpass cascade. Both parts come from the one image source search.
+    n_jobs : int, default=1
+        Processes for the reference run (``Mono(n_jobs=...)``, when the method runs it) and the directional
+        histograms, whose rays it splits.
+    per_pair_seeds : bool, default=False
+        Seed the reference run and the directional histograms per source and pair (``Mono(per_pair_seeds=...)``),
+        so a pair's response does not depend on the other sources and receivers of the run.
 
     Attributes
     ----------
@@ -549,12 +577,29 @@ class Binaural(_HybridMethod):
         normalize=True,
         air=None,
         scattering=False,
+        n_jobs=1,
+        per_pair_seeds=False,
     ):
         hrtf = "ku100" if hrtf is None else hrtf
         if hrtf != "ku100" and not Path(hrtf).is_file():
             raise ValueError(f"hrtf must be 'ku100' or a SOFA file, not {hrtf!r}")
         super().__init__(
-            reference, tail, image_source_order, n_slopes, decay_db, duration, directional_absorption, late_envelope, diffraction, air_absorption, seed, normalize, air, scattering
+            reference,
+            tail,
+            image_source_order,
+            n_slopes,
+            decay_db,
+            duration,
+            directional_absorption,
+            late_envelope,
+            diffraction,
+            air_absorption,
+            seed,
+            normalize,
+            air,
+            scattering,
+            n_jobs,
+            per_pair_seeds,
         )
         self.hrtf = hrtf
         self._hrtf_set = None
@@ -627,13 +672,30 @@ class Ambisonics(_HybridMethod):
         normalize=True,
         air=None,
         scattering=False,
+        n_jobs=1,
+        per_pair_seeds=False,
     ):
         if normalization not in ("SN3D", "N3D"):
             raise ValueError(f"normalization must be 'SN3D' or 'N3D', not {normalization!r}")
         if sh_order < 0:
             raise ValueError("sh_order must be non-negative")
         super().__init__(
-            reference, tail, image_source_order, n_slopes, decay_db, duration, directional_absorption, late_envelope, diffraction, air_absorption, seed, normalize, air, scattering
+            reference,
+            tail,
+            image_source_order,
+            n_slopes,
+            decay_db,
+            duration,
+            directional_absorption,
+            late_envelope,
+            diffraction,
+            air_absorption,
+            seed,
+            normalize,
+            air,
+            scattering,
+            n_jobs,
+            per_pair_seeds,
         )
         self.sh_order = int(sh_order)
         self.normalization = normalization

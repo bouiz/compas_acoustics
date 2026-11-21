@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added `compas_acoustics.progress.reporting(callback)`: follow a simulation's stages from any caller, and stop it by raising from the callback, without the worker.
 * Added `SpecularPath.band_gain` (walls, air and spreading per band) and `rays.diffracted_paths(scene)`: the UDFA paths with their polylines (`DiffractionPath.points`), zones and band gains, for display.
 * Added `AcousticMaterial.from_pyroomacoustics(name)` and `pyroomacoustics_material_names()`. `MaterialsLibrary.material_from_name` falls back to pyroomacoustics' database for a name the library lacks.
+* Added `room.geometry.PRA_STATE_LOCK`, held while pyroomacoustics' process-wide constants and random generator are set and used, so seeded simulations in threads give the results they give alone.
+* Added `Mono(n_jobs=...)`: the sources run in rooms and processes of their own, and the processes left over split each source's rays, whose histograms are summed (`compas_acoustics.room.parallel`, `room.raytracing.emitter_rirs`). Image-source responses are unchanged, and ray-traced ones repeat for a given seed and `n_jobs`. `ray_traced_run`, `image_source_rirs` and `directional_histograms` take `n_jobs` too, and so do `Binaural` and `Ambisonics`, for their reference run and directional histograms.
+* Added `Mono(reciprocity=True)`: with more sources than receivers, all omnidirectional, the receivers emit, one room per receiver instead of one per source. `generation["reciprocal"]` says whether it applied.
+* Added `per_pair_seeds` to `Mono`, `Binaural`, `Ambisonics`, `room.raytracing.ray_traced_run` and `directional_histograms`: with a seed, each source's rays restart from it and each pair's ray-traced tail from `room.raytracing.stable_seed` of it and the pair's positions. A pair's response then does not depend on the other sources and receivers of the run, so a caller may split the pairs over processes. It is off by default, which keeps seeded runs bit-identical to pyroomacoustics' own `Room.compute_rir`.
 
 ### Changed
 
