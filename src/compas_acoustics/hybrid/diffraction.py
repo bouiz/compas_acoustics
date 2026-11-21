@@ -766,6 +766,8 @@ class DiffractionPath:
     order: int
     zone: str
     edge: int
+    #: The polyline source (- wall) - apex (- wall) - receiver, in room coordinates.
+    points: tuple = ()
 
 
 @dataclass(frozen=True)
@@ -901,7 +903,7 @@ def diffraction_paths(spec: Pair, *, max_order: int = 1) -> list[DiffractionPath
         gain = np.exp(-air * length / 2.0)
         for face in walls:
             gain = gain * reflection(face)
-        return DiffractionPath(length / c, length, doa, gain, transfer, len(walls), zone, edge)
+        return DiffractionPath(length / c, length, doa, gain, transfer, len(walls), zone, edge, tuple(np.asarray(p, dtype=float) for p in points))
 
     sources = _ends(spec.source, occ, max_order >= 1)
     receivers = _ends(receiver, occ, max_order >= 1)
