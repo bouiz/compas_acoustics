@@ -12,6 +12,7 @@ the air reaches, and its ``is_closed`` is acoustic (``CLOSED_LEAK_TOLERANCE``).
 
 from __future__ import annotations
 
+import threading
 import warnings
 from collections import deque
 from contextlib import contextmanager
@@ -43,6 +44,7 @@ __all__ = [
     "DEFAULT_SCATTERING",
     "OPEN_MATERIAL",
     "CLOSED_LEAK_TOLERANCE",
+    "PRA_STATE_LOCK",
     "pra_octave_grid",
 ]
 
@@ -63,19 +65,28 @@ DEFAULT_SCATTERING = 0.05
 CLOSED_LEAK_TOLERANCE = 1e-3
 
 
+#: Held while compas_acoustics reads or changes pyroomacoustics' process-wide state: its constants (the octave
+#: grid) and its random generator (seeded, then drawn by the ray tracer). Re-entrant. Threads that simulate at
+#: once therefore run their pyroomacoustics sections one at a time, with the same result as run alone; for
+#: parallel speed use processes (``Mono(n_jobs=...)``).
+PRA_STATE_LOCK = threading.RLock()
+
+
 @contextmanager
 def pra_octave_grid() -> Iterator[None]:
     """Start pyroomacoustics' octave grid, process-wide state read when a room is built, at ``SYNTHESIS_BANDS[0]``, then restore it.
 
-    At its default of 125 Hz a 48 kHz room has 8 bands against 7 wall coefficients.
+    At its default of 125 Hz a 48 kHz room has 8 bands against 7 wall coefficients. Holds :data:`PRA_STATE_LOCK`,
+    so another thread can neither see the changed grid nor change it meanwhile.
     """
     key = "octave_bands_base_freq"
-    previous = pra.constants.get(key)
-    pra.constants.set(key, SYNTHESIS_BANDS[0])
-    try:
-        yield
-    finally:
-        pra.constants.set(key, previous)
+    with PRA_STATE_LOCK:
+        previous = pra.constants.get(key)
+        pra.constants.set(key, SYNTHESIS_BANDS[0])
+        try:
+            yield
+        finally:
+            pra.constants.set(key, previous)
 
 
 def _extended(coefficients) -> Optional[np.ndarray]:
