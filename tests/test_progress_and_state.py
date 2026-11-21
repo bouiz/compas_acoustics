@@ -28,7 +28,8 @@ def test_reporting_sees_every_stage_and_restores_the_outer_callback():
     assert inner[0] == ("image sources", None, None)
     assert [r for r in inner if r[0] == "responses"] == [("responses", 0, 2), ("responses", 1, 2)]
     # the inner block's reports did not reach the outer callback
-    assert outer == [("image sources", None, None), ("responses", 0, 1)]
+    # (the search reports the reflections it found: a shoebox at order 1 has its six walls' images)
+    assert outer == [("image sources", None, None), ("image sources", 6, None), ("responses", 0, 1)]
 
 
 def test_raising_from_the_callback_stops_the_simulation():

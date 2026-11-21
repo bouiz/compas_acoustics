@@ -103,8 +103,11 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal("ambisonic encoding, pair 4/4", Report("rendering: ambisonic encoding", 3, 4));
             Assert.Equal("binaural encoding", Report("rendering: binaural encoding", null, null));
             // rays are an amount: what is traced, with separators; items never count past the total
-            Assert.Equal("ray tracing 6,200/20,000", Report("ray tracing", 6200, 20000));
+            Assert.Equal("ray tracing 6,200/20,000 rays", Report("ray tracing", 6200, 20000));
             Assert.Equal("ray tracing 2/2", Report("ray tracing", 2, 2));
+            // the image source search reports the reflections found so far, with no total
+            Assert.Equal("image sources, 1,234 reflections", Report("image sources", 1234, null));
+            Assert.Equal("image sources", Report("image sources", null, null));
         }
 
         [Fact]
