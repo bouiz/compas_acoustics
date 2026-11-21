@@ -7,12 +7,21 @@ reports what will go wrong, the objects the air never reaches among it (:meth:`P
 :meth:`compas_acoustics.RoomGeometry.from_prepared` builds the geometric methods' room from it, its two-sided walls
 (:func:`obstacle_mask`) the only obstacles; :func:`standing_objects` labels the objects standing in the air for
 display only. A wave solver reads :attr:`PreparedMesh.faces` and :attr:`PreparedMesh.two_sided` directly.
-:func:`prepared_wall_sides` reads which sides of each wall the air touches.
+
+:func:`sector_edges` finds the diffracting edges of any set of polygons from the air sectors around each side,
+without roles, a closed boundary or a manifold mesh; the room of a prepared mesh gets its edges from it, over the
+walls' sides as :func:`prepared_wall_sides` reads them.
 
 Importing this package loads neither pyroomacoustics nor COMPAS.
 """
 
 from .coplanar import MergedWall
+from .edges import RawEdge
+from .edges import SectorDiagnostics
+from .edges import SectorEdges
+from .edges import sector_edges
+from .edges import sector_edges_from_prepared
+from .edges import sector_edges_from_room
 from .prepare import FACE_CLASS_INTERIOR
 from .prepare import FACE_CLASS_SHELL
 from .prepare import FACE_CLASS_SKIPPED
@@ -50,7 +59,10 @@ __all__ = [
     "MergedWall",
     "PreparedMesh",
     "PrepareOptions",
+    "RawEdge",
     "ReportOptions",
+    "SectorDiagnostics",
+    "SectorEdges",
     "Seed",
     "analyze",
     "boundary_closes",
@@ -58,6 +70,9 @@ __all__ = [
     "obstacle_mask",
     "prepare_mesh",
     "prepared_wall_sides",
+    "sector_edges",
+    "sector_edges_from_prepared",
+    "sector_edges_from_room",
     "standing_objects",
     "summarize",
 ]
