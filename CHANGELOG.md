@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added `Analyser(ir, channel=...)` (any channel, no warning), `Analyser.decay_curves()` (the energy decay curve per band) and `Analyser.reliability()`. The latter gives, per band, the dynamic range the decay offers, ISO 3382-2's non-linearity of the T20 and T30 fits, and whether EDT, T20 and T30 can be trusted.
 * Added `Analyser.analyse(parameters=...)`: only the requested parameters, and the methods they need, are computed. For example, `("T30", "EDT", "C50", "C80", "D50", "STI")` skips the sound strength, the DRR, the centre time and the lateral fractions.
 * Added `compas_acoustics.analyser.decay_end(ir, trim_db, margin)` (it was private): where a response's Schroeder curve has fallen `trim_db`, to cut a response where its reverberation has decayed rather than at the level of its direct sound.
+* Added `compas_acoustics.progress.reporting(callback)`: follow a simulation's stages from any caller, and stop it by raising from the callback, without the worker.
+* Added `SpecularPath.band_gain` (walls, air and spreading per band) and `rays.diffracted_paths(scene)`: the UDFA paths with their polylines (`DiffractionPath.points`), zones and band gains, for display.
+* Added `AcousticMaterial.from_pyroomacoustics(name)` and `pyroomacoustics_material_names()`. `MaterialsLibrary.material_from_name` falls back to pyroomacoustics' database for a name the library lacks.
 
 ### Changed
 
@@ -29,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Changed the hybrid's feedback delay network to filter its lines with the kernel of `scipy.signal.sosfilt` called directly, without that function's checks of its arguments in every block; the responses are bit-identical, the network about twice as fast.
 * Changed `diffraction_edges` to keep the edges and occluders per geometry (weak references), since every pair of a run asks for them; it returns a fresh list each time.
 * Changed the `Analyser` to compute the same results 5 to 10 times faster:
+* Changed `import compas_acoustics` to import its public names on first use, so the import no longer loads pyroomacoustics, pyfar or COMPAS until they are needed.
 
 ### Removed
 
