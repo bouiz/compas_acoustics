@@ -27,6 +27,72 @@ from .geometry import SYNTHESIS_BANDS
 from .geometry import RoomGeometry
 from .geometry import pra_octave_grid
 
+# A source's rays are traced in up to this many equal parts, each reported as traced (stage "ray tracing").
+RAY_REPORT_PARTS = 16
+
+
+def _report_parts(n_rays: int) -> int:
+    """The largest power of two up to :data:`RAY_REPORT_PARTS` that divides ``n_rays``."""
+    parts = RAY_REPORT_PARTS
+    while parts > 1 and n_rays % parts:
+        parts //= 2
+    return parts
+
+
+def _trace(engine, directions, energies, position, s: int, n_sources: int) -> None:
+    """``engine.ray_tracing(directions, energies, position)``, reporting the rays traced so far of all sources.
+
+    The engine gives each ray of a call ``ENERGY_0 / (rays in the call)``. The rays go in equal parts whose number
+    is a power of two, each with its energies divided by that number: the factor is a power of two on both sides of
+    the product, so every ray starts with the same float32 energy as in one call, and the rays run in the same order
+    with the same random draws. The histograms are bit-identical to one call's."""
+    from compas_acoustics.worker import jobs
+
+    n = len(directions)
+    parts = _report_parts(n)
+    size = n // parts
+    if parts > 1:
+        energies = np.asarray(energies, dtype=np.float32) / np.float32(parts)
+    jobs.progress("ray tracing", s * n, n_sources * n)
+    for k in range(parts):
+        part = slice(k * size, (k + 1) * size)
+        engine.ray_tracing(directions[part], energies[part], position)
+        jobs.progress("ray tracing", s * n + (k + 1) * size, n_sources * n)
+
+
+class _CountingImages:
+    """A room's engine that reports, as each source's image source search ends, the reflections found so far."""
+
+    def __init__(self, engine):
+        self._engine = engine
+        self.found = 0
+
+    def __getattr__(self, name):
+        return getattr(self._engine, name)
+
+    def image_source_model(self, position):
+        from compas_acoustics.worker import jobs
+
+        visible = self._engine.image_source_model(position)
+        if visible > 0:
+            self.found += int(np.count_nonzero(np.asarray(self._engine.orders)))
+        jobs.progress("image sources", self.found)
+        return visible
+
+
+def search_images(room) -> None:
+    """``room.image_source_model()``, reporting ``("image sources", reflections found)`` as each source's search ends.
+
+    pyroomacoustics searches one source per engine call; the engine is wrapped for the call only. A reflection is a
+    visible image of order one or more (the direct sound is not counted)."""
+    engine = room.room_engine
+    room.room_engine = _CountingImages(engine)
+    try:
+        room.image_source_model()
+    finally:
+        room.room_engine = engine
+
+
 __all__ = [
     "MIN_RAYS",
     "MAX_DURATION",
@@ -83,7 +149,7 @@ def _pair_responses(room) -> List[List[np.ndarray]]:
     image has no image part (the room's own call fails on it, or renders the blocked direct sound when the source is
     hidden from every microphone)."""
     if room.simulator_state["ism_needed"] and not room.simulator_state["ism_done"]:
-        room.image_source_model()
+        search_images(room)
     if room.simulator_state["rt_needed"] and not room.simulator_state["rt_done"]:
         room.ray_tracing()
     hpf = None
@@ -205,7 +271,7 @@ def ray_traced_run(
         room.set_ray_tracing(n_rays=n_rays, **options)
         if n_rays is None and room.rt_args["n_rays"] < MIN_RAYS:
             room.set_ray_tracing(n_rays=MIN_RAYS, **options)
-        room.image_source_model()
+        search_images(room)
         lines = _ray_tracing(room, unit)
         rirs = _pair_responses(room)
         histograms = None
@@ -238,14 +304,14 @@ def _ray_tracing(room, directions=None) -> Optional[List[List[list]]]:
             engine.microphones[n_mics + m].set_directions(np.asarray(d, dtype=np.float32))
     room.rt_histograms = [[] for _ in range(n_mics)]
     copies = None if directions is None else [[] for _ in range(n_mics)]
-    for source in room.sources:
+    for s, source in enumerate(room.sources):
         if source.directivity is None:
             ray_directions = pra.fibonacci_spherical_sampling(n_rays).T
             ray_energies = np.ones((n_rays, n_bands))
         else:
             ray_directions, ray_energies = source.directivity.sample_rays(n_rays)
             ray_energies = np.broadcast_to(ray_energies, (n_rays, n_bands))
-        engine.ray_tracing(ray_directions, ray_energies, source.position)
+        _trace(engine, ray_directions, ray_energies, source.position, s, len(room.sources))
         for m in range(n_mics):
             room.rt_histograms[m].append([h.get_hist() for h in engine.microphones[m].histograms])
             if copies is not None:
@@ -366,14 +432,14 @@ def directional_histograms(
         for m, d in enumerate(unit):
             room.room_engine.microphones[m].set_directions(np.asarray(d, dtype=np.float32))
         histograms = [[] for _ in unit]
-        for source in room.sources:
+        for s, source in enumerate(room.sources):
             if source.directivity is None:
                 ray_directions = pra.fibonacci_spherical_sampling(n_rays).T
                 ray_energies = np.ones((n_rays, n_bands))
             else:
                 ray_directions, ray_energies = source.directivity.sample_rays(n_rays)
                 ray_energies = np.broadcast_to(ray_energies, (n_rays, n_bands))
-            room.room_engine.ray_tracing(ray_directions, ray_energies, source.position)
+            _trace(room.room_engine, ray_directions, ray_energies, source.position, s, len(room.sources))
             for m, d in enumerate(unit):
                 lines = [np.asarray(h.get_hist(), dtype=float) for h in room.room_engine.microphones[m].histograms]
                 histograms[m].append(_directional_histogram(room, lines, d, duration, air_absorption))

@@ -41,6 +41,7 @@ from compas_acoustics.room.pra import directivity_to_pra
 from compas_acoustics.room.pra import source_to_pra
 from compas_acoustics.room.raytracing import DURATION_RT_FACTOR
 from compas_acoustics.room.raytracing import default_duration
+from compas_acoustics.room.raytracing import search_images
 from compas_acoustics.room.reflections import damping_as_searched
 
 from .base import SimulationContext
@@ -169,7 +170,7 @@ class _HybridMethod(SimulationMethod):
         early_room = self._built(geometry, context, air, ray_tracing=self.scattering)
         if run is None:
             with pra_octave_grid():
-                early_room.image_source_model()
+                search_images(early_room)
             room, damping = early_room, None
         else:
             room, damping = run.room, damping_as_searched(run.room, early_room)
