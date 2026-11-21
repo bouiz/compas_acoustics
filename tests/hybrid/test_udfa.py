@@ -9,6 +9,7 @@ from compas_acoustics.hybrid.udfa import (
     WedgePath,
     double_edge_terms,
     double_edge_zone,
+    first_order_lowpass,
     fractional_lowpass,
     single_term_cutoff,
     term_parameters,
@@ -32,6 +33,19 @@ def test_fractional_lowpass_is_flat_far_below_and_minus_3_db_per_octave_far_abov
     assert h[0] == 1.0
     assert abs(db(h[1])) < 0.05
     assert -3.2 < db(h[3]) - db(h[2]) < -2.8
+
+
+@pytest.mark.parametrize("fc", [1e-3, 3.7, 120.0, 2500.0, 4e4, 1e7, np.inf, 0.0])
+def test_lowpasses_are_the_complex_power_forms(fc):
+    # eq. (6) and the first-order low-pass as written with complex powers; the
+    # polar evaluation must be the same principal branch, negative frequencies too
+    f = np.concatenate([-np.fft.rfftfreq(4096, 1.0 / 48000.0)[::-1], np.fft.rfftfreq(4096, 1.0 / 48000.0)])
+    with np.errstate(divide="ignore", invalid="ignore"):
+        jx = 1j * f / fc
+        frac = (jx ** (2.0 / 1.44) + (jx / 0.2) ** (1.0 / 1.44**1.6) + 1.0) ** (-0.5 * 1.44 / 2.0)
+        first = 1.0 / (1.0 + jx)
+        np.testing.assert_allclose(fractional_lowpass(f, fc), frac, rtol=1e-13, atol=0.0)
+        np.testing.assert_allclose(first_order_lowpass(f, fc), first, rtol=1e-13, atol=0.0)
 
 
 def test_knife_edge_cutoff_matches_eq_9():
