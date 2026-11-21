@@ -73,9 +73,13 @@ class SimulationContext:
     outside: list = field(default_factory=list)  # names of sources and receivers outside the room
 
     @classmethod
-    def from_scene(cls, scene) -> "SimulationContext":
-        """The scene as every method sees it: its room, at its sampling rate, and the sources and receivers inside it."""
-        geometry = RoomGeometry.from_scene(scene)
+    def from_scene(cls, scene, geometry=None) -> "SimulationContext":
+        """The scene as every method sees it: its room, at its sampling rate, and the sources and receivers inside it.
+
+        ``geometry`` replaces the room built from the scene's acoustic objects, e.g.
+        :meth:`RoomGeometry.from_prepared` of a prepared mesh.
+        """
+        geometry = RoomGeometry.from_scene(scene) if geometry is None else geometry
         sources, receivers, outside = [], [], []
         for kind, items, inside in (("Source", scene.sources, sources), ("Receiver", scene.receivers, receivers)):
             for item in items:
