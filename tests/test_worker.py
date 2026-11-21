@@ -576,7 +576,8 @@ def test_the_hybrid_reports_the_pairs_past_each_step():
 def test_mono_reports_its_stages(monkeypatch):
     stages = recorded_stages(monkeypatch)
     scene().simulate(Mono(image_source_order=1, ray_tracing=False))
-    assert list(dict.fromkeys(stages)) == ["simulating"]
+    # the image source search reports the reflections it found inside the simulating stage
+    assert stages[0] == "simulating" and list(dict.fromkeys(stages)) == ["simulating", "image sources"]
 
 
 def test_the_ray_field_reports_each_source(monkeypatch):

@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Changed `import compas_acoustics` to import its public names on first use, so the import no longer loads pyroomacoustics, pyfar or COMPAS until they are needed.
 * Changed the `simulating` stage of `Binaural` and `Ambisonics` into its steps, `simulating: early reflections`, `simulating: late reverberation` and `simulating: ambisonic encoding` (or `binaural encoding`), each with the pairs past it, reported while the pairs render rather than between them; `hybrid.synthesis.prepare` takes `on_step(name)`. The responses are bit-identical. The Grasshopper components' running message names the step and the pair (`late reverberation (FDN), pair 3/4`) and shows a ray count as what is traced (`ray tracing 6,200/20,000`).
+* Changed ray tracing and the image source search to report as they go: a source's rays are traced in up to 16 equal parts (`room.raytracing.RAY_REPORT_PARTS`, a power of two dividing the ray count), each reported as `("ray tracing", rays traced, rays of all sources)`, with bit-identical responses and histograms; the image source search reports `("image sources", reflections found)` as each source's search ends (`room.raytracing.search_images`). The Grasshopper components show `ray tracing 6,200/20,000 rays` and `image sources, 1,234 reflections`.
 
 ### Removed
 

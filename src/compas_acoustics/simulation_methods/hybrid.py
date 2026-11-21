@@ -53,6 +53,7 @@ from compas_acoustics.room.raytracing import MIN_RAYS
 from compas_acoustics.room.raytracing import DirectionalHistogram
 from compas_acoustics.room.raytracing import default_duration
 from compas_acoustics.room.raytracing import default_rays
+from compas_acoustics.room.raytracing import search_images
 from compas_acoustics.room.reflections import damping_as_searched
 from compas_acoustics.source import Source
 
@@ -248,7 +249,7 @@ class _HybridMethod(SimulationMethod):
         # is reused and the other builds' damping is derived from it.
         early_room = self._built(geometry, context, air, ray_tracing=self.scattering)
         if run is None:
-            early_room.image_source_model()
+            search_images(early_room)
             room, damping = early_room, None
         else:
             room, damping = run.room, damping_as_searched(run.room, early_room)
