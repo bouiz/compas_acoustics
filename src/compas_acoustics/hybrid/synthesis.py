@@ -9,6 +9,7 @@ from __future__ import annotations
 import warnings
 from dataclasses import dataclass
 from dataclasses import replace
+from typing import Callable
 from typing import Literal
 
 import numpy as np
@@ -97,6 +98,7 @@ def prepare(
     rng: int = 0,
     scattering: bool = False,
     source_gain=None,
+    on_step: Callable[[str], None] | None = None,
 ) -> HybridCore:
     """The format-neutral part of the hybrid for one pair: its early paths and its delay lines.
 
@@ -133,7 +135,12 @@ def prepare(
     (initially skipping the FDN delays ...)" (Sec. 3.1.2), smeared by the allpass cascade of Eqs. 12-13 with
     ``R`` the mean free path and weighted by :func:`~compas_acoustics.hybrid.scattering.scattering_weights` (unit
     l2 norm, as one driving image) times ``drive_gain``, as :func:`render`'s ``tap``.
+
+    ``on_step(name)`` is called on the calling thread as each step starts: ``"early reflections"`` (the
+    network's design, the diffracted paths and the images that drive it), then ``"late reverberation"`` (the
+    network's run, the longest step).
     """
+    step = on_step or (lambda name: None)
     model = {False: None, True: "udfa", "udfa": "udfa", "btms": "btms"}.get(diffraction, "invalid")
     if model == "invalid":
         raise ValueError(f"diffraction must be False, True, 'udfa' or 'btms', not {diffraction!r}")
@@ -145,6 +152,7 @@ def prepare(
         raise ValueError(f"duration_s must be positive, got {duration_s!r}")
     n_samples = int(np.ceil(duration_s * spec.fs))
 
+    step("early reflections")
     directions = fdn_directions(num_delays)
     delays = [directional_delays(spec, directions, rng=rng + slope) for slope in range(target.n_slopes)]
     builds = design_fdn(target, delays, rng=rng)
@@ -192,6 +200,8 @@ def prepare(
                 )
                 * drive_gain
             )
+    step("late reverberation")
+    lines = render(builds, drive * drive_gain, tap=tap, line_eq=line_eq)
     return HybridCore(
         spec=spec,
         n_samples=n_samples,
@@ -202,7 +212,7 @@ def prepare(
         diffraction_paths=paths,
         btms_contributions=contributions,
         builds=builds,
-        lines=render(builds, drive * drive_gain, tap=tap, line_eq=line_eq),
+        lines=lines,
         line_directions=directions.cartesian / np.linalg.norm(directions.cartesian, axis=1, keepdims=True),
         late_envelope=late_envelope,
         directional_envelope=directional_envelope,

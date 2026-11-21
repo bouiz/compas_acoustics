@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Changed `diffraction_edges` to keep the edges and occluders per geometry (weak references), since every pair of a run asks for them; it returns a fresh list each time.
 * Changed the `Analyser` to compute the same results 5 to 10 times faster:
 * Changed `import compas_acoustics` to import its public names on first use, so the import no longer loads pyroomacoustics, pyfar or COMPAS until they are needed.
+* Changed the `rendering` stage of `Binaural` and `Ambisonics` into its steps, `rendering: early reflections`, `rendering: late reverberation` and `rendering: ambisonic encoding` (or `binaural encoding`), each with the pairs past it, reported while the pairs render rather than between them; `hybrid.synthesis.prepare` takes `on_step(name)`. The responses are bit-identical. The Grasshopper components' running message names the step and the pair (`late reverberation (FDN), pair 3/4`) and shows a ray count as what is traced (`ray tracing 6,200/20,000`).
 
 ### Removed
 
