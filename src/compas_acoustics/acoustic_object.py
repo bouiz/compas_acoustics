@@ -33,7 +33,8 @@ class AcousticObject(_PackageDtype, Data):
     acoustic_geometry : :class:`compas.datastructures.Mesh`
     material : :class:`compas_acoustics.AcousticMaterial`
     x, y, z : float
-        The geometry's reference point.
+        The geometry's reference point (:attr:`position`). Stored and serialised only: the simulation
+        methods do not use it.
     name : str, optional
         Default: the class name.
     role : str, optional

@@ -2,11 +2,11 @@
 
 The geometry is here: which edges diffract (:func:`diffraction_edges`), what blocks a path (:class:`Occluders`)
 and the wedge-frame path over an edge (:func:`wedge_path`); the acoustics is in :mod:`~compas_acoustics.hybrid.udfa`
-and :mod:`~compas_acoustics.hybrid.btms`. The diffracting edges are every free obstacle edge and, on a closed
-boundary, every room edge opening wider than pi. :func:`diffraction_paths` renders them to first order by the
-universal diffraction filter approximation (Kirsch and Ewert 2023), an object being the sum of its edges' paths
-(Sec. VI); the three-sided barrier of Kirsch and Ewert (2024) is defined for an infinite double edge only and is
-not used here. :func:`btms_paths` renders first order by BTMS and, on the direct path, second order. For
+and :mod:`~compas_acoustics.hybrid.btms`. The diffracting edges are the free edges of closed convex and planar
+obstacles and, on a closed boundary, every room edge opening wider than pi. :func:`diffraction_paths` renders them to
+first order by the universal diffraction filter approximation (Kirsch and Ewert 2023), an object being the sum of its
+edges' paths (Sec. VI); the three-sided barrier of Kirsch and Ewert (2024, Sec. 3.3) is defined for an infinite double
+edge only and is not used here. :func:`btms_paths` renders first order by BTMS and, on the direct path, second order. For
 ``max_order >= 1`` one enclosure reflection is allowed before or after a first-order edge.
 """
 
@@ -142,7 +142,7 @@ def edge_segments(edge: Edge, source: np.ndarray, receiver: np.ndarray) -> np.nd
     """Limits (k, 2) of equal segments along the edge in the toolbox's z, each
     at most 0.087 times the distance of the nearer of source and receiver from
     the edge's line (about 5 deg subtended there), that bound floored at 0.01 m
-    for a point (nearly) on the line."""
+    for a point (nearly) on the line (the package's choice)."""
     ends, _ = toolbox_frame(edge)
     nearest = min(np.linalg.norm(np.cross(ends[1] - ends[0], ends[0] - p)) / edge.length for p in (np.asarray(source), np.asarray(receiver)))
     n = max(1, int(np.ceil(edge.length / max(0.087 * nearest, 0.01))))
@@ -349,10 +349,10 @@ def _t_junction_tolerance(vertices: np.ndarray) -> float:
 
 def _enclosure_sides(geometry: RoomGeometry, n: int) -> dict[frozenset, list]:
     """Every side of the first ``n`` faces (the enclosure) as the chain of
-    vertices on it, as ``RoomGeometry._check_closed`` splits it at
-    T-junctions, but only by the enclosure's own vertices: {(a, b): [owners,
-    senses]}, ``senses`` the unit direction of the side in each owner's
-    winding."""
+    vertices on it, split at T-junctions as ``room.geometry._split_at_t_junctions``
+    splits it, but only by the enclosure's own vertices:
+    {frozenset((a, b)): [owners, senses]}, ``senses`` the unit direction of the
+    side in each owner's winding."""
     vertices = geometry.vertices
     tolerance = _t_junction_tolerance(vertices)
     own = np.unique([v for face in geometry.faces[:n] for v in face])
@@ -513,10 +513,11 @@ def enclosure_edges(geometry: RoomGeometry) -> list[Edge]:
 
     Every edge of the enclosure whose air side opens wider than pi: a
     re-entrant room corner, the corners of a room within a room (Kirsch and
-    Ewert 2024, Sec. 3, first-order diffraction at a room corner). A seam
+    Ewert 2024, Sec. 3.1: a 270 deg wedge "often used to approximate room
+    corners"). A seam
     between coplanar faces (pi) and a rectangular corner (pi / 2) have an
     integer wedge index nu = pi / theta_w, where the diffracted field
-    vanishes (Kirsch and Ewert 2023, Eq. 3), and are skipped. Edges opening
+    vanishes (Kirsch and Ewert 2023, after Eq. (3)), and are skipped. Edges opening
     less than pi at a non-integer nu are left out, with
     :class:`ShellEdgeWarning`: :class:`Edge` takes theta_w in (pi, 2 pi]
     only. Two faces with opposite
@@ -594,9 +595,7 @@ def enclosure_edges(geometry: RoomGeometry) -> list[Edge]:
             continue
         groups.setdefault((find(i), find(j)), {})[frozenset((a, b))] = (i, j, si, sj, knife)
     if skipped:
-        warnings.warn(
-            f"{skipped} room-boundary edge pieces open to less than pi at a non-integer wedge index: not rendered (convex scatterers only)", ShellEdgeWarning, stacklevel=2
-        )
+        warnings.warn(f"{skipped} room-boundary edge pieces open to less than pi at a non-integer wedge index: not rendered (theta_w > pi only)", ShellEdgeWarning, stacklevel=2)
     edges: list[Edge] = []
     merge_tolerance = max(_MERGE_TOLERANCE, _t_junction_tolerance(vertices))
     for regions, pieces in groups.items():
@@ -916,9 +915,11 @@ def btms_paths(spec: Pair, *, max_order: int = 1, second_order: bool = True) -> 
                 out.append(BtmsContribution(start, ir, doa_of(pl[0][-2]), gain_of(length, pl[1]), 1, (k,), bool(np.any(singular))))
                 # On a zone boundary wedge1st_ir drops the singular term and the geometric
                 # component is scaled, which keeps the total field continuous (Svensson
-                # and Calamia 2006): 1/2 for an edge hit (Svensson et al. 2025, Eqs. 2-4),
-                # and for a corner hit 2/3 for the direct sound and 1/3 for a specular
-                # reflection (EDfindconvexGApaths.m).
+                # and Calamia 2006, "Edge-diffraction impulse responses near specular-zone
+                # and shadow-zone boundaries"): 1/2 for an edge hit (Svensson et al. 2025,
+                # Eqs. (2)-(4)). For a corner hit 2/3 for the direct sound and 1/3 for a
+                # specular reflection, the toolbox's empirical values for a 90 deg corner
+                # (EDfindconvexGApaths.m), used at every corner (the package's choice).
                 # The image sources omit that component there (a path within about 1 mm of an
                 # obstacle's edge is occluded), so it is added here as a pulse split
                 # linearly between the two samples around its arrival (EDmakefirstorderirs.m).

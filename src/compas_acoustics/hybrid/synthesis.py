@@ -99,7 +99,7 @@ def prepare(
 ) -> HybridCore:
     """The format-neutral part of the hybrid for one pair: its early paths and its delay lines.
 
-    After Wendt, van de Par and Ewert (2014) and Kirsch et al. (2021, 2023):
+    After Wendt et al. (2014) and Kirsch et al. (2021, 2023):
 
     1. Images up to ``max_order`` (with ``diffraction``, diffracted paths too) are the early field, kept path by
        path; higher orders in ``iss`` are ignored.
@@ -113,9 +113,11 @@ def prepare(
     4. Each line is weighted with the reflection of the boundary in its direction (``directional_absorption``).
        The lines are kept with ``line_directions`` for the renderer.
 
-    ``duration_s`` defaults to 1.5 times the longest target RT. ``rng`` seeds the delay jitter and the feedback
-    matrices, ``rng + slope`` for each slope. ``drive_gain`` defaults to ``sqrt(num_delays)``. ``late_envelope``, a package-scale omnidirectional reference,
-    attenuates the lines per band to its late energy (Vorlaender 2020, Sec. 11.9); ``directional_envelope``, a
+    ``duration_s`` defaults to 1.5 times the longest target RT (the package's choice). ``rng`` seeds the delay jitter
+    and the feedback matrices, ``rng + slope`` for each slope. ``drive_gain`` defaults to ``sqrt(num_delays)``.
+    ``late_envelope``, a package-scale omnidirectional reference, attenuates the lines per band to its late energy:
+    the envelope of Vorlaender (2020, Sec. 11.9) imposed on the network's lines, the package's choice
+    (:mod:`~compas_acoustics.hybrid.envelope`); ``directional_envelope``, a
     :class:`~compas_acoustics.room.raytracing.DirectionalHistogram` on the lines' directions in room coordinates,
     then gives every band of them the rays' distribution in that band (:func:`~compas_acoustics.hybrid.envelope.shape_late`);
     the renderer applies both (:meth:`HybridCore.shaped_lines`).

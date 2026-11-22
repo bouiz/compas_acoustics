@@ -79,8 +79,8 @@ class AudioPlayer:
         ----------
         array : numpy.ndarray
             (samples,) or (samples, channels). A mono signal plays on both channels.
-        sampling_rate : int
-            Default: :attr:`Defaults.SAMPLING_RATE`.
+        sampling_rate : int or None
+            None for :attr:`Defaults.SAMPLING_RATE`.
         normalize : bool, optional
             Scale to a peak of 0.99; disable to play an auralisation at its rendered level.
         gain_db : float, optional

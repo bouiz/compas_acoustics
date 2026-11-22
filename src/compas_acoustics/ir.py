@@ -21,8 +21,9 @@ class ImpulseResponse(_PackageDtype, Data):
     """An impulse response between a source and a receiver.
 
     Stored at its raw level with its normalization factor, the peak of all channels. :attr:`ir`
-    is peak-normalized by default; :meth:`denormalized` and :meth:`denormalize_group` give the raw
-    level, which keeps distance and level differences between responses.
+    is peak-normalized by default; :meth:`denormalized` gives the raw level, and :meth:`denormalize_group`
+    scales a group together so that its loudest response peaks at 1. Both keep distance and level
+    differences between responses.
 
     Parameters
     ----------

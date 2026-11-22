@@ -23,7 +23,8 @@ def complementary_scattering(geometry):
 
     Built for ray tracing, an image's damping takes ``sqrt(1 - s)`` for every wall of non-zero scattering it
     reflects off, so the room gives the specular part, ``prod sqrt(1 - s_i)``, and this one the scattered part,
-    ``prod sqrt(s_i)``, both exact at ``s = 0`` and 1. A material without coefficients scatters ``DEFAULT_SCATTERING``.
+    ``prod sqrt(s_i)``, power-complementary for a single reflection as the decomposition filters of Ewert et al.
+    (2025, Sec. 2.1.3) are. A material without coefficients scatters ``DEFAULT_SCATTERING``.
     """
     return replace(
         geometry,
@@ -47,7 +48,7 @@ def scattering_decay_time(distance: float, speed_of_sound: float) -> float:
 
 
 def allpass_delays(decay_time: float, fs: float) -> np.ndarray:
-    """Delays in samples of the four-allpass cascade, Ewert et al. (2025) Eq. 13.
+    """Delays in samples of the four-allpass cascade, Ewert et al. (2025, Eq. 13).
 
     ``tau_s = T_s log10(1/g) / 3`` and ``tau_i = tau_s fs / eta**(i-1)``, ``g = 1/sqrt(2)``, ``eta = pi``, rounded,
     never below one sample.
@@ -60,7 +61,7 @@ def allpass_delays(decay_time: float, fs: float) -> np.ndarray:
 def smear(signal: np.ndarray, decay_time: float, fs: float) -> np.ndarray:
     """The surface-scattering allpass cascade along axis 0 of ``signal``.
 
-    Four Schroeder allpasses ``(g + z^-tau) / (1 + g z^-tau)``, ``g = 1/sqrt(2)``
+    Four allpasses ``(g + z^-tau) / (1 + g z^-tau)``, ``g = 1/sqrt(2)``
     (Ewert et al. 2025, Eq. 12), with the delays of :func:`allpass_delays`.
     """
     out = np.asarray(signal, dtype=float)

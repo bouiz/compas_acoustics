@@ -291,7 +291,7 @@ def analysis(ir, time_scale="db"):
     dict
         ``{"parameters": [parameter], "time": parameter, "frequency": parameter, "warnings": [str]}``. A parameter is
         ``{"name", "title", "x_unit", "y_unit", "x_scale" ('bands', 'linear' or 'log'), "frequencies", "values" (one list
-        per channel), "overall", "channels"}``. STI and G are left out where they could not be computed (all NaN).
+        per channel), "overall", "channels"}``. STI, G, SPL, LF and LFC are left out where all their values are NaN.
     """
     import math
 

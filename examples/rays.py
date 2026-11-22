@@ -1,4 +1,4 @@
-"""Visualise the specular rays of a ray-tracing simulation.
+"""Visualise the specular rays of the package's display tracer.
 
 This example traces specular rays from the sources of a shoebox room directly
 into a spotlight cone (a direction + half angle) in a single call, then keeps a

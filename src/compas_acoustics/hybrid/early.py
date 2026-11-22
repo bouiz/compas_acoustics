@@ -57,7 +57,7 @@ def _band_damping(source, damping) -> np.ndarray:
 def _first_of_each_position(images: np.ndarray, spec: Pair) -> np.ndarray:
     """Mask over ``images`` (3, M) keeping the first of every group at one position.
 
-    The tolerance, 1e-5 of the room's extent, is well above the float32 rounding of one image reached twice
+    The tolerance, 1e-5 of the room's extent (the package's choice), is well above the float32 rounding of one image reached twice
     and far below the distance between two distinct images.
     """
     keep = np.ones(images.shape[1], dtype=bool)
@@ -142,7 +142,8 @@ def _radiation_taper(freq: np.ndarray) -> np.ndarray:
 
     Band gains start at 62.5 Hz and are held flat to f = 0, where every image's phase ramp is 1, so the image
     set sums coherently there; that DC and infrasonic energy would bias the FDN drive and every convolution.
-    The taper costs 0.04 dB at 62.5 Hz and 0.6 dB at the band's 44 Hz lower edge.
+    The taper costs 0.04 dB at 62.5 Hz and 0.6 dB at the band's 44 Hz lower edge; 35 Hz and the fourth order are
+    the package's choice.
 
     It is the analog filter's complex response, minimum phase, so it rings only after each arrival and no
     energy precedes the direct sound.
@@ -152,10 +153,10 @@ def _radiation_taper(freq: np.ndarray) -> np.ndarray:
 
 
 def _extrapolated_top_db(gain_db: np.ndarray, octaves: float) -> float:
-    """Gain at Nyquist, continuing the last octave's slope, never upward.
+    """Gain at Nyquist, continuing the last octave's slope, never upward (the package's choice).
 
-    The top 1.5 octaves at 48 kHz keep the wall and air roll-off, consistent with the FDN's decay, which
-    shortens there too (:meth:`~compas_acoustics.hybrid.target.RoomTarget.geq_bands`). A rising slope (absorption falling with
+    The top 1.5 octaves at 48 kHz keep the wall and air roll-off; the FDN's decay shortens there too, by its own
+    rule (:meth:`~compas_acoustics.hybrid.target.RoomTarget.geq_bands`). A rising slope (absorption falling with
     frequency) is clamped to flat: there is no data to amplify.
     """
     slope_db_per_octave = min(float(gain_db[-1] - gain_db[-2]), 0.0)
@@ -171,8 +172,8 @@ def encode(
 ) -> np.ndarray:
     """An image source set as an ambisonic impulse response, ACN, N3D by default (``"NM"``: W = 1 for a unit plane wave).
 
-    The band gains are interpolated onto the FFT grid in log-frequency and dB, the delay applied as an exact
-    phase ramp, and the images accumulated in the frequency domain. Above the top band the magnitude continues
+    The band gains are interpolated onto the FFT grid in log-frequency and dB, the delay applied as a phase ramp
+    (a band-limited fractional delay), and the images accumulated in the frequency domain. Above the top band the magnitude continues
     its slope (:func:`_extrapolated_top_db`), below the lowest it is tapered to zero at DC (:func:`_radiation_taper`).
     """
     if sh_order < 0:
@@ -191,7 +192,7 @@ def render_images(iss: ImageSourceSet, weights: np.ndarray, n_samples: int) -> n
     """Image sources accumulated onto output channels, (n, n_ch), with ``weights`` (M, n_ch) per image.
 
     ``weights`` are spherical harmonics for ambisonic channels or a routing onto delay lines or HRIRs; every
-    image gets the same band magnitude, exact fractional delay and radiation taper (:func:`encode`).
+    image gets the same band magnitude, band-limited fractional delay and radiation taper (:func:`encode`).
     """
     if n_samples < 1:
         raise ValueError("n_samples must be positive")
@@ -200,7 +201,7 @@ def render_images(iss: ImageSourceSet, weights: np.ndarray, n_samples: int) -> n
         raise ValueError(f"weights must have shape ({np.asarray(iss.delay).size}, n_channels), got {weights.shape}")
     n_ch = weights.shape[1]
 
-    # images after the buffer's end would wrap round to its start
+    # images at or after the buffer's end are skipped; those past the FFT length would wrap round to its start
     inside = iss.delay * iss.fs < n_samples
     if not np.any(inside):
         return np.zeros((n_samples, n_ch), dtype=float)

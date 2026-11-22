@@ -97,7 +97,7 @@ class Ray(_PackageDtype, Polyline):
     @classmethod
     def __from_data__(cls, data):
         data = dict(data)
-        data.pop("sound_speed", None)  # a legacy key, not a constructor argument
+        data.pop("sound_speed", None)  # accepted and ignored: times use Defaults().DEFAULT_SPEED_OF_SOUND
         scattered = data.pop("scattered_reflections", None)
         ray = cls(**data)
         if scattered:
@@ -324,8 +324,15 @@ class RayField(_PackageDtype, Data):
 
         Each source emits with the density of its radiated energy, the square of its first-order pattern
         ``p + (1 - p) cos(theta)`` about its ``direction``; with a cone (``direction`` and ``angle``) all
-        ``n_rays`` go into the cone, with the same density. With ``include_scattering`` each hit spawns
-        scattered rays, their number and spread set by the scattering coefficient.
+        ``n_rays`` go into the cone, with the same density.
+
+        The scattered rays are the package's own illustration, not the scattering of the simulation methods:
+        with ``include_scattering`` a hit with scattering coefficient ``s`` spawns ``round(s * scatter_density)``
+        rays, cosine-weighted within ``90 s`` degrees of the axis ``(1 - s) specular + s normal``, each with
+        ``s / round(s * scatter_density)`` of the ray's energy. The absorption and scattering of a wall are means
+        over the octave grid of the pyroomacoustics room (:meth:`RoomGeometry.to_pra`: from 62.5 Hz, nine bands
+        at 48 kHz, the band below 125 Hz holding the 125 Hz value and those above 8 kHz the 8 kHz value), not
+        over the seven material bands.
 
         Parameters
         ----------
@@ -350,7 +357,7 @@ class RayField(_PackageDtype, Data):
         scatter_max_bounces : int, default=1
             Reflections traced for each scattered ray.
         scatter_band : int, optional
-            The band whose scattering coefficient is used; default the mean of all.
+            The band of that grid whose scattering coefficient is used; default the mean of all.
         random_seed : bool or int, default=True
             True seeds with 42, an int with that value, False or None leaves the scattering unseeded.
 
@@ -673,7 +680,7 @@ def _source_directions(source, cone, angle: Optional[float], n_rays: int):
         return _pattern_sampling(source.direction, p, n_rays)
     if p == 1.0:
         return _cone_sampling(cone, angle, n_rays)
-    # the cone's lattice, 64 candidates per ray, thinned to the pattern
+    # the cone's lattice, 64 candidates per ray (the package's choice), thinned to the pattern
     candidates = _cone_sampling(cone, angle, n_rays * 64)
     facing = np.asarray(source.direction, dtype=float)
     weights = (p + (1.0 - p) * candidates @ (facing / np.linalg.norm(facing))) ** 2
@@ -844,7 +851,7 @@ class SpecularPath(Ray):
     @classmethod
     def __from_data__(cls, data):
         data = dict(data)
-        data.pop("wall_names", None)  # a legacy key, not a constructor argument
+        data.pop("wall_names", None)  # accepted and ignored: the walls are indices
         return super().__from_data__(data)
 
     @property
@@ -872,7 +879,7 @@ class SpecularReflections(RayField):
     @classmethod
     def __from_data__(cls, data):
         data = dict(data)
-        if "rays" not in data:  # the legacy layout, with the paths under "paths"
+        if "rays" not in data:  # the paths may also come under "paths"
             data["rays"] = data.pop("paths")
         return super().__from_data__(data)
 

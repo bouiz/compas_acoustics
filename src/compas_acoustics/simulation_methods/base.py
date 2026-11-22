@@ -43,7 +43,8 @@ def _seed(seed):
 def image_source_search_seconds(n_faces: int, order: int) -> float:
     """A rough estimate of the image source search time on a mesh room, in seconds, for warnings.
 
-    An empirical fit growing by a factor ``n_faces / 2.2`` per order.
+    The package's own order-of-magnitude estimate, growing by a factor ``n_faces / 2.2`` per order; its constants
+    were fitted to timed searches, and the times depend on the machine.
     """
     return 1e-6 * n_faces**3.4 * (n_faces / 2.2) ** (order - 4)
 

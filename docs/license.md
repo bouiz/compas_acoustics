@@ -30,10 +30,13 @@ Check them before you use or distribute the package commercially.
 
 Parts of the code are adapted from other projects, under their own licences.
 
-**Edge diffraction** (`compas_acoustics.hybrid.btms`): `wedge1st_ir`, `wedge2nd_ir` and `_coordtrans1` follow
-`EDwedge1st_ir`, `EDwedge2nd` and `EDcoordtrans1` of the
-[Edge Diffraction Toolbox](https://github.com/upsvensson/Edge-diffraction-Matlab-toolbox) v0.504 by Peter Svensson,
-under the BSD license:
+**Edge diffraction** (`compas_acoustics.hybrid.btms`, `compas_acoustics.hybrid.diffraction`): `wedge1st_ir` (with
+`_edge_z_of_path` and `_slot_integrals`), `wedge2nd_ir`, `_coordtrans1` and `element_grid` follow `EDwedge1st_ir`,
+`EDwedge2nd`, `EDcoordtrans1`, `EDcreindexmatrix` and `EDmakeHODirs` of the
+[Edge Diffraction Toolbox](https://github.com/upsvensson/Edge-diffraction-Matlab-toolbox) v0.504 by Peter Svensson;
+`betaoverml` and `_quadstep` compute what its `EDbetaoverml` and `EDquadstep` compute; `btms_paths` and
+`coplanar_thetas` take rules from its `EDed2geo`, `EDfindconvexGApaths`, `EDmakefirstorderirs` and `EDmakeHODirs`.
+The toolbox is under the BSD license:
 
 ```text
 Copyright (c) 2018, Peter Svensson All rights reserved.

@@ -26,12 +26,13 @@ __all__ = ["Mono"]
 
 
 class Mono(SimulationMethod):
-    """Image sources up to ``image_source_order``, and the stochastic ray tracer past it if ``ray_tracing``.
+    """Image sources up to ``image_source_order`` (pyroomacoustics: Scheibler et al. 2018, Sec. 3) and, if ``ray_tracing``, pyroomacoustics' stochastic ray tracer.
 
     Parameters
     ----------
     image_source_order : int, default=3
-        Last specular order; with ``ray_tracing`` the ray tracer covers what follows. The search cost grows steeply with the order
+        Last image source order; with ``ray_tracing`` the rays hold the specular paths of this order and the later
+        ones, and the scattered energy (:mod:`compas_acoustics.room.raytracing`). The search cost grows steeply with the order
         (:func:`~compas_acoustics.simulation_methods.image_source_search_seconds`).
     ray_tracing : bool, default=True
         Materials without scattering coefficients scatter 0.05 in every band.
@@ -40,7 +41,7 @@ class Mono(SimulationMethod):
         Per source; None: a heuristic of at least 50000.
     energy_thres : float, default=1e-7
         The product of its reflections in its least absorbed band at which a ray stops; the logged energy is
-        that over the squared distance (Schroeder 2011, eq. 5.54), so the tail has decayed much further.
+        that over the squared distance (Schroeder 2011, Eq. 5.54), so the tail has decayed much further.
     duration : float, optional
         Of the ray-traced responses, in seconds; default 1.5 times the longest Eyring reverberation time, within
         0.5 to 12 s (10 s for a scene that closes no volume), with a warning at the cap. Without ray tracing the

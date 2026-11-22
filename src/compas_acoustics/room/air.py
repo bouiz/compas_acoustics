@@ -41,7 +41,11 @@ class AirConditions:
         return float(speed_of_sound_cramer(self.temperature, self.humidity / 100.0, atmospheric_pressure=self.pressure))
 
     def air_attenuation(self, frequencies) -> np.ndarray:
-        """Energy attenuation coefficient ``m`` per metre at ``frequencies`` in Hz (above 50 Hz), after ISO 9613-1."""
+        """Energy attenuation coefficient ``m`` per metre at ``frequencies`` in Hz (above 50 Hz), after ISO 9613-1.
+
+        The coefficient is ISO 9613-1's pure-tone one; the package takes it at each band's centre frequency
+        and applies it to the whole band.
+        """
         try:
             from pyfar.constants import air_attenuation
         except ImportError:

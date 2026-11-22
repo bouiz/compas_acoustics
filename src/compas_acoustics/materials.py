@@ -57,6 +57,7 @@ class AcousticMaterial(_PackageDtype, Data):
         One per band, or one for every band.
     scattering_coefficients : float or list of float, optional
     transmission_coefficients : float or list of float, optional
+        Stored and serialised only: the simulation methods do not use them.
     description : str, optional
     category : :class:`MaterialCategory` or str, optional
         Default ``MaterialCategory.OTHER``.

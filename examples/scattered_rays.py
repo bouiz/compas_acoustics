@@ -1,9 +1,10 @@
-"""Visualise coefficient-driven scattered rays of a ray-tracing simulation.
+"""Visualise scattered rays, the package's display illustration of the scattering coefficient.
 
 At each reflection, extra scattered rays are spawned whose number and directions
 are governed by the surface scattering coefficient: a mirror-like surface spawns
 few rays clustered around the specular direction, while a highly diffusing surface
-spawns many rays spread toward the surface normal.
+spawns many rays spread toward the surface normal. The simulation methods do not
+use these rays.
 """
 
 import compas_acoustics as ca

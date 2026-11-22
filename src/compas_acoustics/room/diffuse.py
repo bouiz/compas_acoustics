@@ -1,4 +1,4 @@
-"""Diffuse-field prediction of a room's reverberation, Sabine and Eyring.
+"""Diffuse-field prediction of a room's reverberation, Sabine and Eyring (Vorlaender 2020, Sec. 4.5.1, Eqs. 4.28 to 4.34).
 
 Sizes ray-traced simulations (:func:`compas_acoustics.room.raytracing.default_duration`) and gives the hybrid
 methods a decay target without a reference (``tail="eyring"``, ``"sabine"``).
@@ -54,12 +54,10 @@ def _band_list(mask: np.ndarray) -> str:
 
 
 def _warn_if_not_diffuse(geometry, model: str) -> None:
-    """Warn with :class:`DiffuseFieldWarning` in the bands where the room breaks the diffuse-field assumption.
+    """Warn with :class:`DiffuseFieldWarning` in the bands where the diffuse-field assumption is doubtful.
 
-    The late field reproduces the predicted decay, right or wrong. Sabine and Eyring underestimate the decay of
-    a room whose absorption is unevenly distributed, more the larger the spread, and of a highly absorbing room,
-    where the reflection order at a given path length spreads. The thresholds are an area-weighted coefficient
-    of variation of absorption above 0.3 and a mean absorption of 0.25 or more.
+    The late field reproduces the predicted decay, right or wrong. The thresholds are the package's own: an
+    area-weighted coefficient of variation of absorption above 0.3, or a mean absorption of 0.25 or more.
     """
     mean = mean_absorption(geometry)
     uniformity = _absorption_uniformity(geometry)
@@ -69,14 +67,10 @@ def _warn_if_not_diffuse(geometry, model: str) -> None:
     uneven = uniformity > uneven_cv
     if np.any(uneven):
         warnings.warn(
-            f"{name} assumes a diffuse field, but this room's absorption is "
-            f"unevenly distributed across its surfaces in the "
-            f"{_band_list(uneven)} Hz band(s) (area-weighted coefficient of "
-            f"variation up to {uniformity[uneven].max():.2f}, warning above "
-            f"{uneven_cv}). The predicted reverberation time is then too short, "
-            f"and the synthesised T30 with it. tail='ray_tracing' (Binaural, Ambisonics) "
-            f"simulates the decay from this same geometry instead; "
-            f"reference=... fits it (RoomTarget.from_rir) to a response you already have.",
+            f"{name} assumes a diffuse field, but this room's absorption is unevenly distributed in the "
+            f"{_band_list(uneven)} Hz band(s) (area-weighted coefficient of variation up to "
+            f"{uniformity[uneven].max():.2f}, warning above {uneven_cv}): the predicted reverberation time may be "
+            f"too short. With Binaural or Ambisonics, use tail='ray_tracing' or a reference.",
             DiffuseFieldWarning,
             stacklevel=3,
         )
@@ -84,15 +78,9 @@ def _warn_if_not_diffuse(geometry, model: str) -> None:
     absorbing = mean >= high_absorption
     if np.any(absorbing):
         warnings.warn(
-            f"this room is too absorbing for {name} in the "
-            f"{_band_list(absorbing)} Hz band(s) (mean absorption up to "
-            f"{mean[absorbing].max():.2f}, warning at {high_absorption} and "
-            f"above). A diffuse-field model treats every reflection as drawing "
-            f"the mean absorption, but the spread of reflection order at a "
-            f"given path length makes the real decay slower than predicted. "
-            f"Use tail='ray_tracing' (Binaural, Ambisonics), which needs the same "
-            f"geometry and no measurement, or reference=... "
-            f"(RoomTarget.from_rir) if you have a response already.",
+            f"this room is too absorbing for {name} in the {_band_list(absorbing)} Hz band(s) (mean absorption up to "
+            f"{mean[absorbing].max():.2f}, warning at {high_absorption} and above): the predicted reverberation time may be "
+            f"too short. With Binaural or Ambisonics, use tail='ray_tracing' or a reference.",
             DiffuseFieldWarning,
             stacklevel=3,
         )
@@ -133,8 +121,8 @@ def predicted_rt(
 ) -> np.ndarray:
     """Reverberation time per band on ``SYNTHESIS_BANDS`` (8,), Sabine or Eyring on :func:`mean_absorption`.
 
-    ``weighting`` is that of :func:`mean_absorption`. With ``air_absorption`` the ``4 m V`` term is added in
-    closed form. Warns with :class:`DiffuseFieldWarning` where the room is not diffuse, unless ``warn`` is False.
+    ``weighting`` is that of :func:`mean_absorption`. With ``air_absorption`` the ``4 m V`` term (Vorlaender 2020,
+    Eqs. 4.32 to 4.34) is added in closed form. Warns with :class:`DiffuseFieldWarning` where the room is not diffuse, unless ``warn`` is False.
     ``air`` sets the attenuation and, unless ``speed_of_sound`` is given, the speed of sound. The mean absorption
     is held below 1, so a fully absorbing room gives a finite time rather than a division error.
     """

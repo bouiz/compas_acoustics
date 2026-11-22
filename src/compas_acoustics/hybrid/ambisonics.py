@@ -73,7 +73,8 @@ def ambisonic_output_matrix(
 
     The late field is isotropic only if ``C @ C.T`` is diagonal; its off-diagonal entries are the channels'
     cross-correlation, which depends on how well the grid supports ``sh_order``. The largest of them over the
-    mean diagonal is the leakage; a grid leaking more than ``max_leakage`` raises ``ValueError``.
+    mean diagonal is the leakage; a grid leaking more than ``max_leakage`` (5 %, the package's choice) raises
+    ``ValueError``.
     """
     sh = spharpy.spherical.spherical_harmonic_basis_real(sh_order, directions, normalization=normalization, channel_convention="ACN")
     C = sh.T / np.sqrt(sh.shape[0])
@@ -97,7 +98,7 @@ def default_num_delays(sh_order: int, minimum: int | None = None) -> int:
 
     The grid must hold exactly one point per line and support the order within the leakage limit of
     :func:`ambisonic_output_matrix`. The counts that do are irregular (20, 23, 24, 27, 28 ... at second
-    order), so they are searched from ``4 (N + 1) ** 2``, for echo density, and never below ``minimum``
+    order), so they are searched from ``4 (N + 1) ** 2``, for echo density (the package's choice), and never below ``minimum``
     (:data:`MIN_DELAYS` when None): 96 lines at orders 0 to 3, 100 at fourth order.
     """
     if sh_order < 0:

@@ -20,7 +20,7 @@ class Receiver(_PackageDtype, Point):
     direction : :class:`compas.geometry.Vector`, optional
         Where it faces; default +x.
     radius : float, optional
-        In metres.
+        In metres; default 0.5. Stored and serialised only: the simulation methods do not use it.
     up : :class:`compas.geometry.Vector`, optional
         Default +z; only its component orthogonal to ``direction`` is used.
     """

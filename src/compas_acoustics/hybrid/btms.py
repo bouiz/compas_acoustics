@@ -6,8 +6,15 @@ Time-domain kernels in the edge-cylindrical coordinates of EDtoolbox: z along
 the edge, theta from the reference face into the open region, closed wedge
 angle 2 pi - theta_w, free field 1/r.
 
-wedge1st_ir follows EDwedge1st_ir, wedge2nd_ir EDwedge2nd and _coordtrans1
-EDcoordtrans1 of Svensson's Edge Diffraction Toolbox v0.504:
+wedge1st_ir follows EDwedge1st_ir, with _edge_z_of_path and _slot_integrals
+(its integration intervals and seven-point start), wedge2nd_ir EDwedge2nd,
+_coordtrans1 EDcoordtrans1 and element_grid EDcreindexmatrix and
+EDmakeHODirs of Svensson's Edge Diffraction Toolbox v0.504; btms_paths and
+coplanar_thetas in compas_acoustics.hybrid.diffraction take their rules for
+the angles of coplanar edges (EDed2geo), the scaled geometric component on a
+zone boundary (EDfindconvexGApaths), its split between two samples
+(EDmakefirstorderirs) and the doubled thin-plate path (EDmakeHODirs) from
+the same toolbox:
 
     Copyright (c) 2018, Peter Svensson All rights reserved.
 
@@ -35,7 +42,9 @@ EDcoordtrans1 of Svensson's Edge Diffraction Toolbox v0.504:
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 betaoverml and _quadstep are written from the paper and the adaptive Simpson
-rule, not from the toolbox.
+rule; they compute what EDbetaoverml and EDquadstep of the toolbox compute,
+with the same arguments and steps, except that betaoverml takes a term that
+is 0/0 on its zone boundary as 0.
 """
 
 from __future__ import annotations
@@ -82,6 +91,7 @@ def _round_half_away(x):
 
 
 def _slot_integrals(zstarts, zends, tol, rs, rr, zs, zr, nu, s, c):
+    # the toolbox's seven-point start (EDwedge1st_ir.m)
     h = 0.13579 * (zends - zstarts)
     x = np.stack([zstarts, zstarts + h, zstarts + 2 * h, (zstarts + zends) / 2, zends - 2 * h, zends - h, zends], axis=1)
     y = betaoverml(x, rs, rr, zs, zr, nu, s, c)
@@ -123,6 +133,7 @@ def wedge1st_ir(fs, c, closed_angle, rs, thetas, zs, rr, thetar, zr, zw, r_irsta
     ny = np.pi / (2 * np.pi - closed_angle)
     initdelay = r_irstart / c
     sampconst = c / fs
+    # toolbox values (EDwedge1st_ir.m): integration tolerance; extent of the analytic apex term, relative to min(rs, rr)
     tol = 1e-11
     zrelmax = 0.1
 

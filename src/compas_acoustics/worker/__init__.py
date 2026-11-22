@@ -207,7 +207,11 @@ class Client:
         info = candidate.info()
         if (info["compas_acoustics"], info["fingerprint"]) != (__version__, fingerprint()):
             candidate.stop()
-            raise RuntimeError(f"The worker at {python} runs a different compas_acoustics ({info['compas_acoustics']}) than this Python ({__version__}): reinstall the worker.")
+            if info["compas_acoustics"] == __version__:
+                runs = f"other sources of compas_acoustics {__version__} than this Python"
+            else:
+                runs = f"a different compas_acoustics ({info['compas_acoustics']}) than this Python ({__version__})"
+            raise RuntimeError(f"The worker at {python} runs {runs}: reinstall the worker.")
         return candidate
 
 

@@ -3,9 +3,9 @@
 In a room with unevenly distributed absorption the late field does not decay exponentially from the transition
 order: the part reaching the absorbing surfaces dies early, while the network of Wendt et al. (2014) assumes a
 diffuse field from its input on. This module follows the hybrid approach for non-Sabinean rooms (Vorlaender
-2020, Sec. 11.9 and 16.5.5): ray tracing estimates the envelope M^2(dt, f), and a synthetic fine structure is
-shaped to it (Heinz 1993; Schroeder 2011). The fine structure is the network's own dense, directional output;
-only its per-band energy over time changes. Per band b, with E the smoothed energies of the omnidirectional
+2020, Secs. 11.9 and 16.5.5): ray tracing estimates the envelope M^2(dt, f), and a synthetic fine structure is
+shaped to it (Heinz 1993; Schroeder 2011, Sec. 5.3.4). Here the fine structure is the network's own dense,
+directional output; only its per-band energy over time changes. Per band b, with E the smoothed energies of the omnidirectional
 signals on the package scale,
 
     g_b(t) = min(1, sqrt(max(E_ref,b - E_early,b, 0) / E_late,b)),
@@ -18,27 +18,30 @@ sources is what they do not carry.
 - Hold: once the reference band's energy decay curve has fallen 20 dB its gain is frozen, the ratio over the
   preceding ``SMOOTH_MS``, never before the early images end (:func:`_early_end`) plus that window.
 - Nine bands, 63 Hz to 16 kHz: the top band of a reconstructing bank takes everything above its lower edge, so
-  a 16 kHz band keeps the energy above 11.3 kHz out of the 8 kHz estimate; 16 kHz takes the 8 kHz gain.
+  a 16 kHz band keeps the energy above about 11.2 kHz out of the 8 kHz estimate; 16 kHz takes the 8 kHz gain.
 
 With a directional histogram (the methods' ``late_envelope="directional"``; their default ``"omni"`` passes none),
 :func:`shape_late` also takes the detection sphere divided into directivity groups,
-each holding a histogram per frequency band (Lentz, Schroeder and Vorlaender 2007, Sec. 2.4 and Fig. 6; Schroeder
+each holding a histogram per frequency band (Lentz et al. 2007, Sec. 2.4 and Fig. 6; Schroeder
 2011, Sec. 5.3.4). Schroeder averages the bands into one hit probability per group, as every Poisson event there takes
 one broadband HRIR; the network's lines are shaped per band anyway, so here each band keeps its own: in band b
 every line is scaled by ``sqrt(p_i / q_i)``, its direction's share of the rays' energy in that band over its
-share of the lines' (:func:`directional_shares`), a per-line, per-band gain as the boundary filters of Kirsch,
-Wendt and van de Par (2023, Eqs. 4-5) are. The lines keep each band's total and take the rays' distribution, so
+share of the lines' (:func:`directional_shares`), a per-line, per-band gain as the boundary filters of Kirsch
+et al. (2023, Eqs. 4-5) are. The lines keep each band's total and take the rays' distribution, so
 a direction facing a surface that absorbs one band decays faster in that band; the 16 kHz band takes the
-histogram's own 16 kHz row. Shaping the lines of a feedback delay network with such shares is in neither of these
-sources: Schroeder steers a Poisson noise process with one probability per group, and Kirsch's gains are fixed
-boundary filters. Its basis is the comparison with exact image-source shoeboxes.
+histogram's own 16 kHz row. Shaping the lines of a feedback delay network with such shares is the package's
+choice, in neither of these sources: Schroeder steers a Poisson noise process with one probability per group,
+and Kirsch's gains are fixed boundary filters.
 
 The package's own choices, without a reference:
 
+- The omnidirectional gains: shaping the lines of a feedback delay network rather than a synthetic noise
+  process, the late target ``E_ref - E_early``, the cap at 1, and the end of the early images
+  (:func:`_early_end`: 13 dB below the reference, both smoothed over 10 ms).
 - The bins are first pooled over neighbouring directions, since a short bin holds few detections per direction.
   The weights are those of Kirsch et al. (2023, Eq. 4), ``max(u_i . u_j, 0) ** (N / 6)``, who use them to map
-  96 scanned directions onto fewer sources and not at all with 96; pooling the N groups onto themselves is not
-  theirs.
+  the 96 scanned directions onto fewer sources; with 96 sources each takes its own scanned direction (Sec. 1.3).
+  Pooling the N groups onto themselves is not theirs.
 - The window of ``SMOOTH_MS`` and the holds, 20 dB down for the gains and 60 dB down for the shares.
 - The ray count of the histogram (:func:`histogram_rays`) applies the 1 dB that Schroeder (2011, Sec. 12.1)
   takes for a response's envelope to one direction's share.
@@ -56,11 +59,11 @@ import scipy.fft
 from scipy.signal import fftconvolve
 
 SMOOTH_MS = 100.0
-# a reference this far from the hybrid over its first 50 ms is on another scale
+# a reference this far from the hybrid over its first 50 ms is on another scale; 6 dB, 50 ms and the onset at
+# 1e-3 of the peak are the package's choice
 SCALE_WARN_DB = 6.0
 # the standard deviation of a direction's energy over one slot that sets the ray count of the reference and its
-# directional histogram. At this count the decay fitted to one reference varies by one to two just noticeable
-# differences of the reverberation time between ray seeds (640 m3 office); a reference given with more rays lowers it
+# directional histogram (the package's choice, see the module docstring); a reference given with more rays has less
 SHARE_ERROR_DB = 1.0
 
 _TOP_BAND_HZ = 16000.0
@@ -186,7 +189,7 @@ def envelope_gains(reference: np.ndarray, early_w: np.ndarray, late_w: np.ndarra
         if late_energy > 0.0:
             held = np.sqrt(target[k, start:hold].sum() / late_energy)
             gains[k, hold:] = min(held, 1.0)
-    gains[8] = gains[7]  # above 11.3 kHz: no estimate of its own
+    gains[8] = gains[7]  # above about 11.2 kHz: no estimate of its own
 
     if m < n:
         gains = np.concatenate([gains, np.repeat(gains[:, -1:], n - m, axis=1)], axis=1)
@@ -201,8 +204,8 @@ def shape_late(signals: np.ndarray, early_w: np.ndarray, late_w: np.ndarray, ref
     scale. Warns if ``early_w + late_w`` and the reference disagree by more than ``SCALE_WARN_DB`` over the
     first 50 ms: the reference is on another scale. ``histogram``, a
     :class:`~compas_acoustics.room.raytracing.DirectionalHistogram` on the directions of the lines, also gives
-    every band of the lines, (n, n_lines), its :func:`directional_shares`. Its bands are the bank's from 62.5 Hz
-    up, at least to 8 kHz; without a 16 kHz row that band takes the 8 kHz one.
+    every band of the lines, (n, n_lines), its :func:`directional_shares`. Its bands are the octaves from 62.5 Hz
+    up (the bank's to within 2 %), at least to 8 kHz; without a 16 kHz row that band takes the 8 kHz one.
     """
     signals = np.asarray(signals, dtype=float)
     if histogram is not None:

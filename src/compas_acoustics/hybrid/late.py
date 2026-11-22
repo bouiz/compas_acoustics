@@ -31,7 +31,7 @@ class _SOSBank(SOSBank):
         return out.T
 
 
-#: Fewest delay lines at any ambisonic order: Kirsch, Wendt and van de Par (2023, Secs. 1.2 and 3.3) use 96
+#: Fewest delay lines at any ambisonic order: Kirsch et al. (2023, Secs. 1.2 and 3.3) use 96
 #: for offline simulation whatever the rendered directions, so the tail's character does not change with the
 #: count and a small network's recurrent patterns are avoided. The 96-point equal-area grid supports orders 0
 #: to 3.
@@ -51,8 +51,8 @@ def fdn_directions(num_delays: int = MIN_DELAYS) -> pf.Coordinates:
 def _nearest_coprime(targets: np.ndarray, tolerance: float = 0.03) -> np.ndarray:
     """Distinct integers near their targets, pairwise coprime where that fits.
 
-    Coprimality is sought within ``tolerance`` of each target, else the nearest unused integer is taken, so
-    no length strays far from its target.
+    Coprimality is sought within ``tolerance`` of each target (0.03, the package's choice), else the nearest
+    unused integer is taken, so no length strays far from its target.
     """
     chosen: list[int] = []
     out = np.empty(targets.size, dtype=int)
@@ -81,14 +81,16 @@ def directional_delays(
 ) -> np.ndarray:
     """Delay line lengths in samples, each the room's free path along its direction.
 
-    The room-dimension delays of Kirsch, Poppitz and Wendt (2021) and Kirsch, Wendt and van de Par (2023), per
+    The room-dimension delays of Kirsch et al. (2021, Sec. VI.B; 2023, Sec. 3.3), per
     direction and for any closed geometry: a uniform field along ``u`` meets the boundary at the rate
     ``c sum_f A_f |n_f . u| / (2 V)``, so line ``i`` takes ``2 V / sum_f A_f |n_f . u_i|``. For a shoebox that is
-    ``1 / (|u_x| / L_x + |u_y| / L_y + |u_z| / L_z)``; its mean over the sphere is Cauchy's ``4 V / S``.
+    ``1 / (|u_x| / L_x + |u_y| / L_y + |u_z| / L_z)``. The rates average over the sphere to ``c S / (4 V)``, the
+    mean free path ``4 V / S``.
 
     ``u`` and ``-u`` share a free path, so ``spread`` jitters each length uniformly by up to that fraction,
-    drawn from ``rng``, before the lengths are made coprime, lest opposite lines ring together. ``directions``
-    are in the receiver's frame and are rotated back to the room's before projecting.
+    drawn from ``rng``, before the lengths are made coprime, lest opposite lines ring together. The jitter of 0.1
+    and the coprime lengths are the package's choice; Wendt et al. (2014, Eq. 1) add up to 0.1 of the mean room
+    dimension. ``directions`` are in the receiver's frame and are rotated back to the room's before projecting.
     """
     unit = directions.cartesian
     unit = unit / np.linalg.norm(unit, axis=1, keepdims=True)
@@ -117,14 +119,15 @@ def design_fdn(
 
     ``delays`` (samples) is one array shared by every slope or one per slope. ``C`` is the W row of the
     ambisonic output matrix, ``1 / sqrt(N)`` per line, which the late envelope compares with its reference;
-    renderers project the lines themselves (:func:`render`). Each slope's attenuation follows ``target.rt``
+    the renderers project the lines that :func:`render` returns themselves. Each slope's attenuation follows ``target.rt``
     (:meth:`~compas_acoustics.hybrid.target.RoomTarget.geq_bands` with ``dc_factor`` and ``nyquist_factor``)
     and its feedback matrix is seeded ``rng + slope``, also any ``matrix`` other than ``"orthogonal"``, taken
     from ``pyFDN.fdn_matrix_gallery``.
 
     A multi-exponential decay sums independent networks with one input, each weighted per band by
     ``level_k / sqrt(sum_j level_j ** 2)`` as an output filter, which keeps the slopes' level ratios and one
-    network's initial energy. A single slope has no output filter.
+    network's initial energy. A single slope has no output filter. One network per slope is the package's choice;
+    Kirsch et al. (2023, Sec. 2.1.2) superpose one network per room of two coupled rooms.
     """
     n_slopes = target.n_slopes
     delays = np.asarray(delays, dtype=int)
@@ -188,7 +191,7 @@ def render(
 
     ``line_eq``, an SOS bank (n_sections, 6, num_delays), filters each line on its way out, after the feedback
     is taken, so it colours a direction without touching the decay: the directional boundary absorption of
-    Kirsch et al. (2023). The lines go through an identity output matrix and are filtered here, as are the
+    Kirsch et al. (2023, Sec. 1.2). The lines go through an identity output matrix and are filtered here, as are the
     networks' slope weights (``post_output``).
 
     ``tap``, of the same shape, enters each line skipping its delay, "initially skipping the FDN delays" (Ewert

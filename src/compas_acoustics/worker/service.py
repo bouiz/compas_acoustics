@@ -1,26 +1,20 @@
-"""The worker's HTTP service: localhost only, only :mod:`compas_acoustics.worker.api`, only for callers that hold the token.
+"""The worker's HTTP service on 127.0.0.1, for callers that hold the token.
 
-Started by :func:`compas_acoustics.worker.client`, or by the Grasshopper plugin, as
-``python -m compas_acoustics.worker.service --port N``, with the token in ``COMPAS_ACOUSTICS_WORKER_TOKEN``
-and the client's process id in ``COMPAS_ACOUSTICS_WORKER_PARENT``. The worker exits when that process is gone.
+Started by :func:`compas_acoustics.worker.client` or the Grasshopper plugin as
+``python -m compas_acoustics.worker.service --port N``, with the token in ``COMPAS_ACOUSTICS_WORKER_TOKEN`` and the
+client's process id in ``COMPAS_ACOUSTICS_WORKER_PARENT``; it exits when that process is gone. Bodies are compas_pb
+payloads.
 
-Routes, on 127.0.0.1:
+* ``GET /ping``: ``pong <id>``, without the token; ``<id>`` is the first 16 hex digits of the token's SHA-256.
+* ``POST /api/<function>``: ``{"args": [...], "kwargs": {...}}`` for a function of
+  :data:`compas_acoustics.worker.api.__all__`; answers ``{"result": ...}``.
+* ``POST /cancel/<call id>``, ``GET /progress/<call id>``: stop, or report on, the call sent with ``X-Call-Id``
+  (:mod:`compas_acoustics.worker.jobs`).
+* ``POST /shutdown``.
 
-* ``GET /ping``: ``200 pong <id>``, without the token, to tell a started worker; ``<id>`` is the first 16 hex
-  digits of the token's SHA-256, so a client tells its own worker from another one on a reused port.
-* ``POST /api/<function>``: a function of :data:`compas_acoustics.worker.api.__all__`. The body is
-  ``compas_pb.pb_dump_bts({"args": [...], "kwargs": {...}})``, the answer ``pb_dump_bts({"result": result})``
-  (compas_pb refuses an empty or zero top-level value, so the result is always wrapped).
-* ``POST /shutdown``: stop the worker.
-* ``POST /cancel/<call id>``: ask the call sent with ``X-Call-Id: <call id>`` to stop at its next stage
-  (:mod:`compas_acoustics.worker.jobs`); answers ``{"result": true}``, or false for an unknown id. A cancelled call
-  answers 499 with ``{"error": "cancelled"}``.
-* ``GET /progress/<call id>``: the call's last stage, ``{"result": {"stage", "done", "of", "cancelled"}}``; 404 for an
-  unknown or finished call.
-
-All but ``/ping`` need ``Authorization: Bearer <token>``. Errors answer ``{"error": text}``: 401 without the
-token, 404 for a function outside the API, 400 for a body that is not a compas_pb payload and for the
-ValueError or TypeError of a function (its message), 500 for any other exception (its traceback).
+All but ``/ping`` need ``Authorization: Bearer <token>``. Errors answer ``{"error": text}``: 401 without the token,
+404 for an unknown route, function or call, 400 for a body that is not a compas_pb payload and for a function's
+ValueError or TypeError, 499 for a cancelled call, 500 for any other exception (its traceback).
 """
 
 import argparse

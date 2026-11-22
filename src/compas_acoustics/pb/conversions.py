@@ -1,7 +1,7 @@
-"""Converters between compas_acoustics' Data types and their protobuf messages, registered with compas_pb.
+"""Converters between compas_acoustics' types and their protobuf messages, registered with compas_pb.
 
-Each message mirrors the class's ``__data__``; objects are rebuilt with the class's own ``__from_data__``, so the
-classes' validation applies, and keep their guid and name.
+Objects keep their guid and name. Source, Receiver, AcousticObject and Scene are rebuilt with ``__from_data__``,
+the others with their constructors.
 """
 
 from uuid import UUID

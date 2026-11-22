@@ -1,17 +1,20 @@
 """Direction-dependent boundary absorption on the delay line outputs.
 
-Wendt, van de Par and Ewert (2014, Sec. 1.2) weight "the signal of each incidence direction ... with the
-reflection coefficient of the room wall corresponding to the respective parallel cube side face". Kirsch, Wendt
-and van de Par (2023, Sec. 1.3, Eqs. 4-5) generalise it to arbitrary geometry, which holds for a mesh: rays from
-the receiver sample the absorption of the first face they meet, and each line takes a weighted mean,
+Wendt et al. (2014, Sec. 1.2) weight "the signal of each incidence direction ... with the
+reflection coefficient of the room wall corresponding to the respective parallel cube side face". Kirsch et al.
+(2023, Sec. 1.3, Eqs. 4-5) generalise it to arbitrary geometry, which holds for a mesh: rays from
+the receiver sample the absorption of the first face they meet, and with fewer than their 96 scanned directions
+each line takes a weighted mean,
 
     w_s,k = max(v_s . v_k, 0) ** beta,   beta = K / 6,
     a_k   = sum_s w_s,k alpha_s / sum_s w_s,k,
 
-``v_s`` the scanned directions, ``v_k`` the line's, ``K`` the number of lines (a -3 dB lobe of 90 degrees at six).
-The line's output filter has the magnitude ``sqrt(1 - a_k)`` per band. It sits outside the loop, so every line
-still decays at ``target.rt``; the late field loses one reflection's absorption, ``10 log10(mean_k (1 - a_k))``
-dB, left uncompensated as in both papers.
+``v_s`` the scanned directions, ``v_k`` the line's, ``K`` the number of lines (the paper gives a -3 dB lobe of 90
+degrees for K = 6). With 96 lines each takes the absorption of its own scanned direction there; the weighted mean
+at every ``K``, 96 included, is the package's choice (the scan is fixed in the room, the lines turn with the
+receiver). The line's output filter has the magnitude ``sqrt(1 - a_k)`` per band. It sits outside the loop, so
+every line still decays at ``target.rt``; the late field loses one reflection's absorption,
+``10 log10(mean_k (1 - a_k))`` dB, left uncompensated; neither paper describes a compensation.
 """
 
 from __future__ import annotations
@@ -25,7 +28,7 @@ from .bands import N_BANDS
 from .pair import Pair
 from .scattering import _first_hit
 
-SCAN_DIRECTIONS = 96  # the highest resolution of Kirsch et al. (2023), as the scan grid
+SCAN_DIRECTIONS = 96  # the scanned directions of Kirsch et al. (2023, Sec. 1.3), their highest resolution
 
 
 def scan_directions(n_scan: int = SCAN_DIRECTIONS) -> pf.Coordinates:

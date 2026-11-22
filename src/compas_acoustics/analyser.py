@@ -23,7 +23,7 @@ _A_WEIGHTS = {125: -16.1, 250: -8.6, 500: -3.2, 1000: 0.0, 2000: 1.2, 4000: 1.0,
 
 @lru_cache(maxsize=None)
 def _octave_band_filter(sampling_rate, center_frequency):
-    # IEC 61260-1 order-14 octave filter. A range of +-10 % of the centre selects that band alone: at
+    # pyfar's order-14 Butterworth octave filter (IEC 61260-1:2014). A range of +-10 % of the centre selects that band alone: at
     # +-1/2 octave the range meets the neighbouring band edges and selects three. Without an initial
     # state the filter keeps none between calls, so one design serves every call.
     return pf.dsp.filter.fractional_octave_bands(
@@ -36,12 +36,12 @@ def _octave_band_filter(sampling_rate, center_frequency):
 
 
 def _iso3382_start(ir_array, threshold_db=20.0):
-    """Start sample of an impulse response after ISO 3382-1.
+    """Start sample of an impulse response: the last sample before the maximum that is more than
+    ``threshold_db`` below it (20 dB: ISO 3382-1:2009, p. 22).
 
-    The last sample more than ``threshold_db`` below the maximum before the maximum; if an earlier
-    sample comes within ``threshold_db - 6`` dB of the maximum, the last sample below the threshold
-    before that one. 0 when the maximum is less than 20 dB above the noise (the mean energy of the
-    last 10 %) or lies in it.
+    The package's own rules: if an earlier sample comes within ``threshold_db - 6`` dB of the maximum,
+    the last sample below the threshold before that one; 0 when the maximum is less than 20 dB above
+    the mean energy of the last 10 % of the response, or lies in that part.
     """
     energy = np.asarray(ir_array, dtype=float) ** 2
     n = energy.size
@@ -145,9 +145,10 @@ class Analyser:
     Parameters
     ----------
     ir : list, np.ndarray or ImpulseResponse
-        Shaped (samples,) or (samples, channels). Only channel 0 (the omnidirectional component of an
-        ambisonic response) is analysed. An :class:`ImpulseResponse` is analysed at its raw
-        (denormalized) level and sets :attr:`sampling_rate`.
+        Shaped (samples,) or (samples, channels). Every parameter but LF and LFC is computed from
+        channel 0: the omnidirectional component of an ambisonic response, the left ear of a binaural
+        one. LF and LFC take the first-order channels of an ambisonic :class:`ImpulseResponse`. An
+        :class:`ImpulseResponse` is analysed at its raw (denormalized) level and sets :attr:`sampling_rate`.
 
     Examples
     --------
@@ -324,7 +325,8 @@ class Analyser:
         """Index of the direct sound (:func:`_iso3382_start`).
 
         On the package scale the search starts 1 ms before the geometric arrival, which nothing
-        precedes. A blocked direct path is not special: the start is the first arrival found.
+        precedes, the package's choice (:meth:`lateral_fraction` takes the geometric arrival itself).
+        A blocked direct path is not special: the start is the first arrival found.
         """
         lower = 0
         # The stored geometric onset belongs to the analyser's own response only
@@ -337,7 +339,8 @@ class Analyser:
 
         The causal filter delays the band's direct sound, by tens of milliseconds in the low bands,
         past limits measured from the broadband direct sound; forward-backward filtering removes
-        the delay, and its ringing is symmetric, so integration starts before the direct sound.
+        the delay, and its ringing is two-sided, so the band starts before the direct sound.
+        Forward-backward filtering and the 0.1 s lead are the package's choice.
 
         Returns
         -------
@@ -359,9 +362,9 @@ class Analyser:
         return band
 
     def reverberation_times(self, impulse_response=None) -> dict:
-        """EDT, T20 and T30 per band (ISO 3382-1).
+        """EDT, T20 and T30 per band (ISO 3382-1:2009).
 
-        Schroeder (1965) backward integration of the zero-phase band (:meth:`_band_from_onset`),
+        Schroeder (1965, J. Acoust. Soc. Am. 37(3)) backward integration of the zero-phase band (:meth:`_band_from_onset`),
         from the direct sound to the last non-zero sample, normalized to 0 dB at its start, then
         linear regression. No noise compensation, since a simulated response has no noise floor:
         truncate a measured response at its noise floor first.
@@ -400,10 +403,10 @@ class Analyser:
         return results
 
     def clarity_definition(self, impulse_response=None) -> dict:
-        """C50, C80 and D50 per band (ISO 3382-1).
+        """C50, C80 and D50 per band (ISO 3382-1:2009).
 
-        Early and late parts are cut from the broadband response before band filtering, so filter
-        delay and ringing stay with the part they belong to.
+        Early and late parts are cut from the broadband response before causal band filtering, so
+        filter delay and ringing stay with the part they belong to, the package's choice.
         """
         if impulse_response is None:
             impulse_response = self.ir
@@ -433,12 +436,14 @@ class Analyser:
         return results
 
     def direct_to_reverberant_ratio(self, impulse_response=None) -> dict:
-        """DRR per band and in 700-4000 Hz.
+        """Direct-to-reverberant ratio per band and for 700-4000 Hz, in dB.
 
-        The energy of the first 5 ms from the direct sound over the energy after it, in dB. The window
-        opens 1 ms early so that a band-limited arrival is held whole. ``'DRR_overall'`` is theirs: a
-        second-order Butterworth band-pass of 700-4000 Hz, since 5 ms does not resolve the low octaves.
-        Per band the parts are cut before filtering, as for C50.
+        The energy from 1 ms before to 5 ms after the direct sound over the energy after it; the early
+        1 ms holds a band-limited arrival whole. ``'DRR_overall'`` takes the response through a
+        fourth-order Butterworth band-pass of 700-4000 Hz (``butter(2, ..., "bandpass")``), since 5 ms
+        does not resolve the low octaves. The window, the band and the filter are the package's choice.
+        Per band the two parts are cut before filtering, as for C50; for ``'DRR_overall'`` the response
+        is filtered first.
 
         Returns
         -------
@@ -467,7 +472,7 @@ class Analyser:
         }
 
     def center_time(self, impulse_response=None) -> dict:
-        """Centre time Ts per band, in seconds from the broadband direct sound (ISO 3382-1), of the zero-phase bands."""
+        """Centre time Ts per band, in seconds from the broadband direct sound (ISO 3382-1:2009), of the zero-phase bands."""
         if impulse_response is None:
             impulse_response = self.ir
 
@@ -568,7 +573,7 @@ class Analyser:
         return result
 
     def sound_strength(self, reference_ir=None, impulse_response=None) -> dict:
-        """Strength G per band (ISO 3382-1): the response's energy over that of the free field at 10 m.
+        """Strength G per band (ISO 3382-1:2009): the response's energy over that of the free field at 10 m.
 
         Both responses at their raw level: :class:`ImpulseResponse` objects (used denormalized) or
         raw arrays. The single number averages 500 and 1000 Hz.
@@ -670,7 +675,9 @@ class Analyser:
         weighting of lateral arrivals (Bradley 1994). The figure-of-eight is the first-order dipole of an
         ambisonic response, horizontal and perpendicular to the source direction, which is the geometric
         one when the response carries its source and receiver, else the direct sound's first-order
-        intensity. Windows are cut before band filtering, as for C80.
+        intensity. Windows are cut before band filtering, as for C80. On the package scale they are
+        measured from the geometric direct-sound sample, the package's choice (the other parameters
+        search for the direct sound from 1 ms before it, :meth:`_direct_sound_onset`).
 
         Parameters
         ----------
@@ -736,6 +743,8 @@ class Analyser:
     def _sti_and_strength(self, ir=None) -> dict:
         """``'STI'`` and ``'G'`` per band in :attr:`frequency_bands` and their overall values, as :meth:`analyse` gives them.
 
+        The per-band ``'STI'`` values are the modulation transfer indices; ``'STI_overall'`` is the STI.
+
         The worker computes only these, for a client whose pyrato cannot (:func:`compas_acoustics.worker.analyse`).
         """
         if ir is None:
@@ -762,8 +771,10 @@ class Analyser:
     def analyse(self, ir=None) -> dict:
         """Every parameter of :data:`_PARAM_NAMES` per band and as ``'<name>_overall'``.
 
-        The overall values of EDT, T20, T30, C50, C80, D50 and Ts average 500 and 1000 Hz (ISO 3382-1:2009
-        Table A.1); the others have their own.
+        The overall values of EDT, T20, T30, C50, C80, D50 and Ts average 500 and 1000 Hz, after the
+        single-number averages of ISO 3382-1:2009 Table A.1; the same average for all seven is the
+        package's choice. The others have their own. The per-band ``'STI'`` values are the modulation
+        transfer indices, ``'STI_overall'`` the STI.
         """
         if ir is None:
             ir = self.ir
@@ -870,7 +881,7 @@ class Analyser:
             "DRR": "dB",
             "G": "dB",
             "SPL": "dB",
-            "STI": "Percentage",
+            "STI": "Modulation transfer index (0-1)",
             "D50": "Percentage",
             "LF": "Fraction (0-1)",
             "LFC": "Fraction (0-1)",

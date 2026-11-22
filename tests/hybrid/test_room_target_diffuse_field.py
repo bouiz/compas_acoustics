@@ -84,8 +84,8 @@ def test_the_uneven_warning_names_only_the_bands_it_applies_to():
     assert "125" not in message
 
 
-def test_the_warning_points_at_from_rir():
-    with pytest.warns(DiffuseFieldWarning, match="from_rir"):
+def test_the_warning_points_at_ray_tracing_or_a_reference():
+    with pytest.warns(DiffuseFieldWarning, match="tail='ray_tracing' or a reference"):
         RoomTarget.from_room(spec_with(uniform(0.35)))
 
 

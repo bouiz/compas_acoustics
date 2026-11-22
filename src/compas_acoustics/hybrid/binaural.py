@@ -72,7 +72,6 @@ def render_binaural(core, hrtf: HrtfSet):
     sum), over ``sqrt(N)`` (the W row of the ambisonic output matrix), through the HRIR nearest
     ``core.line_directions[i]``.
     """
-    # pyFDN, on Python >= 3.11 only; the Auraliser imports this module without it
     from compas_acoustics.hybrid.diffraction import encode_btms
     from compas_acoustics.hybrid.diffraction import encode_diffraction
     from compas_acoustics.hybrid.early import render_images

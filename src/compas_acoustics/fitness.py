@@ -16,7 +16,7 @@ def regularized_fitness(values: list[float], target: float, k: float = 1.0) -> f
     Returns
     -------
     float
-        999 for no values.
+        999 for no values, the package's choice.
     """
     n = float(len(values))
     if n == 0:

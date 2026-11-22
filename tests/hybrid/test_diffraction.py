@@ -222,7 +222,7 @@ def test_a_box_on_a_tabletop_does_not_diffract_along_its_bottom():
 #
 # The reflection zone of a wedge face is where the specular reflection off that
 # face exists (Kirsch and Ewert 2023, Sec. II; it decides the polarity of the
-# theta_+ term of eq. 2). Checked against the reflection itself: the image of
+# theta_+ term of Eq. (2)). Checked against the reflection itself: the image of
 # the source in the face plane, and the point where its line to the receiver
 # meets the face.
 
@@ -857,7 +857,7 @@ def test_a_receiver_on_a_zone_boundary_gets_half_the_geometric_sound():
     # the receiver lies on the incident shadow boundary of that edge. The image
     # sources drop the direct sound there and the singular BTMS term is zeroed, so
     # without the half direct sound the field would lose half its pressure (Svensson
-    # et al. 2025, Eqs. 2-4). Compared at 100 Hz, with the neighbour 0.1 mm into the shadow (on the
+    # et al. 2025, Eqs. (2)-(4)). Compared at 100 Hz, with the neighbour 0.1 mm into the shadow (on the
     # lit side pyroomacoustics drops the direct sound up to about 1 mm from the edge).
     s, r = np.array([2.0, 4.0, 1.5]), np.array([8.0, 4.0, 3.5])
 

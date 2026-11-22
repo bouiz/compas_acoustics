@@ -1,8 +1,33 @@
+# _pair_responses, _ray_tracing and the ray loop of directional_histograms are adapted from pyroomacoustics 0.10.1,
+# Room.compute_rir and Room.ray_tracing (pyroomacoustics/room.py), which carries this notice:
+#
+# Copyright (C) 2019  Robin Scheibler, Ivan Dokmanic, Sidney Barthe, Cyril Cadoux
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 """Monaural responses from image sources alone or with ray tracing, and the rays' energy per direction.
 
 The backend of :class:`~compas_acoustics.simulation_methods.Mono` and of the hybrid methods' reference runs and
 directional histograms. With ray tracing, specular reflections up to ``max_order`` come from the image sources and
-everything later from pyroomacoustics' stochastic ray tracer, which also carries the scattered energy. Responses are
+the rest from pyroomacoustics' stochastic ray tracer, which also carries the scattered energy of every reflection.
+The tracer logs a ray's specular arrivals from its ``max_order``-th reflection on, so order ``max_order`` is in both
+the image sources and the rays. Responses are
 on the package scale: spreading ``1 / (4 pi r)``, the direct sound on its geometric sample (pyroomacoustics spreads
 as ``1 / r`` and delays by half its fractional-delay kernel).
 """
@@ -39,20 +64,22 @@ __all__ = [
     "ray_traced_run",
 ]
 
-# Floor on the heuristic ray count, applied only with n_rays=None
+# Floor on pyroomacoustics' heuristic ray count, applied only with n_rays=None; the floor is the package's choice
 MIN_RAYS = 50_000
-# A response lasts this many times the longest Eyring RT, within 0.5 s and MAX_DURATION. The margin over 1 keeps the
-# T30 evaluation range inside the response where Eyring underestimates the decay; a room whose decay outlasts it is
-# caught by the methods' length warnings.
+# A response lasts this many times the longest Eyring RT, within 0.5 s and MAX_DURATION (the three numbers are the
+# package's choices). The margin over 1 keeps the T30 evaluation range inside the response where Eyring underestimates
+# the decay; a room whose decay outlasts it is caught by the methods' length warnings.
 DURATION_RT_FACTOR = 1.5
 MAX_DURATION = 12.0
+# pyroomacoustics' default histogram bin
 _HIST_BIN = 0.004
 
 
 def default_duration(geometry: RoomGeometry, air_absorption: bool, speed_of_sound: Optional[float] = None, air=None, factor: float = DURATION_RT_FACTOR) -> float:
     """How long to simulate this room: ``factor`` times the longest Eyring RT, within 0.5 s and ``MAX_DURATION``.
 
-    Eyring only sizes the buffer, so its diffuse-field check is skipped. A scene that closes no volume gets 10 s.
+    Eyring only sizes the buffer, so its diffuse-field check is skipped. A scene that closes no volume gets 10 s,
+    pyroomacoustics' default ray time limit.
     Hitting ``MAX_DURATION`` warns: the rays then live for hundreds of reflections, and the cause is usually a
     large surface without low-frequency absorption.
     """
@@ -176,8 +203,8 @@ def ray_traced_run(
 ) -> RayTracedRun:
     """Monaural responses of every source at every microphone from one image source search and one ray trace.
 
-    ``sources`` are ``pra.SoundSource``; ``mic_positions`` is ``(3, M)``. ``max_order`` splits specular from
-    ray-traced energy. ``duration`` defaults to :func:`default_duration`; ``n_rays=None`` takes a heuristic raised to ``MIN_RAYS``;
+    ``sources`` are ``pra.SoundSource``; ``mic_positions`` is ``(3, M)``. ``max_order`` is the last image source
+    order; the rays hold it too (module docstring). ``duration`` defaults to :func:`default_duration`; ``n_rays=None`` takes a heuristic raised to ``MIN_RAYS``;
     ``seed`` None draws a fresh one from the OS. ``air`` sets the speed of sound and the air absorption.
     ``directions``, one ``(n, 3)`` array of unit vectors in room coordinates per microphone, adds a copy of every
     microphone that sorts each detected ray by the direction nearest its last leg, as :func:`directional_histograms`
@@ -292,7 +319,8 @@ class DirectionalHistogram:
     ``energy`` is ``(n_directions, n_bands, n_bins)``: the package-scale energy arriving within each bin of
     ``bin_size`` seconds from emission, from the one of ``directions`` (unit vectors in room coordinates) nearest
     its last leg, in each band of ``bands``. Summed over the directions it is the omnidirectional histogram;
-    over the bins, the energy the rays carry past the run's image source order.
+    over the bins, the energy the rays log: their specular arrivals from the run's image source order on and the
+    scattered energy of every reflection.
     """
 
     energy: np.ndarray
@@ -333,12 +361,13 @@ def directional_histograms(
 ) -> List[List[DirectionalHistogram]]:
     """Ray-traced energy per direction of arrival of every source at every microphone, ``[mic][source]``.
 
-    The detection sphere divided into directivity groups (Lentz, Schroeder and Vorlaender 2007, Sec. 2.4; Schroeder 2011,
+    The detection sphere divided into directivity groups (Lentz et al. 2007, Sec. 2.4; Schroeder 2011,
     Sec. 5.3.4): every detected ray is binned by the direction nearest its last leg. ``directions`` holds one
     ``(n, 3)`` array of unit vectors in room coordinates per microphone. Arguments and rays are those of
-    :func:`ray_traced_run`: a ray is logged only after ``max_order`` reflections, so the bins hold what the image
-    sources do not. The tracing engine is driven directly, since the room's own call would reset an
-    omnidirectional receiver to one bin. Air absorption is applied per band on the bins' travel distance.
+    :func:`ray_traced_run`: the rays log their specular arrivals from the ``max_order``-th reflection on, so order
+    ``max_order`` is in the bins and in the image sources, and their scattered energy at every reflection. The
+    tracing engine is driven directly, since the room's own call would reset an omnidirectional receiver to one bin.
+    Air absorption is applied per band on the bins' travel distance.
     """
     if duration is None:
         duration = default_duration(geometry, air_absorption, air=air)

@@ -284,7 +284,8 @@ class _HybridMethod(SimulationMethod):
             return self._response(core, key, source, receiver, generation)
 
         # The pairs render on threads, as many as fit in 4 GB at a pair's peak of about 17 arrays of
-        # (n_samples, num_delays); each renders as alone, and the results are kept in the pairs' order.
+        # (n_samples, num_delays), the package's cap and estimate; each renders as alone, and the results are kept
+        # in the pairs' order.
         longest = max(self.duration if self.duration is not None else 1.5 * float(np.max(pair[5].rt)) for pair in pairs)
         peak = 17 * np.ceil(longest * fs) * self.num_delays * 8
         workers = max(1, min(len(pairs), os.cpu_count() or 1, int(4e9 // peak)))
@@ -427,7 +428,7 @@ _ENGINE_PARAMETERS = """
     decay_db : float, default=30.0
         Single-slope fit range from -5 dB: 30 is T30, 20 is T20.
     duration : float, optional
-        In seconds; default 1.5 times the longest target RT. A reference the method runs itself has the mono
+        In seconds; default 1.5 times the longest RT of each pair's target. A reference the method runs itself has the mono
         method's default length, or ``duration`` where that is longer; a directional histogram traced for a given
         reference takes ``duration``. A reference shorter than 2/3 of its reverberation time warns.
     directional_absorption : bool, default=True
@@ -436,27 +437,25 @@ _ENGINE_PARAMETERS = """
         How the late field follows the reference. ``"omni"``: attenuated per band to the reference's late energy;
         the delay lines keep the network's spread over directions, weighted only by ``directional_absorption``.
         ``"directional"``: as ``"omni"``, and each delay line given, per octave band, its direction's share of the
-        energy the rays bring in that band (directional histogram, Schroeder 2011). The rays are traced with
-        ``Mono(ray_tracing=True)``'s settings at ``image_source_order``, also with a given reference, as many as
-        give a direction's energy a standard deviation of 1 dB (Vorlaender 2020, Eq. 11.20); with a ray-tracing
-        tail they are the reference's own rays, and ``"omni"`` traces its reference with the same number, so both
-        modes follow one reference. The decay fitted to such a reference varies by one to two just noticeable
-        differences between ray seeds: pass ``reference=Mono(ray_tracing=True, n_rays=...)`` for a steadier one.
+        energy the rays bring in that band (directional histogram, Lentz et al. 2007, Sec. 2.4; Schroeder 2011). The
+        rays are traced with ``Mono(ray_tracing=True)``'s settings at ``image_source_order``, also with a given
+        reference, as many as give a direction's energy a standard deviation of 1 dB (Vorlaender 2020, Eq. 11.20;
+        the 1 dB is the package's choice); with a ray-tracing tail they are the reference's own rays, and ``"omni"``
+        traces its reference with the same number, so both modes follow one reference.
         ``False``: the network's own decay to the target, no shaping.
-        Default ``"omni"`` for a reference or ray-tracing tail. This default is the package's choice: in offices
-        the traced late directions mix less than measured ones and those of another geometrical-acoustics model,
-        so the shares exaggerate the late anisotropy and change with the rays; ``"directional"`` follows the rays
-        where their directions hold. An Eyring or Sabine tail has no reference: its default is ``False``, and
-        ``"omni"`` or ``"directional"`` raises.
+        Default ``"omni"`` for a reference or ray-tracing tail; this default is the package's choice. An Eyring or
+        Sabine tail has no reference: its default is ``False``, and ``"omni"`` or ``"directional"`` raises.
     diffraction : {False, True, "udfa", "btms"}, default=False
         Edge diffraction around obstacles and at room edges that open wider than 180 deg; ``True`` is
-        ``"udfa"``. ``"btms"`` is far slower than ``"udfa"``.
+        ``"udfa"`` (Kirsch and Ewert 2023), ``"btms"`` the BTMS model (Svensson et al. 1999), far
+        slower than ``"udfa"``.
     air_absorption : bool, optional
         On the image sources and diffracted paths. Default the reference's setting, or True; it must agree with
         the reference's, since the early field and the decay target share it.
     seed : bool or int, default=True
         For the feedback matrices, the delay jitter and the rays the method traces: True seeds with 42, an int with that value, False or None
-        leaves them unseeded (``generation["seed"] = None``). One seed gives both methods the same late field.
+        leaves them unseeded (``generation["seed"] = None``). One seed gives Binaural and Ambisonics up to third
+        order, which have the same 96 delay lines, the same network.
     normalize : bool, default=True
         Whether the responses are peak-normalized views.
     air : AirConditions, optional
@@ -482,7 +481,7 @@ class Binaural(_HybridMethod):
 
     The early field is the image sources up to ``image_source_order`` (and, with ``diffraction``, edge
     diffraction). The last order drives a feedback delay network of 96 lines, one per direction, whose decay
-    follows a target (Wendt et al. 2014), the count Kirsch et al. (2023) use offline. Every early path and
+    follows a target (Wendt et al. 2014, Sec. 1.2), the count Kirsch et al. (2023, Secs. 1.2 and 3.3) use offline. Every early path and
     delay line is filtered with the HRIR measured nearest its direction. Needs Python >= 3.11 and a closed
     room. Responses are ears left then right, stored under ``'binaural'``; ``generation["hrtf"]`` names the set.
 
@@ -572,8 +571,8 @@ class Ambisonics(_HybridMethod):
     reference : str, dict, Mono or None
         As :class:`Binaural`.
     sh_order : int, default=1
-        The network has 96 delay lines up to third order (Kirsch et al. 2023), above that the smallest
-        equal-area grid supporting the order. The input gain ``sqrt(num_delays)`` offsets the output's
+        The network has 96 delay lines, the count Kirsch et al. (2023, Secs. 1.2 and 3.3) use offline, up to third
+        order, which the 96-point grid supports; above that the smallest equal-area grid supporting the order. The input gain ``sqrt(num_delays)`` offsets the output's
         ``1 / sqrt(num_delays)``, so the late level does not depend on the count.
     normalization : {"SN3D", "N3D"}, default="SN3D"
         ACN channel order, W = 1 for a unit plane wave.

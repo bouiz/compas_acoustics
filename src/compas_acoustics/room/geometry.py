@@ -1,8 +1,8 @@
 """A scene's surfaces as one validated room: welded, merged, checked closed, wound outward, obstacles two-sided.
 
 Two views are kept. ``faces`` holds each obstacle twice, ``OBSTACLE_OFFSET`` either side, as the geometric
-methods read it; the drawn model is the boundary faces plus ``obstacle_faces``, which a volume mesher (a wave
-solver) must use instead of the offset copies.
+methods read it; the drawn model is the boundary faces plus ``obstacle_faces``, from which the air volume,
+:meth:`RoomGeometry.is_inside` and the diffracting edges are taken.
 """
 
 from __future__ import annotations
@@ -637,8 +637,8 @@ class RoomGeometry:
         crossings = room.is_inside
 
         def is_inside(p, include_borders=True):
-            # its own test still runs, unused: it draws from the random generator, and skipping
-            # the draws would change every seeded ray-traced response
+            # its own test still runs, its answer unused: it draws from pyroomacoustics' generator, from which the
+            # ray-traced responses draw their noise, so a seed gives the responses pyroomacoustics' own calls give
             crossings(p, include_borders)
             return self.is_inside(p)
 

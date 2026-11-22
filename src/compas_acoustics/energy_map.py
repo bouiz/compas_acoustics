@@ -1,8 +1,9 @@
 """The sound pressure level of a scene's sources over many points.
 
-Per point, the energy per octave band and 4 ms bin of the direct sound and the image sources up to
-``image_source_order``, and of the rays past that order, weighted by each source's level at 1 m
-(:attr:`compas_acoustics.Source.spl`). No impulse response is synthesised.
+Per point, the energy per octave band and 4 ms bin of the direct sound and the specular part of the image sources
+up to ``image_source_order``, and of the rays: the specular part from that order on and the scattered part of
+every order. Each source is weighted by its level at 1 m (:attr:`compas_acoustics.Source.spl`). No impulse response
+is synthesised.
 """
 
 from __future__ import annotations
@@ -22,10 +23,11 @@ __all__ = ["EnergyMap", "map_rays"]
 
 
 def map_rays(volume: float, duration: float) -> int:
-    """The rays per source that give every point of a map 16000 hits, from 20000 to 250000.
+    """Rays per source for about 16000 detections per receiver over the response, within 20000 and 250000.
 
-    A ray of length ``c T`` crosses a receiver sphere of radius ``r = 0.5`` m about ``c T pi r^2 / V`` times in a
-    diffuse field (Vorlaender 2008, Eq. 11.12, with the response length for the bin).
+    In a diffuse field a ray of length ``c T`` crosses a sphere of radius ``r`` about ``c T pi r^2 / V`` times
+    (Vorlaender 2008, Eq. 11.12, with the response length as ``T``); ``r`` is 0.5 m, the tracer's receiver radius.
+    The target and the limits are the package's choice.
     """
     c = Defaults().DEFAULT_SPEED_OF_SOUND
     n = math.ceil(16000 * volume / (math.pi * 0.5**2 * c * duration))
@@ -33,9 +35,10 @@ def map_rays(volume: float, duration: float) -> int:
 
 
 class EnergyMap(_PackageDtype, Data):
-    """The energy of a scene's sources at many points, per octave band and time bin, in Pa^2 s / p0^2.
+    """The energy of a scene's sources at many points, per octave band and time bin.
 
-    ``10 log10`` of the sum over the bins is the sound pressure level in dB re 20 uPa (:meth:`spl`).
+    Scaled so that ``10 log10`` of the sum over the bins is the level in dB re 20 uPa of sources radiating
+    :attr:`compas_acoustics.Source.spl` (:meth:`spl`).
 
     Parameters
     ----------
@@ -82,7 +85,7 @@ class EnergyMap(_PackageDtype, Data):
         return levels
 
     def spl_a(self) -> np.ndarray:
-        """The A-weighted total of the bands per point, (n,), in dB(A) (IEC 61672-1 weights at the band centres)."""
+        """The A-weighted total of the bands per point, (n,), in dB(A) (IEC 61672-1:2013 weights at the band centres)."""
         from compas_acoustics.analyser import _A_WEIGHTS
 
         weights = np.array([_A_WEIGHTS[int(round(f))] for f in self.bands])
@@ -125,19 +128,21 @@ class EnergyMap(_PackageDtype, Data):
         n_rays : int, optional
             Rays per source; by default :func:`map_rays` of the room's volume and the response's length.
         image_source_order : int, default=1
-            Image sources up to this order for every point, the rays past it. At least 1: at order 0 the ray
+            Image sources up to this order for every point, the rays from it on. At least 1: at order 0 the ray
             tracer logs the direct path too, which would count it twice.
         duration : float, optional
-            Seconds after the emission; by default 1.5 times the longest Eyring reverberation time, as the
-            Mono method.
+            Seconds after the emission; by default :func:`compas_acoustics.room.raytracing.default_duration`, as the
+            Mono method: 1.5 times the longest Eyring reverberation time within 0.5 s and 12 s, 10 s for a scene
+            that closes no volume.
         air_absorption : bool, default=True
         seed : bool or int, default=True
             The rays' seed: True seeds with 42, an int with that value, False leaves them unseeded.
         ray_spacing : float, optional
             Default 1 m. The rays are traced to one receiver per cell of this size, the point of the cell nearest its centre, and
-            their energy is interpolated to the other points; None traces them to every point. A run costs rays times
-            receivers, the late energy varies slowly and a 0.5 m receiver sphere resolves nothing finer; the image
-            sources stay exact at every point.
+            their energy is interpolated to the other points, from the four nearest receivers by inverse squared
+            distance; None traces them to every point. The package's choice: a run costs rays times receivers, the
+            late energy varies slowly and a 0.5 m receiver sphere resolves nothing finer. The image sources are
+            computed at every point.
 
         Notes
         -----
@@ -218,14 +223,14 @@ def _interpolate(receivers: np.ndarray, energy: np.ndarray, points: np.ndarray) 
 
 
 def _level_weights(source, bands) -> np.ndarray:
-    """Each band's factor from the package scale to Pa^2 s / p0^2: the free field at 1 m on axis, 1 / (16 pi^2), is spl."""
+    """Per band, the factor that makes the package-scale free field at 1 m on axis, ``1 / (16 pi^2)``, equal ``10^(spl / 10)``."""
     spl = np.asarray(source.spl, dtype=float)
     by_band = dict(zip(Defaults().DEFAULT_FREQUENCY_BANDS, spl))
     return np.array([10.0 ** ((by_band[int(f)] + 20.0 * np.log10(4.0 * np.pi)) / 10.0) for f in bands])
 
 
 def _ray_energy(geometry, sources, mics, fs, order, duration, n_rays, air_absorption, seed, bands) -> np.ndarray:
-    """The rays' energy past ``order`` at every microphone, weighted by each source's level, (m, b, bins)."""
+    """The rays' energy from ``order`` on at every microphone, weighted by each source's level, (m, b, bins)."""
     from compas_acoustics.room.pra import source_to_pra
     from compas_acoustics.room.raytracing import directional_histograms
     from compas_acoustics.worker import jobs
