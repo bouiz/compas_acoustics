@@ -25,13 +25,19 @@ import spharpy
 
 from .btms import _coordtrans1, element_grid, wedge1st_ir, wedge2nd_ir
 from .early import render_signals, render_transfers
-from compas_acoustics.room.geometry import _MERGE_TOLERANCE, OBSTACLE_OFFSET, RoomGeometry, _polygon_area_and_centroid
+from compas_acoustics.room.geometry import (
+    _MERGE_TOLERANCE,
+    OBSTACLE_OFFSET,
+    RoomGeometry,
+    _find_root,
+    _polygon_area_and_centroid,
+    _split_at_t_junctions,
+    _t_junction_tolerance,
+)
 
 from .bands import BANDS
 from .pair import Pair
-from .udfa import WedgePath, udfa_transfer
-
-TWO_PI = 2.0 * np.pi
+from .udfa import TWO_PI, WedgePath, udfa_transfer
 
 
 @dataclass(frozen=True)
@@ -263,10 +269,9 @@ class Occluders:
 
     def on_polygons(self, point: np.ndarray, tol: float, polygons) -> bool:
         """Does a point lie within ``tol`` of one of the given polygons?"""
-        for i in polygons:
-            if abs(self.normals[i] @ point - self.offsets[i]) < tol and _inside_polygon(self.polygons[i], self.normals[i], point):
-                return True
-        return False
+        polygons = np.asarray(polygons, dtype=int)
+        near = polygons[np.abs(self.normals[polygons] @ point - self.offsets[polygons]) < tol]
+        return any(_inside_polygon(self.polygons[i], self.normals[i], point) for i in near)
 
 
 def _key(point: np.ndarray, scale: float) -> tuple[int, ...]:
@@ -275,26 +280,19 @@ def _key(point: np.ndarray, scale: float) -> tuple[int, ...]:
 
 def obstacle_components(geometry: RoomGeometry) -> list[list[int]]:
     """Obstacle polygons grouped by shared vertex positions."""
-    scale = 1e-6 * float(np.ptp(geometry.vertices, axis=0).max())
+    scale = _t_junction_tolerance(geometry.vertices)
     parent = list(range(len(geometry.obstacle_faces)))
-
-    def find(a):
-        while parent[a] != a:
-            parent[a] = parent[parent[a]]
-            a = parent[a]
-        return a
-
     owner: dict[tuple, int] = {}
     for i, face in enumerate(geometry.obstacle_faces):
         for v in face:
             k = _key(geometry.vertices[v], scale)
             if k in owner:
-                parent[find(i)] = find(owner[k])
+                parent[_find_root(parent, i)] = _find_root(parent, owner[k])
             else:
                 owner[k] = i
     groups: dict[int, list[int]] = {}
     for i in range(len(parent)):
-        groups.setdefault(find(i), []).append(i)
+        groups.setdefault(_find_root(parent, i), []).append(i)
     return list(groups.values())
 
 
@@ -306,7 +304,7 @@ def _segments(geometry: RoomGeometry, faces: list[int]):
     corners sit OBSTACLE_OFFSET along a face normal and so exactly on the
     neighbouring face's edges.
     """
-    scale = 1e-6 * float(np.ptp(geometry.vertices, axis=0).max())
+    scale = _t_junction_tolerance(geometry.vertices)
     own = np.unique([v for i in faces for v in geometry.obstacle_faces[i]])
     points = geometry.vertices[own]
     out: dict[frozenset, list] = {}
@@ -327,31 +325,19 @@ def _segments(geometry: RoomGeometry, faces: list[int]):
     return out
 
 
-def _t_junction_tolerance(vertices: np.ndarray) -> float:
-    """How far off a side ``RoomGeometry`` still takes a vertex to lie on it."""
-    return 1e-6 * float(np.ptp(vertices, axis=0).max())
-
-
 def _enclosure_sides(geometry: RoomGeometry, n: int) -> dict[frozenset, list]:
     """Every side of the first ``n`` faces (the enclosure) as the chain of
-    vertices on it, split at T-junctions as ``room.geometry._split_at_t_junctions``
-    splits it, but only by the enclosure's own vertices:
+    vertices on it, split at T-junctions (``room.geometry._split_at_t_junctions``)
+    by the enclosure's own vertices only:
     {frozenset((a, b)): [owners, senses]}, ``senses`` the unit direction of the
     side in each owner's winding."""
     vertices = geometry.vertices
-    tolerance = _t_junction_tolerance(vertices)
     own = np.unique([v for face in geometry.faces[:n] for v in face])
-    points = vertices[own]
     out: dict[frozenset, list] = {}
     for i, face in enumerate(geometry.faces[:n]):
         for a, b in zip(face, face[1:] + face[:1]):
-            p0, d = vertices[a], vertices[b] - vertices[a]
-            t = (points - p0) @ d / (d @ d)
-            off = np.linalg.norm(points - p0 - np.outer(t, d), axis=1)
-            # the endpoints' own t can land one ulp inside (0, 1) (see room.geometry._split_at_t_junctions)
-            inner = np.flatnonzero((t > 0.0) & (t < 1.0) & (off < tolerance) & (own != a) & (own != b))
-            chain = [a, *own[inner[np.argsort(t[inner])]].tolist(), b]
-            for p, q in pairwise(chain):
+            d = vertices[b] - vertices[a]
+            for p, q in pairwise(_split_at_t_junctions(vertices, a, b, own)):
                 entry = out.setdefault(frozenset((p, q)), [[], []])
                 entry[0].append(i)
                 entry[1].append(d / np.linalg.norm(d))
@@ -545,18 +531,12 @@ def enclosure_edges(geometry: RoomGeometry) -> list[Edge]:
 
     parent = list(range(n))
 
-    def find(a):
-        while parent[a] != a:
-            parent[a] = parent[parent[a]]
-            a = parent[a]
-        return a
-
     for owners, _ in sides.values():
         if len(owners) == 2 and coplanar(*owners):
-            parent[find(owners[0])] = find(owners[1])
+            parent[_find_root(parent, owners[0])] = _find_root(parent, owners[1])
 
     def order(k):
-        return tuple(np.round(normal[find(k)], 6))
+        return tuple(np.round(normal[_find_root(parent, k)], 6))
 
     groups: dict[tuple, dict] = {}
     skipped = 0
@@ -564,9 +544,7 @@ def enclosure_edges(geometry: RoomGeometry) -> list[Edge]:
         if len(owners) != 2 or coplanar(*owners):
             continue
         mid = (vertices[a] + vertices[b]) / 2.0
-        others = np.array([occ.n_obstacle + k for k in range(n) if k not in owners])
-        near = others[np.abs(occ.normals[others] @ mid - occ.offsets[others]) < _MERGE_TOLERANCE]
-        if occ.on_polygons(mid, _MERGE_TOLERANCE, near):
+        if occ.on_polygons(mid, _MERGE_TOLERANCE, [occ.n_obstacle + k for k in range(n) if k not in owners]):
             continue
         (i, j), (si, sj) = owners, senses
         if order(i) > order(j):
@@ -578,7 +556,7 @@ def enclosure_edges(geometry: RoomGeometry) -> list[Edge]:
             depth = min(float(np.max(np.linalg.norm(np.cross(polygon[k] - p, axis), axis=1))) for k in (i, j))
             skipped += abs(theta - np.pi / round(np.pi / theta)) * depth > _MERGE_TOLERANCE
             continue
-        groups.setdefault((find(i), find(j)), {})[frozenset((a, b))] = (i, j, si, sj, knife)
+        groups.setdefault((_find_root(parent, i), _find_root(parent, j)), {})[frozenset((a, b))] = (i, j, si, sj, knife)
     if skipped:
         warnings.warn(f"{skipped} room-boundary edge pieces open to less than pi at a non-integer wedge index: not rendered (theta_w > pi only)", ShellEdgeWarning, stacklevel=2)
     edges: list[Edge] = []
@@ -734,6 +712,46 @@ def _clear(occ: Occluders, points: list[np.ndarray], on: list[frozenset[int]]) -
     return not any(occ.blocked(a, b, sa | sb) for (a, sa), (b, sb) in pairwise(zip(points, on)))
 
 
+@dataclass(frozen=True)
+class _Setup:
+    """What both renderers take from a pair: the occluders, the edges, and the
+    source and the receiver with their images (:func:`_ends`)."""
+
+    spec: Pair
+    occ: Occluders
+    edges: list[Edge]
+    air: np.ndarray
+    sources: list[_End]
+    receivers: list[_End]
+
+    @classmethod
+    def of(cls, spec: Pair, max_order: int) -> _Setup:
+        receiver = np.asarray(spec.receiver, dtype=float)
+        occ = Occluders.from_geometry(spec.geometry)
+        edges = diffraction_edges(spec.geometry)
+        air = spec.air_attenuation()
+        return cls(spec, occ, edges, air, _ends(spec.source, occ, max_order >= 1), _ends(receiver, occ, max_order >= 1))
+
+    @property
+    def pairs(self) -> list[tuple[_End, _End]]:
+        """Each source end with the receiver, then the source with each image of the receiver."""
+        return [(s, self.receivers[0]) for s in self.sources] + [(self.sources[0], r) for r in self.receivers[1:]]
+
+    def gain(self, length: float, walls) -> np.ndarray:
+        """Air attenuation over ``length`` times the reflection factor of each wall hit."""
+        geometry = self.spec.geometry
+        gain = np.exp(-self.air * length / 2.0)
+        for face in walls:
+            material = geometry.materials[geometry.face_materials[face - self.occ.n_obstacle]]
+            gain = gain * np.sqrt(1.0 - np.asarray(material.absorption, dtype=float))
+        return gain
+
+    def doa(self, point: np.ndarray) -> np.ndarray:
+        """The direction from the receiver to ``point``, in the receiver's frame."""
+        d = point - self.receivers[0].origin
+        return self.spec.receiver_rotation.T @ d if self.spec.receiver_rotation is not None else d
+
+
 def diffraction_paths(spec: Pair, *, max_order: int = 1) -> list[DiffractionPath]:
     """Every first-order UDFA path, with at most one wall reflection before or after it.
 
@@ -741,33 +759,12 @@ def diffraction_paths(spec: Pair, *, max_order: int = 1) -> list[DiffractionPath
     reflect before they diffract, and the receiver's image those that reflect
     after, which is the same construction by reciprocity.
     """
-    geometry = spec.geometry
     c = spec.speed_of_sound
-    receiver = np.asarray(spec.receiver, dtype=float)
-    occ = Occluders.from_geometry(geometry)
-    edges = diffraction_edges(geometry)
-    air = spec.air_attenuation()
-
-    def reflection(face):
-        material = geometry.materials[geometry.face_materials[face - occ.n_obstacle]]
-        return np.sqrt(1.0 - np.asarray(material.absorption, dtype=float))
-
-    def make(line, length, transfer, zone, edge):
-        points, walls, _ = line
-        doa = points[-2] - receiver
-        if spec.receiver_rotation is not None:
-            doa = spec.receiver_rotation.T @ doa
-        gain = np.exp(-air * length / 2.0)
-        for face in walls:
-            gain = gain * reflection(face)
-        return DiffractionPath(length / c, length, doa, gain, transfer, len(walls), zone, edge)
-
-    sources = _ends(spec.source, occ, max_order >= 1)
-    receivers = _ends(receiver, occ, max_order >= 1)
-    pairs = [(s, receivers[0]) for s in sources] + [(sources[0], r) for r in receivers[1:]]
+    setup = _Setup.of(spec, max_order)
+    occ = setup.occ
     out: list[DiffractionPath] = []
-    for src, rec in pairs:
-        for k, e in enumerate(edges):
+    for src, rec in setup.pairs:
+        for k, e in enumerate(setup.edges):
             if _in_own_plane(e, src, rec):
                 continue
             wp = wedge_path(e, src.position, rec.position)
@@ -778,8 +775,21 @@ def diffraction_paths(spec: Pair, *, max_order: int = 1) -> list[DiffractionPath
             pl = _polyline(occ, src, apex, frozenset(e.faces), rec)
             if pl is None or not _clear(occ, pl[0], pl[2]):
                 continue
-            out.append(make(pl, wp.d_constrained, partial(udfa_transfer, wp, c=c), wp.zone, k))
+            points, walls, _ = pl
+            length = wp.d_constrained
+            out.append(DiffractionPath(length / c, length, setup.doa(points[-2]), setup.gain(length, walls), partial(udfa_transfer, wp, c=c), len(walls), wp.zone, k))
     return [p for p in out if np.any(p.band_gain > 0.0)]
+
+
+def _encode(items, sh_order: int, n_samples: int, normalization: str, extra_weights, render: Callable[[np.ndarray], np.ndarray]) -> np.ndarray:
+    """``render(weights)``, the weights of ``items`` at their arrival directions being the ambisonic channels and
+    then ``extra_weights``; silence without items."""
+    n_extra = 0 if extra_weights is None else np.asarray(extra_weights).shape[1]
+    if not items:
+        return np.zeros((n_samples, (sh_order + 1) ** 2 + n_extra))
+    doa = np.array([p.doa for p in items])
+    sh = spharpy.spherical.spherical_harmonic_basis_real(sh_order, pf.Coordinates(doa[:, 0], doa[:, 1], doa[:, 2]), normalization=normalization, channel_convention="ACN")
+    return render(sh if extra_weights is None else np.hstack([sh, np.asarray(extra_weights, dtype=float)]))
 
 
 def encode_diffraction(
@@ -790,15 +800,12 @@ def encode_diffraction(
     ``extra_weights`` (M, K) adds K channels after the ambisonic ones, as :func:`~compas_acoustics.hybrid.early.encode`'s does: each
     path's transfer function is evaluated once for all of them.
     """
-    n_ch = (sh_order + 1) ** 2
-    n_extra = 0 if extra_weights is None else np.asarray(extra_weights).shape[1]
-    if not paths:
-        return np.zeros((n_samples, n_ch + n_extra))
-    doa = np.array([p.doa for p in paths])
-    sh = spharpy.spherical.spherical_harmonic_basis_real(sh_order, pf.Coordinates(doa[:, 0], doa[:, 1], doa[:, 2]), normalization=normalization, channel_convention="ACN")
-    weights = sh if extra_weights is None else np.hstack([sh, np.asarray(extra_weights, dtype=float)])
-    gains = np.array([p.band_gain / (4.0 * np.pi * p.distance) for p in paths])
-    return render_transfers(np.array([p.delay for p in paths]), [p.transfer for p in paths], gains, weights, BANDS, fs, n_samples)
+
+    def render(weights):
+        gains = np.array([p.band_gain / (4.0 * np.pi * p.distance) for p in paths])
+        return render_transfers(np.array([p.delay for p in paths]), [p.transfer for p in paths], gains, weights, BANDS, fs, n_samples)
+
+    return _encode(paths, sh_order, n_samples, normalization, extra_weights, render)
 
 
 @dataclass(frozen=True)
@@ -843,38 +850,19 @@ def btms_paths(spec: Pair, *, max_order: int = 1, second_order: bool = True) -> 
     boundaries; second order (direct paths) when ``second_order``."""
     geometry = spec.geometry
     c, fs = spec.speed_of_sound, spec.fs
-    receiver = np.asarray(spec.receiver, dtype=float)
-    occ = Occluders.from_geometry(geometry)
-    edges = diffraction_edges(geometry)
-    air = spec.air_attenuation()
-
-    def reflection(face):
-        material = geometry.materials[geometry.face_materials[face - occ.n_obstacle]]
-        return np.sqrt(1.0 - np.asarray(material.absorption, dtype=float))
-
-    def gain_of(length, walls):
-        gain = np.exp(-air * length / 2.0)
-        for face in walls:
-            gain = gain * reflection(face)
-        return gain
-
-    def doa_of(point):
-        d = point - receiver
-        return spec.receiver_rotation.T @ d if spec.receiver_rotation is not None else d
+    setup = _Setup.of(spec, max_order)
+    occ, edges = setup.occ, setup.edges
 
     def face_reflection(e, u):
         face = next((i for i in e.faces if abs(occ.normals[i] @ u) < 1e-6), e.faces[0])
         name = geometry.obstacle_face_materials[face] if face < occ.n_obstacle else geometry.face_materials[face - occ.n_obstacle]
         return np.sqrt(1.0 - np.asarray(geometry.materials[name].absorption, dtype=float))
 
-    sources = _ends(spec.source, occ, max_order >= 1)
-    receivers = _ends(receiver, occ, max_order >= 1)
-    pairs = [(s, receivers[0]) for s in sources] + [(sources[0], r) for r in receivers[1:]]
     out: list[BtmsContribution] = []
     halves: set[tuple] = set()
     ends_seen = Counter(_key(p, 1e-6) for e in edges for p in (e.start, e.end))
     corners = {p for p, n in ends_seen.items() if n > 1}
-    for src, rec in pairs:
+    for src, rec in setup.pairs:
         for k, e in enumerate(edges):
             if _in_own_plane(e, src, rec):
                 continue
@@ -893,7 +881,7 @@ def btms_paths(spec: Pair, *, max_order: int = 1, second_order: bool = True) -> 
                 start = max(int(np.floor(shortest / c * fs)) - 1, 0)
                 ir, singular = wedge1st_ir(fs, c, TWO_PI - e.theta_w, rs, min(ts, e.theta_w), zs, rr, min(tr, e.theta_w), zr, np.array([z0, z1]), start * c / fs)
                 length = np.linalg.norm(mid - src.position) + np.linalg.norm(rec.position - mid)
-                out.append(BtmsContribution(start, ir, doa_of(pl[0][-2]), gain_of(length, pl[1]), 1, (k,), bool(np.any(singular))))
+                out.append(BtmsContribution(start, ir, setup.doa(pl[0][-2]), setup.gain(length, pl[1]), 1, (k,), bool(np.any(singular))))
                 # On a zone boundary wedge1st_ir drops the singular term and the geometric
                 # component is scaled, which keeps the total field continuous (Svensson
                 # and Calamia 2006, "Edge-diffraction impulse responses near specular-zone
@@ -927,13 +915,13 @@ def btms_paths(spec: Pair, *, max_order: int = 1, second_order: bool = True) -> 
                     n = int(np.floor(slot))
                     half = np.zeros(n + 2)
                     half[n:] = scale / apex_length * np.array([1.0 - (slot - n), slot - n])
-                    gain = gain_of(apex_length, pl[1])
+                    gain = setup.gain(apex_length, pl[1])
                     if face is not None:
                         gain = gain * face_reflection(e, face)
-                    out.append(BtmsContribution(start, half, doa_of(pl[0][-2]), gain, 0, (k,), True))
+                    out.append(BtmsContribution(start, half, setup.doa(pl[0][-2]), gain, 0, (k,), True))
 
     if second_order:
-        src, rec = sources[0], receivers[0]
+        src, rec = setup.sources[0], setup.receivers[0]
 
         def prepare(e):
             ends, _ = toolbox_frame(e)
@@ -987,7 +975,7 @@ def btms_paths(spec: Pair, *, max_order: int = 1, second_order: bool = True) -> 
                         if thin_plate:
                             ir = 2.0 * ir
                         length = np.linalg.norm(m1 - src.position) + np.linalg.norm(m2 - m1) + np.linalg.norm(rec.position - m2)
-                        out.append(BtmsContribution(start, ir, doa_of(m2), gain_of(length, ()), 2, (i, j), False))
+                        out.append(BtmsContribution(start, ir, setup.doa(m2), setup.gain(length, ()), 2, (i, j), False))
     return out
 
 
@@ -998,12 +986,9 @@ def encode_btms(
 
     ``extra_weights`` (M, K) adds K channels after the ambisonic ones, as :func:`~compas_acoustics.hybrid.early.encode`'s does.
     """
-    n_ch = (sh_order + 1) ** 2
-    n_extra = 0 if extra_weights is None else np.asarray(extra_weights).shape[1]
-    if not contributions:
-        return np.zeros((n_samples, n_ch + n_extra))
-    doa = np.array([p.doa for p in contributions])
-    sh = spharpy.spherical.spherical_harmonic_basis_real(sh_order, pf.Coordinates(doa[:, 0], doa[:, 1], doa[:, 2]), normalization=normalization, channel_convention="ACN")
-    weights = sh if extra_weights is None else np.hstack([sh, np.asarray(extra_weights, dtype=float)])
-    signals = [(p.start, np.outer(p.ir / (4.0 * np.pi), weights[m])) for m, p in enumerate(contributions)]
-    return render_signals(signals, np.array([p.band_gain for p in contributions]), BANDS, fs, n_samples)
+
+    def render(weights):
+        signals = [(p.start, np.outer(p.ir / (4.0 * np.pi), weights[m])) for m, p in enumerate(contributions)]
+        return render_signals(signals, np.array([p.band_gain for p in contributions]), BANDS, fs, n_samples)
+
+    return _encode(contributions, sh_order, n_samples, normalization, extra_weights, render)

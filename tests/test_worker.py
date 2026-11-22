@@ -442,6 +442,22 @@ def service():
     server.server_close()
 
 
+def test_an_unauthorised_call_leaves_a_running_job_alone():
+    import threading
+
+    from compas_acoustics.worker import jobs
+    from compas_acoustics.worker.service import dispatch
+
+    running = threading.Thread(target=jobs.start, args=("job-0",))
+    running.start()
+    running.join()
+    try:
+        status, _ = dispatch("secret", "Bearer wrong", "info", b"", call_id="job-0")
+        assert status == 401 and jobs.status("job-0") is not None
+    finally:
+        jobs.finish("job-0")
+
+
 def test_jobs_record_progress_and_cancel():
     from compas_acoustics.worker import jobs
 

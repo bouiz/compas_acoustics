@@ -10,6 +10,16 @@ from compas_acoustics.defaults import Defaults
 __all__ = ["Auraliser"]
 
 
+def _checked_level(level):
+    if level not in ("relative", "individual", "none"):
+        raise ValueError("Auraliser level must be one of ['individual', 'none', 'relative'].")
+    return level
+
+
+def _peak(signal):
+    return float(np.max(np.abs(signal))) if np.size(signal) else 0.0
+
+
 def _n3d_to_sn3d(ir):
     degree = np.floor(np.sqrt(np.arange(ir.shape[1]))).astype(int)
     return ir / np.sqrt(2 * degree + 1)
@@ -92,9 +102,7 @@ class Auraliser:
 
     @level.setter
     def level(self, level):
-        if level not in ("relative", "individual", "none"):
-            raise ValueError("Auraliser level must be one of ['individual', 'none', 'relative'].")
-        self._level = level
+        self._level = _checked_level(level)
 
     @property
     def headroom_db(self):
@@ -149,7 +157,7 @@ class Auraliser:
             filepath = Path(data["filepath"])
             extensions = {".wav", ".mp3", ".flac", ".ogg", ".aiff", ".aif"}
             if filepath.suffix.lower() not in extensions:
-                raise ValueError(f"File {filepath} must be one of {extensions}")
+                raise ValueError(f"File {filepath} must be one of {', '.join(sorted(extensions))}")
 
         self._anechoic_sounds = anechoic_sounds
 
@@ -181,7 +189,6 @@ class Auraliser:
     @staticmethod
     def _impulse_responses_from_objects(impulse_responses):
         """ImpulseResponse objects in the dict format, keyed by name, at their raw level."""
-        impulse_responses = list(impulse_responses)
         names = [getattr(ir, "name", None) for ir in impulse_responses]
         use_names = all(names) and len(set(names)) == len(names)
 
@@ -299,7 +306,7 @@ class Auraliser:
         """An audio file as a mono (samples,) array at :attr:`sampling_rate`, multichannel files mixed down."""
         sound = pf.io.read_audio(filepath)
         if sound.cshape != (1,):
-            warnings.warn(f"Anechoic sound {filepath} has {sound.cshape} channels; mixing down to mono.")
+            warnings.warn(f"Anechoic sound {filepath} has {sound.cshape[0]} channels; mixing down to mono.")
             sound = pf.dsp.average(sound)
 
         if sound.sampling_rate != self.sampling_rate:
@@ -351,7 +358,7 @@ class Auraliser:
     @staticmethod
     def peak_dbfs(signal):
         """Peak absolute value of a signal in dBFS (-inf for silence)."""
-        peak = float(np.max(np.abs(signal))) if np.size(signal) else 0.0
+        peak = _peak(signal)
         return 20.0 * np.log10(peak) if peak > 0 else -np.inf
 
     @staticmethod
@@ -372,10 +379,9 @@ class Auraliser:
         list of float
             One gain per signal.
         """
-        if level not in ("relative", "individual", "none"):
-            raise ValueError("Auraliser level must be one of ['individual', 'none', 'relative'].")
+        _checked_level(level)
         target = 10.0 ** (headroom_db / 20.0)
-        peaks = [float(np.max(np.abs(signal))) if np.size(signal) else 0.0 for signal in signals]
+        peaks = [_peak(signal) for signal in signals]
 
         if level == "none":
             return [1.0] * len(peaks)

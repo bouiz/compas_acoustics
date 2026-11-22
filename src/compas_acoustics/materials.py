@@ -11,6 +11,7 @@ from compas.data import json_load
 
 from compas_acoustics.defaults import Defaults
 from compas_acoustics.defaults import _PackageDtype
+from compas_acoustics.defaults import _per_band
 
 __all__ = ["AcousticMaterial", "MaterialCategory", "MaterialsLibrary"]
 
@@ -161,18 +162,13 @@ class AcousticMaterial(_PackageDtype, Data):
         """One float per frequency band; a single value applies to every band; None for None or an empty list."""
         if coefficients is None:
             return None
-        count = Defaults().NUMBER_OF_FREQUENCY_BANDS
-        if isinstance(coefficients, (str, numbers.Real)):
-            values = [float(coefficients)] * count
-        else:
-            # any iterable: Grasshopper passes a .NET List[Double]
-            values = np.asarray(list(coefficients), dtype=float).reshape(-1).tolist()
-            if not values:
+        if isinstance(coefficients, str):
+            coefficients = float(coefficients)
+        elif not isinstance(coefficients, numbers.Real):
+            coefficients = list(coefficients)
+            if not np.size(coefficients):
                 return None
-            if len(values) == 1:
-                values = values * count
-            if len(values) != count:
-                raise ValueError(f"{coeff_type} coefficients list must have {count} values corresponding to the frequency bands.")
+        values = _per_band(coefficients, f"{coeff_type} coefficients")
         if not all(0.0 <= v <= 1.0 for v in values):
             raise ValueError(f"{coeff_type} coefficients must lie in [0, 1], got {values}.")
         return values

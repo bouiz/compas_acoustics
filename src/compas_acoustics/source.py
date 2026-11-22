@@ -1,11 +1,10 @@
-import numbers
-
-import numpy as np
 from compas.geometry import Point
 from compas.geometry import Vector
 
-from compas_acoustics.defaults import Defaults
 from compas_acoustics.defaults import _PackageDtype
+from compas_acoustics.defaults import _per_band
+from compas_acoustics.receiver import _NAME
+from compas_acoustics.receiver import _POSITION
 
 __all__ = ["Source"]
 
@@ -32,17 +31,7 @@ class Source(_PackageDtype, Point):
         self.spl = 120.0
         self.sound_file = sound_file
 
-    @property
-    def name(self):
-        return self._name
-
-    @name.setter
-    def name(self, name):
-        if " " in name:
-            raise ValueError("Source name cannot contain spaces.")
-        if any(char.isupper() for char in name):
-            raise ValueError("Source name must be lowercase.")
-        self._name = name
+    name = _NAME
 
     @property
     def direction(self):
@@ -63,26 +52,9 @@ class Source(_PackageDtype, Point):
 
     @spl.setter
     def spl(self, spl):
-        count = Defaults().NUMBER_OF_FREQUENCY_BANDS
-        # any iterable: Grasshopper passes a .NET List[Double]
-        values = [float(spl)] if isinstance(spl, numbers.Real) else [float(v) for v in np.asarray(list(spl), dtype=float).reshape(-1)]
-        if len(values) == 1:
-            values = values * count
-        if len(values) != count:
-            raise ValueError(f"SPL must be one value or a list of {count} float values corresponding to frequency bands.")
-        self._spl = values
+        self._spl = _per_band(spl, "SPL")
 
-    @property
-    def position(self):
-        return [self.x, self.y, self.z]
-
-    @position.setter
-    def position(self, position: list):
-        if len(position) != 3:
-            raise ValueError("Position must be a list of three float values representing x, y, z coordinates.")
-        self.x = position[0]
-        self.y = position[1]
-        self.z = position[2]
+    position = _POSITION
 
     @property
     def sound_file(self):

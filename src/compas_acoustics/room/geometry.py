@@ -131,39 +131,46 @@ def _weld(points: np.ndarray, tolerance: float) -> Tuple[np.ndarray, np.ndarray]
     CAD exports write every surface's vertices separately.
     """
     parent = np.arange(len(points))
-
-    def root(i):
-        while parent[i] != i:
-            parent[i] = parent[parent[i]]
-            i = parent[i]
-        return i
-
     for i, j in cKDTree(points).query_pairs(tolerance):
-        a, b = root(i), root(j)
+        a, b = _find_root(parent, i), _find_root(parent, j)
         if a != b:
             parent[max(a, b)] = min(a, b)
-    roots = np.array([root(i) for i in range(len(points))])
+    roots = np.array([_find_root(parent, i) for i in range(len(points))])
     first, inverse = np.unique(roots, return_inverse=True)
     return points[first], inverse.reshape(-1)
 
 
-def _split_at_t_junctions(vertices: np.ndarray, a: int, b: int) -> List[int]:
-    """The edge ``a -> b`` as the chain of vertices lying on it, within 1e-6 of the model's extent.
+def _find_root(parent, i):
+    """The root of ``i`` in a union-find forest, halving the path on the way."""
+    while parent[i] != i:
+        parent[i] = parent[parent[i]]
+        i = parent[i]
+    return i
 
-    CAD exports subdivide one side of a seam and not the other, so edges are compared segment by segment. The
-    tolerance is far below the weld's: a sliver face can put a vertex a fraction of a millimetre off an edge,
-    and splitting the edge there makes it non-manifold.
+
+def _t_junction_tolerance(vertices: np.ndarray) -> float:
+    """How far off a side a vertex may lie and still split it: 1e-6 of the model's extent."""
+    return 1e-6 * float(np.ptp(vertices, axis=0).max())
+
+
+def _split_at_t_junctions(vertices: np.ndarray, a: int, b: int, candidates: Optional[np.ndarray] = None) -> List[int]:
+    """The edge ``a -> b`` as the chain of vertices lying on it, within :func:`_t_junction_tolerance`.
+
+    Only the vertex indices in ``candidates`` split it, every vertex when None. CAD exports subdivide one side of
+    a seam and not the other, so edges are compared segment by segment. The tolerance is far below the weld's: a
+    sliver face can put a vertex a fraction of a millimetre off an edge, and splitting the edge there makes it
+    non-manifold.
     """
     start = vertices[a]
     direction = vertices[b] - start
-    offsets = vertices - start
+    index = np.arange(len(vertices)) if candidates is None else candidates
+    offsets = (vertices if candidates is None else vertices[candidates]) - start
     t = offsets @ direction / (direction @ direction)
     distance = np.linalg.norm(offsets - np.outer(t, direction), axis=1)
-    tolerance = 1e-6 * float(np.ptp(vertices, axis=0).max())
-    inner = np.flatnonzero((t > 0.0) & (t < 1.0) & (distance < tolerance))
+    inner = np.flatnonzero((t > 0.0) & (t < 1.0) & (distance < _t_junction_tolerance(vertices)))
     # t of the endpoints themselves can land one ulp inside (0, 1): BLAS rounds the matrix product differently by platform
-    inner = inner[(inner != a) & (inner != b)]
-    return [a, *inner[np.argsort(t[inner])].tolist(), b]
+    inner = inner[(index[inner] != a) & (index[inner] != b)]
+    return [a, *index[inner[np.argsort(t[inner])]].tolist(), b]
 
 
 def _segments(vertices: np.ndarray, face) -> List[Tuple[int, int]]:

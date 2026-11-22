@@ -332,12 +332,26 @@ def test_a_graph_name_a_dict_and_a_method_give_the_same_result():
         {"late_envelope": True},
         {"tail": "air"},
         {"diffraction": "btm"},
+        {"image_source_order": -1},
+        {"duration": 0.0},
         {"normalization": "FuMa"},
     ],
 )
 def test_conflicting_settings_raise_at_construction(kwargs):
     with pytest.raises(ValueError):
         Ambisonics(**kwargs)
+
+
+def test_diffraction_true_is_udfa():
+    assert Ambisonics(diffraction=True).diffraction == "udfa"
+    assert Ambisonics(diffraction=False).diffraction is None
+
+
+def test_the_duration_defaults_to_one_and_a_half_times_the_pairs_longest_target_rt():
+    method = Ambisonics(tail="eyring", image_source_order=1)
+    (ir,) = make().simulate(method).values()
+    (result,) = method.results.values()
+    assert ir.ir.shape[0] == int(np.ceil(1.5 * float(result.core.target.rt.max()) * ir.sampling_rate))
 
 
 def test_tail_defaults():

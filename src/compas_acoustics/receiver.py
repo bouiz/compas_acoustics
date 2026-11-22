@@ -9,6 +9,26 @@ from compas_acoustics.defaults import _PackageDtype
 __all__ = ["Receiver"]
 
 
+def _set_name(point, name):
+    kind = type(point).__name__
+    if " " in name:
+        raise ValueError(f"{kind} name cannot contain spaces.")
+    if any(char.isupper() for char in name):
+        raise ValueError(f"{kind} name must be lowercase.")
+    point._name = name
+
+
+def _set_position(point, position):
+    if len(position) != 3:
+        raise ValueError("Position must be a list of three float values representing x, y, z coordinates.")
+    point.x, point.y, point.z = position[0], position[1], position[2]
+
+
+# The name (lowercase, without spaces) and the position of a Receiver or a Source
+_NAME = property(lambda point: point._name, _set_name)
+_POSITION = property(lambda point: [point.x, point.y, point.z], _set_position)
+
+
 class Receiver(_PackageDtype, Point):
     """A receiver with an orientation, the frame of its ambisonic responses: x is ``direction``, y its left, z ``up``.
 
@@ -32,29 +52,8 @@ class Receiver(_PackageDtype, Point):
         self.up = up if up is not None else Vector(0, 0, 1)
         self.radius = radius
 
-    @property
-    def name(self):
-        return self._name
-
-    @name.setter
-    def name(self, name):
-        if " " in name:
-            raise ValueError("Receiver name cannot contain spaces.")
-        if any(char.isupper() for char in name):
-            raise ValueError("Receiver name must be lowercase.")
-        self._name = name
-
-    @property
-    def position(self):
-        return [self.x, self.y, self.z]
-
-    @position.setter
-    def position(self, position: list):
-        if len(position) != 3:
-            raise ValueError("Position must be a list of three float values representing x, y, z coordinates.")
-        self.x = position[0]
-        self.y = position[1]
-        self.z = position[2]
+    name = _NAME
+    position = _POSITION
 
     @property
     def direction(self):

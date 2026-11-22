@@ -8,7 +8,8 @@ import numpy as np
 import pyfar as pf
 import spharpy
 from scipy.signal import butter, freqs_zpk
-from scipy.spatial import cKDTree
+
+from compas_acoustics.room.reflections import first_of_each_position
 
 from .bands import BANDS, N_BANDS, check_bands
 from .pair import Pair
@@ -54,21 +55,6 @@ def _band_damping(source, damping) -> np.ndarray:
     return damping[:N_BANDS].T
 
 
-def _first_of_each_position(images: np.ndarray, spec: Pair) -> np.ndarray:
-    """Mask over ``images`` (3, M) keeping the first of every group at one position.
-
-    The tolerance, 1e-5 of the room's extent (the package's choice), is well above the float32 rounding of one image reached twice
-    and far below the distance between two distinct images.
-    """
-    keep = np.ones(images.shape[1], dtype=bool)
-    if images.shape[1] < 2:
-        return keep
-    tolerance = 1e-5 * max(float(np.ptp(spec.geometry.vertices, axis=0).max()), 1.0)
-    for i, j in cKDTree(images.T).query_pairs(tolerance):
-        keep[max(i, j)] = False
-    return keep
-
-
 def image_sources(room, source_index: int, mic_index: int, spec: Pair, directivity=None, damping=None, scattered=None) -> ImageSourceSet:
     """The image sources of one source at one microphone of a computed room.
 
@@ -91,7 +77,7 @@ def image_sources(room, source_index: int, mic_index: int, spec: Pair, directivi
     """
     source = room.sources[source_index]
     visible = np.array(room.visibility[source_index][mic_index], dtype=bool)
-    visible[visible] = _first_of_each_position(np.asarray(source.images, dtype=float)[:, visible], spec)
+    visible[visible] = first_of_each_position(np.asarray(source.images, dtype=float)[:, visible], spec.geometry)
     images = np.asarray(source.images, dtype=float)[:, visible]  # (3, M)
     order = np.asarray(source.orders, dtype=int).ravel()[visible]
     wall = np.asarray(source.walls, dtype=int).ravel()[visible]

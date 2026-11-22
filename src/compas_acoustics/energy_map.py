@@ -270,6 +270,7 @@ def _image_source_energy(geometry, sources, mics, fs, order, air_absorption, ban
 
     from compas_acoustics.room.air import AirConditions
     from compas_acoustics.room.pra import source_to_pra
+    from compas_acoustics.room.reflections import first_of_each_position
     from compas_acoustics.worker import jobs
 
     total = np.zeros((len(mics), len(bands), n_bins))
@@ -286,7 +287,6 @@ def _image_source_energy(geometry, sources, mics, fs, order, air_absorption, ban
     index = [int(np.argmin(np.abs(centres - f))) for f in bands]
     air = AirConditions().air_attenuation(bands) if air_absorption else np.zeros(len(bands))
     c = float(room.c)
-    tolerance = 1e-5 * max(float(np.ptp(geometry.vertices, axis=0).max()), 1.0)
     for s, (source, pra_source) in enumerate(zip(sources, room.sources)):
         images = np.asarray(pra_source.images, dtype=float)
         damping = np.asarray(pra_source.damping, dtype=float)
@@ -297,11 +297,7 @@ def _image_source_energy(geometry, sources, mics, fs, order, air_absorption, ban
             visible = np.flatnonzero(np.asarray(room.visibility[s][m], dtype=bool))
             if not visible.size:
                 continue
-            # an image reached through an edge is found from both wall orderings: keep it once
-            keep = np.ones(visible.size, dtype=bool)
-            for i, j in cKDTree(images[:, visible].T).query_pairs(tolerance):
-                keep[max(i, j)] = False
-            visible = visible[keep]
+            visible = visible[first_of_each_position(images[:, visible], geometry)]
             distance = np.linalg.norm(images[:, visible] - mic[:, np.newaxis], axis=0)
             gain = damping[index][:, visible] ** 2
             if pra_source.directivity is not None:

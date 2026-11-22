@@ -11,7 +11,23 @@ from compas_acoustics.defaults import Defaults
 
 __all__ = ["Analyser", "frequency_response", "time_response"]
 
-_PARAM_NAMES = ["EDT", "T20", "T30", "C50", "C80", "D50", "DRR", "Ts", "STI", "G", "SPL", "LF", "LFC"]
+# Title, x label and y label of each parameter, in the order of analyse(); the Grasshopper plots read it through the worker
+PARAMETERS = {
+    "EDT": ("Early Decay Time (EDT)", "Frequency (Hz)", "Time (s)"),
+    "T20": ("Reverberation Time (T20)", "Frequency (Hz)", "Time (s)"),
+    "T30": ("Reverberation Time (T30)", "Frequency (Hz)", "Time (s)"),
+    "C50": ("Clarity (C50)", "Frequency (Hz)", "dB"),
+    "C80": ("Clarity (C80)", "Frequency (Hz)", "dB"),
+    "D50": ("Definition (D50)", "Frequency (Hz)", "Value (%)"),
+    "DRR": ("Direct-to-Reverberant Ratio (DRR)", "Frequency (Hz)", "dB"),
+    "Ts": ("Center Time (Ts)", "Frequency (Hz)", "Time (s)"),
+    "STI": ("Speech Transmission Index (STI)", "Frequency (Hz)", "Modulation transfer index (0-1)"),
+    "G": ("Sound Strength (G)", "Frequency (Hz)", "dB"),
+    "SPL": ("Sound Pressure Level (SPL), overall A-weighted", "Frequency (Hz)", "dB"),
+    "LF": ("Lateral Energy Fraction (LF)", "Frequency (Hz)", "Fraction (0-1)"),
+    "LFC": ("Lateral Energy Fraction, cosine (LFC)", "Frequency (Hz)", "Fraction (0-1)"),
+}
+_PARAM_NAMES = list(PARAMETERS)
 
 # pyrato < 1.0 (the only one on Python 3.9) has no `parameters` module
 _PYRATO_PARAMETERS = hasattr(pyrato, "parameters")
@@ -58,6 +74,16 @@ def _iso3382_start(ir_array, threshold_db=20.0):
         before = np.flatnonzero(level[: earlier[0] + 1] < -threshold_db)
         start = int(before[-1]) if before.size else 0
     return start
+
+
+@lru_cache(maxsize=None)
+def _free_field_edcs(sampling_rate):
+    """:meth:`Analyser._band_edcs` of the package-scale free field at 10 m, ``1 / (4 pi 10)`` at 0.1 s."""
+    reference = np.zeros(sampling_rate)
+    reference[int(0.1 * sampling_rate)] = 1.0 / (4.0 * np.pi * 10.0)
+    analyser = Analyser(reference)
+    analyser.sampling_rate = sampling_rate
+    return analyser._band_edcs(reference)
 
 
 def _channels_first(ir):
@@ -228,6 +254,11 @@ class Analyser:
         """Octave-band signals of a time segment, filtered after windowing and padded 0.5 s so the filters ring out."""
         padded = np.concatenate([np.asarray(segment, dtype=float), np.zeros(int(0.5 * self.sampling_rate))])
         return {f: self._filter_impulse_response(padded, f) for f in bands}
+
+    def _band_edcs(self, segment):
+        """Schroeder curves of the octave bands of a time segment (:meth:`_band_signals`), one channel per band."""
+        filtered = pf.Signal(np.stack(list(self._band_signals(segment, self.frequency_bands).values())), self.sampling_rate)
+        return pyrato.edc.schroeder_integration(filtered)
 
     def _band_energies(self, segment, bands) -> dict:
         """Octave-band energies of a time segment; filter delay and ringing stay with the segment."""
@@ -486,8 +517,6 @@ class Analyser:
         if reference_ir is None:
             if not self._package_scale:
                 raise ValueError("G without a reference_ir needs a package-scale ImpulseResponse; pass the free-field response at 10 m.")
-            reference = np.zeros(self.sampling_rate)
-            reference[int(0.1 * self.sampling_rate)] = 1.0 / (4.0 * np.pi * 10.0)
         else:
             reference_rate = getattr(reference_ir, "sampling_rate", None)
             if reference_rate is not None and int(reference_rate) != self.sampling_rate:
@@ -499,11 +528,8 @@ class Analyser:
             warnings.warn("Sound strength G needs pyrato >= 1.0 (pyrato {} is installed); G is NaN.".format(pyrato.__version__))
             return {"freqs": freqs, "G": [np.nan] * len(freqs), "G_overall": np.nan}
 
-        def band_edcs(x):
-            filtered = pf.Signal(np.stack(list(self._band_signals(x, freqs).values())), self.sampling_rate)
-            return pyrato.edc.schroeder_integration(filtered)
-
-        strength = np.asarray(pyrato.parameters.sound_strength(band_edcs(self.ir), band_edcs(reference))).reshape(-1)
+        reference_edcs = _free_field_edcs(self.sampling_rate) if reference_ir is None else self._band_edcs(reference)
+        strength = np.asarray(pyrato.parameters.sound_strength(self._band_edcs(self.ir), reference_edcs)).reshape(-1)
         values = dict(zip(freqs, strength))
         return {
             "freqs": freqs,
@@ -735,22 +761,6 @@ class Analyser:
         else:
             parameters = _PARAM_NAMES
 
-        units = {
-            "EDT": "Time (s)",
-            "T20": "Time (s)",
-            "T30": "Time (s)",
-            "Ts": "Time (s)",
-            "C50": "dB",
-            "C80": "dB",
-            "DRR": "dB",
-            "G": "dB",
-            "SPL": "dB",
-            "STI": "Modulation transfer index (0-1)",
-            "D50": "Percentage",
-            "LF": "Fraction (0-1)",
-            "LFC": "Fraction (0-1)",
-        }
-
         for param in parameters:
             y = np.array(self.analysis_data[param], dtype=float)
             y_clean = y[np.isfinite(y)]
@@ -788,8 +798,9 @@ class Analyser:
                 else:
                     plt.ylim(ylim)
 
-            plt.xlabel("Frequency (Hz)")
-            plt.ylabel(units.get(param, ""))
+            _, x_label, y_label = PARAMETERS[param]
+            plt.xlabel(x_label)
+            plt.ylabel(y_label)
             plt.grid(alpha=0.3)
             plt.tight_layout()
             plt.show()
@@ -827,9 +838,9 @@ class Analyser:
         """Plot the impulse response against time."""
         import matplotlib.pyplot as plt
 
-        t = np.arange(len(self.ir)) / self.sampling_rate
+        t, values = time_response(self.ir, self.sampling_rate, db=False)
         plt.figure(figsize=(8, 4), num="Impulse Response")
-        plt.plot(t, self.ir, label="Impulse Response")
+        plt.plot(t, values[0], label="Impulse Response")
         plt.xlabel("Time (s)")
         plt.ylabel("Amplitude")
         plt.title("Impulse Response")

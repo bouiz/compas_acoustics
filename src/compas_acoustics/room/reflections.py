@@ -14,8 +14,31 @@ from typing import Optional
 
 import numpy as np
 import pyroomacoustics as pra
+from scipy.spatial import cKDTree
 
-__all__ = ["damping_as_searched"]
+__all__ = ["damping_as_searched", "first_of_each_position", "position_tolerance"]
+
+
+def position_tolerance(geometry) -> float:
+    """The distance within which two images of ``geometry``'s search are one position: 1e-5 of its extent, at least 1.
+
+    The package's choice: well above the float32 rounding of one image reached twice and far below the distance
+    between two distinct images. ``geometry`` is a :class:`~compas_acoustics.room.geometry.RoomGeometry`.
+    """
+    return 1e-5 * max(float(np.ptp(geometry.vertices, axis=0).max()), 1.0)
+
+
+def first_of_each_position(images: np.ndarray, geometry) -> np.ndarray:
+    """Mask over ``images`` (3, M) keeping the first of every group within :func:`position_tolerance`.
+
+    A path passing exactly through an edge is found from both wall orderings.
+    """
+    keep = np.ones(images.shape[1], dtype=bool)
+    if images.shape[1] < 2:
+        return keep
+    for i, j in cKDTree(images.T).query_pairs(position_tolerance(geometry)):
+        keep[max(i, j)] = False
+    return keep
 
 
 def damping_as_searched(searched: pra.Room, other: pra.Room) -> List[np.ndarray]:

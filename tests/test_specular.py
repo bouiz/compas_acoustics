@@ -1,5 +1,3 @@
-from types import SimpleNamespace
-
 import compas
 import numpy as np
 import pytest
@@ -81,8 +79,7 @@ ROOMS = {"shoebox": shoebox, "l_shaped": l_shaped, "obstacle": obstacle}
 
 def pra_visible_images(scene, max_order, s=0, m=0):
     """pyroomacoustics' own visible images for one pair, duplicates removed, as an (n, 3) array."""
-    pytest.importorskip("spharpy")  # hybrid.early needs it, Python >= 3.11 only
-    from compas_acoustics.hybrid.early import _first_of_each_position
+    from compas_acoustics.room.reflections import first_of_each_position
 
     geometry = RoomGeometry.from_scene(scene)
     room = geometry.to_pra(48000, max_order)
@@ -92,7 +89,7 @@ def pra_visible_images(scene, max_order, s=0, m=0):
     room.image_source_model()
     visible = np.array(room.visibility[s][m], dtype=bool)
     images = np.asarray(room.sources[s].images, dtype=float)[:, visible]
-    return images[:, _first_of_each_position(images, SimpleNamespace(geometry=geometry))].T
+    return images[:, first_of_each_position(images, geometry)].T
 
 
 def test_shoebox_has_one_direct_and_six_first_order_paths():

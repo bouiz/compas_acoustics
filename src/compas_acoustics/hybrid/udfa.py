@@ -4,8 +4,8 @@ Single wedges: Kirsch and Ewert (2023), "A universal filter approximation of
 edge diffraction for geometrical acoustics", IEEE/ACM Trans. Audio Speech
 Lang. Process. 31, 1636-1651. Three-sided barriers (:class:`DoubleEdgePath`):
 Kirsch and Ewert (2024), "Filter-based first- and higher-order diffraction
-modeling for geometrical acoustics", Acta Acustica 8, 73, Sec. 3.3. Equation
-numbers are the respective paper's.
+modeling for geometrical acoustics", Acta Acustica 8, 73, Sec. 3.3. Equations
+of the 2024 paper carry its year.
 
 For the barrier, two simplifications the 2024 paper allows (end of Sec.
 3.3.1) are taken: beta = 1 at all angles, and no low-frequency gain
@@ -32,6 +32,10 @@ import numpy as np
 
 TWO_PI = 2.0 * np.pi
 
+# Eq. (6): fractional order alpha, b, Q and roll-off r; Eq. (16): the exponent of the blend p
+_ALPHA, _B, _Q, _R = 0.5, 1.44, 0.2, 1.6
+_P_EXPONENT = 4
+
 
 @dataclass(frozen=True)
 class WedgePath:
@@ -54,7 +58,7 @@ class WedgePath:
     length: float = np.inf
 
     def __post_init__(self) -> None:
-        if not np.pi < self.theta_w <= 2.0 * np.pi:
+        if not np.pi < self.theta_w <= TWO_PI:
             raise ValueError("theta_w must lie in (pi, 2 pi]")
         if not 0.0 <= self.theta_s <= self.theta_r <= self.theta_w:
             raise ValueError("need 0 <= theta_s <= theta_r <= theta_w")
@@ -129,10 +133,10 @@ class WedgePath:
         return "view"
 
 
-def fractional_lowpass(freq: np.ndarray, fc: float, blend: float = 1.44, q: float = 0.2) -> np.ndarray:
+def fractional_lowpass(freq: np.ndarray, fc: float, blend: float = _B, q: float = _Q) -> np.ndarray:
     """Eq. (6) with the paper's alpha = 1/2, b = ``blend`` = 1.44, Q = ``q`` = 0.2 and r = 1.6. ``fc = inf`` gives a flat response."""
     jx = 1j * np.asarray(freq, dtype=float) / fc
-    return (jx ** (2.0 / blend) + (jx / q) ** (1.0 / blend**1.6) + 1.0) ** (-0.5 * blend / 2.0)
+    return (jx ** (2.0 / blend) + (jx / q) ** (1.0 / blend**_R) + 1.0) ** (-_ALPHA * blend / 2.0)
 
 
 def first_order_lowpass(freq: np.ndarray, fc: float) -> np.ndarray:
@@ -213,7 +217,7 @@ def _finite_half_wedge(freq: np.ndarray, fc: float, g: float) -> np.ndarray:
     """Eqs. (11), (12): the half-order low-pass of a half wedge with DC gain g, from Eq. (6)'s b = 1.44 and Q = 0.2."""
     if g == 0.0:
         return np.zeros(freq.shape, dtype=complex)
-    return g * fractional_lowpass(freq, fc / g**2, 1.0 + (1.44 - 1.0) * g**2, 0.5 + (0.2 - 0.5) * g**2)
+    return g * fractional_lowpass(freq, fc / g**2, 1.0 + (_B - 1.0) * g**2, 0.5 + (_Q - 0.5) * g**2)
 
 
 def _term_transfer(freq, fc, fc_max, path, c):
@@ -230,7 +234,7 @@ def _term_transfer(freq, fc, fc_max, path, c):
     g_off = g_far - _half_wedge_gain(fc, t_near)
     # Sec. III-D: the blend reads the initial decay with the higher cutoff
     # of the two terms
-    p = (1.0 - _half_wedge_gain(fc_max, t_near) / _half_wedge_gain(fc_max, t_far)) ** 4
+    p = (1.0 - _half_wedge_gain(fc_max, t_near) / _half_wedge_gain(fc_max, t_far)) ** _P_EXPONENT
     off = g_off * first_order_lowpass(freq, 1.0 / (np.pi * (t_far - t_near)))
     return (p * _finite_half_wedge(freq, fc, g_far) + (1.0 - p) * off) / 4.0
 
@@ -334,7 +338,7 @@ def double_edge_zone(path: DoubleEdgePath) -> str:
 
 
 def _alpha12(fc12: float, fc21: float) -> float:
-    """Eq. (12), with the limits of either cutoff at infinity."""
+    """2024, Eq. (12), with the limits of either cutoff at infinity."""
     if np.isinf(fc12) and np.isinf(fc21):
         return 0.5
     if np.isinf(fc12):
@@ -345,7 +349,7 @@ def _alpha12(fc12: float, fc21: float) -> float:
 
 
 def double_edge_terms(path: DoubleEdgePath, *, c: float) -> list[RouteTerm]:
-    """Eq. (11) as rendered terms, each with its own path length and last edge."""
+    """2024, Eq. (11) as rendered terms, each with its own path length and last edge."""
     p, swapped = _canonical(path)
     th_s1, th_r1, th_s2, th_r2 = _angles(p)
     zone = _zone(p, th_s1, th_r1)
@@ -356,17 +360,17 @@ def double_edge_terms(path: DoubleEdgePath, *, c: float) -> list[RouteTerm]:
     d_r2 = float(np.linalg.norm(p.receiver - p.edge2)) / sin_phi
     d_w = p.width / sin_phi
 
-    # Eq. (8), beta = 1; d_{1,2} = d_s + d_r across either edge
+    # 2024, Eq. (8), beta = 1; d_{1,2} = d_s + d_r across either edge
     d1, d2 = d_s1 + d_r1, d_s2 + d_r2
     hat1 = p.theta_w1 + d1**2 / (p.width + d1**2) * (p.theta_w2 - np.pi)
     hat2 = p.theta_w2 + d2**2 / (p.width + d2**2) * (p.theta_w1 - np.pi)
 
     shadow = zone == "double_shadow"
-    # Eq. (9): detour distance in the double shadow zone.
+    # 2024, Eq. (9): detour distance in the double shadow zone.
     # The angle beyond the modified face is clamped onto it: the package's choice, the paper is silent.
     wp1 = WedgePath.infinite(hat1, th_s1, min(th_r1, hat1), d_s1, d_w + d_r2 if shadow else d_r1, p.phi)
     wp2 = WedgePath.infinite(hat2, th_r2, min(th_s2, hat2), d_r2, d_w + d_s1 if shadow else d_s2, p.phi)
-    # Eq. (10): the other edge as a source or receiver on the shared face,
+    # 2024, Eq. (10): the other edge as a source or receiver on the shared face,
     # unmodified wedge angle, single-term filter
     wp12 = WedgePath.infinite(p.theta_w2, p.theta_w2, th_r2, d_w, d_r2, p.phi)
     wp21 = WedgePath.infinite(p.theta_w1, th_s1, p.theta_w1, d_s1, d_w, p.phi)

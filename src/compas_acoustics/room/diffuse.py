@@ -10,7 +10,6 @@ import warnings
 from typing import Optional
 
 import numpy as np
-import pyrato
 
 from compas_acoustics.room.air import AirConditions
 from compas_acoustics.room.air import air_or_default
@@ -83,22 +82,20 @@ def air_attenuation(air: Optional[AirConditions] = None) -> np.ndarray:
     return air_or_default(air).air_attenuation(np.array(SYNTHESIS_BANDS))
 
 
-def _infinite_without_absorption(reverberation_time, mean_absorption):
-    return np.where(np.isclose(mean_absorption, 0, atol=1e-10, rtol=1e-10), np.inf, reverberation_time)
-
-
+# Sabine and Eyring as pyrato 1.1.0's parametric module writes them, operation for operation (pyrato < 1.0, the one
+# below Python 3.11, has no such module)
 def _sabine(volume, surface_area, mean_absorption, speed_of_sound):
-    mean_absorption = np.asarray(mean_absorption, dtype=float)
+    factor = 24 * np.log(10) / speed_of_sound
     with np.errstate(divide="ignore"):
-        rt = 24 * np.log(10) / speed_of_sound * volume / (surface_area * mean_absorption)
-    return _infinite_without_absorption(rt, mean_absorption)
+        return factor * volume / (surface_area * np.asarray(mean_absorption))
 
 
 def _eyring(volume, surface_area, mean_absorption, speed_of_sound):
-    mean_absorption = np.asarray(mean_absorption, dtype=float)
+    mean_absorption = np.asarray(mean_absorption)
+    factor = 24 * np.log(10) / speed_of_sound
     with np.errstate(divide="ignore"):
-        rt = -24 * np.log(10) / speed_of_sound * volume / (surface_area * np.log(1 - mean_absorption))
-    return _infinite_without_absorption(rt, mean_absorption)
+        rt = -factor * (volume / (surface_area * np.log(1 - mean_absorption)))
+    return np.where(np.isclose(mean_absorption, 0, atol=1e-10, rtol=1e-10), np.inf, rt)
 
 
 def predicted_rt(
@@ -117,14 +114,7 @@ def predicted_rt(
     ``air`` sets the attenuation and, unless ``speed_of_sound`` is given, the speed of sound. The mean absorption
     is held below 1, so a fully absorbing room gives a finite time rather than a division error.
     """
-    if hasattr(pyrato, "parametric"):
-        models = {
-            "sabine": pyrato.parametric.reverberation_time_sabine,
-            "eyring": pyrato.parametric.reverberation_time_eyring,
-        }
-    else:
-        # pyrato < 1.0 (Python 3.9) has no `parametric` module
-        models = {"sabine": _sabine, "eyring": _eyring}
+    models = {"sabine": _sabine, "eyring": _eyring}
     if model not in models:
         raise ValueError(f"model must be one of {sorted(models)}, got {model!r}")
     if not geometry.is_closed:

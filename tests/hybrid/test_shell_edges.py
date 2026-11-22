@@ -403,13 +403,13 @@ def window_db(rir, r, fs):
 def test_the_field_is_continuous_across_a_room_corner_shadow_boundary():
     # the line from S_L over the corner (5, 3) reaches y = 4.5 at x = 3.5
     levels = {}
-    for flag in (False, True):
+    for flag in (None, "udfa"):
         for x in (3.495, 3.505):
             spec = spec_of(prism_room(L_OUTLINE), S_L, [x, 4.5, 1.5])
             rir = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction=flag)).early
             levels[flag, x] = window_db(rir, float(np.linalg.norm(spec.receiver - spec.source)), spec.fs)
-    assert abs(levels[False, 3.505] - levels[False, 3.495]) > 6.0
-    assert abs(levels[True, 3.505] - levels[True, 3.495]) < 0.5
+    assert abs(levels[None, 3.505] - levels[None, 3.495]) > 6.0
+    assert abs(levels["udfa", 3.505] - levels["udfa", 3.495]) < 0.5
 
 
 def partition_room(as_obstacle):

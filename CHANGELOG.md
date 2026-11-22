@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Changed `Binaural` and `Ambisonics` with a given `Mono` reference at their `image_source_order` to take the early field's images from the reference's own image source search (`room.reflections.damping_as_searched`), as a ray-tracing tail does, in place of a second search of the room; the responses are bit-identical.
 * Changed `Binaural` and `Ambisonics` to render the source-receiver pairs on threads, as many as fit in about 4 GB at a pair's peak memory; the responses are bit-identical and in the same order.
 * Changed the hybrid's feedback delay network to filter its lines with the kernel of `scipy.signal.sosfilt` called directly, without that function's checks of its arguments in every block; the responses are bit-identical, the network about twice as fast.
+* Changed `Analyser.plot` to label its axes as the Grasshopper plots do, from one table that the worker also serves (`"Value (%)"` for D50, `"Modulation transfer index (0-1)"` for the bands of STI).
+* Changed the error for a wrong number of band values of `Source.spl` and the `AcousticMaterial` coefficients to one wording.
+* Changed the worker to check the token of a call before registering it, so an unauthorised call leaves a running call with the same id alone; a POST to an unknown route without the token answers 401.
+* Changed `room.diffuse.predicted_rt` to compute Sabine and Eyring itself on every Python, in pyrato's order of operations (identical results on Python >= 3.11; on Python < 3.11 a mean absorption at or below 1e-10 now gives a large finite Sabine time, as pyrato does, instead of inf).
+* Changed `hybrid.synthesis.prepare` to take `diffraction` as `None`, `"udfa"` or `"btms"` and to require `duration_s`; `Binaural` and `Ambisonics` still take `diffraction=True` and default to 1.5 times each pair's longest target reverberation time.
 
 ### Removed
 

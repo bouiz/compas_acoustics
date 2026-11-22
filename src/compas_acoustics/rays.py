@@ -844,6 +844,7 @@ class SpecularReflections(RayField):
         :class:`SpecularReflections`
         """
         from compas_acoustics.room.geometry import RoomGeometry
+        from compas_acoustics.room.reflections import position_tolerance
         from compas_acoustics.simulation_methods.base import _warn_if_the_search_is_slow
 
         if max_order < 0:
@@ -862,7 +863,7 @@ class SpecularReflections(RayField):
         room.image_source_model()
 
         walls = room.room_engine.walls
-        tolerance = 1e-5 * max(float(np.ptp(geometry.vertices, axis=0).max()), 1.0)
+        tolerance = position_tolerance(geometry)
         paths = []
         untraced = 0
         for s, (source_index, source) in enumerate(sources):

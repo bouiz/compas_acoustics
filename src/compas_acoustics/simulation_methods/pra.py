@@ -11,6 +11,7 @@ import numpy as np
 from compas_acoustics.ir import ImpulseResponse
 from compas_acoustics.room.air import AirConditions
 from compas_acoustics.room.air import air_or_default
+from compas_acoustics.room.pra import points_to_array
 from compas_acoustics.room.pra import source_to_pra
 from compas_acoustics.room.raytracing import DURATION_RT_FACTOR
 from compas_acoustics.room.raytracing import RayTracedRun
@@ -148,7 +149,7 @@ class Mono(SimulationMethod):
         fs = context.sampling_rate
         _warn_if_the_search_is_slow(context.geometry, self.image_source_order)
         sources = [source_to_pra(source) for source in context.sources]
-        mic_positions = np.array([receiver.position for receiver in context.receivers], dtype=float).T
+        mic_positions = points_to_array([receiver.position for receiver in context.receivers])
         from compas_acoustics.worker import jobs
 
         jobs.progress("ray tracing" if self.ray_tracing else "image sources")
@@ -202,14 +203,15 @@ class Mono(SimulationMethod):
         """
         from compas_acoustics.analyser import Analyser
 
-        longest, length = 0.0, 0.0
+        # one run: every response has its length
+        length = next(iter(rirs.values())).ir.shape[0] / fs
+        longest = 0.0
         for ir in rirs.values():
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 t30 = np.asarray(Analyser(ir).reverberation_times()["T30"], dtype=float)
             if np.any(np.isfinite(t30)):
                 longest = max(longest, float(np.nanmax(t30)))
-            length = ir.ir.shape[0] / fs
         if longest > 0.0 and length < 2.0 / 3.0 * longest:
             warnings.warn(
                 f"The responses are {length:.1f} s long, less than 2/3 of their reverberation time ({longest:.1f} s): T30 reads "

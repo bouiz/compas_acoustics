@@ -208,6 +208,24 @@ def ray_traced_run(
     microphone that sorts each detected ray by the direction nearest its last leg, as :func:`directional_histograms`
     does: the copies log the rays of the responses, which they leave unchanged.
     """
+    room, duration, unit = _traced_room(
+        geometry, sources, mic_positions, fs, directions, max_order, duration, n_rays, receiver_radius, energy_threshold, air_absorption, seed, air
+    )
+    room.image_source_model()
+    lines = _ray_tracing(room, unit)
+    rirs = _pair_responses(room)
+    histograms = None
+    if unit is not None:
+        histograms = [[_directional_histogram(room, line, d, duration, air_absorption) for line in per_source] for per_source, d in zip(lines, unit)]
+
+    latency = pra.constants.get("frac_delay_length") // 2
+    n_samples = round(duration * fs)
+    return RayTracedRun(room=room, responses=[[_on_package_scale(rir, latency, n_samples) for rir in row] for row in rirs], histograms=histograms)
+
+
+def _traced_room(geometry, sources, mic_positions, fs, directions, max_order, duration, n_rays, receiver_radius, energy_threshold, air_absorption, seed, air):
+    """``(room, duration, unit directions or None)``: the room built for ray tracing with every source and microphone
+    and its tracer set, not yet searched or traced; the arguments are those of :func:`ray_traced_run`."""
     if duration is None:
         duration = default_duration(geometry, air_absorption, air=air)
     if duration <= 0.0:
@@ -229,16 +247,25 @@ def ray_traced_run(
     room.set_ray_tracing(n_rays=n_rays, **options)
     if n_rays is None and room.rt_args["n_rays"] < MIN_RAYS:
         room.set_ray_tracing(n_rays=MIN_RAYS, **options)
-    room.image_source_model()
-    lines = _ray_tracing(room, unit)
-    rirs = _pair_responses(room)
-    histograms = None
-    if unit is not None:
-        histograms = [[_directional_histogram(room, line, d, duration, air_absorption) for line in per_source] for per_source, d in zip(lines, unit)]
+    return room, duration, unit
 
-    latency = pra.constants.get("frac_delay_length") // 2
-    n_samples = round(duration * fs)
-    return RayTracedRun(room=room, responses=[[_on_package_scale(rir, latency, n_samples) for rir in row] for row in rirs], histograms=histograms)
+
+def _each_source_traced(room):
+    """Traces the rays of every source in turn, as pyroomacoustics' ``Room.ray_tracing`` does, yielding while the
+    receivers hold that source's histograms and resetting them after."""
+    engine = room.room_engine
+    n_rays = room.rt_args["n_rays"]
+    n_bands = len(room.octave_bands.get_bw()) if room.is_multi_band else 1
+    for source in room.sources:
+        if source.directivity is None:
+            ray_directions = pra.fibonacci_spherical_sampling(n_rays).T
+            ray_energies = np.ones((n_rays, n_bands))
+        else:
+            ray_directions, ray_energies = source.directivity.sample_rays(n_rays)
+            ray_energies = np.broadcast_to(ray_energies, (n_rays, n_bands))
+        engine.ray_tracing(ray_directions, ray_energies, source.position)
+        yield
+        engine.reset_mics()
 
 
 def _ray_tracing(room, directions=None) -> Optional[List[List[list]]]:
@@ -247,8 +274,6 @@ def _ray_tracing(room, directions=None) -> Optional[List[List[list]]]:
     search, sorts the same rays by direction. Returns the copies' raw histograms ``[mic][source]``, else None."""
     engine = room.room_engine
     n_mics = room.mic_array.M
-    n_rays = room.rt_args["n_rays"]
-    n_bands = len(room.octave_bands.get_bw()) if room.is_multi_band else 1
     room.rt_directional_responses = []
     for m in range(n_mics):
         engine.microphones[m].make_omnidirectional()
@@ -262,19 +287,11 @@ def _ray_tracing(room, directions=None) -> Optional[List[List[list]]]:
             engine.microphones[n_mics + m].set_directions(np.asarray(d, dtype=np.float32))
     room.rt_histograms = [[] for _ in range(n_mics)]
     copies = None if directions is None else [[] for _ in range(n_mics)]
-    for source in room.sources:
-        if source.directivity is None:
-            ray_directions = pra.fibonacci_spherical_sampling(n_rays).T
-            ray_energies = np.ones((n_rays, n_bands))
-        else:
-            ray_directions, ray_energies = source.directivity.sample_rays(n_rays)
-            ray_energies = np.broadcast_to(ray_energies, (n_rays, n_bands))
-        engine.ray_tracing(ray_directions, ray_energies, source.position)
+    for _ in _each_source_traced(room):
         for m in range(n_mics):
             room.rt_histograms[m].append([h.get_hist() for h in engine.microphones[m].histograms])
             if copies is not None:
                 copies[m].append([np.asarray(h.get_hist(), dtype=float) for h in engine.microphones[n_mics + m].histograms])
-        engine.reset_mics()
     room.simulator_state["rt_done"] = True
     return copies
 
@@ -366,41 +383,14 @@ def directional_histograms(
     tracing engine is driven directly, since the room's own call would reset an omnidirectional receiver to one bin.
     Air absorption is applied per band on the bins' travel distance.
     """
-    if duration is None:
-        duration = default_duration(geometry, air_absorption, air=air)
-    if duration <= 0.0:
-        raise ValueError(f"duration must be positive, got {duration!r}")
-    mic_positions = np.asarray(mic_positions, dtype=float).reshape(3, -1)
-    unit = _unit_directions(directions, mic_positions.shape[1])
-    options = {
-        "receiver_radius": receiver_radius,
-        "energy_thres": energy_threshold,
-        "time_thres": float(duration),
-        "hist_bin_size": _HIST_BIN,
-    }
-    pra.random.seed(seed)
-    room = geometry.to_pra(fs, max_order, ray_tracing=True, air_absorption=air_absorption, air=air)
-    for source in sources:
-        room.add_soundsource(source)
-    room.add_microphone_array(pra.MicrophoneArray(mic_positions, fs))
-    room.set_ray_tracing(n_rays=n_rays, **options)
-    if n_rays is None and room.rt_args["n_rays"] < MIN_RAYS:
-        room.set_ray_tracing(n_rays=MIN_RAYS, **options)
-    n_rays = room.rt_args["n_rays"]
-    n_bands = len(room.octave_bands.get_bw())
+    room, duration, unit = _traced_room(
+        geometry, sources, mic_positions, fs, directions, max_order, duration, n_rays, receiver_radius, energy_threshold, air_absorption, seed, air
+    )
     for m, d in enumerate(unit):
         room.room_engine.microphones[m].set_directions(np.asarray(d, dtype=np.float32))
     histograms = [[] for _ in unit]
-    for source in room.sources:
-        if source.directivity is None:
-            ray_directions = pra.fibonacci_spherical_sampling(n_rays).T
-            ray_energies = np.ones((n_rays, n_bands))
-        else:
-            ray_directions, ray_energies = source.directivity.sample_rays(n_rays)
-            ray_energies = np.broadcast_to(ray_energies, (n_rays, n_bands))
-        room.room_engine.ray_tracing(ray_directions, ray_energies, source.position)
+    for _ in _each_source_traced(room):
         for m, d in enumerate(unit):
             lines = [np.asarray(h.get_hist(), dtype=float) for h in room.room_engine.microphones[m].histograms]
             histograms[m].append(_directional_histogram(room, lines, d, duration, air_absorption))
-        room.room_engine.reset_mics()
     return histograms

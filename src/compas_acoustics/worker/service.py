@@ -63,24 +63,24 @@ def dispatch(token, authorization, function, body, call_id=None):
     """
     from compas_acoustics.worker import jobs
 
+    if not authorized(token, authorization):
+        return _error(401, "Unauthorised.")
     if not call_id:
-        return _dispatch(token, authorization, function, body)
+        return _dispatch(function, body)
     jobs.start(call_id)
     try:
-        return _dispatch(token, authorization, function, body)
+        return _dispatch(function, body)
     finally:
         jobs.finish(call_id)
 
 
-def _dispatch(token, authorization, function, body):
+def _dispatch(function, body):
     from compas_pb import pb_load_bts
 
     import compas_acoustics.pb  # noqa: F401  (registers the converters)
     from compas_acoustics.worker import api
     from compas_acoustics.worker import jobs
 
-    if not authorized(token, authorization):
-        return _error(401, "Unauthorised.")
     if function not in api.__all__:
         return _error(404, f"{function} is not part of the compas_acoustics worker API.")
     try:
@@ -132,22 +132,18 @@ class _Handler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length") or 0)
         body = self.rfile.read(length) if length else b""
         authorization = self.headers.get("Authorization")
-        if self.path == "/shutdown":
-            if not authorized(self.server.token, authorization):
-                self._answer(*_error(401, "Unauthorised."))
-                return
+        if self.path.startswith("/api/"):
+            call_id = (self.headers.get("X-Call-Id") or "")[:64] or None
+            self._answer(*dispatch(self.server.token, authorization, self.path[len("/api/") :], body, call_id))
+        elif not authorized(self.server.token, authorization):
+            self._answer(*_error(401, "Unauthorised."))
+        elif self.path == "/shutdown":
             self._answer(200, b"", "text/plain")
             threading.Thread(target=self.server.shutdown, daemon=True).start()
         elif self.path.startswith("/cancel/"):
             from compas_acoustics.worker import jobs
 
-            if not authorized(self.server.token, authorization):
-                self._answer(*_error(401, "Unauthorised."))
-                return
             self._answer(200, _encode({"result": jobs.cancel(self.path[len("/cancel/") :])}))
-        elif self.path.startswith("/api/"):
-            call_id = (self.headers.get("X-Call-Id") or "")[:64] or None
-            self._answer(*dispatch(self.server.token, authorization, self.path[len("/api/") :], body, call_id))
         else:
             self._answer(*_error(404, "Not found."))
 

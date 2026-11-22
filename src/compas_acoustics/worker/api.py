@@ -4,8 +4,12 @@ Arguments and results are what :mod:`compas_acoustics.pb` carries: Data objects,
 input raises ValueError or TypeError, which the service answers with its message.
 """
 
+import functools
 import importlib.util
 import warnings
+from contextlib import contextmanager
+
+from compas_acoustics.analyser import PARAMETERS
 
 __all__ = [
     "info",
@@ -42,8 +46,14 @@ def _method_class(name):
     raise ValueError(f"Unknown method {name!r}: 'binaural', 'ambisonics' or 'mono'.")
 
 
-def _messages(caught):
-    return list(dict.fromkeys(str(w.message) for w in caught if issubclass(w.category, UserWarning)))
+@contextmanager
+def _user_warnings():
+    """Record the warnings raised in the block; the list it yields holds the distinct UserWarning messages once the block ends."""
+    messages = []
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        yield messages
+    messages.extend(dict.fromkeys(str(w.message) for w in caught if issubclass(w.category, UserWarning)))
 
 
 def info():
@@ -84,22 +94,20 @@ def simulate(scene, method, settings, references=None):
     settings = dict(settings or {})
     if references:
         settings["reference"] = dict(references)
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
+    with _user_warnings() as messages:
         method = method_class(**settings)
         rirs = scene.simulate(method)
-    return {"responses": {method.name: dict(rirs)}, "warnings": _messages(caught)}
+    return {"responses": {method.name: dict(rirs)}, "warnings": messages}
 
 
 def analyse(ir):
     """STI and G of ``ir``, for a client whose pyrato cannot compute them: ``{"analysis": {...}, "warnings": [str]}``."""
     from compas_acoustics import Analyser
 
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
+    with _user_warnings() as messages:
         # the client computes every other parameter itself
         analysis = Analyser(ir)._sti_and_strength()
-    return {"analysis": analysis, "warnings": _messages(caught)}
+    return {"analysis": analysis, "warnings": messages}
 
 
 # =============================================================================
@@ -107,17 +115,20 @@ def analyse(ir):
 # =============================================================================
 
 
-def materials_library():
-    """The materials library's names by category: ``[[category, [name, ...]], ...]``, in the library's category order."""
+@functools.lru_cache(maxsize=None)
+def _library():
     from compas_acoustics import MaterialsLibrary
 
-    return [[category.value, list(names)] for category, names in MaterialsLibrary().materials_by_category.items()]
+    return MaterialsLibrary()
+
+
+def materials_library():
+    """The materials library's names by category: ``[[category, [name, ...]], ...]``, in the library's category order."""
+    return [[category.value, list(names)] for category, names in _library().materials_by_category.items()]
 
 
 def material_from_name(name):
-    from compas_acoustics import MaterialsLibrary
-
-    library = MaterialsLibrary()
+    library = _library()
     if name not in library.material_names:
         raise ValueError(f"No material {name!r} in the materials library.")
     return library.material_from_name(name)
@@ -209,22 +220,6 @@ def make_scene(objects, sources, receivers, name=None, sampling_rate=None):
 # Analysis: what Analyse IR shows
 # =============================================================================
 
-#: name: (title, x unit, y unit), the parameters Analyse IR gives. The bands of STI are its modulation transfer indices.
-PARAMETERS = {
-    "EDT": ("Early Decay Time (EDT)", "Frequency (Hz)", "Time (s)"),
-    "T20": ("Reverberation Time (T20)", "Frequency (Hz)", "Time (s)"),
-    "T30": ("Reverberation Time (T30)", "Frequency (Hz)", "Time (s)"),
-    "C50": ("Clarity (C50)", "Frequency (Hz)", "dB"),
-    "C80": ("Clarity (C80)", "Frequency (Hz)", "dB"),
-    "D50": ("Definition (D50)", "Frequency (Hz)", "Value (%)"),
-    "DRR": ("Direct-to-Reverberant Ratio (DRR)", "Frequency (Hz)", "dB"),
-    "Ts": ("Center Time (Ts)", "Frequency (Hz)", "Time (s)"),
-    "STI": ("Speech Transmission Index (STI)", "Frequency (Hz)", "Index (0-1)"),
-    "G": ("Sound Strength (G)", "Frequency (Hz)", "dB"),
-    "SPL": ("Sound Pressure Level (SPL), overall A-weighted", "Frequency (Hz)", "dB"),
-    "LF": ("Lateral Energy Fraction (LF)", "Frequency (Hz)", "Fraction (0-1)"),
-    "LFC": ("Lateral Energy Fraction, cosine (LFC)", "Frequency (Hz)", "Fraction (0-1)"),
-}
 TIME_SCALES = ["db", "linear"]
 
 
@@ -284,8 +279,7 @@ def analysis(ir, time_scale="db"):
     time_scale = time_scale or TIME_SCALES[0]
     if time_scale not in TIME_SCALES:
         raise ValueError(f"Input parameter 'time_scale' must be one of {TIME_SCALES}: 'db' or 'linear'.")
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
+    with _user_warnings() as messages:
         analyser = Analyser(ir)
         analyser.analyse()
         data = analyser.analysis_data
@@ -302,7 +296,7 @@ def analysis(ir, time_scale="db"):
         time = _parameter("IR", _curve_title("Impulse Response", channels), "Time (s)", "Level (dB)" if db else "Amplitude", "linear", times, levels, channels=channels)
         frequencies, magnitudes = frequency_response(samples, ir.sampling_rate, num_fractions=3, frequency_range=(20.0, 20000.0))
         frequency = _parameter("FR", _curve_title("Frequency Response, 1/3 octave", channels), "Frequency (Hz)", "Level (dB)", "log", frequencies, magnitudes, channels=channels)
-    return {"parameters": parameters, "time": time, "frequency": frequency, "warnings": _messages(caught)}
+    return {"parameters": parameters, "time": time, "frequency": frequency, "warnings": messages}
 
 
 # =============================================================================
@@ -344,44 +338,25 @@ def auralise(groups, level="relative", mix_sources=False, save_folder=None, save
     if level not in LEVELS:
         raise ValueError(f"Input parameter 'level' must be one of {LEVELS}.")
     renders = []
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
+    with _user_warnings() as messages:
         for group in groups:
             irs = list(group["irs"])
             sounds = list(group.get("sounds") or [None] * len(irs))
             if len(sounds) != len(irs):
                 raise ValueError("DataTree branch length mismatch.")
-            ir_groups, sound_groups, formats = {}, {}, {}
-            for idx, (ir, sound) in enumerate(zip(irs, sounds)):
-                receiver_id = str(ir.receiver.guid)
-                sub_key = f"source_{idx}"
-                formats[sub_key] = ir.format
-                # Auralise at the raw level so level differences between impulse responses are kept
-                raw = ir.denormalized()
-                data = raw[:, np.newaxis] if raw.ndim == 1 else raw
-                order = getattr(ir, "ambisonic_order", None)
-                ir_groups.setdefault(receiver_id, {})[sub_key] = {
-                    "ir": data,
-                    "sampling_rate": ir.sampling_rate,
-                    "ambisonic_order": int(round(np.sqrt(data.shape[1]))) - 1 if order is None else int(order),
-                    "channel_order": getattr(ir, "channel_order", None) or "acn",
-                    "normalization": getattr(ir, "normalization", None) or "sn3d",
-                    "binaural": ir.format == "binaural",
-                }
-                sound_groups.setdefault(receiver_id, {})[sub_key] = {"filepath": sound or ir.source.sound_file}
-            for r, receiver_id in enumerate(ir_groups):
-                if mix_sources:
-                    tasks = [(receiver_id, ir_groups[receiver_id], sound_groups[receiver_id], f"{r}")]
-                else:
-                    tasks = [(key, {key: ir_groups[receiver_id][key]}, {key: sound_groups[receiver_id][key]}, f"{r}_{j}") for j, key in enumerate(ir_groups[receiver_id])]
-                for _, ir_data, sound_data, suffix in tasks:
+            receivers = {}
+            for ir, sound in zip(irs, sounds):
+                receivers.setdefault(str(ir.receiver.guid), []).append((ir, sound or ir.source.sound_file))
+            for r, pairs in enumerate(receivers.values()):
+                tasks = [(pairs, f"{r}")] if mix_sources else [([pair], f"{r}_{j}") for j, pair in enumerate(pairs)]
+                for task, suffix in tasks:
                     jobs.progress("rendering", len(renders))
-                    task_formats = sorted({formats[key] for key in ir_data})
+                    task_formats = sorted({ir.format for ir, _ in task})
                     if len(task_formats) > 1:
                         raise ValueError(
                             "The impulse responses at receiver {} are {}: mix responses of one format, or turn mix_sources off.".format(r, " and ".join(task_formats))
                         )
-                    auraliser = Auraliser(impulse_responses=ir_data, anechoic_sounds=sound_data)
+                    auraliser = Auraliser([ir for ir, _ in task], anechoic_sounds=[sound for _, sound in task])
                     renders.append((group["branch"], auraliser, auraliser.convolve(), suffix, task_formats[0]))
         gains = Auraliser.render_gains([render[2] for render in renders], level, -1.0)
         signals = []
@@ -392,7 +367,7 @@ def auralise(groups, level="relative", mix_sources=False, save_folder=None, save
             signals.append({"branch": branch, "audio": Audio(leveled, auraliser.sampling_rate, ir_format)})
             if save_folder:
                 auraliser.export_convolved_sound(os.path.join(save_folder, f"{save_name or 'convolved_sound'}_mic_{suffix}.wav"), signal, gain=gain)
-    return {"signals": signals, "peak_dbfs": float(peak), "warnings": _messages(caught)}
+    return {"signals": signals, "peak_dbfs": float(peak), "warnings": messages}
 
 
 _PLAYER = None
@@ -501,8 +476,7 @@ def ray_field(scene, source_index=None, n_rays=500, max_order=10, direction=None
         cone["direction"] = list(direction)
     if angle is not None:
         cone["angle"] = angle
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
+    with _user_warnings() as messages:
         field = RayField.from_scene(
             scene,
             sources=None if source_index is None else [scene.sources[source_index]],
@@ -513,7 +487,7 @@ def ray_field(scene, source_index=None, n_rays=500, max_order=10, direction=None
             **cone,
         )
     shown = field if order is None else field.truncated(reflection_order=int(order))
-    return {"field": field, "shown": shown, "seed": seed, "warnings": _messages(caught)}
+    return {"field": field, "shown": shown, "seed": seed, "warnings": messages}
 
 
 def energy_map(scene, points, source_index=None):
@@ -530,14 +504,13 @@ def energy_map(scene, points, source_index=None):
     """
     from compas_acoustics import EnergyMap
 
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
+    with _user_warnings() as messages:
         result = EnergyMap.from_scene(scene, points, source_index=None if source_index is None else int(source_index), seed=True)
     return {
         "spl": result.spl().tolist(),
         "spl_a": result.spl_a().tolist(),
         "n_rays": result.n_rays,
-        "warnings": _messages(caught),
+        "warnings": messages,
     }
 
 
@@ -552,22 +525,21 @@ def specular_reflections(scene, orders=None, source_index=None, receiver_index=N
     """
     from compas_acoustics import SpecularReflections
 
-    messages = []
+    notes = []
     orders = sorted({int(o) for o in orders or [] if o is not None})
     negative = [o for o in orders if o < 0]
     if negative:
-        messages.append("Orders below 0 are left out: {}.".format(", ".join(str(o) for o in negative)))
+        notes.append("Orders below 0 are left out: {}.".format(", ".join(str(o) for o in negative)))
         orders = [o for o in orders if o >= 0]
     orders = orders or [1]
     for kind, index, count in (("source", source_index, len(scene.sources)), ("receiver", receiver_index, len(scene.receivers))):
         if index is not None and not 0 <= index < count:
-            messages.append(_index_message(kind, index, count))
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
+            notes.append(_index_message(kind, index, count))
+    with _user_warnings() as messages:
         found = SpecularReflections.from_scene(scene, max_order=max(orders))
     reflections = found.filter(source=source_index, receiver_index=receiver_index, order=orders)
     counts = [[o, sum(1 for path in reflections if path.order == o)] for o in reflections.orders]
-    return {"reflections": reflections, "counts": counts, "warnings": messages + _messages(caught)}
+    return {"reflections": reflections, "counts": counts, "warnings": notes + messages}
 
 
 def regularized_fitness(values, target, k=1.0):

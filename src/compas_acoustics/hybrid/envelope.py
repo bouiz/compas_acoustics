@@ -56,7 +56,6 @@ from functools import lru_cache
 import numpy as np
 import pyfar as pf
 import scipy.fft
-from scipy.signal import fftconvolve
 
 SMOOTH_MS = 100.0
 # a reference this far from the hybrid over its first 50 ms is on another scale; 6 dB, 50 ms and the onset at
@@ -117,11 +116,16 @@ def _octave_bands(columns: np.ndarray, fs: float):
         yield scipy.fft.irfft(spectrum * response[b][:, np.newaxis], n_fft, axis=0, workers=-1)[delay : delay + columns.shape[0]]
 
 
-def _smoothed_energy(bands: np.ndarray, fs: float, ms: float) -> np.ndarray:
+def _hann(fs: float, ms: float) -> np.ndarray:
+    """A Hann window of ``ms`` milliseconds, at least one sample, with unit sum."""
     n = max(round(ms * 1e-3 * fs), 1)
     window = np.hanning(n + 2)[1:-1]
-    window /= window.sum()
-    return np.maximum(fftconvolve(bands**2, window[np.newaxis, :], mode="same", axes=1), 0.0)
+    return window / window.sum()
+
+
+def _smoothed_energy(bands: np.ndarray, fs: float, ms: float) -> np.ndarray:
+    """The energy of ``bands`` (n_bands, n) over a Hann window of ``ms``, same shape."""
+    return np.maximum(_smoothed_over_time((bands**2).T, _hann(fs, ms)), 0.0).T
 
 
 def _smoothed_over_time(x: np.ndarray, window: np.ndarray) -> np.ndarray:
@@ -141,6 +145,20 @@ def _smoothed_over_time(x: np.ndarray, window: np.ndarray) -> np.ndarray:
 
     with ThreadPoolExecutor() as pool:
         return np.concatenate(list(pool.map(smoothed, [slice(i, i + 8) for i in range(0, x.shape[1], 8)])), axis=1)
+
+
+def _hold(energy: np.ndarray, db: float, earliest: int, window: int) -> tuple[int, int]:
+    """The sample from which a gain is held and the start of the ``window`` before it.
+
+    The hold starts where the energy decay curve of ``energy`` is ``db`` down, never before ``earliest`` and at
+    most at the last sample.
+    """
+    edc = np.cumsum(energy[::-1])[::-1]
+    below = np.flatnonzero(edc <= 10 ** (-db / 10) * edc[0])
+    last = energy.size - 1
+    hold = int(below[0]) if below.size else last
+    hold = min(max(hold, earliest), last)
+    return hold, max(hold - window, 0)
 
 
 def _early_end(ref_b: np.ndarray, early_b: np.ndarray, fs: float) -> int:
@@ -180,20 +198,14 @@ def envelope_gains(reference: np.ndarray, early_w: np.ndarray, late_w: np.ndarra
     window = round(SMOOTH_MS * 1e-3 * fs)
     earliest = _early_end(ref_b[:8], early_b[:8], fs) + window
     for k in range(gains.shape[0]):
-        edc = np.cumsum((ref_b[k] ** 2)[::-1])[::-1]
-        below = np.flatnonzero(edc <= 10 ** (-20.0 / 10) * edc[0])
-        hold = int(below[0]) if below.size else m - 1
-        hold = min(max(hold, earliest), m - 1)
-        start = max(hold - window, 0)
+        hold, start = _hold(ref_b[k] ** 2, 20.0, earliest, window)
         late_energy = e_late[k, start:hold].sum()
         if late_energy > 0.0:
             held = np.sqrt(target[k, start:hold].sum() / late_energy)
             gains[k, hold:] = min(held, 1.0)
     gains[8] = gains[7]  # above about 11.2 kHz: no estimate of its own
 
-    if m < n:
-        gains = np.concatenate([gains, np.repeat(gains[:, -1:], n - m, axis=1)], axis=1)
-    return gains
+    return np.pad(gains, ((0, 0), (0, n - m)), mode="edge")
 
 
 def shape_late(signals: np.ndarray, early_w: np.ndarray, late_w: np.ndarray, reference: np.ndarray, fs: float, histogram=None) -> np.ndarray:
@@ -306,9 +318,8 @@ def directional_shares(histogram, lines: np.ndarray, fs: float, band: int) -> np
     if energy.ndim != 3 or energy.shape[0] != n_lines:
         raise ValueError(f"the histogram must hold one direction per line ({n_lines}), got {energy.shape}")
     bin_samples = max(int(round(histogram.bin_size * fs)), 1)
-    window = max(round(SMOOTH_MS * 1e-3 * fs), 1)
-    hann = np.hanning(window + 2)[1:-1]
-    hann /= hann.sum()
+    hann = _hann(fs, SMOOTH_MS)
+    window = hann.size
 
     rays = smooth_over_directions(energy[:, band], histogram.directions)  # (n_lines, n_bins)
     m = min(rays.shape[1] * bin_samples, n)
@@ -326,17 +337,11 @@ def directional_shares(histogram, lines: np.ndarray, fs: float, band: int) -> np
     total = e_lines.sum(axis=1)
     present = np.flatnonzero(total > 1e-6 * total.max())
     earliest = (int(present[0]) if present.size else 0) + window
-    edc = np.cumsum(rays.sum(axis=1)[::-1])[::-1]
-    below = np.flatnonzero(edc <= 10 ** (-60.0 / 10) * edc[0])
-    hold = int(below[0]) if below.size else m - 1
-    hold = min(max(hold, earliest), m - 1)
-    start = max(hold - window, 0)
+    hold, start = _hold(rays.sum(axis=1), 60.0, earliest, window)
     held_rays = e_rays[start:hold].sum(axis=0)
     held_lines = e_lines[start:hold].sum(axis=0)
     if held_rays.sum() > 0.0 and held_lines.sum() > 0.0:
         held = np.sqrt((held_rays / held_rays.sum()) / np.where(held_lines > 0.0, held_lines / held_lines.sum(), 1.0))
         shares[hold:] = np.where(held_lines > 0.0, held, 1.0)
 
-    if m < n:
-        shares = np.concatenate([shares, np.repeat(shares[-1:], n - m, axis=0)])
-    return shares
+    return np.pad(shares, ((0, n - m), (0, 0)), mode="edge")

@@ -415,7 +415,7 @@ def window_db(rir, r):
 def test_diffraction_off_changes_nothing_and_on_adds_the_paths():
     spec = pair(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]), receiver=np.array([8.0, 4.0, 3.0]), air_absorption=False)
     off = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2), normalization="N3D")
-    on = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction=True), normalization="N3D")
+    on = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction="udfa"), normalization="N3D")
     n = off.early.shape[0]
     added = encode_diffraction(diffraction_paths(spec, max_order=1), 1, n, spec.fs)
     np.testing.assert_allclose(on.early - off.early, added, atol=1e-12)
@@ -425,13 +425,13 @@ def test_diffraction_off_changes_nothing_and_on_adds_the_paths():
 def test_the_field_is_continuous_across_the_panel_shadow_boundary():
     # boundary over the top edge (z = 2.5) at x = 8: z = 1.5 + 1.0 * 6 / 3 = 3.5
     levels = {}
-    for flag in (False, True):
+    for flag in (None, "udfa"):
         for z in (3.495, 3.505):
             spec = pair(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]), receiver=np.array([8.0, 4.0, z]), air_absorption=False)
             rir = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction=flag)).early
             levels[flag, z] = window_db(rir, float(np.linalg.norm(spec.receiver - spec.source)))
-    assert abs(levels[False, 3.505] - levels[False, 3.495]) > 6.0
-    assert abs(levels[True, 3.505] - levels[True, 3.495]) < 0.5
+    assert abs(levels[None, 3.505] - levels[None, 3.495]) > 6.0
+    assert abs(levels["udfa", 3.505] - levels["udfa", 3.495]) < 0.5
 
 
 def box_geometry():
@@ -757,13 +757,6 @@ def test_second_order_between_collinear_edges_is_skipped_without_a_warning():
     assert all(np.all(np.isfinite(p.ir)) for p in out)
 
 
-def test_true_and_udfa_are_the_same_model():
-    spec = pair(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]), receiver=np.array([8.0, 4.0, 3.0]), air_absorption=False)
-    a = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction=True))
-    b = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction="udfa"))
-    np.testing.assert_array_equal(a.rir, b.rir)
-
-
 def test_btms_mode_adds_exactly_the_btms_field():
     spec = pair(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]), receiver=np.array([8.0, 4.0, 3.0]), air_absorption=False)
     off = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2), normalization="N3D")
@@ -771,12 +764,6 @@ def test_btms_mode_adds_exactly_the_btms_field():
     added = encode_btms(btms_paths(spec, max_order=1), 1, off.early.shape[0], spec.fs)
     np.testing.assert_allclose(on.early - off.early, added, atol=1e-12)
     np.testing.assert_array_equal(on.late, off.late)
-
-
-def test_an_unknown_diffraction_model_is_refused():
-    spec = pair(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]), receiver=np.array([8.0, 4.0, 3.0]))
-    with pytest.raises(ValueError, match="diffraction"):
-        render_ambisonics(prepare(spec, images(spec, 1), RoomTarget.from_room(spec), max_order=0, duration_s=0.1, diffraction="btm"))
 
 
 def edverify_plate():

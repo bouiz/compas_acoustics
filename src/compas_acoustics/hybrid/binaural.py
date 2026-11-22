@@ -99,8 +99,6 @@ def render_binaural(core: HybridCore, hrtf: HrtfSet) -> HybridResult:
     shaped = core.shaped_lines(early_w)
     lines = shaped / np.sqrt(shaped.shape[1])
     nearest = hrtf.nearest(core.line_directions)
-    late = np.zeros((n, 2))
-    for index in np.unique(nearest):
-        line = lines[:, nearest == index].sum(axis=1)
-        late += fftconvolve(line[:, np.newaxis], hrtf.hrirs[index].T, axes=0)[:n]
+    groups = np.unique(nearest)
+    late = render_groups(np.stack([lines[:, nearest == index].sum(axis=1) for index in groups], axis=1), groups, hrtf, n)
     return HybridResult(core=core, rir=early + late, early=early, late=late, late_lines=shaped, normalization=None)

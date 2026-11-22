@@ -66,21 +66,10 @@ def test_an_unknown_normalization_raises():
         render_ambisonics(prepare(spec, iss, TARGET, max_order=MAX_ORDER, duration_s=0.5), normalization="FuMa")
 
 
-def test_the_duration_defaults_to_one_and_a_half_reverberation_times():
-    spec, iss = setup()
-    assert render_ambisonics(prepare(spec, iss, TARGET, max_order=MAX_ORDER)).rir.shape[0] == int(np.ceil(0.9 * FS))
-
-
-def test_a_non_positive_duration_raises():
-    spec, iss = setup()
-    with pytest.raises(ValueError, match="duration"):
-        render_ambisonics(prepare(spec, iss, TARGET, max_order=MAX_ORDER, duration_s=0.0))
-
-
 def test_diffraction_changes_only_the_early_field():
     spec, iss = setup(panel=True)
     plain = render_ambisonics(prepare(spec, iss, TARGET, max_order=MAX_ORDER, duration_s=0.5))
-    bent = render_ambisonics(prepare(spec, iss, TARGET, max_order=MAX_ORDER, duration_s=0.5, diffraction=True))
+    bent = render_ambisonics(prepare(spec, iss, TARGET, max_order=MAX_ORDER, duration_s=0.5, diffraction="udfa"))
     np.testing.assert_allclose(bent.late, plain.late)
     assert not np.allclose(bent.early, plain.early)
 
@@ -88,7 +77,7 @@ def test_diffraction_changes_only_the_early_field():
 def test_diffraction_in_a_rectangular_room_without_obstacles_changes_nothing():
     spec, iss = setup()
     plain = render_ambisonics(prepare(spec, iss, TARGET, max_order=MAX_ORDER, duration_s=0.5))
-    bent = render_ambisonics(prepare(spec, iss, TARGET, max_order=MAX_ORDER, duration_s=0.5, diffraction=True))
+    bent = render_ambisonics(prepare(spec, iss, TARGET, max_order=MAX_ORDER, duration_s=0.5, diffraction="udfa"))
     np.testing.assert_allclose(bent.early, plain.early)
     np.testing.assert_allclose(bent.late, plain.late)
 
@@ -99,12 +88,6 @@ def test_btms_changes_only_the_early_field():
     bent = render_ambisonics(prepare(spec, iss, TARGET, max_order=0, duration_s=0.2, diffraction="btms"))
     np.testing.assert_allclose(bent.late, plain.late)
     assert not np.allclose(bent.early, plain.early)
-
-
-def test_an_unknown_diffraction_model_raises():
-    spec, iss = setup(panel=True)
-    with pytest.raises(ValueError, match="diffraction"):
-        render_ambisonics(prepare(spec, iss, TARGET, max_order=0, duration_s=0.1, diffraction="btm"))
 
 
 def test_prepare_is_format_neutral():
@@ -137,7 +120,7 @@ def test_each_diffracted_path_is_evaluated_once_per_rendering(monkeypatch, rende
     monkeypatch.setattr("compas_acoustics.hybrid.ambisonics.encode_diffraction", diffraction.encode_diffraction)
     monkeypatch.setattr("compas_acoustics.hybrid.binaural.encode_diffraction", diffraction.encode_diffraction)
     spec, iss = setup(panel=True)
-    core = prepare(spec, iss, TARGET, max_order=MAX_ORDER, duration_s=0.2, diffraction=True)
+    core = prepare(spec, iss, TARGET, max_order=MAX_ORDER, duration_s=0.2, diffraction="udfa")
     assert len(core.diffraction_paths) > 0 and calls == []
     hrirs = np.zeros((1, 2, 8))
     hrirs[:, :, 0] = 1.0

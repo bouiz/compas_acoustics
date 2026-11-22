@@ -87,12 +87,12 @@ def prepare(
     target: RoomTarget,
     *,
     max_order: int,
-    duration_s: float | None = None,
+    duration_s: float,
     num_delays: int = MIN_DELAYS,
     directional_absorption: bool = True,
     late_envelope: np.ndarray | None = None,
     directional_envelope: DirectionalHistogram | None = None,
-    diffraction: bool | Literal["udfa", "btms"] = False,
+    diffraction: Literal["udfa", "btms"] | None = None,
     rng: int = 0,
     scattering: bool = False,
 ) -> HybridCore:
@@ -112,7 +112,7 @@ def prepare(
     4. Each line is weighted with the reflection of the boundary in its direction (``directional_absorption``).
        The lines are kept with ``line_directions`` for the renderer.
 
-    ``duration_s`` defaults to 1.5 times the longest target RT (the package's choice). ``rng`` seeds the delay jitter
+    ``duration_s`` is the response length in seconds. ``rng`` seeds the delay jitter
     and the feedback matrices, ``rng + slope`` for each slope. The drive gain is ``sqrt(num_delays)``.
     ``late_envelope``, a package-scale omnidirectional reference, attenuates the lines per band to its late energy:
     the envelope of Vorlaender (2020, Sec. 11.9) imposed on the network's lines, the package's choice
@@ -121,28 +121,19 @@ def prepare(
     then gives every band of them the rays' distribution in that band (:func:`~compas_acoustics.hybrid.envelope.shape_late`);
     the renderer applies both (:meth:`HybridCore.shaped_lines`).
 
-    ``diffraction="udfa"`` (``True``) adds edge diffraction (Kirsch and Ewert 2023) around obstacles and at room
+    ``diffraction="udfa"`` adds edge diffraction (Kirsch and Ewert 2023) around obstacles and at room
     edges wider than pi (:func:`~compas_acoustics.hybrid.diffraction.diffraction_edges`), for the direct sound and,
     when ``max_order >= 1``, one enclosure reflection before or after the edge. ``"btms"`` renders first- and
     second-order diffraction with the BTMS model (Svensson et al. 1999), first order with at most one wall
     reflection, second order between visible edges, direct paths only; it is far slower than ``"udfa"``. The
     late field is not affected.
 
-    ``scattering`` (Ewert et al. 2025) needs ``iss.scattered``; the gains are then the specular parts. The
-    scattered part of every image of orders 1 to ``max_order`` enters "those FDN channels on the same hemisphere
-    (initially skipping the FDN delays ...)" (Sec. 3.1.2), smeared by the allpass cascade of Eqs. 12-13 with
-    ``R`` the mean free path and weighted by :func:`~compas_acoustics.hybrid.scattering.scattering_weights` (unit
-    l2 norm, as one driving image) times the drive gain, as :func:`render`'s ``tap``.
+    ``scattering`` (Ewert et al. 2025, Sec. 3.1.2) needs ``iss.scattered``; the gains are then the specular parts.
+    The scattered part of every image of orders 1 to ``max_order`` enters the lines of its own hemisphere without
+    their delays, as :func:`render`'s ``tap``, smeared by the allpass cascade of Eqs. 12-13 with ``R`` the mean
+    free path and weighted by :func:`~compas_acoustics.hybrid.scattering.scattering_weights` (unit l2 norm, as one
+    driving image) times the drive gain.
     """
-    model = {False: None, True: "udfa", "udfa": "udfa", "btms": "btms"}.get(diffraction, "invalid")
-    if model == "invalid":
-        raise ValueError(f"diffraction must be False, True, 'udfa' or 'btms', not {diffraction!r}")
-    if max_order < 0:
-        raise ValueError("max_order must be non-negative")
-    if duration_s is None:
-        duration_s = 1.5 * float(target.rt.max())
-    if duration_s <= 0.0:
-        raise ValueError(f"duration_s must be positive, got {duration_s!r}")
     n_samples = int(np.ceil(duration_s * spec.fs))
 
     directions = fdn_directions(num_delays)
@@ -151,9 +142,9 @@ def prepare(
     drive_gain = float(np.sqrt(num_delays))
 
     paths, contributions = (), ()
-    if model == "udfa":
+    if diffraction == "udfa":
         paths = tuple(diffraction_paths(spec, max_order=max_order))
-    elif model == "btms":
+    elif diffraction == "btms":
         contributions = tuple(btms_paths(spec, max_order=max_order))
     if directional_envelope is not None:
         if late_envelope is None:

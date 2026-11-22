@@ -186,9 +186,8 @@ def render(
     Kirsch et al. (2023, Sec. 1.2). The lines go through an identity output matrix and are filtered here, as are the
     networks' slope weights (``post_output``).
 
-    ``tap``, of the same shape, enters each line skipping its delay, "initially skipping the FDN delays" (Ewert
-    et al. 2025, Sec. 3.1.2): it passes the attenuation filters ``f``, is heard at once and recirculates, exactly
-    ``f(tap)`` at the outputs plus ``A f(tap)`` into the lines with a static ``A``. The scattered parts of
+    ``tap``, of the same shape, enters each line skipping its delay (Ewert et al. 2025, Sec. 3.1.2): it passes the attenuation
+    filters ``f``, is heard at once and recirculates, exactly ``f(tap)`` at the outputs plus ``A f(tap)`` into the lines with a static ``A``. The scattered parts of
     :mod:`compas_acoustics.hybrid.scattering` enter there.
     """
     builds = list(builds)

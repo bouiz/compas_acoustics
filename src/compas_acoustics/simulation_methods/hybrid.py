@@ -37,6 +37,7 @@ from compas_acoustics.ir import ImpulseResponse
 from compas_acoustics.room.air import AirConditions
 from compas_acoustics.room.air import air_or_default
 from compas_acoustics.room.pra import directivity_to_pra
+from compas_acoustics.room.pra import points_to_array
 from compas_acoustics.room.pra import source_to_pra
 from compas_acoustics.room.raytracing import DURATION_RT_FACTOR
 from compas_acoustics.room.raytracing import default_duration
@@ -213,7 +214,7 @@ class _HybridMethod(SimulationMethod):
             histograms = directional_histograms(
                 geometry,
                 [source_to_pra(source) for source in context.sources],
-                np.array([receiver.position for receiver in context.receivers], dtype=float).T,
+                points_to_array([receiver.position for receiver in context.receivers]),
                 fs,
                 directions,
                 max_order=self.image_source_order,
@@ -263,21 +264,23 @@ class _HybridMethod(SimulationMethod):
                     damping=None if damping is None else damping[s],
                     scattered=None if scattered is None else scattered[s],
                 )
-                pairs.append((key, source, receiver, spec, iss, target, reference, histograms[m][s] if histograms is not None else None))
+                # the package's choice of default length: 1.5 times the pair's longest target RT
+                duration = self.duration if self.duration is not None else 1.5 * float(target.rt.max())
+                pairs.append((key, source, receiver, spec, iss, target, reference, histograms[m][s] if histograms is not None else None, duration))
 
         def rendered(pair):
-            key, source, receiver, spec, iss, target, reference, histogram = pair
+            key, source, receiver, spec, iss, target, reference, histogram, duration = pair
             core = prepare(
                 spec,
                 iss,
                 target,
                 max_order=self.image_source_order,
-                duration_s=self.duration,
+                duration_s=duration,
                 num_delays=self.num_delays,
                 directional_absorption=self.directional_absorption,
                 late_envelope=reference if self.late_envelope else None,
                 directional_envelope=histogram,
-                diffraction=self.diffraction or False,
+                diffraction=self.diffraction,
                 rng=rng,
                 scattering=self.scattering,
             )
@@ -286,7 +289,7 @@ class _HybridMethod(SimulationMethod):
         # The pairs render on threads, as many as fit in 4 GB at a pair's peak of about 17 arrays of
         # (n_samples, num_delays), the package's cap and estimate; each renders as alone, and the results are kept
         # in the pairs' order.
-        longest = max(self.duration if self.duration is not None else 1.5 * float(np.max(pair[5].rt)) for pair in pairs)
+        longest = max(pair[8] for pair in pairs)
         peak = 17 * np.ceil(longest * fs) * self.num_delays * 8
         workers = max(1, min(len(pairs), os.cpu_count() or 1, int(4e9 // peak)))
         rirs = {}
@@ -306,7 +309,7 @@ class _HybridMethod(SimulationMethod):
         room = geometry.to_pra(context.sampling_rate, self.image_source_order, ray_tracing=ray_tracing, air_absorption=False, air=air)
         for source in context.sources:
             room.add_soundsource(source_to_pra(source))
-        room.add_microphone_array(np.array([receiver.position for receiver in context.receivers], dtype=float).T)
+        room.add_microphone_array(points_to_array([receiver.position for receiver in context.receivers]))
         return room
 
     def _check_reference_length(self, length, target, eyring_rt, key):
