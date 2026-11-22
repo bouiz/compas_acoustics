@@ -203,10 +203,10 @@ def _exit_with_the_client(pid, record):
     os._exit(0)
 
 
-def start_service(port, token, parent=None, host="127.0.0.1"):
+def start_service(port, token, parent=None):
     import compas_acoustics.pb  # noqa: F401  (the first call should not pay for the imports)
 
-    server = WorkerService((host, port), token)
+    server = WorkerService(("127.0.0.1", port), token)
     record = _record(port, token)
     if parent:
         threading.Thread(target=_exit_with_the_client, args=(parent, record), daemon=True).start()
@@ -220,8 +220,6 @@ def start_service(port, token, parent=None, host="127.0.0.1"):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, required=True)
-    # accepted and ignored: the worker never reloads modules
-    parser.add_argument("--no-autoreload", action="store_true")
     token = os.environ.pop(TOKEN_VARIABLE, None)
     if not token:
         sys.exit(f"{TOKEN_VARIABLE} is not set: the worker is started by compas_acoustics.worker.client() or the Grasshopper plugin.")

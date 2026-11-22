@@ -122,23 +122,20 @@ def wedge1st_ir(fs, c, closed_angle, rs, thetas, zs, rr, thetar, zr, zw, r_irsta
     """First-order diffraction impulse response of a finite rigid wedge for a
     point source (free field 1/r), EDwedge1st_ir.m, method 'New'.
 
-    Returns (ir, initdelay, singular, zfirst); ir[0] is the sample at
-    r_irstart / c, singular flags the beta terms on a zone boundary, zfirst is
-    None for an edge of zero length."""
+    Returns (ir, singular); ir[0] is the sample at r_irstart / c, singular
+    flags the beta terms on a zone boundary."""
     zw = np.asarray(zw, dtype=float)
     if zw[1] - zw[0] == 0:
-        return np.zeros(2), 0.0, np.zeros(4, dtype=bool), None
+        return np.zeros(2), np.zeros(4, dtype=bool)
 
     eps = np.finfo(float).eps
     ny = np.pi / (2 * np.pi - closed_angle)
-    initdelay = r_irstart / c
     sampconst = c / fs
     # toolbox values (EDwedge1st_ir.m): integration tolerance; extent of the analytic apex term, relative to min(rs, rr)
     tol = 1e-11
     zrelmax = 0.1
 
     za = (rs * zr + rr * zs) / (rs + rr)
-    zfirst = za
     zs = zs - za
     zr = zr - za
     zw = zw - za
@@ -275,17 +272,13 @@ def wedge1st_ir(fs, c, closed_angle, rs, thetas, zs, rr, thetar, zr, zw, r_irsta
             # the toolbox's ir(arrivalsampnumb + [2:length(zrange_apex)]), 1-based
             ir[arrivalsampnumb + 1 : arrivalsampnumb + zrange_apex.size] += qsum
             ir = ir * (-ny / 2 / np.pi)
-        else:
-            Rend1 = np.sqrt(rs**2 + (zw[0] - zs) ** 2) + np.sqrt(rr**2 + (zw[0] - zr) ** 2)
-            Rend2 = np.sqrt(rs**2 + (zw[1] - zs) ** 2) + np.sqrt(rr**2 + (zw[1] - zr) ** 2)
-            zfirst = 0.0 if Rend1 < Rend2 else zw[1] - zw[0]
 
         if tailincluded:
             qsum = _slot_integrals(zrange_tail[:-1], zrange_tail[1:], tol, *integ)
             # the toolbox's ir(endsampnumb_apex + [1:length(zrange_tail)-1]), 1-based
             ir[endsampnumb_apex : endsampnumb_apex + zrange_tail.size - 1] += qsum * (-ny / 4 / np.pi)
 
-    return ir, initdelay, singularterm, float(zfirst)
+    return ir, singularterm
 
 
 def _df(nu, b, angle):
@@ -309,7 +302,7 @@ def _coordtrans1(points, edge_ends, ref_normal):
     theta = np.zeros(points.shape[0])
     iv = r > 0
     x, y, ri = xyz[iv, 0], xyz[iv, 1], r[iv]
-    t = np.real(np.arccos(x / ri) * (y != 0))
+    t = np.arccos(x / ri) * (y != 0)
     t = t + np.pi * ((y == 0) & (x < 0))
     theta[iv] = np.where(y >= 0, t, 2 * np.pi - t)
     return r, theta, z

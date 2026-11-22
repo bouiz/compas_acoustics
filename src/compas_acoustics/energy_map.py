@@ -158,7 +158,7 @@ class EnergyMap(_PackageDtype, Data):
             sources = list(scene.sources)
         else:
             if not isinstance(source_index, numbers.Integral) or not 0 <= source_index < len(scene.sources):
-                raise ValueError(f"No source at index {source_index}; the scene has {len(scene.sources)} source(s).")
+                raise ValueError(f"No source at index {source_index}; the scene has {len(scene.sources)} source(s), 0 to {len(scene.sources) - 1}.")
             sources = [scene.sources[source_index]]
         if not sources:
             raise ValueError("The scene has no source.")
@@ -269,7 +269,6 @@ def _image_source_energy(geometry, sources, mics, fs, order, air_absorption, ban
     import pyroomacoustics as pra
 
     from compas_acoustics.room.air import AirConditions
-    from compas_acoustics.room.geometry import pra_octave_grid
     from compas_acoustics.room.pra import source_to_pra
     from compas_acoustics.worker import jobs
 
@@ -277,14 +276,13 @@ def _image_source_energy(geometry, sources, mics, fs, order, air_absorption, ban
     if not len(mics):
         return total
     jobs.progress("energy map: image sources")
-    with pra_octave_grid():
-        room = geometry.to_pra(fs, order, ray_tracing=True, air_absorption=False)
-        pra_sources = [source_to_pra(s) for s in sources]
-        for source in pra_sources:
-            room.add_soundsource(source)
-        room.add_microphone_array(pra.MicrophoneArray(mics.T, fs))
-        room.image_source_model()
-        centres = np.asarray(room.octave_bands.centers, dtype=float)
+    room = geometry.to_pra(fs, order, ray_tracing=True, air_absorption=False)
+    pra_sources = [source_to_pra(s) for s in sources]
+    for source in pra_sources:
+        room.add_soundsource(source)
+    room.add_microphone_array(pra.MicrophoneArray(mics.T, fs))
+    room.image_source_model()
+    centres = np.asarray(room.octave_bands.centers, dtype=float)
     index = [int(np.argmin(np.abs(centres - f))) for f in bands]
     air = AirConditions().air_attenuation(bands) if air_absorption else np.zeros(len(bands))
     c = float(room.c)

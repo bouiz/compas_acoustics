@@ -1,13 +1,10 @@
 import json
 from datetime import datetime
 from datetime import timezone
-from math import gcd
 from pathlib import Path
 
 import numpy as np
 from compas.data import Data
-from numpy.typing import NDArray
-from scipy import signal
 
 from compas_acoustics.defaults import Defaults
 from compas_acoustics.defaults import _PackageDtype
@@ -153,26 +150,7 @@ class ImpulseResponse(_PackageDtype, Data):
         scaled = [ir._raw_ir / reference for ir in items]
         return dict(zip(impulse_responses.keys(), scaled)) if is_dict else scaled
 
-    def resampled(self, target_sampling_rate: int, method: str = "poly") -> NDArray[np.float64]:
-        """:attr:`ir` resampled to ``target_sampling_rate`` along axis 0, by ``"poly"`` or ``"fft"``."""
-        ir_array = np.asarray(self.ir, dtype=np.float64)
-
-        if self.sampling_rate == target_sampling_rate:
-            return ir_array.copy()
-
-        if method == "poly":
-            g = gcd(int(self.sampling_rate), int(target_sampling_rate))
-            up = int(target_sampling_rate) // g
-            down = int(self.sampling_rate) // g
-            return signal.resample_poly(ir_array, up, down, axis=0)
-
-        if method == "fft":
-            new_len = int(round(len(ir_array) * target_sampling_rate / self.sampling_rate))
-            return signal.resample(ir_array, new_len, axis=0)
-
-        raise ValueError("method must be 'poly' or 'fft'")
-
-    def direct_sound_index(self, speed_of_sound: float = None) -> int:
+    def direct_sound_index(self) -> int:
         """Sample of the direct sound.
 
         On the package scale (``generation['scale'] == 'package'``) the geometric one, distance / c,
@@ -180,7 +158,7 @@ class ImpulseResponse(_PackageDtype, Data):
         sample of the omnidirectional channel.
         """
         if self.generation.get("scale") == "package":
-            c = speed_of_sound or self.generation.get("speed_of_sound") or Defaults().DEFAULT_SPEED_OF_SOUND
+            c = self.generation.get("speed_of_sound") or Defaults().DEFAULT_SPEED_OF_SOUND
             distance = float(np.linalg.norm(np.subtract(self.receiver.position, self.source.position)))
             return int(round(distance / c * self.sampling_rate))
         omni = self._raw_ir if self._raw_ir.ndim == 1 else self._raw_ir[:, 0]

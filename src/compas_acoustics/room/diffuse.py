@@ -23,20 +23,12 @@ class DiffuseFieldWarning(UserWarning):
     """The room violates the assumptions behind Sabine and Eyring."""
 
 
-def mean_absorption(geometry, *, weighting: str = "area") -> np.ndarray:
-    """Mean absorption coefficient per band, shape (8,).
-
-    ``weighting="area"`` weights each surface by its area, as Sabine and Eyring are derived; ``"surface"`` takes
-    the plain mean over the surfaces, which differs whenever the absorbing surfaces are not the largest.
-    """
+def mean_absorption(geometry) -> np.ndarray:
+    """Mean absorption coefficient per band, shape (8,), each surface weighted by its area, as Sabine and Eyring are derived."""
     surfaces = geometry.surfaces
     areas = np.array([area for area, _ in surfaces], dtype=float)
     alphas = np.stack([mat.absorption for _, mat in surfaces], axis=0)
-    if weighting == "area":
-        return (areas @ alphas) / areas.sum()
-    if weighting == "surface":
-        return alphas.mean(axis=0)
-    raise ValueError(f"weighting must be 'area' or 'surface', got {weighting!r}")
+    return (areas @ alphas) / areas.sum()
 
 
 def _absorption_uniformity(geometry) -> np.ndarray:
@@ -113,7 +105,6 @@ def predicted_rt(
     geometry,
     *,
     model: str = "eyring",
-    weighting: str = "area",
     air_absorption: bool = True,
     speed_of_sound: Optional[float] = None,
     air: Optional[AirConditions] = None,
@@ -121,7 +112,7 @@ def predicted_rt(
 ) -> np.ndarray:
     """Reverberation time per band on ``SYNTHESIS_BANDS`` (8,), Sabine or Eyring on :func:`mean_absorption`.
 
-    ``weighting`` is that of :func:`mean_absorption`. With ``air_absorption`` the ``4 m V`` term (Vorlaender 2020,
+    With ``air_absorption`` the ``4 m V`` term (Vorlaender 2020,
     Eqs. 4.32 to 4.34) is added in closed form. Warns with :class:`DiffuseFieldWarning` where the room is not diffuse, unless ``warn`` is False.
     ``air`` sets the attenuation and, unless ``speed_of_sound`` is given, the speed of sound. The mean absorption
     is held below 1, so a fully absorbing room gives a finite time rather than a division error.
@@ -138,7 +129,7 @@ def predicted_rt(
         raise ValueError(f"model must be one of {sorted(models)}, got {model!r}")
     if not geometry.is_closed:
         raise ValueError("A diffuse-field prediction needs a closed room; the boundary surfaces do not close a volume.")
-    alpha = mean_absorption(geometry, weighting=weighting)
+    alpha = mean_absorption(geometry)
     if speed_of_sound is None:
         speed_of_sound = air_or_default(air).speed_of_sound
     if warn:

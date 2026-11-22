@@ -30,8 +30,6 @@ class Auraliser:
 
     Parameters
     ----------
-    name : str
-        Lowercase, without spaces.
     impulse_responses : dict or list
         A list of :class:`ImpulseResponse` (ACN/SN3D when they state no convention), or a dict of
         ids to dicts with ``'ir'`` ((samples,) or (samples, channels)), ``'sampling_rate'``,
@@ -41,7 +39,6 @@ class Auraliser:
         File paths, or a dict of ids to dicts with ``'filepath'``; paired with the responses by id
         when both are dicts with the same ids, else by position. Default: each response's
         source's ``sound_file``.
-    description : str, optional
     sampling_rate : int, optional
         Responses and sounds are resampled to it. Default: that of the first response.
     level : str, optional
@@ -58,14 +55,12 @@ class Auraliser:
     >>> scene.add_source(ca.Source("talker", 1.5, 1.5, 1.6, sound_file=sound))
     >>> scene.add_receiver(ca.Receiver("listener", 4.0, 3.0, 1.2))
     >>> responses = scene.simulate(ca.Mono(ray_tracing=True, n_rays=2000, duration=0.5))
-    >>> auraliser = ca.Auraliser("office", list(responses.values()))
+    >>> auraliser = ca.Auraliser(list(responses.values()))
     >>> auraliser.format, auraliser.convolve().shape[1]
     ('mono', 1)
     """
 
-    def __init__(self, name: str, impulse_responses, anechoic_sounds=None, description: str = None, sampling_rate: int = None, level: str = "relative", headroom_db: float = -1.0):
-        self.name = name
-        self.description = description
+    def __init__(self, impulse_responses, anechoic_sounds=None, sampling_rate: int = None, level: str = "relative", headroom_db: float = -1.0):
         self.level = level
         self.headroom_db = headroom_db
         if not isinstance(impulse_responses, dict):
@@ -75,19 +70,8 @@ class Auraliser:
         if anechoic_sounds is None:
             anechoic_sounds = self._sounds_from_impulse_response_sources(self._impulse_responses_input)
         self.anechoic_sounds = anechoic_sounds
-        self.check_number_of_impulse_responses_vs_anechoic_sounds()
-
-    @property
-    def name(self):
-        return self._name
-
-    @name.setter
-    def name(self, name):
-        if " " in name:
-            raise ValueError("Auraliser name cannot contain spaces.")
-        if any(char.isupper() for char in name):
-            raise ValueError("Auraliser name must be lowercase.")
-        self._name = name
+        if len(self.impulse_responses) != len(self.anechoic_sounds):
+            raise ValueError("Number of impulse responses not coherent with number of anechoic sounds")
 
     @property
     def sampling_rate(self):
@@ -184,20 +168,6 @@ class Auraliser:
         if self.format == "binaural":
             return 2
         return (self.maximum_ambisonics_order + 1) ** 2
-
-    @property
-    def longest_impulse_response_length(self):
-        return max((data["ir"].shape[0] for data in self.impulse_responses.values()), default=0)
-
-    def get_impulse_response_count(self):
-        return len(self.impulse_responses)
-
-    def get_anechoic_sounds_count(self):
-        return len(self.anechoic_sounds)
-
-    def check_number_of_impulse_responses_vs_anechoic_sounds(self):
-        if self.get_impulse_response_count() != self.get_anechoic_sounds_count():
-            raise ValueError("Number of impulse responses not coherent with number of anechoic sounds")
 
     @staticmethod
     def _default_sampling_rate(impulse_responses):
@@ -325,15 +295,15 @@ class Auraliser:
         sounds = list(self.anechoic_sounds.values())
         return [(ir_id, ir_data, sound["filepath"]) for (ir_id, ir_data), sound in zip(ir_items, sounds)]
 
-    def import_anechoic_sound(self, filepath, sampling_rate):
-        """An audio file as a mono (samples,) array at ``sampling_rate``, multichannel files mixed down."""
+    def import_anechoic_sound(self, filepath):
+        """An audio file as a mono (samples,) array at :attr:`sampling_rate`, multichannel files mixed down."""
         sound = pf.io.read_audio(filepath)
         if sound.cshape != (1,):
             warnings.warn(f"Anechoic sound {filepath} has {sound.cshape} channels; mixing down to mono.")
             sound = pf.dsp.average(sound)
 
-        if sound.sampling_rate != sampling_rate:
-            sound = pf.dsp.resample(sound, sampling_rate, match_amplitude="time")
+        if sound.sampling_rate != self.sampling_rate:
+            sound = pf.dsp.resample(sound, self.sampling_rate, match_amplitude="time")
 
         return sound.time.reshape(-1)
 
@@ -369,7 +339,7 @@ class Auraliser:
 
         convolved = []
         for filepath, ir in summed_impulse_responses.items():
-            anechoic_sound = self.import_anechoic_sound(filepath, self.sampling_rate)
+            anechoic_sound = self.import_anechoic_sound(filepath)
             convolved.append(fftconvolve(ir, anechoic_sound[:, np.newaxis], axes=0))
 
         convolved_sound_summed = np.zeros((max((c.shape[0] for c in convolved), default=0), self.output_channels))

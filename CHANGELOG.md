@@ -18,6 +18,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+* Removed `Source.omni` and the voice presets `Source.voice_normal`, `voice_raised`, `voice_loud` and `voice_shouting`; set `Source.spl` instead.
+* Removed `AcousticMaterial.scattering_coefficients_from_depth` and `AcousticMaterial.add_to_library`.
+* Removed the `impulse_response` argument of the `Analyser` methods and of `Analyser.analyse`: one `Analyser` per response. Removed the `Analyser.frequency_bands` setter, with which other bands could not be analysed, and the result properties `Analyser.T30`, `T20`, `C50`, `C80`, `D50`, `DRR`, `STI`, `Ts`, `G`, `EDT` and their `_overall` forms: read `analysis_data`.
+* Removed `ImpulseResponse.resampled` and the `speed_of_sound` argument of `ImpulseResponse.direct_sound_index`.
+* Removed `id` from `Scene`, `Source`, `Receiver` and `AcousticObject` (use `guid`); `Scene.number_of_acoustic_objects`, `number_of_sources`, `number_of_receivers`, `acoustic_materials` (use `scene_materials`), `print_scene_materials`, `display_materials_in_viewer`, `clear_ir_edges` and `simulation_methods()`; `AcousticObject.visualisation_geometry` and `AcousticObject.add_source`.
+* Removed the `name` and `description` arguments of `Auraliser`, now `Auraliser(impulse_responses, anechoic_sounds=None, ...)`, and `Auraliser.get_impulse_response_count`, `get_anechoic_sounds_count`, `check_number_of_impulse_responses_vs_anechoic_sounds` and `longest_impulse_response_length`; `Auraliser.import_anechoic_sound` reads at the auraliser's `sampling_rate`.
+* Removed `python -m compas_acoustics`, which did nothing.
+* Removed `RoomGeometry.without_obstacles`, the `RoomGeometry.mergeable_faces` field, `RoomGeometry.to_pra(enclosure_only=)`, the `weld_tolerance` argument of `RoomGeometry.from_scene` and `from_mesh` (welding stays at 1 mm) and `SurfaceMaterial.impedance`.
+* Removed `room.air.speed_of_sound` (use `air_or_default(air).speed_of_sound`), the `speed_of_sound` argument of `room.raytracing.default_duration` (it comes from `air`), the `weighting` argument of `room.diffuse.mean_absorption` and `predicted_rt` (always area-weighted), `room.pra.scene_to_pra_room` (use `RoomGeometry.from_scene(scene).to_pra(...)`), `room.pra.receivers_to_pra_mic_array` (use `pra.MicrophoneArray`) and the `tol` argument of `room.pra.vector_to_pra`. `room.pra.source_to_pra` no longer reads the source's sound file.
+* Removed `generation["valid_range_hz"]`, which was always `None`.
+* Removed from the hybrid engine's functions the arguments no method passed: `design_fdn(matrix, dc_factor, nyquist_factor)`, `directional_delays(spread)`, `ambisonic_output_matrix(normalization, max_leakage)`, `default_num_delays(minimum)`, `encode(normalization)`, `prepare(drive_gain)`, `RoomTarget.from_room(weighting, air_absorption)`, `RoomTarget.geq_bands(dc_factor, nyquist_factor)`, the `n_scan` argument and `hybrid.directional.scan_directions`, `hybrid.bands.BAND_EDGES` and `BANDWIDTHS`, the default of `Pair.speed_of_sound`, and 1-D signals in `shape_late`. `RoomTarget.level` is `None` for one slope.
+* Removed `Edge.contains`, `along_plane` and `Occluders.on_enclosure` from `hybrid.diffraction`; `hybrid.btms.wedge1st_ir` returns the response and its singular flag only.
+* Removed `RayField.particles`, `RayField.duration_ms` and `Ray.is_in_cone`, and the reading of ray-field data with `sound_speed`, specular paths with `wall_names` and specular reflections under `"paths"`; `SpecularReflections` takes `rays`, as `RayField` does.
+* Removed from the worker what no caller read: `make_receiver(frame=)`, `info()`'s `"python"` and `"compas_pb"`, auralise's per-signal `"suffix"`, the results of `play`, `stop`, `pause` and `resume`, `playback_status`'s `"paused"` and `"duration"`, `sound_info`'s `"sampling_rate"` and `"frames"`, `energy_map`'s `"bands"` and `"inside"`, `specular_reflections`' `"orders"`, `worker.api.METHODS`, the service's `--no-autoreload` and `start_service(host=)`, and `install(hybrid=)` with the `"hybrid"` key of `worker.json`.
+
 
 ## [0.1.1] 2026-11-18
 

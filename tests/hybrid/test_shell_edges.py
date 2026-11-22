@@ -14,7 +14,6 @@ from compas_acoustics.hybrid.diffraction import (
     TWO_PI,
     Edge,
     ShellEdgeWarning,
-    along_plane,
     btms_paths,
     diffraction_edges,
     diffraction_paths,
@@ -260,8 +259,8 @@ def test_vertex_noise_below_the_mesh_tolerance_changes_nothing():
 def test_two_corners_of_one_room_box_share_its_face():
     edges = enclosure_edges(grid_room([0, 4, 6, 10], [0, 3, 5, 8], {(1, 1)}))
     se, ne, sw = vertical_at(edges, 6, 3)[0], vertical_at(edges, 6, 5)[0], vertical_at(edges, 4, 3)[0]
-    assert along_plane(se, ne) and along_plane(se, sw)
-    assert not along_plane(sw, ne)
+    assert shared_face(se, ne) is not None and shared_face(se, sw) is not None
+    assert shared_face(sw, ne) is None
 
 
 def test_coplanar_faces_of_two_room_boxes_are_not_one_surface():
@@ -269,9 +268,9 @@ def test_coplanar_faces_of_two_room_boxes_are_not_one_surface():
     assert len(edges) == 8
     first_se, second_sw = vertical_at(edges, 4, 3)[0], vertical_at(edges, 6, 3)[0]
     first_ne, second_nw = vertical_at(edges, 4, 5)[0], vertical_at(edges, 6, 5)[0]
-    assert not along_plane(first_se, second_sw)
-    assert not along_plane(first_ne, second_nw)
-    assert along_plane(first_se, vertical_at(edges, 2, 3)[0])
+    assert shared_face(first_se, second_sw) is None
+    assert shared_face(first_ne, second_nw) is None
+    assert shared_face(first_se, vertical_at(edges, 2, 3)[0]) is not None
 
 
 def test_a_room_edge_and_an_obstacle_edge_never_share_a_face():

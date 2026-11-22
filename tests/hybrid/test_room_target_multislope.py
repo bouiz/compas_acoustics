@@ -31,7 +31,7 @@ def decaying_noise(decay_times, offsets_db, seed=0, duration=6.0):
 def test_single_slope_target_is_two_dimensional_with_one_column():
     target = RoomTarget.from_rir(decaying_noise([0.8], [0.0]), FS)
     assert target.rt.shape == (N_BANDS, 1)
-    assert target.level.shape == (N_BANDS, 1)
+    assert target.level is None
     assert target.n_slopes == 1
 
 

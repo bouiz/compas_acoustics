@@ -104,8 +104,7 @@ def test_left_source_puts_energy_in_y():
 
 
 def test_channel_ratios_equal_the_direction_cosines():
-    """SN3D first order IS the Cartesian direction cosines; N3D, the default,
-    is sqrt(3) times them."""
+    """N3D first order is sqrt(3) times the Cartesian direction cosines."""
     azimuth, elevation = 0.7, 0.3
     expected = np.array(
         [
@@ -114,11 +113,10 @@ def test_channel_ratios_equal_the_direction_cosines():
             np.sin(elevation),
         ]
     )
-    for normalization, scale in (("NM", np.sqrt(3.0)), ("SNM", 1.0)):
-        out = encode(one_image(azimuth, elevation), 1, 4096, normalization=normalization)
-        peak = int(np.argmax(np.abs(out[:, 0])))
-        got = np.array([out[peak, 3], out[peak, 1], out[peak, 2]]) / out[peak, 0]
-        np.testing.assert_allclose(got, scale * expected, atol=1e-6)
+    out = encode(one_image(azimuth, elevation), 1, 4096)
+    peak = int(np.argmax(np.abs(out[:, 0])))
+    got = np.array([out[peak, 3], out[peak, 1], out[peak, 2]]) / out[peak, 0]
+    np.testing.assert_allclose(got, np.sqrt(3.0) * expected, atol=1e-6)
 
 
 def test_w_is_unit_gain_for_a_unit_image_not_one_over_root_four_pi():

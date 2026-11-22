@@ -45,10 +45,6 @@ class Receiver(_PackageDtype, Point):
         self._name = name
 
     @property
-    def id(self):
-        return self.guid
-
-    @property
     def position(self):
         return [self.x, self.y, self.z]
 
@@ -59,7 +55,6 @@ class Receiver(_PackageDtype, Point):
         self.x = position[0]
         self.y = position[1]
         self.z = position[2]
-        return self.position
 
     @property
     def direction(self):

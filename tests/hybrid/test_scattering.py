@@ -23,10 +23,8 @@ from compas_acoustics.hybrid.scattering import smear
 from compas_acoustics.hybrid.synthesis import prepare
 from compas_acoustics.hybrid.ambisonics import render_ambisonics
 from compas_acoustics.hybrid.target import RoomTarget
-from compas_acoustics.room.pra import receivers_to_pra_mic_array
 from compas_acoustics.room.pra import source_to_pra
 from compas_acoustics.room.geometry import RoomGeometry
-from compas_acoustics.room.geometry import pra_octave_grid
 from compas_acoustics.simulation_methods import Ambisonics
 
 FS = 48000
@@ -60,11 +58,10 @@ def pair(s):
 
 
 def computed(geometry, s, ray_tracing):
-    with pra_octave_grid():
-        room = geometry.to_pra(FS, ORDER, ray_tracing=ray_tracing)
-        room.add_soundsource(source_to_pra(s.sources[0]))
-        room.add_microphone_array(receivers_to_pra_mic_array(s.receivers, sampling_rate=FS))
-        room.image_source_model()
+    room = geometry.to_pra(FS, ORDER, ray_tracing=ray_tracing)
+    room.add_soundsource(source_to_pra(s.sources[0]))
+    room.add_microphone_array(np.array([r.position for r in s.receivers], dtype=float).T)
+    room.image_source_model()
     return room
 
 
@@ -171,11 +168,11 @@ def test_prepare_assembles_the_tap_from_the_scattered_parts_of_orders_one_to_the
     from compas_acoustics.hybrid.directional import directional_absorption_filters
     from compas_acoustics.hybrid.early import render_images
 
-    last, duration, speed, drive_gain = 2, 0.3, 331.0, 1.7
+    last, duration, speed, drive_gain = 2, 0.3, 331.0, float(np.sqrt(96))
     spec, _, parts = split(0.3)
     spec = replace_fields(spec, speed_of_sound=speed)
     target = RoomTarget.from_room(spec, model="eyring")
-    result = render_ambisonics(prepare(spec, parts, target, max_order=last, duration_s=duration, scattering=True, drive_gain=drive_gain))
+    result = render_ambisonics(prepare(spec, parts, target, max_order=last, duration_s=duration, scattering=True))
 
     def subset(mask):
         xyz = parts.doa.cartesian[mask]

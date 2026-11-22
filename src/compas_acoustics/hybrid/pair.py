@@ -27,7 +27,7 @@ class Pair:
     receiver: np.ndarray
     receiver_rotation: np.ndarray
     fs: float
-    speed_of_sound: float = 343.0
+    speed_of_sound: float
     air_absorption: bool = True
     air: Optional[AirConditions] = None
 

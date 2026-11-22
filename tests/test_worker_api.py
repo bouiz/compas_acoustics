@@ -8,7 +8,7 @@ from compas.geometry import Polyline
 from compas_pb import pb_dump_bts
 from compas_pb import pb_load_bts
 
-import compas_acoustics.pb  # noqa: F401
+import compas_acoustics.pb
 from compas_acoustics import AcousticMaterial
 from compas_acoustics import AcousticObject
 from compas_acoustics import AcousticObjectsLibrary
@@ -84,25 +84,12 @@ def test_make_receiver_defaults_to_room_aligned_at_one_metre():
     result = call("make_receiver", None)
     receiver = result["receiver"]
     assert isinstance(receiver, Receiver) and receiver.name == "my_receiver" and list(receiver.position) == [0, 0, 1]
-    assert set(result) == {"receiver", "frame_overrides"}
+    assert set(result) == {"receiver"}
 
 
 def test_make_receiver_takes_a_direction_and_stays_upright():
     receiver = call("make_receiver", "r", [1, 2, 3], [0, 1, 0])["receiver"]
     assert np.allclose(list(receiver.direction), [0, 1, 0]) and np.allclose(list(receiver.up), [0, 0, 1])
-
-
-def test_make_receiver_from_a_frame_faces_its_x_axis():
-    result = call("make_receiver", "r", frame=Frame([1, 2, 3], [0, 1, 0], [-1, 0, 0]))
-    receiver = result["receiver"]
-    assert np.allclose(list(receiver.direction), [0, 1, 0]) and np.allclose(list(receiver.up), [0, 0, 1])
-    assert list(receiver.position) == [1, 2, 3]
-    assert result["frame_overrides"] is False
-
-
-def test_a_frame_with_other_inputs_says_they_are_not_used():
-    result = call("make_receiver", "r", position=[0, 0, 0], frame=Frame([1, 2, 3], [0, 1, 0], [-1, 0, 0]))
-    assert result["frame_overrides"] is True
 
 
 def test_make_receiver_facing_up_is_a_value_error():
@@ -225,7 +212,7 @@ def two_sources_one_receiver(**kwargs):
 def test_auralise_renders_one_signal_per_source_and_receiver():
     result = call("auralise", [group(two_sources_one_receiver(), "{0;1}")])
     signals = result["signals"]
-    assert [s["suffix"] for s in signals] == ["0_0", "0_1"]
+    assert len(signals) == 2
     assert all(s["branch"] == "{0;1}" for s in signals)
     assert all(isinstance(s["audio"], Audio) and s["audio"].format == "mono" for s in signals)
     assert signals[0]["audio"].sampling_rate == 48000
@@ -233,7 +220,7 @@ def test_auralise_renders_one_signal_per_source_and_receiver():
 
 def test_auralise_mixes_the_sources_of_a_receiver():
     result = call("auralise", [group(two_sources_one_receiver())], mix_sources=True)
-    assert [s["suffix"] for s in result["signals"]] == ["0"]
+    assert len(result["signals"]) == 1
 
 
 def test_auralise_relative_level_applies_one_gain_to_all():
@@ -293,7 +280,7 @@ def test_play_and_stop_reach_the_player(monkeypatch):
             calls.append(("stop",))
 
     monkeypatch.setattr(api, "_PLAYER", Player())
-    assert call("play", Audio(np.zeros((10, 2)), 44100, "binaural"), False) == {"warnings": [], "duration": 0.0}
+    call("play", Audio(np.zeros((10, 2)), 44100, "binaural"), False)
     call("play", VIOLA)
     call("stop")
     assert calls == [("play", "ndarray", 44100, False), ("play", "str", None, True), ("stop",)]
@@ -352,13 +339,12 @@ def test_specular_reflections_first_order_of_every_pair():
     result = call("specular_reflections", shoebox())
     assert isinstance(result["reflections"], SpecularReflections)
     assert len(result["reflections"].paths) == 6
-    assert result["counts"] == [[1, 6]] and result["orders"] == [1]
+    assert result["counts"] == [[1, 6]]
     assert all(len(path.points) == 3 and path.travel_time > 0 for path in result["reflections"].paths)
 
 
 def test_specular_reflections_pick_orders_and_leave_out_negative_ones():
     result = call("specular_reflections", shoebox(), [2, -1, 0, 2])
-    assert result["orders"] == [0, 2]
     assert {path.order for path in result["reflections"].paths} == {0, 2}
     assert "Orders below 0 are left out: -1." in result["warnings"]
 
@@ -378,12 +364,12 @@ def test_regularized_fitness_matches_the_function():
 # ---------------------------------------------------------------------------
 
 
-def test_sound_info_reads_channels_and_rate_of_any_soundfile_format(tmp_path):
+def test_sound_info_reads_the_channels_of_any_soundfile_format(tmp_path):
     import soundfile as sf
 
     path = tmp_path / "s.flac"
     sf.write(str(path), np.zeros((100, 3)), 22050)
-    assert call("sound_info", str(path)) == {"channels": 3, "sampling_rate": 22050, "frames": 100}
+    assert call("sound_info", str(path)) == {"channels": 3}
     assert call("sound_info", VIOLA)["channels"] >= 1
 
 
@@ -423,11 +409,10 @@ class FakePlayer:
         self.playing, self.paused, self.position = False, False, 0.0
 
 
-def test_play_takes_gain_and_start_and_reports_the_duration(monkeypatch):
+def test_play_takes_gain_and_start(monkeypatch):
     player = FakePlayer()
     monkeypatch.setattr(api, "_PLAYER", player)
-    result = call("play", Audio(np.zeros((10, 2)), 44100, "binaural"), gain_db=-6.0, start=0.25)
-    assert result == {"warnings": [], "duration": 2.0}
+    call("play", Audio(np.zeros((10, 2)), 44100, "binaural"), gain_db=-6.0, start=0.25)
     assert player.calls == [("play", "ndarray", 44100, True, -6.0, 0.25)]
 
 
@@ -436,7 +421,7 @@ def test_pause_resume_stop_and_status_reach_the_player(monkeypatch):
     monkeypatch.setattr(api, "_PLAYER", player)
     call("play", Audio(np.zeros((10, 2)), 44100, "binaural"))
     call("pause")
-    assert call("playback_status") == {"playing": False, "paused": True, "position": 0.0, "duration": 2.0}
+    assert call("playback_status") == {"playing": False, "position": 0.0}
     call("resume")
     call("stop")
     assert [c[0] for c in player.calls] == ["play", "pause", "resume", "stop"]
@@ -483,12 +468,9 @@ def test_energy_map_gives_levels_per_point_without_frames():
 
     result = call("energy_map", _map_scene(), [[4, 3, 1.2], [3, 2, 1.2], [100, 0, 0]])
     assert len(result["spl_a"]) == 3 and len(result["spl"]) == 3 and len(result["spl"][0]) == 7
-    assert result["bands"] == [125.0, 250.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0]
-    assert result["inside"] == [True, True, False]
     assert math.isnan(result["spl_a"][2]) and all(math.isnan(v) for v in result["spl"][2])
     assert 60 < result["spl_a"][0] < 90
-    # a static map: the frames of the energy arriving are not sent
-    assert "frames" not in result and "times" not in result
+    assert set(result) == {"spl", "spl_a", "n_rays", "warnings"}
     assert any("1 of 3 points" in w for w in result["warnings"])
 
 
@@ -511,5 +493,5 @@ def test_energy_map_fixes_its_rays_seed_and_image_source_order():
 
 
 def test_energy_map_rejects_a_source_index_out_of_range():
-    with pytest.raises(ValueError, match="source"):
+    with pytest.raises(ValueError, match=r"No source at index 5; the scene has 1 source\(s\), 0 to 0\."):
         api.energy_map(_map_scene(), [[4, 3, 1.2]], source_index=5)

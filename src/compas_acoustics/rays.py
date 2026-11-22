@@ -71,6 +71,7 @@ class Ray(_PackageDtype, Polyline):
         self.source_index = source_index
         self.ray_index = ray_index
         self.distance_offset = distance_offset
+        self.scattered_reflections = []
 
         if direction is not None:
             self.direction = direction
@@ -89,15 +90,13 @@ class Ray(_PackageDtype, Polyline):
             direction=list(self.direction),
             distance_offset=self.distance_offset,
         )
-        scattered = getattr(self, "scattered_reflections", None)
-        if scattered:
-            data["scattered_reflections"] = scattered
+        if self.scattered_reflections:
+            data["scattered_reflections"] = self.scattered_reflections
         return data
 
     @classmethod
     def __from_data__(cls, data):
         data = dict(data)
-        data.pop("sound_speed", None)  # accepted and ignored: times use Defaults().DEFAULT_SPEED_OF_SOUND
         scattered = data.pop("scattered_reflections", None)
         ray = cls(**data)
         if scattered:
@@ -145,13 +144,6 @@ class Ray(_PackageDtype, Polyline):
         """The number of segments (hops) of the ray."""
         return max(len(self.points) - 1, 0)
 
-    def is_in_cone(self, axis, half_angle_deg: float) -> bool:
-        """Whether the ray's direction is within ``half_angle_deg`` of ``axis``, a cone with its apex at the origin."""
-        axis_vector = Vector(*axis)
-        if not axis_vector.length or not self.direction.length:
-            return False
-        return self.direction.angle(axis_vector, degrees=True) <= half_angle_deg + 1e-9
-
     def _clone_with_points(self, points) -> "Ray":
         return Ray(
             points,
@@ -167,11 +159,7 @@ class Ray(_PackageDtype, Polyline):
         """A copy of the ray with its first ``order`` segments; None: all."""
         if order is None:
             return self._clone_with_points(self.points[:])
-        order = max(int(order), 0)
-        points = self.points[: order + 1]
-        if len(points) < 1:
-            points = self.points[:1]
-        return self._clone_with_points(points)
+        return self._clone_with_points(self.points[: max(int(order), 0) + 1])
 
     def up_to_distance(self, distance: Optional[float]) -> Optional["Ray"]:
         """A copy of the ray cut at ``distance`` from the source (``distance_offset`` included); None: all.
@@ -293,7 +281,7 @@ class RayField(_PackageDtype, Data):
         sources = {int(index): source for index, source in data.get("sources", [])}
         field = cls(data["rays"])
         for ray in field.rays:
-            for traced in [ray, *getattr(ray, "scattered_reflections", [])]:
+            for traced in [ray, *ray.scattered_reflections]:
                 traced.source = sources.get(traced.source_index)
         return field
 
@@ -473,43 +461,8 @@ class RayField(_PackageDtype, Data):
         """All scattered rays across every ray in the field."""
         scattered = []
         for ray in self.rays:
-            scattered.extend(getattr(ray, "scattered_reflections", []))
+            scattered.extend(ray.scattered_reflections)
         return scattered
-
-    @property
-    def duration_ms(self) -> float:
-        """The largest travel time of the specular rays in milliseconds, 0.0 when empty."""
-        return max((ray.travel_time for ray in self.rays), default=0.0)
-
-    def particles(self, time_ms: float):
-        """The position of every specular ray at ``time_ms`` (clamped to ``[0, duration_ms]``), for a billiard view.
-
-        Returns
-        -------
-        tuple of (list of :class:`compas.geometry.Point`, list of int, list of int)
-            The positions, their rays' ``ray_index`` and the reflections each has passed. A ray that
-            has ended gives no particle.
-        """
-        time_ms = min(max(time_ms, 0.0), self.duration_ms)
-        points = []
-        indices = []
-        orders = []
-        distance = _distance(time_ms)
-        for ray in self.rays:
-            if ray.travel_time < time_ms:
-                continue
-            part = ray.up_to_distance(distance)
-            if part is None:
-                # up_to_distance reports "not emerged" at distance == distance_offset too
-                if distance < ray.cumulative_distances[0]:
-                    continue
-                points.append(Point(*ray.points[0]))
-            else:
-                points.append(Point(*part.points[-1]))
-            indices.append(ray.ray_index)
-            # A particle on a wall is reflected only once it moves on, so the end of a ray is no reflection
-            orders.append(sum(1 for reached in ray.cumulative_distances[1:] if reached < distance - TOL.absolute))
-        return points, indices, orders
 
     def filter(
         self,
@@ -546,7 +499,7 @@ class RayField(_PackageDtype, Data):
                 continue
 
             scattered = []
-            for scattered_ray in getattr(ray, "scattered_reflections", []):
+            for scattered_ray in ray.scattered_reflections:
                 truncated_scattered = self._truncate_scattered(scattered_ray, reflection_order, travel_time_ms)
                 if truncated_scattered is not None:
                     scattered.append(truncated_scattered)
@@ -848,12 +801,6 @@ class SpecularPath(Ray):
         data.update(order=self.order, walls=self.walls, image=list(self.image), receiver_index=self.receiver_index)
         return data
 
-    @classmethod
-    def __from_data__(cls, data):
-        data = dict(data)
-        data.pop("wall_names", None)  # accepted and ignored: the walls are indices
-        return super().__from_data__(data)
-
     @property
     def reflection_order(self) -> int:
         """The number of walls the path is reflected by: its last segment ends at the receiver, not a wall."""
@@ -869,19 +816,9 @@ class SpecularReflections(RayField):
 
     Parameters
     ----------
-    paths : list of :class:`SpecularPath`, optional
+    rays : list of :class:`SpecularPath`, optional
     name : str, optional
     """
-
-    def __init__(self, paths: Optional[List[SpecularPath]] = None, name: Optional[str] = None):
-        super().__init__(paths, name=name)
-
-    @classmethod
-    def __from_data__(cls, data):
-        data = dict(data)
-        if "rays" not in data:  # the paths may also come under "paths"
-            data["rays"] = data.pop("paths")
-        return super().__from_data__(data)
 
     @property
     def paths(self) -> List[SpecularPath]:

@@ -163,14 +163,8 @@ def _extrapolated_top_db(gain_db: np.ndarray, octaves: float) -> float:
     return float(gain_db[-1] + slope_db_per_octave * octaves)
 
 
-def encode(
-    iss: ImageSourceSet,
-    sh_order: int,
-    n_samples: int,
-    *,
-    normalization: str = "NM",
-) -> np.ndarray:
-    """An image source set as an ambisonic impulse response, ACN, N3D by default (``"NM"``: W = 1 for a unit plane wave).
+def encode(iss: ImageSourceSet, sh_order: int, n_samples: int) -> np.ndarray:
+    """An image source set as an ambisonic impulse response, ACN, N3D (spharpy's ``"NM"``: W = 1 for a unit plane wave).
 
     The band gains are interpolated onto the FFT grid in log-frequency and dB, the delay applied as a phase ramp
     (a band-limited fractional delay), and the images accumulated in the frequency domain. Above the top band the magnitude continues
@@ -184,7 +178,7 @@ def encode(
     if np.asarray(iss.delay).size == 0:
         return np.zeros((n_samples, (sh_order + 1) ** 2), dtype=float)
 
-    sh = spharpy.spherical.spherical_harmonic_basis_real(sh_order, iss.doa, normalization=normalization, channel_convention="ACN")  # (M, n_ch)
+    sh = spharpy.spherical.spherical_harmonic_basis_real(sh_order, iss.doa, normalization="NM", channel_convention="ACN")  # (M, n_ch)
     return render_images(iss, sh, n_samples)
 
 

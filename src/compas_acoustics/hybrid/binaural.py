@@ -11,6 +11,12 @@ from scipy.signal import fftconvolve
 
 from compas_acoustics.defaults import Defaults
 
+from .diffraction import encode_btms
+from .diffraction import encode_diffraction
+from .early import render_images
+from .synthesis import HybridCore
+from .synthesis import HybridResult
+
 __all__ = ["DEFAULT_HRTF", "HrtfSet", "render_binaural"]
 
 # The HRTF set every binaural rendering uses unless given another
@@ -61,7 +67,7 @@ def render_groups(monos: np.ndarray, groups: np.ndarray, hrtf: HrtfSet, n_sample
     return out
 
 
-def render_binaural(core, hrtf: HrtfSet):
+def render_binaural(core: HybridCore, hrtf: HrtfSet) -> HybridResult:
     """A :class:`~compas_acoustics.hybrid.synthesis.HybridCore` at the two ears, (n, 2), as a
     :class:`~compas_acoustics.hybrid.synthesis.HybridResult`.
 
@@ -72,11 +78,6 @@ def render_binaural(core, hrtf: HrtfSet):
     sum), over ``sqrt(N)`` (the W row of the ambisonic output matrix), through the HRIR nearest
     ``core.line_directions[i]``.
     """
-    from compas_acoustics.hybrid.diffraction import encode_btms
-    from compas_acoustics.hybrid.diffraction import encode_diffraction
-    from compas_acoustics.hybrid.early import render_images
-    from compas_acoustics.hybrid.synthesis import HybridResult
-
     if hrtf.sampling_rate != int(core.fs):
         raise ValueError(f"the HRTF set has sample rate {hrtf.sampling_rate}; the response has {core.fs}")
     n = core.n_samples

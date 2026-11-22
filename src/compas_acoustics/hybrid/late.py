@@ -48,17 +48,17 @@ def fdn_directions(num_delays: int = MIN_DELAYS) -> pf.Coordinates:
     return spharpy.samplings.equal_area(n_max=0, n_points=num_delays)
 
 
-def _nearest_coprime(targets: np.ndarray, tolerance: float = 0.03) -> np.ndarray:
+def _nearest_coprime(targets: np.ndarray) -> np.ndarray:
     """Distinct integers near their targets, pairwise coprime where that fits.
 
-    Coprimality is sought within ``tolerance`` of each target (0.03, the package's choice), else the nearest
-    unused integer is taken, so no length strays far from its target.
+    Coprimality is sought within 3 % of each target (the package's choice), else the nearest unused integer is
+    taken, so no length strays far from its target.
     """
     chosen: list[int] = []
     out = np.empty(targets.size, dtype=int)
     for idx in np.argsort(targets)[::-1]:
         centre = max(int(round(targets[idx])), 2)
-        reach = max(2, int(tolerance * centre))
+        reach = max(2, int(0.03 * centre))
         offsets = [0] + [s * k for k in range(1, reach + 1) for s in (1, -1)]
         candidates = [centre + o for o in offsets if centre + o >= 2]
         pick = next(
@@ -76,7 +76,6 @@ def directional_delays(
     spec: Pair,
     directions: pf.Coordinates,
     *,
-    spread: float = 0.1,
     rng: int | np.random.Generator = 0,
 ) -> np.ndarray:
     """Delay line lengths in samples, each the room's free path along its direction.
@@ -87,19 +86,18 @@ def directional_delays(
     ``1 / (|u_x| / L_x + |u_y| / L_y + |u_z| / L_z)``. The rates average over the sphere to ``c S / (4 V)``, the
     mean free path ``4 V / S``.
 
-    ``u`` and ``-u`` share a free path, so ``spread`` jitters each length uniformly by up to that fraction,
-    drawn from ``rng``, before the lengths are made coprime, lest opposite lines ring together. The jitter of 0.1
+    ``u`` and ``-u`` share a free path, so each length is jittered uniformly by up to 0.1 of it, drawn from
+    ``rng``, before the lengths are made coprime, lest opposite lines ring together. The jitter of 0.1
     and the coprime lengths are the package's choice; Wendt et al. (2014, Eq. 1) add up to 0.1 of the mean room
     dimension. ``directions`` are in the receiver's frame and are rotated back to the room's before projecting.
     """
     unit = directions.cartesian
     unit = unit / np.linalg.norm(unit, axis=1, keepdims=True)
-    if spec.receiver_rotation is not None:
-        unit = unit @ spec.receiver_rotation.T
+    unit = unit @ spec.receiver_rotation.T
     projected = np.abs(unit @ spec.geometry.area_normals().T).sum(axis=1)
     free_path_samples = 2.0 * spec.geometry.volume / projected / spec.speed_of_sound * spec.fs
     generator = np.random.default_rng(rng)
-    jitter = 1.0 + spread * generator.uniform(-1.0, 1.0, size=free_path_samples.size)
+    jitter = 1.0 + 0.1 * generator.uniform(-1.0, 1.0, size=free_path_samples.size)
     return _nearest_coprime(free_path_samples * jitter)
 
 
@@ -107,9 +105,6 @@ def design_fdn(
     target: RoomTarget,
     delays: np.ndarray | Sequence[np.ndarray],
     *,
-    matrix: str = "orthogonal",
-    dc_factor: float = 1.0,
-    nyquist_factor: float = 0.5,
     rng: int = 0,
 ) -> list[tuple[pyFDN.DSS, dict]]:
     """Design one FDN per decay slope of ``target``, with one output: the lines' omnidirectional sum.
@@ -119,10 +114,9 @@ def design_fdn(
 
     ``delays`` (samples) is one array shared by every slope or one per slope. ``C`` is the W row of the
     ambisonic output matrix, ``1 / sqrt(N)`` per line, which the late envelope compares with its reference;
-    the renderers project the lines that :func:`render` returns themselves. Each slope's attenuation follows ``target.rt``
-    (:meth:`~compas_acoustics.hybrid.target.RoomTarget.geq_bands` with ``dc_factor`` and ``nyquist_factor``)
-    and its feedback matrix is seeded ``rng + slope``, also any ``matrix`` other than ``"orthogonal"``, taken
-    from ``pyFDN.fdn_matrix_gallery``.
+    the renderers project the lines that :func:`render` returns themselves. Each slope's attenuation follows
+    ``target.rt`` (:meth:`~compas_acoustics.hybrid.target.RoomTarget.geq_bands`) and its random orthogonal
+    feedback matrix is seeded ``rng + slope``.
 
     A multi-exponential decay sums independent networks with one input, each weighted per band by
     ``level_k / sqrt(sum_j level_j ** 2)`` as an output filter, which keeps the slopes' level ratios and one
@@ -157,13 +151,11 @@ def design_fdn(
             rt=None,
             rng=rng + slope,
         )
-        if matrix != "orthogonal":
-            dss = dss._replace(A=pyFDN.fdn_matrix_gallery(num_delays, matrix, rng=rng + slope))
         dss = dss._replace(C=C)
         filters = dict(
             filters,
             post_delay=pyFDN.decay_to_graphic_eq(
-                target.geq_bands(slope, dc_factor=dc_factor, nyquist_factor=nyquist_factor),
+                target.geq_bands(slope),
                 delays[slope],
                 target.fs,
             ),

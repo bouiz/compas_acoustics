@@ -16,7 +16,6 @@ from compas_acoustics.hybrid.synthesis import _select
 from compas_acoustics.hybrid.synthesis import prepare
 from compas_acoustics.hybrid.ambisonics import render_ambisonics
 from compas_acoustics.hybrid.target import RoomTarget
-from compas_acoustics.room.pra import receivers_to_pra_mic_array
 from compas_acoustics.room.pra import source_to_pra
 from compas_acoustics.room.geometry import RoomGeometry
 
@@ -36,9 +35,9 @@ def setup(panel=False):
     source, receiver = Source("s", 2.0, 4.0, 1.5), Receiver("r", 8.0, 4.0, 1.5)
     room = geometry.to_pra(FS, MAX_ORDER)
     room.add_soundsource(source_to_pra(source))
-    room.add_microphone_array(receivers_to_pra_mic_array(receiver, sampling_rate=FS))
+    room.add_microphone_array(np.array([receiver.position], dtype=float).T)
     room.image_source_model()
-    spec = Pair(geometry, source.position, receiver.position, receiver.rotation, float(FS))
+    spec = Pair(geometry, source.position, receiver.position, receiver.rotation, float(FS), 343.0)
     return spec, image_sources(room, 0, 0, spec)
 
 
@@ -136,6 +135,7 @@ def test_each_diffracted_path_is_evaluated_once_per_rendering(monkeypatch, rende
     original = diffraction.encode_diffraction
     monkeypatch.setattr(diffraction, "encode_diffraction", lambda *a, **k: calls.append(1) or original(*a, **k))
     monkeypatch.setattr("compas_acoustics.hybrid.ambisonics.encode_diffraction", diffraction.encode_diffraction)
+    monkeypatch.setattr("compas_acoustics.hybrid.binaural.encode_diffraction", diffraction.encode_diffraction)
     spec, iss = setup(panel=True)
     core = prepare(spec, iss, TARGET, max_order=MAX_ORDER, duration_s=0.2, diffraction=True)
     assert len(core.diffraction_paths) > 0 and calls == []

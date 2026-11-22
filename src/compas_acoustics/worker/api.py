@@ -5,7 +5,6 @@ input raises ValueError or TypeError, which the service answers with its message
 """
 
 import importlib.util
-import sys
 import warnings
 
 __all__ = [
@@ -36,8 +35,6 @@ __all__ = [
 
 
 def _method_class(name):
-    if name in METHODS:
-        return METHODS[name]
     if name in ("binaural", "ambisonics", "mono"):
         from compas_acoustics import simulation_methods
 
@@ -45,28 +42,20 @@ def _method_class(name):
     raise ValueError(f"Unknown method {name!r}: 'binaural', 'ambisonics' or 'mono'.")
 
 
-#: Further simulation methods by name, besides ``binaural``, ``ambisonics`` and ``mono``
-METHODS = {}
-
-
 def _messages(caught):
     return list(dict.fromkeys(str(w.message) for w in caught if issubclass(w.category, UserWarning)))
 
 
 def info():
-    import compas_pb
-
     from compas_acoustics import Defaults
     from compas_acoustics import __version__
     from compas_acoustics.pb import SCHEMA
     from compas_acoustics.worker import fingerprint
 
     return {
-        "python": sys.version.split()[0],
         "compas_acoustics": __version__,
         "fingerprint": fingerprint(),
         "schema": SCHEMA,
-        "compas_pb": compas_pb.__version__,
         "speed_of_sound": Defaults().DEFAULT_SPEED_OF_SOUND,
         "hybrid": importlib.util.find_spec("pyFDN") is not None,
     }
@@ -164,31 +153,24 @@ def make_source(name, position, direction=None, directivity=None, sound_file=Non
     return source
 
 
-def make_receiver(name, position=None, direction=None, frame=None):
+def make_receiver(name, position=None, direction=None):
     """An upright :class:`Receiver` (+z up), as the Receiver component makes it.
-
-    A ``frame`` sets the position and orientation together (x axis facing, z axis up); ``frame_overrides`` says
-    whether ``position`` or ``direction`` were given too and are not used.
 
     Returns
     -------
     dict
-        ``{"receiver": Receiver, "frame_overrides": bool}``
+        ``{"receiver": Receiver}``
     """
     from compas.geometry import Vector
 
     from compas_acoustics import Receiver
 
-    name = name or "my_receiver"
-    if frame is not None:
-        receiver = Receiver.from_frame(name, frame)
-    else:
-        receiver = Receiver(name, *(position if position is not None else [0, 0, 1]))
-        if direction is not None:
-            receiver.direction = Vector(*direction)
+    receiver = Receiver(name or "my_receiver", *(position if position is not None else [0, 0, 1]))
+    if direction is not None:
+        receiver.direction = Vector(*direction)
     # raises for a receiver facing straight up or down, whose orientation is undefined
     receiver.frame
-    return {"receiver": receiver, "frame_overrides": frame is not None and any(v is not None for v in (position, direction))}
+    return {"receiver": receiver}
 
 
 def make_acoustic_object(geometry, material, name=None, role="boundary"):
@@ -348,7 +330,7 @@ def auralise(groups, level="relative", mix_sources=False, save_folder=None, save
     Returns
     -------
     dict
-        ``{"signals": [{"branch", "audio": Audio, "suffix"}], "peak_dbfs": float, "warnings": [str]}``.
+        ``{"signals": [{"branch", "audio": Audio}], "peak_dbfs": float, "warnings": [str]}``.
     """
     import os
 
@@ -392,14 +374,14 @@ def auralise(groups, level="relative", mix_sources=False, save_folder=None, save
                     tasks = [(receiver_id, ir_groups[receiver_id], sound_groups[receiver_id], f"{r}")]
                 else:
                     tasks = [(key, {key: ir_groups[receiver_id][key]}, {key: sound_groups[receiver_id][key]}, f"{r}_{j}") for j, key in enumerate(ir_groups[receiver_id])]
-                for name, ir_data, sound_data, suffix in tasks:
+                for _, ir_data, sound_data, suffix in tasks:
                     jobs.progress("rendering", len(renders))
                     task_formats = sorted({formats[key] for key in ir_data})
                     if len(task_formats) > 1:
                         raise ValueError(
                             "The impulse responses at receiver {} are {}: mix responses of one format, or turn mix_sources off.".format(r, " and ".join(task_formats))
                         )
-                    auraliser = Auraliser(name=name, impulse_responses=ir_data, anechoic_sounds=sound_data)
+                    auraliser = Auraliser(impulse_responses=ir_data, anechoic_sounds=sound_data)
                     renders.append((group["branch"], auraliser, auraliser.convolve(), suffix, task_formats[0]))
         gains = Auraliser.render_gains([render[2] for render in renders], level, -1.0)
         signals = []
@@ -407,7 +389,7 @@ def auralise(groups, level="relative", mix_sources=False, save_folder=None, save
         for (branch, auraliser, signal, suffix, ir_format), gain in zip(renders, gains):
             leveled = signal * gain
             peak = max(peak, Auraliser.peak_dbfs(leveled))
-            signals.append({"branch": branch, "audio": Audio(leveled, auraliser.sampling_rate, ir_format), "suffix": suffix})
+            signals.append({"branch": branch, "audio": Audio(leveled, auraliser.sampling_rate, ir_format)})
             if save_folder:
                 auraliser.export_convolved_sound(os.path.join(save_folder, f"{save_name or 'convolved_sound'}_mic_{suffix}.wav"), signal, gain=gain)
     return {"signals": signals, "peak_dbfs": float(peak), "warnings": _messages(caught)}
@@ -429,11 +411,6 @@ def play(sound, normalize=True, gain_db=0.0, start=0.0):
     """Play ``sound`` in the worker: an :class:`Audio` signal, or the path of an audio file.
 
     An Audio signal plays from ``start`` seconds with ``gain_db`` after the normalisation; a file plays whole.
-
-    Returns
-    -------
-    dict
-        ``{"warnings": [str], "duration": seconds}``; 0 s for a file.
     """
     import os
 
@@ -452,34 +429,27 @@ def play(sound, normalize=True, gain_db=0.0, start=0.0):
         args = (sound,)
     else:
         raise TypeError(f"A sound is an Audio signal or a file path, not {type(sound).__name__}.")
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        player = _player()
-        player.play(*args)
-    return {"warnings": _messages(caught), "duration": float(player.duration)}
+    _player().play(*args)
 
 
 def stop():
     """Stop what :func:`play` plays, and return to the beginning."""
     _player().stop()
-    return {"warnings": []}
 
 
 def pause():
     """Pause the signal :func:`play` plays; :func:`resume` plays on."""
     _player().pause()
-    return {"warnings": []}
 
 
 def resume():
     _player().resume()
-    return {"warnings": []}
 
 
 def playback_status():
-    """``{"playing", "paused", "position", "duration"}`` of what :func:`play` plays, in seconds."""
+    """``{"playing", "position"}`` of what :func:`play` plays, the position in seconds."""
     player = _player()
-    return {"playing": bool(player.playing), "paused": bool(player.paused), "position": float(player.position), "duration": float(player.duration)}
+    return {"playing": bool(player.playing), "position": float(player.position)}
 
 
 def sound_samples(path):
@@ -537,7 +507,7 @@ def ray_field(scene, source_index=None, n_rays=500, max_order=10, direction=None
             scene,
             sources=None if source_index is None else [scene.sources[source_index]],
             n_rays=500 if n_rays is None else int(n_rays),
-            max_reflection_order=10 if max_order is None else int(max_order),
+            max_reflection_order=int(max_order),
             include_scattering=bool(scattering),
             random_seed=seed,
             **cone,
@@ -555,20 +525,15 @@ def energy_map(scene, points, source_index=None):
     Returns
     -------
     dict
-        ``{"bands": [Hz], "inside": [bool], "spl": [[dB per band] per point], "spl_a": [dB(A) per point], "n_rays": int,
-        "warnings": [str]}``: NaN for a point outside the room (:class:`compas_acoustics.EnergyMap`).
+        ``{"spl": [[dB per band] per point], "spl_a": [dB(A) per point], "n_rays": int, "warnings": [str]}``: NaN for a
+        point outside the room (:class:`compas_acoustics.EnergyMap`).
     """
     from compas_acoustics import EnergyMap
 
-    count = len(scene.sources)
-    if source_index is not None and not 0 <= source_index < count:
-        raise ValueError(_index_message("source", source_index, count))
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         result = EnergyMap.from_scene(scene, points, source_index=None if source_index is None else int(source_index), seed=True)
     return {
-        "bands": result.bands.tolist(),
-        "inside": [bool(v) for v in result.inside],
         "spl": result.spl().tolist(),
         "spl_a": result.spl_a().tolist(),
         "n_rays": result.n_rays,
@@ -582,7 +547,7 @@ def specular_reflections(scene, orders=None, source_index=None, receiver_index=N
     Returns
     -------
     dict
-        ``{"reflections": SpecularReflections, "orders": [int], "counts": [[order, n]], "warnings": [str]}``.
+        ``{"reflections": SpecularReflections, "counts": [[order, n]], "warnings": [str]}``.
         Negative orders are left out with a warning; no order is order 1.
     """
     from compas_acoustics import SpecularReflections
@@ -602,7 +567,7 @@ def specular_reflections(scene, orders=None, source_index=None, receiver_index=N
         found = SpecularReflections.from_scene(scene, max_order=max(orders))
     reflections = found.filter(source=source_index, receiver_index=receiver_index, order=orders)
     counts = [[o, sum(1 for path in reflections if path.order == o)] for o in reflections.orders]
-    return {"reflections": reflections, "orders": orders, "counts": counts, "warnings": messages + _messages(caught)}
+    return {"reflections": reflections, "counts": counts, "warnings": messages + _messages(caught)}
 
 
 def regularized_fitness(values, target, k=1.0):
@@ -612,7 +577,7 @@ def regularized_fitness(values, target, k=1.0):
 
 
 def sound_info(path):
-    """The channels, sample rate and length of an audio file, in any format soundfile reads: ``{"channels", "sampling_rate", "frames"}``."""
+    """The channels of an audio file, in any format soundfile reads: ``{"channels"}``."""
     import os
 
     import soundfile as sf
@@ -623,4 +588,4 @@ def sound_info(path):
         info = sf.info(path)
     except Exception as e:
         raise ValueError(f"Cannot read the channels of {path}: {e}")
-    return {"channels": int(info.channels), "sampling_rate": int(info.samplerate), "frames": int(info.frames)}
+    return {"channels": int(info.channels)}

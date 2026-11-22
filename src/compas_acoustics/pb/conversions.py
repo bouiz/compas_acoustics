@@ -328,7 +328,7 @@ def _scattered_from_pb(message):
 def _ray_to_pb(ray):
     message = pb.RayData()
     _fill_ray(message, ray)
-    message.scattered_reflections.extend(_scattered_to_pb(s) for s in getattr(ray, "scattered_reflections", None) or [])
+    message.scattered_reflections.extend(_scattered_to_pb(s) for s in ray.scattered_reflections)
     return message
 
 
@@ -358,7 +358,7 @@ def _field_sources(field):
 
 def _give_sources(field, sources):
     for ray in field.rays:
-        for traced in [ray, *(getattr(ray, "scattered_reflections", None) or [])]:
+        for traced in [ray, *ray.scattered_reflections]:
             traced.source = sources.get(traced.source_index)
     return field
 

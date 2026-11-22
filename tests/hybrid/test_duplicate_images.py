@@ -28,7 +28,7 @@ def images(source, receiver, order):
     room.add_source(list(source))
     room.add_microphone(np.reshape(receiver, (3, 1)))
     room.image_source_model()
-    spec = Pair(geometry, np.asarray(source), np.asarray(receiver), np.eye(3), float(FS), air_absorption=False)
+    spec = Pair(geometry, np.asarray(source), np.asarray(receiver), np.eye(3), float(FS), 343.0, air_absorption=False)
     return image_sources(room, 0, 0, spec)
 
 

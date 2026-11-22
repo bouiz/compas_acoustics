@@ -74,4 +74,4 @@ def test_the_doa_is_in_the_receiver_frame():
 
 
 def test_a_rectangular_room_without_obstacles_has_no_diffraction_paths():
-    assert diffraction_paths(Pair(room(), SOURCE, RECEIVER, np.eye(3), 48000.0), max_order=0) == []
+    assert diffraction_paths(Pair(room(), SOURCE, RECEIVER, np.eye(3), 48000.0, 343.0), max_order=0) == []

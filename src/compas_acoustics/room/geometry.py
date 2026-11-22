@@ -28,7 +28,7 @@ from scipy.spatial import cKDTree
 from compas_acoustics.room.air import AirConditions
 from compas_acoustics.room.air import air_or_default
 
-__all__ = ["RoomGeometry", "SurfaceMaterial", "SYNTHESIS_BANDS", "OBSTACLE_OFFSET", "DEFAULT_SCATTERING", "pra_octave_grid"]
+__all__ = ["RoomGeometry", "SurfaceMaterial", "SYNTHESIS_BANDS", "OBSTACLE_OFFSET", "DEFAULT_SCATTERING"]
 
 # The synthesis grid; materials start at 125 Hz and 62.5 Hz takes the 125 Hz value
 SYNTHESIS_BANDS = (62.5, 125.0, 250.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0)
@@ -69,8 +69,6 @@ class SurfaceMaterial:
     name: str
     absorption: np.ndarray
     scattering: Optional[np.ndarray] = None
-    #: Placeholder for a wave-based solver's boundary condition; unused by the geometric methods.
-    impedance: Optional[np.ndarray] = None
 
     @classmethod
     def from_acoustic_material(cls, material) -> SurfaceMaterial:
@@ -297,18 +295,16 @@ class RoomGeometry:
     # that diffract are theirs (compas_acoustics.hybrid.diffraction).
     obstacle_faces: Tuple[Tuple[int, ...], ...] = ()
     obstacle_face_materials: Tuple[str, ...] = ()
-    #: How many faces fewer the room would have with ``merge_coplanar=True`` (0 once merged).
-    mergeable_faces: int = 0
 
     @classmethod
-    def from_scene(cls, scene, merge_coplanar: bool = True, weld_tolerance: float = 1e-3) -> RoomGeometry:
+    def from_scene(cls, scene, merge_coplanar: bool = True) -> RoomGeometry:
         """Collect, weld, orient and validate every surface of ``scene``.
 
         Boundary faces that close a volume are wound outward; otherwise they are kept as drawn, with a
         ``UserWarning``. Obstacle faces are stored twice, ``OBSTACLE_OFFSET`` either side and wound opposite,
         since a wall reflects off one side only. ``merge_coplanar`` joins coplanar faces of one object and
         material into larger walls (a triangulated CAD mesh); ``False`` keeps them and warns where it could.
-        ``weld_tolerance``, in metres, is a CAD model's usual absolute tolerance.
+        Vertices within 1 mm, a CAD model's usual absolute tolerance, are welded.
         """
         polygons: List[np.ndarray] = []
         groups: List[Tuple[str, str, str]] = []  # (role, object name, material name)
@@ -323,10 +319,10 @@ class RoomGeometry:
             for polygon in _object_polygons(acoustic_object):
                 polygons.append(polygon)
                 groups.append((acoustic_object.role, str(acoustic_object.name), material.name))
-        return cls._from_polygons(polygons, groups, materials, merge_coplanar, weld_tolerance)
+        return cls._from_polygons(polygons, groups, materials, merge_coplanar)
 
     @classmethod
-    def from_mesh(cls, vertices, faces, face_materials, materials, obstacles=(), merge_coplanar: bool = False, weld_tolerance: float = 1e-3) -> RoomGeometry:
+    def from_mesh(cls, vertices, faces, face_materials, materials, obstacles=(), merge_coplanar: bool = False) -> RoomGeometry:
         """A room from shared vertices and faces; ``materials`` maps names to :class:`SurfaceMaterial`, those in ``obstacles`` are obstacles."""
         vertices = np.asarray(vertices, dtype=float)
         polygons = [vertices[list(face)] for face in faces]
@@ -337,13 +333,14 @@ class RoomGeometry:
         missing = set(face_materials) - set(materials)
         if missing:
             raise ValueError(f"materials has no entry for {sorted(missing)}")
-        return cls._from_polygons(polygons, groups, dict(materials), merge_coplanar, weld_tolerance)
+        return cls._from_polygons(polygons, groups, dict(materials), merge_coplanar)
 
     @classmethod
-    def _from_polygons(cls, polygons, groups, materials, merge_coplanar, weld_tolerance) -> RoomGeometry:
+    def _from_polygons(cls, polygons, groups, materials, merge_coplanar) -> RoomGeometry:
         if not polygons:
             raise ValueError("The scene has no acoustic surfaces.")
 
+        weld_tolerance = 1e-3
         vertices, inverse = _weld(np.vstack(polygons), weld_tolerance)
         faces: List[List[int]] = []
         start = 0
@@ -370,11 +367,10 @@ class RoomGeometry:
             raise ValueError("Every face of the scene collapsed when its vertices were welded; check the model's units.")
         faces, groups = _triangulated_where_warped(vertices, faces, groups)
 
-        mergeable = 0
         if merge_coplanar:
-            faces, groups = _merged(vertices, faces, groups)
+            faces, groups = _merge_coplanar(vertices, faces, groups)
         else:
-            mergeable = len(faces) - len(_merged(vertices, [list(f) for f in faces], list(groups))[0])
+            mergeable = len(faces) - len(_merge_coplanar(vertices, faces, groups)[0])
             if mergeable:
                 warnings.warn(
                     f"{mergeable} faces lie in one plane with a neighbour of the same object and material, as in a "
@@ -440,7 +436,6 @@ class RoomGeometry:
             open_edge=open_edge,
             obstacle_faces=tuple(tuple(face) for face, group in zip(faces, groups) if group[0] == "obstacle"),
             obstacle_face_materials=tuple(group[2] for group in groups if group[0] == "obstacle"),
-            mergeable_faces=mergeable,
         )
 
     def _face_geometry(self) -> List[Tuple[float, np.ndarray, np.ndarray]]:
@@ -543,36 +538,19 @@ class RoomGeometry:
             "obstacles": [_fan_triangles(self.vertices, faces) for faces in self._closed_obstacles.values()],
         }
 
-    def without_obstacles(self) -> RoomGeometry:
-        """The enclosure alone."""
-        keep = [i for i, role in enumerate(self.face_roles) if role == "boundary"]
-        names = tuple(self.face_materials[i] for i in keep)
-        return RoomGeometry(
-            vertices=self.vertices,
-            faces=tuple(self.faces[i] for i in keep),
-            face_materials=names,
-            face_names=tuple(self.face_names[i] for i in keep),
-            face_roles=tuple(self.face_roles[i] for i in keep),
-            materials={name: self.materials[name] for name in dict.fromkeys(names)},
-            is_closed=self.is_closed,
-            open_edge=self.open_edge,
-        )
-
     def to_pra(
         self,
         fs: int,
         max_order: int,
         ray_tracing: bool = False,
         air_absorption: bool = False,
-        enclosure_only: bool = False,
         air: Optional[AirConditions] = None,
     ) -> pra.Room:
         """The pyroomacoustics room, one wall per face, materials resampled to its octave grid (nine bands at 48 kHz).
 
         Bands above 8 kHz hold the 8 kHz value, where linear extrapolation could pass 1. A material without
-        scattering scatters ``DEFAULT_SCATTERING``. ``enclosure_only`` leaves the obstacles out. The room
-        answers ``is_inside`` with :meth:`is_inside`. ``air`` (default ``AirConditions()``) sets the speed of
-        sound (Cramer) and, with ``air_absorption``, the ISO 9613-1 absorption, in place of pyroomacoustics'
+        scattering scatters ``DEFAULT_SCATTERING``. The room answers ``is_inside`` with :meth:`is_inside`. ``air``
+        (default ``AirConditions()``) sets the speed of sound (Cramer) and, with ``air_absorption``, the ISO 9613-1 absorption, in place of pyroomacoustics'
         own 343 m/s and absorption table.
         """
         with pra_octave_grid():
@@ -600,9 +578,7 @@ class RoomGeometry:
                     np.asarray(resampled.scattering["coeffs"], dtype=float),
                 )
             walls = []
-            for index, (face, material, face_name, role) in enumerate(zip(self.faces, self.face_materials, self.face_names, self.face_roles)):
-                if enclosure_only and role == "obstacle":
-                    continue
+            for index, (face, material, face_name) in enumerate(zip(self.faces, self.face_materials, self.face_names)):
                 absorption, scattering = coefficients[material]
                 try:
                     wall = pra.wall_factory(
@@ -654,10 +630,9 @@ _MERGE_TOLERANCE = 1e-5
 def _merge_coplanar(
     vertices: np.ndarray,
     faces: list[list[int]],
-    names: list[str],
-    obstacles: tuple[str, ...],
-) -> tuple[list[list[int]], list[str]]:
-    """Join neighbouring coplanar faces of one group into convex polygons.
+    groups: list[tuple[str, str, str]],
+) -> tuple[list[list[int]], list[tuple[str, str, str]]]:
+    """Join neighbouring coplanar faces of one group, ``(role, object, material)``, into convex polygons.
 
     Every extra wall multiplies the image source search. Two faces are joined only when they belong to the
     same group, share exactly one edge no other face uses, lie in one plane within ``_MERGE_TOLERANCE`` and
@@ -692,7 +667,7 @@ def _merge_coplanar(
         fa, fb = faces[i], faces[j]
         na, nb = normal_of(fa), normal_of(fb)
         if na @ nb < 0:
-            if names[i] not in obstacles:
+            if groups[i][0] != "obstacle":
                 return None
             fb, nb = fb[::-1], -nb
         if na @ nb < 1.0 - 1e-8:
@@ -733,7 +708,7 @@ def _merge_coplanar(
             if len(owners) != 2:
                 continue
             i, j = owners
-            if i in touched or j in touched or names[i] != names[j]:
+            if i in touched or j in touched or groups[i] != groups[j]:
                 continue
             a, b = tuple(edge)
             poly = merge(i, j, a, b)
@@ -744,7 +719,7 @@ def _merge_coplanar(
             merged_any = True
 
     keep = [i for i in range(len(faces)) if alive[i]]
-    return [faces[i] for i in keep], [names[i] for i in keep]
+    return [faces[i] for i in keep], [groups[i] for i in keep]
 
 
 def _lying_on(points: np.ndarray, polygons) -> List[bool]:
@@ -796,11 +771,3 @@ def _winding_number(point: np.ndarray, triangles: np.ndarray) -> float:
     numerator = np.einsum("ij,ij->i", a, np.cross(b, c))
     denominator = la * lb * lc + np.einsum("ij,ij->i", a, b) * lc + np.einsum("ij,ij->i", a, c) * lb + np.einsum("ij,ij->i", b, c) * la
     return float(np.sum(2.0 * np.arctan2(numerator, denominator)) / (4.0 * np.pi))
-
-
-def _merged(vertices, faces, groups):
-    """Coplanar faces joined within one object, role and material."""
-    keys = ["\x00".join(group) for group in groups]
-    obstacles = tuple(sorted({key for key, group in zip(keys, groups) if group[0] == "obstacle"}))
-    faces, keys = _merge_coplanar(vertices, faces, keys, obstacles)
-    return faces, [tuple(key.split("\x00")) for key in keys]

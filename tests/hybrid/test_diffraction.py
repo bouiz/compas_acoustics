@@ -18,7 +18,6 @@ from compas_acoustics.hybrid.diffraction import (
     Edge,
     ObstacleEdgeWarning,
     Occluders,
-    along_plane,
     btms_paths,
     diffraction_paths,
     edge_segments,
@@ -28,6 +27,7 @@ from compas_acoustics.hybrid.diffraction import (
     pair_valid,
     second_order_start,
     segment_distance,
+    shared_face,
     toolbox_cyl,
     toolbox_frame,
     wedge_path,
@@ -205,7 +205,6 @@ def test_occluders_block_through_the_shelf_and_not_over_it():
     occ = Occluders.from_geometry(shelf_room())
     assert occ.blocked(np.array([6.0, 4.0, 1.5]), np.array([2.0, 4.0, 1.5]))
     assert not occ.blocked(np.array([6.0, 4.0, 1.6]), np.array([2.0, 4.0, 1.6]))
-    assert occ.on_enclosure(np.array([4.0, 4.0, 0.0002]), 2e-3)
 
 
 def test_a_box_on_a_tabletop_does_not_diffract_along_its_bottom():
@@ -481,13 +480,13 @@ def test_the_two_top_edges_of_a_box_run_along_its_top_face():
     edges = obstacle_edges(box_geometry())
     top = [e for e in edges if np.isclose(e.start[2], 1.5) and np.isclose(e.end[2], 1.5) and abs(e.axis[1]) > 1 - 1e-9]
     assert len(top) == 2
-    assert along_plane(top[0], top[1])
+    assert shared_face(top[0], top[1]) is not None
     verticals = [e for e in edges if abs(e.axis[2]) > 1 - 1e-9]
     shares = [v for v in verticals if set(top[0].faces) & set(v.faces)]
     apart = [v for v in verticals if not set(top[0].faces) & set(v.faces)]
     assert shares and apart
-    assert along_plane(top[0], shares[0])
-    assert not along_plane(top[0], apart[0])
+    assert shared_face(top[0], shares[0]) is not None
+    assert shared_face(top[0], apart[0]) is None
 
 
 def rotated_box_geometry(angles):
@@ -507,7 +506,7 @@ def test_coplanar_edges_of_a_rotated_box_are_a_pair_at_every_point():
             pair = [e for e in obstacle_edges(geometry) if face in e.faces and abs(e.axis @ y) > 1 - 1e-9]
             if len(pair) != 2:
                 continue
-            assert along_plane(pair[0], pair[1])
+            assert shared_face(pair[0], pair[1]) is not None
             for e1, e2 in (pair, pair[::-1]):
                 for a in t:
                     for b in t:
@@ -656,7 +655,7 @@ def test_second_order_segment_pairs_sum_to_the_whole_edge_pair():
         np.array([[0.0, e1.length], [0.0, e2.length]]),
         dz,
         steps,
-        along_plane(e1, e2),
+        shared_face(e1, e2) is not None,
         start * C / FS,
         C,
         FS,
@@ -730,7 +729,7 @@ def long_top_edges(geometry, z):
 def test_a_top_face_split_into_polygons_is_still_one_plane():
     top = long_top_edges(split_top_box(), 1.5)
     assert len(top) == 2
-    assert along_plane(top[0], top[1])
+    assert shared_face(top[0], top[1]) is not None
 
 
 def test_coplanar_tops_of_two_separate_boxes_are_not_along_a_plane():
@@ -740,8 +739,8 @@ def test_coplanar_tops_of_two_separate_boxes_are_not_along_a_plane():
     first = [e for e in long_top_edges(geometry, 1.5) if e.component == 0]
     second = [e for e in long_top_edges(geometry, 1.5) if e.component == 1]
     assert len(first) == len(second) == 2
-    assert along_plane(*first) and along_plane(*second)
-    assert not along_plane(first[0], second[0]) and not along_plane(first[1], second[1])
+    assert shared_face(*first) is not None and shared_face(*second) is not None
+    assert shared_face(first[0], second[0]) is None and shared_face(first[1], second[1]) is None
 
 
 def test_second_order_between_collinear_edges_is_skipped_without_a_warning():

@@ -7,8 +7,7 @@ analysed and auralised alike:
 1. the **package scale**: free-field direct sound ``1 / (4 pi r)`` on its geometric sample,
    ``generation['scale'] == 'package'``;
 2. the context's sample rate;
-3. ``generation['method'] == method.name``, the settings, and ``generation['valid_range_hz']``, ``(low, high)``
-   where the method holds or None for the full band;
+3. ``generation['method'] == method.name`` and the settings;
 4. a stated channel convention: mono, ambisonic (``ambisonic_order``, ``normalization``, ``channel_order``) or
    binaural (ears left then right, no ``ambisonic_order``);
 5. peak-normalized views by default, the raw level through ``denormalized()``.
@@ -49,7 +48,7 @@ def image_source_search_seconds(n_faces: int, order: int) -> float:
     return 1e-6 * n_faces**3.4 * (n_faces / 2.2) ** (order - 4)
 
 
-def _warn_if_the_search_is_slow(geometry, order: int, stacklevel: int = 3) -> None:
+def _warn_if_the_search_is_slow(geometry, order: int) -> None:
     seconds = image_source_search_seconds(len(geometry.faces), order)
     if seconds > 30.0:
         when = "minutes" if seconds > 120.0 else "tens of seconds"
@@ -58,7 +57,7 @@ def _warn_if_the_search_is_slow(geometry, order: int, stacklevel: int = 3) -> No
             f"(it grows about {len(geometry.faces) / 2.2:.0f}x per order). Lower image_source_order (ray tracing "
             "supplies the later reflections), or simplify the geometry (coplanar faces are merged already; curved surfaces need fewer faces).",
             UserWarning,
-            stacklevel=stacklevel,
+            stacklevel=3,
         )
 
 

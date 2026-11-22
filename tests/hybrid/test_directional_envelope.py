@@ -13,7 +13,6 @@ from compas_acoustics.room.diffuse import air_attenuation
 from compas_acoustics.room.raytracing import DirectionalHistogram
 from compas_acoustics.room.raytracing import directional_histograms
 from compas_acoustics.room.geometry import RoomGeometry
-from compas_acoustics.room.geometry import pra_octave_grid
 
 FS = 48000
 SOURCE = np.array([6.0, 3.0, 1.5])
@@ -58,12 +57,11 @@ def test_the_lines_sum_to_pyroomacoustics_own_histogram():
     """Without scattering nothing is random: the omni run and the directional run see the same rays."""
     g = geometry(scattering=0.0)
     ((hist,),) = histograms(g, grid())
-    with pra_octave_grid():
-        room = g.to_pra(FS, 3, ray_tracing=True, air_absorption=False)
-        room.add_soundsource(pra.SoundSource(SOURCE))
-        room.add_microphone_array(pra.MicrophoneArray(RECEIVER[:, np.newaxis], FS))
-        room.set_ray_tracing(n_rays=5000, receiver_radius=0.5, energy_thres=1e-8, time_thres=0.5, hist_bin_size=0.004)
-        room.ray_tracing()
+    room = g.to_pra(FS, 3, ray_tracing=True, air_absorption=False)
+    room.add_soundsource(pra.SoundSource(SOURCE))
+    room.add_microphone_array(pra.MicrophoneArray(RECEIVER[:, np.newaxis], FS))
+    room.set_ray_tracing(n_rays=5000, receiver_radius=0.5, energy_thres=1e-8, time_thres=0.5, hist_bin_size=0.004)
+    room.ray_tracing()
     (omni,) = room.rt_histograms[0][0]
     n = min(omni.shape[1], hist.energy.shape[2])
     # the package scale is 1 / (4 pi) in amplitude

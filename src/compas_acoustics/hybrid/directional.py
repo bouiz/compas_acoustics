@@ -22,45 +22,35 @@ from __future__ import annotations
 import numpy as np
 import pyfar as pf
 import pyFDN
-import spharpy
 
 from .bands import N_BANDS
+from .late import fdn_directions
 from .pair import Pair
 from .scattering import _first_hit
 
-SCAN_DIRECTIONS = 96  # the scanned directions of Kirsch et al. (2023, Sec. 1.3), their highest resolution
 
-
-def scan_directions(n_scan: int = SCAN_DIRECTIONS) -> pf.Coordinates:
-    """The directions the boundary is sampled along, shape (n_scan,)."""
-    directions = spharpy.samplings.equal_area(n_max=0, n_points=n_scan)
-    if directions.cshape[0] != n_scan:
-        raise ValueError(f"equal_area returned {directions.cshape[0]} directions for n_scan={n_scan}; pass a count it can produce exactly")
-    return directions
-
-
-def scanned_absorption(spec: Pair, directions: pf.Coordinates, *, n_scan: int = SCAN_DIRECTIONS) -> np.ndarray:
+def scanned_absorption(spec: Pair, directions: pf.Coordinates) -> np.ndarray:
     """Absorption coefficient per delay line and band, shape (n_lines, 8).
 
     Each scan direction takes the absorption of the first face its ray from the receiver meets, which holds in
-    a concave room too.
+    a concave room too. The scan is the 96-point grid of the lines, in room coordinates, as the 96 scanned
+    directions of Kirsch et al. (2023, Sec. 1.3).
     """
     faces = spec.geometry.faces_with_materials()
-    scan = scan_directions(n_scan).cartesian
+    scan = fdn_directions(96).cartesian
     scan = scan / np.linalg.norm(scan, axis=1, keepdims=True)
 
     hit = _first_hit(faces, spec.receiver, scan)
     if np.any(hit < 0):
         raise RuntimeError(f"{int(np.sum(hit < 0))} of {hit.size} scanned directions meet no boundary; the room is not closed around the receiver")
     alpha = np.stack([spec.geometry.materials[name].absorption for _, name in faces])
-    alpha = alpha[hit][:, :N_BANDS]  # (n_scan, 8)
+    alpha = alpha[hit][:, :N_BANDS]  # (96, 8)
 
     unit = directions.cartesian
     unit = unit / np.linalg.norm(unit, axis=1, keepdims=True)
-    if spec.receiver_rotation is not None:
-        unit = unit @ spec.receiver_rotation.T  # the scan is in room coordinates
+    unit = unit @ spec.receiver_rotation.T  # the scan is in room coordinates
     beta = unit.shape[0] / 6.0
-    weights = np.clip(scan @ unit.T, 0.0, None) ** beta  # (n_scan, n_lines)
+    weights = np.clip(scan @ unit.T, 0.0, None) ** beta  # (96, n_lines)
     return (weights.T @ alpha) / weights.sum(axis=0)[:, np.newaxis]
 
 
@@ -79,6 +69,6 @@ def absorption_filters(absorption: np.ndarray, fs: float) -> np.ndarray:
     return pyFDN.gain_to_graphic_eq(np.hstack((db[:, :1], db, db[:, -1:])).T, float(fs))
 
 
-def directional_absorption_filters(spec: Pair, directions: pf.Coordinates, *, n_scan: int = SCAN_DIRECTIONS) -> np.ndarray:
+def directional_absorption_filters(spec: Pair, directions: pf.Coordinates) -> np.ndarray:
     """The per-line output filters of this room, the ``line_eq`` of :func:`~compas_acoustics.hybrid.late.render`."""
-    return absorption_filters(scanned_absorption(spec, directions, n_scan=n_scan), spec.fs)
+    return absorption_filters(scanned_absorption(spec, directions), spec.fs)

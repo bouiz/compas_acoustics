@@ -83,11 +83,6 @@ class Edge:
         """The point at axial coordinate z, measured from the edge's centre."""
         return self.start + (z + self.length / 2.0) * self.axis
 
-    def contains(self, point: np.ndarray) -> bool:
-        """Does a point on the edge's line lie on the physical edge?"""
-        z = float((np.asarray(point) - self.start) @ self.axis)
-        return -1e-9 <= z <= self.length + 1e-9
-
     def cylindrical(self, point: np.ndarray) -> tuple[float, float, float]:
         """(r, z from the centre, open angle from face A) of a point."""
         v = np.asarray(point, dtype=float) - self.start
@@ -185,13 +180,6 @@ def shared_face(e1: Edge, e2: Edge, tol: float = 1e-6) -> int | None:
     return None
 
 
-def along_plane(e1: Edge, e2: Edge, tol: float = 1e-6) -> bool:
-    """Do the two edges, of one obstacle or both of the room's boundary,
-    bound a common plane (:func:`shared_face`), so the path between them runs
-    along a surface?"""
-    return shared_face(e1, e2, tol) is not None
-
-
 def coplanar_thetas(e1: Edge, e2: Edge) -> tuple[float, float]:
     """theta of e2 about e1 and of e1 about e2, for edges along a common
     plane, by face membership as EDed2geo.m assigns them: 0 in the reference
@@ -272,9 +260,6 @@ class Occluders:
             t = (self.offsets - self.normals @ p) / denom
         hits = np.flatnonzero((np.abs(denom) > 1e-12) & (t > 1e-9) & (t < 1.0 - 1e-9))
         return any(int(i) not in skip and _inside_polygon(self.polygons[i], self.normals[i], p + t[i] * d) for i in hits)
-
-    def on_enclosure(self, point: np.ndarray, tol: float) -> bool:
-        return self.on_polygons(point, tol, range(self.n_obstacle, len(self.polygons)))
 
     def on_polygons(self, point: np.ndarray, tol: float, polygons) -> bool:
         """Does a point lie within ``tol`` of one of the given polygons?"""
@@ -542,7 +527,7 @@ def enclosure_edges(geometry: RoomGeometry) -> list[Edge]:
     face, so that :func:`shared_face` tells a face shared with another edge
     from a coplanar face elsewhere.
     """
-    if not getattr(geometry, "is_closed", True):
+    if not geometry.is_closed:
         warnings.warn("the boundary does not close a volume: room-boundary edges are not searched", ShellEdgeWarning, stacklevel=2)
         return []
     occ = Occluders.from_geometry(geometry)
@@ -710,24 +695,24 @@ def _wall_hit(occ: Occluders, end: _End, towards: np.ndarray):
     return None
 
 
-def _polyline(occ: Occluders, src: _End, apexes: list[tuple[np.ndarray, frozenset[int]]], rec: _End):
-    """The real path source (- wall) - apexes (- wall) - receiver, or None.
+def _polyline(occ: Occluders, src: _End, apex: np.ndarray, faces: frozenset[int], rec: _End):
+    """The real path source (- wall) - apex (- wall) - receiver, or None.
 
-    ``apexes`` pairs each apex with its edge's faces. Returns the points, the
-    walls hit, and for each point the faces it lies on.
+    ``faces`` are the faces of the apex's edge. Returns the points, the walls
+    hit, and for each point the faces it lies on.
     """
     points, walls, on = [src.origin], [], [frozenset()]
     if src.faces:
-        hit = _wall_hit(occ, src, apexes[0][0])
+        hit = _wall_hit(occ, src, apex)
         if hit is None:
             return None
         points.append(hit[0])
         walls.append(hit[1])
         on.append(frozenset(src.faces))
-    points += [a for a, _ in apexes]
-    on += [faces for _, faces in apexes]
+    points.append(apex)
+    on.append(faces)
     if rec.faces:
-        hit = _wall_hit(occ, rec, apexes[-1][0])
+        hit = _wall_hit(occ, rec, apex)
         if hit is None:
             return None
         points.append(hit[0])
@@ -757,8 +742,6 @@ def diffraction_paths(spec: Pair, *, max_order: int = 1) -> list[DiffractionPath
     after, which is the same construction by reciprocity.
     """
     geometry = spec.geometry
-    if not isinstance(geometry, RoomGeometry):
-        raise ValueError("diffraction needs a RoomGeometry")  # noqa: TRY004
     c = spec.speed_of_sound
     receiver = np.asarray(spec.receiver, dtype=float)
     occ = Occluders.from_geometry(geometry)
@@ -792,7 +775,7 @@ def diffraction_paths(spec: Pair, *, max_order: int = 1) -> list[DiffractionPath
                 continue
             half = wp.length / 2.0
             apex = e.point_at(float(np.clip(wp.z_apex, -half, half)))
-            pl = _polyline(occ, src, [(apex, frozenset(e.faces))], rec)
+            pl = _polyline(occ, src, apex, frozenset(e.faces), rec)
             if pl is None or not _clear(occ, pl[0], pl[2]):
                 continue
             out.append(make(pl, wp.d_constrained, partial(udfa_transfer, wp, c=c), wp.zone, k))
@@ -859,8 +842,6 @@ def btms_paths(spec: Pair, *, max_order: int = 1, second_order: bool = True) -> 
     reflection before or after, plus the order-0 geometric components on zone
     boundaries; second order (direct paths) when ``second_order``."""
     geometry = spec.geometry
-    if not isinstance(geometry, RoomGeometry):
-        raise ValueError("diffraction needs a RoomGeometry")  # noqa: TRY004
     c, fs = spec.speed_of_sound, spec.fs
     receiver = np.asarray(spec.receiver, dtype=float)
     occ = Occluders.from_geometry(geometry)
@@ -904,13 +885,13 @@ def btms_paths(spec: Pair, *, max_order: int = 1, second_order: bool = True) -> 
             unit = (ends[1] - ends[0]) / e.length
             for z0, z1 in edge_segments(e, src.position, rec.position):
                 mid = ends[0] + (z0 + z1) / 2.0 * unit
-                pl = _polyline(occ, src, [(mid, frozenset(e.faces))], rec)
+                pl = _polyline(occ, src, mid, frozenset(e.faces), rec)
                 if pl is None or not _clear(occ, pl[0], pl[2]):
                     continue
                 apex = np.clip((rs * zr + rr * zs) / (rs + rr), z0, z1)
                 shortest = min(np.linalg.norm(p - src.position) + np.linalg.norm(rec.position - p) for p in (ends[0] + z * unit for z in (z0, z1, apex)))
                 start = max(int(np.floor(shortest / c * fs)) - 1, 0)
-                ir, _, singular, _ = wedge1st_ir(fs, c, TWO_PI - e.theta_w, rs, min(ts, e.theta_w), zs, rr, min(tr, e.theta_w), zr, np.array([z0, z1]), start * c / fs)
+                ir, singular = wedge1st_ir(fs, c, TWO_PI - e.theta_w, rs, min(ts, e.theta_w), zs, rr, min(tr, e.theta_w), zr, np.array([z0, z1]), start * c / fs)
                 length = np.linalg.norm(mid - src.position) + np.linalg.norm(rec.position - mid)
                 out.append(BtmsContribution(start, ir, doa_of(pl[0][-2]), gain_of(length, pl[1]), 1, (k,), bool(np.any(singular))))
                 # On a zone boundary wedge1st_ir drops the singular term and the geometric
@@ -978,7 +959,7 @@ def btms_paths(spec: Pair, *, max_order: int = 1, second_order: bool = True) -> 
                 _, cyl_r, z2, lo2, hi2, mid2, _, to_receiver = prep[j]
                 if i == j or not to_receiver.any():
                     continue
-                along = along_plane(e1, e2)
+                along = shared_face(e1, e2) is not None
                 if along:
                     theta_2_about_1, theta_1_about_2 = coplanar_thetas(e1, e2)
                 # the equal path along the panel's rear side (EDmakeHODirs.m, boostfactor 2)

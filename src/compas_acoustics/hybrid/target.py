@@ -8,11 +8,9 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pyFDN
 
-from compas_acoustics.room.diffuse import mean_absorption
 from compas_acoustics.room.diffuse import predicted_rt
 
 from .bands import BANDS
-from .bands import BANDWIDTHS
 from .bands import N_BANDS
 from .bands import check_bands
 
@@ -25,24 +23,29 @@ class RoomTarget:
     """What the late field must reproduce: decay and spectral shape per band.
 
     ``level`` is a relative spectral envelope that only weights the slopes of a multi-slope target against each
-    other; the late field's absolute level comes from the image sources driving the network.
+    other, so a single slope needs none; the late field's absolute level comes from the image sources driving the
+    network.
     """
 
     rt: np.ndarray
-    level: np.ndarray
     bands: np.ndarray
     fs: float
+    level: np.ndarray | None = None
 
     def __post_init__(self) -> None:
         check_bands(self.bands)
         for name in ("rt", "level"):
+            if getattr(self, name) is None:
+                continue
             value = np.asarray(getattr(self, name), dtype=float)
             if value.ndim == 1:
                 value = value[:, np.newaxis]
             if value.ndim != 2 or value.shape[0] != N_BANDS:
                 raise ValueError(f"{name} must have shape ({N_BANDS},) or ({N_BANDS}, n_slopes)")
             object.__setattr__(self, name, value)
-        if self.rt.shape != self.level.shape:
+        if self.level is None and self.rt.shape[1] > 1:
+            raise ValueError("a target of several slopes needs their level")
+        if self.level is not None and self.rt.shape != self.level.shape:
             raise ValueError("rt and level must have the same shape")
         if np.any(self.rt <= 0.0):
             raise ValueError("rt must be positive in every band and slope")
@@ -67,14 +70,7 @@ class RoomTarget:
         rir = np.asarray(rir, dtype=float).ravel()
         if n_slopes == 1:
             rt, centres = pyFDN.estimate_rt_bands(rir, fs, decay_db=decay_db)
-            level, _ = pyFDN.estimate_initial_level_bands(rir, rt, fs)
-            check_bands(centres)
-            return cls(
-                rt=rt[:, np.newaxis],
-                level=level[:, np.newaxis],
-                bands=centres,
-                fs=float(fs),
-            )
+            return cls(rt=rt[:, np.newaxis], bands=centres, fs=float(fs))
 
         from multislope import DecayFitNet
 
@@ -83,15 +79,12 @@ class RoomTarget:
         amplitude = np.asarray(fit.a, dtype=float) * np.asarray(fit.norm_vals, dtype=float)[0][:, np.newaxis]
         level = pyFDN.slope_amplitude_to_level(amplitude, decay_time, fs)
 
-        # three columns for 0, else the forced count; a zero decay time marks a slope inactive, kept only if active in every band
+        # three columns for 0, else the forced count; a zero decay time marks a slope inactive, kept only if active in
+        # every band. multislope sorts each band's slopes by decay time, so the kept columns are fastest first.
         active = np.all(decay_time > 0.0, axis=0)
-        decay_time = decay_time[:, active]
-        level = level[:, active]
-
-        order = np.argsort(np.median(decay_time, axis=0))
         return cls(
-            rt=decay_time[:, order],
-            level=level[:, order],
+            rt=decay_time[:, active],
+            level=level[:, active],
             bands=BANDS.copy(),
             fs=float(fs),
         )
@@ -102,49 +95,26 @@ class RoomTarget:
         spec: Pair,
         *,
         model: str = "eyring",
-        weighting: str = "area",
-        air_absorption: bool | None = None,
     ) -> RoomTarget:
         """Predict a single-slope target from geometry and materials (:func:`~compas_acoustics.room.diffuse.predicted_rt`).
 
-        ``model`` and ``weighting`` are those of :func:`~compas_acoustics.room.diffuse.predicted_rt` and
-        :func:`~compas_acoustics.room.diffuse.mean_absorption`. ``air_absorption`` defaults to
+        ``model`` is that of :func:`~compas_acoustics.room.diffuse.predicted_rt`. Air absorption follows
         ``spec.air_absorption``, which keeps the decay and the image source gains consistent.
         """
-        if air_absorption is None:
-            air_absorption = spec.air_absorption
-        alpha = mean_absorption(spec.geometry, weighting=weighting)
         rt = predicted_rt(
             spec.geometry,
             model=model,
-            weighting=weighting,
-            air_absorption=air_absorption,
+            air_absorption=spec.air_absorption,
             speed_of_sound=spec.speed_of_sound,
             air=spec.air,
         )
+        return cls(rt=rt[:, np.newaxis], bands=BANDS.copy(), fs=spec.fs)
 
-        # The diffuse-field energy density goes as 1 / A; ``level`` is a band's decay amplitude, so the square
-        # root turns energy into amplitude and BANDWIDTHS a density into a band's energy (without it a flat room
-        # would fall 3 dB per octave). Only the shape is used.
-        level = np.sqrt(BANDWIDTHS / (alpha * spec.geometry.surface_area))
-        return cls(
-            rt=rt[:, np.newaxis],
-            level=level[:, np.newaxis],
-            bands=BANDS.copy(),
-            fs=spec.fs,
-        )
-
-    def geq_bands(
-        self,
-        slope: int = 0,
-        *,
-        dc_factor: float = 1.0,
-        nyquist_factor: float = 0.5,
-    ) -> np.ndarray:
+    def geq_bands(self, slope: int = 0) -> np.ndarray:
         """One slope's RT on the ten-band attenuation grid: 31.25 Hz, the eight octaves, 16 kHz.
 
-        The outer bands, held to DC and Nyquist, are scaled by ``dc_factor`` and ``nyquist_factor``; the defaults,
-        1 and 0.5, are the package's choice and shorten the top, where air and boundary absorption dominate.
+        The outer bands are held to DC and Nyquist, the top one halved, where air and boundary absorption dominate
+        (the package's choice).
         """
         rt = self.rt[:, slope]
-        return np.concatenate(([dc_factor * rt[0]], rt, [nyquist_factor * rt[-1]]))
+        return np.concatenate(([rt[0]], rt, [0.5 * rt[-1]]))

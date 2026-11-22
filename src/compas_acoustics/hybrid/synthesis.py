@@ -89,7 +89,6 @@ def prepare(
     max_order: int,
     duration_s: float | None = None,
     num_delays: int = MIN_DELAYS,
-    drive_gain: float | None = None,
     directional_absorption: bool = True,
     late_envelope: np.ndarray | None = None,
     directional_envelope: DirectionalHistogram | None = None,
@@ -114,7 +113,7 @@ def prepare(
        The lines are kept with ``line_directions`` for the renderer.
 
     ``duration_s`` defaults to 1.5 times the longest target RT (the package's choice). ``rng`` seeds the delay jitter
-    and the feedback matrices, ``rng + slope`` for each slope. ``drive_gain`` defaults to ``sqrt(num_delays)``.
+    and the feedback matrices, ``rng + slope`` for each slope. The drive gain is ``sqrt(num_delays)``.
     ``late_envelope``, a package-scale omnidirectional reference, attenuates the lines per band to its late energy:
     the envelope of Vorlaender (2020, Sec. 11.9) imposed on the network's lines, the package's choice
     (:mod:`~compas_acoustics.hybrid.envelope`); ``directional_envelope``, a
@@ -133,7 +132,7 @@ def prepare(
     scattered part of every image of orders 1 to ``max_order`` enters "those FDN channels on the same hemisphere
     (initially skipping the FDN delays ...)" (Sec. 3.1.2), smeared by the allpass cascade of Eqs. 12-13 with
     ``R`` the mean free path and weighted by :func:`~compas_acoustics.hybrid.scattering.scattering_weights` (unit
-    l2 norm, as one driving image) times ``drive_gain``, as :func:`render`'s ``tap``.
+    l2 norm, as one driving image) times the drive gain, as :func:`render`'s ``tap``.
     """
     model = {False: None, True: "udfa", "udfa": "udfa", "btms": "btms"}.get(diffraction, "invalid")
     if model == "invalid":
@@ -149,14 +148,13 @@ def prepare(
     directions = fdn_directions(num_delays)
     delays = [directional_delays(spec, directions, rng=rng + slope) for slope in range(target.n_slopes)]
     builds = design_fdn(target, delays, rng=rng)
-    if drive_gain is None:
-        drive_gain = float(np.sqrt(num_delays))
+    drive_gain = float(np.sqrt(num_delays))
 
     paths, contributions = (), ()
     if model == "udfa":
-        paths = tuple(diffraction_paths(spec, max_order=min(max_order, 1)))
+        paths = tuple(diffraction_paths(spec, max_order=max_order))
     elif model == "btms":
-        contributions = tuple(btms_paths(spec, max_order=min(max_order, 1)))
+        contributions = tuple(btms_paths(spec, max_order=max_order))
     if directional_envelope is not None:
         if late_envelope is None:
             raise ValueError("directional_envelope needs late_envelope, the omni reference that sets the level")

@@ -1,5 +1,4 @@
 import numpy as np
-import pyroomacoustics as pra
 import pytest
 
 from compas_acoustics import AcousticMaterial
@@ -9,7 +8,6 @@ from compas_acoustics import Receiver
 from compas_acoustics import RayField
 from compas_acoustics import Scene
 from compas_acoustics import Source
-from compas_acoustics.room.pra import scene_to_pra_room
 from compas_acoustics.room.pra import source_to_pra
 
 
@@ -23,13 +21,6 @@ def shoebox_scene():
 
 def response(scene, data):
     return ImpulseResponse("k", scene.sources[0], scene.receivers[0], data, 48000)
-
-
-def test_scene_to_pra_room_keeps_its_signature():
-    room = scene_to_pra_room(shoebox_scene(), 48000, 2, False, True)
-    assert isinstance(room, pra.Room)
-    assert len(room.walls) == 6
-    assert room.fs == 48000
 
 
 def test_trace_rays_runs_on_room_geometry():
@@ -62,14 +53,10 @@ def test_omnidirectional_sources_carry_no_pyroomacoustics_directivity():
     assert source_to_pra(Source("c", 1, 1, 1, directivity="cardioid", direction=[1, 0, 0])).directivity is not None
 
 
-@pytest.mark.parametrize("format, subtype, extension", [("WAV", "PCM_16", "wav"), ("WAV", "FLOAT", "wav"), ("AIFF", "PCM_16", "wav"), ("FLAC", "PCM_16", "flac")])
-def test_a_sound_file_of_any_format_is_read_and_peak_normalized(tmp_path, format, subtype, extension):
-    sf = pytest.importorskip("soundfile")
-    path = tmp_path / f"sound.{extension}"
-    sf.write(path, 0.25 * np.sin(np.linspace(0, 20, 4800)), 48000, format=format, subtype=subtype)
-    signal = source_to_pra(Source("s", 1, 1, 1, sound_file=str(path))).signal
-    assert signal.shape == (4800,) and signal.dtype == np.float32
-    assert np.max(np.abs(signal)) == pytest.approx(1.0)
+def test_a_sources_sound_file_is_not_read(tmp_path):
+    path = tmp_path / "not_audio.wav"
+    path.write_bytes(b"")
+    assert source_to_pra(Source("s", 1, 1, 1, sound_file=str(path))).signal is None
 
 
 def test_mono_and_ambisonic_responses_share_an_edge():
@@ -102,11 +89,11 @@ def test_an_edge_without_responses_is_removed():
         scene.get_impulse_response(scene.sources[0], scene.receivers[0])
 
 
-def test_number_of_sources_counts_attached_sources():
+def test_sources_attached_to_a_library_room_are_scene_sources():
     scene = Scene("t")
     scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(7, 5, 3, sources=[Source("on_floor", 1, 1, 0.5)]))
     scene.add_source(Source("free", 2, 2, 1.5))
-    assert scene.number_of_sources == len(scene.sources) == 2
+    assert len(scene.sources) == 2
 
 
 def test_left_wall_is_on_the_receivers_left():

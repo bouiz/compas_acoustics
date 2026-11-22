@@ -11,7 +11,7 @@ from typing import Optional
 
 import numpy as np
 
-__all__ = ["AirConditions", "air_or_default", "speed_of_sound"]
+__all__ = ["AirConditions", "air_or_default"]
 
 
 @dataclass(frozen=True)
@@ -66,8 +66,3 @@ class AirConditions:
 def air_or_default(air: Optional[AirConditions]) -> AirConditions:
     """The air, or ``AirConditions()`` (20 deg C, 50 %, 101325 Pa), which every simulation uses without one."""
     return AirConditions() if air is None else air
-
-
-def speed_of_sound(air: Optional[AirConditions]) -> float:
-    """The air's speed of sound, the default air's without one."""
-    return air_or_default(air).speed_of_sound

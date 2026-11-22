@@ -19,8 +19,7 @@ class Source(_PackageDtype, Point):
     method simulates the source.
 
     ``spl`` is the free-field level on its axis at 1 m per octave band, 125 Hz to 8 kHz, in dB re 20 uPa,
-    120 dB in every band unless set (the package's choice; the voice presets give the talker levels of
-    ANSI S3.5-1997). On the package scale the direct sound is
+    120 dB in every band unless set (the package's choice). On the package scale the direct sound is
     ``1 / (4 pi r)`` with gain 1 on axis, so ``Lp = spl + G - 20 dB`` (:meth:`Analyser.sound_pressure_level`).
     """
 
@@ -84,7 +83,6 @@ class Source(_PackageDtype, Point):
         self.x = position[0]
         self.y = position[1]
         self.z = position[2]
-        return self.position
 
     @property
     def sound_file(self):
@@ -102,42 +100,6 @@ class Source(_PackageDtype, Point):
             raise ValueError(f"Sound file {file_path} does not exist.")
 
         self._sound_file = str(file_path)
-
-    @property
-    def id(self):
-        return self.guid
-
-    @classmethod
-    def omni(cls, name: str, x: float, y: float, z: float):
-        source = cls(name, x, y, z)
-        source.description = "omni"
-        return source
-
-    @classmethod
-    def _voice(cls, name, x, y, z, effort, levels):
-        # levels at 62.5 Hz to 8 kHz (ANSI S3.5-1997)
-        source = cls(name, x, y, z)
-        source.description = f"voice {effort}"
-        source.directional = True
-        by_band = dict(zip([62.5, 125, 250, 500, 1000, 2000, 4000, 8000], levels))
-        source.spl = [by_band[f] for f in Defaults().DEFAULT_FREQUENCY_BANDS]
-        return source
-
-    @classmethod
-    def voice_normal(cls, name: str, x: float, y: float, z: float):
-        return cls._voice(name, x, y, z, "normal", [45.0, 55.0, 65.0, 69.0, 63.0, 55.8, 50.0, 44.0])
-
-    @classmethod
-    def voice_raised(cls, name: str, x: float, y: float, z: float):
-        return cls._voice(name, x, y, z, "raised", [48.0, 60.0, 70.0, 75.0, 72.0, 64.0, 57.0, 49.0])
-
-    @classmethod
-    def voice_loud(cls, name: str, x: float, y: float, z: float):
-        return cls._voice(name, x, y, z, "loud", [52.0, 64.0, 72.0, 80.0, 80.0, 73.0, 66.0, 55.0])
-
-    @classmethod
-    def voice_shouting(cls, name: str, x: float, y: float, z: float):
-        return cls._voice(name, x, y, z, "shouting", [52.0, 65.0, 73.0, 84.0, 89.0, 82.0, 75.0, 64.0])
 
     @property
     def __data__(self):

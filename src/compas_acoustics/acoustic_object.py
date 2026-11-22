@@ -6,7 +6,6 @@ from compas.geometry import Box
 from compas.geometry import Frame
 from compas.geometry import Transformation
 
-from compas_acoustics import Source
 from compas_acoustics.defaults import _PackageDtype
 from compas_acoustics.materials import AcousticMaterial
 
@@ -54,7 +53,6 @@ class AcousticObject(_PackageDtype, Data):
         self.role = role
         self.group = group
         self.sources = []
-        self.visualisation_geometry = None
 
     @classmethod
     def from_obj(cls, filepath, materials=None, name=None):
@@ -174,10 +172,6 @@ class AcousticObject(_PackageDtype, Data):
         return objects
 
     @property
-    def id(self):
-        return self.guid
-
-    @property
     def position(self):
         return [self._x, self._y, self._z]
 
@@ -186,9 +180,6 @@ class AcousticObject(_PackageDtype, Data):
         self._x = position[0]
         self._y = position[1]
         self._z = position[2]
-
-    def add_source(self, source: Source):
-        self.sources.append(source)
 
     @property
     def material(self):
@@ -226,19 +217,6 @@ class AcousticObject(_PackageDtype, Data):
         acoustic_object = cls(data["acoustic_geometry"], data["material"], *data["position"], role=data["role"])
         acoustic_object.sources = data["sources"]
         return acoustic_object
-
-    @property
-    def visualisation_geometry(self):
-        return self._visualisation_geometry
-
-    @visualisation_geometry.setter
-    def visualisation_geometry(self, visualisation_geometry):
-        if isinstance(visualisation_geometry, Mesh):
-            self._visualisation_geometry = visualisation_geometry
-        elif visualisation_geometry is None:
-            self._visualisation_geometry = self.acoustic_geometry
-        else:
-            raise ValueError("Visualisation geometry must be a compas.datastructures.Mesh object.")
 
 
 class AcousticObjectsLibrary:

@@ -33,7 +33,7 @@ def spec(direction=(1, 0, 0)):
         )
     )
     receiver = Receiver("r", 3.5, 2.5, 1.5, direction=list(direction))
-    return Pair(RoomGeometry.from_scene(scene), [1.5, 1.5, 1.6], receiver.position, receiver.rotation, FS)
+    return Pair(RoomGeometry.from_scene(scene), [1.5, 1.5, 1.6], receiver.position, receiver.rotation, FS, 343.0)
 
 
 def test_a_downward_ray_hits_the_floor():

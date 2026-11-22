@@ -12,7 +12,6 @@ from compas_acoustics.hybrid.early import image_sources
 from compas_acoustics.hybrid.pair import Pair
 from compas_acoustics.room.diffuse import air_attenuation
 from compas_acoustics.room.pra import directivity_to_pra
-from compas_acoustics.room.pra import receivers_to_pra_mic_array
 from compas_acoustics.room.pra import source_to_pra
 from compas_acoustics.room.geometry import RoomGeometry
 
@@ -29,7 +28,7 @@ def computed(sources, receivers, obstacles=(), order=2):
     room = geometry.to_pra(FS, order)
     for source in sources:
         room.add_soundsource(source_to_pra(source))
-    room.add_microphone_array(receivers_to_pra_mic_array(receivers, sampling_rate=FS))
+    room.add_microphone_array(np.array([r.position for r in receivers], dtype=float).T)
     room.image_source_model()
     return geometry, room
 

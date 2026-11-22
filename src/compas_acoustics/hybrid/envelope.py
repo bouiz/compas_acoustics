@@ -197,9 +197,9 @@ def envelope_gains(reference: np.ndarray, early_w: np.ndarray, late_w: np.ndarra
 
 
 def shape_late(signals: np.ndarray, early_w: np.ndarray, late_w: np.ndarray, reference: np.ndarray, fs: float, histogram=None) -> np.ndarray:
-    """``signals`` (n,) or (n, K) with the gains of :func:`envelope_gains` on every column.
+    """``signals`` (n, K) with the gains of :func:`envelope_gains` on every column.
 
-    ``signals`` are the late field's channels or the network's lines, whose sum through ``C`` is ``late_w``;
+    ``signals`` are the network's lines, whose sum through ``C`` is ``late_w``;
     ``early_w`` and ``late_w`` are the W channels of the hybrid's two parts and ``reference`` is on the same
     scale. Warns if ``early_w + late_w`` and the reference disagree by more than ``SCALE_WARN_DB`` over the
     first 50 ms: the reference is on another scale. ``histogram``, a
@@ -208,9 +208,9 @@ def shape_late(signals: np.ndarray, early_w: np.ndarray, late_w: np.ndarray, ref
     up (the bank's to within 2 %), at least to 8 kHz; without a 16 kHz row that band takes the 8 kHz one.
     """
     signals = np.asarray(signals, dtype=float)
+    if signals.ndim != 2:
+        raise ValueError("signals must be the network's lines, (n, n_lines)")
     if histogram is not None:
-        if signals.ndim != 2:
-            raise ValueError("the directional shares apply to the network's lines, (n, n_lines)")
         rows = np.asarray(histogram.bands, dtype=float)
         if not 8 <= rows.size <= 9 or not np.allclose(rows, 62.5 * 2.0 ** np.arange(rows.size), rtol=0.02):
             raise ValueError(f"the histogram's bands must be the octaves from 62.5 Hz to 8 or 16 kHz, got {rows.tolist()}")
@@ -237,10 +237,7 @@ def shape_late(signals: np.ndarray, early_w: np.ndarray, late_w: np.ndarray, ref
 
     gains = envelope_gains(reference, early_w, late_w, fs)
     if histogram is None:
-        bands = octave_band_split(signals, fs)
-        if signals.ndim == 1:
-            return np.einsum("bn,bn->n", gains, bands)
-        return np.einsum("bn,bnc->nc", gains, bands)
+        return np.einsum("bn,bnc->nc", gains, octave_band_split(signals, fs))
     shaped = np.zeros_like(signals)
     for b, band in enumerate(_octave_bands(signals, fs)):
         share = directional_shares(histogram, band, fs, min(b, rows.size - 1))

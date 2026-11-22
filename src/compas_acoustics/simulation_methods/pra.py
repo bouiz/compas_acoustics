@@ -131,7 +131,6 @@ class Mono(SimulationMethod):
             "ray_tracing": self.ray_tracing,
             "image_source_order": self.image_source_order,
             "air_absorption": self.air_absorption,
-            "valid_range_hz": None,
             "air": air_or_default(self.air).to_dict(),
             "speed_of_sound": air_or_default(self.air).speed_of_sound,
         }

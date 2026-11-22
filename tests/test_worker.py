@@ -79,15 +79,12 @@ def test_the_service_only_dispatches_the_worker_api():
     assert answer["fingerprint"] == worker.fingerprint()
 
 
-def test_info_names_the_schema_compas_pb_and_the_speed_of_sound():
-    import compas_pb
-
+def test_info_names_the_schema_and_the_speed_of_sound():
     import compas_acoustics.pb
     from compas_acoustics import Defaults
 
     _, answer = call("info")
     assert answer["schema"] == compas_acoustics.pb.SCHEMA
-    assert answer["compas_pb"] == compas_pb.__version__
     assert answer["speed_of_sound"] == Defaults().DEFAULT_SPEED_OF_SOUND
 
 
@@ -181,7 +178,7 @@ def test_the_api_returns_the_responses_under_the_methods_name():
     assert list(result["responses"]) == ["mono"]
 
 
-def test_references_reach_the_method_as_responses():
+def test_references_reach_the_method_as_responses(monkeypatch):
     from compas_acoustics.simulation_methods import SimulationContext
     from compas_acoustics.worker import api
 
@@ -196,11 +193,8 @@ def test_references_reach_the_method_as_responses():
             seen["reference"] = reference
             super().__init__(**kwargs)
 
-    api.METHODS["recording"] = Recording
-    try:
-        api.simulate(s, "recording", {"image_source_order": 1, "ray_tracing": False}, reference)
-    finally:
-        del api.METHODS["recording"]
+    monkeypatch.setattr(api, "_method_class", lambda name: Recording)
+    api.simulate(s, "mono", {"image_source_order": 1, "ray_tracing": False}, reference)
     assert list(seen["reference"]) == [key]
     np.testing.assert_array_equal(seen["reference"][key].denormalized(), reference[key].denormalized())
 
@@ -325,11 +319,12 @@ def test_the_worker_install_runs_its_python_without_the_callers_pythonpath(monke
     monkeypatch.setattr(install, "_uv", lambda: "uv")
     monkeypatch.setattr(install, "stop_running_workers", lambda: None)
     monkeypatch.setattr(install.subprocess, "run", lambda command, **kwargs: calls.append((command, kwargs.get("env"))))
-    python = install.install_worker(tmp_path / "compas_acoustics.whl", hybrid=True, home=tmp_path / "worker", config=tmp_path / "worker.json")
+    python = install.install_worker(tmp_path / "compas_acoustics.whl", home=tmp_path / "worker", config=tmp_path / "worker.json")
     assert len(calls) == 3 and all(env is not None for _, env in calls)
     assert all("PYTHONPATH" not in env and "PYTHONHOME" not in env for _, env in calls)
     assert calls[-1][0][0] == str(python)
-    assert json.loads((tmp_path / "worker.json").read_text()) == {"python": str(python), "hybrid": True}
+    assert json.loads((tmp_path / "worker.json").read_text()) == {"python": str(python)}
+    assert calls[-1][0][1:] == ["-c", "import compas_acoustics.simulation_methods as m; m.Binaural"]
 
 
 def response():
@@ -413,11 +408,9 @@ def test_the_worker_installs_the_wheel_and_nothing_else(monkeypatch, tmp_path):
     monkeypatch.setattr(install, "_uv", lambda: "uv")
     monkeypatch.setattr(install, "stop_running_workers", lambda: None)
     monkeypatch.setattr(install.subprocess, "run", lambda command, **kwargs: calls.append(command))
-    for hybrid in (False, True):
-        calls.clear()
-        install.install_worker(tmp_path / "compas_acoustics.whl", hybrid=hybrid, home=tmp_path / "worker", config=tmp_path / "worker.json")
-        installs = [command[5:] for command in calls if command[:3] == ["uv", "pip", "install"]]
-        assert installs == [[f"compas_acoustics @ {(tmp_path / 'compas_acoustics.whl').resolve().as_uri()}"]]
+    install.install_worker(tmp_path / "compas_acoustics.whl", home=tmp_path / "worker", config=tmp_path / "worker.json")
+    installs = [command[5:] for command in calls if command[:3] == ["uv", "pip", "install"]]
+    assert installs == [[f"compas_acoustics @ {(tmp_path / 'compas_acoustics.whl').resolve().as_uri()}"]]
 
 
 def test_an_empty_or_zero_result_still_travels(monkeypatch):

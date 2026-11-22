@@ -88,8 +88,8 @@ def test_multichannel_analysis_matches_first_channel_alone():
 def test_sti_is_finite_for_ir_shorter_than_iec_minimum():
     analyser = Analyser(make_ir(duration=1.0))
     analyser.analyse()
-    assert np.isfinite(analyser.STI_overall)
-    assert np.all(np.isfinite(analyser.STI))
+    assert np.isfinite(analyser.analysis_data["STI_overall"])
+    assert np.all(np.isfinite(analyser.analysis_data["STI"]))
 
 
 @needs_sti
@@ -408,7 +408,6 @@ def test_the_single_number_drr_is_the_700_to_4000_hz_band():
     analyser = Analyser(make_ir())
     result = analyser.analyse()
     assert result["DRR_overall"] == analyser.direct_to_reverberant_ratio()["DRR_overall"]
-    assert analyser.DRR_overall == result["DRR_overall"]
 
 
 def onset_of(ir):

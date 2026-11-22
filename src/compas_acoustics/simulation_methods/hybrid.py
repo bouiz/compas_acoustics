@@ -21,6 +21,9 @@ import numpy as np
 
 from compas_acoustics.hybrid.ambisonics import default_num_delays
 from compas_acoustics.hybrid.ambisonics import render_ambisonics
+from compas_acoustics.hybrid.binaural import DEFAULT_HRTF
+from compas_acoustics.hybrid.binaural import HrtfSet
+from compas_acoustics.hybrid.binaural import render_binaural
 from compas_acoustics.hybrid.early import image_sources
 from compas_acoustics.hybrid.envelope import histogram_rays
 from compas_acoustics.hybrid.late import MIN_DELAYS
@@ -33,7 +36,6 @@ from compas_acoustics.hybrid.target import RoomTarget
 from compas_acoustics.ir import ImpulseResponse
 from compas_acoustics.room.air import AirConditions
 from compas_acoustics.room.air import air_or_default
-from compas_acoustics.room.geometry import pra_octave_grid
 from compas_acoustics.room.pra import directivity_to_pra
 from compas_acoustics.room.pra import source_to_pra
 from compas_acoustics.room.raytracing import DURATION_RT_FACTOR
@@ -164,21 +166,19 @@ class _HybridMethod(SimulationMethod):
         jobs.progress("image sources")
         early_room = self._built(geometry, context, air, ray_tracing=self.scattering)
         if run is None:
-            with pra_octave_grid():
-                early_room.image_source_model()
+            early_room.image_source_model()
             room, damping = early_room, None
         else:
             room, damping = run.room, damping_as_searched(run.room, early_room)
         scattered = None
         if self.scattering:
             scattered = damping_as_searched(room, self._built(complementary_scattering(geometry), context, air, ray_tracing=True))
-        speed_of_sound = float(getattr(room, "c", 343.0))
+        speed_of_sound = float(room.c)
         # The network needs an int, ``rng + slope``: without a seed, a fresh one from the OS
         rng = self.seed if self.seed is not None else int(np.random.default_rng().integers(2**31))
         generation = {
             "method": self.name,
             "scale": "package",
-            "valid_range_hz": None,
             "tail": self.tail,
             "reference": description,
             "air_absorption": air_absorption,
@@ -208,8 +208,8 @@ class _HybridMethod(SimulationMethod):
             from compas_acoustics.room.raytracing import directional_histograms
 
             jobs.progress("directional histograms")
-            tracer = Mono(ray_tracing=True)
-            generation["histogram_rays"] = self._histogram_rays(room, grid)
+            tracer = Mono._RAY_TRACING_DEFAULTS
+            generation["histogram_rays"] = histogram_rays(room.get_volume(), tracer["receiver_radius"], speed_of_sound, grid)
             histograms = directional_histograms(
                 geometry,
                 [source_to_pra(source) for source in context.sources],
@@ -217,10 +217,10 @@ class _HybridMethod(SimulationMethod):
                 fs,
                 directions,
                 max_order=self.image_source_order,
-                duration=self.duration if self.duration is not None else default_duration(geometry, air_absorption, air=air),
+                duration=self.duration,
                 n_rays=generation["histogram_rays"],
-                receiver_radius=tracer.receiver_radius,
-                energy_threshold=tracer.energy_thres,
+                receiver_radius=tracer["receiver_radius"],
+                energy_threshold=tracer["energy_thres"],
                 air_absorption=air_absorption,
                 seed=self.seed,
                 air=air,
@@ -304,16 +304,10 @@ class _HybridMethod(SimulationMethod):
     def _built(self, geometry, context, air, ray_tracing: bool):
         """The room for the image source search, with every source and receiver, not yet searched."""
         room = geometry.to_pra(context.sampling_rate, self.image_source_order, ray_tracing=ray_tracing, air_absorption=False, air=air)
-        with pra_octave_grid():
-            for source in context.sources:
-                room.add_soundsource(source_to_pra(source))
-            room.add_microphone_array(np.array([receiver.position for receiver in context.receivers], dtype=float).T)
+        for source in context.sources:
+            room.add_soundsource(source_to_pra(source))
+        room.add_microphone_array(np.array([receiver.position for receiver in context.receivers], dtype=float).T)
         return room
-
-    @staticmethod
-    def _histogram_rays(room, grid) -> int:
-        """The rays of the directional histogram (:func:`~compas_acoustics.hybrid.envelope.histogram_rays`) at ``Mono``'s receiver radius."""
-        return histogram_rays(room.get_volume(), Mono(ray_tracing=True).receiver_radius, float(getattr(room, "c", 343.0)), grid)
 
     def _check_reference_length(self, length, target, eyring_rt, key):
         """Warn when a reference ends before 2/3 of its reverberation time (the fitted or Eyring one, the longer).
@@ -350,9 +344,10 @@ class _HybridMethod(SimulationMethod):
             duration = default_duration(context.geometry, absorption, air=self.air)
             if self.duration is not None:
                 duration = max(duration, self.duration)
-            n_rays = Mono().n_rays
+            n_rays = Mono._RAY_TRACING_DEFAULTS["n_rays"]
             if grid is not None:
-                n_rays = self._histogram_rays(geometry.to_pra(context.sampling_rate, 0, air=air_or_default(self.air)), grid)
+                volume_room = geometry.to_pra(context.sampling_rate, 0, air=air_or_default(self.air))
+                n_rays = histogram_rays(volume_room.get_volume(), Mono._RAY_TRACING_DEFAULTS["receiver_radius"], float(volume_room.c), grid)
             method = Mono(self.image_source_order, ray_tracing=True, air_absorption=absorption, n_rays=n_rays, duration=duration, seed=self.seed, air=self.air)
             references, run = method._run(context, directions)
             description = method.generation
@@ -545,10 +540,6 @@ class Binaural(_HybridMethod):
         self._hrtf_loaded = None
 
     def _response(self, core, key, source, receiver, generation):
-        from compas_acoustics.hybrid.binaural import DEFAULT_HRTF
-        from compas_acoustics.hybrid.binaural import HrtfSet
-        from compas_acoustics.hybrid.binaural import render_binaural
-
         path = DEFAULT_HRTF if self.hrtf == "ku100" else Path(self.hrtf)
         # loaded once per run by the first pair to get here, again only when the set or the rate changed since
         with _HRTF_LOCK:

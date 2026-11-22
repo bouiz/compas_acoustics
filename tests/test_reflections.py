@@ -15,7 +15,6 @@ from compas_acoustics.hybrid.scattering import complementary_scattering
 from compas_acoustics.room import reflections
 from compas_acoustics.room.geometry import RoomGeometry
 from compas_acoustics.room.geometry import SurfaceMaterial
-from compas_acoustics.room.geometry import pra_octave_grid
 from compas_acoustics.room.pra import source_to_pra
 from compas_acoustics.room.reflections import damping_as_searched
 
@@ -46,17 +45,15 @@ def scene(panel=True, height=None):
 
 def built(geometry, s, order, ray_tracing):
     room = geometry.to_pra(FS, order, ray_tracing=ray_tracing)
-    with pra_octave_grid():
-        for source in s.sources:
-            room.add_soundsource(source_to_pra(source))
-        room.add_microphone_array(np.array([r.position for r in s.receivers], dtype=float).T)
+    for source in s.sources:
+        room.add_soundsource(source_to_pra(source))
+    room.add_microphone_array(np.array([r.position for r in s.receivers], dtype=float).T)
     return room
 
 
 def searched(geometry, s, order, ray_tracing):
     room = built(geometry, s, order, ray_tracing)
-    with pra_octave_grid():
-        room.image_source_model()
+    room.image_source_model()
     return room
 
 
