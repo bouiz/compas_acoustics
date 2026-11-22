@@ -1,9 +1,9 @@
 """The sound pressure level of a scene's sources over many points.
 
-Per point, the energy per octave band and 4 ms bin of the direct sound and the specular part of the image sources
+Per point, the energy per octave band and time bin of the direct sound and the specular part of the image sources
 up to ``image_source_order``, and of the rays: the specular part from that order on and the scattered part of
-every order. Each source is weighted by its level at 1 m (:attr:`compas_acoustics.Source.spl`). No impulse response
-is synthesised.
+every order. The bins are the ray tracer's, 4 ms in whole samples. Each source is weighted by its level at 1 m
+(:attr:`compas_acoustics.Source.spl`). No impulse response is synthesised.
 """
 
 from __future__ import annotations
@@ -163,13 +163,13 @@ class EnergyMap(_PackageDtype, Data):
         fs = int(scene.sampling_rate)
         mapped = points[inside]
         receivers = mapped if ray_spacing is None else _ray_receivers(mapped, ray_spacing)
-        rays = _ray_energy(geometry, sources, receivers, fs, image_source_order, duration, n_rays, air_absorption, _seed(seed), bands)
+        rays, bin_size = _ray_energy(geometry, sources, receivers, fs, image_source_order, duration, n_rays, air_absorption, _seed(seed), bands)
         if receivers is not mapped:
             rays = _interpolate(receivers, rays, mapped)
-        early = _image_source_energy(geometry, sources, mapped, fs, image_source_order, air_absorption, bands, rays.shape[2], 0.004)
+        early = _image_source_energy(geometry, sources, mapped, fs, image_source_order, air_absorption, bands, rays.shape[2], bin_size)
         energy = np.zeros((len(points), len(bands), rays.shape[2]))
         energy[inside] = rays + early
-        result = cls(points, inside, bands, 0.004, energy)
+        result = cls(points, inside, bands, bin_size, energy)
         # the rays traced, for a caller's message; not data of the map
         result.n_rays = int(n_rays)
         return result
@@ -215,15 +215,16 @@ def _level_weights(source) -> np.ndarray:
 
 
 def _ray_energy(geometry, sources, mics, fs, order, duration, n_rays, air_absorption, seed, bands) -> np.ndarray:
-    """The rays' energy from ``order`` on at every microphone, weighted by each source's level, (m, b, bins)."""
+    """The rays' energy from ``order`` on at every microphone, weighted by each source's level, (m, b, bins), and the
+    tracer's bin size in seconds."""
     from compas_acoustics.room.pra import source_to_pra
     from compas_acoustics.room.raytracing import directional_histograms
     from compas_acoustics.worker import jobs
 
-    n_bins = int(np.ceil(duration / 0.004))
-    total = np.zeros((len(mics), len(bands), n_bins))
     if not len(mics):
-        return total
+        # nothing is traced: the bin pyroomacoustics' tracer would take, 4 ms in whole samples
+        bin_size = math.floor(fs * 0.004) / fs
+        return np.zeros((0, len(bands), int(np.ceil(duration / bin_size)))), bin_size
     jobs.progress("energy map: rays")
     histograms = directional_histograms(
         geometry,
@@ -237,14 +238,15 @@ def _ray_energy(geometry, sources, mics, fs, order, duration, n_rays, air_absorp
         air_absorption=air_absorption,
         seed=seed,
     )
-    # one room's grid for every histogram
-    index = [int(np.argmin(np.abs(histograms[0][0].bands - f))) for f in bands]
+    # one room's bands and bins for every histogram
+    first = histograms[0][0]
+    index = [int(np.argmin(np.abs(first.bands - f))) for f in bands]
     weights = [_level_weights(source)[:, np.newaxis] for source in sources]
+    total = np.zeros((len(mics), len(bands), first.energy.shape[2]))
     for m, per_source in enumerate(histograms):
         for weight, histogram in zip(weights, per_source):
-            energy = histogram.energy.sum(axis=0)[index, :n_bins]
-            total[m, :, : energy.shape[1]] += energy * weight
-    return total
+            total[m] += histogram.energy.sum(axis=0)[index] * weight
+    return total, first.bin_size
 
 
 def _image_source_energy(geometry, sources, mics, fs, order, air_absorption, bands, n_bins, bin_size) -> np.ndarray:

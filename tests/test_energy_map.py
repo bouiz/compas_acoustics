@@ -83,6 +83,22 @@ def test_direct_sound_alone_gives_the_free_field_level():
     assert m.spl()[0] == pytest.approx([80 - 6.02] * 7, abs=0.3)
 
 
+def test_at_44100_hz_the_map_takes_the_tracers_bins_and_the_image_sources_land_on_them():
+    import math
+
+    scene = shoebox((30.0, 12.0, 12.0), 0.99, 0.0, [(8.0, 6.0, 6.0)])
+    scene.sampling_rate = 44100
+    tracer_bin = 176 / 44100
+    # 9.98 bins of 4 ms: bin 9 on a 4 ms grid, bin 10 on the tracer's
+    travel = 9.98 * 0.004
+    distance = travel * Defaults().DEFAULT_SPEED_OF_SOUND
+    m = EnergyMap.from_scene(scene, [[8.0 + distance, 6.0, 6.0]], n_rays=2000, duration=0.5, air_absorption=False)
+    assert m.bin_size == tracer_bin
+    assert m.energy.shape[2] == math.ceil(0.5 / tracer_bin)
+    assert int(travel / 0.004) != int(travel / tracer_bin)
+    assert np.argmax(m.energy[0, 3]) == int(travel / tracer_bin)
+
+
 def test_the_late_level_matches_the_pyroomacoustics_response_at_the_same_point():
     from compas_acoustics import Mono
 

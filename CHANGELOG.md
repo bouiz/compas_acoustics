@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 * Fixed the hybrid's late envelope at sample rates between 22.6 and 31.7 kHz, where pyfar's filter bank has no 16 kHz band and the omnidirectional shaping summed a band that was never written; the band count follows the bank. 44.1 and 48 kHz are unchanged.
+* Fixed `EnergyMap` to bin on the ray tracer's grid (4 ms in whole samples, 3.991 ms at 44.1 kHz); `bin_size` said 4 ms, the image sources were binned on another grid than the rays, and the last ray bins were dropped. 48 kHz is unchanged.
 
 ### Removed
 
