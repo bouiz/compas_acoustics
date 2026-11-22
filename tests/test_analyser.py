@@ -265,33 +265,14 @@ def test_energy_parameters_are_exact_for_discrete_reflections():
     np.testing.assert_allclose(support["ST_late"], -20.0, atol=0.1)
 
 
-def test_a_package_scale_response_is_analysed_from_its_geometric_onset():
-    from compas_acoustics import ImpulseResponse, Receiver, Source
-
-    fs = 48000
-    ir = make_stage_ir(-12.0, -15.0)  # direct sound at 5 ms
-    ir = np.concatenate([np.zeros(4560), ir])  # direct sound at 4800 samples = 34.3 m
-    clean = ir.copy()
-    ir[100] = 50.0  # an early bin louder than the direct sound
-    package = ImpulseResponse("k", Source("s", 0, 0, 0), Receiver("r", 34.3, 0, 0), ir, fs, generation={"scale": "package"})
-    support = Analyser(package).stage_support()
-    reference = Analyser(clean).stage_support()
-    assert support["ST_early_overall"] == pytest.approx(reference["ST_early_overall"], abs=0.1)
-
-
 def test_the_stored_onset_follows_the_response():
-    from compas_acoustics import ImpulseResponse, Receiver, Source
-    from compas_acoustics.defaults import Defaults
-
-    onset = round(3.43 / Defaults().DEFAULT_SPEED_OF_SOUND * 48000)
     data = np.zeros(2000)
-    data[onset] = 1.0
-    data[10] = 5.0
-    package = ImpulseResponse("k", Source("s", 0, 0, 0), Receiver("r", 3.43, 0, 0), data, 48000, generation={"scale": "package"})
-    analyser = Analyser(package)
-    assert analyser.onset == onset
+    data[[10, 480]] = [5.0, 1.0]
+    analyser = Analyser(data)
+    assert analyser.onset == 9
+    data = np.roll(data, 100)
     analyser.ir = data
-    assert analyser.onset is None
+    assert analyser.onset == 109
 
 
 @pytest.mark.skipif(not _PYRATO_PARAMETERS, reason="G needs pyrato >= 1.0")
@@ -410,38 +391,32 @@ def test_the_single_number_drr_is_the_700_to_4000_hz_band():
     assert result["DRR_overall"] == analyser.direct_to_reverberant_ratio()["DRR_overall"]
 
 
-def onset_of(ir):
-    return Analyser(np.asarray(ir, dtype=float))._direct_sound_onset(np.asarray(ir, dtype=float))
-
-
 def test_the_start_is_the_last_sample_below_20_db_before_the_rise():
-    # ISO 3382-1 (Annex A.3.1): the sample at -26 dB is the start, not the one at -14 dB after it
+    # pyfar: the sample at -26 dB is the start, not the one at -14 dB after it
     ir = np.zeros(4800)
     ir[[1000, 1001, 1002]] = [0.05, 0.2, 1.0]
-    assert onset_of(ir) == 1000
+    assert Analyser(ir).onset == 1000
 
 
-def test_an_earlier_arrival_within_14_db_moves_the_start_back():
+@pytest.mark.parametrize("level", [0.3, 0.15])  # -10.5 and -16.5 dB
+def test_an_earlier_arrival_within_20_db_moves_the_start_back(level):
     ir = np.zeros(4800)
-    ir[[500, 1000]] = [0.3, 1.0]  # -10.5 dB, before the peak
-    assert onset_of(ir) == 499
+    ir[[500, 1000]] = [level, 1.0]
+    assert Analyser(ir).onset == 499
 
 
-def test_an_earlier_arrival_between_20_and_14_db_does_not():
-    ir = np.zeros(4800)
-    ir[[500, 1000]] = [0.15, 1.0]  # -16.5 dB
-    assert onset_of(ir) == 999
-
-
-def test_a_response_less_than_20_db_above_its_noise_has_no_start():
+def test_a_response_less_than_20_db_above_its_noise_warns():
     ir = np.random.default_rng(0).standard_normal(4800) * 0.2
     ir[1000] = 1.0
-    assert onset_of(ir) == 0
+    with pytest.warns(UserWarning, match="SNR"):
+        Analyser(ir)
 
 
-def test_a_blocked_direct_sound_is_found_at_the_first_arrival():
-    # Package scale, direct path blocked: nothing arrives at the geometric sample (4786). The analysis starts
-    # at the first arrival, as for the same response without geometry.
+def test_the_onset_of_an_occluded_direct_sound_is_pyfars_start_sample():
+    # Package scale, direct path blocked: nothing arrives at the geometric sample (4786); the analysis starts at the
+    # first arrival, as for the same response without geometry.
+    import pyfar as pf
+
     from compas_acoustics import ImpulseResponse
     from compas_acoustics import Receiver
     from compas_acoustics import Source
@@ -455,7 +430,7 @@ def test_a_blocked_direct_sound_is_found_at_the_first_arrival():
     package = ImpulseResponse("k", Source("s", 0, 0, 0), Receiver("r", 34.3, 0, 0), ir, fs, generation={"scale": "package"})
     assert package.direct_sound_index() == 4786  # 34.3 m at 343.98 m/s
     blocked, plain = Analyser(package), Analyser(ir)
-    assert blocked._direct_sound_onset(blocked.ir) == plain._direct_sound_onset(plain.ir) == 7999
+    assert blocked.onset == plain.onset == int(np.squeeze(pf.dsp.find_impulse_response_start(pf.Signal(ir, fs)))) == 7999
     assert blocked.direct_to_reverberant_ratio() == plain.direct_to_reverberant_ratio()
 
 
@@ -667,8 +642,9 @@ def test_lateral_fraction_with_the_source_overhead_uses_the_receivers_y_axis():
 
 
 def test_lateral_fraction_of_an_occluded_pair_takes_the_axis_from_geometry():
+    # the first arrival is not from the source: an axis from it would give 0.09 / 0.5
     t0 = _direct_time()
-    ir = _ambisonic([(t0 + 0.010, 0.5, (0, 1, 0)), (t0 + 0.020, 0.5, (1, 0, 0))])
+    ir = _ambisonic([(t0 + 0.010, 0.5, (0.6, 0.8, 0)), (t0 + 0.020, 0.5, (0, 1, 0))])
     assert Analyser(ir).lateral_fraction()["LF"][3] == pytest.approx(0.25 / 0.5, abs=0.02)
 
 
@@ -746,3 +722,23 @@ def test_analyse_holds_spl():
     data = Analyser(_free_field()).analyse()
     assert data["SPL"][3] == pytest.approx(80 - 6.02, abs=0.1)
     assert "SPL" in _PARAM_NAMES and _PARAM_NAMES.index("SPL") == _PARAM_NAMES.index("G") + 1
+
+
+def test_clarity_and_definition_are_nan_without_a_late_part():
+    ir = np.zeros(4800)
+    ir[100] = 1.0  # nothing after the first 50 ms
+    clarity = Analyser(ir).clarity_definition()
+    assert np.all(np.isnan(clarity["C50"])) and np.all(np.isnan(clarity["C80"])) and np.all(np.isnan(clarity["D50"]))
+
+
+def test_the_export_keeps_the_stored_values(tmp_path):
+    import csv
+
+    analyser = Analyser(make_ir())
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        data = analyser.analyse()
+        analyser.export_csv(str(tmp_path / "a.csv"), "Ts")
+    rows = list(csv.reader(open(tmp_path / "a.csv")))
+    assert [float(v) for v in rows[1][1:]] == data["Ts"] + [data["Ts_overall"]]
+    assert any(len(v.split(".")[1]) == 4 for v in rows[1][1:-1])

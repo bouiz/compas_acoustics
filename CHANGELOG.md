@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Changed the worker's error for an unknown `time_scale` to name its options once.
 * Changed the Grasshopper Simulate Mono, Simulate Binaural and Simulate Ambisonics messages to one format (`48 kHz, ...`, `SH order N` for the hybrid's spherical harmonic order); a message longer than the strip is cut there, the full text in the tooltip. Corrected component texts: Play reads Pause while playing, Install Worker installs a version range, the hybrid seed also seeds the rays the method traces. Material Library bars use the picker's colours.
 * Changed the hybrid's feedback delay network to fall back to pyFDN's `SOSBank` when scipy's private `sosfilt` kernel cannot be imported; the output is the same.
+* Changed `Analyser` to start every parameter's windows, LF and LFC included, at one onset: `pyfar.dsp.find_impulse_response_start` on channel 0 (the 20 dB criterion of ISO 3382-1). It replaces the package's own start search and, for LF and LFC, the geometric direct-sound sample; where the direct sound is weak or blocked the parameters move (on the test rooms C50 up to 0.7 dB, D50 up to 2.3 %, DRR up to 11 dB at 125 Hz, Ts up to 3 ms, LF up to 0.06).
+* Changed `Analyser.clarity_definition` to give C50, C80 and D50 as NaN when the early or late part has no energy, as DRR does, without the `1e-12` offset; `print_table` and `export_csv` show the stored values, not values rounded to 2 decimals.
 
 ### Fixed
 

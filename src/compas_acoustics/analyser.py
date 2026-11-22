@@ -57,29 +57,11 @@ def _octave_bank(sampling_rate):
     return pf.dsp.filter.fractional_octave_bands(signal=None, num_fractions=1, sampling_rate=sampling_rate, frequency_range=(125, 8000), order=14)
 
 
-def _iso3382_start(ir_array, threshold_db=20.0):
-    """Start sample of an impulse response: the last sample before the maximum that is more than ``threshold_db``
-    below it (20 dB: ISO 3382-1:2009, p. 22).
-
-    The package's own rules: if an earlier sample comes within ``threshold_db - 6`` dB of the maximum, the last sample
-    below the threshold before that one; 0 when the maximum is less than 20 dB above the mean energy of the last 10 % of
-    the response, or lies in that part.
-    """
-    energy = np.asarray(ir_array, dtype=float) ** 2
-    n = energy.size
-    peak = int(np.argmax(energy))
-    tail = int(round(0.9 * n))
-    if peak == 0 or energy[peak] < 100.0 * np.mean(energy[max(tail - 1, 0) :]) or peak + 1 > tail:
-        return 0
-    with np.errstate(divide="ignore"):
-        level = 10.0 * np.log10(energy[: peak + 1] / energy[peak])
-    below = np.flatnonzero(level < -threshold_db)
-    start = int(below[-1]) if below.size else 0
-    earlier = np.flatnonzero(level[: start + 1] > -threshold_db + 6.0)
-    if earlier.size:
-        before = np.flatnonzero(level[: earlier[0] + 1] < -threshold_db)
-        start = int(before[-1]) if before.size else 0
-    return start
+def _level_ratio(first, second):
+    """``10 log10(first / second)`` to 2 decimals; NaN when either energy is zero."""
+    if first > 0 and second > 0:
+        return round(float(10.0 * np.log10(first / second)), 2)
+    return np.nan
 
 
 @lru_cache(maxsize=None)
@@ -169,6 +151,9 @@ def frequency_response(ir, sampling_rate, num_fractions=3, frequency_range=(20.0
 class Analyser:
     """Room acoustic parameters of an impulse response (:meth:`analyse`).
 
+    Every window starts at :attr:`onset`, the direct sound of channel 0 as ``pyfar.dsp.find_impulse_response_start``
+    finds it with the 20 dB criterion of ISO 3382-1:2009, p. 22.
+
     Parameters
     ----------
     ir : list, np.ndarray or ImpulseResponse
@@ -207,13 +192,14 @@ class Analyser:
 
     @ir.setter
     def ir(self, ir):
-        # The geometric direct-sound sample of a package-scale response: the start search begins there, so that an early
-        # ray-traced bin is not taken for the direct sound
+        # G and SPL need the absolute level of a package-scale response
         self._package_scale = (getattr(ir, "generation", None) or {}).get("scale") == "package"
-        self.onset = ir.direct_sound_index() if self._package_scale else None
         # the spatial parameters need the response's channels, source and receiver
         self._response = ir
         self._ir = self._as_mono_array(ir)
+        # pyfar's start sample is -1 for a response whose first sample is already within 20 dB of its maximum
+        start = pf.dsp.find_impulse_response_start(pf.Signal(self._ir, getattr(ir, "sampling_rate", None) or Defaults().SAMPLING_RATE), threshold=20)
+        self.onset = max(0, int(np.squeeze(start)))
 
     @staticmethod
     def _as_mono_array(ir):
@@ -265,17 +251,6 @@ class Analyser:
         """Energies of :meth:`_band_signals`: filter delay and ringing stay with the segment."""
         return {f: float(np.sum(band**2)) for f, band in self._band_signals(segment).items()}
 
-    def _direct_sound_onset(self, ir_array) -> int:
-        """Index of the direct sound (:func:`_iso3382_start`), the first arrival found even when an obstacle blocks it.
-
-        On the package scale the search starts 1 ms before the geometric arrival, which nothing precedes, the package's
-        choice (:meth:`lateral_fraction` takes the geometric arrival itself).
-        """
-        lower = 0
-        if self.onset is not None:
-            lower = max(0, self.onset - int(round(0.001 * self.sampling_rate)))
-        return lower + _iso3382_start(ir_array[lower:])
-
     def _band_from_onset(self, center_frequency):
         """Zero-phase (forward-backward) octave band of :attr:`ir` from 0.1 s before the direct sound.
 
@@ -292,7 +267,7 @@ class Analyser:
             return kept[center_frequency]
         fs = self.sampling_rate
         lead = int(round(0.1 * fs))
-        onset = self._direct_sound_onset(self.ir)
+        onset = self.onset
         padded = np.concatenate([np.zeros(lead), self.ir, np.zeros(int(0.5 * fs))])
         forward = self._filter_impulse_response(padded, center_frequency)
         zero_phase = self._filter_impulse_response(forward[::-1], center_frequency)[::-1]
@@ -309,7 +284,7 @@ class Analyser:
         then linear regression. No noise compensation: truncate a measured response at its noise floor first.
         """
         ir_array = self.ir
-        onset = self._direct_sound_onset(ir_array)
+        onset = self.onset
         # Trailing zeros are cut: the filters' ringing into them would steepen the end of the integral
         end = int(np.flatnonzero(ir_array)[-1]) + 1 if np.any(ir_array) else len(ir_array)
         keys = ("EDT", "T20", "T30")
@@ -345,7 +320,7 @@ class Analyser:
         ringing stay with the part they belong to, the package's choice.
         """
         ir_array = self.ir
-        onset = self._direct_sound_onset(ir_array)
+        onset = self.onset
         bands = list(self.frequency_bands)
         early_50, early_80 = (onset + int(round(t * self.sampling_rate)) for t in (0.05, 0.08))
 
@@ -363,9 +338,9 @@ class Analyser:
         for freq in bands:
             e_early_50, e_late_50 = energies["early_50"][freq], energies["late_50"][freq]
             e_early_80, e_late_80 = energies["early_80"][freq], energies["late_80"][freq]
-            results["C50"].append(round(float(10.0 * np.log10((e_early_50 + 1e-12) / (e_late_50 + 1e-12))), 2))
-            results["C80"].append(round(float(10.0 * np.log10((e_early_80 + 1e-12) / (e_late_80 + 1e-12))), 2))
-            results["D50"].append(round(float(e_early_50 / (e_early_50 + e_late_50 + 1e-12) * 100.0), 2))
+            results["C50"].append(_level_ratio(e_early_50, e_late_50))
+            results["C80"].append(_level_ratio(e_early_80, e_late_80))
+            results["D50"].append(round(float(e_early_50 / (e_early_50 + e_late_50) * 100.0), 2) if e_early_50 > 0 and e_late_50 > 0 else np.nan)
         return results
 
     def direct_to_reverberant_ratio(self) -> dict:
@@ -382,21 +357,16 @@ class Analyser:
             ``'DRR'`` per band in :attr:`frequency_bands`, and ``'DRR_overall'``.
         """
         ir_array = self.ir
-        onset = self._direct_sound_onset(ir_array)
+        onset = self.onset
         start, end = (max(0, onset + int(round(t * self.sampling_rate))) for t in (-0.001, 0.005))
-
-        def ratio(direct, reverberant):
-            if direct > 0 and reverberant > 0:
-                return round(float(10.0 * np.log10(direct / reverberant)), 2)
-            return np.nan
 
         bands = list(self.frequency_bands)
         direct = self._band_energies(ir_array[start:end])
         reverberant = self._band_energies(ir_array[end:])
         filtered = sosfilt(butter(2, (700.0, 4000.0), "bandpass", fs=self.sampling_rate, output="sos"), ir_array)
         return {
-            "DRR": [ratio(direct[freq], reverberant[freq]) for freq in bands],
-            "DRR_overall": ratio(np.sum(filtered[start:end] ** 2), np.sum(filtered[end:] ** 2)),
+            "DRR": [_level_ratio(direct[freq], reverberant[freq]) for freq in bands],
+            "DRR_overall": _level_ratio(np.sum(filtered[start:end] ** 2), np.sum(filtered[end:] ** 2)),
         }
 
     def center_time(self) -> dict:
@@ -470,7 +440,7 @@ class Analyser:
         """
         ir_array = self.ir
         fs = self.sampling_rate
-        onset = self._direct_sound_onset(ir_array)
+        onset = self.onset
 
         if onset + fs > len(ir_array):
             warnings.warn(f"Impulse response ends {(len(ir_array) - onset) / fs:.2f} s after the direct sound; the ST_late window (100-1000 ms) is truncated.")
@@ -575,8 +545,7 @@ class Analyser:
         J_LF is the figure-of-eight energy 5-80 ms after the direct sound over the omnidirectional energy 0-80 ms; J_LFC
         takes ``|p_L p|`` for ``p_L^2`` (Kleiner 1989; Bradley 1994). The figure-of-eight is the first-order dipole of
         the response, horizontal in the receiver's frame and perpendicular to the source direction (the receiver's y
-        axis for a source straight above or below). Windows are cut before band filtering and, on the package scale,
-        start at the geometric direct-sound sample; both are the package's choice.
+        axis for a source straight above or below). Windows are cut before band filtering, the package's choice.
 
         Returns
         -------
@@ -597,7 +566,7 @@ class Analyser:
             x, y, z = (c / np.sqrt(3.0) for c in (x, y, z))
 
         fs = self.sampling_rate
-        onset = response.direct_sound_index() if self._package_scale else self._direct_sound_onset(w)
+        onset = self.onset
         source, receiver = response.source, response.receiver
         direction = np.asarray(receiver.rotation).T @ (np.asarray(source.position, dtype=float) - np.asarray(receiver.position, dtype=float))
         axis = np.cross([0.0, 0.0, 1.0], direction)
@@ -730,7 +699,7 @@ class Analyser:
         print("-" * (14 + 8 * len(header)))
         for p in params:
             row = (self.analysis_data[p] if show_bands else []) + ([self.analysis_data[f"{p}_overall"]] if show_overall else [])
-            print(f"{p:14}" + "".join(f"{v:>8.2f}" for v in row))
+            print(f"{p:14}" + "".join(f"{v:>8}" for v in row))
 
     def plot(self, parameters=None):
         """Plot the results of :meth:`analyse` against frequency, one figure per parameter (default: all)."""
@@ -814,7 +783,7 @@ class Analyser:
                     warnings.warn(f"Parameter '{param}' not available for CSV export.")
                     continue
                 data_row = self.analysis_data[param] + [self.analysis_data[f"{param}_overall"]]
-                writer.writerow([param] + [round(v, 2) if not np.isnan(v) else "" for v in data_row])
+                writer.writerow([param] + [v if not np.isnan(v) else "" for v in data_row])
 
         print(f"Selected results successfully saved to: {filepath}")
 
