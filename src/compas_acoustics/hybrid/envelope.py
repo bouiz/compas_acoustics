@@ -11,8 +11,9 @@ smoothed with a Hann window of ``SMOOTH_MS``,
 
 scales every line. A ray is logged only after the image source order, so the reference minus the image sources is
 what the lines must carry. The gain is held from where the reference band's energy decay curve is 20 dB down, never
-before the early images end (:func:`_early_end`) plus the window. The bank has nine bands, 63 Hz to 16 kHz; the
-16 kHz band keeps the energy above about 11.2 kHz out of the 8 kHz estimate and takes the 8 kHz gain.
+before the early images end (:func:`_early_end`) plus the window. The bank has nine bands, 63 Hz to 16 kHz, or eight
+when 16 kHz is at or above Nyquist; the 16 kHz band keeps the energy above about 11.2 kHz out of the 8 kHz estimate
+and takes the 8 kHz gain.
 
 With a directional histogram (``late_envelope="directional"``) each line is also scaled, per band, by
 ``sqrt(p_i / q_i)``: its direction's share of the rays' energy over its share of the lines'
@@ -60,7 +61,8 @@ _N_FILT = 2**12  # reconstructing bank length; its delay is half of it
 
 @lru_cache(maxsize=None)
 def _reconstructing_bank(fs: float) -> np.ndarray:
-    """The amplitude-preserving octave bank, 63 Hz to 16 kHz, as FIR coefficients (9, _N_FILT)."""
+    """The amplitude-preserving octave bank as FIR coefficients (n_bands, _N_FILT): 63 Hz to 16 kHz, or to 8 kHz
+    when 16 kHz is at or above Nyquist."""
     with warnings.catch_warnings():
         # the second return value (frequencies) is deprecated; both forms are handled
         warnings.filterwarnings("ignore", message="Return parameter 'frequencies'")
@@ -77,19 +79,19 @@ def _reconstructing_bank(fs: float) -> np.ndarray:
 
 @lru_cache(maxsize=8)
 def _bank_response(fs: float, n_fft: int) -> np.ndarray:
-    """The bank's spectrum on an ``n_fft`` grid, (9, n_fft // 2 + 1), shared by the splits of one call."""
+    """The bank's spectrum on an ``n_fft`` grid, (n_bands, n_fft // 2 + 1), shared by the splits of one call."""
     return scipy.fft.rfft(_reconstructing_bank(fs), n_fft, axis=1)
 
 
 def octave_band_split(x: np.ndarray, fs: float) -> np.ndarray:
-    """Octave bands 63 Hz to 16 kHz that sum back to ``x``, shape (9, n[, C]).
+    """The bank's octave bands of ``x`` (:func:`_reconstructing_bank`), which sum back to it, (n_bands, n[, C]).
 
     The amplitude-preserving linear-phase bank with its delay removed, as one FFT per channel and one inverse
     per band, zero-padded past ``n + _N_FILT - 1`` so the circular product is the linear convolution.
     """
     x = np.asarray(x, dtype=float)
     columns = x.reshape(x.shape[0], -1)
-    bands = np.empty((9, x.shape[0], columns.shape[1]))
+    bands = np.empty((_reconstructing_bank(float(fs)).shape[0], x.shape[0], columns.shape[1]))
     for b, band in enumerate(_octave_bands(columns, fs)):
         bands[b] = band
     return bands[..., 0] if x.ndim == 1 else bands
@@ -163,7 +165,7 @@ def _early_end(ref_b: np.ndarray, early_b: np.ndarray, fs: float) -> int:
 
 
 def envelope_gains(reference: np.ndarray, early_w: np.ndarray, late_w: np.ndarray, fs: float) -> np.ndarray:
-    """Per-band gains in [0, 1] for the late field, shape (9, len(late_w)).
+    """Per-band gains in [0, 1] for the late field, shape (n_bands, len(late_w)), on the bank's bands.
 
     ``reference`` is an omnidirectional response of the same pair on the package's scale; ``early_w`` and ``late_w``
     are the W channels of the hybrid's two parts. A reference shorter than the late field has its last gain held.
@@ -192,7 +194,8 @@ def envelope_gains(reference: np.ndarray, early_w: np.ndarray, late_w: np.ndarra
         if late_energy > 0.0:
             held = np.sqrt(target[k, start:hold].sum() / late_energy)
             gains[k, hold:] = min(held, 1.0)
-    gains[8] = gains[7]  # above about 11.2 kHz: no estimate of its own
+    if gains.shape[0] > 8:
+        gains[8] = gains[7]  # above about 11.2 kHz: no estimate of its own
 
     return np.pad(gains, ((0, 0), (0, n - m)), mode="edge")
 

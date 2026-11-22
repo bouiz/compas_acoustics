@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Changed the worker's error for an unknown `time_scale` to name its options once.
 * Changed the Grasshopper Simulate Mono, Simulate Binaural and Simulate Ambisonics messages to one format (`48 kHz, ...`, `SH order N` for the hybrid's spherical harmonic order); a message longer than the strip is cut there, the full text in the tooltip. Corrected component texts: Play reads Pause while playing, Install Worker installs a version range, the hybrid seed also seeds the rays the method traces. Material Library bars use the picker's colours.
 
+### Fixed
+
+* Fixed the hybrid's late envelope at sample rates between 22.6 and 31.7 kHz, where pyfar's filter bank has no 16 kHz band and the omnidirectional shaping summed a band that was never written; the band count follows the bank. 44.1 and 48 kHz are unchanged.
+
 ### Removed
 
 * Removed `Source.omni` and the voice presets `Source.voice_normal`, `voice_raised`, `voice_loud` and `voice_shouting`; set `Source.spl` instead.
