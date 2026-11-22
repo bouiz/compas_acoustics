@@ -24,12 +24,11 @@
 """Monaural responses from image sources alone or with ray tracing, and the rays' energy per direction.
 
 The backend of :class:`~compas_acoustics.simulation_methods.Mono` and of the hybrid methods' reference runs and
-directional histograms. With ray tracing, specular reflections up to ``max_order`` come from the image sources and
-the rest from pyroomacoustics' stochastic ray tracer, which also carries the scattered energy of every reflection.
-The tracer logs a ray's specular arrivals from its ``max_order``-th reflection on, so order ``max_order`` is in both
-the image sources and the rays. Responses are
-on the package scale: spreading ``1 / (4 pi r)``, the direct sound on its geometric sample (pyroomacoustics spreads
-as ``1 / r`` and delays by half its fractional-delay kernel).
+directional histograms. With ray tracing, specular reflections up to ``max_order`` come from the image sources and the
+rest from pyroomacoustics' stochastic ray tracer, which also carries the scattered energy of every reflection. The
+tracer logs a ray's specular arrivals from its ``max_order``-th reflection on, so order ``max_order`` is in both the
+image sources and the rays. Responses are on the package scale: spreading ``1 / (4 pi r)``, the direct sound on its
+geometric sample (pyroomacoustics spreads as ``1 / r`` and delays by half its fractional-delay kernel).
 """
 
 from __future__ import annotations
@@ -172,7 +171,8 @@ def _pair_responses(room) -> List[List[np.ndarray]]:
 
 
 def image_source_rirs(geometry: RoomGeometry, sources, mic_positions, fs: int, *, max_order: int, air_absorption: bool = True, air=None) -> List[List[np.ndarray]]:
-    """Image-source responses ``[mic][source]`` on the package scale at their natural length; arguments as :func:`ray_traced_run`."""
+    """Image-source responses ``[mic][source]`` on the package scale at their natural length; arguments as
+    :func:`ray_traced_run`."""
     mic_positions = np.asarray(mic_positions, dtype=float).reshape(3, -1)
     room = geometry.to_pra(fs, max_order, air_absorption=air_absorption, air=air)
     for source in sources:
@@ -202,11 +202,11 @@ def ray_traced_run(
     """Monaural responses of every source at every microphone from one image source search and one ray trace.
 
     ``sources`` are ``pra.SoundSource``; ``mic_positions`` is ``(3, M)``. ``max_order`` is the last image source
-    order; the rays hold it too (module docstring). ``duration`` defaults to :func:`default_duration`; ``n_rays=None`` takes a heuristic raised to ``MIN_RAYS``;
-    ``seed`` None draws a fresh one from the OS. ``air`` sets the speed of sound and the air absorption.
-    ``directions``, one ``(n, 3)`` array of unit vectors in room coordinates per microphone, adds a copy of every
-    microphone that sorts each detected ray by the direction nearest its last leg, as :func:`directional_histograms`
-    does: the copies log the rays of the responses, which they leave unchanged.
+    order; the rays hold it too (module docstring). ``duration`` None: :func:`default_duration`. ``n_rays`` None:
+    pyroomacoustics' heuristic, at least ``MIN_RAYS``. ``seed`` None: unseeded. ``air`` sets the speed of sound and
+    the air absorption. ``directions``, one ``(n, 3)`` array of unit vectors in room coordinates per microphone, also
+    returns the detected rays' energy by the direction nearest their last leg (``histograms``); the responses are
+    unchanged.
     """
     room, duration, unit = _traced_room(
         geometry, sources, mic_positions, fs, directions, max_order, duration, n_rays, receiver_radius, energy_threshold, air_absorption, seed, air
@@ -224,8 +224,8 @@ def ray_traced_run(
 
 
 def _traced_room(geometry, sources, mic_positions, fs, directions, max_order, duration, n_rays, receiver_radius, energy_threshold, air_absorption, seed, air):
-    """``(room, duration, unit directions or None)``: the room built for ray tracing with every source and microphone
-    and its tracer set, not yet searched or traced; the arguments are those of :func:`ray_traced_run`."""
+    """``(room, duration, unit directions or None)``: the room built for ray tracing with every source and
+    microphone and its tracer set, not yet searched or traced; the arguments are those of :func:`ray_traced_run`."""
     if duration is None:
         duration = default_duration(geometry, air_absorption, air=air)
     if duration <= 0.0:
@@ -269,9 +269,9 @@ def _each_source_traced(room):
 
 
 def _ray_tracing(room, directions=None) -> Optional[List[List[list]]]:
-    """pyroomacoustics' ``Room.ray_tracing`` for omnidirectional microphones, call for call, so its random
-    draws and responses are the same; with ``directions`` a copy of every microphone, added after the image source
-    search, sorts the same rays by direction. Returns the copies' raw histograms ``[mic][source]``, else None."""
+    """pyroomacoustics' ``Room.ray_tracing`` for omnidirectional microphones, call for call, so its random draws and
+    responses are the same; with ``directions`` a copy of every microphone, added after the image source search, sorts
+    the same rays by direction. Returns the copies' raw histograms ``[mic][source]``, else None."""
     engine = room.room_engine
     n_mics = room.mic_array.M
     room.rt_directional_responses = []
@@ -373,19 +373,18 @@ def directional_histograms(
     seed: Optional[int] = None,
     air=None,
 ) -> List[List[DirectionalHistogram]]:
-    """Ray-traced energy per direction of arrival of every source at every microphone, ``[mic][source]``.
+    """Ray-traced energy per direction of arrival, ``[mic][source]``.
 
-    The detection sphere divided into directivity groups (Lentz et al. 2007, Sec. 2.4; Schroeder 2011,
-    Sec. 5.3.4): every detected ray is binned by the direction nearest its last leg. ``directions`` holds one
-    ``(n, 3)`` array of unit vectors in room coordinates per microphone. Arguments and rays are those of
-    :func:`ray_traced_run`: the rays log their specular arrivals from the ``max_order``-th reflection on, so order
-    ``max_order`` is in the bins and in the image sources, and their scattered energy at every reflection. The
-    tracing engine is driven directly, since the room's own call would reset an omnidirectional receiver to one bin.
-    Air absorption is applied per band on the bins' travel distance.
+    The detection sphere divided into directivity groups (Lentz et al. 2007, Sec. 2.4; Schroeder 2011, Sec. 5.3.4):
+    every detected ray is binned by the direction nearest its last leg. ``directions`` holds one ``(n, 3)`` array of
+    unit vectors in room coordinates per microphone; the other arguments and the rays are those of
+    :func:`ray_traced_run`, so order ``max_order`` is in the bins and in the image sources. Air absorption is applied
+    per band over each bin's travel distance.
     """
     room, duration, unit = _traced_room(
         geometry, sources, mic_positions, fs, directions, max_order, duration, n_rays, receiver_radius, energy_threshold, air_absorption, seed, air
     )
+    # the engine is driven directly: the room's own ray_tracing would reset an omnidirectional receiver to one bin
     for m, d in enumerate(unit):
         room.room_engine.microphones[m].set_directions(np.asarray(d, dtype=np.float32))
     histograms = [[] for _ in unit]

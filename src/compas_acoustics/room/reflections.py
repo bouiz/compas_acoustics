@@ -20,7 +20,7 @@ __all__ = ["damping_as_searched", "first_of_each_position", "position_tolerance"
 
 
 def position_tolerance(geometry) -> float:
-    """The distance within which two images of ``geometry``'s search are one position: 1e-5 of its extent, at least 1.
+    """The distance within which two images of ``geometry``'s search are one: 1e-5 of its extent (at least 1 m).
 
     The package's choice: well above the float32 rounding of one image reached twice and far below the distance
     between two distinct images. ``geometry`` is a :class:`~compas_acoustics.room.geometry.RoomGeometry`.
@@ -44,15 +44,13 @@ def first_of_each_position(images: np.ndarray, geometry) -> np.ndarray:
 def damping_as_searched(searched: pra.Room, other: pra.Room) -> List[np.ndarray]:
     """Per source, the damping ``(n_bands, n_images)`` that ``other``'s search would give the images of ``searched``.
 
-    Both rooms hold the same walls, sources and microphones; they may differ in their coefficients and in
-    ``ray_tracing``, neither of which moves the search. For each image, wall sequences are proposed by tracing its path
-    back from a receiver that sees it (:func:`_wall_sequences`) and kept where the search's own functions accept them:
-    its mirrorings give the image's position, its visibility test passes at that receiver, and its float32 product
-    gives the image's damping, each bit for bit (:class:`_Search`). A kept sequence is therefore an image the search
-    exported there. When as many are kept as the search exported at that position off that wall with that damping, the image's own
-    is among them, and if ``other``'s product is the same along all of them it is that search's damping, operation for
-    operation. Otherwise, as where a path through a corner of three walls is found from two wall orders whose
-    products round differently, ``other`` is searched itself.
+    Both rooms hold the same walls, sources and microphones; they may differ in coefficients and in ``ray_tracing``,
+    which do not change the search. For each image, candidate wall sequences are traced back from a receiver that sees
+    it (:func:`_wall_sequences`) and kept only where the search's own functions reproduce the image's position,
+    visibility and float32 damping bit for bit (:class:`_Search`). If as many are kept as the search exported images at
+    that position, off that wall, with that damping, and ``other``'s product is the same along all of them, that
+    product is returned. Otherwise ``other`` is searched itself (as for a path through a corner of three walls, found
+    from two wall orders whose products round differently).
     """
     extent = max(float(np.ptp(np.hstack([w.corners for w in searched.walls]), axis=1).max()), 1.0)
     # How far outside the search's own tests a path may fall and still be proposed, 1e-4 of the room's extent. It

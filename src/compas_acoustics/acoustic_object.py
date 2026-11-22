@@ -56,23 +56,19 @@ class AcousticObject(_PackageDtype, Data):
 
     @classmethod
     def from_obj(cls, filepath, materials=None, name=None):
-        """One acoustic object per ``g`` group of a Wavefront OBJ file.
+        """One acoustic object per ``g`` group of a Wavefront OBJ file, named ``'<name>_<group>'``.
 
-        Faces before any ``g`` line are in ``'default'``; a file without ``g`` lines is grouped by
-        its ``o`` lines. A group that recurs is merged into the first. Objects are named
-        ``'<name>_<group>'``. Coordinates are metres, not rounded (:class:`RoomGeometry` welds them).
-        Faces may use ``i``, ``i/j``, ``i//k`` or ``i/j/k`` indices, negative ones relative; faces
-        with fewer than three distinct vertices are dropped. Every object is a boundary; mark
-        furniture with :meth:`assign_roles_by_group`.
+        Faces before any ``g`` line are in ``'default'``; a file without ``g`` lines is grouped by its ``o`` lines; a
+        group that recurs is merged. Coordinates are metres. Faces with fewer than three distinct vertices are dropped.
+        Every object is a boundary; see :meth:`assign_roles_by_group`.
 
         Parameters
         ----------
         filepath : str
         materials : :class:`AcousticMaterial` or dict, optional
-            One material for every group, or one per group name as :meth:`assign_materials_by_group`
-            takes them. A scene with an object without a material cannot be simulated.
+            One material for every group, or one per group name (:meth:`assign_materials_by_group`).
         name : str, optional
-            The prefix of the objects' names; defaults to the file name.
+            The prefix of the objects' names; default the file name.
 
         Returns
         -------
@@ -120,25 +116,18 @@ class AcousticObject(_PackageDtype, Data):
 
     @staticmethod
     def assign_roles_by_group(objects, roles):
-        """Set the role of every object read from the named OBJ groups.
+        """Set the role of the objects of :meth:`from_obj` by group name; an unknown name raises ``ValueError``.
 
         Parameters
         ----------
         objects : list of :class:`AcousticObject`
-            From :meth:`from_obj`, of one or several files.
         roles : dict
-            ``'boundary'`` or ``'obstacle'`` by group name. An unknown name raises ``ValueError``.
+            ``'boundary'`` or ``'obstacle'`` by group name.
 
         Returns
         -------
         list of :class:`AcousticObject`
             ``objects``.
-
-        Examples
-        --------
-        >>> furniture = {"chairs": "obstacle", "tables": "obstacle"}
-        >>> objects = AcousticObject.from_obj("office.obj", materials)  # doctest: +SKIP
-        >>> AcousticObject.assign_roles_by_group(objects, furniture)  # doctest: +SKIP
         """
         for group, members in _objects_by_group(objects, roles).items():
             for acoustic_object in members:
@@ -147,24 +136,18 @@ class AcousticObject(_PackageDtype, Data):
 
     @staticmethod
     def assign_materials_by_group(objects, materials):
-        """Set the material of every object read from the named OBJ groups.
+        """Set the material of the objects of :meth:`from_obj` by group name; an unknown name raises ``ValueError``.
 
         Parameters
         ----------
         objects : list of :class:`AcousticObject`
-            From :meth:`from_obj`, of one or several files.
         materials : dict
-            :class:`AcousticMaterial` by group name; other groups keep theirs. An unknown name raises ``ValueError``.
+            :class:`AcousticMaterial` by group name; other groups keep theirs.
 
         Returns
         -------
         list of :class:`AcousticObject`
             ``objects``.
-
-        Examples
-        --------
-        >>> objects = AcousticObject.from_obj("office.obj")  # doctest: +SKIP
-        >>> AcousticObject.assign_materials_by_group(objects, {"chairs": upholstery, "glass": glass})  # doctest: +SKIP
         """
         for group, members in _objects_by_group(objects, materials).items():
             for acoustic_object in members:

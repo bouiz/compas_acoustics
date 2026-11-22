@@ -16,7 +16,10 @@ __all__ = ["AirConditions", "air_or_default"]
 
 @dataclass(frozen=True)
 class AirConditions:
-    """Air at a temperature (deg C), relative humidity (%) and static pressure (Pa), within Cramer's 0 to 30 deg C and 75 to 102 kPa."""
+    """Air at a temperature (deg C), relative humidity (%) and static pressure (Pa).
+
+    Within Cramer's range, 0 to 30 deg C and 75 to 102 kPa.
+    """
 
     temperature: float = 20.0
     humidity: float = 50.0

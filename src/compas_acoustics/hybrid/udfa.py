@@ -1,26 +1,18 @@
 """Edge diffraction by the universal diffraction filter approximation (UDFA).
 
-Single wedges: Kirsch and Ewert (2023), "A universal filter approximation of
-edge diffraction for geometrical acoustics", IEEE/ACM Trans. Audio Speech
-Lang. Process. 31, 1636-1651. Three-sided barriers (:class:`DoubleEdgePath`):
-Kirsch and Ewert (2024), "Filter-based first- and higher-order diffraction
-modeling for geometrical acoustics", Acta Acustica 8, 73, Sec. 3.3. Equations
-of the 2024 paper carry its year.
+Single wedges: Kirsch and Ewert (2023), "A universal filter approximation of edge diffraction for geometrical
+acoustics", IEEE/ACM Trans. Audio Speech Lang. Process. 31, 1636-1651. Three-sided barriers (:class:`DoubleEdgePath`):
+Kirsch and Ewert (2024), "Filter-based first- and higher-order diffraction modeling for geometrical acoustics", Acta
+Acustica 8, 73, Sec. 3.3, with beta = 1 at all angles and no low-frequency gain compensation (both allowed at the end of
+Sec. 3.3.1; the compensation is in its Appendix); where the paper is silent the comments say "the package's choice". The
+barrier is defined for an infinite double edge; neither :mod:`~compas_acoustics.hybrid.diffraction` nor the simulation
+methods use it. Equations of the 2024 paper carry its year.
 
-For the barrier, two simplifications the 2024 paper allows (end of Sec.
-3.3.1) are taken: beta = 1 at all angles, and no low-frequency gain
-compensation (its Appendix). Where the paper is silent the comments say
-"the package's choice". The barrier is defined for an infinite double edge and is not
-applied to room geometry (:mod:`compas_acoustics.hybrid.diffraction`).
-
-A wedge path from a point source over one rigid wedge carries
-``exp(-j k d) / d * udfa_transfer(path, f)`` relative to a unit free field
-``exp(-j k r) / r``, ``d`` being :attr:`WedgePath.d_constrained`. The
-transfer function holds the factor 1/2 and the sign of both terms of
-Eq. (2): on the shadow side of the incident shadow boundary its incident term
-tends to +1/2, on the lit side to -1/2, and the direct sound's unit step is
-made up exactly. Diffraction is therefore rendered on both sides of every
-boundary, and the geometric sound must be switched by the same geometry.
+A wedge path carries ``exp(-j k d) / d * udfa_transfer(path, f)`` relative to a unit free field ``exp(-j k r) / r``,
+``d`` being :attr:`WedgePath.d_constrained`. The transfer function includes the factor 1/2 and the signs of Eq. (2): its
+incident term tends to +1/2 on the shadow side of the incident shadow boundary and to -1/2 on the lit side, making up
+the direct sound's unit step. Diffraction is therefore rendered on both sides of every boundary, and the geometric sound
+must be switched by the same geometry.
 """
 
 from __future__ import annotations
@@ -41,11 +33,9 @@ _P_EXPONENT = 4
 class WedgePath:
     """Source, receiver and one rigid wedge in the wedge's cylindrical frame.
 
-    The edge runs along z from ``-length / 2`` to ``+length / 2``
-    (``length = inf`` for an infinite wedge), Fig. 1. Azimuths are measured
-    through the open region from the face nearer the source, so
-    ``0 <= theta_s <= theta_r <= theta_w``; :func:`compas_acoustics.hybrid.diffraction.wedge_path`
-    builds this from Cartesian points.
+    The edge runs along z from ``-length / 2`` to ``+length / 2`` (``length = inf`` for an infinite wedge), Fig. 1.
+    Azimuths are measured through the open region from the face nearer the source, so ``0 <= theta_s <= theta_r <=
+    theta_w``; :func:`compas_acoustics.hybrid.diffraction.wedge_path` builds this from Cartesian points.
     """
 
     theta_w: float
@@ -79,8 +69,8 @@ class WedgePath:
     ) -> WedgePath:
         """An infinite wedge from distances to the apex and the incidence angle.
 
-        Angles may come in either order; measuring from the other face swaps
-        them, which leaves the diffracted field unchanged.
+        Angles may come in either order; measuring from the other face swaps them, which leaves the diffracted field
+        unchanged.
         """
         if theta_s > theta_r:
             theta_s, theta_r = theta_w - theta_s, theta_w - theta_r
@@ -134,7 +124,8 @@ class WedgePath:
 
 
 def fractional_lowpass(freq: np.ndarray, fc: float, blend: float = _B, q: float = _Q) -> np.ndarray:
-    """Eq. (6) with the paper's alpha = 1/2, b = ``blend`` = 1.44, Q = ``q`` = 0.2 and r = 1.6. ``fc = inf`` gives a flat response."""
+    """Eq. (6) with the paper's alpha = 1/2, b = ``blend`` = 1.44, Q = ``q`` = 0.2 and r = 1.6. ``fc = inf`` gives a
+    flat response."""
     jx = 1j * np.asarray(freq, dtype=float) / fc
     return (jx ** (2.0 / blend) + (jx / q) ** (1.0 / blend**_R) + 1.0) ** (-_ALPHA * blend / 2.0)
 
@@ -146,11 +137,10 @@ def first_order_lowpass(freq: np.ndarray, fc: float) -> np.ndarray:
 def term_parameters(path: WedgePath, c: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Cutoff (Eq. (4)), gain (Eq. (3)) and polarity of the (+, -) terms of Eq. (2).
 
-    The polarity is the sign of N_nu (Eq. (5)), i.e. of cos(nu pi) - cos(nu theta).
-    On [0, 2 theta_w - pi] that is Eq. (2)'s sign(theta - pi); beyond, in the
-    reflection zone of the second face (Sec. II), it flips again, as the
-    reflected sound from that face appears there. Eq. (2) as printed keeps
-    sign(theta - pi) there; the flip is the package's reading.
+    The polarity is the sign of N_nu (Eq. (5)), i.e. of cos(nu pi) - cos(nu theta). On [0, 2 theta_w - pi] that is
+    Eq. (2)'s sign(theta - pi); beyond, in the reflection zone of the second face (Sec. II), it flips again, as the
+    reflected sound from that face appears there. Eq. (2) as printed keeps sign(theta - pi) there; the flip is the
+    package's reading.
     """
     nu = np.pi / path.theta_w
     theta = np.array([path.theta_r + path.theta_s, path.theta_r - path.theta_s])
@@ -168,10 +158,9 @@ def term_parameters(path: WedgePath, c: float) -> tuple[np.ndarray, np.ndarray, 
 def single_term_cutoff(path: WedgePath, c: float, *, flat_outside_shadow: bool = True) -> float:
     """Eq. (8): one low-pass with unit DC gain, matching Eq. (2) asymptotically.
 
-    Eq. (7) taken with each term's polarity, which is what Eq. (8) writes out.
-    Outside the shadow zone the single filter is flat (Sec. II-B and Kirsch
-    and Ewert 2024, Sec. 3.1) unless ``flat_outside_shadow`` is False, which
-    the double-edge weighting (2024, Eq. (12)) needs.
+    Eq. (7) taken with each term's polarity, which is what Eq. (8) writes out. Outside the shadow zone the single filter
+    is flat (Sec. II-B and Kirsch and Ewert 2024, Sec. 3.1) unless ``flat_outside_shadow`` is False, which the
+    double-edge weighting (2024, Eq. (12)) needs.
     """
     if flat_outside_shadow and path.zone != "shadow":
         return float("inf")
@@ -182,9 +171,8 @@ def single_term_cutoff(path: WedgePath, c: float, *, flat_outside_shadow: bool =
 
 
 def udfa_single_transfer(path: WedgePath, freq: np.ndarray, *, c: float) -> np.ndarray:
-    """Eq. (8) as one filter with unit DC gain; on a finite wedge with the
-    half wedges of Sec. III, as Sec. VII proposes ("including a DC gain").
-    Flat outside the shadow zone."""
+    """Eq. (8) as one filter with unit DC gain; on a finite wedge with the half wedges of Sec. III, as Sec. VII proposes
+    ("including a DC gain"). Flat outside the shadow zone."""
     freq = np.asarray(freq, dtype=float)
     fc = single_term_cutoff(path, c)
     if np.isinf(fc):
@@ -221,9 +209,9 @@ def _finite_half_wedge(freq: np.ndarray, fc: float, g: float) -> np.ndarray:
 
 
 def _term_transfer(freq, fc, fc_max, path, c):
-    """One term of Eq. (2) with its 1/2: Eq. (13) on the edge. Off it, Eq. (17) with p of Eq. (16), the gain of
-    Eq. (14) and the cutoff of Eq. (15), divided by 4 as Eq. (13) is, so that the two meet at the edge's end, where
-    p = 1 (the package's reading: Eq. (17) as printed has no factor)."""
+    """One term of Eq. (2) with its 1/2: Eq. (13) on the edge. Off it, Eq. (17) with p of Eq. (16), the gain of Eq. (14)
+    and the cutoff of Eq. (15), divided by 4 as Eq. (13) is, so that the two meet at the edge's end, where p = 1 (the
+    package's reading: Eq. (17) as printed has no factor)."""
     if np.isinf(path.length):
         return fractional_lowpass(freq, fc) / 2.0
     half = path.length / 2.0
@@ -232,8 +220,7 @@ def _term_transfer(freq, fc, fc_max, path, c):
         return (_finite_half_wedge(freq, fc, _half_wedge_gain(fc, t_near)) + _finite_half_wedge(freq, fc, _half_wedge_gain(fc, t_far))) / 4.0
     g_far = _half_wedge_gain(fc, t_far)
     g_off = g_far - _half_wedge_gain(fc, t_near)
-    # Sec. III-D: the blend reads the initial decay with the higher cutoff
-    # of the two terms
+    # Sec. III-D: the blend reads the initial decay with the higher cutoff of the two terms
     p = (1.0 - _half_wedge_gain(fc_max, t_near) / _half_wedge_gain(fc_max, t_far)) ** _P_EXPONENT
     off = g_off * first_order_lowpass(freq, 1.0 / (np.pi * (t_far - t_near)))
     return (p * _finite_half_wedge(freq, fc, g_far) + (1.0 - p) * off) / 4.0
@@ -259,11 +246,9 @@ def _angle(v) -> float:
 class DoubleEdgePath:
     """Source and receiver around a three-sided barrier, in its cross-section.
 
-    Edge 1 at (0, 0), edge 2 at (-width, 0), the face between them along y = 0
-    with the barrier below (Fig. 7). Side face 1 leaves edge 1 at angle
-    pi - theta_w1, side face 2 leaves edge 2 at angle theta_w2. ``phi`` is the
-    incidence angle on both edges (Fig. 1); cross-section distances divided
-    by sin(phi) are path lengths.
+    Edge 1 at (0, 0), edge 2 at (-width, 0), the face between them along y = 0 with the barrier below (Fig. 7). Side
+    face 1 leaves edge 1 at angle pi - theta_w1, side face 2 leaves edge 2 at angle theta_w2. ``phi`` is the incidence
+    angle on both edges (Fig. 1); cross-section distances divided by sin(phi) are path lengths.
     """
 
     theta_w1: float
@@ -370,14 +355,13 @@ def double_edge_terms(path: DoubleEdgePath, *, c: float) -> list[RouteTerm]:
     # The angle beyond the modified face is clamped onto it: the package's choice, the paper is silent.
     wp1 = WedgePath.infinite(hat1, th_s1, min(th_r1, hat1), d_s1, d_w + d_r2 if shadow else d_r1, p.phi)
     wp2 = WedgePath.infinite(hat2, th_r2, min(th_s2, hat2), d_r2, d_w + d_s1 if shadow else d_s2, p.phi)
-    # 2024, Eq. (10): the other edge as a source or receiver on the shared face,
-    # unmodified wedge angle, single-term filter
+    # 2024, Eq. (10): the other edge as a source or receiver on the shared face, unmodified wedge angle, single-term
+    # filter
     wp12 = WedgePath.infinite(p.theta_w2, p.theta_w2, th_r2, d_w, d_r2, p.phi)
     wp21 = WedgePath.infinite(p.theta_w1, th_s1, p.theta_w1, d_s1, d_w, p.phi)
     fc12, fc21 = single_term_cutoff(wp12, c), single_term_cutoff(wp21, c)
-    # The weight uses the asymptotic cutoffs, which stay finite in the view
-    # zone where the filters themselves are flat: the package's choice, the
-    # paper is silent.
+    # The weight uses the asymptotic cutoffs, which stay finite in the view zone where the filters themselves are flat:
+    # the package's choice, the paper is silent.
     alpha12 = _alpha12(single_term_cutoff(wp12, c, flat_outside_shadow=False), single_term_cutoff(wp21, c, flat_outside_shadow=False))
 
     def d1_tf(f):

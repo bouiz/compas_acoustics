@@ -3,7 +3,7 @@
 For Python scripts; in Grasshopper the Install Worker component does this. Run with a Python that has
 compas_acoustics, with the wheel to install::
 
-    python -m compas_acoustics.worker.install --wheel compas_acoustics-0.1.0-py3-none-any.whl
+    python -m compas_acoustics.worker.install --wheel compas_acoustics-<version>-py3-none-any.whl
 """
 
 import argparse

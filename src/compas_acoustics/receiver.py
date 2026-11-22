@@ -91,7 +91,8 @@ class Receiver(_PackageDtype, Point):
 
     @property
     def frame(self):
-        """:class:`compas.geometry.Frame` : The position and the axes of :attr:`rotation`; setting it sets ``direction`` and ``up``."""
+        """:class:`compas.geometry.Frame` : The position and the axes of :attr:`rotation`; setting it sets
+        ``direction`` and ``up``."""
         rotation = self.rotation
         return Frame(self.position, Vector(*rotation[:, 0]), Vector(*rotation[:, 1]))
 

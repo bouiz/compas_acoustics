@@ -162,7 +162,7 @@ def test_scattering_needs_the_scattered_parts():
 
 
 def test_prepare_assembles_the_tap_from_the_scattered_parts_of_orders_one_to_the_last():
-    """The late lines equal the network driven by the specular last order plus the tap built here from the public pieces."""
+    """The late lines equal the network driven by the specular last order plus the tap built from the public pieces."""
     from dataclasses import replace as replace_fields
 
     from compas_acoustics.hybrid.directional import directional_absorption_filters

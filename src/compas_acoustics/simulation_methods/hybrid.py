@@ -1,9 +1,10 @@
-"""The hybrid methods :class:`Binaural` and :class:`Ambisonics`: image sources, optional edge diffraction, a directional FDN.
+""":class:`Binaural` and :class:`Ambisonics`: image sources, optional edge diffraction, a directional FDN.
 
-One image source search serves every pair and, with a ray-tracing tail, the reference too, whose one ray trace also
-gives the directional histograms with ``late_envelope="directional"``; a given ``Mono`` reference at the method's
-image source order lends its search to the early field; each pair is prepared by :func:`compas_acoustics.hybrid.synthesis.prepare`
-and rendered by :func:`~compas_acoustics.hybrid.binaural.render_binaural` or
+One image source search serves every pair. A ray-tracing tail's reference shares that search and, with
+``late_envelope="directional"``, its ray trace gives the directional histograms; a given ray-tracing ``Mono``
+reference at the same image source order shares its search too. Each pair is prepared by
+:func:`compas_acoustics.hybrid.synthesis.prepare` and rendered by
+:func:`~compas_acoustics.hybrid.binaural.render_binaural` or
 :func:`~compas_acoustics.hybrid.ambisonics.render_ambisonics`.
 """
 
@@ -58,7 +59,7 @@ TAILS = ("reference", "ray_tracing", "eyring", "sabine")
 
 
 class _HybridMethod(SimulationMethod):
-    """The references, image sources, network and directional histograms; a subclass sets ``num_delays`` and renders (:meth:`_response`)."""
+    """References, image sources, network and directional histograms; a subclass sets ``num_delays`` and renders."""
 
     num_delays: int
 
@@ -128,7 +129,6 @@ class _HybridMethod(SimulationMethod):
     def compute(self, context: SimulationContext) -> dict:
         fs = context.sampling_rate
         geometry = context.geometry
-        # the 8 kHz octave's upper edge must lie below Nyquist
         if fs <= 2.0 * 8000.0 * np.sqrt(2.0):
             raise ValueError(f"the hybrid method needs a sample rate above 22627 Hz, got {fs}: the 8 kHz octave's upper edge must lie below Nyquist for the decay estimator")
         if not geometry.is_closed:
@@ -149,8 +149,8 @@ class _HybridMethod(SimulationMethod):
         _warn_if_the_search_is_slow(geometry, self.image_source_order)
         from compas_acoustics.worker import jobs
 
-        # the lines' grid sets the rays of a reference the method traces in both envelope modes, so that they share
-        # it; only "directional" sorts the rays by these directions
+        # With a late envelope the method's own reference is traced with the histogram's ray count in both modes;
+        # only "directional" bins the rays on the lines' directions.
         grid = directions = None
         if self.late_envelope:
             grid = fdn_directions(self.num_delays).cartesian
@@ -161,9 +161,9 @@ class _HybridMethod(SimulationMethod):
         references, air_absorption, air, description, run = self._references(context, geometry, grid, directions)
         self.reference_rirs = references
 
-        # Built for ray tracing, an image's damping holds prod sqrt(1 - s), its specular part; the room scattering
-        # 1 - s gives the scattered parts (complementary_scattering). A reference run here has searched the room
-        # already, and the other builds' damping is read from that search.
+        # A room built with ray_tracing=True holds each image's specular product, prod sqrt(1 - s); built on
+        # complementary_scattering it holds the scattered one. Where a reference run has searched the room, its search
+        # is reused and the other builds' damping is derived from it.
         jobs.progress("image sources")
         early_room = self._built(geometry, context, air, ray_tracing=self.scattering)
         if run is None:
@@ -198,7 +198,7 @@ class _HybridMethod(SimulationMethod):
             "scene": getattr(context.scene, "name", None),
         }
 
-        # The longest Eyring RT, against which a given reference's length is checked
+        # The longest Eyring RT, held within 0.5 to 12 s, against which a given reference's length is checked
         eyring_rt = default_duration(geometry, air_absorption, air=air, factor=1.0)
 
         histograms = None
@@ -286,9 +286,9 @@ class _HybridMethod(SimulationMethod):
             )
             return self._response(core, key, source, receiver, generation)
 
-        # The pairs render on threads, as many as fit in 4 GB at a pair's peak of about 17 arrays of
-        # (n_samples, num_delays), the package's cap and estimate; each renders as alone, and the results are kept
-        # in the pairs' order.
+        # As many threads as keep the pairs' peak memory under 4 GB (about 17 arrays of (n_samples, num_delays) per
+        # pair; cap and estimate are the package's); results do not depend on the thread count and keep the pairs'
+        # order.
         longest = max(pair[8] for pair in pairs)
         peak = 17 * np.ceil(longest * fs) * self.num_delays * 8
         workers = max(1, min(len(pairs), os.cpu_count() or 1, int(4e9 // peak)))
@@ -328,14 +328,14 @@ class _HybridMethod(SimulationMethod):
             )
 
     def _references(self, context, geometry, grid, directions):
-        """``(references or None, air_absorption, air, description, run)`` for :attr:`tail`; ``run`` is the
-        :class:`~compas_acoustics.room.raytracing.RayTracedRun` of a reference the method traces itself, or of a
-        given ``Mono`` at the method's image source order, whose search then gives the early field's images; else None.
+        """``(references or None, air_absorption, air, description, run)`` for :attr:`tail`.
 
-        A reference the method traces itself is ``Mono(ray_tracing=True)`` at the method's image source order, seed and air, as long as
-        the longer of ``duration`` and the mono default, and, with a late envelope, with the histogram's rays: its
-        one search and trace also give the early field's images and, on ``directions`` (the lines' per receiver, in
-        room coordinates), the histograms.
+        ``run`` is the :class:`~compas_acoustics.room.raytracing.RayTracedRun` whose image source search the early
+        field reuses: that of the reference the method traces itself, or of a given ray-tracing ``Mono`` at the
+        method's image source order; else None. The method's own reference is ``Mono(ray_tracing=True)`` at its image
+        source order, seed and air, as long as the longer of ``duration`` and the mono default and, with a late
+        envelope, traced with the histogram's ray count. ``directions`` (per receiver, room coordinates) make that
+        trace return the histograms.
         """
         if self.tail in ("eyring", "sabine"):
             absorption = True if self.air_absorption is None else bool(self.air_absorption)
@@ -413,56 +413,54 @@ class _HybridMethod(SimulationMethod):
 
 _ENGINE_PARAMETERS = """
     tail : {None, "reference", "ray_tracing", "eyring", "sabine"}
-        Where the decay target comes from: fitted to ``reference``; fitted to a ``Mono(ray_tracing=True)`` run
-        at the method's ``image_source_order``, ``seed``, ``air_absorption`` and ``air`` (with the late
-        envelope, at the histogram's ray count), which is kept in :attr:`reference_rirs`; or predicted from volume,
-        area and mean absorption (warns where the room is not diffuse). None: ``"reference"`` with a reference, else
-        ``"ray_tracing"``.
+        Where the decay target comes from: fitted to ``reference``; fitted to the method's own
+        ``Mono(ray_tracing=True)`` run at its ``image_source_order``, ``seed`` and air, kept in :attr:`reference_rirs`;
+        or predicted from volume, area and mean absorption (warns where the room is not diffuse). None:
+        ``"reference"`` with a reference, else ``"ray_tracing"``.
     image_source_order : int, default=3
-        The last order of the early field; it also drives the network.
+        The last order of the early field; its images drive the network.
     n_slopes : int, default=1
-        Decay slopes fitted to the reference; 0 lets DecayFitNet (Goetz et al. 2022) decide (needs
-        ``multislope``). An Eyring or Sabine tail has one.
+        Decay slopes fitted to the reference; 0 lets DecayFitNet (Goetz et al. 2022) decide (needs ``multislope``).
+        An Eyring or Sabine tail has one.
     decay_db : float, default=30.0
         Single-slope fit range from -5 dB: 30 is T30, 20 is T20.
     duration : float, optional
-        In seconds; default 1.5 times the longest RT of each pair's target. A reference the method runs itself has the mono
-        method's default length, or ``duration`` where that is longer; a directional histogram traced for a given
-        reference takes ``duration``. A reference shorter than 2/3 of its reverberation time warns.
+        In seconds; default 1.5 times the longest RT of each pair's target (the package's choice). The method's own
+        reference lasts at least the mono default; a directional histogram traced for a given reference lasts
+        ``duration``, or the mono default. A reference shorter than 2/3 of its reverberation time warns.
     directional_absorption : bool, default=True
         Weight each delay line with the reflection of the boundary it faces.
     late_envelope : {"omni", "directional", False}, optional
-        How the late field follows the reference. ``"omni"``: attenuated per band to the reference's late energy;
-        the delay lines keep the network's spread over directions, weighted only by ``directional_absorption``.
-        ``"directional"``: as ``"omni"``, and each delay line given, per octave band, its direction's share of the
-        energy the rays bring in that band (directional histogram, Lentz et al. 2007, Sec. 2.4; Schroeder 2011). The
-        rays are traced with ``Mono(ray_tracing=True)``'s settings at ``image_source_order``, also with a given
-        reference, as many as give a direction's energy a standard deviation of 1 dB (Vorlaender 2020, Eq. 11.20;
-        the 1 dB is the package's choice); with a ray-tracing tail they are the reference's own rays, and ``"omni"``
-        traces its reference with the same number, so both modes follow one reference.
+        How the late field follows the reference.
+        ``"omni"``: each band is attenuated to the reference's late energy; the directions stay the network's.
+        ``"directional"``: as ``"omni"``, and per octave band each delay line takes its direction's share of the ray
+        energy (directional histogram: Lentz et al. 2007, Sec. 2.4; Schroeder 2011). The rays are traced with
+        ``Mono(ray_tracing=True)``'s settings at ``image_source_order``, also with a given reference; their number
+        gives a direction's energy a standard deviation of 1 dB (Vorlaender 2020, Eq. 11.20; the 1 dB is the
+        package's choice). A ray-tracing tail traces its reference with that number in both modes, so both follow
+        one reference.
         ``False``: the network's own decay to the target, no shaping.
-        Default ``"omni"`` for a reference or ray-tracing tail; this default is the package's choice. An Eyring or
-        Sabine tail has no reference: its default is ``False``, and ``"omni"`` or ``"directional"`` raises.
+        Default ``"omni"`` with a reference or a ray-tracing tail (the package's choice); with an Eyring or Sabine
+        tail the default is ``False`` and the other two raise.
     diffraction : {False, True, "udfa", "btms"}, default=False
-        Edge diffraction around obstacles and at room edges that open wider than 180 deg; ``True`` is
-        ``"udfa"`` (Kirsch and Ewert 2023), ``"btms"`` the BTMS model (Svensson et al. 1999), far
-        slower than ``"udfa"``.
+        Edge diffraction around obstacles and at room edges wider than 180 deg: ``True`` or ``"udfa"`` (Kirsch and
+        Ewert 2023), or ``"btms"``, the BTMS model (Svensson et al. 1999), far slower.
     air_absorption : bool, optional
-        On the image sources and diffracted paths. Default the reference's setting, or True; it must agree with
-        the reference's, since the early field and the decay target share it.
+        On the image sources and diffracted paths. Default the reference's setting, or True; it must agree with the
+        reference's, since the early field and the decay target share it.
     seed : bool or int, default=True
-        For the feedback matrices, the delay jitter and the rays the method traces: True seeds with 42, an int with that value, False or None
-        leaves them unseeded (``generation["seed"] = None``). One seed gives Binaural and Ambisonics up to third
-        order, which have the same 96 delay lines, the same network.
+        For the feedback matrices, the delay jitter and the rays the method traces: True seeds with 42, an int with
+        that value, False or None leaves them unseeded (``generation["seed"] = None``). Binaural and Ambisonics up to
+        third order have the same 96 delay lines, and one seed gives them the same network.
     normalize : bool, default=True
         Whether the responses are peak-normalized views.
     air : AirConditions, optional
-        Speed of sound and ISO 9613-1 absorption for the image sources, diffracted paths, predicted decay and the
-        reference run. Default the references' air, else ``AirConditions()``; it must agree with the references'.
+        Speed of sound and ISO 9613-1 absorption of the image sources, diffracted paths, predicted decay and the
+        method's own reference. Default the references' air, else ``AirConditions()``; it must agree with theirs.
     scattering : bool, default=False
-        Surface scattering after Ewert et al. (2025): each image keeps its specular part, ``prod sqrt(1 - s)``,
-        in the early field; its scattered part, ``prod sqrt(s)``, enters the delay lines of its hemisphere
-        through an allpass cascade. Both parts come from the one image source search.
+        Surface scattering after Ewert et al. (2025): each image keeps its specular part, ``prod sqrt(1 - s)``, in the
+        early field; its scattered part, ``prod sqrt(s)``, enters the delay lines of its hemisphere through an allpass
+        cascade. Both come from the one image source search.
 
     Attributes
     ----------
@@ -477,11 +475,12 @@ _ENGINE_PARAMETERS = """
 class Binaural(_HybridMethod):
     """Binaural room impulse responses: image sources, optional edge diffraction, a directional FDN.
 
-    The early field is the image sources up to ``image_source_order`` (and, with ``diffraction``, edge
-    diffraction). The last order drives a feedback delay network of 96 lines, one per direction, whose decay
-    follows a target (Wendt et al. 2014, Sec. 1.2), the count Kirsch et al. (2023, Secs. 1.2 and 3.3) use offline. Every early path and
-    delay line is filtered with the HRIR measured nearest its direction. Needs Python >= 3.11 and a closed
-    room. Responses are ears left then right, stored under ``'binaural'``; ``generation["hrtf"]`` names the set.
+    The early field is the image sources up to ``image_source_order`` and, with ``diffraction``, the diffracted
+    paths. The images of the last order drive a feedback delay network of 96 delay lines, one per direction (the
+    count Kirsch et al. 2023, Secs. 1.2 and 3.3, use offline), whose decay follows a target (Wendt et al. 2014,
+    Sec. 1.2). Every early path and delay line is filtered with the HRIR measured nearest its direction. Needs
+    Python >= 3.11 and a closed room. Responses are ears left then right, stored under ``'binaural'``;
+    ``generation["hrtf"]`` names the set.
 
     Parameters
     ----------
@@ -496,7 +495,8 @@ class Binaural(_HybridMethod):
     --------
     >>> import compas_acoustics as ca
     >>> scene = ca.Scene("office")
-    >>> scene.add_acoustic_objects(ca.AcousticObjectsLibrary.shoebox_room(6, 5, 3, materials=ca.AcousticMaterial("wall", 0.2, 0.1)))
+    >>> wall = ca.AcousticMaterial("wall", 0.2, 0.1)
+    >>> scene.add_acoustic_objects(ca.AcousticObjectsLibrary.shoebox_room(6, 5, 3, materials=wall))
     >>> scene.add_source(ca.Source("talker", 1.5, 1.5, 1.6))
     >>> scene.add_receiver(ca.Receiver("listener", 4.0, 3.0, 1.2))
     >>> ir = next(iter(scene.simulate(ca.Binaural(tail="eyring")).values()))  # doctest: +SKIP
@@ -566,8 +566,9 @@ class Ambisonics(_HybridMethod):
         As :class:`Binaural`.
     sh_order : int, default=1
         The network has 96 delay lines, the count Kirsch et al. (2023, Secs. 1.2 and 3.3) use offline, up to third
-        order, which the 96-point grid supports; above that the smallest equal-area grid supporting the order. The input gain ``sqrt(num_delays)`` offsets the output's
-        ``1 / sqrt(num_delays)``, so the late level does not depend on the count.
+        order, which the 96-point grid supports; above that the smallest equal-area grid supporting the order. The
+        input gain ``sqrt(num_delays)`` offsets the output's ``1 / sqrt(num_delays)``, so the late level does not
+        depend on the count.
     normalization : {"SN3D", "N3D"}, default="SN3D"
         ACN channel order, W = 1 for a unit plane wave.
 
@@ -575,7 +576,8 @@ class Ambisonics(_HybridMethod):
     --------
     >>> import compas_acoustics as ca
     >>> scene = ca.Scene("office")
-    >>> scene.add_acoustic_objects(ca.AcousticObjectsLibrary.shoebox_room(6, 5, 3, materials=ca.AcousticMaterial("wall", 0.2, 0.1)))
+    >>> wall = ca.AcousticMaterial("wall", 0.2, 0.1)
+    >>> scene.add_acoustic_objects(ca.AcousticObjectsLibrary.shoebox_room(6, 5, 3, materials=wall))
     >>> scene.add_source(ca.Source("talker", 1.5, 1.5, 1.6))
     >>> scene.add_receiver(ca.Receiver("listener", 4.0, 3.0, 1.2))
     >>> ir = next(iter(scene.simulate(ca.Ambisonics(tail="eyring", sh_order=2)).values()))  # doctest: +SKIP

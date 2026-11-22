@@ -49,7 +49,7 @@ def points_to_array(
 
 
 def source_to_pra(src: Source) -> pra.SoundSource:
-    """A source at its position with its first-order directivity; no signal, since the methods compute impulse responses."""
+    """A source at its position with its first-order directivity, and no signal."""
     return pra.SoundSource(
         position=points_to_array(src.position),
         # without a directivity object an omnidirectional source traces the default fibonacci rays

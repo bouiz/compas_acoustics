@@ -27,26 +27,28 @@ __all__ = ["Mono"]
 
 
 class Mono(SimulationMethod):
-    """Image sources up to ``image_source_order`` (pyroomacoustics: Scheibler et al. 2018, Sec. 3) and, if ``ray_tracing``, pyroomacoustics' stochastic ray tracer.
+    """Image sources up to ``image_source_order`` (pyroomacoustics: Scheibler et al. 2018, Sec. 3) and, if
+    ``ray_tracing``, pyroomacoustics' stochastic ray tracer.
 
     Parameters
     ----------
     image_source_order : int, default=3
-        Last image source order; with ``ray_tracing`` the rays hold the specular paths of this order and the later
-        ones, and the scattered energy (:mod:`compas_acoustics.room.raytracing`). The search cost grows steeply with the order
+        Last image source order. With ``ray_tracing`` the rays also hold this order, the later ones and the
+        scattered energy (:mod:`compas_acoustics.room.raytracing`). The search cost grows steeply with the order
         (:func:`~compas_acoustics.simulation_methods.image_source_search_seconds`).
     ray_tracing : bool, default=True
-        Materials without scattering coefficients scatter 0.05 in every band.
+        Materials without scattering coefficients scatter 0.05 in every band. Without it, the settings ``n_rays``
+        to ``seed`` raise ``ValueError`` when changed.
     air_absorption : bool, default=True
     n_rays : int or None, default=20000
-        Per source; None: a heuristic of at least 50000.
+        Per source; None: pyroomacoustics' heuristic, at least 50000.
     energy_thres : float, default=1e-7
-        The product of its reflections in its least absorbed band at which a ray stops; the logged energy is
-        that over the squared distance (Schroeder 2011, Eq. 5.54), so the tail has decayed much further.
+        The product of its reflections in its least absorbed band at which a ray stops; the logged energy is that
+        over the squared distance (Schroeder 2011, Eq. 5.54), so the tail has decayed much further.
     duration : float, optional
-        Of the ray-traced responses, in seconds; default 1.5 times the longest Eyring reverberation time, within
-        0.5 to 12 s (10 s for a scene that closes no volume), with a warning at the cap. Without ray tracing the
-        responses have their natural length.
+        Of the ray-traced responses, in seconds; default
+        :func:`~compas_acoustics.room.raytracing.default_duration`. Without ray tracing the responses have their
+        natural length.
     receiver_radius : float, default=0.5
         In metres.
     seed : bool or int, default=True
@@ -57,15 +59,12 @@ class Mono(SimulationMethod):
     air : AirConditions, optional
         Its speed of sound and, with ``air_absorption``, its ISO 9613-1 absorption; default ``AirConditions()``.
 
-    Notes
-    -----
-    Ray-tracing settings (``n_rays`` to ``seed``) changed with ``ray_tracing=False`` raise ``ValueError``.
-
     Examples
     --------
     >>> import compas_acoustics as ca
     >>> scene = ca.Scene("office")
-    >>> scene.add_acoustic_objects(ca.AcousticObjectsLibrary.shoebox_room(6, 5, 3, materials=ca.AcousticMaterial("wall", 0.2, 0.1)))
+    >>> wall = ca.AcousticMaterial("wall", 0.2, 0.1)
+    >>> scene.add_acoustic_objects(ca.AcousticObjectsLibrary.shoebox_room(6, 5, 3, materials=wall))
     >>> scene.add_source(ca.Source("talker", 1.5, 1.5, 1.6))
     >>> scene.add_receiver(ca.Receiver("listener", 4.0, 3.0, 1.2))
     >>> responses = scene.simulate(ca.Mono(image_source_order=2, ray_tracing=False))
@@ -143,7 +142,7 @@ class Mono(SimulationMethod):
         return self._run(context)[0]
 
     def _run(self, context: SimulationContext, directions=None) -> tuple[dict, Optional[RayTracedRun]]:
-        """The responses and, with ray tracing, the run they came from; ``directions`` per receiver as :func:`ray_traced_run`'s."""
+        """The responses and, with ray tracing, the run they came from; ``directions`` as :func:`ray_traced_run`'s."""
         if not context.sources or not context.receivers:
             return {}, None
         fs = context.sampling_rate
@@ -195,12 +194,8 @@ class Mono(SimulationMethod):
 
     @staticmethod
     def _warn_if_cut_short(rirs: dict, fs: int) -> None:
-        """Warn when a response ends before 2/3 of its own longest T30.
-
-        The buffer comes from Eyring, which a non-diffuse room can underestimate several times over. T30's fit
-        ends 35 dB down, at 0.58 of the reverberation time, so a response shorter than 2/3 of it biases T30 and
-        cuts the hybrid's decay fit.
-        """
+        """Warn when the responses end before 2/3 of their longest T30, the package's margin over the 0.58 of it
+        that T30's fit range (to -35 dB) needs."""
         from compas_acoustics.analyser import Analyser
 
         # one run: every response has its length

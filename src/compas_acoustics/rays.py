@@ -1,5 +1,5 @@
-"""Rays for display: traced rays and ray fields (:meth:`RayField.from_scene`), and the specular
-image-source paths between sources and receivers (:meth:`SpecularReflections.from_scene`), a ray field too."""
+"""Rays for display: ray fields (:meth:`RayField.from_scene`) and the specular image-source paths between sources and
+receivers (:meth:`SpecularReflections.from_scene`), a ray field too."""
 
 import numbers
 import warnings
@@ -308,19 +308,14 @@ class RayField(_PackageDtype, Data):
         scatter_band: Optional[int] = None,
         random_seed: Union[bool, int] = True,
     ):
-        """Trace rays through the scene for display.
+        """Trace rays through the scene, for display.
 
-        Each source emits with the density of its radiated energy, the square of its first-order pattern
-        ``p + (1 - p) cos(theta)`` about its ``direction``; with a cone (``direction`` and ``angle``) all
-        ``n_rays`` go into the cone, with the same density.
-
-        The scattered rays are the package's own illustration, not the scattering of the simulation methods:
-        with ``include_scattering`` a hit with scattering coefficient ``s`` spawns ``round(s * scatter_density)``
-        rays, cosine-weighted within ``90 s`` degrees of the axis ``(1 - s) specular + s normal``, each with
-        ``s / round(s * scatter_density)`` of the ray's energy. The absorption and scattering of a wall are means
-        over the octave grid of the pyroomacoustics room (:meth:`RoomGeometry.to_pra`: from 62.5 Hz, nine bands
-        at 48 kHz, the band below 125 Hz holding the 125 Hz value and those above 8 kHz the 8 kHz value), not
-        over the seven material bands.
+        Directions follow the energy of each source's first-order pattern, ``(p + (1 - p) cos(theta))^2``, on a
+        Fibonacci lattice; ``direction`` and ``angle`` put all ``n_rays`` into a cone. The scattered rays are the
+        package's own illustration, not the scattering of the simulation methods: a hit with coefficient ``s`` spawns
+        ``round(s * scatter_density)`` rays, cosine-weighted within ``90 s`` degrees of the axis
+        ``(1 - s) specular + s normal``, sharing ``s`` of the ray's energy. Absorption and scattering are means over the
+        octave grid of :meth:`RoomGeometry.to_pra` (from 62.5 Hz, nine bands at 48 kHz), not the seven material bands.
 
         Parameters
         ----------
@@ -328,30 +323,22 @@ class RayField(_PackageDtype, Data):
         n_rays : int, default=500
             Per source.
         max_reflection_order : int, default=10
-        direction : :class:`compas.geometry.Vector` or list, optional
-            The axis of a cone to emit into, apex at each source. Requires ``angle``.
-        angle : float, optional
-            The cone's half angle in degrees. Requires ``direction``.
+        direction, angle : optional
+            The cone's axis and half angle in degrees; both or neither.
         duration : float, optional
-            In seconds: a ray stops at the first reflection past the distance sound travels in it.
+            Seconds; a ray stops at the first reflection past it.
         energy_thres : float, optional
-            A ray stops when the energy its reflections leave it, by the band mean of each wall's
-            absorption (and scattering, with ``include_scattering``), falls below this.
+            A ray stops once the energy left to it falls below this.
         sources : list of :class:`compas_acoustics.Source`, optional
-            Default: all of the scene's. ``source_index`` is the index in ``scene.sources``.
+            Default: all of the scene's; ``source_index`` is the index in ``scene.sources``.
         include_scattering : bool, default=False
         scatter_density : int, default=10
-            Scattered rays per hit at scattering coefficient 1.
+            Scattered rays per hit at ``s`` = 1.
         scatter_max_bounces : int, default=1
-            Reflections traced for each scattered ray.
         scatter_band : int, optional
-            The band of that grid whose scattering coefficient is used; default the mean of all.
+            The band of that grid whose coefficient is used; default the mean of all.
         random_seed : bool or int, default=True
-            True seeds with 42, an int with that value, False or None leaves the scattering unseeded.
-
-        Returns
-        -------
-        :class:`compas_acoustics.RayField`
+            Seeds the scattered rays: True with 42, an int with that value, False or None not at all.
         """
         if (direction is None) != (angle is None):
             raise ValueError("Both 'direction' and 'angle' must be provided together to emit rays into a cone.")
@@ -613,14 +600,15 @@ def _basis(axis, label):
 
 
 def _cone_sampling(direction, angle: float, n_rays: int):
-    """``n_rays`` unit directions (n_rays, 3) on the fibonacci lattice of the cap of half angle ``angle`` degrees about ``direction``."""
+    """``n_rays`` unit directions (n_rays, 3) on the Fibonacci lattice of the cap of half angle ``angle`` degrees about
+    ``direction``."""
     cosines = 1.0 - (np.arange(n_rays) + 0.5) / n_rays * (1.0 - np.cos(np.radians(angle)))
     return _spiral(direction, cosines, "Cone 'direction'")
 
 
 def _source_directions(source, cone, angle: Optional[float], n_rays: int):
-    """The ``n_rays`` unit directions a source emits, shape ``(n_rays, 3)``: the lattice of the cone, if given, or
-    of the sphere, with the density of the energy of the source's pattern about its facing."""
+    """The ``n_rays`` unit directions (n_rays, 3) a source emits: the lattice of the cone, if given, or of the sphere,
+    with the density of the energy of the source's pattern about its facing."""
     import pyroomacoustics as pra
 
     from compas_acoustics.room.pra import CARDIOID_P
@@ -646,9 +634,9 @@ def _source_directions(source, cone, angle: Optional[float], n_rays: int):
 
 
 def _pattern_sampling(axis, p: float, n_rays: int):
-    """``n_rays`` unit directions, shape ``(n_rays, 3)``, with the density (p + (1 - p) cos(theta))^2 about ``axis``.
+    """``n_rays`` unit directions (n_rays, 3) with the density (p + (1 - p) cos(theta))^2 about ``axis``.
 
-    The fibonacci lattice of the sphere with its cosines through the inverse of the pattern's distribution: the
+    The Fibonacci lattice of the sphere with its cosines through the inverse of the pattern's distribution: the
     energy within cos(theta) < u is ((p + (1 - p) u)^3 - (2p - 1)^3) / (1 - (2p - 1)^3), for p < 1.
     """
     q = (2.0 * p - 1.0) ** 3
@@ -827,21 +815,10 @@ class SpecularReflections(RayField):
 
     @classmethod
     def from_scene(cls, scene, max_order: int = 3) -> "SpecularReflections":
-        """The paths of the visible image sources, orders 0 to ``max_order``, from every source to every receiver.
+        """The visible image-source paths of orders 0 to ``max_order``, for every source and receiver inside the room.
 
-        Only the last wall of each image is recorded, so each path is traced back from the receiver: through
-        that wall to the parent image, and on through whichever wall leads back to the source. An image found
-        twice (through an edge, from both wall orderings) is kept once. Sources and receivers outside the room
-        are left out with a ``UserWarning``.
-
-        Parameters
-        ----------
-        scene : :class:`compas_acoustics.Scene`
-        max_order : int, default=3
-
-        Returns
-        -------
-        :class:`SpecularReflections`
+        The search records only the last wall of an image; :func:`_trace_back` finds the others. An image found twice,
+        through an edge, is kept once. Sources and receivers outside the room are left out with a ``UserWarning``.
         """
         from compas_acoustics.room.geometry import RoomGeometry
         from compas_acoustics.room.reflections import position_tolerance
@@ -877,7 +854,7 @@ class SpecularReflections(RayField):
                 kept = []
                 failed = []
                 for i in np.flatnonzero(np.asarray(room.visibility[s][m], dtype=bool)):
-                    # the first of each group at one position, as in compas_acoustics.hybrid.early
+                    # the first of each group at one position, as room.reflections.first_of_each_position keeps it
                     if _near(kept, images[i], tolerance):
                         continue
                     traced = _trace_back(walls, end, images[i], int(last_walls[i]), int(orders[i]), start, tolerance)
@@ -952,11 +929,13 @@ def _mirror(wall, point) -> np.ndarray:
 
 
 def _trace_back(walls, receiver, image, last_wall: int, order: int, source, tolerance: float):
-    """The hit points and walls, source side first, of the path from ``source`` to ``receiver`` via ``image``.
+    """The hit points and walls, source side first, of the path from ``source`` to ``receiver`` via ``image``; None if
+    none is found.
 
-    ``image`` is a visible image of ``order`` generated by ``last_wall``; its parent is its mirror image in that
-    wall. The parent's generating wall is one the segment from the hit to the parent crosses, with the parent
-    behind it; at an edge several do, so each is tried until the mirrors lead back to the source. None if none does.
+    The segment from the receiver, then from each hit, to an image crosses the image's wall; its mirror in that wall
+    is the parent image.
+    The parent's wall is not recorded: each wall the parent lies in front of is tried until the mirrors end at the
+    source.
     """
     if order == 0:
         return ([], []) if np.linalg.norm(image - source) <= tolerance else None

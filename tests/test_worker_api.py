@@ -1,4 +1,5 @@
-"""The worker API the Grasshopper plugin calls, in-process; every argument and result crosses compas_pb as it would the wire."""
+"""The worker API the Grasshopper plugin calls, in-process; every argument and result crosses compas_pb as on the
+wire."""
 
 import numpy as np
 import pytest

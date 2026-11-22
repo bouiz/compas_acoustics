@@ -11,7 +11,8 @@ from compas_acoustics.defaults import Defaults
 
 __all__ = ["Analyser", "frequency_response", "time_response"]
 
-# Title, x label and y label of each parameter, in the order of analyse(); the Grasshopper plots read it through the worker
+# Title, x label and y label of each parameter, in the order of analyse(); the Grasshopper plots read it through the
+# worker
 PARAMETERS = {
     "EDT": ("Early Decay Time (EDT)", "Frequency (Hz)", "Time (s)"),
     "T20": ("Reverberation Time (T20)", "Frequency (Hz)", "Time (s)"),
@@ -39,9 +40,8 @@ _A_WEIGHTS = {125: -16.1, 250: -8.6, 500: -3.2, 1000: 0.0, 2000: 1.2, 4000: 1.0,
 
 @lru_cache(maxsize=None)
 def _octave_band_filter(sampling_rate, center_frequency):
-    # pyfar's order-14 Butterworth octave filter (IEC 61260-1:2014). A range of +-10 % of the centre selects that band alone: at
-    # +-1/2 octave the range meets the neighbouring band edges and selects three. Without an initial
-    # state the filter keeps none between calls, so one design serves every call.
+    # One octave band of pyfar's filter bank (Butterworth, order 14; IEC 61260-1:2014). A range of +-10 % of the centre
+    # selects that band alone. The filter keeps no state, so one design is reused.
     return pf.dsp.filter.fractional_octave_bands(
         signal=None,
         num_fractions=1,
@@ -52,12 +52,12 @@ def _octave_band_filter(sampling_rate, center_frequency):
 
 
 def _iso3382_start(ir_array, threshold_db=20.0):
-    """Start sample of an impulse response: the last sample before the maximum that is more than
-    ``threshold_db`` below it (20 dB: ISO 3382-1:2009, p. 22).
+    """Start sample of an impulse response: the last sample before the maximum that is more than ``threshold_db``
+    below it (20 dB: ISO 3382-1:2009, p. 22).
 
-    The package's own rules: if an earlier sample comes within ``threshold_db - 6`` dB of the maximum,
-    the last sample below the threshold before that one; 0 when the maximum is less than 20 dB above
-    the mean energy of the last 10 % of the response, or lies in that part.
+    The package's own rules: if an earlier sample comes within ``threshold_db - 6`` dB of the maximum, the last sample
+    below the threshold before that one; 0 when the maximum is less than 20 dB above the mean energy of the last 10 % of
+    the response, or lies in that part.
     """
     energy = np.asarray(ir_array, dtype=float) ** 2
     n = energy.size
@@ -92,7 +92,8 @@ def _channels_first(ir):
 
 
 def _decay_end(ir, trim_db, margin=0.05):
-    """Samples of ``ir`` (channels, samples) until the Schroeder curve of all channels falls ``trim_db`` below its start, lengthened by the fraction ``margin``."""
+    """Samples of ``ir`` (channels, samples) until the Schroeder curve of all channels falls ``trim_db`` below its
+    start, lengthened by the fraction ``margin``."""
     remaining = np.cumsum(np.sum(ir**2, axis=0)[::-1])[::-1]
     if remaining[0] == 0:
         return ir.shape[1]
@@ -117,20 +118,17 @@ def time_response(ir, sampling_rate, db=True, trim_db=None):
     Parameters
     ----------
     ir : np.ndarray
-        Shaped (samples,) or (samples, channels).
+        (samples,) or (samples, channels).
     sampling_rate : int
     db : bool, optional
-        ``True``: the level in dB re the peak of all channels (so channel differences are kept),
-        floored 100 dB below it. ``False``: the amplitude.
+        The level in dB re the peak of all channels, floored 100 dB below it; else the amplitude.
     trim_db : float, optional
-        Ends the response 5 % after its Schroeder curve (all channels) falls this far below its start.
+        End the response 5 % after its Schroeder curve (all channels) falls this far below its start.
 
     Returns
     -------
-    times : np.ndarray
-        (samples,), in seconds.
-    values : np.ndarray
-        (channels, samples).
+    times, values : np.ndarray
+        (samples,) in seconds, and (channels, samples).
     """
     ir = _channels_first(ir)
     if trim_db is not None:
@@ -140,24 +138,21 @@ def time_response(ir, sampling_rate, db=True, trim_db=None):
 
 
 def frequency_response(ir, sampling_rate, num_fractions=3, frequency_range=(20.0, 20000.0)):
-    """The fractional-octave smoothed magnitude response, per channel.
+    """The magnitude response per channel, smoothed over ``1 / num_fractions`` octave.
 
     Parameters
     ----------
     ir : np.ndarray
-        Shaped (samples,) or (samples, channels).
+        (samples,) or (samples, channels).
     sampling_rate : int
     num_fractions : int, optional
-        Smoothing width in fractions of an octave.
     frequency_range : tuple of float, optional
-        Bins kept, in Hz.
+        The bins kept, in Hz.
 
     Returns
     -------
-    frequencies : np.ndarray
-        (bins,), in Hz.
-    values : np.ndarray
-        (channels, bins), in dB re the peak of all channels, floored 100 dB below it.
+    frequencies, values : np.ndarray
+        (bins,) in Hz, and (channels, bins) in dB re the peak of all channels, floored 100 dB below it.
     """
     signal = pf.Signal(_channels_first(ir), sampling_rate)
     smoothed, _ = pf.dsp.smooth_fractional_octave(signal, num_fractions=num_fractions)
@@ -166,21 +161,21 @@ def frequency_response(ir, sampling_rate, num_fractions=3, frequency_range=(20.0
 
 
 class Analyser:
-    """Room acoustic parameters of an impulse response.
+    """Room acoustic parameters of an impulse response (:meth:`analyse`).
 
     Parameters
     ----------
     ir : list, np.ndarray or ImpulseResponse
-        Shaped (samples,) or (samples, channels). Every parameter but LF and LFC is computed from
-        channel 0: the omnidirectional component of an ambisonic response, the left ear of a binaural
-        one. LF and LFC take the first-order channels of an ambisonic :class:`ImpulseResponse`. An
-        :class:`ImpulseResponse` is analysed at its raw (denormalized) level and sets :attr:`sampling_rate`.
+        (samples,) or (samples, channels). LF and LFC take the first-order channels of an ambisonic
+        :class:`ImpulseResponse`, every other parameter channel 0 (the omnidirectional component, or the left ear).
+        An :class:`ImpulseResponse` is analysed at its raw level and sets :attr:`sampling_rate`.
 
     Examples
     --------
     >>> import compas_acoustics as ca
     >>> scene = ca.Scene("office")
-    >>> scene.add_acoustic_objects(ca.AcousticObjectsLibrary.shoebox_room(6, 5, 3, materials=ca.AcousticMaterial("wall", 0.2, 0.1)))
+    >>> room = ca.AcousticObjectsLibrary.shoebox_room(6, 5, 3, materials=ca.AcousticMaterial("wall", 0.2, 0.1))
+    >>> scene.add_acoustic_objects(room)
     >>> scene.add_source(ca.Source("talker", 1.5, 1.5, 1.6))
     >>> scene.add_receiver(ca.Receiver("listener", 4.0, 3.0, 1.2))
     >>> responses = scene.simulate(ca.Mono(ray_tracing=True, n_rays=2000, duration=0.5))
@@ -206,8 +201,8 @@ class Analyser:
 
     @ir.setter
     def ir(self, ir):
-        # The geometric direct-sound sample of a package-scale response: the start search begins
-        # there, so that an early ray-traced bin is not taken for the direct sound
+        # The geometric direct-sound sample of a package-scale response: the start search begins there, so that an early
+        # ray-traced bin is not taken for the direct sound
         self._package_scale = (getattr(ir, "generation", None) or {}).get("scale") == "package"
         self.onset = ir.direct_sound_index() if self._package_scale else None
         # the spatial parameters need the response's channels, source and receiver
@@ -251,25 +246,24 @@ class Analyser:
         return _octave_band_filter(self.sampling_rate, center_frequency).process(sig).time.squeeze()
 
     def _band_signals(self, segment, bands) -> dict:
-        """Octave-band signals of a time segment, filtered after windowing and padded 0.5 s so the filters ring out."""
+        """Causal octave bands of a time segment, padded 0.5 s so that the filters ring out."""
         padded = np.concatenate([np.asarray(segment, dtype=float), np.zeros(int(0.5 * self.sampling_rate))])
         return {f: self._filter_impulse_response(padded, f) for f in bands}
 
     def _band_edcs(self, segment):
-        """Schroeder curves of the octave bands of a time segment (:meth:`_band_signals`), one channel per band."""
+        """Schroeder curves of :meth:`_band_signals`, one channel per band."""
         filtered = pf.Signal(np.stack(list(self._band_signals(segment, self.frequency_bands).values())), self.sampling_rate)
         return pyrato.edc.schroeder_integration(filtered)
 
     def _band_energies(self, segment, bands) -> dict:
-        """Octave-band energies of a time segment; filter delay and ringing stay with the segment."""
+        """Energies of :meth:`_band_signals`: filter delay and ringing stay with the segment."""
         return {f: float(np.sum(band**2)) for f, band in self._band_signals(segment, bands).items()}
 
     def _direct_sound_onset(self, ir_array) -> int:
-        """Index of the direct sound (:func:`_iso3382_start`).
+        """Index of the direct sound (:func:`_iso3382_start`), the first arrival found even when an obstacle blocks it.
 
-        On the package scale the search starts 1 ms before the geometric arrival, which nothing
-        precedes, the package's choice (:meth:`lateral_fraction` takes the geometric arrival itself).
-        A blocked direct path is not special: the start is the first arrival found.
+        On the package scale the search starts 1 ms before the geometric arrival, which nothing precedes, the package's
+        choice (:meth:`lateral_fraction` takes the geometric arrival itself).
         """
         lower = 0
         if self.onset is not None:
@@ -277,17 +271,15 @@ class Analyser:
         return lower + _iso3382_start(ir_array[lower:])
 
     def _band_from_onset(self, center_frequency):
-        """Zero-phase octave-band IR starting 0.1 s before the direct sound.
+        """Zero-phase (forward-backward) octave band of :attr:`ir` from 0.1 s before the direct sound.
 
-        The causal filter delays the band's direct sound, by tens of milliseconds in the low bands,
-        past limits measured from the broadband direct sound; forward-backward filtering removes
-        the delay, and its ringing is two-sided, so the band starts before the direct sound.
-        Forward-backward filtering and the 0.1 s lead are the package's choice.
+        The band's direct sound stays at the broadband onset; the ringing is two-sided, hence the lead. Both are the
+        package's choice.
 
         Returns
         -------
         tuple of (np.ndarray, int)
-            The band-filtered IR and the index of the direct sound in it.
+            The band and the index of the direct sound in it.
         """
         kept = self._bands_from_onset
         if kept is not None and center_frequency in kept:
@@ -306,10 +298,9 @@ class Analyser:
     def reverberation_times(self) -> dict:
         """EDT, T20 and T30 per band (ISO 3382-1:2009).
 
-        Schroeder (1965, J. Acoust. Soc. Am. 37(3)) backward integration of the zero-phase band (:meth:`_band_from_onset`),
-        from the direct sound to the last non-zero sample, normalized to 0 dB at its start, then
-        linear regression. No noise compensation, since a simulated response has no noise floor:
-        truncate a measured response at its noise floor first.
+        Schroeder (1965, J. Acoust. Soc. Am. 37(3)) backward integration of the zero-phase band
+        (:meth:`_band_from_onset`) from the direct sound to the last non-zero sample, normalized to 0 dB at its start,
+        then linear regression. No noise compensation: truncate a measured response at its noise floor first.
         """
         ir_array = self.ir
         onset = self._direct_sound_onset(ir_array)
@@ -344,8 +335,8 @@ class Analyser:
     def clarity_definition(self) -> dict:
         """C50, C80 and D50 per band (ISO 3382-1:2009).
 
-        Early and late parts are cut from the broadband response before causal band filtering, so
-        filter delay and ringing stay with the part they belong to, the package's choice.
+        Early and late parts are cut from the broadband response before causal band filtering, so filter delay and
+        ringing stay with the part they belong to, the package's choice.
         """
         ir_array = self.ir
         onset = self._direct_sound_onset(ir_array)
@@ -374,12 +365,10 @@ class Analyser:
     def direct_to_reverberant_ratio(self) -> dict:
         """Direct-to-reverberant ratio per band and for 700-4000 Hz, in dB.
 
-        The energy from 1 ms before to 5 ms after the direct sound over the energy after it; the early
-        1 ms holds a band-limited arrival whole. ``'DRR_overall'`` takes the response through a
-        fourth-order Butterworth band-pass of 700-4000 Hz (``butter(2, ..., "bandpass")``), since 5 ms
-        does not resolve the low octaves. The window, the band and the filter are the package's choice.
-        Per band the two parts are cut before filtering, as for C50; for ``'DRR_overall'`` the response
-        is filtered first.
+        The energy from 1 ms before to 5 ms after the direct sound over the energy after it. The window and the
+        700-4000 Hz band of ``'DRR_overall'`` (a fourth-order Butterworth band-pass, ``butter(2, ..., "bandpass")``) are
+        the package's choice. Per band the two parts are cut before filtering; for ``'DRR_overall'`` the response is
+        filtered first.
 
         Returns
         -------
@@ -405,7 +394,7 @@ class Analyser:
         }
 
     def center_time(self) -> dict:
-        """Centre time Ts per band, in seconds from the broadband direct sound (ISO 3382-1:2009), of the zero-phase bands."""
+        """Centre time Ts of the zero-phase bands, in seconds from the broadband direct sound (ISO 3382-1:2009)."""
         results = {"Ts": []}
         for freq in self.frequency_bands:
             band, direct = self._band_from_onset(freq)
@@ -449,7 +438,7 @@ class Analyser:
             mtf = np.squeeze(np.asarray(pyrato.parameters.modulation_transfer_function(sig, snr=snr_arg)))
             snr_app = 10.0 * np.log10(mtf / (1.0 - mtf + 1e-12) + 1e-12)
             mti = np.mean(np.clip((snr_app + 15.0) / 30.0, 0, 1), axis=-1)
-            # The public STI function computes the MTF again; its private reduction (Annex A.2.1) halves the cost
+            # The public STI function computes the MTF again; pyrato's private reduction (Annex A.2.1) halves the cost
             sti_calc = getattr(pyrato.parameters, "_sti_calc", None)
             if sti_calc is not None and mtf.shape == (7, 14):
                 sti_val = round(float(sti_calc(mtf)), 4)
@@ -464,9 +453,8 @@ class Analyser:
     def stage_support(self) -> dict:
         """ST_early and ST_late per band (Gade; ISO 3382-1:2009 Annex C), for source and receiver 1 m apart.
 
-        The energy 20-100 ms (ST_early) or 100-1000 ms (ST_late) after the direct sound over the
-        energy of the first 10 ms, in dB; the windows are cut before band filtering. Single numbers
-        average 250-2000 Hz.
+        The energy 20-100 ms (ST_early) or 100-1000 ms (ST_late) after the direct sound over the energy of the first
+        10 ms, in dB; the windows are cut before band filtering. Single numbers average 250-2000 Hz.
 
         Returns
         -------
@@ -498,16 +486,15 @@ class Analyser:
         return result
 
     def sound_strength(self, reference_ir=None) -> dict:
-        """Strength G per band (ISO 3382-1:2009): the response's energy over that of the free field at 10 m.
+        """Strength G per band (ISO 3382-1:2009): the energy over that of the free field at 10 m.
 
-        Both responses at their raw level: :class:`ImpulseResponse` objects (used denormalized) or
-        raw arrays. The single number averages 500 and 1000 Hz.
+        Both at their raw level. The single number averages 500 and 1000 Hz.
 
         Parameters
         ----------
         reference_ir : ImpulseResponse or np.ndarray, optional
-            The source's free-field response at 10 m, at the same sample rate. Default: the
-            package-scale free field ``1 / (4 pi 10)``, for a package-scale response.
+            The source's free-field response at 10 m, at the same sample rate. Default: the package-scale free field
+            ``1 / (4 pi 10)``, for a package-scale response.
 
         Returns
         -------
@@ -538,24 +525,21 @@ class Analyser:
         }
 
     def sound_pressure_level(self, source_spl=None, strength=None) -> dict:
-        """Sound pressure level per band from the source's level at 1 m and G.
-
-        ``Lp = spl + G - 20 dB``: on the package scale G's reference, the free field at 10 m, is 20 dB
-        below the free field at 1 m, where ``spl`` is given (:attr:`compas_acoustics.Source.spl`).
+        """Sound pressure level per band, ``Lp = spl + G - 20 dB``: G's reference at 10 m is 20 dB below 1 m.
 
         Parameters
         ----------
         source_spl : float or list of float, optional
-            The source's on-axis level at 1 m, per band of :attr:`frequency_bands` or one for all.
-            Default: the ``spl`` of the response's source.
+            The source's on-axis level at 1 m (:attr:`compas_acoustics.Source.spl`), one or one per band. Default: that
+            of the response's source.
         strength : dict, optional
-            G as :meth:`sound_strength` returns it, when already computed.
+            :meth:`sound_strength`, when already computed.
 
         Returns
         -------
         dict
-            ``'freqs'``, ``'SPL'`` per band in dB, ``'SPL_overall'`` the A-weighted total in dB(A) and
-            ``'SPL_total'`` the unweighted one in dB. NaN, with a warning, without a level or off the package scale.
+            ``'freqs'``, ``'SPL'`` per band, ``'SPL_overall'`` the A-weighted total in dB(A) and ``'SPL_total'`` the
+            unweighted one. NaN, with a warning, without a level or off the package scale.
         """
         freqs = list(self.frequency_bands)
         nan = {"freqs": freqs, "SPL": [np.nan] * len(freqs), "SPL_overall": np.nan, "SPL_total": np.nan}
@@ -582,20 +566,17 @@ class Analyser:
     def lateral_fraction(self) -> dict:
         """Early lateral energy fractions J_LF and J_LFC per band (ISO 3382-1:2009 Annex A).
 
-        J_LF: the figure-of-eight energy 5-80 ms after the direct sound over the omnidirectional energy
-        0-80 ms. J_LFC takes ``|p_L p|`` for ``p_L^2`` (Kleiner 1989), a cosine instead of a cosine-squared
-        weighting of lateral arrivals (Bradley 1994). The figure-of-eight is the first-order dipole of an
-        ambisonic response, horizontal in the receiver's frame and perpendicular to the direction of the
-        source. Windows are cut before band filtering, as for C80. On the package scale they are
-        measured from the geometric direct-sound sample, the package's choice (the other parameters
-        search for the direct sound from 1 ms before it, :meth:`_direct_sound_onset`).
+        J_LF is the figure-of-eight energy 5-80 ms after the direct sound over the omnidirectional energy 0-80 ms; J_LFC
+        takes ``|p_L p|`` for ``p_L^2`` (Kleiner 1989; Bradley 1994). The figure-of-eight is the first-order dipole of
+        the response, horizontal in the receiver's frame and perpendicular to the source direction (the receiver's y
+        axis for a source straight above or below). Windows are cut before band filtering and, on the package scale,
+        start at the geometric direct-sound sample; both are the package's choice.
 
         Returns
         -------
         dict
-            ``'freqs'``, ``'LF'`` and ``'LFC'`` per band in :attr:`frequency_bands`, and ``'LF_overall'``
-            and ``'LFC_overall'``, the mean of 125-1000 Hz. NaN for a response that is not an ambisonic
-            :class:`ImpulseResponse` (ACN, SN3D or N3D).
+            ``'freqs'``, ``'LF'`` and ``'LFC'`` per band, and ``'LF_overall'`` and ``'LFC_overall'``, the mean of
+            125-1000 Hz. NaN for a response that is not an ambisonic :class:`ImpulseResponse` (ACN, SN3D or N3D).
         """
         response = self._response
         freqs = list(self.frequency_bands)
@@ -639,9 +620,7 @@ class Analyser:
         }
 
     def _sti_and_strength(self) -> dict:
-        """``'STI'`` and ``'G'`` per band in :attr:`frequency_bands` and their overall values, as :meth:`analyse` gives them.
-
-        The per-band ``'STI'`` values are the modulation transfer indices; ``'STI_overall'`` is the STI.
+        """``'STI'`` (per band the modulation transfer indices), ``'G'`` and their overall values, as :meth:`analyse`.
 
         The worker computes only these, for a client whose pyrato cannot (:func:`compas_acoustics.worker.analyse`).
         """
@@ -665,10 +644,9 @@ class Analyser:
     def analyse(self) -> dict:
         """Every parameter of :data:`_PARAM_NAMES` per band and as ``'<name>_overall'``.
 
-        The overall values of EDT, T20, T30, C50, C80, D50 and Ts average 500 and 1000 Hz, after the
-        single-number averages of ISO 3382-1:2009 Table A.1; the same average for all seven is the
-        package's choice. The others have their own. The per-band ``'STI'`` values are the modulation
-        transfer indices, ``'STI_overall'`` the STI.
+        The overall values of EDT, T20, T30, C50, C80, D50 and Ts average 500 and 1000 Hz, after the single-number
+        averages of ISO 3382-1:2009 Table A.1; the same average for all seven is the package's choice. The others have
+        their own. The per-band ``'STI'`` values are the modulation transfer indices, ``'STI_overall'`` the STI.
         """
         # reverberation_times and center_time take the same zero-phase bands
         self._bands_from_onset = {}

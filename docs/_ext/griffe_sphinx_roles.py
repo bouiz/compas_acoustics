@@ -27,7 +27,10 @@ class SphinxRoles(griffe.Extension):
 
 
 def _documented(pkg):
-    """The canonical paths the API pages show: a page's listed members, its public documented ones, or its whole tree with ``show_submodules``."""
+    """The canonical paths the API pages show.
+
+    A page's listed members, its public documented ones, or its whole tree with ``show_submodules``.
+    """
     for page in API_PAGES.glob("*.md"):
         text = page.read_text(encoding="utf-8")
         name = DIRECTIVE.search(text).group(1)

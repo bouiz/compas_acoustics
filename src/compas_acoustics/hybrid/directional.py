@@ -1,20 +1,18 @@
 """Direction-dependent boundary absorption on the delay line outputs.
 
-Wendt et al. (2014, Sec. 1.2) weight "the signal of each incidence direction ... with the
-reflection coefficient of the room wall corresponding to the respective parallel cube side face". Kirsch et al.
-(2023, Sec. 1.3, Eqs. 4-5) generalise it to arbitrary geometry, which holds for a mesh: rays from
-the receiver sample the absorption of the first face they meet, and with fewer than their 96 scanned directions
-each line takes a weighted mean,
+Wendt et al. (2014, Sec. 1.2) weight "the signal of each incidence direction ... with the reflection coefficient of
+the room wall corresponding to the respective parallel cube side face". Kirsch et al. (2023, Sec. 1.3, Eqs. 4-5)
+generalise it to arbitrary geometry: rays from the receiver along ``v_s`` take the absorption ``alpha_s`` of the
+first face they meet, and with fewer lines than their 96 scanned directions, line ``k`` of ``K``, along ``v_k``,
+takes
 
-    w_s,k = max(v_s . v_k, 0) ** beta,   beta = K / 6,
-    a_k   = sum_s w_s,k alpha_s / sum_s w_s,k,
+    a_k = sum_s w_s,k alpha_s / sum_s w_s,k,   w_s,k = max(v_s . v_k, 0) ** (K / 6).
 
-``v_s`` the scanned directions, ``v_k`` the line's, ``K`` the number of lines (the paper gives a -3 dB lobe of 90
-degrees for K = 6). With 96 lines each takes the absorption of its own scanned direction there; the weighted mean
-at every ``K``, 96 included, is the package's choice (the scan is fixed in the room, the lines turn with the
-receiver). The line's output filter has the magnitude ``sqrt(1 - a_k)`` per band. It sits outside the loop, so
-every line still decays at ``target.rt``; the late field loses one reflection's absorption,
-``10 log10(mean_k (1 - a_k))`` dB, left uncompensated; neither paper describes a compensation.
+With 96 lines each takes the absorption of its own scanned direction there; the weighted mean at every ``K``, 96
+included, is the package's choice (the scan is fixed in the room, the lines turn with the receiver). The output
+filter has the magnitude ``sqrt(1 - a_k)`` per band and sits outside the loop: every line still decays at
+``target.rt``, and the late level falls by ``10 log10(mean_k (1 - a_k))`` dB, left uncompensated; neither paper
+describes a compensation.
 """
 
 from __future__ import annotations
@@ -33,9 +31,8 @@ from .pair import Pair
 def scanned_absorption(spec: Pair, directions: pf.Coordinates) -> np.ndarray:
     """Absorption coefficient per delay line and band, shape (n_lines, 8).
 
-    Each scan direction takes the absorption of the first face its ray from the receiver meets, which holds in
-    a concave room too. The scan is the 96-point grid of the lines, in room coordinates, as the 96 scanned
-    directions of Kirsch et al. (2023, Sec. 1.3).
+    Each of the 96 scan directions of Kirsch et al. (2023, Sec. 1.3), the lines' grid in room coordinates, takes
+    the absorption of the first face its ray from the receiver meets, which holds in a concave room too.
     """
     faces = spec.geometry.faces_with_materials()
     scan = fdn_directions(96).cartesian

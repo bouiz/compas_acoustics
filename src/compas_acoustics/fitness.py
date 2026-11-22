@@ -6,17 +6,7 @@ __all__ = ["regularized_fitness"]
 def regularized_fitness(values: list[float], target: float, k: float = 1.0) -> float:
     """Mean absolute error to ``target`` plus ``k`` times the sample standard deviation; lower is better.
 
-    Parameters
-    ----------
-    values : list of float
-    target : float
-    k : float, optional
-        Weight of the standard deviation.
-
-    Returns
-    -------
-    float
-        999 for no values, the package's choice.
+    999 for no values, the package's choice.
     """
     n = float(len(values))
     if n == 0:

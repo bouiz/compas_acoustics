@@ -238,7 +238,7 @@ def test_two_images_of_one_damping_and_different_walls_search_the_other_room(mon
 
 
 def test_an_image_without_a_receiver_that_sees_it_searches_the_other_room(monkeypatch):
-    """pyroomacoustics clears the visibility of a microphone it calls outside the room; such an image has no path to read."""
+    """pyroomacoustics clears the visibility of a microphone it finds outside the room: no path to read."""
     s = scene()
     geometry = RoomGeometry.from_scene(s)
     room = searched(geometry, s, 2, True)

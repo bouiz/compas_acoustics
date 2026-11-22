@@ -177,7 +177,7 @@ def shaped_by(scale):
 
 
 def test_a_direction_quieter_in_one_band_only_is_quieter_in_that_band_only():
-    """The 4 kHz row of the western directions at -6 dB: the 4 kHz band follows, 500 Hz does not, each band keeps its total.
+    """The 4 kHz row of the western directions at -6 dB: that band follows, 500 Hz does not, each band keeps its total.
 
     Measured through the same overlapping octave bank, a -6 dB band reads about -5 dB and spills 0.5 dB into 2 kHz."""
     west = grid()[:, 0] < -0.5
@@ -193,7 +193,7 @@ def test_a_direction_quieter_in_one_band_only_is_quieter_in_that_band_only():
 
 
 def test_the_16_khz_band_takes_its_own_shares():
-    """The 16 kHz row of the western directions at -6 dB: the 16 kHz band follows; the 8 kHz row at -20 dB does not reach it."""
+    """The 16 kHz row of the western directions at -6 dB: that band follows; the 8 kHz row at -20 dB does not."""
     west = grid()[:, 0] < -0.5
     east = grid()[:, 0] > 0.5
     scale = np.ones((96, 9, 1))
@@ -354,7 +354,7 @@ def test_the_late_envelope_values():
 
 
 def test_the_band_shares_need_no_more_memory_than_the_band_split():
-    """The bands are split, shaped and summed one at a time: the peak stays near the omni envelope's (about 12 line arrays)."""
+    """Bands are split, shaped and summed one at a time: the peak stays near the omni one's, about 12 line arrays."""
     import tracemalloc
 
     late = lines()

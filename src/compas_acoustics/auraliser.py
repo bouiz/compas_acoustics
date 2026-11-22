@@ -28,40 +28,35 @@ def _n3d_to_sn3d(ir):
 class Auraliser:
     """Convolves impulse responses with their anechoic sounds and sums them.
 
-    The signal keeps the format of its responses (:attr:`format`): ``'mono'``, ``'binaural'``
-    (two ears), or ``'ambisonic'`` (ACN/SN3D, (order + 1)**2 channels at the highest order present;
-    N3D is converted). Responses of different formats cannot be mixed: there is no decoding.
-    Responses are used at their raw level, so their level differences are kept; :attr:`level`
-    sets the output level on export:
-
-    * ``'relative'``: one gain for a group of renders, the loudest peaking at :attr:`headroom_db`.
-    * ``'individual'``: each render peaks at :attr:`headroom_db`.
-    * ``'none'``: no gain; warns above 0 dBFS.
+    The signal has the format of its responses (:attr:`format`): ``'mono'``, ``'binaural'`` or ``'ambisonic'``
+    (ACN/SN3D at the highest order present; N3D is converted). Formats cannot be mixed: there is no decoding. Responses
+    are used at their raw level; :attr:`level` sets the gain on export: ``'relative'`` (one gain for a group of renders,
+    the loudest peaking at :attr:`headroom_db`), ``'individual'`` (each peaks at it) or ``'none'`` (no gain; warns
+    above 0 dBFS).
 
     Parameters
     ----------
     impulse_responses : dict or list
-        A list of :class:`ImpulseResponse` (ACN/SN3D when they state no convention), or a dict of
-        ids to dicts with ``'ir'`` ((samples,) or (samples, channels)), ``'sampling_rate'``,
-        ``'ambisonic_order'``, ``'channel_order'`` (``'acn'``) and ``'normalization'``
-        (``'sn3d'`` or ``'n3d'``). All of one format.
+        :class:`ImpulseResponse` objects (ACN/SN3D when they state no convention), or a dict of ids to dicts with
+        ``'ir'`` ((samples,) or (samples, channels)), ``'sampling_rate'``, ``'ambisonic_order'``, ``'channel_order'``
+        (``'acn'``) and ``'normalization'`` (``'sn3d'`` or ``'n3d'``).
     anechoic_sounds : dict or list, optional
-        File paths, or a dict of ids to dicts with ``'filepath'``; paired with the responses by id
-        when both are dicts with the same ids, else by position. Default: each response's
-        source's ``sound_file``.
+        File paths, or a dict of ids to dicts with ``'filepath'``: paired by id when both are dicts with the same ids,
+        else by position. Default: the ``sound_file`` of each response's source.
     sampling_rate : int, optional
-        Responses and sounds are resampled to it. Default: that of the first response.
+        Responses and sounds are resampled to it; default that of the first response.
     level : str, optional
-        ``'relative'`` (default), ``'individual'`` or ``'none'``.
+        Default ``'relative'``.
     headroom_db : float, optional
-        Target peak in dBFS for ``'relative'`` and ``'individual'``; default -1.
+        In dBFS; default -1.
 
     Examples
     --------
     >>> import compas_acoustics as ca
     >>> sound = ca.Defaults().ANECHOIC_SOUNDFILES_LIBRARY_PATH + "/female_speech.wav"
     >>> scene = ca.Scene("office")
-    >>> scene.add_acoustic_objects(ca.AcousticObjectsLibrary.shoebox_room(6, 5, 3, materials=ca.AcousticMaterial("wall", 0.2, 0.1)))
+    >>> room = ca.AcousticObjectsLibrary.shoebox_room(6, 5, 3, materials=ca.AcousticMaterial("wall", 0.2, 0.1))
+    >>> scene.add_acoustic_objects(room)
     >>> scene.add_source(ca.Source("talker", 1.5, 1.5, 1.6, sound_file=sound))
     >>> scene.add_receiver(ca.Receiver("listener", 4.0, 3.0, 1.2))
     >>> responses = scene.simulate(ca.Mono(ray_tracing=True, n_rays=2000, duration=0.5))
@@ -116,7 +111,7 @@ class Auraliser:
 
     @property
     def impulse_responses(self):
-        """dict : Impulse responses as (samples, channels) arrays at :attr:`sampling_rate`, ambisonic ones in ACN/SN3D."""
+        """dict : The impulse responses, (samples, channels) arrays at :attr:`sampling_rate`, ambisonic in ACN/SN3D."""
         return self._impulse_responses
 
     @impulse_responses.setter
@@ -167,7 +162,7 @@ class Auraliser:
 
     @property
     def format(self):
-        """str : ``'mono'``, ``'binaural'`` or ``'ambisonic'``, the format of the impulse responses and of the signal."""
+        """str : ``'mono'``, ``'binaural'`` or ``'ambisonic'``, of the impulse responses and of the signal."""
         return self._format
 
     @property
@@ -295,7 +290,7 @@ class Auraliser:
         return ir
 
     def _pairs(self):
-        """Pair each impulse response with its anechoic sound filepath, by id when the ids match, otherwise by position."""
+        """``(id, data, sound file)`` per impulse response, paired by id when the ids match, otherwise by position."""
         ir_items = list(self.impulse_responses.items())
         if self.impulse_responses.keys() == self.anechoic_sounds.keys():
             return [(ir_id, ir_data, self.anechoic_sounds[ir_id]["filepath"]) for ir_id, ir_data in ir_items]
@@ -363,21 +358,18 @@ class Auraliser:
 
     @staticmethod
     def render_gains(signals, level="relative", headroom_db=-1.0):
-        """Gains that set the output level of a group of auralised signals.
+        """One gain per signal of a group of :meth:`convolve` results, for ``level`` as :attr:`level`.
 
         Parameters
         ----------
         signals : list of np.ndarray
-            From :meth:`convolve`, e.g. one per receiver or source.
         level : str, optional
-            As :attr:`level`; default ``'relative'``.
         headroom_db : float, optional
-            Target peak in dBFS; default -1.
+            The target peak in dBFS.
 
         Returns
         -------
         list of float
-            One gain per signal.
         """
         _checked_level(level)
         target = 10.0 ** (headroom_db / 20.0)
@@ -397,10 +389,10 @@ class Auraliser:
         ----------
         filepath : str
         convolved_sound : np.ndarray, optional
-            From :meth:`convolve`; default: :meth:`convolve` is called.
+            Default: :meth:`convolve`.
         gain : float, optional
-            E.g. from :meth:`render_gains` for a group of renders. Default: from :attr:`level`
-            and :attr:`headroom_db` for this signal alone.
+            E.g. from :meth:`render_gains` for a group of renders. Default: from :attr:`level` and :attr:`headroom_db`
+            for this signal alone.
 
         Returns
         -------

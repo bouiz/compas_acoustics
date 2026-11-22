@@ -40,10 +40,10 @@ def _seed(seed):
 
 
 def image_source_search_seconds(n_faces: int, order: int) -> float:
-    """A rough estimate of the image source search time on a mesh room, in seconds, for warnings.
+    """The package's order-of-magnitude estimate of the image source search time in seconds, for warnings.
 
-    The package's own order-of-magnitude estimate, growing by a factor ``n_faces / 2.2`` per order; its constants
-    were fitted to timed searches, and the times depend on the machine.
+    It grows by a factor ``n_faces / 2.2`` per order; its constants were fitted to timed searches, and the times
+    depend on the machine.
     """
     return 1e-6 * n_faces**3.4 * (n_faces / 2.2) ** (order - 4)
 
@@ -74,7 +74,7 @@ class SimulationContext:
 
     @classmethod
     def from_scene(cls, scene) -> "SimulationContext":
-        """The scene as every method sees it: its room, at its sampling rate, and the sources and receivers inside it."""
+        """The scene's room at its sampling rate, and the sources and receivers inside it (the others warn)."""
         geometry = RoomGeometry.from_scene(scene)
         sources, receivers, outside = [], [], []
         for kind, items, inside in (("Source", scene.sources, sources), ("Receiver", scene.receivers, receivers)):

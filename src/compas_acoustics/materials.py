@@ -47,13 +47,13 @@ class MaterialCategory(str, Enum):
 
 
 class AcousticMaterial(_PackageDtype, Data):
-    """Absorption, scattering and transmission coefficients per octave band of :attr:`Defaults.DEFAULT_FREQUENCY_BANDS`.
+    """Absorption, scattering and transmission coefficients per octave band, 125 Hz to 8 kHz.
 
     Parameters
     ----------
     name : str
     absorption_coefficients : float or list of float
-        One per band, or one for every band.
+        One for every band, or one per band; so are the other coefficients.
     scattering_coefficients : float or list of float, optional
     transmission_coefficients : float or list of float, optional
         Stored and serialised only: the simulation methods do not use them.
@@ -140,8 +140,8 @@ class AcousticMaterial(_PackageDtype, Data):
 
     @frequency_bands.setter
     def frequency_bands(self, frequency_bands):
-        # The coefficients are validated against these bands and the JSON form does not store them,
-        # so any other grid would be silently misread
+        # The coefficients are validated against these bands and the JSON form does not store them, so any other grid
+        # would be silently misread
         bands = Defaults().DEFAULT_FREQUENCY_BANDS
         if frequency_bands and [float(f) for f in frequency_bands] != [float(f) for f in bands]:
             raise ValueError(f"Material frequency bands must be {bands} Hz, got {list(frequency_bands)}.")

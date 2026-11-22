@@ -21,10 +21,10 @@ from ..room.geometry import DEFAULT_SCATTERING
 def complementary_scattering(geometry):
     """``geometry`` with every material's scattering ``s`` replaced by ``1 - s``.
 
-    Built for ray tracing, an image's damping takes ``sqrt(1 - s)`` for every wall of non-zero scattering it
-    reflects off, so the room gives the specular part, ``prod sqrt(1 - s_i)``, and this one the scattered part,
-    ``prod sqrt(s_i)``, power-complementary for a single reflection as the decomposition filters of Ewert et al.
-    (2025, Sec. 2.1.3) are. A material without coefficients scatters ``DEFAULT_SCATTERING``.
+    In a room built for ray tracing an image's damping takes ``sqrt(1 - s)`` at every wall of non-zero scattering it
+    reflects off: the specular part, ``prod sqrt(1 - s_i)``. Built from this geometry it is the scattered part,
+    ``prod sqrt(s_i)``. The two are power-complementary for a single reflection, as the decomposition filters of
+    Ewert et al. (2025, Sec. 2.1.3) are. A material without coefficients scatters ``DEFAULT_SCATTERING``.
     """
     return replace(
         geometry,
@@ -41,7 +41,7 @@ def complementary_scattering(geometry):
 def scattering_decay_time(distance: float, speed_of_sound: float) -> float:
     """Local decay time ``T_s`` of an ideal diffuse reflection, in seconds.
 
-    Ewert et al. (2025), Sec. 2.1.2: ``T_s = 6 (10**(1/5) - 1) 2R / c``, about ``7 R / c``, for a reflector at
+    Ewert et al. (2025, Sec. 2.1.2): ``T_s = 6 (10**(1/5) - 1) 2R / c``, about ``7 R / c``, for a reflector at
     distance ``R``; for a general room "the mean free path length".
     """
     return 6.0 * (10.0**0.2 - 1.0) * 2.0 * distance / speed_of_sound
@@ -61,8 +61,8 @@ def allpass_delays(decay_time: float, fs: float) -> np.ndarray:
 def smear(signal: np.ndarray, decay_time: float, fs: float) -> np.ndarray:
     """The surface-scattering allpass cascade along axis 0 of ``signal``.
 
-    Four allpasses ``(g + z^-tau) / (1 + g z^-tau)``, ``g = 1/sqrt(2)``
-    (Ewert et al. 2025, Eq. 12), with the delays of :func:`allpass_delays`.
+    Four allpasses ``(g + z^-tau) / (1 + g z^-tau)``, ``g = 1/sqrt(2)`` (Ewert et al. 2025, Eq. 12), with the delays
+    of :func:`allpass_delays`.
     """
     out = np.asarray(signal, dtype=float)
     for tau in allpass_delays(decay_time, fs):

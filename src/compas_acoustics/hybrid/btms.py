@@ -1,20 +1,15 @@
 """Edge diffraction by the Biot-Tolstoy-Medwin-Svensson (BTMS) model.
 
-Svensson, Fred and Vanderkooy (1999), "An analytic secondary source model of
-edge diffraction impulse responses", J. Acoust. Soc. Am. 106(5), 2331-2344.
-Time-domain kernels in the edge-cylindrical coordinates of EDtoolbox: z along
-the edge, theta from the reference face into the open region, closed wedge
-angle 2 pi - theta_w, free field 1/r.
+Svensson, Fred and Vanderkooy (1999), "An analytic secondary source model of edge diffraction impulse responses", J.
+Acoust. Soc. Am. 106(5), 2331-2344. Time-domain kernels in the edge-cylindrical coordinates of EDtoolbox: z along the
+edge, theta from the reference face into the open region, closed wedge angle 2 pi - theta_w, free field 1/r.
 
-wedge1st_ir follows EDwedge1st_ir, with _edge_z_of_path and _slot_integrals
-(its integration intervals and seven-point start), wedge2nd_ir EDwedge2nd,
-_coordtrans1 EDcoordtrans1 and element_grid EDcreindexmatrix and
-EDmakeHODirs of Svensson's Edge Diffraction Toolbox v0.504; btms_paths and
-coplanar_thetas in compas_acoustics.hybrid.diffraction take their rules for
-the angles of coplanar edges (EDed2geo), the scaled geometric component on a
-zone boundary (EDfindconvexGApaths), its split between two samples
-(EDmakefirstorderirs) and the doubled thin-plate path (EDmakeHODirs) from
-the same toolbox:
+wedge1st_ir follows EDwedge1st_ir, with _edge_z_of_path and _slot_integrals (its integration intervals and seven-point
+start), wedge2nd_ir EDwedge2nd, _coordtrans1 EDcoordtrans1 and element_grid EDcreindexmatrix and EDmakeHODirs of
+Svensson's Edge Diffraction Toolbox v0.504; btms_paths and coplanar_thetas in compas_acoustics.hybrid.diffraction take
+their rules for the angles of coplanar edges (EDed2geo), the scaled geometric component on a zone boundary
+(EDfindconvexGApaths), its split between two samples (EDmakefirstorderirs) and the doubled thin-plate path
+(EDmakeHODirs) from the same toolbox:
 
     Copyright (c) 2018, Peter Svensson All rights reserved.
 
@@ -41,10 +36,9 @@ the same toolbox:
     NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-betaoverml and _quadstep are written from the paper and the adaptive Simpson
-rule; they compute what EDbetaoverml and EDquadstep of the toolbox compute,
-with the same arguments and steps, except that betaoverml takes a term that
-is 0/0 on its zone boundary as 0.
+betaoverml and _quadstep are written from the paper and the adaptive Simpson rule; they compute what EDbetaoverml and
+EDquadstep of the toolbox compute, with the same arguments and steps, except that betaoverml takes a term that is 0/0 on
+its zone boundary as 0.
 """
 
 from __future__ import annotations
@@ -53,9 +47,8 @@ import numpy as np
 
 
 def betaoverml(z, rs, rr, zs, zr, nu, sin_nu_phi, cos_nu_phi):
-    """beta(z) / (m l): the four-term edge-source directivity over the two
-    distances, Svensson et al. (1999); nu = pi / theta_w, phi = pi +- theta_S
-    +- theta_R."""
+    """beta(z) / (m l): the four-term edge-source directivity over the two distances, Svensson et al. (1999); nu = pi /
+    theta_w, phi = pi +- theta_S +- theta_R."""
     z = np.asarray(z, dtype=float)
     m = np.sqrt((z - zs) ** 2 + rs**2)
     l = np.sqrt((z - zr) ** 2 + rr**2)
@@ -69,9 +62,8 @@ def betaoverml(z, rs, rr, zs, zr, nu, sin_nu_phi, cos_nu_phi):
 
 
 def _quadstep(a, b, fa, fc, fb, tol, rs, rr, zs, zr, nu, sin_nu_phi, cos_nu_phi):
-    """Adaptive Simpson on [a, b] for every interval at once: three-point and
-    five-point Simpson, one Richardson step, intervals whose estimates differ
-    by more than tol are halved."""
+    """Adaptive Simpson on [a, b] for every interval at once: three-point and five-point Simpson, one Richardson step,
+    intervals whose estimates differ by more than tol are halved."""
     c = (a + b) / 2.0
     fd, fe = (betaoverml(x, rs, rr, zs, zr, nu, sin_nu_phi, cos_nu_phi) for x in ((a + c) / 2.0, (c + b) / 2.0))
     h = (b - a) / 6.0
@@ -119,11 +111,11 @@ def _edge_z_of_path(x, rs, rr, zs, zr):
 
 
 def wedge1st_ir(fs, c, closed_angle, rs, thetas, zs, rr, thetar, zr, zw, r_irstart=0.0):
-    """First-order diffraction impulse response of a finite rigid wedge for a
-    point source (free field 1/r), EDwedge1st_ir.m, method 'New'.
+    """First-order diffraction impulse response of a finite rigid wedge for a point source (free field 1/r),
+    EDwedge1st_ir.m, method 'New'.
 
-    Returns (ir, singular); ir[0] is the sample at r_irstart / c, singular
-    flags the beta terms on a zone boundary."""
+    Returns (ir, singular); ir[0] is the sample at r_irstart / c, singular flags the beta terms on a zone boundary.
+    """
     zw = np.asarray(zw, dtype=float)
     if zw[1] - zw[0] == 0:
         return np.zeros(2), np.zeros(4, dtype=bool)
@@ -286,9 +278,8 @@ def _df(nu, b, angle):
 
 
 def _coordtrans1(points, edge_ends, ref_normal):
-    """Cylindrical coordinates (r, theta, z) of points about an edge, EDcoordtrans1.m
-    (several points): origin at edge_ends[0], z along the edge, theta = 0 on the
-    reference plane with normal ref_normal."""
+    """Cylindrical coordinates (r, theta, z) of points about an edge, EDcoordtrans1.m (several points): origin at
+    edge_ends[0], z along the edge, theta = 0 on the reference plane with normal ref_normal."""
     points = np.atleast_2d(np.asarray(points, dtype=float))
     edge_ends = np.asarray(edge_ends, dtype=float)
     n = np.asarray(ref_normal, dtype=float)
@@ -309,9 +300,8 @@ def _coordtrans1(points, edge_ends, ref_normal):
 
 
 def element_grid(lengths, c, fs):
-    """Edge-element midpoints of an edge pair as fractions of the two edge
-    lengths, rows in the order of EDcreindexmatrix (edge 2 fastest), and the
-    element lengths dz (EDmakeHODirs.m, order 2, element size c / fs)."""
+    """Edge-element midpoints of an edge pair as fractions of the two edge lengths, rows in the order of
+    EDcreindexmatrix (edge 2 fastest), and the element lengths dz (EDmakeHODirs.m, order 2, element size c / fs)."""
     lengths = np.asarray(lengths, dtype=float)
     ndiv = np.ceil(lengths / (c / fs)).astype(int)
     dz = lengths / ndiv
@@ -320,16 +310,14 @@ def element_grid(lengths, c, fs):
 
 
 def wedge2nd_ir(cyl_s, cyl_r, cyl_e2_r1, cyl_e1_r2, nu, edge_limits, dz, steps, path_along_plane, r_irstart, c, fs):
-    """Edge-to-edge (second-order) diffraction impulse response of a pair of
-    rigid wedges, EDwedge2nd.m with method 'n' and swapbigmatrix = 0.
+    """Edge-to-edge (second-order) diffraction impulse response of a pair of rigid wedges, EDwedge2nd.m with method 'n'
+    and swapbigmatrix = 0.
 
-    cyl_s, cyl_r are (r, theta, z) of source and receiver about edges 1 and 2;
-    cyl_e2_r1 are the two ends of edge 2 about edge 1, cyl_e1_r2 the ends of
-    edge 1 about edge 2; nu = (pi / theta_w1, pi / theta_w2); edge_limits rows
-    are [start, end] along each edge; steps and dz are the element_grid
-    midpoints and element lengths; path_along_plane selects the form for two
-    edges bounding a common plane.
-    ir[0] is the sample at r_irstart / c."""
+    cyl_s, cyl_r are (r, theta, z) of source and receiver about edges 1 and 2; cyl_e2_r1 are the two ends of edge 2
+    about edge 1, cyl_e1_r2 the ends of edge 1 about edge 2; nu = (pi / theta_w1, pi / theta_w2); edge_limits rows are
+    [start, end] along each edge; steps and dz are the element_grid midpoints and element lengths; path_along_plane
+    selects the form for two edges bounding a common plane. ir[0] is the sample at r_irstart / c.
+    """
     nu1, nu2 = nu
     nu_closed2 = np.pi / nu2
     multfac = 1.0 / (float(bool(path_along_plane)) + 1.0)

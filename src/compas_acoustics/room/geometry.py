@@ -42,9 +42,9 @@ DEFAULT_SCATTERING = 0.05
 
 @contextmanager
 def pra_octave_grid() -> Iterator[None]:
-    """Start pyroomacoustics' octave grid, process-wide state read when a room is built, at ``SYNTHESIS_BANDS[0]``, then restore it.
+    """Start pyroomacoustics' octave grid, process-wide state read when a room is built, at ``SYNTHESIS_BANDS[0]``.
 
-    At its default of 125 Hz a 48 kHz room has 8 bands against 7 wall coefficients.
+    Restored on exit. At its default of 125 Hz a 48 kHz room has 8 bands against 7 wall coefficients.
     """
     key = "octave_bands_base_freq"
     previous = pra.constants.get(key)
@@ -168,7 +168,8 @@ def _split_at_t_junctions(vertices: np.ndarray, a: int, b: int, candidates: Opti
     t = offsets @ direction / (direction @ direction)
     distance = np.linalg.norm(offsets - np.outer(t, direction), axis=1)
     inner = np.flatnonzero((t > 0.0) & (t < 1.0) & (distance < _t_junction_tolerance(vertices)))
-    # t of the endpoints themselves can land one ulp inside (0, 1): BLAS rounds the matrix product differently by platform
+    # t of the endpoints themselves can land one ulp inside (0, 1): BLAS rounds the matrix product differently
+    # by platform
     inner = inner[(index[inner] != a) & (index[inner] != b)]
     return [a, *index[inner[np.argsort(t[inner])]].tolist(), b]
 
@@ -185,7 +186,7 @@ def _segments(vertices: np.ndarray, face) -> List[Tuple[int, int]]:
 
 
 def _without_collapsed(faces, groups):
-    """Faces without consecutive repeated vertices, dropping those left with fewer than three; and how many were dropped."""
+    """Faces without consecutive repeated vertices, less those left with fewer than three, and how many those were."""
     kept_faces, kept_groups = [], []
     for face, group in zip(faces, groups):
         cleaned = [v for k, v in enumerate(face) if v != face[k - 1]]
@@ -217,13 +218,10 @@ def _triangulated_where_warped(vertices: np.ndarray, faces, groups):
 
 
 def _orient(vertices: np.ndarray, faces):
-    """Flip flags that make every shared segment run opposite ways.
+    """``(flips, component, defect)``: flip flags that make every shared segment run opposite ways, a label per
+    connected surface, and None, or a segment ``(a, b)`` not shared by exactly two faces that can be made to agree.
 
-    Surfaces drawn as separate objects have no common winding, so each face's
-    neighbours across every segment are flipped to agree with it. Returns
-    ``(flips, component, defect)``: ``component`` labels each connected
-    surface, and ``defect`` is ``None`` when every segment is shared by exactly
-    two faces that can be made to agree, else such a segment ``(a, b)``.
+    Surfaces drawn as separate objects have no common winding.
     """
     segments = [_segments(vertices, face) for face in faces]
     directed = [set(segs) for segs in segments]
@@ -263,9 +261,9 @@ def _orient(vertices: np.ndarray, faces):
 def _orient_outward(vertices: np.ndarray, faces):
     """Boundary faces wound consistently, their largest volume facing out.
 
-    pyroomacoustics drops image sources silently unless the normals point out of the air. Any further closed volume (a
-    pillar) bounds the air from outside, so it is wound into itself. Returns ``(faces, defect)``; on a defect
-    the faces come back as drawn.
+    pyroomacoustics drops image sources silently unless the normals point out of the air. Any further closed volume
+    (a pillar) bounds the air from outside, so it is wound into itself. Returns ``(faces, defect)``; on a defect the
+    faces come back as drawn.
     """
     flips, component, defect = _orient(vertices, faces)
     if defect is not None:
@@ -298,8 +296,8 @@ class RoomGeometry:
     materials: Dict[str, SurfaceMaterial]
     is_closed: bool
     open_edge: Optional[Tuple[Tuple[float, ...], Tuple[float, ...]]] = None
-    # The obstacle polygons as drawn, before the two offset copies: the edges
-    # that diffract are theirs (compas_acoustics.hybrid.diffraction).
+    # The obstacle polygons as drawn, before the two offset copies: the edges that diffract are theirs
+    # (compas_acoustics.hybrid.diffraction).
     obstacle_faces: Tuple[Tuple[int, ...], ...] = ()
     obstacle_face_materials: Tuple[str, ...] = ()
 
@@ -330,7 +328,8 @@ class RoomGeometry:
 
     @classmethod
     def from_mesh(cls, vertices, faces, face_materials, materials, obstacles=(), merge_coplanar: bool = False) -> RoomGeometry:
-        """A room from shared vertices and faces; ``materials`` maps names to :class:`SurfaceMaterial`, those in ``obstacles`` are obstacles."""
+        """A room from shared vertices and faces, as :meth:`from_scene`; ``materials`` maps names to
+        :class:`SurfaceMaterial`, and the faces of the names in ``obstacles`` are obstacles."""
         vertices = np.asarray(vertices, dtype=float)
         polygons = [vertices[list(face)] for face in faces]
         groups = [("obstacle" if name in obstacles else "boundary", name, name) for name in face_materials]
@@ -450,7 +449,7 @@ class RoomGeometry:
 
     @property
     def volume(self) -> float:
-        """The air volume: the boundary's, less the volume each closed obstacle encloses. Defined only for a closed room."""
+        """The air volume: the boundary's less the volume each closed obstacle encloses; a closed room only."""
         if not self.is_closed:
             raise ValueError("The room volume is undefined: the boundary surfaces do not close a volume.")
         boundary = [f for f, role in zip(self.faces, self.face_roles) if role == "boundary"]
@@ -465,11 +464,9 @@ class RoomGeometry:
     def _exposed_faces(self) -> List[int]:
         """Indices into ``faces`` of the faces the air touches.
 
-        The boundary faces; of an obstacle that closes a volume (a cabinet) its
-        front copies only, since the back copies face its inside; of any other
-        obstacle (a panel) both copies. An obstacle copy lying on a boundary
-        face (a cabinet's base on the floor) is not exposed, and the boundary
-        under a standing obstacle stays counted.
+        The boundary faces; of an obstacle that closes a volume (a cabinet) its front copies only, since the back
+        copies face its inside; of any other obstacle (a panel) both copies. An obstacle copy lying on a boundary face
+        (a cabinet's base on the floor) is not exposed, and the boundary under a standing obstacle stays counted.
         """
         boundary = [i for i, role in enumerate(self.face_roles) if role == "boundary"]
         count = len(self.obstacle_faces)
@@ -498,12 +495,12 @@ class RoomGeometry:
 
     @property
     def surface_area(self) -> float:
-        """Total area exposed to the air: Sabine's and Eyring's ``S``, and the ``S`` of the mean free path ``4 V / S``."""
+        """Total area exposed to the air: the ``S`` of Sabine, Eyring and the mean free path ``4 V / S``."""
         geometry = self._face_geometry()
         return float(sum(geometry[i][0] for i in self._exposed_faces()))
 
     def area_normals(self) -> np.ndarray:
-        """The unit normal of every exposed face scaled by its area, shape (n_exposed, 3); the boundary faces come first."""
+        """The unit normal of every exposed face times its area, (n_exposed, 3); the boundary faces come first."""
         geometry = self._face_geometry()
         return np.array([geometry[i][0] * geometry[i][1] for i in self._exposed_faces()]).reshape(-1, 3)
 
@@ -512,10 +509,8 @@ class RoomGeometry:
         return [(self.vertices[list(face)], name) for face, name in zip(self.faces, self.face_materials)]
 
     def is_inside(self, point) -> bool:
-        """Whether ``point`` is in the air: inside a closed boundary (anywhere in an open scene), outside every closed obstacle.
-
-        Decided by generalised winding numbers over the drawn faces, so the obstacle copies play no part.
-        """
+        """Whether ``point`` is in the air: inside a closed boundary (anywhere in an open scene) and outside every
+        closed obstacle, by generalised winding numbers over the drawn faces."""
         point = np.asarray(point, dtype=float).reshape(3)
         if self.is_closed and abs(_winding_number(point, self._triangles["boundary"])) < 0.5:
             return False
@@ -530,7 +525,8 @@ class RoomGeometry:
     @cached_property
     def _closed_obstacles(self) -> Dict[str, List[Tuple[int, ...]]]:
         """The drawn faces of each obstacle object whose faces close a volume, by object name."""
-        first = sum(1 for role in self.face_roles if role == "boundary")  # the front copies follow, in obstacle_faces order
+        # the front copies follow the boundary faces, in obstacle_faces order
+        first = sum(1 for role in self.face_roles if role == "boundary")
         by_object: Dict[str, List[Tuple[int, ...]]] = {}
         for k, face in enumerate(self.obstacle_faces):
             by_object.setdefault(self.face_names[first + k], []).append(face)
@@ -555,10 +551,10 @@ class RoomGeometry:
     ) -> pra.Room:
         """The pyroomacoustics room, one wall per face, materials resampled to its octave grid (nine bands at 48 kHz).
 
-        Bands above 8 kHz hold the 8 kHz value, where linear extrapolation could pass 1. A material without
-        scattering scatters ``DEFAULT_SCATTERING``. The room answers ``is_inside`` with :meth:`is_inside`. ``air``
-        (default ``AirConditions()``) sets the speed of sound (Cramer) and, with ``air_absorption``, the ISO 9613-1 absorption, in place of pyroomacoustics'
-        own 343 m/s and absorption table.
+        Bands above 8 kHz hold the 8 kHz value, where linear extrapolation could pass 1. A material without scattering
+        scatters ``DEFAULT_SCATTERING``. The room answers ``is_inside`` with :meth:`is_inside`. ``air`` (default
+        ``AirConditions()``) sets the speed of sound (Cramer 1993) and, with ``air_absorption``, the ISO 9613-1
+        absorption, in place of pyroomacoustics' own 343 m/s and absorption table.
         """
         with pra_octave_grid():
             octave_bands = pra.acoustics.AntoniOctaveFilterBank(
@@ -641,11 +637,11 @@ def _merge_coplanar(
 ) -> tuple[list[list[int]], list[tuple[str, str, str]]]:
     """Join neighbouring coplanar faces of one group, ``(role, object, material)``, into convex polygons.
 
-    Every extra wall multiplies the image source search. Two faces are joined only when they belong to the
-    same group, share exactly one edge no other face uses, lie in one plane within ``_MERGE_TOLERANCE`` and
-    give a convex polygon, a valid wall that cannot close a ring around a hole. Vertices in the middle of a
-    straight side are dropped; the closedness check reads any T-junction that leaves. Obstacle faces may join
-    across opposite windings, being two-sided anyway; boundary faces must already agree.
+    Every extra wall multiplies the image source search. Two faces are joined only when they belong to the same group,
+    share exactly one edge no other face uses, lie in one plane within ``_MERGE_TOLERANCE`` and give a convex polygon,
+    a valid wall that cannot close a ring around a hole. Vertices in the middle of a straight side are dropped; the
+    closedness check reads any T-junction that leaves. Obstacle faces may join across opposite windings, being
+    two-sided anyway; boundary faces must already agree.
     """
     faces = [list(f) for f in faces]
     alive = [True] * len(faces)
@@ -732,8 +728,8 @@ def _merge_coplanar(
 def _lying_on(points: np.ndarray, polygons) -> List[bool]:
     """Whether each point is within ``2 * OBSTACLE_OFFSET`` of a polygon's plane and inside the polygon.
 
-    ``polygons`` are ``(corners (k, 3), unit normal, centroid)``. The test inside is an even-odd
-    crossing count in the polygon's plane.
+    ``polygons`` are ``(corners (k, 3), unit normal, centroid)``. The test inside is an even-odd crossing count in the
+    polygon's plane.
     """
     if not polygons:
         return [False] * len(points)
@@ -767,7 +763,7 @@ def _fan_triangles(vertices: np.ndarray, faces) -> np.ndarray:
 
 
 def _winding_number(point: np.ndarray, triangles: np.ndarray) -> float:
-    """Generalised winding number of a triangle soup around ``point``, from the Van Oosterom and Strackee (1983) solid angles.
+    """Generalised winding number of a triangle soup at ``point``, from Van Oosterom and Strackee (1983) solid angles.
 
     About +-1 inside a closed, consistently wound surface and 0 outside, whichever way it is wound.
     """

@@ -1,4 +1,4 @@
-"""Diffuse-field prediction of a room's reverberation, Sabine and Eyring (Vorlaender 2020, Sec. 4.5.1, Eqs. 4.28 to 4.34).
+"""Diffuse-field prediction of a room's reverberation: Sabine and Eyring (Vorlaender 2020, Sec. 4.5.1, Eqs. 4.28-4.34).
 
 Sizes ray-traced simulations (:func:`compas_acoustics.room.raytracing.default_duration`) and gives the hybrid
 methods a decay target without a reference (``tail="eyring"``, ``"sabine"``).
@@ -23,7 +23,7 @@ class DiffuseFieldWarning(UserWarning):
 
 
 def mean_absorption(geometry) -> np.ndarray:
-    """Mean absorption coefficient per band, shape (8,), each surface weighted by its area, as Sabine and Eyring are derived."""
+    """Mean absorption coefficient per band, shape (8,), weighted by surface area (Vorlaender 2020, Eq. 4.30)."""
     surfaces = geometry.surfaces
     areas = np.array([area for area, _ in surfaces], dtype=float)
     alphas = np.stack([mat.absorption for _, mat in surfaces], axis=0)
@@ -31,7 +31,7 @@ def mean_absorption(geometry) -> np.ndarray:
 
 
 def _absorption_uniformity(geometry) -> np.ndarray:
-    """Area-weighted coefficient of variation of absorption per band, shape (8,); zero for one coefficient everywhere."""
+    """Area-weighted coefficient of variation of absorption per band, shape (8,); zero for one coefficient."""
     surfaces = geometry.surfaces
     areas = np.array([area for area, _ in surfaces], dtype=float)
     alphas = np.stack([mat.absorption for _, mat in surfaces], axis=0)
@@ -78,7 +78,7 @@ def _warn_if_not_diffuse(geometry, model: str) -> None:
 
 
 def air_attenuation(air: Optional[AirConditions] = None) -> np.ndarray:
-    """Energy attenuation coefficient ``m`` per metre on ``SYNTHESIS_BANDS`` (8,), ISO 9613-1; default ``AirConditions()``."""
+    """Energy attenuation ``m`` per metre on ``SYNTHESIS_BANDS`` (8,), ISO 9613-1; default ``AirConditions()``."""
     return air_or_default(air).air_attenuation(np.array(SYNTHESIS_BANDS))
 
 
@@ -109,10 +109,10 @@ def predicted_rt(
 ) -> np.ndarray:
     """Reverberation time per band on ``SYNTHESIS_BANDS`` (8,), Sabine or Eyring on :func:`mean_absorption`.
 
-    With ``air_absorption`` the ``4 m V`` term (Vorlaender 2020,
-    Eqs. 4.32 to 4.34) is added in closed form. Warns with :class:`DiffuseFieldWarning` where the room is not diffuse, unless ``warn`` is False.
-    ``air`` sets the attenuation and, unless ``speed_of_sound`` is given, the speed of sound. The mean absorption
-    is held below 1, so a fully absorbing room gives a finite time rather than a division error.
+    With ``air_absorption`` the ``4 m V`` term (Vorlaender 2020, Eqs. 4.32-4.34) is added. Warns with
+    :class:`DiffuseFieldWarning` where the room is not diffuse, unless ``warn`` is False. ``air`` sets the attenuation
+    and, unless ``speed_of_sound`` is given, the speed of sound. The mean absorption is held below 1, so a fully
+    absorbing room gives a finite time.
     """
     models = {"sabine": _sabine, "eyring": _eyring}
     if model not in models:

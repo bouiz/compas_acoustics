@@ -176,7 +176,7 @@ class AudioPlayer:
             self._start_stream(self._paused_at)
 
     def play(self, sound, sampling_rate=None, normalize=True, gain_db=0.0, start=0.0):
-        """Play a file path or an array; the other arguments are those of :meth:`play_array`, a file plays whole at its level."""
+        """Play a file path, whole at its level, or an array with the arguments of :meth:`play_array`."""
         if isinstance(sound, str):
             self.play_file(sound)
         elif hasattr(sound, "shape") and hasattr(sound, "ndim"):

@@ -17,20 +17,21 @@ _log = logging.getLogger(__name__)
 
 
 class Scene(_PackageDtype, Data):
-    """The acoustic model of a room: its surfaces with materials, sources, receivers, and the impulse responses simulated for them.
+    """A room: its surfaces with their materials, sources, receivers, and the impulse responses simulated for them.
 
     Parameters
     ----------
     name : str
     description : str, optional
     sampling_rate : int, optional
-        The sample rate every simulation method runs at; default 48000.
+        Of every simulation; default 48000.
 
     Examples
     --------
     >>> import compas_acoustics as ca
     >>> scene = ca.Scene("office")
-    >>> scene.add_acoustic_objects(ca.AcousticObjectsLibrary.shoebox_room(6, 5, 3, materials=ca.AcousticMaterial("wall", 0.2, 0.1)))
+    >>> room = ca.AcousticObjectsLibrary.shoebox_room(6, 5, 3, materials=ca.AcousticMaterial("wall", 0.2, 0.1))
+    >>> scene.add_acoustic_objects(room)
     >>> scene.add_source(ca.Source("talker", 1.5, 1.5, 1.6))
     >>> scene.add_receiver(ca.Receiver("listener", 4.0, 3.0, 1.2))
     >>> len(scene.acoustic_objects), len(scene.sources), len(scene.receivers)
@@ -143,11 +144,8 @@ class Scene(_PackageDtype, Data):
             self.ir_graph.add_node(node_key, attr_dict={"type": node_type, "data": node_data})
 
     def add_impulse_response(self, source: Source, receiver: Receiver, ir: ImpulseResponse, attribute: str = "data") -> None:
-        """Store ``ir`` on the source-receiver edge under ``attribute``.
-
-        Each method stores its responses under its name (``'mono'``, ``'binaural'``, ``'ambisonics'``);
-        ``'data'`` holds the latest mono response.
-        """
+        """Store ``ir`` on the source-receiver edge under ``attribute``: a method's name, or ``'data'``, the latest mono
+        response."""
         source_key = str(source.guid)
         receiver_key = str(receiver.guid)
 
@@ -204,9 +202,9 @@ class Scene(_PackageDtype, Data):
         return out
 
     def simulate(self, method) -> dict:
-        """Run a simulation method at :attr:`sampling_rate` and store its responses on the IR graph under ``method.name``.
+        """Run a simulation method at :attr:`sampling_rate` and store its responses on the IR graph under its name.
 
-        A mono method's responses also go under ``'data'``, which analysis and auralisation read by default.
+        A mono method's responses also go under ``'data'``, the default of :meth:`impulse_responses`.
 
         Parameters
         ----------

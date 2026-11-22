@@ -79,8 +79,8 @@ class RoomTarget:
         amplitude = np.asarray(fit.a, dtype=float) * np.asarray(fit.norm_vals, dtype=float)[0][:, np.newaxis]
         level = pyFDN.slope_amplitude_to_level(amplitude, decay_time, fs)
 
-        # three columns for 0, else the forced count; a zero decay time marks a slope inactive, kept only if active in
-        # every band. multislope sorts each band's slopes by decay time, so the kept columns are fastest first.
+        # three columns for 0, else the forced count; a zero decay time marks a slope inactive, kept only if active
+        # in every band. multislope sorts each band's slopes by decay time, so the kept columns are fastest first.
         active = np.all(decay_time > 0.0, axis=0)
         return cls(
             rt=decay_time[:, active],
@@ -96,7 +96,7 @@ class RoomTarget:
         *,
         model: str = "eyring",
     ) -> RoomTarget:
-        """Predict a single-slope target from geometry and materials (:func:`~compas_acoustics.room.diffuse.predicted_rt`).
+        """A single-slope target predicted from geometry and materials.
 
         ``model`` is that of :func:`~compas_acoustics.room.diffuse.predicted_rt`. Air absorption follows
         ``spec.air_absorption``, which keeps the decay and the image source gains consistent.

@@ -100,39 +100,36 @@ def prepare(
 
     After Wendt et al. (2014) and Kirsch et al. (2021, 2023):
 
-    1. Images up to ``max_order`` (with ``diffraction``, diffracted paths too) are the early field, kept path by
-       path; higher orders in ``iss`` are ignored.
-    2. An FDN with one delay line per direction of an equal-area grid of ``num_delays`` points (:func:`fdn_directions`), attenuation
-       following ``target.rt``, each line the room's free path along its direction (:func:`directional_delays`).
-    3. The images of order ``max_order`` also enter the network, each spread over the lines of the hemisphere
-       opposite its arrival by the cosine to each line (:func:`~compas_acoustics.hybrid.scattering.scattering_weights`
-       with ``opposite``; Ewert et al. 2025, Sec. 3.1.2), so the first output is the next order, one free path
-       later, off the far side: the input "must equal the total energy of the Nth-order reflections" (Wendt et
-       al. 2014, Sec. 1.3).
-    4. Each line is weighted with the reflection of the boundary in its direction (``directional_absorption``).
-       The lines are kept with ``line_directions`` for the renderer.
+    1. Early field: the images of ``iss`` up to ``max_order`` and, with ``diffraction``, the diffracted paths, kept
+       path by path.
+    2. Network: one delay line per direction of :func:`fdn_directions`, as long as the room's free path along it
+       (:func:`directional_delays`), decaying at ``target.rt``.
+    3. Drive: the images of order ``max_order``, each spread over the lines of the hemisphere opposite its arrival
+       (:func:`~compas_acoustics.hybrid.scattering.scattering_weights` with ``opposite``; Ewert et al. 2025,
+       Sec. 3.1.2) and scaled by ``sqrt(num_delays)``: the input "must equal the total energy of the Nth-order
+       reflections" (Wendt et al. 2014, Sec. 1.3).
+    4. With ``directional_absorption``, each line is weighted with the reflection of the boundary in its direction
+       (:mod:`~compas_acoustics.hybrid.directional`).
 
-    ``duration_s`` is the response length in seconds. ``rng`` seeds the delay jitter
-    and the feedback matrices, ``rng + slope`` for each slope. The drive gain is ``sqrt(num_delays)``.
+    ``duration_s`` is the response length in seconds. ``rng`` seeds the delay jitter and the feedback matrices,
+    ``rng + slope`` for each slope.
+
     ``late_envelope``, a package-scale omnidirectional reference, attenuates the lines per band to its late energy:
-    the envelope of Vorlaender (2020, Sec. 11.9) imposed on the network's lines, the package's choice
-    (:mod:`~compas_acoustics.hybrid.envelope`); ``directional_envelope``, a
-    :class:`~compas_acoustics.room.raytracing.DirectionalHistogram` on the lines' directions in room coordinates,
-    then gives every band of them the rays' distribution in that band (:func:`~compas_acoustics.hybrid.envelope.shape_late`);
-    the renderer applies both (:meth:`HybridCore.shaped_lines`).
+    the envelope of Vorlaender (2020, Sec. 11.9) imposed on the network's lines, the package's choice.
+    ``directional_envelope``, a :class:`~compas_acoustics.room.raytracing.DirectionalHistogram` on the lines'
+    directions in room coordinates, gives each band of them the rays' distribution
+    (:mod:`~compas_acoustics.hybrid.envelope`). The renderer applies both (:meth:`HybridCore.shaped_lines`).
 
-    ``diffraction="udfa"`` adds edge diffraction (Kirsch and Ewert 2023) around obstacles and at room
-    edges wider than pi (:func:`~compas_acoustics.hybrid.diffraction.diffraction_edges`), for the direct sound and,
-    when ``max_order >= 1``, one enclosure reflection before or after the edge. ``"btms"`` renders first- and
-    second-order diffraction with the BTMS model (Svensson et al. 1999), first order with at most one wall
-    reflection, second order between visible edges, direct paths only; it is far slower than ``"udfa"``. The
-    late field is not affected.
+    ``diffraction="udfa"`` (Kirsch and Ewert 2023) covers obstacles and room edges wider than pi
+    (:func:`~compas_acoustics.hybrid.diffraction.diffraction_edges`), for the direct sound and, when
+    ``max_order >= 1``, one enclosure reflection before or after the edge. ``"btms"`` (Svensson et al. 1999) is
+    first order with at most one wall reflection and second order between visible edges, direct paths only, and
+    far slower. The late field is not affected.
 
-    ``scattering`` (Ewert et al. 2025, Sec. 3.1.2) needs ``iss.scattered``; the gains are then the specular parts.
-    The scattered part of every image of orders 1 to ``max_order`` enters the lines of its own hemisphere without
-    their delays, as :func:`render`'s ``tap``, smeared by the allpass cascade of Eqs. 12-13 with ``R`` the mean
-    free path and weighted by :func:`~compas_acoustics.hybrid.scattering.scattering_weights` (unit l2 norm, as one
-    driving image) times the drive gain.
+    ``scattering`` (Ewert et al. 2025, Sec. 3.1.2) needs ``iss.scattered``; ``iss.gain`` is then the specular part.
+    The scattered part of every image of orders 1 to ``max_order`` enters the lines of its own hemisphere skipping
+    their delays (:func:`render`'s ``tap``), through the allpass cascade of Eqs. 12-13 with ``R`` the mean free
+    path, weighted as a driving image.
     """
     n_samples = int(np.ceil(duration_s * spec.fs))
 

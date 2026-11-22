@@ -73,7 +73,7 @@ def progress(stage, done=None, of=None):
 
 
 def status(call_id):
-    """The last report of the job ``call_id``, ``{"stage", "done", "of", "cancelled"}``; None if there is no such job."""
+    """The job's last report, ``{"stage", "done", "of", "cancelled"}``; None if there is no such job."""
     with _LOCK:
         job = _JOBS.get(call_id)
         if job is None:

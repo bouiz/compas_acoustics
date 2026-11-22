@@ -14,12 +14,12 @@ class Source(_PackageDtype, Point):
 
     ``directivity`` is a first-order pattern ``p + (1 - p) cos(theta)`` about ``direction``, one of
     ``'omnidirectional'`` (the default), ``'cardioid'``, ``'supercardioid'``, ``'hypercardioid'`` and
-    ``'bidirectional'`` (:data:`compas_acoustics.room.pra.CARDIOID_P`); the name is checked when a
-    method simulates the source.
+    ``'bidirectional'`` (:data:`compas_acoustics.room.pra.CARDIOID_P`); the name is checked when a method simulates
+    the source.
 
-    ``spl`` is the free-field level on its axis at 1 m per octave band, 125 Hz to 8 kHz, in dB re 20 uPa,
-    120 dB in every band unless set (the package's choice). On the package scale the direct sound is
-    ``1 / (4 pi r)`` with gain 1 on axis, so ``Lp = spl + G - 20 dB`` (:meth:`Analyser.sound_pressure_level`).
+    ``spl`` is the free-field level on its axis at 1 m per octave band, 125 Hz to 8 kHz, in dB re 20 uPa, 120 dB in
+    every band unless set (the package's choice). On the package scale the direct sound is ``1 / (4 pi r)`` with gain 1
+    on axis, so ``Lp = spl + G - 20 dB`` (:meth:`Analyser.sound_pressure_level`).
     """
 
     def __init__(self, name: str, x: float, y: float, z: float, directivity: str = None, direction: Vector = None, sound_file: str = None):

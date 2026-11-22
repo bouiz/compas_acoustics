@@ -287,7 +287,7 @@ def test_visible_pairs_match_the_rooms_own_responses(render, order):
 @pytest.mark.parametrize("order", [1, 3])
 @pytest.mark.parametrize("render", ["images", "rays"])
 def test_a_blocked_direct_sound_keeps_the_visible_reflections(render, order):
-    """Behind the panel the direct sound is blocked and reflections arrive: those are rendered as the room renders them."""
+    """Behind the panel the direct sound is blocked and reflections arrive, rendered as the room renders them."""
     g = geometry(extra=(panel(),))
     sources = [pra.SoundSource(SOURCE)]
     mics = np.array([BEHIND_PANEL, IN_VIEW], dtype=float).T
@@ -306,7 +306,7 @@ def responses_of(g, render, sources, mics, order):
 
 @pytest.mark.parametrize("copies", [False, True])
 def test_a_directional_source_is_traced_as_the_room_traces_it(copies):
-    """Its rays are drawn as the room draws them, with or without the copies of the receivers that sort them by direction."""
+    """Its rays are drawn as the room draws them, with or without the receiver copies that sort them by direction."""
     from compas_acoustics.room.pra import CARDIOID_P
 
     def sources():

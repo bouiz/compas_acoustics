@@ -48,7 +48,7 @@ def _method_class(name):
 
 @contextmanager
 def _user_warnings():
-    """Record the warnings raised in the block; the list it yields holds the distinct UserWarning messages once the block ends."""
+    """Record the block's warnings; the list it yields holds the distinct UserWarning messages once the block ends."""
     messages = []
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
@@ -72,23 +72,10 @@ def info():
 
 
 def simulate(scene, method, settings, references=None):
-    """Simulate ``scene`` with ``method`` and ``settings``.
+    """``{"responses": {method name: {key: ImpulseResponse}}, "warnings": [str]}`` of ``scene`` simulated.
 
-    Parameters
-    ----------
-    scene : :class:`compas_acoustics.Scene`
-    method : str
-        ``'binaural'``, ``'ambisonics'`` or ``'mono'``.
-    settings : dict
-        The method's keyword arguments.
-    references : dict, optional
-        ``{key: ImpulseResponse}``, the method's ``reference``, keyed as :meth:`SimulationContext.key` keys a pair.
-
-    Returns
-    -------
-    dict
-        ``{"responses": {name: {key: ImpulseResponse}}, "warnings": [str]}``: the responses under the method's name, the
-        graph attribute they are stored under.
+    ``method`` is ``'binaural'``, ``'ambisonics'`` or ``'mono'``, ``settings`` its keyword arguments and ``references``
+    its ``reference``, keyed as :meth:`SimulationContext.key` keys a pair.
     """
     method_class = _method_class(method)
     settings = dict(settings or {})
@@ -101,7 +88,7 @@ def simulate(scene, method, settings, references=None):
 
 
 def analyse(ir):
-    """STI and G of ``ir``, for a client whose pyrato cannot compute them: ``{"analysis": {...}, "warnings": [str]}``."""
+    """STI and G of ``ir`` for a client whose pyrato cannot compute them: ``{"analysis": {...}, "warnings": [str]}``."""
     from compas_acoustics import Analyser
 
     with _user_warnings() as messages:
@@ -123,7 +110,7 @@ def _library():
 
 
 def materials_library():
-    """The materials library's names by category: ``[[category, [name, ...]], ...]``, in the library's category order."""
+    """The library's names by category, in its category order: ``[[category, [name, ...]], ...]``."""
     return [[category.value, list(names)] for category, names in _library().materials_by_category.items()]
 
 
@@ -144,7 +131,7 @@ def make_material(name, absorption, scattering=None, category=None):
 def make_source(name, position, direction=None, directivity=None, sound_file=None, spl=None):
     """A :class:`Source` with the defaults of the Source component: ``my_source``, facing +x, omnidirectional.
 
-    ``spl``, the source's level on its axis at 1 m per band (one value for every band), keeps the default when None.
+    ``spl``: one value for all bands or one per band; None or empty keeps the default.
     """
     from compas_acoustics import Source
     from compas_acoustics.room.pra import CARDIOID_P
@@ -165,13 +152,7 @@ def make_source(name, position, direction=None, directivity=None, sound_file=Non
 
 
 def make_receiver(name, position=None, direction=None):
-    """An upright :class:`Receiver` (+z up), as the Receiver component makes it.
-
-    Returns
-    -------
-    dict
-        ``{"receiver": Receiver}``
-    """
+    """``{"receiver": Receiver}``, upright (+z up), as the Receiver component makes it."""
     from compas.geometry import Vector
 
     from compas_acoustics import Receiver
@@ -197,7 +178,7 @@ def make_acoustic_object(geometry, material, name=None, role="boundary"):
 
 
 def make_scene(objects, sources, receivers, name=None, sampling_rate=None):
-    """A :class:`Scene` of the objects, sources and receivers; an item of the wrong type is a TypeError that names it."""
+    """A :class:`Scene` of the objects, sources and receivers; an item of the wrong type is a TypeError naming it."""
     from compas_acoustics import AcousticObject
     from compas_acoustics import Receiver
     from compas_acoustics import Scene
@@ -238,7 +219,8 @@ def _parameter(name, title, x_unit, y_unit, x_scale, x, values, overall=None, ch
 
 
 def _plotted_channels(ir):
-    """The raw channels a curve shows, (samples, channels), and their names: W of an ambisonic response, both ears of a binaural one."""
+    """The raw channels a curve shows, (samples, channels), and their names: W of an ambisonic response, both ears of
+    a binaural one."""
     import numpy as np
 
     data = ir.denormalized()
@@ -255,20 +237,13 @@ def _curve_title(title, channels):
 
 
 def analysis(ir, time_scale="db"):
-    """The room acoustic parameters of ``ir`` per band, its time response and its frequency response, as Analyse IR shows them.
+    """``{"parameters": [parameter], "time": parameter, "frequency": parameter, "warnings": [str]}`` of ``ir``, as
+    Analyse IR shows them.
 
-    Parameters
-    ----------
-    ir : :class:`compas_acoustics.ImpulseResponse`
-    time_scale : str, optional
-        ``'db'`` (default): the time response as its level in dB re the peak; ``'linear'``: its amplitude, ending 60 dB down its decay.
-
-    Returns
-    -------
-    dict
-        ``{"parameters": [parameter], "time": parameter, "frequency": parameter, "warnings": [str]}``. A parameter is
-        ``{"name", "title", "x_unit", "y_unit", "x_scale" ('bands', 'linear' or 'log'), "frequencies", "values" (one list
-        per channel), "overall", "channels"}``. STI, G, SPL, LF and LFC are left out where all their values are NaN.
+    A parameter is ``{"name", "title", "x_unit", "y_unit", "x_scale" ('bands', 'linear' or 'log'), "frequencies",
+    "values" (one list per channel), "overall", "channels"}``; STI, G, SPL, LF and LFC are left out where all their
+    values are NaN. ``time_scale`` ``'db'`` gives the time response in dB re its peak, ``'linear'`` its amplitude to
+    60 dB down its decay.
     """
     import math
 
@@ -307,24 +282,13 @@ LEVELS = ["relative", "individual", "none"]
 
 
 def auralise(groups, level="relative", mix_sources=False, save_folder=None, save_name=None):
-    """Convolve impulse responses with anechoic sounds, per receiver, as Auralise does.
+    """``{"signals": [{"branch", "audio": Audio}], "peak_dbfs": float, "warnings": [str]}``: the impulse responses
+    convolved with anechoic sounds per receiver, as Auralise does.
 
-    Parameters
-    ----------
-    groups : list of dict
-        One per Grasshopper branch: ``{"branch": str, "irs": [ImpulseResponse], "sounds": [path or None]}``; a None
-        sound is the sound file of the response's source.
-    level : str, optional
-        ``'relative'`` (default; one gain for every signal of the call, the loudest at -1 dBFS), ``'individual'`` or ``'none'``.
-    mix_sources : bool, optional
-        One signal per receiver, its sources summed; else one per source and receiver.
-    save_folder, save_name : str, optional
-        With a folder, each signal is also written there as ``<save_name or 'convolved_sound'>_mic_<suffix>.wav``.
-
-    Returns
-    -------
-    dict
-        ``{"signals": [{"branch", "audio": Audio}], "peak_dbfs": float, "warnings": [str]}``.
+    ``groups`` holds one ``{"branch", "irs", "sounds"}`` per Grasshopper branch; a None sound is the sound file of the
+    response's source. One signal per source and receiver, or per receiver with ``mix_sources``. ``level``:
+    ``'relative'`` (one gain for the call, the loudest at -1 dBFS), ``'individual'`` or ``'none'``. With a
+    ``save_folder`` each signal is also written there as ``<save_name or 'convolved_sound'>_mic_<suffix>.wav``.
     """
     import os
 
@@ -428,7 +392,7 @@ def playback_status():
 
 
 def sound_samples(path):
-    """The samples of an audio file as :class:`Audio`, so that a file shows as a signal does: mono, binaural (2 channels) or ambisonic."""
+    """An audio file as :class:`Audio`, mono, binaural (2 channels) or ambisonic, so that it shows as a signal does."""
     import os
 
     import soundfile as sf
@@ -455,13 +419,10 @@ def _index_message(kind, index, count):
 
 
 def ray_field(scene, source_index=None, n_rays=500, max_order=10, direction=None, angle=None, scattering=False, seed=None, order=None):
-    """Trace a ray field from the scene's sources, as Visualise Rays does.
+    """``{"field": RayField, "shown": RayField, "seed": int, "warnings": [str]}``, as Visualise Rays traces them.
 
-    Returns
-    -------
-    dict
-        ``{"field": RayField, "shown": RayField, "seed": int, "warnings": [str]}``: ``shown`` is the field cut after
-        ``order`` reflections, or the whole field. Only scattered rays are random; no ``seed`` draws one.
+    ``shown`` is the field cut after ``order`` reflections, or the whole field. Only scattered rays are random; no
+    ``seed`` draws one.
     """
     import random
 
@@ -491,16 +452,11 @@ def ray_field(scene, source_index=None, n_rays=500, max_order=10, direction=None
 
 
 def energy_map(scene, points, source_index=None):
-    """The sound pressure level of the scene's sources over ``points``, as Visualise Energy Map colours it.
+    """``{"spl": [[dB per band] per point], "spl_a": [dB(A) per point], "n_rays": int, "warnings": [str]}`` over
+    ``points``, as Visualise Energy Map colours it; NaN outside the room.
 
-    The settings are fixed: image sources up to order 1, the rays of :func:`compas_acoustics.energy_map.map_rays`,
-    seeded with 42, so that the same scene gives the same map.
-
-    Returns
-    -------
-    dict
-        ``{"spl": [[dB per band] per point], "spl_a": [dB(A) per point], "n_rays": int, "warnings": [str]}``: NaN for a
-        point outside the room (:class:`compas_acoustics.EnergyMap`).
+    The settings are fixed so that the same scene gives the same map: image sources up to order 1, the rays of
+    :func:`compas_acoustics.energy_map.map_rays`, seeded with 42.
     """
     from compas_acoustics import EnergyMap
 
@@ -515,14 +471,8 @@ def energy_map(scene, points, source_index=None):
 
 
 def specular_reflections(scene, orders=None, source_index=None, receiver_index=None):
-    """The specular reflection paths of the given orders, as Visualise Reflections finds them.
-
-    Returns
-    -------
-    dict
-        ``{"reflections": SpecularReflections, "counts": [[order, n]], "warnings": [str]}``.
-        Negative orders are left out with a warning; no order is order 1.
-    """
+    """``{"reflections": SpecularReflections, "counts": [[order, n]], "warnings": [str]}`` of the given orders, as
+    Visualise Reflections finds them; negative orders are left out with a warning, no order is order 1."""
     from compas_acoustics import SpecularReflections
 
     notes = []

@@ -58,7 +58,8 @@ __all__ = [
 
 
 def __getattr__(name):
-    # The binaural and ambisonics methods need pyFDN, which compas_acoustics requires on Python >= 3.11 only, so they are imported on first use
+    # The binaural and ambisonics methods need pyFDN, which compas_acoustics requires on Python >= 3.11 only, so they
+    # are imported on first use
     if name in ("Binaural", "Ambisonics"):
         from . import simulation_methods
 

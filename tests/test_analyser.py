@@ -686,7 +686,7 @@ def test_analyse_of_a_mono_response_has_nan_lf():
     assert _PARAM_NAMES[-2:] == ["LF", "LFC"]
 
 
-# ---------------------------------------------------------------- sound pressure level from the source's level at 1 m --
+# ------------------------------------------------------------ sound pressure level from the source's level at 1 m --
 
 A_WEIGHTS = [-16.1, -8.6, -3.2, 0.0, 1.2, 1.0, -1.1]
 

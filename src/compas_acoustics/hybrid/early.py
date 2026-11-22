@@ -56,24 +56,19 @@ def _band_damping(source, damping) -> np.ndarray:
 
 
 def image_sources(room, source_index: int, mic_index: int, spec: Pair, directivity=None, damping=None, scattered=None) -> ImageSourceSet:
-    """The image sources of one source at one microphone of a computed room.
+    """The image sources of one source at one microphone of a searched room.
 
-    ``room`` has been searched with every source and microphone of the scene; an image is kept when any
-    microphone sees it, so this pair's are those visible at ``mic_index``. Delays, per-band gains and
-    receiver-relative directions of arrival; the direct sound is order zero; ``wall`` is each image's
-    generating face. Air absorption is applied here from the path length, whatever the room's own setting.
-    ``directivity`` is evaluated along each image's emission direction from the real source. ``damping``, the
-    source's reflection products ``(n_bands, n_images)`` in another build of the room
-    (:func:`~compas_acoustics.room.reflections.damping_as_searched`), replaces the room's own.
+    ``room`` holds every source and microphone of the scene; this pair's images are those visible at
+    ``mic_index``, the direct sound being order zero. An image found twice (a path through an edge is accepted from
+    both wall orderings) is kept once. The gains are the reflection products times ``1 / (4 pi d)``, the air
+    absorption over the path ``d`` (whatever the room's own setting) and ``directivity`` along the image's emission
+    direction from the real source; ``wall`` is each image's generating face.
 
-    An image found more than once is kept once: a path passing exactly through an edge is accepted from both
-    wall orderings, which grid layouts (source and receiver at one height) hit routinely.
-
-    Surface scattering (Ewert et al. 2025, Sec. 2.1.3) splits each image per band into a specular part,
-    ``prod sqrt(1 - s_i)``, and a scattered part, ``prod sqrt(s_i)``, over its reflections. ``damping`` is then
-    that of the room built with ``ray_tracing=True``, which holds the specular product, and ``scattered`` that of
-    the same build from :func:`~compas_acoustics.hybrid.scattering.complementary_scattering`; the scattered gain is
-    zero for the direct sound.
+    ``damping``, the source's reflection products ``(n_bands, n_images)`` in another build of the room
+    (:func:`~compas_acoustics.room.reflections.damping_as_searched`), replaces the room's own. With surface
+    scattering (Ewert et al. 2025, Sec. 2.1.3) it is the specular product ``prod sqrt(1 - s_i)`` of the room built
+    with ``ray_tracing=True``, and ``scattered`` the product ``prod sqrt(s_i)`` of the same build of
+    :func:`~compas_acoustics.hybrid.scattering.complementary_scattering`; the direct sound has no scattered part.
     """
     source = room.sources[source_index]
     visible = np.array(room.visibility[source_index][mic_index], dtype=bool)
@@ -95,8 +90,7 @@ def image_sources(room, source_index: int, mic_index: int, spec: Pair, directivi
         response = directivity.get_response(azimuth=azimuth, colatitude=colatitude, degrees=False)
 
     def gain_of(products):
-        # m is an energy attenuation coefficient, so pressure loses exp(-m d/2)
-        # over the image's own path length; zero without air absorption.
+        # m is an energy attenuation coefficient, so pressure loses exp(-m d / 2) over the image's own path
         wall_gain = _band_damping(source, products)[visible] * np.exp(-np.outer(distance, spec.air_attenuation()) / 2.0)
         gain = wall_gain * spreading[:, np.newaxis]
         if response is not None:
@@ -126,13 +120,10 @@ def image_sources(room, source_index: int, mic_index: int, spec: Pair, directivi
 def _radiation_taper(freq: np.ndarray) -> np.ndarray:
     """Causal fourth-order Butterworth high-pass at 35 Hz, exactly zero at DC.
 
-    Band gains start at 62.5 Hz and are held flat to f = 0, where every image's phase ramp is 1, so the image
-    set sums coherently there; that DC and infrasonic energy would bias the FDN drive and every convolution.
-    The taper costs 0.04 dB at 62.5 Hz and 0.6 dB at the band's 44 Hz lower edge; 35 Hz and the fourth order are
-    the package's choice.
-
-    It is the analog filter's complex response, minimum phase, so it rings only after each arrival and no
-    energy precedes the direct sound.
+    The band gains are held flat from 62.5 Hz down to f = 0, where every image's phase ramp is 1 and the images sum
+    coherently; that DC and infrasonic energy would bias the FDN drive and every convolution. The taper costs
+    0.04 dB at 62.5 Hz and 0.6 dB at the band's 44 Hz lower edge; 35 Hz and the fourth order are the package's
+    choice. As the analog filter's minimum-phase response it rings only after each arrival.
     """
     zeros, poles, gain = butter(4, 2.0 * np.pi * 35.0, "high", analog=True, output="zpk")
     return freqs_zpk(zeros, poles, gain, worN=2.0 * np.pi * np.asarray(freq, dtype=float))[1]
@@ -150,11 +141,12 @@ def _extrapolated_top_db(gain_db: np.ndarray, octaves: float) -> float:
 
 
 def encode(iss: ImageSourceSet, sh_order: int, n_samples: int) -> np.ndarray:
-    """An image source set as an ambisonic impulse response, ACN, N3D (spharpy's ``"NM"``: W = 1 for a unit plane wave).
+    """An image source set as an ambisonic impulse response, ACN, N3D (spharpy's ``"NM"``: W = 1 for a plane wave).
 
-    The band gains are interpolated onto the FFT grid in log-frequency and dB, the delay applied as a phase ramp
-    (a band-limited fractional delay), and the images accumulated in the frequency domain. Above the top band the magnitude continues
-    its slope (:func:`_extrapolated_top_db`), below the lowest it is tapered to zero at DC (:func:`_radiation_taper`).
+    The band gains are interpolated onto the FFT grid in log frequency and dB, the delay applied as a phase ramp (a
+    band-limited fractional delay), and the images summed in the frequency domain. Above the top band the magnitude
+    continues its slope (:func:`_extrapolated_top_db`); below the lowest it is tapered to zero at DC
+    (:func:`_radiation_taper`).
     """
     if sh_order < 0:
         raise ValueError("sh_order must be non-negative")
@@ -215,8 +207,8 @@ def _accumulate(spectrum_of, paths: np.ndarray, weights: np.ndarray, n_freq: int
 
 
 def _fft_grid(n_samples: int, fs: float) -> tuple[int, np.ndarray]:
-    # headroom: ringing past the buffer's end and the pre-ringing of a kernel near t = 0 fall into the
-    # discarded tail and do not alias into the response
+    # headroom: ringing past the buffer's end and the pre-ringing of a kernel near t = 0 fall into the discarded tail
+    # and do not alias into the response
     nfft = 1 << (int(np.ceil(np.log2(max(n_samples, 2)))) + 1)
     return nfft, np.fft.rfftfreq(nfft, 1.0 / fs)
 
