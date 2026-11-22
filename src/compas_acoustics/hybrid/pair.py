@@ -1,4 +1,4 @@
-"""One source-receiver pair of a scene, the ``spec`` the hybrid modules take."""
+"""One source-receiver pair of a scene, as the hybrid modules take it."""
 
 from __future__ import annotations
 

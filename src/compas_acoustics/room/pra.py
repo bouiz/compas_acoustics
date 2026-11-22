@@ -32,11 +32,11 @@ CARDIOID_P = {
 }
 
 
-def directivity_to_pra(dirt: str, vec: Vector) -> pra.CardioidFamily:
+def directivity_to_pra(directivity: str, vec: Vector) -> pra.CardioidFamily:
     """A first-order pattern of :data:`CARDIOID_P` facing ``vec``, gain 1 on axis."""
-    if dirt not in CARDIOID_P:
-        raise ValueError(f"Directivity '{dirt}' is not supported.")
-    return pra.CardioidFamily(orientation=vector_to_pra(vec), p=CARDIOID_P[dirt], gain=1.0)
+    if directivity not in CARDIOID_P:
+        raise ValueError(f"Directivity '{directivity}' is not supported.")
+    return pra.CardioidFamily(orientation=vector_to_pra(vec), p=CARDIOID_P[directivity], gain=1.0)
 
 
 def points_to_array(

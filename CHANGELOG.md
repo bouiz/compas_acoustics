@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Changed the allpass cascade of the hybrid's surface scattering (`scattering=True`) to run block by block, about 28 times faster; the responses agree with the former filter to about 1e-14 of their peak.
 * Changed BTMS diffraction to compute the edge coordinates of the second order once per segment, not once per segment pair, and the diffracting edges once per room geometry: about 1.4 times faster, the responses bit-identical. The edge warnings come once per simulation, not once per source-receiver pair.
 * Changed `RoomGeometry` to compute its face areas, normals, exposed faces and volume once; the responses are bit-identical.
+* Changed names in the hybrid engine: `hybrid.late.render` is `hybrid.late.run_network`; `hybrid.diffraction.toolbox_frame` and `toolbox_cyl` are `edge_frame` and `edge_cyl`; the `Pair` argument of the engine's functions and `HybridCore.spec` are `pair`; `hybrid.diffraction.pair_valid` takes the two angles; the first argument of `room.pra.directivity_to_pra` is `directivity`.
+* Changed the worker's error for an unknown `time_scale` to name its options once.
 
 ### Removed
 

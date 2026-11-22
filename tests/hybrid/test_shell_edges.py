@@ -6,7 +6,8 @@ from itertools import pairwise
 import numpy as np
 import pytest
 
-from _rooms import images, pair
+from _rooms import images
+from _rooms import pair as make_pair
 from compas_acoustics.hybrid.synthesis import prepare
 from compas_acoustics.hybrid.ambisonics import render_ambisonics
 from compas_acoustics.hybrid.target import RoomTarget
@@ -209,7 +210,7 @@ def test_a_panel_drawn_into_the_enclosure_gives_knife_edges():
         assert e.theta_w == TWO_PI
         np.testing.assert_allclose(e.face_a, e.face_b)
         assert abs(e.face_a[1]) < 1e-12
-    paths = diffraction_paths(spec_of(geometry, [4.0, 1.0, 1.5], [4.0, 3.0, 1.5]), max_order=1)
+    paths = diffraction_paths(pair_of(geometry, [4.0, 1.0, 1.5], [4.0, 3.0, 1.5]), max_order=1)
     assert any(p.order == 0 and p.zone == "shadow" for p in paths)
 
 
@@ -315,21 +316,21 @@ def box_obstacle_room(rotation=None):
     return RoomGeometry.from_mesh(v, tuple(faces), tuple(names), materials("wall", "floor", "ceiling", "box"), obstacles=("box",))
 
 
-def spec_of(geometry, source, receiver):
-    return pair(geometry=geometry, source=np.asarray(source, float), receiver=np.asarray(receiver, float), air_absorption=False, speed_of_sound=C)
+def pair_of(geometry, source, receiver):
+    return make_pair(geometry=geometry, source=np.asarray(source, float), receiver=np.asarray(receiver, float), air_absorption=False, speed_of_sound=C)
 
 
 def test_paths_index_diffraction_edges():
     g = prism_room(L_OUTLINE)
     edges = diffraction_edges(g)
     assert len(edges) == 1
-    assert [p.edge for p in diffraction_paths(spec_of(g, S_L, [4.0, 4.5, 1.5]), max_order=0)] == [0]
+    assert [p.edge for p in diffraction_paths(pair_of(g, S_L, [4.0, 4.5, 1.5]), max_order=0)] == [0]
 
 
 @pytest.mark.parametrize("receiver", [[4.0, 4.5, 1.5], [2.0, 4.5, 1.5], [4.0, 2.0, 2.5]], ids=["shadow", "view, upper leg", "view, lower leg"])
 def test_a_room_corner_diffracts_as_the_same_corner_built_from_panels(receiver):
-    shell = diffraction_paths(spec_of(prism_room(L_OUTLINE), S_L, receiver), max_order=0)
-    panels = diffraction_paths(spec_of(panel_l_room(), S_L, receiver), max_order=0)
+    shell = diffraction_paths(pair_of(prism_room(L_OUTLINE), S_L, receiver), max_order=0)
+    panels = diffraction_paths(pair_of(panel_l_room(), S_L, receiver), max_order=0)
     assert len(shell) == len(panels) == 1
     a, b = shell[0], panels[0]
     assert a.zone == b.zone
@@ -340,7 +341,7 @@ def test_a_room_corner_diffracts_as_the_same_corner_built_from_panels(receiver):
 
 def test_btms_at_a_room_corner_equals_the_corner_built_from_panels():
     out = {
-        name: encode_btms(btms_paths(spec_of(g, S_L, [4.0, 4.5, 1.5]), max_order=0), 0, 4800, 48000.0)
+        name: encode_btms(btms_paths(pair_of(g, S_L, [4.0, 4.5, 1.5]), max_order=0), 0, 4800, 48000.0)
         for name, g in (("shell", prism_room(L_OUTLINE)), ("panels", panel_l_room()))
     }
     assert np.max(np.abs(out["panels"])) > 0.0
@@ -353,7 +354,7 @@ def test_second_order_around_a_room_box_equals_the_box_built_from_panels():
     s, r = [2.0, 4.0, 1.5], [8.0, 4.0, 1.5]
     out, second = {}, {}
     for name, g in (("shell", grid_room([0, 4, 6, 10], [0, 3, 5, 8], {(1, 1)})), ("panels", box_obstacle_room())):
-        paths = btms_paths(spec_of(g, s, r), max_order=0)
+        paths = btms_paths(pair_of(g, s, r), max_order=0)
         second[name] = sum(p.order == 2 for p in paths)
         out[name] = encode_btms(paths, 0, 4800, 48000.0)
     assert second["shell"] == second["panels"] > 0
@@ -375,22 +376,22 @@ def test_a_rotated_room_diffracts_as_the_axis_aligned_room(source, receiver):
     rot = rotation_z(30.0)
     base = prism_room(L_OUTLINE)
     turned = RoomGeometry.from_mesh(base.vertices @ rot.T, base.faces, base.face_materials, base.materials)
-    specs = (spec_of(base, source, receiver), spec_of(turned, rot @ np.asarray(source), rot @ np.asarray(receiver)))
-    a, b = (sorted(diffraction_paths(s, max_order=1), key=lambda p: (round(p.distance, 9), p.order, p.zone)) for s in specs)
+    pairs = (pair_of(base, source, receiver), pair_of(turned, rot @ np.asarray(source), rot @ np.asarray(receiver)))
+    a, b = (sorted(diffraction_paths(s, max_order=1), key=lambda p: (round(p.distance, 9), p.order, p.zone)) for s in pairs)
     assert len(a) == len(b) > 0
     assert [(p.order, p.zone, p.edge) for p in a] == [(p.order, p.zone, p.edge) for p in b]
     np.testing.assert_allclose([p.delay for p in b], [p.delay for p in a], rtol=1e-12)
     np.testing.assert_allclose([p.distance for p in b], [p.distance for p in a], rtol=1e-12)
-    w = [encode_btms(btms_paths(s, max_order=1), 0, 4800, 48000.0)[:, 0] for s in specs]
+    w = [encode_btms(btms_paths(s, max_order=1), 0, 4800, 48000.0)[:, 0] for s in pairs]
     assert np.max(np.abs(w[0])) > 0.0
     np.testing.assert_allclose(w[1], w[0], atol=1e-9 * np.max(np.abs(w[0])))
 
 
 def test_a_rectangular_room_has_no_room_edges_and_diffraction_changes_nothing():
-    spec = spec_of(prism_room([(0, 0), (8, 0), (8, 6), (0, 6)]), [2.0, 2.0, 1.5], [6.0, 4.0, 1.7])
-    off = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2))
+    pair = pair_of(prism_room([(0, 0), (8, 0), (8, 6), (0, 6)]), [2.0, 2.0, 1.5], [6.0, 4.0, 1.7])
+    off = render_ambisonics(prepare(pair, images(pair, 2), RoomTarget.from_room(pair), max_order=1, duration_s=0.2))
     for model in (True, "btms"):
-        on = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction=model))
+        on = render_ambisonics(prepare(pair, images(pair, 2), RoomTarget.from_room(pair), max_order=1, duration_s=0.2, diffraction=model))
         np.testing.assert_array_equal(on.rir, off.rir)
 
 
@@ -405,9 +406,9 @@ def test_the_field_is_continuous_across_a_room_corner_shadow_boundary():
     levels = {}
     for flag in (None, "udfa"):
         for x in (3.495, 3.505):
-            spec = spec_of(prism_room(L_OUTLINE), S_L, [x, 4.5, 1.5])
-            rir = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction=flag)).early
-            levels[flag, x] = window_db(rir, float(np.linalg.norm(spec.receiver - spec.source)), spec.fs)
+            pair = pair_of(prism_room(L_OUTLINE), S_L, [x, 4.5, 1.5])
+            rir = render_ambisonics(prepare(pair, images(pair, 2), RoomTarget.from_room(pair), max_order=1, duration_s=0.2, diffraction=flag)).early
+            levels[flag, x] = window_db(rir, float(np.linalg.norm(pair.receiver - pair.source)), pair.fs)
     assert abs(levels[None, 3.505] - levels[None, 3.495]) > 6.0
     assert abs(levels["udfa", 3.505] - levels["udfa", 3.495]) < 0.5
 
@@ -445,8 +446,8 @@ def test_a_partition_in_the_room_shell_diffracts_as_the_same_partition_built_as_
     def key(p):
         return (round(p.distance, 9), p.zone, tuple(np.round(p.doa, 9)))
 
-    shell = sorted(diffraction_paths(spec_of(partition_room(False), s, r), max_order=max_order), key=key)
-    panel = sorted(diffraction_paths(spec_of(partition_room(True), s, r), max_order=max_order), key=key)
+    shell = sorted(diffraction_paths(pair_of(partition_room(False), s, r), max_order=max_order), key=key)
+    panel = sorted(diffraction_paths(pair_of(partition_room(True), s, r), max_order=max_order), key=key)
     assert len(shell) == len(panel) > 0
     for a, b in zip(shell, panel):
         assert a.zone == b.zone
@@ -454,7 +455,7 @@ def test_a_partition_in_the_room_shell_diffracts_as_the_same_partition_built_as_
         np.testing.assert_allclose(a.doa, b.doa, atol=1e-12)
         np.testing.assert_allclose(a.band_gain, b.band_gain, rtol=1e-12)
         np.testing.assert_allclose(a.transfer(F), b.transfer(F), rtol=1e-9, atol=1e-12)
-    w = {name: encode_btms(btms_paths(spec_of(partition_room(flag), s, r), max_order=max_order), 0, 4800, 48000.0) for name, flag in (("shell", False), ("panel", True))}
+    w = {name: encode_btms(btms_paths(pair_of(partition_room(flag), s, r), max_order=max_order), 0, 4800, 48000.0) for name, flag in (("shell", False), ("panel", True))}
     np.testing.assert_allclose(w["shell"], w["panel"], atol=1e-9 * np.max(np.abs(w["panel"])))
 
 
@@ -480,8 +481,8 @@ def test_a_tilted_room_diffracts_as_the_level_room(room, source, receiver):
     At these positions the tilted floor is hit at t = 1 - eps (most positions miss it)."""
     build = (lambda rot: prism_room(L_OUTLINE, rotation=rot)) if room == "l" else box_obstacle_room
     rot = tilt(20.0)
-    level = spec_of(build(None), source, receiver)
-    tilted = spec_of(build(rot), rot @ np.asarray(source), rot @ np.asarray(receiver))
+    level = pair_of(build(None), source, receiver)
+    tilted = pair_of(build(rot), rot @ np.asarray(source), rot @ np.asarray(receiver))
     a = sorted(p.distance for p in diffraction_paths(level, max_order=1))
     b = sorted(p.distance for p in diffraction_paths(tilted, max_order=1))
     assert len(a) == len(b)

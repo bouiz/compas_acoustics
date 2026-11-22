@@ -21,32 +21,32 @@ import numpy as np
 import pyfar as pf
 import pyFDN
 
-from compas_acoustics.room.geometry import _polygon_area_and_centroid
+from compas_acoustics.room.geometry import _polygon_area_normal_and_mean
 
 from .bands import N_BANDS
 from .late import fdn_directions
 from .pair import Pair
 
 
-def scanned_absorption(spec: Pair, directions: pf.Coordinates) -> np.ndarray:
+def scanned_absorption(pair: Pair, directions: pf.Coordinates) -> np.ndarray:
     """Absorption coefficient per delay line and band, shape (n_lines, 8).
 
     Each of the 96 scan directions of Kirsch et al. (2023, Sec. 1.3), the lines' grid in room coordinates, takes
     the absorption of the first face its ray from the receiver meets, which holds in a concave room too.
     """
-    faces = spec.geometry.faces_with_materials()
+    faces = pair.geometry.faces_with_materials()
     scan = fdn_directions(96).cartesian
     scan = scan / np.linalg.norm(scan, axis=1, keepdims=True)
 
-    hit = _first_hit(faces, spec.receiver, scan)
+    hit = _first_hit(faces, pair.receiver, scan)
     if np.any(hit < 0):
         raise RuntimeError(f"{int(np.sum(hit < 0))} of {hit.size} scanned directions meet no boundary; the room is not closed around the receiver")
-    alpha = np.stack([spec.geometry.materials[name].absorption for _, name in faces])
+    alpha = np.stack([pair.geometry.materials[name].absorption for _, name in faces])
     alpha = alpha[hit][:, :N_BANDS]  # (96, 8)
 
     unit = directions.cartesian
     unit = unit / np.linalg.norm(unit, axis=1, keepdims=True)
-    unit = unit @ spec.receiver_rotation.T  # the scan is in room coordinates
+    unit = unit @ pair.receiver_rotation.T  # the scan is in room coordinates
     beta = unit.shape[0] / 6.0
     weights = np.clip(scan @ unit.T, 0.0, None) ** beta  # (96, n_lines)
     return (weights.T @ alpha) / weights.sum(axis=0)[:, np.newaxis]
@@ -64,7 +64,7 @@ def _first_hit(faces: list[tuple[np.ndarray, str]], origin: np.ndarray, directio
     best_t = np.full(directions.shape[0], np.inf)
     best = np.full(directions.shape[0], -1, dtype=int)
     for index, (vertices, _) in enumerate(faces):
-        normal = _polygon_area_and_centroid(vertices)[1]
+        normal = _polygon_area_normal_and_mean(vertices)[1]
         denom = directions @ normal
         with np.errstate(divide="ignore", invalid="ignore"):
             t = ((vertices[0] - origin) @ normal) / denom
@@ -108,6 +108,6 @@ def absorption_filters(absorption: np.ndarray, fs: float) -> np.ndarray:
     return pyFDN.gain_to_graphic_eq(np.hstack((db[:, :1], db, db[:, -1:])).T, float(fs))
 
 
-def directional_absorption_filters(spec: Pair, directions: pf.Coordinates) -> np.ndarray:
-    """The per-line output filters of this room, the ``line_eq`` of :func:`~compas_acoustics.hybrid.late.render`."""
-    return absorption_filters(scanned_absorption(spec, directions), spec.fs)
+def directional_absorption_filters(pair: Pair, directions: pf.Coordinates) -> np.ndarray:
+    """The per-line output filters of this room, ``line_eq`` of :func:`~compas_acoustics.hybrid.late.run_network`."""
+    return absorption_filters(scanned_absorption(pair, directions), pair.fs)

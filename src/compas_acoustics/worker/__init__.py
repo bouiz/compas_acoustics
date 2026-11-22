@@ -286,10 +286,10 @@ def analyse(ir):
 
     from compas_acoustics import Analyser
     from compas_acoustics import ImpulseResponse
-    from compas_acoustics import analyser as analysis
+    from compas_acoustics.analyser import _STI_SUPPORTED
 
     analyser = Analyser(ir)
-    if analysis._STI_SUPPORTED or worker_python() is None or not isinstance(ir, ImpulseResponse):
+    if _STI_SUPPORTED or worker_python() is None or not isinstance(ir, ImpulseResponse):
         analyser.analyse()
         return analyser, []
     with warnings.catch_warnings():

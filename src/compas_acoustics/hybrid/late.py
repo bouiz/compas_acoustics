@@ -72,7 +72,7 @@ def _nearest_coprime(targets: np.ndarray) -> np.ndarray:
 
 
 def directional_delays(
-    spec: Pair,
+    pair: Pair,
     directions: pf.Coordinates,
     *,
     rng: int | np.random.Generator = 0,
@@ -92,9 +92,9 @@ def directional_delays(
     """
     unit = directions.cartesian
     unit = unit / np.linalg.norm(unit, axis=1, keepdims=True)
-    unit = unit @ spec.receiver_rotation.T
-    projected = np.abs(unit @ spec.geometry.area_normals().T).sum(axis=1)
-    free_path_samples = 2.0 * spec.geometry.volume / projected / spec.speed_of_sound * spec.fs
+    unit = unit @ pair.receiver_rotation.T
+    projected = np.abs(unit @ pair.geometry.area_normals().T).sum(axis=1)
+    free_path_samples = 2.0 * pair.geometry.volume / projected / pair.speed_of_sound * pair.fs
     generator = np.random.default_rng(rng)
     jitter = 1.0 + 0.1 * generator.uniform(-1.0, 1.0, size=free_path_samples.size)
     return _nearest_coprime(free_path_samples * jitter)
@@ -164,7 +164,7 @@ def design_fdn(
     return builds
 
 
-def render(
+def run_network(
     builds: Sequence[tuple[pyFDN.DSS, dict]],
     drive: np.ndarray,
     *,

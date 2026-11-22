@@ -21,15 +21,16 @@ import pytest
 
 from compas_acoustics.hybrid.bands import BANDS
 from compas_acoustics.room.diffuse import DiffuseFieldWarning
-from _rooms import box_room, pair
+from _rooms import box_room
+from _rooms import pair as make_pair
 from compas_acoustics.hybrid.target import RoomTarget
 from compas_acoustics.room.geometry import SurfaceMaterial
 
 DIMS = (7.0, 5.0, 3.0)
 
 
-def spec_with(walls, floor=None, ceiling=None):
-    return pair(
+def pair_with(walls, floor=None, ceiling=None):
+    return make_pair(
         geometry=box_room(DIMS, walls, floor=floor, ceiling=ceiling),
         source=np.array([1.5, 1.5, 1.6]),
         receiver=np.array([5.0, 3.0, 1.5]),
@@ -53,17 +54,17 @@ def test_a_uniformly_and_lightly_absorbing_room_warns_about_nothing():
     """The case both models are valid for must stay quiet, or the warning is noise."""
     with warnings.catch_warnings():
         warnings.simplefilter("error", DiffuseFieldWarning)
-        RoomTarget.from_room(spec_with(uniform(0.12)))
+        RoomTarget.from_room(pair_with(uniform(0.12)))
 
 
 def test_absorption_concentrated_on_two_surfaces_warns():
     with pytest.warns(DiffuseFieldWarning, match="unevenly distributed"):
-        RoomTarget.from_room(spec_with(**treated_room()))
+        RoomTarget.from_room(pair_with(**treated_room()))
 
 
 def test_high_uniform_absorption_warns():
     with pytest.warns(DiffuseFieldWarning, match="too absorbing"):
-        RoomTarget.from_room(spec_with(uniform(0.35)))
+        RoomTarget.from_room(pair_with(uniform(0.35)))
 
 
 def test_the_uneven_warning_names_only_the_bands_it_applies_to():
@@ -77,7 +78,7 @@ def test_the_uneven_warning_names_only_the_bands_it_applies_to():
     porous = SurfaceMaterial("porous", np.array([0.10, 0.12, 0.16, 0.25, 0.40, 0.55, 0.70, 0.80]))
 
     with pytest.warns(DiffuseFieldWarning, match="unevenly distributed") as record:
-        RoomTarget.from_room(spec_with(wall, floor=porous, ceiling=porous))
+        RoomTarget.from_room(pair_with(wall, floor=porous, ceiling=porous))
     message = str(record[0].message)
     assert "8000" in message
     assert "62.5" not in message
@@ -86,21 +87,21 @@ def test_the_uneven_warning_names_only_the_bands_it_applies_to():
 
 def test_the_warning_points_at_ray_tracing_or_a_reference():
     with pytest.warns(DiffuseFieldWarning, match="tail='ray_tracing' or a reference"):
-        RoomTarget.from_room(spec_with(uniform(0.35)))
+        RoomTarget.from_room(pair_with(uniform(0.35)))
 
 
 def test_sabine_is_warned_about_too_because_it_shares_the_assumption():
     with pytest.warns(DiffuseFieldWarning):
-        RoomTarget.from_room(spec_with(uniform(0.35)), model="sabine")
+        RoomTarget.from_room(pair_with(uniform(0.35)), model="sabine")
 
 
 def test_warning_does_not_change_the_returned_target():
     """The warning is a diagnostic, not a correction."""
-    spec = spec_with(uniform(0.35))
+    pair = pair_with(uniform(0.35))
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DiffuseFieldWarning)
-        warned = RoomTarget.from_room(spec)
-        quiet = RoomTarget.from_room(spec_with(uniform(0.12)))
+        warned = RoomTarget.from_room(pair)
+        quiet = RoomTarget.from_room(pair_with(uniform(0.12)))
     assert warned.rt.shape == quiet.rt.shape
     # unchanged against the model called directly
     import pyrato
@@ -108,10 +109,10 @@ def test_warning_does_not_change_the_returned_target():
     from compas_acoustics.room.diffuse import mean_absorption
 
     expected = pyrato.parametric.reverberation_time_eyring(
-        volume=spec.geometry.volume,
-        surface_area=spec.geometry.surface_area,
-        mean_absorption=mean_absorption(spec.geometry),
-        speed_of_sound=spec.speed_of_sound,
+        volume=pair.geometry.volume,
+        surface_area=pair.geometry.surface_area,
+        mean_absorption=mean_absorption(pair.geometry),
+        speed_of_sound=pair.speed_of_sound,
     )
     np.testing.assert_allclose(warned.rt[:, 0], expected, rtol=1e-12)
 

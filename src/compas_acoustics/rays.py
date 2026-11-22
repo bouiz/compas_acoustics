@@ -366,8 +366,6 @@ class RayField(_PackageDtype, Data):
         )
 
         rng = np.random.default_rng(_seed(random_seed))
-        cone = direction
-
         distance_thres = _distance(duration * 1000.0) if duration is not None else None
 
         from compas_acoustics.worker import jobs
@@ -376,11 +374,11 @@ class RayField(_PackageDtype, Data):
         for n, (source_index, source) in enumerate(sim_sources):
             jobs.progress("tracing", n, len(sim_sources))
             source_position = np.asarray(source.position, dtype=float)
-            directions = _source_directions(source, cone, angle, n_rays)
+            directions = _source_directions(source, direction, angle, n_rays)
 
             for ray_index in range(directions.shape[0]):
                 initial_direction = directions[ray_index] / np.linalg.norm(directions[ray_index])
-                direction = initial_direction.copy()
+                heading = initial_direction.copy()
                 start = source_position.copy()
                 points = [Point(*start)]
                 scattered_reflections = []
@@ -388,7 +386,7 @@ class RayField(_PackageDtype, Data):
                 travel_distance = 0.0
 
                 for bounce in range(max_reflection_order):
-                    hit, wall_index, hit_distance = engine.next_wall_hit(start, start + direction * max_dist, False)
+                    hit, wall_index, hit_distance = engine.next_wall_hit(start, start + heading * max_dist, False)
                     if wall_index == -1:
                         break
 
@@ -407,7 +405,7 @@ class RayField(_PackageDtype, Data):
                                     engine=engine,
                                     walls=walls,
                                     hit=hit,
-                                    incident_direction=direction,
+                                    incident_direction=heading,
                                     wall=wall,
                                     scatter=scatter,
                                     transmitted=transmitted,
@@ -429,7 +427,7 @@ class RayField(_PackageDtype, Data):
                     if energy_thres is not None and transmitted < energy_thres:
                         break
 
-                    direction = np.asarray(wall.normal_reflect(direction), dtype=float)
+                    heading = np.asarray(wall.normal_reflect(heading), dtype=float)
                     start = hit
 
                 ray = Ray(

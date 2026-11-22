@@ -8,7 +8,8 @@ from scipy.signal import sosfilt
 
 from compas_acoustics.hybrid.bands import BANDS, N_BANDS
 from compas_acoustics.hybrid.early import ImageSourceSet, encode, render_images, render_signals
-from _rooms import box_room, images, pair
+from _rooms import box_room, images
+from _rooms import pair as make_pair
 from compas_acoustics.room.geometry import SurfaceMaterial
 
 
@@ -152,12 +153,12 @@ def test_images_beyond_the_buffer_are_dropped_not_wrapped():
 
 
 def test_shoebox_end_to_end_produces_a_finite_response():
-    spec = pair(
+    pair = make_pair(
         geometry=box_room((5.0, 4.0, 3.0), SurfaceMaterial("wall", np.full(N_BANDS, 0.2))),
         source=np.array([1.0, 1.0, 1.0]),
         receiver=np.array([3.0, 2.0, 1.5]),
     )
-    out = encode(images(spec, max_order=3), 1, 4800)
+    out = encode(images(pair, max_order=3), 1, 4800)
     assert out.shape == (4800, 4)
     assert np.all(np.isfinite(out))
     assert np.max(np.abs(out)) > 0.0

@@ -39,6 +39,10 @@ OBSTACLE_OFFSET = 1e-3
 # Scattering coefficient, every band, of a material that gives none
 DEFAULT_SCATTERING = 0.05
 
+# Coplanarity tolerance in metres: pyroomacoustics stores corners as float32 and rejects a wall whose
+# corners are further than this from a plane
+_MERGE_TOLERANCE = 1e-5
+
 
 @contextmanager
 def pra_octave_grid() -> Iterator[None]:
@@ -94,7 +98,7 @@ class SurfaceMaterial:
         return bool(np.array_equal(self.scattering, other.scattering))
 
 
-def _polygon_area_and_centroid(points: np.ndarray) -> Tuple[float, np.ndarray, np.ndarray]:
+def _polygon_area_normal_and_mean(points: np.ndarray) -> Tuple[float, np.ndarray, np.ndarray]:
     """Area, unit normal (Newell) and vertex mean of one planar polygon in 3-D."""
     rolled = np.roll(points, -1, axis=0)
     normal = 0.5 * np.cross(points, rolled).sum(axis=0)
@@ -108,8 +112,8 @@ def _signed_volume(vertices: np.ndarray, faces) -> float:
     """Divergence theorem, ``V = sum_f (c_f . n_f) A_f / 3``; any point of the face's plane serves as ``c_f``."""
     total = 0.0
     for face in faces:
-        area, normal, centroid = _polygon_area_and_centroid(vertices[list(face)])
-        total += float(centroid @ normal) * area
+        area, normal, mean = _polygon_area_normal_and_mean(vertices[list(face)])
+        total += float(mean @ normal) * area
     return total / 3.0
 
 
@@ -123,6 +127,14 @@ def _object_polygons(acoustic_object) -> List[np.ndarray]:
     if isinstance(geometry, list) and geometry and isinstance(geometry[0], Point):
         return [np.array([list(p) for p in geometry], dtype=float)]
     raise ValueError(f"Unsupported acoustic geometry type on '{acoustic_object.name}'.")
+
+
+def _find_root(parent, i):
+    """The root of ``i`` in a union-find forest, halving the path on the way."""
+    while parent[i] != i:
+        parent[i] = parent[parent[i]]
+        i = parent[i]
+    return i
 
 
 def _weld(points: np.ndarray, tolerance: float) -> Tuple[np.ndarray, np.ndarray]:
@@ -140,12 +152,177 @@ def _weld(points: np.ndarray, tolerance: float) -> Tuple[np.ndarray, np.ndarray]
     return points[first], inverse.reshape(-1)
 
 
-def _find_root(parent, i):
-    """The root of ``i`` in a union-find forest, halving the path on the way."""
-    while parent[i] != i:
-        parent[i] = parent[parent[i]]
-        i = parent[i]
-    return i
+def _welded(polygons, tolerance: float) -> Tuple[np.ndarray, List[List[int]]]:
+    """The polygons' points welded within ``tolerance`` (:func:`_weld`), and each polygon as indices into them."""
+    vertices, inverse = _weld(np.vstack(polygons), tolerance)
+    faces: List[List[int]] = []
+    start = 0
+    for polygon in polygons:
+        faces.append([int(i) for i in inverse[start : start + len(polygon)]])
+        start += len(polygon)
+    return vertices, faces
+
+
+def _warn_if_not_metres(vertices: np.ndarray) -> None:
+    extent = float(np.ptp(vertices, axis=0).max())
+    if extent > 500.0:
+        warnings.warn(
+            f"The model is {extent:g} units across. Coordinates are read as metres; a model drawn in millimetres needs scaling by 0.001 first.",
+            UserWarning,
+            stacklevel=4,
+        )
+
+
+def _without_collapsed(faces, groups, weld_tolerance: float):
+    """Faces without consecutive repeated vertices, less those left with fewer than three, which warn."""
+    kept_faces, kept_groups = [], []
+    for face, group in zip(faces, groups):
+        cleaned = [v for k, v in enumerate(face) if v != face[k - 1]]
+        if len(set(cleaned)) >= 3:
+            kept_faces.append(cleaned)
+            kept_groups.append(group)
+    collapsed = len(faces) - len(kept_faces)
+    if collapsed:
+        warnings.warn(
+            f"{collapsed} faces collapsed to a line or a point when vertices within {weld_tolerance:g} m were welded, and were dropped.",
+            UserWarning,
+            stacklevel=4,
+        )
+    if not kept_faces:
+        raise ValueError("Every face of the scene collapsed when its vertices were welded; check the model's units.")
+    return kept_faces, kept_groups
+
+
+def _triangulated_where_warped(vertices: np.ndarray, faces, groups):
+    """Faces whose corners lie off their own plane, as fans of triangles of the same group and winding.
+
+    A wall's corners must lie within ``_MERGE_TOLERANCE`` of a plane, and a CAD quad with one corner a few
+    millimetres out is still a surface.
+    """
+    out_faces, out_groups = [], []
+    for face, group in zip(faces, groups):
+        if len(face) > 3:
+            points = vertices[face]
+            _, normal, mean = _polygon_area_normal_and_mean(points)
+            if np.max(np.abs((points - mean) @ normal)) > _MERGE_TOLERANCE:
+                for k in range(1, len(face) - 1):
+                    out_faces.append([face[0], face[k], face[k + 1]])
+                    out_groups.append(group)
+                continue
+        out_faces.append(face)
+        out_groups.append(group)
+    return out_faces, out_groups
+
+
+def _merge_coplanar(
+    vertices: np.ndarray,
+    faces: list[list[int]],
+    groups: list[tuple[str, str, str]],
+) -> tuple[list[list[int]], list[tuple[str, str, str]]]:
+    """Join neighbouring coplanar faces of one group, ``(role, object, material)``, into convex polygons.
+
+    Every extra wall multiplies the image source search. Two faces are joined only when they belong to the same group,
+    share exactly one edge no other face uses, lie in one plane within ``_MERGE_TOLERANCE`` and give a convex polygon,
+    a valid wall that cannot close a ring around a hole. Vertices in the middle of a straight side are dropped; the
+    closedness check reads any T-junction that leaves. Obstacle faces may join across opposite windings, being
+    two-sided anyway; boundary faces must already agree.
+    """
+    faces = [list(f) for f in faces]
+    alive = [True] * len(faces)
+
+    def normal_of(face):
+        return _polygon_area_normal_and_mean(vertices[face])[1]
+
+    def clean(poly, normal):
+        """Drop vertices on a straight side; None if the result is not convex."""
+        changed = True
+        while changed and len(poly) > 3:
+            changed = False
+            for k in range(len(poly)):
+                u, v, w = (vertices[poly[k - 1]], vertices[poly[k]], vertices[poly[(k + 1) % len(poly)]])
+                side = w - u
+                if np.linalg.norm(np.cross(v - u, side)) <= _MERGE_TOLERANCE * np.linalg.norm(side):
+                    del poly[k]
+                    changed = True
+                    break
+        pts = vertices[poly]
+        turn = np.cross(pts - np.roll(pts, 1, axis=0), np.roll(pts, -1, axis=0) - pts) @ normal
+        return poly if len(poly) >= 3 and np.all(turn > 0) else None
+
+    def merge(i, j, a, b):
+        """Faces i and j across edge a-b, or None."""
+        fa, fb = faces[i], faces[j]
+        na, nb = normal_of(fa), normal_of(fb)
+        if na @ nb < 0:
+            if groups[i][0] != "obstacle":
+                return None
+            fb, nb = fb[::-1], -nb
+        if na @ nb < 1.0 - 1e-8:
+            return None
+        if np.max(np.abs((vertices[fb] - vertices[fa[0]]) @ na)) > _MERGE_TOLERANCE:
+            return None
+        if len(set(fa) & set(fb)) != 2:
+            return None
+        ka = fa.index(a)
+        if fa[(ka + 1) % len(fa)] != b:
+            fa = fa[::-1]
+            fb = fb[::-1]
+            na = -na
+            ka = fa.index(a)
+        kb = fb.index(b)
+        if fb[(kb + 1) % len(fb)] != a:
+            return None
+        # a -> b in fa, b -> a in fb: walk fa from b round to a, then fb's
+        # vertices strictly between a and b.
+        path_a = [fa[(ka + 1 + k) % len(fa)] for k in range(len(fa))]  # b ... a
+        path_b = [fb[(kb + 2 + k) % len(fb)] for k in range(len(fb) - 2)]
+        poly = clean(path_a + path_b, na)
+        if poly is None:
+            return None
+        # keep the winding face i had, which is what the enclosure relies on
+        return poly if normal_of(poly) @ normal_of(faces[i]) > 0 else poly[::-1]
+
+    merged_any = True
+    while merged_any:
+        merged_any = False
+        users: dict[frozenset[int], list[int]] = {}
+        for i, face in enumerate(faces):
+            if alive[i]:
+                for a, b in zip(face, face[1:] + face[:1]):
+                    users.setdefault(frozenset((a, b)), []).append(i)
+        touched = set()
+        for edge, owners in users.items():
+            if len(owners) != 2:
+                continue
+            i, j = owners
+            if i in touched or j in touched or groups[i] != groups[j]:
+                continue
+            a, b = tuple(edge)
+            poly = merge(i, j, a, b)
+            if poly is None:
+                continue
+            faces[i], alive[j] = poly, False
+            touched |= {i, j}
+            merged_any = True
+
+    keep = [i for i in range(len(faces)) if alive[i]]
+    return [faces[i] for i in keep], [groups[i] for i in keep]
+
+
+def _merged(vertices: np.ndarray, faces, groups, merge_coplanar: bool):
+    """:func:`_merge_coplanar` with ``merge_coplanar``; without, the faces as they are, warning where it would merge."""
+    if merge_coplanar:
+        return _merge_coplanar(vertices, faces, groups)
+    mergeable = len(faces) - len(_merge_coplanar(vertices, faces, groups)[0])
+    if mergeable:
+        warnings.warn(
+            f"{mergeable} faces lie in one plane with a neighbour of the same object and material, as in a "
+            "triangulated surface. Image sources are lost at the seams between them; "
+            "merge_coplanar=True joins them into larger walls.",
+            UserWarning,
+            stacklevel=4,
+        )
+    return faces, groups
 
 
 def _t_junction_tolerance(vertices: np.ndarray) -> float:
@@ -183,38 +360,6 @@ def _segments(vertices: np.ndarray, face) -> List[Tuple[int, int]]:
         chain = _split_at_t_junctions(vertices, a, b)
         out.extend(zip(chain[:-1], chain[1:]))
     return out
-
-
-def _without_collapsed(faces, groups):
-    """Faces without consecutive repeated vertices, less those left with fewer than three, and how many those were."""
-    kept_faces, kept_groups = [], []
-    for face, group in zip(faces, groups):
-        cleaned = [v for k, v in enumerate(face) if v != face[k - 1]]
-        if len(set(cleaned)) >= 3:
-            kept_faces.append(cleaned)
-            kept_groups.append(group)
-    return kept_faces, kept_groups, len(faces) - len(kept_faces)
-
-
-def _triangulated_where_warped(vertices: np.ndarray, faces, groups):
-    """Faces whose corners lie off their own plane, as fans of triangles of the same group and winding.
-
-    A wall's corners must lie within ``_MERGE_TOLERANCE`` of a plane, and a CAD quad with one corner a few
-    millimetres out is still a surface.
-    """
-    out_faces, out_groups = [], []
-    for face, group in zip(faces, groups):
-        if len(face) > 3:
-            points = vertices[face]
-            _, normal, centroid = _polygon_area_and_centroid(points)
-            if np.max(np.abs((points - centroid) @ normal)) > _MERGE_TOLERANCE:
-                for k in range(1, len(face) - 1):
-                    out_faces.append([face[0], face[k], face[k + 1]])
-                    out_groups.append(group)
-                continue
-        out_faces.append(face)
-        out_groups.append(group)
-    return out_faces, out_groups
 
 
 def _orient(vertices: np.ndarray, faces):
@@ -277,6 +422,107 @@ def _orient_outward(vertices: np.ndarray, faces):
         if (volumes[label] > 0.0) != (label == outer):
             oriented[index] = oriented[index][::-1]
     return oriented, None
+
+
+def _oriented_boundary(vertices: np.ndarray, faces, groups):
+    """``(faces, groups, is_closed, open_edge)`` of the boundary: wound outward where they close a volume (else as
+    drawn, with a warning), and the end points of the first edge that prevents it."""
+    boundary = [i for i, group in enumerate(groups) if group[0] == "boundary"]
+    defect = None
+    oriented = [faces[i] for i in boundary]
+    if boundary:
+        oriented, defect = _orient_outward(vertices, oriented)
+    is_closed = bool(boundary) and defect is None
+    open_edge = None
+    if not is_closed:
+        if defect is not None:
+            open_edge = (tuple(vertices[defect[0]].tolist()), tuple(vertices[defect[1]].tolist()))
+        where = f" (first open or non-manifold edge from {open_edge[0]} to {open_edge[1]})" if open_edge else ""
+        if boundary:
+            message = (
+                f"The boundary surfaces do not close a volume{where}. They are kept as drawn, so "
+                "reflections off their back sides may be missed. Mark free-standing "
+                "surfaces with role='obstacle'. "
+            )
+        else:
+            message = "The scene has no boundary surfaces (role='boundary'). "
+        warnings.warn(
+            message + "Every point outside the obstacles is simulated (an open field); the hybrid method needs a closed room.",
+            UserWarning,
+            stacklevel=4,
+        )
+    return [tuple(face) for face in oriented], [groups[i] for i in boundary], is_closed, open_edge
+
+
+def _obstacle_copies(vertices: np.ndarray, faces, groups):
+    """``(vertices, faces, groups)``: ``vertices`` followed by two copies of every obstacle face, ``OBSTACLE_OFFSET``
+    either side and wound opposite, the front copies first, then the back ones."""
+    all_vertices = [vertices]
+    n = vertices.shape[0]
+    fronts, backs, obstacle_groups = [], [], []
+    for face, group in zip(faces, groups):
+        if group[0] != "obstacle":
+            continue
+        points = vertices[face]
+        _, normal, _ = _polygon_area_normal_and_mean(points)
+        all_vertices += [points - OBSTACLE_OFFSET * normal, points + OBSTACLE_OFFSET * normal]
+        k = len(face)
+        fronts.append(tuple(range(n, n + k)))
+        backs.append(tuple(reversed(range(n + k, n + 2 * k))))
+        obstacle_groups.append(group)
+        n += 2 * k
+    return np.vstack(all_vertices), fronts + backs, obstacle_groups + obstacle_groups
+
+
+def _lying_on(points: np.ndarray, polygons) -> List[bool]:
+    """Whether each point is within ``2 * OBSTACLE_OFFSET`` of a polygon's plane and inside the polygon.
+
+    ``polygons`` are ``(corners (k, 3), unit normal, mean)``. The test inside is an even-odd crossing count in the
+    polygon's plane.
+    """
+    if not polygons:
+        return [False] * len(points)
+    normals = np.array([normal for _, normal, _ in polygons])
+    means = np.array([mean for _, _, mean in polygons])
+    near = np.abs(np.einsum("pfk,fk->pf", points[:, None, :] - means[None], normals)) < 2.0 * OBSTACLE_OFFSET
+    lying = []
+    for p, candidates in zip(points, near):
+        found = False
+        for j in np.flatnonzero(candidates):
+            corners, normal, _ = polygons[j]
+            u = corners[1] - corners[0]
+            u = (u - (u @ normal) * normal) / np.linalg.norm(u - (u @ normal) * normal)
+            v = np.cross(normal, u)
+            x, y = (corners - p) @ u, (corners - p) @ v
+            x2, y2 = np.roll(x, -1), np.roll(y, -1)
+            straddles = (y > 0.0) != (y2 > 0.0)
+            with np.errstate(divide="ignore", invalid="ignore"):
+                crossing = x + (0.0 - y) * (x2 - x) / (y2 - y)
+            if int(np.count_nonzero(straddles & (crossing > 0.0))) % 2 == 1:
+                found = True
+                break
+        lying.append(found)
+    return lying
+
+
+def _fan_triangles(vertices: np.ndarray, faces) -> np.ndarray:
+    """Every polygon as a fan of triangles, shape (n, 3, 3)."""
+    triangles = [(vertices[face[0]], vertices[face[k]], vertices[face[k + 1]]) for face in faces for k in range(1, len(face) - 1)]
+    return np.asarray(triangles, dtype=float).reshape(-1, 3, 3)
+
+
+def _winding_number(point: np.ndarray, triangles: np.ndarray) -> float:
+    """Generalised winding number of a triangle soup at ``point``, from Van Oosterom and Strackee (1983) solid angles.
+
+    About +-1 inside a closed, consistently wound surface and 0 outside, whichever way it is wound.
+    """
+    if triangles.size == 0:
+        return 0.0
+    a, b, c = (triangles[:, k] - point for k in range(3))
+    la, lb, lc = (np.linalg.norm(x, axis=1) for x in (a, b, c))
+    numerator = np.einsum("ij,ij->i", a, np.cross(b, c))
+    denominator = la * lb * lc + np.einsum("ij,ij->i", a, b) * lc + np.einsum("ij,ij->i", a, c) * lb + np.einsum("ij,ij->i", b, c) * la
+    return float(np.sum(2.0 * np.arctan2(numerator, denominator)) / (4.0 * np.pi))
 
 
 @dataclass(frozen=True, eq=False)
@@ -345,95 +591,18 @@ class RoomGeometry:
     def _from_polygons(cls, polygons, groups, materials, merge_coplanar) -> RoomGeometry:
         if not polygons:
             raise ValueError("The scene has no acoustic surfaces.")
-
         weld_tolerance = 1e-3
-        vertices, inverse = _weld(np.vstack(polygons), weld_tolerance)
-        faces: List[List[int]] = []
-        start = 0
-        for polygon in polygons:
-            faces.append([int(i) for i in inverse[start : start + len(polygon)]])
-            start += len(polygon)
-
-        extent = float(np.ptp(vertices, axis=0).max())
-        if extent > 500.0:
-            warnings.warn(
-                f"The model is {extent:g} units across. Coordinates are read as metres; a model drawn in millimetres needs scaling by 0.001 first.",
-                UserWarning,
-                stacklevel=3,
-            )
-
-        faces, groups, collapsed = _without_collapsed(faces, groups)
-        if collapsed:
-            warnings.warn(
-                f"{collapsed} faces collapsed to a line or a point when vertices within {weld_tolerance:g} m were welded, and were dropped.",
-                UserWarning,
-                stacklevel=3,
-            )
-        if not faces:
-            raise ValueError("Every face of the scene collapsed when its vertices were welded; check the model's units.")
+        vertices, faces = _welded(polygons, weld_tolerance)
+        _warn_if_not_metres(vertices)
+        faces, groups = _without_collapsed(faces, groups, weld_tolerance)
         faces, groups = _triangulated_where_warped(vertices, faces, groups)
-
-        if merge_coplanar:
-            faces, groups = _merge_coplanar(vertices, faces, groups)
-        else:
-            mergeable = len(faces) - len(_merge_coplanar(vertices, faces, groups)[0])
-            if mergeable:
-                warnings.warn(
-                    f"{mergeable} faces lie in one plane with a neighbour of the same object and material, as in a "
-                    "triangulated surface. Image sources are lost at the seams between them; "
-                    "merge_coplanar=True joins them into larger walls.",
-                    UserWarning,
-                    stacklevel=3,
-                )
-
-        boundary = [i for i, group in enumerate(groups) if group[0] == "boundary"]
-        defect = None
-        oriented = [faces[i] for i in boundary]
-        if boundary:
-            oriented, defect = _orient_outward(vertices, oriented)
-        is_closed = bool(boundary) and defect is None
-        open_edge = None
-        if not is_closed:
-            if defect is not None:
-                open_edge = (tuple(vertices[defect[0]].tolist()), tuple(vertices[defect[1]].tolist()))
-            where = f" (first open or non-manifold edge from {open_edge[0]} to {open_edge[1]})" if open_edge else ""
-            if boundary:
-                message = (
-                    f"The boundary surfaces do not close a volume{where}. They are kept as drawn, so "
-                    "reflections off their back sides may be missed. Mark free-standing "
-                    "surfaces with role='obstacle'. "
-                )
-            else:
-                message = "The scene has no boundary surfaces (role='boundary'). "
-            warnings.warn(
-                message + "Every point outside the obstacles is simulated (an open field); the hybrid method needs a closed room.",
-                UserWarning,
-                stacklevel=3,
-            )
-
-        out_faces = [tuple(face) for face in oriented]
-        out_groups = [groups[i] for i in boundary]
-
-        all_vertices = [vertices]
-        n = vertices.shape[0]
-        fronts, backs, obstacle_groups = [], [], []
-        for face, group in zip(faces, groups):
-            if group[0] != "obstacle":
-                continue
-            points = vertices[face]
-            _, normal, _ = _polygon_area_and_centroid(points)
-            all_vertices += [points - OBSTACLE_OFFSET * normal, points + OBSTACLE_OFFSET * normal]
-            k = len(face)
-            fronts.append(tuple(range(n, n + k)))
-            backs.append(tuple(reversed(range(n + k, n + 2 * k))))
-            obstacle_groups.append(group)
-            n += 2 * k
-        out_faces += fronts + backs
-        out_groups += obstacle_groups + obstacle_groups
-
+        faces, groups = _merged(vertices, faces, groups, merge_coplanar)
+        boundary_faces, boundary_groups, is_closed, open_edge = _oriented_boundary(vertices, faces, groups)
+        all_vertices, copy_faces, copy_groups = _obstacle_copies(vertices, faces, groups)
+        out_groups = boundary_groups + copy_groups
         return cls(
-            vertices=np.vstack(all_vertices),
-            faces=tuple(out_faces),
+            vertices=all_vertices,
+            faces=tuple(boundary_faces + copy_faces),
             face_materials=tuple(g[2] for g in out_groups),
             face_names=tuple(g[1] for g in out_groups),
             face_roles=tuple(g[0] for g in out_groups),
@@ -449,10 +618,10 @@ class RoomGeometry:
         """``(area, unit normal, vertex mean)`` of every face, the arrays read-only."""
         geometry = []
         for face in self.faces:
-            area, normal, centroid = _polygon_area_and_centroid(self.vertices[list(face)])
+            area, normal, mean = _polygon_area_normal_and_mean(self.vertices[list(face)])
             normal.setflags(write=False)
-            centroid.setflags(write=False)
-            geometry.append((area, normal, centroid))
+            mean.setflags(write=False)
+            geometry.append((area, normal, mean))
         return tuple(geometry)
 
     @cached_property
@@ -632,154 +801,3 @@ class RoomGeometry:
 
         room.is_inside = is_inside
         return room
-
-
-# Coplanarity tolerance in metres: pyroomacoustics stores corners as float32 and rejects a wall whose
-# corners are further than this from a plane
-_MERGE_TOLERANCE = 1e-5
-
-
-def _merge_coplanar(
-    vertices: np.ndarray,
-    faces: list[list[int]],
-    groups: list[tuple[str, str, str]],
-) -> tuple[list[list[int]], list[tuple[str, str, str]]]:
-    """Join neighbouring coplanar faces of one group, ``(role, object, material)``, into convex polygons.
-
-    Every extra wall multiplies the image source search. Two faces are joined only when they belong to the same group,
-    share exactly one edge no other face uses, lie in one plane within ``_MERGE_TOLERANCE`` and give a convex polygon,
-    a valid wall that cannot close a ring around a hole. Vertices in the middle of a straight side are dropped; the
-    closedness check reads any T-junction that leaves. Obstacle faces may join across opposite windings, being
-    two-sided anyway; boundary faces must already agree.
-    """
-    faces = [list(f) for f in faces]
-    alive = [True] * len(faces)
-
-    def normal_of(face):
-        return _polygon_area_and_centroid(vertices[face])[1]
-
-    def clean(poly, normal):
-        """Drop vertices on a straight side; None if the result is not convex."""
-        changed = True
-        while changed and len(poly) > 3:
-            changed = False
-            for k in range(len(poly)):
-                u, v, w = (vertices[poly[k - 1]], vertices[poly[k]], vertices[poly[(k + 1) % len(poly)]])
-                side = w - u
-                if np.linalg.norm(np.cross(v - u, side)) <= _MERGE_TOLERANCE * np.linalg.norm(side):
-                    del poly[k]
-                    changed = True
-                    break
-        pts = vertices[poly]
-        turn = np.cross(pts - np.roll(pts, 1, axis=0), np.roll(pts, -1, axis=0) - pts) @ normal
-        return poly if len(poly) >= 3 and np.all(turn > 0) else None
-
-    def merge(i, j, a, b):
-        """Faces i and j across edge a-b, or None."""
-        fa, fb = faces[i], faces[j]
-        na, nb = normal_of(fa), normal_of(fb)
-        if na @ nb < 0:
-            if groups[i][0] != "obstacle":
-                return None
-            fb, nb = fb[::-1], -nb
-        if na @ nb < 1.0 - 1e-8:
-            return None
-        if np.max(np.abs((vertices[fb] - vertices[fa[0]]) @ na)) > _MERGE_TOLERANCE:
-            return None
-        if len(set(fa) & set(fb)) != 2:
-            return None
-        ka = fa.index(a)
-        if fa[(ka + 1) % len(fa)] != b:
-            fa = fa[::-1]
-            fb = fb[::-1]
-            na = -na
-            ka = fa.index(a)
-        kb = fb.index(b)
-        if fb[(kb + 1) % len(fb)] != a:
-            return None
-        # a -> b in fa, b -> a in fb: walk fa from b round to a, then fb's
-        # vertices strictly between a and b.
-        path_a = [fa[(ka + 1 + k) % len(fa)] for k in range(len(fa))]  # b ... a
-        path_b = [fb[(kb + 2 + k) % len(fb)] for k in range(len(fb) - 2)]
-        poly = clean(path_a + path_b, na)
-        if poly is None:
-            return None
-        # keep the winding face i had, which is what the enclosure relies on
-        return poly if normal_of(poly) @ normal_of(faces[i]) > 0 else poly[::-1]
-
-    merged_any = True
-    while merged_any:
-        merged_any = False
-        users: dict[frozenset[int], list[int]] = {}
-        for i, face in enumerate(faces):
-            if alive[i]:
-                for a, b in zip(face, face[1:] + face[:1]):
-                    users.setdefault(frozenset((a, b)), []).append(i)
-        touched = set()
-        for edge, owners in users.items():
-            if len(owners) != 2:
-                continue
-            i, j = owners
-            if i in touched or j in touched or groups[i] != groups[j]:
-                continue
-            a, b = tuple(edge)
-            poly = merge(i, j, a, b)
-            if poly is None:
-                continue
-            faces[i], alive[j] = poly, False
-            touched |= {i, j}
-            merged_any = True
-
-    keep = [i for i in range(len(faces)) if alive[i]]
-    return [faces[i] for i in keep], [groups[i] for i in keep]
-
-
-def _lying_on(points: np.ndarray, polygons) -> List[bool]:
-    """Whether each point is within ``2 * OBSTACLE_OFFSET`` of a polygon's plane and inside the polygon.
-
-    ``polygons`` are ``(corners (k, 3), unit normal, centroid)``. The test inside is an even-odd crossing count in the
-    polygon's plane.
-    """
-    if not polygons:
-        return [False] * len(points)
-    normals = np.array([normal for _, normal, _ in polygons])
-    centroids = np.array([centroid for _, _, centroid in polygons])
-    near = np.abs(np.einsum("pfk,fk->pf", points[:, None, :] - centroids[None], normals)) < 2.0 * OBSTACLE_OFFSET
-    lying = []
-    for p, candidates in zip(points, near):
-        found = False
-        for j in np.flatnonzero(candidates):
-            corners, normal, _ = polygons[j]
-            u = corners[1] - corners[0]
-            u = (u - (u @ normal) * normal) / np.linalg.norm(u - (u @ normal) * normal)
-            v = np.cross(normal, u)
-            x, y = (corners - p) @ u, (corners - p) @ v
-            x2, y2 = np.roll(x, -1), np.roll(y, -1)
-            straddles = (y > 0.0) != (y2 > 0.0)
-            with np.errstate(divide="ignore", invalid="ignore"):
-                crossing = x + (0.0 - y) * (x2 - x) / (y2 - y)
-            if int(np.count_nonzero(straddles & (crossing > 0.0))) % 2 == 1:
-                found = True
-                break
-        lying.append(found)
-    return lying
-
-
-def _fan_triangles(vertices: np.ndarray, faces) -> np.ndarray:
-    """Every polygon as a fan of triangles, shape (n, 3, 3)."""
-    triangles = [(vertices[face[0]], vertices[face[k]], vertices[face[k + 1]]) for face in faces for k in range(1, len(face) - 1)]
-    return np.asarray(triangles, dtype=float).reshape(-1, 3, 3)
-
-
-def _winding_number(point: np.ndarray, triangles: np.ndarray) -> float:
-    """Generalised winding number of a triangle soup at ``point``, from Van Oosterom and Strackee (1983) solid angles.
-
-    About +-1 inside a closed, consistently wound surface and 0 outside, whichever way it is wound.
-    """
-    if triangles.size == 0:
-        return 0.0
-    a, b, c = (triangles[:, k] - point for k in range(3))
-    la, lb, lc = (np.linalg.norm(x, axis=1) for x in (a, b, c))
-    numerator = np.einsum("ij,ij->i", a, np.cross(b, c))
-    denominator = la * lb * lc + np.einsum("ij,ij->i", a, b) * lc + np.einsum("ij,ij->i", a, c) * lb + np.einsum("ij,ij->i", b, c) * la
-    return float(np.sum(2.0 * np.arctan2(numerator, denominator)) / (4.0 * np.pi))

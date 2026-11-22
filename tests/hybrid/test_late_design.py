@@ -7,7 +7,7 @@ import spharpy
 from scipy.signal import sosfreqz
 
 from compas_acoustics.hybrid.bands import BANDS, N_BANDS
-from compas_acoustics.hybrid.late import design_fdn, render
+from compas_acoustics.hybrid.late import design_fdn, run_network
 from compas_acoustics.hybrid.ambisonics import ambisonic_output_matrix
 from compas_acoustics.hybrid.target import RoomTarget
 
@@ -33,7 +33,7 @@ def impulse_response(builds, n_samples):
     n = np.asarray(builds[0][0].delays).size
     drive = np.zeros((n_samples, n))
     drive[0] = 1.0 / np.sqrt(n)
-    return render(builds, drive) @ builds[0][0].C.T
+    return run_network(builds, drive) @ builds[0][0].C.T
 
 
 def test_output_matrix_shape():
@@ -136,7 +136,7 @@ def test_delays_must_be_one_array_or_one_per_slope():
 def test_render_rejects_a_drive_with_the_wrong_number_of_lines():
     builds = design_fdn(target_with(), delays_of(16))
     with pytest.raises(ValueError, match="one column per delay line"):
-        render(builds, np.zeros((256, 3)))
+        run_network(builds, np.zeros((256, 3)))
 
 
 def test_render_matches_pyfdn_for_an_impulse_through_b():
@@ -154,7 +154,7 @@ def test_render_matches_pyfdn_for_an_impulse_through_b():
     n_samples = 4096
     drive = np.zeros((n_samples, 8))
     drive[0] = dss.B[:, 0]
-    np.testing.assert_allclose(render([(dss, filters)], drive) @ dss.C.T, pyFDN.dss_to_td(*dss, **filters).impulse_response(n_samples)[:, :, 0], atol=1e-9)
+    np.testing.assert_allclose(run_network([(dss, filters)], drive) @ dss.C.T, pyFDN.dss_to_td(*dss, **filters).impulse_response(n_samples)[:, :, 0], atol=1e-9)
 
 
 def test_the_lines_filters_are_pyfdns_bit_for_bit_block_by_block():
@@ -174,5 +174,5 @@ def test_a_single_line_emerges_after_that_lines_delay():
     builds = design_fdn(target_with(), delays)
     drive = np.zeros((4096, 16))
     drive[0, 3] = 1.0
-    out = render(builds, drive) @ builds[0][0].C.T
+    out = run_network(builds, drive) @ builds[0][0].C.T
     assert int(np.argmax(np.abs(out[:, 0]) > 1e-12)) == delays[3]

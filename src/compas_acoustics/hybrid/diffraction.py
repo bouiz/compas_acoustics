@@ -32,7 +32,7 @@ from compas_acoustics.room.geometry import (
     OBSTACLE_OFFSET,
     RoomGeometry,
     _find_root,
-    _polygon_area_and_centroid,
+    _polygon_area_normal_and_mean,
     _split_at_t_junctions,
     _t_junction_tolerance,
 )
@@ -116,7 +116,7 @@ def wedge_path(edge: Edge, source: np.ndarray, receiver: np.ndarray) -> WedgePat
     return WedgePath(edge.theta_w, t_s, t_r, r_s, r_r, z_s, z_r, edge.length)
 
 
-def toolbox_frame(edge: Edge) -> tuple[np.ndarray, np.ndarray]:
+def edge_frame(edge: Edge) -> tuple[np.ndarray, np.ndarray]:
     """The edge's ends in EDtoolbox order and the reference face's normal into the air: x into face A, y = z cross x
     into the open region."""
     w = np.cross(edge.axis, edge.face_a)
@@ -125,13 +125,13 @@ def toolbox_frame(edge: Edge) -> tuple[np.ndarray, np.ndarray]:
     return np.array([edge.end, edge.start]), np.cross(-edge.axis, edge.face_a)
 
 
-def toolbox_cyl(edge: Edge, points: np.ndarray) -> np.ndarray:
+def edge_cyl(edge: Edge, points: np.ndarray) -> np.ndarray:
     """(r, theta, z) of points in the toolbox's frame of the edge, (n, 3).
 
     Rounding puts points on face A's plane at theta = 2 pi - eps; on a wedge
     that is face A, theta = 0. On a knife edge 2 pi is the panel's other side.
     """
-    ends, normal = toolbox_frame(edge)
+    ends, normal = edge_frame(edge)
     r, theta, z = _coordtrans1(np.atleast_2d(points), ends, normal)
     if edge.theta_w < TWO_PI - 1e-9:
         theta = np.where(theta > TWO_PI - 1e-9, 0.0, theta)
@@ -142,7 +142,7 @@ def edge_segments(edge: Edge, source: np.ndarray, receiver: np.ndarray) -> np.nd
     """Limits (k, 2) of equal segments along the edge in the toolbox's z, each at most 0.087 times the distance of the
     nearer of source and receiver from the edge's line (about 5 deg subtended there), that bound floored at 0.01 m for a
     point (nearly) on the line (the package's choice)."""
-    ends, _ = toolbox_frame(edge)
+    ends, _ = edge_frame(edge)
     nearest = min(np.linalg.norm(np.cross(ends[1] - ends[0], ends[0] - p)) / edge.length for p in (np.asarray(source), np.asarray(receiver)))
     n = max(1, int(np.ceil(edge.length / max(0.087 * nearest, 0.01))))
     z = np.linspace(0.0, edge.length, n + 1)
@@ -188,7 +188,7 @@ def coplanar_thetas(e1: Edge, e2: Edge) -> tuple[float, float]:
     theta_w in its other face, by face membership as EDed2geo.m assigns them. Points give no usable angle: a shared
     corner lies on the other edge's line, and rounding puts a point of a knife edge's panel at 0 or 2 pi - eps.
 
-    Two knife edges of one panel must refer to the same side of it. e1's frame (:func:`toolbox_frame`) sets the side: 0
+    Two knife edges of one panel must refer to the same side of it. e1's frame (:func:`edge_frame`) sets the side: 0
     about e1; about e2, 0 if its frame has the same side, else 2 pi.
     """
 
@@ -197,12 +197,12 @@ def coplanar_thetas(e1: Edge, e2: Edge) -> tuple[float, float]:
 
     if e1.theta_w < TWO_PI or e2.theta_w < TWO_PI:
         return one(e1, e2), one(e2, e1)
-    same = toolbox_frame(e1)[1] @ toolbox_frame(e2)[1] > 0.0
+    same = edge_frame(e1)[1] @ edge_frame(e2)[1] > 0.0
     return 0.0, 0.0 if same else TWO_PI
 
 
 def pair_valid(e1: Edge, e2: Edge, theta_2_about_1: float, theta_1_about_2: float) -> bool:
-    """Is a point of e2 at ``theta_2_about_1`` (:func:`toolbox_cyl` of e1) outside e1's solid, and a point of e1 at
+    """Is a point of e2 at ``theta_2_about_1`` (:func:`edge_cyl` of e1) outside e1's solid, and a point of e1 at
     ``theta_1_about_2`` outside e2's?"""
     tol = 1e-9
     return bool(-tol <= theta_2_about_1 <= e1.theta_w + tol and -tol <= theta_1_about_2 <= e2.theta_w + tol)
@@ -246,7 +246,7 @@ class Occluders:
         n_enclosure = len(geometry.faces) - 2 * len(geometry.obstacle_faces)
         faces = list(geometry.obstacle_faces) + list(geometry.faces[:n_enclosure])
         polygons = tuple(geometry.vertices[list(f)] for f in faces)
-        normals = np.array([_polygon_area_and_centroid(p)[1] for p in polygons])
+        normals = np.array([_polygon_area_normal_and_mean(p)[1] for p in polygons])
         offsets = np.einsum("ij,ij->i", normals, np.array([p[0] for p in polygons]))
         return cls(polygons, normals, offsets, len(geometry.obstacle_faces))
 
@@ -413,7 +413,7 @@ def obstacle_edges(geometry: RoomGeometry) -> list[Edge]:
         own = set(faces)
         support = [i for i in range(len(occ.polygons)) if i not in own]
         polys = {i: geometry.vertices[list(geometry.obstacle_faces[i])] for i in faces}
-        info = {i: _polygon_area_and_centroid(p) for i, p in polys.items()}
+        info = {i: _polygon_area_normal_and_mean(p) for i, p in polys.items()}
         points = np.vstack(list(polys.values()))
         centre = points.mean(axis=0)
         normal = {i: (n if n @ (ctr - centre) > 0.0 else -n) for i, (_, n, ctr) in info.items()}
@@ -695,7 +695,7 @@ class _Setup:
     """What both renderers take from a pair: the occluders, the edges, and the source and the receiver with their images
     (:func:`_ends`)."""
 
-    spec: Pair
+    pair: Pair
     occ: Occluders
     edges: list[Edge]
     air: np.ndarray
@@ -703,11 +703,11 @@ class _Setup:
     receivers: list[_End]
 
     @classmethod
-    def of(cls, spec: Pair, max_order: int) -> _Setup:
-        receiver = np.asarray(spec.receiver, dtype=float)
-        occ, edges = _geometry_parts(spec.geometry)
-        air = spec.air_attenuation()
-        return cls(spec, occ, edges, air, _ends(spec.source, occ, max_order >= 1), _ends(receiver, occ, max_order >= 1))
+    def of(cls, pair: Pair, max_order: int) -> _Setup:
+        receiver = np.asarray(pair.receiver, dtype=float)
+        occ, edges = _geometry_parts(pair.geometry)
+        air = pair.air_attenuation()
+        return cls(pair, occ, edges, air, _ends(pair.source, occ, max_order >= 1), _ends(receiver, occ, max_order >= 1))
 
     @property
     def pairs(self) -> list[tuple[_End, _End]]:
@@ -716,7 +716,7 @@ class _Setup:
 
     def gain(self, length: float, walls) -> np.ndarray:
         """Air attenuation over ``length`` times the reflection factor of each wall hit."""
-        geometry = self.spec.geometry
+        geometry = self.pair.geometry
         gain = np.exp(-self.air * length / 2.0)
         for face in walls:
             material = geometry.materials[geometry.face_materials[face - self.occ.n_obstacle]]
@@ -726,18 +726,18 @@ class _Setup:
     def doa(self, point: np.ndarray) -> np.ndarray:
         """The direction from the receiver to ``point``, in the receiver's frame."""
         d = point - self.receivers[0].origin
-        return self.spec.receiver_rotation.T @ d if self.spec.receiver_rotation is not None else d
+        return self.pair.receiver_rotation.T @ d if self.pair.receiver_rotation is not None else d
 
 
-def diffraction_paths(spec: Pair, *, max_order: int = 1) -> list[DiffractionPath]:
+def diffraction_paths(pair: Pair, *, max_order: int = 1) -> list[DiffractionPath]:
     """Every first-order UDFA path, with at most one wall reflection before or after it.
 
     For ``max_order >= 1`` the source's image in a wall gives the paths that
     reflect before they diffract, and the receiver's image those that reflect
     after, which is the same construction by reciprocity.
     """
-    c = spec.speed_of_sound
-    setup = _Setup.of(spec, max_order)
+    c = pair.speed_of_sound
+    setup = _Setup.of(pair, max_order)
     occ = setup.occ
     out: list[DiffractionPath] = []
     for src, rec in setup.pairs:
@@ -819,12 +819,20 @@ def second_order_start(source, receiver, seg1, seg2, c: float, fs: float) -> int
     return max(int(np.floor(shortest / c * fs)) - 1, 0)
 
 
-def btms_paths(spec: Pair, *, max_order: int = 1, second_order: bool = True) -> list[BtmsContribution]:
+def btms_paths(pair: Pair, *, max_order: int = 1, second_order: bool = True) -> list[BtmsContribution]:
     """First-order BTMS over every edge segment, with at most one wall reflection before or after, plus the order-0
     geometric components on zone boundaries; second order (direct paths) when ``second_order``."""
-    geometry = spec.geometry
-    c, fs = spec.speed_of_sound, spec.fs
-    setup = _Setup.of(spec, max_order)
+    setup = _Setup.of(pair, max_order)
+    out = _btms_first_order(setup)
+    if second_order:
+        out += _btms_second_order(setup)
+    return out
+
+
+def _btms_first_order(setup: _Setup) -> list[BtmsContribution]:
+    """The first-order segments and the order-0 geometric components of :func:`btms_paths`."""
+    geometry = setup.pair.geometry
+    c, fs = setup.pair.speed_of_sound, setup.pair.fs
     occ, edges = setup.occ, setup.edges
 
     def face_reflection(e, u):
@@ -840,8 +848,8 @@ def btms_paths(spec: Pair, *, max_order: int = 1, second_order: bool = True) -> 
         for k, e in enumerate(edges):
             if _in_own_plane(e, src, rec):
                 continue
-            ends, _ = toolbox_frame(e)
-            (rs, ts, zs), (rr, tr, zr) = toolbox_cyl(e, np.array([src.position, rec.position]))
+            ends, _ = edge_frame(e)
+            (rs, ts, zs), (rr, tr, zr) = edge_cyl(e, np.array([src.position, rec.position]))
             if rs < 1e-9 or rr < 1e-9 or ts > e.theta_w + 1e-9 or tr > e.theta_w + 1e-9:
                 continue
             unit = (ends[1] - ends[0]) / e.length
@@ -890,69 +898,75 @@ def btms_paths(spec: Pair, *, max_order: int = 1, second_order: bool = True) -> 
                     if face is not None:
                         gain = gain * face_reflection(e, face)
                     out.append(BtmsContribution(start, half, setup.doa(pl[0][-2]), gain, 0, (k,), True))
+    return out
 
-    if second_order:
-        src, rec = setup.sources[0], setup.receivers[0]
 
-        def prepare(e):
-            ends, _ = toolbox_frame(e)
-            cyl_s = toolbox_cyl(e, src.position[None, :])[0]
-            cyl_r = toolbox_cyl(e, rec.position[None, :])[0]
-            ok_s = cyl_s[0] >= 1e-9 and cyl_s[1] <= e.theta_w + 1e-9
-            ok_r = cyl_r[0] >= 1e-9 and cyl_r[1] <= e.theta_w + 1e-9
-            z = edge_segments(e, src.position, rec.position)
-            lo = ends[0] + z[:, :1] * (ends[1] - ends[0]) / e.length
-            hi = ends[0] + z[:, 1:] * (ends[1] - ends[0]) / e.length
-            mid = (lo + hi) / 2.0
-            skip = frozenset(e.faces)
-            from_source = np.array([ok_s and not occ.blocked(src.position, m, skip) for m in mid])
-            to_receiver = np.array([ok_r and not occ.blocked(m, rec.position, skip) for m in mid])
-            return cyl_s, cyl_r, z, lo, hi, mid, from_source, to_receiver
+def _btms_second_order(setup: _Setup) -> list[BtmsContribution]:
+    """The second-order segment pairs of :func:`btms_paths`, on the direct path."""
+    c, fs = setup.pair.speed_of_sound, setup.pair.fs
+    occ, edges = setup.occ, setup.edges
+    src, rec = setup.sources[0], setup.receivers[0]
+    out: list[BtmsContribution] = []
 
-        prep = [prepare(e) for e in edges]
-        for i, e1 in enumerate(edges):
-            cyl_s, _, z1, lo1, hi1, mid1, from_source, _ = prep[i]
-            if not from_source.any():
+    def prepare(e):
+        ends, _ = edge_frame(e)
+        cyl_s = edge_cyl(e, src.position[None, :])[0]
+        cyl_r = edge_cyl(e, rec.position[None, :])[0]
+        ok_s = cyl_s[0] >= 1e-9 and cyl_s[1] <= e.theta_w + 1e-9
+        ok_r = cyl_r[0] >= 1e-9 and cyl_r[1] <= e.theta_w + 1e-9
+        z = edge_segments(e, src.position, rec.position)
+        lo = ends[0] + z[:, :1] * (ends[1] - ends[0]) / e.length
+        hi = ends[0] + z[:, 1:] * (ends[1] - ends[0]) / e.length
+        mid = (lo + hi) / 2.0
+        skip = frozenset(e.faces)
+        from_source = np.array([ok_s and not occ.blocked(src.position, m, skip) for m in mid])
+        to_receiver = np.array([ok_r and not occ.blocked(m, rec.position, skip) for m in mid])
+        return cyl_s, cyl_r, z, lo, hi, mid, from_source, to_receiver
+
+    prep = [prepare(e) for e in edges]
+    for i, e1 in enumerate(edges):
+        cyl_s, _, z1, lo1, hi1, mid1, from_source, _ = prep[i]
+        if not from_source.any():
+            continue
+        for j, e2 in enumerate(edges):
+            _, cyl_r, z2, lo2, hi2, mid2, _, to_receiver = prep[j]
+            if i == j or not to_receiver.any():
                 continue
-            for j, e2 in enumerate(edges):
-                _, cyl_r, z2, lo2, hi2, mid2, _, to_receiver = prep[j]
-                if i == j or not to_receiver.any():
-                    continue
-                along = shared_face(e1, e2) is not None
+            along = shared_face(e1, e2) is not None
+            if along:
+                theta_2_about_1, theta_1_about_2 = coplanar_thetas(e1, e2)
+            # the equal path along the panel's rear side (EDmakeHODirs.m, boostfactor 2)
+            thin_plate = along and e1.theta_w == TWO_PI and e2.theta_w == TWO_PI
+            nu = np.pi / np.array([e1.theta_w, e2.theta_w])
+            skip = frozenset(e1.faces) | frozenset(e2.faces)
+            r2_about_1 = edge_cyl(e1, mid2)[:, 0]
+            receiving = np.flatnonzero(to_receiver)
+            # per segment of e2: its midpoint's angle and its ends about e1, the same for every segment of e1
+            mid2_about_1 = {n: edge_cyl(e1, mid2[n][None, :])[0, 1] for n in receiving}
+            ends2_about_1 = {n: edge_cyl(e1, np.array([lo2[n], hi2[n]])) for n in receiving}
+            if along:
+                for cyl in ends2_about_1.values():
+                    cyl[:, 1] = theta_2_about_1
+            for k in np.flatnonzero(from_source):
+                p0, p1, m1 = lo1[k], hi1[k], mid1[k]
+                r1_about_2, mid1_about_2 = edge_cyl(e2, m1[None, :])[0, :2]
+                e1_about_2 = edge_cyl(e2, np.array([p0, p1]))
                 if along:
-                    theta_2_about_1, theta_1_about_2 = coplanar_thetas(e1, e2)
-                # the equal path along the panel's rear side (EDmakeHODirs.m, boostfactor 2)
-                thin_plate = along and e1.theta_w == TWO_PI and e2.theta_w == TWO_PI
-                nu = np.pi / np.array([e1.theta_w, e2.theta_w])
-                skip = frozenset(e1.faces) | frozenset(e2.faces)
-                r2_about_1 = toolbox_cyl(e1, mid2)[:, 0]
-                receiving = np.flatnonzero(to_receiver)
-                # per segment of e2: its midpoint's angle and its ends about e1, the same for every segment of e1
-                mid2_about_1 = {n: toolbox_cyl(e1, mid2[n][None, :])[0, 1] for n in receiving}
-                ends2_about_1 = {n: toolbox_cyl(e1, np.array([lo2[n], hi2[n]])) for n in receiving}
-                if along:
-                    for cyl in ends2_about_1.values():
-                        cyl[:, 1] = theta_2_about_1
-                for k in np.flatnonzero(from_source):
-                    p0, p1, m1 = lo1[k], hi1[k], mid1[k]
-                    r1_about_2, mid1_about_2 = toolbox_cyl(e2, m1[None, :])[0, :2]
-                    e1_about_2 = toolbox_cyl(e2, np.array([p0, p1]))
-                    if along:
-                        e1_about_2[:, 1] = theta_1_about_2
-                    for n in receiving:
-                        q0, q1, m2 = lo2[n], hi2[n], mid2[n]
-                        if r1_about_2 < 1e-9 or r2_about_1[n] < 1e-9:
-                            continue
-                        if not pair_valid(e1, e2, mid2_about_1[n], mid1_about_2) or occ.blocked(m1, m2, skip):
-                            continue
-                        limits = np.array([z1[k], z2[n]])
-                        steps, dz = element_grid(limits[:, 1] - limits[:, 0], c, fs)
-                        start = second_order_start(src.position, rec.position, (p0, p1), (q0, q1), c, fs)
-                        ir = wedge2nd_ir(cyl_s, cyl_r, ends2_about_1[n], e1_about_2, nu, limits, dz, steps, along, start * c / fs, c, fs)
-                        if thin_plate:
-                            ir = 2.0 * ir
-                        length = np.linalg.norm(m1 - src.position) + np.linalg.norm(m2 - m1) + np.linalg.norm(rec.position - m2)
-                        out.append(BtmsContribution(start, ir, setup.doa(m2), setup.gain(length, ()), 2, (i, j), False))
+                    e1_about_2[:, 1] = theta_1_about_2
+                for n in receiving:
+                    q0, q1, m2 = lo2[n], hi2[n], mid2[n]
+                    if r1_about_2 < 1e-9 or r2_about_1[n] < 1e-9:
+                        continue
+                    if not pair_valid(e1, e2, mid2_about_1[n], mid1_about_2) or occ.blocked(m1, m2, skip):
+                        continue
+                    limits = np.array([z1[k], z2[n]])
+                    steps, dz = element_grid(limits[:, 1] - limits[:, 0], c, fs)
+                    start = second_order_start(src.position, rec.position, (p0, p1), (q0, q1), c, fs)
+                    ir = wedge2nd_ir(cyl_s, cyl_r, ends2_about_1[n], e1_about_2, nu, limits, dz, steps, along, start * c / fs, c, fs)
+                    if thin_plate:
+                        ir = 2.0 * ir
+                    length = np.linalg.norm(m1 - src.position) + np.linalg.norm(m2 - m1) + np.linalg.norm(rec.position - m2)
+                    out.append(BtmsContribution(start, ir, setup.doa(m2), setup.gain(length, ()), 2, (i, j), False))
     return out
 
 

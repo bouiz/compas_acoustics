@@ -92,23 +92,23 @@ class RoomTarget:
     @classmethod
     def from_room(
         cls,
-        spec: Pair,
+        pair: Pair,
         *,
         model: str = "eyring",
     ) -> RoomTarget:
         """A single-slope target predicted from geometry and materials.
 
         ``model`` is that of :func:`~compas_acoustics.room.diffuse.predicted_rt`. Air absorption follows
-        ``spec.air_absorption``, which keeps the decay and the image source gains consistent.
+        ``pair.air_absorption``, which keeps the decay and the image source gains consistent.
         """
         rt = predicted_rt(
-            spec.geometry,
+            pair.geometry,
             model=model,
-            air_absorption=spec.air_absorption,
-            speed_of_sound=spec.speed_of_sound,
-            air=spec.air,
+            air_absorption=pair.air_absorption,
+            speed_of_sound=pair.speed_of_sound,
+            air=pair.air,
         )
-        return cls(rt=rt[:, np.newaxis], bands=BANDS.copy(), fs=spec.fs)
+        return cls(rt=rt[:, np.newaxis], bands=BANDS.copy(), fs=pair.fs)
 
     def geq_bands(self, slope: int = 0) -> np.ndarray:
         """One slope's RT on the ten-band attenuation grid: 31.25 Hz, the eight octaves, 16 kHz.

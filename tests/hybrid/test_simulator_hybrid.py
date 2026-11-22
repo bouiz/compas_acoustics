@@ -691,7 +691,7 @@ def test_omni_keeps_the_early_field():
     (d,), (o,) = directional.results.values(), omni.results.values()
     np.testing.assert_array_equal(d.early, o.early)
     fs = d.core.fs
-    a = int(round((np.linalg.norm(d.core.spec.source - d.core.spec.receiver) / d.core.spec.speed_of_sound + 0.08) * fs))
+    a = int(round((np.linalg.norm(d.core.pair.source - d.core.pair.receiver) / d.core.pair.speed_of_sound + 0.08) * fs))
     level = 10 * np.log10(np.sum(o.rir[a:, 0] ** 2) / np.sum(d.rir[a:, 0] ** 2))
     assert abs(level) < 1.0
     assert not np.allclose(d.late, o.late)

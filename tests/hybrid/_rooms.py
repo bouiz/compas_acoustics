@@ -29,10 +29,10 @@ def pair(geometry, source, receiver, receiver_rotation=None, fs=48000.0, speed_o
     return Pair(geometry, source, receiver, rotation, float(fs), speed_of_sound, air_absorption)
 
 
-def images(spec, max_order):
+def images(pair, max_order):
     """The pair's image sources up to ``max_order``."""
-    room = spec.geometry.to_pra(int(spec.fs), max_order)
-    room.add_source(np.asarray(spec.source, dtype=float).tolist())
-    room.add_microphone(np.asarray(spec.receiver, dtype=float).reshape(3, 1))
+    room = pair.geometry.to_pra(int(pair.fs), max_order)
+    room.add_source(np.asarray(pair.source, dtype=float).tolist())
+    room.add_microphone(np.asarray(pair.receiver, dtype=float).reshape(3, 1))
     room.image_source_model()
-    return early.image_sources(room, 0, 0, spec)
+    return early.image_sources(room, 0, 0, pair)

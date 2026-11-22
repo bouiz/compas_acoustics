@@ -3,7 +3,8 @@
 import numpy as np
 import pytest
 
-from _rooms import box_room, images, pair
+from _rooms import box_room, images
+from _rooms import pair as make_pair
 from compas_acoustics.hybrid.synthesis import prepare
 from compas_acoustics.hybrid.ambisonics import render_ambisonics
 from compas_acoustics.hybrid.target import RoomTarget
@@ -126,7 +127,7 @@ def test_a_reference_on_another_scale_warns():
 
 # -------------------------------------------------------------- the pipeline --
 def shoebox():
-    return pair(
+    return make_pair(
         geometry=box_room((7.0, 5.0, 3.0), SurfaceMaterial("wall", np.full(8, 0.2))),
         source=np.array([1.5, 1.5, 1.6]),
         receiver=np.array([5.0, 3.0, 1.5]),
@@ -136,17 +137,17 @@ def shoebox():
 
 
 def test_without_a_reference_nothing_changes():
-    spec = shoebox()
-    default = render_ambisonics(prepare(spec, images(spec, 3), RoomTarget.from_room(spec), max_order=2, duration_s=0.5))
-    none = render_ambisonics(prepare(spec, images(spec, 3), RoomTarget.from_room(spec), max_order=2, duration_s=0.5, late_envelope=None))
+    pair = shoebox()
+    default = render_ambisonics(prepare(pair, images(pair, 3), RoomTarget.from_room(pair), max_order=2, duration_s=0.5))
+    none = render_ambisonics(prepare(pair, images(pair, 3), RoomTarget.from_room(pair), max_order=2, duration_s=0.5, late_envelope=None))
     np.testing.assert_array_equal(default.rir, none.rir)
 
 
 def test_a_reference_shapes_only_the_late_field():
-    spec = shoebox()
-    plain = render_ambisonics(prepare(spec, images(spec, 3), RoomTarget.from_room(spec), max_order=2, duration_s=0.5))
+    pair = shoebox()
+    plain = render_ambisonics(prepare(pair, images(pair, 3), RoomTarget.from_room(pair), max_order=2, duration_s=0.5))
     reference = plain.early[:, 0] + 0.5 * plain.late[:, 0]
-    shaped = render_ambisonics(prepare(spec, images(spec, 3), RoomTarget.from_room(spec), max_order=2, duration_s=0.5, late_envelope=reference))
+    shaped = render_ambisonics(prepare(pair, images(pair, 3), RoomTarget.from_room(pair), max_order=2, duration_s=0.5, late_envelope=reference))
     np.testing.assert_array_equal(shaped.early, plain.early)
     np.testing.assert_allclose(shaped.rir, shaped.early + shaped.late)
     assert np.sum(shaped.late**2) < np.sum(plain.late**2)

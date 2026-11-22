@@ -30,7 +30,7 @@ def mean_absorption(geometry) -> np.ndarray:
     return (areas @ alphas) / areas.sum()
 
 
-def _absorption_uniformity(geometry) -> np.ndarray:
+def _absorption_coefficient_of_variation(geometry) -> np.ndarray:
     """Area-weighted coefficient of variation of absorption per band, shape (8,); zero for one coefficient."""
     surfaces = geometry.surfaces
     areas = np.array([area for area, _ in surfaces], dtype=float)
@@ -51,16 +51,16 @@ def _warn_if_not_diffuse(geometry, model: str) -> None:
     area-weighted coefficient of variation of absorption above 0.3, or a mean absorption of 0.25 or more.
     """
     mean = mean_absorption(geometry)
-    uniformity = _absorption_uniformity(geometry)
+    variation = _absorption_coefficient_of_variation(geometry)
     name = model.capitalize()
     uneven_cv, high_absorption = 0.3, 0.25
 
-    uneven = uniformity > uneven_cv
+    uneven = variation > uneven_cv
     if np.any(uneven):
         warnings.warn(
             f"{name} assumes a diffuse field, but this room's absorption is unevenly distributed in the "
             f"{_band_list(uneven)} Hz band(s) (area-weighted coefficient of variation up to "
-            f"{uniformity[uneven].max():.2f}, warning above {uneven_cv}): the predicted reverberation time may be "
+            f"{variation[uneven].max():.2f}, warning above {uneven_cv}): the predicted reverberation time may be "
             f"too short. With Binaural or Ambisonics, use tail='ray_tracing' or a reference.",
             DiffuseFieldWarning,
             stacklevel=3,

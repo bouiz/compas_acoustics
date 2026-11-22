@@ -6,10 +6,42 @@ input raises ValueError or TypeError, which the service answers with its message
 
 import functools
 import importlib.util
+import math
+import os
+import random
 import warnings
 from contextlib import contextmanager
 
+import numpy as np
+import soundfile as sf
+from compas.datastructures import Mesh
+from compas.geometry import Polyline
+from compas.geometry import Vector
+
+from compas_acoustics import AcousticMaterial
+from compas_acoustics import AcousticObject
+from compas_acoustics import Analyser
+from compas_acoustics import AudioPlayer
+from compas_acoustics import Defaults
+from compas_acoustics import EnergyMap
+from compas_acoustics import MaterialsLibrary
+from compas_acoustics import RayField
+from compas_acoustics import Receiver
+from compas_acoustics import Scene
+from compas_acoustics import Source
+from compas_acoustics import SpecularReflections
+from compas_acoustics import __version__
+from compas_acoustics import simulation_methods
 from compas_acoustics.analyser import PARAMETERS
+from compas_acoustics.analyser import frequency_response
+from compas_acoustics.analyser import time_response
+from compas_acoustics.auraliser import Auraliser
+from compas_acoustics.fitness import regularized_fitness as _regularized_fitness
+from compas_acoustics.pb import SCHEMA
+from compas_acoustics.pb.types import Audio
+from compas_acoustics.room.pra import CARDIOID_P
+from compas_acoustics.worker import fingerprint
+from compas_acoustics.worker import jobs
 
 __all__ = [
     "info",
@@ -30,18 +62,16 @@ __all__ = [
     "energy_map",
     "specular_reflections",
     "regularized_fitness",
-    "sound_info",
     "pause",
     "resume",
     "playback_status",
     "sound_samples",
+    "sound_info",
 ]
 
 
 def _method_class(name):
     if name in ("binaural", "ambisonics", "mono"):
-        from compas_acoustics import simulation_methods
-
         return getattr(simulation_methods, name.capitalize())
     raise ValueError(f"Unknown method {name!r}: 'binaural', 'ambisonics' or 'mono'.")
 
@@ -57,11 +87,6 @@ def _user_warnings():
 
 
 def info():
-    from compas_acoustics import Defaults
-    from compas_acoustics import __version__
-    from compas_acoustics.pb import SCHEMA
-    from compas_acoustics.worker import fingerprint
-
     return {
         "compas_acoustics": __version__,
         "fingerprint": fingerprint(),
@@ -89,12 +114,10 @@ def simulate(scene, method, settings, references=None):
 
 def analyse(ir):
     """STI and G of ``ir`` for a client whose pyrato cannot compute them: ``{"analysis": {...}, "warnings": [str]}``."""
-    from compas_acoustics import Analyser
-
     with _user_warnings() as messages:
         # the client computes every other parameter itself
-        analysis = Analyser(ir)._sti_and_strength()
-    return {"analysis": analysis, "warnings": messages}
+        result = Analyser(ir)._sti_and_strength()
+    return {"analysis": result, "warnings": messages}
 
 
 # =============================================================================
@@ -104,8 +127,6 @@ def analyse(ir):
 
 @functools.lru_cache(maxsize=None)
 def _library():
-    from compas_acoustics import MaterialsLibrary
-
     return MaterialsLibrary()
 
 
@@ -123,8 +144,6 @@ def material_from_name(name):
 
 def make_material(name, absorption, scattering=None, category=None):
     """An :class:`AcousticMaterial`; an empty ``scattering`` or ``category`` is left to the class's default."""
-    from compas_acoustics import AcousticMaterial
-
     return AcousticMaterial(name=name, absorption_coefficients=list(absorption), scattering_coefficients=list(scattering) if scattering else None, category=category or None)
 
 
@@ -133,9 +152,6 @@ def make_source(name, position, direction=None, directivity=None, sound_file=Non
 
     ``spl``: one value for all bands or one per band; None or empty keeps the default.
     """
-    from compas_acoustics import Source
-    from compas_acoustics.room.pra import CARDIOID_P
-
     directivity = directivity or "omnidirectional"
     if directivity not in CARDIOID_P:
         raise ValueError("Input parameter 'directivity' is not valid.")
@@ -153,10 +169,6 @@ def make_source(name, position, direction=None, directivity=None, sound_file=Non
 
 def make_receiver(name, position=None, direction=None):
     """``{"receiver": Receiver}``, upright (+z up), as the Receiver component makes it."""
-    from compas.geometry import Vector
-
-    from compas_acoustics import Receiver
-
     receiver = Receiver(name or "my_receiver", *(position if position is not None else [0, 0, 1]))
     if direction is not None:
         receiver.direction = Vector(*direction)
@@ -167,11 +179,6 @@ def make_receiver(name, position=None, direction=None):
 
 def make_acoustic_object(geometry, material, name=None, role="boundary"):
     """An :class:`AcousticObject` of a Mesh or a Polyline."""
-    from compas.datastructures import Mesh
-    from compas.geometry import Polyline
-
-    from compas_acoustics import AcousticObject
-
     if not isinstance(geometry, (Mesh, Polyline)):
         raise TypeError("Unsupported geometry type.")
     return AcousticObject(acoustic_geometry=geometry, material=material, name=name or None, role=role or "boundary")
@@ -179,11 +186,6 @@ def make_acoustic_object(geometry, material, name=None, role="boundary"):
 
 def make_scene(objects, sources, receivers, name=None, sampling_rate=None):
     """A :class:`Scene` of the objects, sources and receivers; an item of the wrong type is a TypeError naming it."""
-    from compas_acoustics import AcousticObject
-    from compas_acoustics import Receiver
-    from compas_acoustics import Scene
-    from compas_acoustics import Source
-
     for label, items, kind in (("objects", objects, AcousticObject), ("sources", sources, Source), ("receivers", receivers, Receiver)):
         for i, item in enumerate(items):
             if not isinstance(item, kind):
@@ -221,8 +223,6 @@ def _parameter(name, title, x_unit, y_unit, x_scale, x, values, overall=None, ch
 def _plotted_channels(ir):
     """The raw channels a curve shows, (samples, channels), and their names: W of an ambisonic response, both ears of
     a binaural one."""
-    import numpy as np
-
     data = ir.denormalized()
     data = data[:, np.newaxis] if data.ndim == 1 else data
     if ir.format == "binaural":
@@ -245,15 +245,9 @@ def analysis(ir, time_scale="db"):
     values are NaN. ``time_scale`` ``'db'`` gives the time response in dB re its peak, ``'linear'`` its amplitude to
     60 dB down its decay.
     """
-    import math
-
-    from compas_acoustics import Analyser
-    from compas_acoustics.analyser import frequency_response
-    from compas_acoustics.analyser import time_response
-
     time_scale = time_scale or TIME_SCALES[0]
     if time_scale not in TIME_SCALES:
-        raise ValueError(f"Input parameter 'time_scale' must be one of {TIME_SCALES}: 'db' or 'linear'.")
+        raise ValueError(f"Input parameter 'time_scale' must be one of {TIME_SCALES}.")
     with _user_warnings() as messages:
         analyser = Analyser(ir)
         analyser.analyse()
@@ -290,14 +284,6 @@ def auralise(groups, level="relative", mix_sources=False, save_folder=None, save
     ``'relative'`` (one gain for the call, the loudest at -1 dBFS), ``'individual'`` or ``'none'``. With a
     ``save_folder`` each signal is also written there as ``<save_name or 'convolved_sound'>_mic_<suffix>.wav``.
     """
-    import os
-
-    import numpy as np
-
-    from compas_acoustics.auraliser import Auraliser
-    from compas_acoustics.pb.types import Audio
-    from compas_acoustics.worker import jobs
-
     level = level or LEVELS[0]
     if level not in LEVELS:
         raise ValueError(f"Input parameter 'level' must be one of {LEVELS}.")
@@ -340,8 +326,6 @@ _PLAYER = None
 def _player():
     global _PLAYER
     if _PLAYER is None:
-        from compas_acoustics import AudioPlayer
-
         _PLAYER = AudioPlayer()
     return _PLAYER
 
@@ -351,10 +335,6 @@ def play(sound, normalize=True, gain_db=0.0, start=0.0):
 
     An Audio signal plays from ``start`` seconds with ``gain_db`` after the normalisation; a file plays whole.
     """
-    import os
-
-    from compas_acoustics.pb.types import Audio
-
     if isinstance(sound, Audio):
         if sound.channels > 2:
             raise ValueError(
@@ -393,12 +373,6 @@ def playback_status():
 
 def sound_samples(path):
     """An audio file as :class:`Audio`, mono, binaural (2 channels) or ambisonic, so that it shows as a signal does."""
-    import os
-
-    import soundfile as sf
-
-    from compas_acoustics.pb.types import Audio
-
     if not os.path.exists(path):
         raise ValueError(f"The file {path} does not exist.")
     try:
@@ -407,6 +381,17 @@ def sound_samples(path):
         raise ValueError(f"Cannot read {path}: {e}")
     channels = samples.shape[1]
     return Audio(samples[:, 0] if channels == 1 else samples, rate, "mono" if channels == 1 else "binaural" if channels == 2 else "ambisonic")
+
+
+def sound_info(path):
+    """The channels of an audio file, in any format soundfile reads: ``{"channels"}``."""
+    if not os.path.exists(path):
+        raise ValueError(f"The file {path} does not exist.")
+    try:
+        header = sf.info(path)
+    except Exception as e:
+        raise ValueError(f"Cannot read the channels of {path}: {e}")
+    return {"channels": int(header.channels)}
 
 
 # =============================================================================
@@ -424,10 +409,6 @@ def ray_field(scene, source_index=None, n_rays=500, max_order=10, direction=None
     ``shown`` is the field cut after ``order`` reflections, or the whole field. Only scattered rays are random; no
     ``seed`` draws one.
     """
-    import random
-
-    from compas_acoustics import RayField
-
     count = len(scene.sources)
     if source_index is not None and not 0 <= source_index < count:
         raise ValueError(_index_message("source", source_index, count))
@@ -458,8 +439,6 @@ def energy_map(scene, points, source_index=None):
     The settings are fixed so that the same scene gives the same map: image sources up to order 1, the rays of
     :func:`compas_acoustics.energy_map.map_rays`, seeded with 42.
     """
-    from compas_acoustics import EnergyMap
-
     with _user_warnings() as messages:
         result = EnergyMap.from_scene(scene, points, source_index=None if source_index is None else int(source_index), seed=True)
     return {
@@ -473,8 +452,6 @@ def energy_map(scene, points, source_index=None):
 def specular_reflections(scene, orders=None, source_index=None, receiver_index=None):
     """``{"reflections": SpecularReflections, "counts": [[order, n]], "warnings": [str]}`` of the given orders, as
     Visualise Reflections finds them; negative orders are left out with a warning, no order is order 1."""
-    from compas_acoustics import SpecularReflections
-
     notes = []
     orders = sorted({int(o) for o in orders or [] if o is not None})
     negative = [o for o in orders if o < 0]
@@ -493,21 +470,4 @@ def specular_reflections(scene, orders=None, source_index=None, receiver_index=N
 
 
 def regularized_fitness(values, target, k=1.0):
-    from compas_acoustics import regularized_fitness as fitness
-
-    return float(fitness(list(values), target, 1.0 if k is None else k))
-
-
-def sound_info(path):
-    """The channels of an audio file, in any format soundfile reads: ``{"channels"}``."""
-    import os
-
-    import soundfile as sf
-
-    if not os.path.exists(path):
-        raise ValueError(f"The file {path} does not exist.")
-    try:
-        info = sf.info(path)
-    except Exception as e:
-        raise ValueError(f"Cannot read the channels of {path}: {e}")
-    return {"channels": int(info.channels)}
+    return float(_regularized_fitness(list(values), target, 1.0 if k is None else k))

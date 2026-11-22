@@ -55,7 +55,7 @@ def _band_damping(source, damping) -> np.ndarray:
     return damping[:N_BANDS].T
 
 
-def image_sources(room, source_index: int, mic_index: int, spec: Pair, directivity=None, damping=None, scattered=None) -> ImageSourceSet:
+def image_sources(room, source_index: int, mic_index: int, pair: Pair, directivity=None, damping=None, scattered=None) -> ImageSourceSet:
     """The image sources of one source at one microphone of a searched room.
 
     ``room`` holds every source and microphone of the scene; this pair's images are those visible at
@@ -72,14 +72,14 @@ def image_sources(room, source_index: int, mic_index: int, spec: Pair, directivi
     """
     source = room.sources[source_index]
     visible = np.array(room.visibility[source_index][mic_index], dtype=bool)
-    visible[visible] = first_of_each_position(np.asarray(source.images, dtype=float)[:, visible], spec.geometry)
+    visible[visible] = first_of_each_position(np.asarray(source.images, dtype=float)[:, visible], pair.geometry)
     images = np.asarray(source.images, dtype=float)[:, visible]  # (3, M)
     order = np.asarray(source.orders, dtype=int).ravel()[visible]
     wall = np.asarray(source.walls, dtype=int).ravel()[visible]
 
-    offset = images - spec.receiver[:, np.newaxis]  # (3, M)
+    offset = images - pair.receiver[:, np.newaxis]  # (3, M)
     distance = np.linalg.norm(offset, axis=0)  # (M,)
-    delay = distance / spec.speed_of_sound
+    delay = distance / pair.speed_of_sound
     spreading = 1.0 / (4.0 * np.pi * distance)
 
     response = None
@@ -91,7 +91,7 @@ def image_sources(room, source_index: int, mic_index: int, spec: Pair, directivi
 
     def gain_of(products):
         # m is an energy attenuation coefficient, so pressure loses exp(-m d / 2) over the image's own path
-        wall_gain = _band_damping(source, products)[visible] * np.exp(-np.outer(distance, spec.air_attenuation()) / 2.0)
+        wall_gain = _band_damping(source, products)[visible] * np.exp(-np.outer(distance, pair.air_attenuation()) / 2.0)
         gain = wall_gain * spreading[:, np.newaxis]
         if response is not None:
             gain = gain * np.asarray(response, dtype=float).reshape(-1, 1)
@@ -100,7 +100,7 @@ def image_sources(room, source_index: int, mic_index: int, spec: Pair, directivi
     gain = gain_of(source.damping if damping is None else damping)
 
     # the rotation's columns are the receiver's axes, so the transpose takes a world vector to its frame
-    offset = spec.receiver_rotation.T @ offset
+    offset = pair.receiver_rotation.T @ offset
 
     if scattered is not None:
         scattered = np.where((order > 0)[:, np.newaxis], gain_of(scattered), 0.0)
@@ -111,13 +111,13 @@ def image_sources(room, source_index: int, mic_index: int, spec: Pair, directivi
         doa=pf.Coordinates(offset[0], offset[1], offset[2]),
         order=order,
         bands=BANDS.copy(),
-        fs=spec.fs,
+        fs=pair.fs,
         scattered=scattered,
         wall=wall,
     )
 
 
-def _radiation_taper(freq: np.ndarray) -> np.ndarray:
+def _dc_block(freq: np.ndarray) -> np.ndarray:
     """Causal fourth-order Butterworth high-pass at 35 Hz, exactly zero at DC.
 
     The band gains are held flat from 62.5 Hz down to f = 0, where every image's phase ramp is 1 and the images sum
@@ -146,7 +146,7 @@ def encode(iss: ImageSourceSet, sh_order: int, n_samples: int) -> np.ndarray:
     The band gains are interpolated onto the FFT grid in log frequency and dB, the delay applied as a phase ramp (a
     band-limited fractional delay), and the images summed in the frequency domain. Above the top band the magnitude
     continues its slope (:func:`_extrapolated_top_db`); below the lowest it is tapered to zero at DC
-    (:func:`_radiation_taper`).
+    (:func:`_dc_block`).
     """
     if sh_order < 0:
         raise ValueError("sh_order must be non-negative")
@@ -229,7 +229,7 @@ def _band_magnitude_fn(freq: np.ndarray, bands: np.ndarray, fs: float):
 
 
 def _finish(spectrum: np.ndarray, freq: np.ndarray, nfft: int, n_samples: int) -> np.ndarray:
-    spectrum *= _radiation_taper(freq)[:, np.newaxis]
+    spectrum *= _dc_block(freq)[:, np.newaxis]
     return np.fft.irfft(spectrum, nfft, axis=0)[:n_samples]
 
 

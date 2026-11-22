@@ -34,6 +34,7 @@ from compas_acoustics.worker import CONTENT_TYPE
 from compas_acoustics.worker import PARENT_VARIABLE
 from compas_acoustics.worker import TOKEN_VARIABLE
 from compas_acoustics.worker import WORKERS
+from compas_acoustics.worker import jobs
 
 __all__ = ["WorkerService", "dispatch", "process_is_alive", "start_service"]
 
@@ -61,8 +62,6 @@ def dispatch(token, authorization, function, body, call_id=None):
 
     With a ``call_id`` the call runs as a job that :func:`compas_acoustics.worker.jobs.cancel` can stop.
     """
-    from compas_acoustics.worker import jobs
-
     if not authorized(token, authorization):
         return _error(401, "Unauthorised.")
     if not call_id:
@@ -79,7 +78,6 @@ def _dispatch(function, body):
 
     import compas_acoustics.pb  # noqa: F401  (registers the converters)
     from compas_acoustics.worker import api
-    from compas_acoustics.worker import jobs
 
     if function not in api.__all__:
         return _error(404, f"{function} is not part of the compas_acoustics worker API.")
@@ -115,8 +113,6 @@ class _Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
-        from compas_acoustics.worker import jobs
-
         if self.path == "/ping":
             self._answer(200, b"pong " + hashlib.sha256(self.server.token.encode()).hexdigest()[:16].encode(), "text/plain")
         elif self.path.startswith("/progress/"):
@@ -141,8 +137,6 @@ class _Handler(BaseHTTPRequestHandler):
             self._answer(200, b"", "text/plain")
             threading.Thread(target=self.server.shutdown, daemon=True).start()
         elif self.path.startswith("/cancel/"):
-            from compas_acoustics.worker import jobs
-
             self._answer(200, _encode({"result": jobs.cancel(self.path[len("/cancel/") :])}))
         else:
             self._answer(*_error(404, "Not found."))

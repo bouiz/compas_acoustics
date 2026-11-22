@@ -32,7 +32,7 @@ from .late import MIN_DELAYS
 from .late import design_fdn
 from .late import directional_delays
 from .late import fdn_directions
-from .late import render
+from .late import run_network
 from .pair import Pair
 from .target import RoomTarget
 
@@ -45,7 +45,7 @@ class HybridCore:
     early field, every renderer's first channel, so it is applied there (:meth:`shaped_lines`).
     """
 
-    spec: Pair
+    pair: Pair
     n_samples: int
     fs: float
     max_order: int
@@ -82,7 +82,7 @@ class HybridResult:
 
 
 def prepare(
-    spec: Pair,
+    pair: Pair,
     iss: ImageSourceSet,
     target: RoomTarget,
     *,
@@ -128,21 +128,21 @@ def prepare(
 
     ``scattering`` (Ewert et al. 2025, Sec. 3.1.2) needs ``iss.scattered``; ``iss.gain`` is then the specular part.
     The scattered part of every image of orders 1 to ``max_order`` enters the lines of its own hemisphere skipping
-    their delays (:func:`render`'s ``tap``), through the allpass cascade of Eqs. 12-13 with ``R`` the mean free
+    their delays (:func:`run_network`'s ``tap``), through the allpass cascade of Eqs. 12-13 with ``R`` the mean free
     path, weighted as a driving image.
     """
-    n_samples = int(np.ceil(duration_s * spec.fs))
+    n_samples = int(np.ceil(duration_s * pair.fs))
 
     directions = fdn_directions(num_delays)
-    delays = [directional_delays(spec, directions, rng=rng + slope) for slope in range(target.n_slopes)]
+    delays = [directional_delays(pair, directions, rng=rng + slope) for slope in range(target.n_slopes)]
     builds = design_fdn(target, delays, rng=rng)
     drive_gain = float(np.sqrt(num_delays))
 
     paths, contributions = (), ()
     if diffraction == "udfa":
-        paths = tuple(diffraction_paths(spec, max_order=max_order))
+        paths = tuple(diffraction_paths(pair, max_order=max_order))
     elif diffraction == "btms":
-        contributions = tuple(btms_paths(spec, max_order=max_order))
+        contributions = tuple(btms_paths(pair, max_order=max_order))
     if directional_envelope is not None:
         if late_envelope is None:
             raise ValueError("directional_envelope needs late_envelope, the omni reference that sets the level")
@@ -159,14 +159,14 @@ def prepare(
             stacklevel=2,
         )
     drive = render_images(driving_set, scattering_weights(driving_set.doa, directions, opposite=True), n_samples)
-    line_eq = directional_absorption_filters(spec, directions) if directional_absorption else None
+    line_eq = directional_absorption_filters(pair, directions) if directional_absorption else None
     tap = None
     if scattering:
         if iss.scattered is None:
             raise ValueError("scattering needs image sources with scattered parts: pass image_sources the scattered damping")
         reflected = _select(iss, (iss.order >= 1) & (iss.order <= max_order))
         if reflected.delay.size:
-            free_path = 4.0 * spec.geometry.volume / spec.geometry.surface_area
+            free_path = 4.0 * pair.geometry.volume / pair.geometry.surface_area
             tap = (
                 smear(
                     render_images(
@@ -174,22 +174,22 @@ def prepare(
                         scattering_weights(reflected.doa, directions),
                         n_samples,
                     ),
-                    scattering_decay_time(free_path, spec.speed_of_sound),
-                    spec.fs,
+                    scattering_decay_time(free_path, pair.speed_of_sound),
+                    pair.fs,
                 )
                 * drive_gain
             )
     return HybridCore(
-        spec=spec,
+        pair=pair,
         n_samples=n_samples,
-        fs=spec.fs,
+        fs=pair.fs,
         max_order=max_order,
         target=target,
         images=_select(iss, iss.order <= max_order),
         diffraction_paths=paths,
         btms_contributions=contributions,
         builds=builds,
-        lines=render(builds, drive * drive_gain, tap=tap, line_eq=line_eq),
+        lines=run_network(builds, drive * drive_gain, tap=tap, line_eq=line_eq),
         line_directions=directions.cartesian / np.linalg.norm(directions.cartesian, axis=1, keepdims=True),
         late_envelope=late_envelope,
         directional_envelope=directional_envelope,
