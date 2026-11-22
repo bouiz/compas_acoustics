@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-* Added the worker function `room_volume(scene)`, the volume of a closed room or None.
+* Added the worker function `room_measures(scene)`: the volume of a closed room (else None) and the area exposed to the air, as the simulation methods take them, for the Acoustic Scene message.
 
 ### Changed
 
@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Changed `Analyser.plot` to label its axes as the Grasshopper plots do, from one table that the worker also serves (`"Value (%)"` for D50, `"Modulation transfer index (0-1)"` for the bands of STI).
 * Changed the error for a wrong number of band values of `Source.spl` and the `AcousticMaterial` coefficients to one wording.
 * Changed the worker to check the token of a call before registering it, so an unauthorised call leaves a running call with the same id alone; a POST to an unknown route without the token answers 401.
-* Changed `room.diffuse.predicted_rt` to compute Sabine and Eyring itself on every Python, in pyrato's order of operations (identical results on Python >= 3.11; on Python < 3.11 a mean absorption at or below 1e-10 now gives a large finite Sabine time, as pyrato does, instead of inf).
+* Changed `room.diffuse.predicted_rt` to use pyrato's Sabine and Eyring (`pyrato.parametric`) where they exist (pyrato >= 1.0, Python >= 3.11), and its own lines in pyrato's order of operations where they do not; on Python < 3.11 a mean absorption at or below 1e-10 now gives a large finite Sabine time, as pyrato does, instead of inf.
 * Changed `hybrid.synthesis.prepare` to take `diffraction` as `None`, `"udfa"` or `"btms"` and to require `duration_s`; `Binaural` and `Ambisonics` still take `diffraction=True` and default to 1.5 times each pair's longest target reverberation time.
 * Changed the allpass cascade of the hybrid's surface scattering (`scattering=True`) to run block by block, about 28 times faster; the responses agree with the former filter to about 1e-14 of their peak.
 * Changed BTMS diffraction to compute the edge coordinates of the second order once per segment, not once per segment pair, and the diffracting edges once per room geometry: about 1.4 times faster, the responses bit-identical. The edge warnings come once per simulation, not once per source-receiver pair.
@@ -38,7 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Fixed `EnergyMap` to bin on the ray tracer's grid (4 ms in whole samples, 3.991 ms at 44.1 kHz); `bin_size` said 4 ms, the image sources were binned on another grid than the rays, and the last ray bins were dropped. 48 kHz is unchanged.
 * Fixed `Binaural` and `Ambisonics` to check a reference's length against the longest predicted Eyring reverberation time, no longer held within 0.5 to 12 s, and only when there is a reference: an Eyring or Sabine tail no longer warns that ray tracing will be slow.
 * Fixed Grasshopper Simulate Binaural to use the HRTF set chosen with its HRTF... button while the input is hidden (the default layout); the set was ignored and the default rendered.
-* Fixed the Grasshopper source preview to draw the supercardioid the simulation uses (0.37), and the Acoustic Scene message to show the volume of the room geometry the simulation uses, from the worker (the total area alone for an open room or an older worker).
+* Fixed the Grasshopper source preview to draw the supercardioid the simulation uses (0.37), and the Acoustic Scene message to show the volume and area of the room geometry the simulation uses, from the worker and only when the scene changes (the preview's area alone for an open room or an older worker).
 
 ### Removed
 

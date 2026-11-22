@@ -10,6 +10,7 @@ import warnings
 from typing import Optional
 
 import numpy as np
+import pyrato
 
 from compas_acoustics.room.air import AirConditions
 from compas_acoustics.room.air import air_or_default
@@ -82,8 +83,8 @@ def air_attenuation(air: Optional[AirConditions] = None) -> np.ndarray:
     return air_or_default(air).air_attenuation(np.array(SYNTHESIS_BANDS))
 
 
-# Sabine and Eyring as pyrato 1.1.0's parametric module writes them, operation for operation (pyrato < 1.0, the one
-# below Python 3.11, has no such module)
+# The fallback where pyrato has no parametric module (pyrato < 1.0, below Python 3.11): Sabine and Eyring as pyrato
+# 1.1.0 writes them, operation for operation
 def _sabine(volume, surface_area, mean_absorption, speed_of_sound):
     factor = 24 * np.log(10) / speed_of_sound
     with np.errstate(divide="ignore"):
@@ -112,9 +113,13 @@ def predicted_rt(
     With ``air_absorption`` the ``4 m V`` term (Vorlaender 2020, Eqs. 4.32-4.34) is added. Warns with
     :class:`DiffuseFieldWarning` where the room is not diffuse, unless ``warn`` is False. ``air`` sets the attenuation
     and, unless ``speed_of_sound`` is given, the speed of sound. The mean absorption is held below 1, so a fully
-    absorbing room gives a finite time.
+    absorbing room gives a finite time. Sabine and Eyring are pyrato's (``pyrato.parametric``), or own equivalents where
+    pyrato has none.
     """
-    models = {"sabine": _sabine, "eyring": _eyring}
+    if hasattr(pyrato, "parametric"):
+        models = {"sabine": pyrato.parametric.reverberation_time_sabine, "eyring": pyrato.parametric.reverberation_time_eyring}
+    else:
+        models = {"sabine": _sabine, "eyring": _eyring}
     if model not in models:
         raise ValueError(f"model must be one of {sorted(models)}, got {model!r}")
     if not geometry.is_closed:
