@@ -104,7 +104,14 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>The ambisonic order the method renders; null for a method without one.</summary>
         protected virtual int? ShOrder => null;
 
-        private bool Has(string port) => Params.Input.Exists(p => p.Name == port);
+        /// <summary>Whether the method renders with an HRTF set.</summary>
+        protected virtual bool TakesHrtf => false;
+
+        /// <summary>The HRTF set chosen for the method, whether its input is shown or hidden; null for the default or a method without one.</summary>
+        internal string? Hrtf(IGH_DataAccess access) => TakesHrtf ? Text(access, "hrtf") : null;
+
+        /// <summary>The HRTF set as the message names it: the file's name, or ku100 for the default.</summary>
+        internal static string HrtfLabel(string? hrtf) => string.IsNullOrEmpty(hrtf) ? "ku100" : Path.GetFileName(hrtf);
 
         private void SetGraph(IGH_DataAccess access, string sceneGuid) =>
             access.SetData(Output, _last != null && _last.SceneGuid == sceneGuid ? _last.Graph : null);
@@ -124,7 +131,7 @@ namespace CompasAcoustics.Grasshopper
                 return;
             }
             var shOrder = ShOrder;
-            var hrtf = Has("hrtf") ? Text(access, "hrtf") : null;
+            var hrtf = Hrtf(access);
             var ismOrder = Value<int>(access, "ism_order");
             var diffraction = Text(access, "diffraction");
             var seed = Value<int>(access, "seed");
@@ -206,7 +213,7 @@ namespace CompasAcoustics.Grasshopper
             var generation = _last?.Generation ?? new Dictionary<string, object?>();
             generation.TryGetValue("tail", out var tail);
             var order = generation.TryGetValue("sh_order", out var sh) ? $", SH order {MessageText.Show(sh)}" : "";
-            var set = Has("hrtf") ? $", hrtf {(string.IsNullOrEmpty(context.Hrtf) ? "ku100" : Path.GetFileName(context.Hrtf))}" : "";
+            var set = TakesHrtf ? $", hrtf {HrtfLabel(context.Hrtf)}" : "";
             return $"{MessageText.Rate(context.Scene.SamplingRate)}, {Method}, tail {tail ?? "auto"}{order}, seed {MessageText.Show(context.Seed)}{set}";
         }
     }
@@ -218,6 +225,7 @@ namespace CompasAcoustics.Grasshopper
         public override Guid ComponentGuid => new Guid("2c46c2f3-7b8b-43fd-ba7b-b249681d829b");
         protected override string Method => "binaural";
         protected override string Output => "binaural_ir_graph";
+        protected override bool TakesHrtf => true;
 
         // empty is the KU 100; the button chooses the user's own SOFA set, and a File Path wired to hrtf wins
         protected override IEnumerable<Control> MethodButtons => new Control[] { new ButtonControl("hrtf", "HRTF...") };

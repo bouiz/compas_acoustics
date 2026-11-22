@@ -46,7 +46,7 @@ def box_mesh():
 
 
 def test_every_function_the_service_serves_is_listed():
-    for name in ("materials_library", "material_from_name", "make_material", "make_source", "make_receiver", "make_acoustic_object", "make_scene"):
+    for name in ("materials_library", "material_from_name", "make_material", "make_source", "make_receiver", "make_acoustic_object", "make_scene", "room_volume"):
         assert name in api.__all__
 
 
@@ -133,6 +133,17 @@ def test_make_scene_keeps_no_name_as_none_and_validates_the_rate():
     assert call("make_scene", [], [], []).name is None
     with pytest.raises(ValueError, match="sampling_rate"):
         api.make_scene([], [], [], sampling_rate=-1)
+
+
+def test_room_volume_is_the_closed_rooms_and_none_without_one():
+    material = AcousticMaterial("wall", [0.2] * 7)
+    closed = Scene("room")
+    closed.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(7, 5, 3, materials=material))
+    assert call("room_volume", closed) == pytest.approx(105.0)
+    open_ = Scene("floor")
+    open_.add_acoustic_objects([AcousticObject(Mesh.from_vertices_and_faces([[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]], [[0, 1, 2, 3]]), material)])
+    assert call("room_volume", open_) is None
+    assert call("room_volume", Scene("empty")) is None
 
 
 # ---------------------------------------------------------------------------

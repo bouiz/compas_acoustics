@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+* Added the worker function `room_volume(scene)`, the volume of a closed room or None.
+
 ### Changed
 
 * Changed `late_envelope` of `Binaural` and `Ambisonics` from on/off to `"omni"`, `"directional"` or `False`, and the default with a reference or a ray-tracing tail to `"omni"`: the late field takes the reference's level per band, and its delay lines keep the network's spread over directions, weighted by `directional_absorption`. `"directional"` is the former `True`, with every line given its direction's share of the ray-traced energy per band; it traces the directional histograms, which `"omni"` does not (`generation["histogram_rays"]` is then `None`). A reference the method traces itself takes the ray count of the directions' rule (`hybrid.envelope.histogram_rays`, a direction's energy to 1 dB) in both modes, so both shape the late field to the same reference. `late_envelope=True` raises, naming the three values. The Grasshopper components' Late envelope toggle is a dropdown (auto, omni, directional, off; auto is the method's default by tail), and a definition saved with the toggle keeps its choice (on as directional, off as off).
@@ -35,6 +37,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Fixed the hybrid's late envelope at sample rates between 22.6 and 31.7 kHz, where pyfar's filter bank has no 16 kHz band and the omnidirectional shaping summed a band that was never written; the band count follows the bank. 44.1 and 48 kHz are unchanged.
 * Fixed `EnergyMap` to bin on the ray tracer's grid (4 ms in whole samples, 3.991 ms at 44.1 kHz); `bin_size` said 4 ms, the image sources were binned on another grid than the rays, and the last ray bins were dropped. 48 kHz is unchanged.
 * Fixed `Binaural` and `Ambisonics` to check a reference's length against the longest predicted Eyring reverberation time, no longer held within 0.5 to 12 s, and only when there is a reference: an Eyring or Sabine tail no longer warns that ray tracing will be slow.
+* Fixed Grasshopper Simulate Binaural to use the HRTF set chosen with its HRTF... button while the input is hidden (the default layout); the set was ignored and the default rendered.
+* Fixed the Grasshopper source preview to draw the supercardioid the simulation uses (0.37), and the Acoustic Scene message to show the volume of the room geometry the simulation uses, from the worker (the total area alone for an open room or an older worker).
 
 ### Removed
 

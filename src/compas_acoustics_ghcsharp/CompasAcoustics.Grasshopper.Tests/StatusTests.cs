@@ -34,6 +34,8 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal("Volume: 105 m3\nTotal area: 142 m2", shown);
             Assert.Equal("Volume: 105 m3\nTotal area: 142 m2\n6 objects, 1 source, 2 receivers, 48 kHz", full);
             Assert.Equal("Volume: 1786 m3\nTotal area: 1279 m2", MessageText.Scene(1786.4, 1279.2, 1, 2, 1, 44100).shown);
+            // without the room's volume (an open room, or a worker that does not give it): the surface alone
+            Assert.Equal(("Total area: 142 m2", "Total area: 142 m2\n6 objects, 1 source, 2 receivers, 48 kHz"), MessageText.Scene(null, 142, 6, 1, 2, 48000));
             // the strip's limit is a line's: two short lines are not cut
             Assert.Equal(("Volume: 1786 m3\nTotal area: 1279 m2", null), MessageText.Status("Volume: 1786 m3\nTotal area: 1279 m2"));
         }

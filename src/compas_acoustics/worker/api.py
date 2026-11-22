@@ -27,6 +27,7 @@ from compas_acoustics import EnergyMap
 from compas_acoustics import MaterialsLibrary
 from compas_acoustics import RayField
 from compas_acoustics import Receiver
+from compas_acoustics import RoomGeometry
 from compas_acoustics import Scene
 from compas_acoustics import Source
 from compas_acoustics import SpecularReflections
@@ -54,6 +55,7 @@ __all__ = [
     "make_receiver",
     "make_acoustic_object",
     "make_scene",
+    "room_volume",
     "analysis",
     "auralise",
     "play",
@@ -197,6 +199,16 @@ def make_scene(objects, sources, receivers, name=None, sampling_rate=None):
     for receiver in receivers:
         scene.add_receiver(receiver)
     return scene
+
+
+def room_volume(scene):
+    """The volume in m3 that ``scene``'s surfaces close, as the simulation methods take it; None if they close none."""
+    try:
+        geometry = RoomGeometry.from_scene(scene)
+    except ValueError:
+        # a scene without surfaces
+        return None
+    return float(geometry.volume) if geometry.is_closed else None
 
 
 # =============================================================================

@@ -125,6 +125,19 @@ namespace CompasAcoustics.Grasshopper
 
     public sealed class RoomSceneComponent : ComponentBase
     {
+        /// <summary>The volume of the scene's room from the worker; null for an open room, or a worker that does not give it.</summary>
+        internal static double? RoomVolume(Worker worker, SceneData scene)
+        {
+            try
+            {
+                return worker.Call("room_volume", scene) is { } volume ? Convert.ToDouble(volume, System.Globalization.CultureInfo.InvariantCulture) : null;
+            }
+            catch (Exception e) when (e is WorkerException || WorkerClient.IsGone(e))
+            {
+                return null;
+            }
+        }
+
         public RoomSceneComponent() : base("CA_Model") { }
         protected override string SpecKey => "CA_Model";
         public override Guid ComponentGuid => new Guid("63ac4b6f-5c00-50a5-973f-6337bd1f2b11");
@@ -179,7 +192,7 @@ namespace CompasAcoustics.Grasshopper
             var scene = (SceneData)Worker.Call("make_scene", objects, sources, receivers, Text(access, "name"), rate)!;
             var goo = new SceneGoo(scene);
             var room = goo.Preview;
-            var (shown, full) = MessageText.Scene(room?.Volume ?? 0, room?.Area ?? 0,
+            var (shown, full) = MessageText.Scene(RoomVolume(Worker, scene), room?.Area ?? 0,
                 scene.AcousticObjects.Count, scene.Sources.Count, scene.Receivers.Count, scene.SamplingRate);
             Status(shown, full);
             access.SetData(0, goo);

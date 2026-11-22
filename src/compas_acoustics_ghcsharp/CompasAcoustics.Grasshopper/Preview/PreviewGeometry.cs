@@ -21,8 +21,8 @@ namespace CompasAcoustics.Grasshopper
             .Sum(i => Vector3d.CrossProduct(Vertices[face[i]] - Vertices[face[0]], Vertices[face[i + 1]] - Vertices[face[0]]).Length / 2));
     }
 
-    /// <summary>A scene: its objects, and the room's volume and surface (its boundary, obstacles left out) for the Scene component's message.</summary>
-    public sealed record ScenePreview(IReadOnlyList<ObjectPreview> Objects, BoundingBox Box, double Volume, double Area);
+    /// <summary>A scene: its objects, and the room's surface (its boundary, obstacles left out) for the Scene component's message.</summary>
+    public sealed record ScenePreview(IReadOnlyList<ObjectPreview> Objects, BoundingBox Box, double Area);
 
     /// <summary>What the goo draw in the viewport, as plain geometry (the drawing itself is in <see cref="PreviewDrawing"/>).</summary>
     public static class PreviewGeometry
@@ -41,7 +41,7 @@ namespace CompasAcoustics.Grasshopper
         {
             "cardioid" => 0.5,
             "hypercardioid" => 0.25,
-            "supercardioid" => 0.366,
+            "supercardioid" => 0.37,
             "bidirectional" => 0.0,
             _ => 1.0,
         };
@@ -168,28 +168,15 @@ namespace CompasAcoustics.Grasshopper
             return sides.Values.Where(s => s.normals.Count != 2 || Math.Abs(s.normals[0] * s.normals[1]) < Coplanar).Select(s => s.line).ToArray();
         }
 
-        /// <summary>The scene's objects (its sources and receivers are drawn by their own components), and the room's volume
-        /// and surface from its boundary.</summary>
+        /// <summary>The scene's objects (its sources and receivers are drawn by their own components), and the room's surface from its boundary.</summary>
         public static ScenePreview Scene(SceneData scene)
         {
             var objects = scene.AcousticObjects.Select(Object).ToList();
             var box = BoundingBox.Empty;
-            double volume = 0;
             foreach (var o in objects)
-            {
                 foreach (var v in o.Polyline ?? (IEnumerable<Point3d>)o.Vertices)
                     box.Union(v);
-                if (o.Obstacle)
-                    continue;
-                foreach (var face in o.Faces)
-                    for (var i = 1; i + 1 < face.Length; i++)
-                    {
-                        Point3d p0 = o.Vertices[face[0]], p1 = o.Vertices[face[i]], p2 = o.Vertices[face[i + 1]];
-                        // divergence theorem: the signed volume of the tetrahedron with the origin
-                        volume += new Vector3d(p0) * Vector3d.CrossProduct(new Vector3d(p1), new Vector3d(p2)) / 6;
-                    }
-            }
-            return new ScenePreview(objects, box, Math.Abs(volume), objects.Where(o => !o.Obstacle).Sum(o => o.Area));
+            return new ScenePreview(objects, box, objects.Where(o => !o.Obstacle).Sum(o => o.Area));
         }
     }
 }

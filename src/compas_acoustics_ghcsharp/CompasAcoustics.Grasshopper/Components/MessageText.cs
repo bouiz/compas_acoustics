@@ -34,11 +34,12 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>The Acoustic Object's strip: its surface.</summary>
         public static string Object(double area) => string.Format(CultureInfo.InvariantCulture, "Total area: {0:0.#} m2", area);
 
-        /// <summary>The Scene's strip: the room's volume and total surface; the tooltip adds what it holds.</summary>
-        public static (string shown, string full) Scene(double volume, double area, int objects, int sources, int receivers, int rate)
+        /// <summary>The Scene's strip: the room's volume (none when it is not known) and total surface; the tooltip adds what it holds.</summary>
+        public static (string shown, string full) Scene(double? volume, double area, int objects, int sources, int receivers, int rate)
         {
             // a line each: Grasshopper's strip draws a line break
-            var shown = string.Format(CultureInfo.InvariantCulture, "Volume: {0:0} m3\nTotal area: {1:0} m2", volume, area);
+            var surface = string.Format(CultureInfo.InvariantCulture, "Total area: {0:0} m2", area);
+            var shown = volume is double v ? string.Format(CultureInfo.InvariantCulture, "Volume: {0:0} m3\n", v) + surface : surface;
             var full = $"{shown}\n{Count(objects, "object")}, {Count(sources, "source")}, {Count(receivers, "receiver")}, {Rate(rate)}";
             return (shown, full);
         }
