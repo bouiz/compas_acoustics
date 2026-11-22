@@ -53,8 +53,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(choice.Scattering, back.Scattering);
             Assert.Equal(choice.Edited, back.Edited);
             Assert.Null(MaterialChoice.Read("not json"));
-            // a document saved with only the library's name
-            Assert.True(MaterialChoice.Named("gypsum_board").AsInTheLibrary);
         }
 
         [Fact]

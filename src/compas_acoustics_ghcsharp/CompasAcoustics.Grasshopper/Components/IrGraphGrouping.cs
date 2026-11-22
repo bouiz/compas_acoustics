@@ -10,7 +10,7 @@ namespace CompasAcoustics.Grasshopper
     /// <summary>The responses of an IR graph per receiver, filtered by source and receiver index, as Deconstruct IR Graph gives them.</summary>
     public static class IrGraphGrouping
     {
-        private static string Message(string kind, int index, int count) =>
+        private static string Message(string kind, string index, int count) =>
             $"No {kind} at index {index}; the graph has {count} {kind}(s), 0 to {count - 1}.";
 
         /// <param name="sourceIdx">Sources to keep, by index over the whole graph; null or empty keeps all.</param>
@@ -22,7 +22,7 @@ namespace CompasAcoustics.Grasshopper
             {
                 var wrong = sourceIdx.Where(i => i < 0 || i >= graph.Sources.Count).ToList();
                 if (wrong.Count > 0)
-                    warn($"No source at index {string.Join(", ", wrong)}; the graph has {graph.Sources.Count} source(s), 0 to {graph.Sources.Count - 1}.");
+                    warn(Message("source", string.Join(", ", wrong), graph.Sources.Count));
                 keep = sourceIdx.Where(i => i >= 0 && i < graph.Sources.Count).Select(i => graph.Sources[i].Guid).ToHashSet();
             }
             var indices = receiverIdx != null && receiverIdx.Count > 0 ? receiverIdx : Enumerable.Range(0, graph.Receivers.Count).ToList();
@@ -31,7 +31,7 @@ namespace CompasAcoustics.Grasshopper
             {
                 if (index < 0 || index >= graph.Receivers.Count)
                 {
-                    warn(Message("receiver", index, graph.Receivers.Count));
+                    warn(Message("receiver", index.ToString(System.Globalization.CultureInfo.InvariantCulture), graph.Receivers.Count));
                     continue;
                 }
                 var receiver = graph.Receivers[index];

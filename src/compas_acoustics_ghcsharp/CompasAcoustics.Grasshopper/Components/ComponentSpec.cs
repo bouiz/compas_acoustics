@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -8,8 +9,8 @@ using Grasshopper.Kernel;
 namespace CompasAcoustics.Grasshopper
 {
     /// <summary>
-    /// One port of a component, as its metadata.json describes it. ``Default`` (an int, double, bool or string, after the
-    /// type hint) is the value an unconnected port shows; ``NamedValues`` are the integers its menu offers.
+    /// One port of a component, as its metadata.json describes it. <c>Default</c> (an int, double, bool or string, after the
+    /// type hint) is the value an unconnected port shows; <c>NamedValues</c> are the integers its menu offers.
     /// </summary>
     public sealed record PortSpec(string Name, string Description, bool Optional, GH_ParamAccess Access, string TypeHint, bool Flatten,
         object? Default = null, IReadOnlyList<(string name, int value)>? NamedValues = null)
@@ -21,21 +22,16 @@ namespace CompasAcoustics.Grasshopper
     /// A component's names, description, ports and icon: its metadata.json and icon.png, embedded in the assembly
     /// (Components/Specs/&lt;name&gt;).
     /// </summary>
-    public sealed record ComponentSpec(string Key, string Name, string Nickname, string Description, string Subcategory, GH_Exposure Exposure,
+    public sealed record ComponentSpec(string Name, string Nickname, string Description, string Subcategory, GH_Exposure Exposure,
         IReadOnlyList<PortSpec> Inputs, IReadOnlyList<PortSpec> Outputs)
     {
         private const string Prefix = "Specs/";
+        private static readonly ConcurrentDictionary<string, ComponentSpec> Loaded = new();
 
         private static Stream Resource(string path) =>
             typeof(ComponentSpec).Assembly.GetManifestResourceStream(Prefix + path)
             ?? typeof(ComponentSpec).Assembly.GetManifestResourceStream(Prefix + path.Replace('/', '\\'))
             ?? throw new InvalidOperationException($"No embedded component spec {path}.");
-
-        public static IEnumerable<string> Names() =>
-            typeof(ComponentSpec).Assembly.GetManifestResourceNames()
-                .Where(n => n.StartsWith(Prefix) && n.EndsWith("metadata.json"))
-                .Select(n => n.Substring(Prefix.Length).Split('/', '\\')[0])
-                .OrderBy(n => n, StringComparer.Ordinal);
 
         public static byte[] IconBytes(string key)
         {
@@ -45,14 +41,16 @@ namespace CompasAcoustics.Grasshopper
             return buffer.ToArray();
         }
 
-        public static ComponentSpec Load(string key)
+        /// <summary>The spec of <paramref name="key"/>, read once.</summary>
+        public static ComponentSpec Load(string key) => Loaded.GetOrAdd(key, Read);
+
+        private static ComponentSpec Read(string key)
         {
             using var stream = Resource(key + "/metadata.json");
             using var json = JsonDocument.Parse(stream);
             var root = json.RootElement;
             var ports = root.GetProperty("ports");
             return new ComponentSpec(
-                key,
                 root.GetProperty("name").GetString()!,
                 root.GetProperty("nickname").GetString()!,
                 root.GetProperty("description").GetString()!,

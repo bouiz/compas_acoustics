@@ -8,8 +8,8 @@ using Grasshopper.Kernel.Types;
 namespace CompasAcoustics.Grasshopper
 {
     /// <summary>
-    /// A room acoustic parameter per band, or a curve (time or frequency response), as Analyse IR gives it and Plot 2D draws
-    /// it. ``XScale`` is ``bands``, ``linear`` (time) or ``log`` (frequency); ``Values`` has one row per channel.
+    /// A room acoustic parameter per band, or a curve (time or frequency response), as Analyse Impulse Response gives it and Plot 2D draws
+    /// it. <c>XScale</c> is <c>bands</c>, <c>linear</c> (time) or <c>log</c> (frequency); <c>Values</c> has one row per channel.
     /// </summary>
     public sealed class ParameterGoo : GH_Goo<ParameterGoo.Content>
     {
@@ -20,7 +20,7 @@ namespace CompasAcoustics.Grasshopper
 
         public ParameterGoo(Content value) { Value = value; }
 
-        /// <summary>A parameter of the worker's ``analysis``.</summary>
+        /// <summary>A parameter of the worker's <c>analysis</c>.</summary>
         public static ParameterGoo FromDictionary(IDictionary<string, object?> p) =>
             new ParameterGoo(new Content(
                 (string)p["name"]!, (string)p["title"]!, (string)p["x_unit"]!, (string)p["y_unit"]!, (string)p["x_scale"]!,

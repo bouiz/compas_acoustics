@@ -1,7 +1,6 @@
 using System;
 using System.Drawing;
 using System.Linq;
-using System.Windows.Forms;
 using Grasshopper.GUI;
 using Grasshopper.GUI.Canvas;
 
@@ -13,9 +12,10 @@ namespace CompasAcoustics.Grasshopper
     {
         private const float MinWidth = 180;
         private const float MinLaneHeight = 20;
-        private const float Grip = 8;
         private static readonly SliderControl Volume = new("volume", -40, 6, "dB");
-        private (object? signal, int columns, (float min, float max)[][] envelope)? _cache;
+        // per signal: its peak in dBFS; per signal and width: the envelope and the scale that fills a lane with it
+        private (object signal, double peakDbfs)? _peak;
+        private (object? signal, int columns, (float min, float max)[][] envelope, float scale)? _cache;
         private bool _resizing;
         private bool _dragging;
         private double? _draggedGain;
@@ -47,12 +47,14 @@ namespace CompasAcoustics.Grasshopper
         {
             var boxes = Boxes;
             var signal = Player.Signal;
-            using var small = new Font(FontFamily.GenericSansSerif, 6f);
+            var small = ChartPainter.Small;
             var channels = Player.Channels;
             g.DrawString("Volume", global::Grasshopper.Kernel.GH_FontServer.StandardAdjusted, Brushes.Black, boxes.VolumeLabel.Left, boxes.VolumeLabel.Top);
             if (signal != null)
             {
-                var header = Player.Problem ?? Waveform.Header(signal.Format, channels, signal.SamplingRate, Player.Transport.Duration, Peak(signal));
+                if (_peak is not { } peak || !ReferenceEquals(peak.signal, signal))
+                    _peak = peak = (signal, PeakDbfs(signal));
+                var header = Player.Problem ?? Waveform.Header(signal.Format, channels, signal.SamplingRate, Player.Transport.Duration, peak.peakDbfs);
                 g.DrawString(header, small, Player.Problem != null ? Brushes.DarkRed : Brushes.Black,
                     new RectangleF(boxes.Header.Location, new SizeF(boxes.Header.Width, boxes.Header.Height + 2)));
                 var lanes = Waveform.Lanes(boxes.Lanes, channels);
@@ -61,9 +63,12 @@ namespace CompasAcoustics.Grasshopper
                         g.FillRectangle(back, lane);
                 var columns = Math.Max((int)boxes.Lanes.Width, 1);
                 if (_cache == null || !ReferenceEquals(_cache.Value.signal, signal) || _cache.Value.columns != columns)
-                    _cache = (signal, columns, Waveform.Envelope(signal.Samples, channels, columns));
-                var peak = _cache.Value.envelope.SelectMany(l => l).Select(c => Math.Max(Math.Abs(c.min), Math.Abs(c.max))).DefaultIfEmpty(0).Max();
-                var scale = peak > 0 ? 1 / peak : 1;
+                {
+                    var envelope = Waveform.Envelope(signal.Samples, channels, columns);
+                    var top = envelope.SelectMany(l => l).Select(c => Math.Max(Math.Abs(c.min), Math.Abs(c.max))).DefaultIfEmpty(0).Max();
+                    _cache = (signal, columns, envelope, top > 0 ? 1 / top : 1);
+                }
+                var scale = _cache.Value.scale;
                 using var pen = new Pen(Color.FromArgb(40, 90, 160), 1);
                 for (var c = 0; c < lanes.Length; c++)
                 {
@@ -89,19 +94,14 @@ namespace CompasAcoustics.Grasshopper
             DrawIconButton(g, boxes.PlayPause, playing ? Glyph.Pause : Glyph.Play, Player.CanPlay, _down == "playpause");
             DrawIconButton(g, boxes.Stop, Glyph.Stop, Player.CanPlay && Player.Transport.State != TransportState.Stopped, _down == "stop");
             // a toggle: dark when the signal is scaled to full level
-            using (var norm = GH_Capsule.CreateTextCapsule(Rectangle.Round(boxes.Normalize), Rectangle.Round(boxes.Normalize),
-                       Player.Normalize ? GH_Palette.Black : GH_Palette.White, "Normalize", 2, 0))
-                norm.Render(g, Selected, Owner.Locked, false);
+            Painter.Capsule(g, boxes.Normalize, Player.Normalize ? GH_Palette.Black : GH_Palette.White, "Normalize", Selected, Owner.Locked);
             var gain = _draggedGain ?? Player.GainDb;
             Painter.Draw(g, new ControlBox(Volume, boxes.Volume, Array.Empty<RectangleF>()),
                 (gain.ToString(System.Globalization.CultureInfo.InvariantCulture), false), Selected, Owner.Locked, false, _draggedGain);
-            // the resize grip, at the component's corner
-            var corner = Bounds;
-            g.DrawLine(Pens.Gray, corner.Right - Grip, corner.Bottom - 2, corner.Right - 2, corner.Bottom - Grip);
-            g.DrawLine(Pens.Gray, corner.Right - Grip / 2, corner.Bottom - 2, corner.Right - 2, corner.Bottom - Grip / 2);
+            Painter.DrawGrip(g, Bounds);
         }
 
-        private static double Peak(CompasAcoustics.Pb.AudioData signal)
+        private static double PeakDbfs(CompasAcoustics.Pb.AudioData signal)
         {
             var peak = signal.Samples.Count == 0 ? 0 : signal.Samples.Max(Math.Abs);
             return peak > 0 ? 20 * Math.Log10(peak) : double.NegativeInfinity;
@@ -110,15 +110,8 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>A capsule with the usual transport glyph, as the Visualise components draw theirs.</summary>
         private void DrawIconButton(Graphics g, RectangleF box, Glyph glyph, bool enabled, bool down)
         {
-            DrawButton(g, box, "", enabled, down);
+            Painter.Capsule(g, box, !enabled ? GH_Palette.Hidden : down ? GH_Palette.Grey : GH_Palette.Black, "", Selected, Owner.Locked);
             Painter.DrawGlyph(g, box, glyph, enabled);
-        }
-
-        private void DrawButton(Graphics g, RectangleF box, string label, bool enabled, bool down)
-        {
-            var palette = !enabled ? GH_Palette.Hidden : down ? GH_Palette.Grey : GH_Palette.Black;
-            using var capsule = GH_Capsule.CreateTextCapsule(Rectangle.Round(box), Rectangle.Round(box), palette, label, 2, 0);
-            capsule.Render(g, Selected, Owner.Locked, false);
         }
 
         private static string? ButtonAt(PlayerBoxes boxes, PointF p) => PlayerLayout.Hit(boxes, p) switch
@@ -132,7 +125,7 @@ namespace CompasAcoustics.Grasshopper
         protected override GH_ObjectResponse? RespondToExtraMouseDown(GH_Canvas sender, GH_CanvasMouseEvent e)
         {
             var p = e.CanvasLocation;
-            if (Bounds.Contains(p) && p.X > Bounds.Right - Grip * 1.5f && p.Y > Bounds.Bottom - Grip * 1.5f)
+            if (Painter.OnGrip(Bounds, p))
             {
                 _resizing = true;
                 return GH_ObjectResponse.Capture;

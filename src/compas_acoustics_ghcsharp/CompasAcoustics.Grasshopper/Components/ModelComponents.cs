@@ -2,9 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using CompasAcoustics.Pb;
-using CompasPb.Data;
 using Grasshopper.Kernel;
-using Grasshopper.Kernel.Parameters;
 using Grasshopper.Kernel.Types;
 using Rhino.Geometry;
 
@@ -42,7 +40,7 @@ namespace CompasAcoustics.Grasshopper
         {
             var position = Value<Point3d>(access, "position") ?? Point3d.Origin;
             var direction = Value<Vector3d>(access, "direction") ?? Vector3d.XAxis;
-            var spl = List<double>(access, "spl");
+            var spl = Items<double>(access, "spl");
             var source = (SourceData)Worker.Call("make_source", Text(access, "name"), MeshConversion.Xyz(position), MeshConversion.Xyz(direction),
                 Text(access, "directivity"), Text(access, "sound_file"), spl.Count == 0 ? null : spl.Cast<object?>().ToList())!;
             access.SetData(0, new SourceGoo(source));
@@ -150,9 +148,9 @@ namespace CompasAcoustics.Grasshopper
 
         protected override void Solve(IGH_DataAccess access)
         {
-            var given = List<AcousticObjectGoo>(access, "objects");
-            var sources = List<SourceGoo>(access, "sources").Where(s => s?.Value != null).Select(s => (object?)s.Value).ToList();
-            var receivers = List<ReceiverGoo>(access, "receivers").Where(r => r?.Value != null).Select(r => (object?)r.Value).ToList();
+            var given = Items<AcousticObjectGoo>(access, "objects");
+            var sources = Items<SourceGoo>(access, "sources").Where(s => s?.Value != null).Select(s => (object?)s.Value).ToList();
+            var receivers = Items<ReceiverGoo>(access, "receivers").Where(r => r?.Value != null).Select(r => (object?)r.Value).ToList();
             if (given.Count == 0)
             {
                 Warn("No objects provided.");

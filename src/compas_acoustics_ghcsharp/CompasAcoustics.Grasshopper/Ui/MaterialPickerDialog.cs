@@ -16,8 +16,8 @@ namespace CompasAcoustics.Grasshopper
     internal sealed class MaterialPickerDialog : Dialog<MaterialChoice?>
     {
         private const string CustomTag = "\u0001custom";
-        private static readonly Color Absorption = Color.FromArgb(60, 60, 60);
-        private static readonly Color Scattering = Color.FromArgb(110, 165, 220);
+        private static readonly Color Absorption = Color.FromArgb(MaterialChart.AbsorptionRgb.r, MaterialChart.AbsorptionRgb.g, MaterialChart.AbsorptionRgb.b);
+        private static readonly Color Scattering = Color.FromArgb(MaterialChart.ScatteringRgb.r, MaterialChart.ScatteringRgb.g, MaterialChart.ScatteringRgb.b);
 
         private readonly IReadOnlyList<(string category, IReadOnlyList<string> names)> _library;
         private readonly Func<string, AcousticMaterialData?> _lookup;
@@ -170,7 +170,7 @@ namespace CompasAcoustics.Grasshopper
             if (current != null && band < current.Length && current[band] == value)
                 return;
             _choices[_selected!] = choice.WithBand(scattering, band, value);
-            _origin.Text = _choices[_selected!].Origin.Replace("&", "&&");
+            ShowOrigin(_choices[_selected!]);
             _chart.Invalidate();
             // a first scattering value gives the other bands the default: they show it
             if (scattering && choice.Scattering == null)
@@ -245,18 +245,20 @@ namespace CompasAcoustics.Grasshopper
                 _category.Items.Add(choice.Category);
             _category.SelectedIndex = _category.Items.ToList().FindIndex(i => i.Text == choice.Category);
             _category.Enabled = choice.IsCustom;
-            // a label would read "&" as a mnemonic and drop it
-            _origin.Text = choice.Origin.Replace("&", "&&");
+            ShowOrigin(choice);
             _filling = false;
             ShowValues();
             _chart.Invalidate();
         }
 
+        // a label would read "&" as a mnemonic and drop it
+        private void ShowOrigin(MaterialChoice choice) => _origin.Text = choice.Origin.Replace("&", "&&");
+
         private RectangleF Plot => new(32, 22, _chart.Width - 42, _chart.Height - 46);
 
         private static System.Drawing.RectangleF Gdi(RectangleF r) => new(r.X, r.Y, r.Width, r.Height);
 
-        /// <summary>Set the band under ``location`` to the value there, in the series chosen above the chart.</summary>
+        /// <summary>Set the band under <paramref name="location"/> to the value there, in the series chosen above the chart.</summary>
         private void Edit(PointF location)
         {
             if (Highlighted is not { } choice)
@@ -264,7 +266,7 @@ namespace CompasAcoustics.Grasshopper
             var bands = Math.Max(choice.Absorption.Length, MaterialChoice.Bands);
             var (band, value) = MaterialChart.Hit(Gdi(Plot), bands, new System.Drawing.PointF(location.X, location.Y));
             _choices[_selected!] = choice.WithBand(_series.SelectedIndex == 1, band, value);
-            _origin.Text = _choices[_selected!].Origin.Replace("&", "&&");
+            ShowOrigin(_choices[_selected!]);
             ShowValues();
             _chart.Invalidate();
         }
@@ -282,7 +284,7 @@ namespace CompasAcoustics.Grasshopper
             g.FillRectangle(Absorption, plot.Left, 6, 8, 8);
             g.DrawText(font, Absorption, plot.Left + 11, 3, "absorption");
             g.FillRectangle(Scattering, plot.Left + 90, 6, 8, 8);
-            g.DrawText(font, Scattering, plot.Left + 101, 3, choice.Scattering == null ? "scattering (0.05 by default)" : "scattering");
+            g.DrawText(font, Scattering, plot.Left + 101, 3, choice.Scattering == null ? $"scattering ({MaterialChart.Format(MaterialChoice.DefaultScattering)} by default)" : "scattering");
             foreach (var tick in MaterialChart.Ticks)
             {
                 var y = plot.Bottom - (float)tick * plot.Height;

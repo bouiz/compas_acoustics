@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using CompasAcoustics.Pb;
 using Rhino.Geometry;
 
@@ -9,13 +10,19 @@ namespace CompasAcoustics.Grasshopper
     /// <summary>The rays of a ray field or the paths of specular reflections, as geometry: what the display components draw.</summary>
     public static class RayGeometry
     {
-        /// <summary>A traced ray. ``BirthOrder`` is the number of reflections before its first point (a scattered ray's origin order).</summary>
+        // by points array: a record's own field would take part in its equality and be copied by a with-expression
+        private static readonly ConditionalWeakTable<Point3d[], Tuple<double, double[]>> Cumulative = new();
+
+        /// <summary>A traced ray. <c>BirthOrder</c> is the number of reflections before its first point (a scattered ray's origin order).</summary>
         public sealed record Ray(Point3d[] Points, double DistanceOffset, int BirthOrder, bool Scattered)
         {
+            /// <summary>The distance travelled at each point, from <c>DistanceOffset</c> at the first; computed once per ray.</summary>
             public double[] CumulativeDistances
             {
                 get
                 {
+                    if (Cumulative.TryGetValue(Points, out var known) && known.Item1.Equals(DistanceOffset))
+                        return known.Item2;
                     var distances = new double[Points.Length];
                     var accumulated = DistanceOffset;
                     for (var i = 0; i < Points.Length; i++)
@@ -24,6 +31,7 @@ namespace CompasAcoustics.Grasshopper
                             accumulated += Distance(Points[i - 1], Points[i]);
                         distances[i] = accumulated;
                     }
+                    Cumulative.AddOrUpdate(Points, Tuple.Create(DistanceOffset, distances));
                     return distances;
                 }
             }
@@ -40,6 +48,9 @@ namespace CompasAcoustics.Grasshopper
             var (x, y, z) = (b.X - a.X, b.Y - a.Y, b.Z - a.Z);
             return Math.Sqrt(x * x + y * y + z * z);
         }
+
+        /// <summary>The point at <paramref name="t"/> from <paramref name="a"/> (0) to <paramref name="b"/> (1).</summary>
+        internal static Point3d Lerp(Point3d a, Point3d b, double t) => new(a.X + t * (b.X - a.X), a.Y + t * (b.Y - a.Y), a.Z + t * (b.Z - a.Z));
 
         private static Ray Of(IList<double> points, double offset, int birthOrder, bool scattered) =>
             new(MeshConversion.Points(points), offset, birthOrder, scattered);
@@ -63,7 +74,7 @@ namespace CompasAcoustics.Grasshopper
 
         public static Polyline ToPolyline(Ray ray) => new(ray.Points);
 
-        /// <summary>The part of ``ray`` sound has travelled after ``distance`` metres: nothing before it emerges, all after it ends.</summary>
+        /// <summary>The part of <paramref name="ray"/> sound has travelled after <paramref name="distance"/> metres: nothing before it emerges, all after it ends.</summary>
         public static Ray UpTo(Ray ray, double distance)
         {
             if (ray.Points.Length == 0 || distance < ray.DistanceOffset)
@@ -77,9 +88,7 @@ namespace CompasAcoustics.Grasshopper
                     points.Add(ray.Points[i]);
                     continue;
                 }
-                var t = (distance - d[i - 1]) / Math.Max(d[i] - d[i - 1], 1e-12);
-                var (a, b) = (ray.Points[i - 1], ray.Points[i]);
-                points.Add(new Point3d(a.X + t * (b.X - a.X), a.Y + t * (b.Y - a.Y), a.Z + t * (b.Z - a.Z)));
+                points.Add(Lerp(ray.Points[i - 1], ray.Points[i], (distance - d[i - 1]) / Math.Max(d[i] - d[i - 1], 1e-12)));
                 break;
             }
             return ray with { Points = points.ToArray() };

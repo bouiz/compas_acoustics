@@ -1,151 +1,148 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using Grasshopper.Kernel;
+using System.Security.Cryptography;
 
 namespace CompasAcoustics.Grasshopper
 {
-    /// <summary>
-    /// Worker calls that run on a background thread: the canvas stays responsive, the last outputs stay while a job runs,
-    /// the body shows Cancel, and the message counts the time and shows the worker's stage. The job only stores its result
-    /// and schedules a solution; outputs are set inside the solution (Grasshopper's rule).
-    /// </summary>
-    public abstract partial class ComponentBase
+    public enum RunKind
     {
-        public const string CancelPort = "cancel";
-        private static readonly ButtonControl CancelButton = new(CancelPort, "Cancel");
-        private const int TickMs = 1000;
+        /// <summary>Nothing to run: the component waits for a start.</summary>
+        Idle,
+        /// <summary>Start a job for these inputs; <c>Result</c> is the last result, shown meanwhile.</summary>
+        Start,
+        /// <summary>The job for these inputs still runs; <c>Result</c> is the last result.</summary>
+        Running,
+        /// <summary><c>Result</c> is the result for these inputs.</summary>
+        Deliver,
+        /// <summary>The job for these inputs was cancelled; <c>Result</c> is the last result.</summary>
+        Cancelled,
+        /// <summary>The job for these inputs failed with <c>Message</c>.</summary>
+        Failed,
+    }
 
-        private AsyncRuns? _runs;
-        private Timer? _ticker;
+    /// <summary>
+    /// What a solution does with one iteration's request. <c>Fresh</c>: the result arrived since the last solution.
+    /// <c>Interrupted</c>: a running job was cancelled because the inputs changed.
+    /// </summary>
+    public sealed record RunDecision(RunKind Kind, object? Result = null, string? Message = null, bool Fresh = false, bool Interrupted = false);
 
-        /// <summary>Whether the component runs its worker calls in the background (its body has room for Cancel).</summary>
-        protected virtual bool RunsInBackground => false;
-
-        internal AsyncRuns Runs => _runs ??= new AsyncRuns();
-
-        /// <summary>The controls the body shows: the component's own, and Cancel while a job runs.</summary>
-        public IReadOnlyList<Control> BodyControls => _runs?.AnyRunning == true ? Controls.Append(CancelButton).ToList() : Controls;
-
-        /// <summary>
-        /// A call to run in the background. ``Context`` travels with the result (e.g. the scene the responses belong to);
-        /// ``Key`` replaces the hash of the call when the call holds a value drawn anew in each solution (a random seed).
-        /// </summary>
-        protected sealed record Background(string Function, object?[] Args, IDictionary<string, object?> Kwargs, object? Context = null, string? Key = null);
-
-        public sealed record Outcome(object? Context, object? Result);
-
-        /// <summary>
-        /// Run ``request`` in the background, or keep its job or its result: ``deliver(outcome, fresh)`` sets the outputs of a
-        /// result (the last one while a job runs or after a cancel). Starts only when ``start``; ``restart`` starts again for
-        /// inputs that have a result.
-        /// </summary>
-        protected RunDecision RunInBackground(IGH_DataAccess access, Background request, Action<Outcome, bool> deliver, bool start = true, bool restart = false)
+    /// <summary>
+    /// The background jobs of one component, one per iteration, keyed by a hash of the request: the same inputs keep their
+    /// job or its result, changed inputs cancel it and start another.
+    /// </summary>
+    public sealed class BackgroundRuns
+    {
+        private sealed class Entry
         {
-            var key = request.Key ?? AsyncRuns.Key(request.Function, request.Args, request.Kwargs);
-            var wasRunning = Runs.AnyRunning;
-            var decision = Runs.Next(access.Iteration, key, start, restart);
-            if (decision.Kind == RunKind.Start)
+            public string? Key;
+            public WorkerJob? Job;
+            public string? ResultKey;
+            public object? Result;
+            public bool Cancelled;
+        }
+
+        private readonly Dictionary<int, Entry> _entries = new();
+        private readonly object _lock = new();
+
+        public bool AnyRunning => Running.Count > 0;
+
+        public IReadOnlyList<WorkerJob> Running
+        {
+            get
             {
-                var job = new WorkerJob(async (id, cancel) => (object?)new Outcome(request.Context, await Call(request, id, cancel).ConfigureAwait(false)),
-                    id => Worker.Progress(id));
-                job.Completed += OnJobCompleted;
-                Runs.Started(access.Iteration, key, job);
-                job.Start();
-                StartTicker();
+                lock (_lock)
+                    return _entries.Values.Select(e => e.Job).Where(j => j?.State == JobState.Running).Cast<WorkerJob>().ToList();
             }
-            if (decision.Kind == RunKind.Deliver)
-                deliver((Outcome)decision.Result!, decision.Fresh);
-            else if (decision.Kind != RunKind.Failed && decision.Result is Outcome previous)
-                deliver(previous, false);
-            switch (decision.Kind)
+        }
+
+        /// <param name="start">Whether a request without a result starts a job.</param>
+        /// <param name="restart">Start a job even when these inputs have a result or were cancelled.</param>
+        public RunDecision Next(int iteration, string key, bool start, bool restart = false)
+        {
+            lock (_lock)
             {
-                case RunKind.Start:
-                case RunKind.Running:
-                    Status(RunningMessage());
-                    break;
-                case RunKind.Cancelled:
-                    Message = "cancelled";
-                    break;
-                case RunKind.Failed:
-                    Message = null;
-                    Error(decision.Message!);
-                    break;
-            }
-            if (Runs.AnyRunning != wasRunning)
-                Attributes?.ExpireLayout();
-            return decision;
-        }
-
-        /// <summary>The call itself; Simulate Binaural and Simulate Ambisonics first check that the worker has pyFDN.</summary>
-        protected virtual Task<object?> Call(Background request, string callId, CancellationToken cancel) =>
-            Worker.CallAsync(request.Function, callId, request.Args, request.Kwargs, cancel);
-
-        private string RunningMessage()
-        {
-            if (Worker.Starting)
-                return "starting worker...";
-            var jobs = _runs?.Running ?? Array.Empty<WorkerJob>();
-            if (jobs.Count == 0)
-                return AsyncRuns.RunningText(0, null);
-            var longest = jobs.OrderByDescending(j => j.Elapsed).First();
-            var text = AsyncRuns.RunningText(longest.Elapsed, jobs.Select(j => j.ProgressText).FirstOrDefault(p => p != null));
-            return jobs.Count > 1 ? $"{text} ({jobs.Count} runs)" : text;
-        }
-
-        private void OnJobCompleted(WorkerJob job)
-        {
-            // a cancel already solved the component again
-            if (job.State == JobState.Cancelled)
-                return;
-            Rhino.RhinoApp.InvokeOnUiThread(new Action(() => OnPingDocument()?.ScheduleSolution(1, _ => ExpireSolution(false))));
-        }
-
-        private void StartTicker()
-        {
-            lock (Runs)
-                _ticker ??= new Timer(Tick, null, TickMs, Timeout.Infinite);
-        }
-
-        /// <summary>Once a second while a job runs: ask the worker for each job's stage, then repaint the message (no solution).</summary>
-        private void Tick(object? state)
-        {
-            var jobs = _runs?.Running ?? Array.Empty<WorkerJob>();
-            foreach (var job in jobs)
-                job.Poll();
-            lock (Runs)
-            {
-                if (jobs.Count == 0)
+                if (!_entries.TryGetValue(iteration, out var e))
+                    _entries[iteration] = e = new Entry();
+                var interrupted = false;
+                if (e.Job is { } job)
                 {
-                    _ticker?.Dispose();
-                    _ticker = null;
-                    return;
+                    if (job.State == JobState.Running && e.Key == key)
+                        return new RunDecision(RunKind.Running, e.Result);
+                    e.Job = null;
+                    if (job.State == JobState.Running)
+                    {
+                        job.Cancel();
+                        interrupted = true;
+                    }
+                    else if (e.Key == key)
+                    {
+                        switch (job.State)
+                        {
+                            case JobState.Done:
+                                (e.ResultKey, e.Result) = (key, job.Result);
+                                return new RunDecision(RunKind.Deliver, job.Result, Fresh: true);
+                            case JobState.Failed:
+                                return new RunDecision(RunKind.Failed, e.Result, ComponentBase.ErrorText(job.Error!));
+                            case JobState.Cancelled:
+                                e.Cancelled = true;
+                                return new RunDecision(RunKind.Cancelled, e.Result);
+                        }
+                    }
                 }
-                _ticker?.Change(TickMs, Timeout.Infinite);
+                if (!restart && e.Key == key && e.Cancelled)
+                    return new RunDecision(RunKind.Cancelled, e.Result);
+                if (!restart && e.ResultKey == key)
+                    return new RunDecision(RunKind.Deliver, e.Result);
+                if (!start)
+                    return new RunDecision(RunKind.Idle, e.Result, Interrupted: interrupted);
+                e.Cancelled = false;
+                return new RunDecision(RunKind.Start, e.Result);
             }
-            Rhino.RhinoApp.InvokeOnUiThread(new Action(() =>
+        }
+
+        /// <summary>The job started for <paramref name="key"/> (after <see cref="Next"/> said Start).</summary>
+        public void Started(int iteration, string key, WorkerJob job)
+        {
+            lock (_lock)
             {
-                if (_runs?.AnyRunning != true)
-                    return;
-                Status(RunningMessage());
-                Attributes?.ExpireLayout();
-                global::Grasshopper.Instances.ActiveCanvas?.Invalidate();
-            }));
+                if (!_entries.TryGetValue(iteration, out var e))
+                    _entries[iteration] = e = new Entry();
+                (e.Key, e.Job, e.Cancelled) = (key, job, false);
+            }
         }
 
-        public override void RemovedFromDocument(GH_Document document)
+        /// <summary>Cancel every running job; their inputs stay cancelled until they change.</summary>
+        public void CancelAll()
         {
-            _runs?.CancelAll();
-            base.RemovedFromDocument(document);
+            lock (_lock)
+                foreach (var e in _entries.Values)
+                    if (e.Job?.State == JobState.Running)
+                    {
+                        e.Job.Cancel();
+                        e.Job = null;
+                        e.Cancelled = true;
+                    }
         }
 
-        public override void DocumentContextChanged(GH_Document document, GH_DocumentContext context)
+        /// <summary>A hash of the call <c>function(*args, **kwargs)</c> as it goes to the worker.</summary>
+        public static string Key(string function, object?[] args, IDictionary<string, object?> kwargs)
         {
-            if (context == GH_DocumentContext.Close || context == GH_DocumentContext.Unloaded)
-                _runs?.CancelAll();
-            base.DocumentContextChanged(document, context);
+            var payload = new Dictionary<string, object?>
+            {
+                ["function"] = function,
+                ["args"] = new List<object?>(args),
+                ["kwargs"] = new Dictionary<string, object?>(kwargs),
+            };
+            return Convert.ToHexString(SHA256.HashData(WorkerClient.Serializer.Pack(payload)));
+        }
+
+        /// <summary><c>running m:ss</c>, and the worker's last report.</summary>
+        public static string RunningText(double elapsed, string? progress)
+        {
+            var seconds = (int)Math.Floor(Math.Max(0, elapsed));
+            var text = $"running {seconds / 60}:{seconds % 60:00}";
+            return progress == null ? text : $"{text}, {progress}";
         }
     }
 }

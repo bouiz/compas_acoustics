@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -12,10 +11,13 @@ using Grasshopper.Kernel.Types;
 
 namespace CompasAcoustics.Grasshopper
 {
-    /// <summary>The impulse responses and sounds of Auralise as the worker's ``auralise`` takes them, one group per branch.</summary>
+    /// <summary>The impulse responses and sounds of Auralise as the worker's <c>auralise</c> takes them, one group per branch.</summary>
     public static class AuraliseGroups
     {
-        /// <summary>The folder and the name of the signals a chosen file gives: ``take.wav`` saves ``take_mic_0_0.wav`` and so on.</summary>
+        /// <summary>Where an ambisonic signal goes instead of the Audio Player.</summary>
+        internal const string AmbisonicAdvice = "as a multichannel file for an ambisonic decoder, or simulate with Simulate Binaural for headphone playback.";
+
+        /// <summary>The folder and the name of the signals a chosen file gives: <c>take.wav</c> saves <c>take_mic_0_0.wav</c> and so on.</summary>
         public static (string folder, string name) SaveTarget(string path)
         {
             var file = Path.GetFileName(path);
@@ -106,7 +108,7 @@ namespace CompasAcoustics.Grasshopper
                 return;
             if (_groups == null || _settings == null)
             {
-                Rhino.UI.Dialogs.ShowMessage("Connect impulse responses to Auralise first.", "COMPAS Acoustics");
+                Rhino.UI.Dialogs.ShowMessage("Connect impulse responses to Auralise first.", CategoryName);
                 return;
             }
             var dialog = new Eto.Forms.SaveFileDialog { Title = "Save signals", FileName = "convolved_sound.wav" };
@@ -116,7 +118,7 @@ namespace CompasAcoustics.Grasshopper
             var (folder, name) = AuraliseGroups.SaveTarget(dialog.FileName);
             var kwargs = new Dictionary<string, object?>(_settings) { ["save_folder"] = folder, ["save_name"] = name };
             var groups = _groups;
-            Message = "saving...";
+            Status("saving...");
             global::Grasshopper.Instances.RedrawCanvas();
             System.Threading.Tasks.Task.Run(() =>
             {
@@ -129,7 +131,7 @@ namespace CompasAcoustics.Grasshopper
                 }
                 catch (Exception e) when (e is WorkerException or System.Net.Http.HttpRequestException)
                 {
-                    note = "Saving failed: " + (e is WorkerException w ? ErrorText(w) : e.Message);
+                    note = "Saving failed: " + (e is WorkerException ? ErrorText(e) : e.Message);
                 }
                 _saved = note;
                 Rhino.RhinoApp.InvokeOnUiThread(new Action(() => ExpireSolution(true)));
@@ -141,7 +143,7 @@ namespace CompasAcoustics.Grasshopper
             access.GetDataTree("irs", out GH_Structure<ImpulseResponseGoo> irs);
             if (irs == null || irs.DataCount == 0)
             {
-                Warn("Input parameter 'irs' failed to collect data.");
+                WarnMissing("irs");
                 return;
             }
             var level = Choice("level");
@@ -171,9 +173,8 @@ namespace CompasAcoustics.Grasshopper
             }
             RunInBackground(access, new Background("auralise", new object?[] { groups.Cast<object?>().ToList() }, kwargs, (paths, level)), (outcome, _) =>
             {
-                var result = (IDictionary<string, object?>)outcome.Result!;
+                var result = outcome.Result;
                 var (branches, rendered) = ((Dictionary<string, GH_Path>, string))outcome.Context!;
-                ShowWarnings(result);
                 var signals = new DataTree<AudioGoo>();
                 var rates = new DataTree<int>();
                 var formats = new List<string>();
@@ -190,8 +191,7 @@ namespace CompasAcoustics.Grasshopper
                 if (peak > 0)
                     Warn(AuraliseGroups.ClipWarning(peak));
                 if (formats.Contains("ambisonic"))
-                    Remark("Ambisonic signals (ACN/SN3D) cannot be played by the Audio Player. Save them as a multichannel file for an ambisonic decoder, " +
-                           "or simulate with Simulate Binaural for headphone playback.");
+                    Remark("Ambisonic signals (ACN/SN3D) cannot be played by the Audio Player. Save them " + AuraliseGroups.AmbisonicAdvice);
                 access.SetDataTree(0, signals);
                 access.SetDataTree(1, rates);
             });
@@ -202,7 +202,8 @@ namespace CompasAcoustics.Grasshopper
 
     /// <summary>
     /// The Audio Player: it shows the signal it plays (a lane per channel), and plays, pauses, stops and seeks it in the worker.
-    /// The transport keeps its own clock while playing, repaints only its body, and polls the worker once a second.
+    /// The transport keeps its own clock while playing, repaints the canvas without a new solution, and polls the worker once
+    /// a second.
     /// </summary>
     public sealed class AudioPlayerComponent : ComponentBase
     {
@@ -210,6 +211,8 @@ namespace CompasAcoustics.Grasshopper
         private System.Threading.Timer? _timer;
         private int _ticks;
         private readonly Dictionary<string, AudioData> _files = new();
+        private string? _channelProblem;
+        private string? _playbackError;
 
         public AudioPlayerComponent() : base("CA_Audio_Player") { }
         protected override string SpecKey => "CA_Audio_Player";
@@ -228,8 +231,8 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>Whether a signal is scaled to full level before playing: the Normalize toggle, off by default, saved with the component.</summary>
         public bool Normalize { get; private set; }
 
-        /// <summary>Why the signal cannot play (more than two channels), or the last playback error; shown in the header.</summary>
-        public string? Problem { get; private set; }
+        /// <summary>The last playback error, or why the signal cannot play (more than two channels); shown in the header.</summary>
+        public string? Problem => _playbackError ?? _channelProblem;
 
         public float BodyWidth { get; set; } = 240;
 
@@ -302,7 +305,7 @@ namespace CompasAcoustics.Grasshopper
             return audio;
         }
 
-        /// <summary>Show and play ``signal`` (a file's samples when ``file`` is given); another signal stops what plays.</summary>
+        /// <summary>Show and play <paramref name="signal"/> (a file's samples when <paramref name="file"/> is given); another signal stops what plays.</summary>
         internal void Load(AudioData? signal, string? file)
         {
             if (!ReferenceEquals(signal, Signal) || file != File)
@@ -318,10 +321,8 @@ namespace CompasAcoustics.Grasshopper
                 Transport.Duration = signal == null || signal.SamplingRate == 0 || signal.Shape.Count == 0 ? 0 : signal.Shape[0] / (double)signal.SamplingRate;
             }
             var channels = signal == null ? 0 : signal.Shape.Count > 1 ? (int)signal.Shape[1] : 1;
-            Problem = channels > 2
-                ? $"A {channels}-channel ambisonic signal cannot be played here. Save it with Auralise as a multichannel file for an ambisonic decoder, " +
-                  "or simulate with Simulate Binaural for headphone playback."
-                : null;
+            _playbackError = null;
+            _channelProblem = channels > 2 ? $"A {channels}-channel ambisonic signal cannot be played here. Save it with Auralise " + AuraliseGroups.AmbisonicAdvice : null;
         }
 
         public void OnPlay()
@@ -384,7 +385,7 @@ namespace CompasAcoustics.Grasshopper
             {
                 switch (command)
                 {
-                    case PlayCommand play when File != null:
+                    case PlayCommand when File != null:
                         Worker.Call("play", File);
                         break;
                     case PlayCommand play:
@@ -403,13 +404,12 @@ namespace CompasAcoustics.Grasshopper
                         Worker.Call("stop");
                         break;
                 }
-                if (Problem != null && Problem.StartsWith("The sound could not be played"))
-                    Problem = null;
+                _playbackError = null;
             }
             catch (WorkerException e)
             {
                 Transport.Stop();
-                Problem = $"The sound could not be played: {ErrorText(e)}";
+                _playbackError = $"The sound could not be played: {ErrorText(e)}";
             }
             UpdateTimer();
             Repaint();
@@ -437,7 +437,7 @@ namespace CompasAcoustics.Grasshopper
                 try
                 {
                     var status = (IDictionary<string, object?>)Worker.Call("playback_status")!;
-                    Transport.Sync(status["playing"] is true, Convert.ToDouble(status["position"], System.Globalization.CultureInfo.InvariantCulture));
+                    Transport.Sync(status["playing"] is true, Convert.ToDouble(status["position"], CultureInfo.InvariantCulture));
                 }
                 catch (Exception)
                 {
@@ -503,16 +503,16 @@ namespace CompasAcoustics.Grasshopper
 
         protected override void Solve(IGH_DataAccess access)
         {
-            var values = List<double>(access, "values");
+            var values = Items<double>(access, "values");
             if (values.Count == 0)
             {
-                Warn("Input parameter 'values' failed to collect data.");
+                WarnMissing("values");
                 return;
             }
             var target = Value<double>(access, "target");
             if (target == null)
             {
-                Warn("Input parameter 'target' failed to collect data.");
+                WarnMissing("target");
                 return;
             }
             var fitness = Worker.Call("regularized_fitness", values.Cast<object?>().ToList(), target.Value, Value<double>(access, "k") ?? 1.0);

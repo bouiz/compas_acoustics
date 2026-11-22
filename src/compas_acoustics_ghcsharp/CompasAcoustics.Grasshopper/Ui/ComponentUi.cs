@@ -24,7 +24,7 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>The controls' area, below the ports.</summary>
         protected RectangleF ControlArea { get; private set; }
 
-        /// <summary>The height of a body drawn under the controls (the Audio Player's waveform); 0 for none.</summary>
+        /// <summary>The height of a body drawn under the controls; 0 for none.</summary>
         protected virtual float ExtraHeight => 0;
 
         /// <summary>The area of that body.</summary>
@@ -67,10 +67,10 @@ namespace CompasAcoustics.Grasshopper
             switch (box.Control)
             {
                 case SwitchControl s when port != null:
-                    return ControlState.Of(port, s.Options, s.Default);
+                    return ControlState.Of(port, s.Options, ComponentBase.DefaultOf(s));
                 case DropdownControl d when port != null:
                 {
-                    var (value, wired) = ControlState.Of(port, Component.OptionsOf(d).values, d.Default);
+                    var (value, wired) = ControlState.Of(port, Component.OptionsOf(d).values, ComponentBase.DefaultOf(d));
                     return (DropdownText(d, value), wired);
                 }
                 case SwitchControl or DropdownControl when Component.IsChoice(box.Control.Port):
@@ -98,7 +98,7 @@ namespace CompasAcoustics.Grasshopper
             }
         }
 
-        /// <summary>What a dropdown reads for ``value``: its label among the options offered now, else the first's ("All").</summary>
+        /// <summary>What a dropdown reads for <paramref name="value"/>: its label among the options offered now, else the first's ("All").</summary>
         private string DropdownText(DropdownControl dropdown, string value)
         {
             var (values, labels) = Component.OptionsOf(dropdown);
@@ -229,7 +229,7 @@ namespace CompasAcoustics.Grasshopper
 
         public static double SliderValue(SliderControl slider, RectangleF bounds, float x) => SliderValue(slider, slider.Min, slider.Max, bounds, x);
 
-        /// <summary>The value under ``x`` on a slider from ``min`` to ``max``, in its steps.</summary>
+        /// <summary>The value under <paramref name="x"/> on a slider from <paramref name="min"/> to <paramref name="max"/>, in its steps.</summary>
         public static double SliderValue(SliderControl slider, double min, double max, RectangleF bounds, float x)
         {
             var t = Math.Clamp((x - bounds.Left) / Math.Max(bounds.Width, 1), 0, 1);
@@ -241,7 +241,7 @@ namespace CompasAcoustics.Grasshopper
         private void OpenMenu(GH_Canvas sender, GH_CanvasMouseEvent e, DropdownControl dropdown, IGH_Param? port)
         {
             var (values, labels) = Component.OptionsOf(dropdown);
-            var current = port != null ? ControlState.Of(port, values, dropdown.Default).value : Component.Choice(dropdown.Port);
+            var current = port != null ? ControlState.Of(port, values, ComponentBase.DefaultOf(dropdown)).value : Component.Choice(dropdown.Port);
             var menu = new ContextMenuStrip();
             // the input's name heads its options
             menu.Items.Add(new ToolStripMenuItem(dropdown.Port) { Enabled = false });
@@ -266,9 +266,29 @@ namespace CompasAcoustics.Grasshopper
     /// <summary>How the controls look: Grasshopper's capsules, so they match the canvas.</summary>
     internal static class Painter
     {
-        private static Rectangle R(RectangleF r) => Rectangle.Round(r);
+        /// <summary>The size of a resize grip.</summary>
+        public const float Grip = 8;
 
-        /// <summary>A transport glyph in the middle of ``box``: white, grey when the button cannot be pressed.</summary>
+        /// <summary>A Grasshopper text capsule filling <paramref name="box"/>.</summary>
+        public static void Capsule(Graphics g, RectangleF box, GH_Palette palette, string text, bool selected, bool locked)
+        {
+            var r = Rectangle.Round(box);
+            using var capsule = GH_Capsule.CreateTextCapsule(r, r, palette, text, 2, 0);
+            capsule.Render(g, selected, locked, false);
+        }
+
+        /// <summary>The resize grip in the bottom right corner of <paramref name="box"/>.</summary>
+        public static void DrawGrip(Graphics g, RectangleF box)
+        {
+            g.DrawLine(Pens.Gray, box.Right - Grip, box.Bottom - 2, box.Right - 2, box.Bottom - Grip);
+            g.DrawLine(Pens.Gray, box.Right - Grip / 2, box.Bottom - 2, box.Right - 2, box.Bottom - Grip / 2);
+        }
+
+        /// <summary>Whether <paramref name="point"/> is on the resize grip of <paramref name="box"/>.</summary>
+        public static bool OnGrip(RectangleF box, PointF point) =>
+            box.Contains(point) && point.X >= box.Right - Grip * 1.5f && point.Y >= box.Bottom - Grip * 1.5f;
+
+        /// <summary>A transport glyph in the middle of <paramref name="box"/>: white, grey when the button cannot be pressed.</summary>
         public static void DrawGlyph(Graphics g, RectangleF box, Glyph glyph, bool enabled)
         {
             if (glyph == Glyph.None)
@@ -319,8 +339,7 @@ namespace CompasAcoustics.Grasshopper
                     {
                         var chosen = s.Options[i] == state.value;
                         var palette = chosen ? (state.wired ? GH_Palette.Grey : GH_Palette.Black) : GH_Palette.White;
-                        using var capsule = GH_Capsule.CreateTextCapsule(R(box.Segments[i]), R(box.Segments[i]), palette, ControlLayout.Label(s, s.Options[i]), 2, 0);
-                        capsule.Render(g, selected, locked, false);
+                        Capsule(g, box.Segments[i], palette, ControlLayout.Label(s, s.Options[i]), selected, locked);
                     }
                     break;
                 case MultiSwitchControl m:
@@ -329,16 +348,13 @@ namespace CompasAcoustics.Grasshopper
                     for (var i = 0; i < m.Options.Length; i++)
                     {
                         var palette = lit.Contains(m.Options[i]) ? (state.wired ? GH_Palette.Grey : GH_Palette.Black) : GH_Palette.White;
-                        using var capsule = GH_Capsule.CreateTextCapsule(R(box.Segments[i]), R(box.Segments[i]), palette, m.Options[i], 2, 0);
-                        capsule.Render(g, selected, locked, false);
+                        Capsule(g, box.Segments[i], palette, m.Options[i], selected, locked);
                     }
                     break;
                 }
                 case DropdownControl:
                 {
-                    using var capsule = GH_Capsule.CreateTextCapsule(R(box.Bounds), R(box.Bounds), state.wired ? GH_Palette.Grey : GH_Palette.White,
-                        ControlLayout.Text(box.Control, state.value), 2, 0);
-                    capsule.Render(g, selected, locked, false);
+                    Capsule(g, box.Bounds, state.wired ? GH_Palette.Grey : GH_Palette.White, state.value, selected, locked);
                     var x = box.Bounds.Right - 9;
                     var y = box.Bounds.Top + box.Bounds.Height / 2 - 2;
                     g.FillPolygon(Brushes.Black, new[] { new PointF(x, y), new PointF(x + 6, y), new PointF(x + 3, y + 4) });
@@ -348,16 +364,13 @@ namespace CompasAcoustics.Grasshopper
                 {
                     // dark when on, grey when a wire sets it
                     var palette = state.value == "on" ? (state.wired ? GH_Palette.Grey : GH_Palette.Black) : GH_Palette.White;
-                    using var capsule = GH_Capsule.CreateTextCapsule(R(box.Bounds), R(box.Bounds), palette, toggle.Label, 2, 0);
-                    capsule.Render(g, selected, locked, false);
+                    Capsule(g, box.Bounds, palette, toggle.Label, selected, locked);
                     break;
                 }
                 case ButtonControl button:
                 {
                     var glyph = button.Icon ? ControlLayout.GlyphOf(state.value) : Glyph.None;
-                    using var capsule = GH_Capsule.CreateTextCapsule(R(box.Bounds), R(box.Bounds), down ? GH_Palette.Grey : GH_Palette.Black,
-                        glyph == Glyph.None ? state.value : "", 2, 0);
-                    capsule.Render(g, selected, locked, false);
+                    Capsule(g, box.Bounds, down ? GH_Palette.Grey : GH_Palette.Black, glyph == Glyph.None ? state.value : "", selected, locked);
                     DrawGlyph(g, box.Bounds, glyph, true);
                     break;
                 }
@@ -372,9 +385,8 @@ namespace CompasAcoustics.Grasshopper
                     g.DrawLine(pen, track.Left + 4, mid, track.Right - 4, mid);
                     var knobX = track.Left + 4 + t * (track.Width - 8);
                     g.FillEllipse(state.wired ? Brushes.Gray : Brushes.Black, knobX - 5, mid - 5, 10, 10);
-                    using var font = new Font(FontFamily.GenericSansSerif, 6f);
                     g.DrawString(string.Format(System.Globalization.CultureInfo.InvariantCulture, slider.Step >= 1 ? "{0:0} {1}" : "{0:0.0} {1}", value, slider.Unit).Trim(),
-                        font, Brushes.Black, track.Left + 2, track.Top);
+                        ChartPainter.Small, Brushes.Black, track.Left + 2, track.Top);
                     break;
                 }
             }

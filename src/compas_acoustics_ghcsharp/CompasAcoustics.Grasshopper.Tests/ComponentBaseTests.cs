@@ -30,7 +30,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void Specs_AreEmbeddedForEveryComponent()
         {
-            Assert.Equal(24, ComponentSpec.Names().Count());
+            Assert.Equal(24, EmbeddedSpecs.Names().Count());
             var model = ComponentSpec.Load("CA_Model");
             Assert.Equal("Acoustic Scene", model.Name);
             Assert.Equal("Scene", model.Nickname);
@@ -57,7 +57,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void Specs_HaveAnIcon()
         {
-            Assert.All(ComponentSpec.Names(), name => Assert.True(ComponentSpec.IconBytes(name).Length > 0));
+            Assert.All(EmbeddedSpecs.Names(), name => Assert.True(ComponentSpec.IconBytes(name).Length > 0));
         }
 
         [Fact]

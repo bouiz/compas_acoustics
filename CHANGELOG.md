@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Changed `RoomGeometry` to compute its face areas, normals, exposed faces and volume once; the responses are bit-identical.
 * Changed names in the hybrid engine: `hybrid.late.render` is `hybrid.late.run_network`; `hybrid.diffraction.toolbox_frame` and `toolbox_cyl` are `edge_frame` and `edge_cyl`; the `Pair` argument of the engine's functions and `HybridCore.spec` are `pair`; `hybrid.diffraction.pair_valid` takes the two angles; the first argument of `room.pra.directivity_to_pra` is `directivity`.
 * Changed the worker's error for an unknown `time_scale` to name its options once.
+* Changed the Grasshopper Simulate Mono, Simulate Binaural and Simulate Ambisonics messages to one format (`48 kHz, ...`, `SH order N` for the hybrid's spherical harmonic order); a message longer than the strip is cut there, the full text in the tooltip. Corrected component texts: Play reads Pause while playing, Install Worker installs a version range, the hybrid seed also seeds the rays the method traces. Material Library bars use the picker's colours.
 
 ### Removed
 
@@ -41,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Removed from the hybrid engine's functions the arguments no method passed: `design_fdn(matrix, dc_factor, nyquist_factor)`, `directional_delays(spread)`, `ambisonic_output_matrix(normalization, max_leakage)`, `default_num_delays(minimum)`, `encode(normalization)`, `prepare(drive_gain)`, `RoomTarget.from_room(weighting, air_absorption)`, `RoomTarget.geq_bands(dc_factor, nyquist_factor)`, the `n_scan` argument and `hybrid.directional.scan_directions`, `hybrid.bands.BAND_EDGES` and `BANDWIDTHS`, the default of `Pair.speed_of_sound`, and 1-D signals in `shape_late`. `RoomTarget.level` is `None` for one slope.
 * Removed `Edge.contains`, `along_plane` and `Occluders.on_enclosure` from `hybrid.diffraction`; `hybrid.btms.wedge1st_ir` returns the response and its singular flag only.
 * Removed `RayField.particles`, `RayField.duration_ms` and `Ray.is_in_cone`, and the reading of ray-field data with `sound_speed`, specular paths with `wall_names` and specular reflections under `"paths"`; `SpecularReflections` takes `rays`, as `RayField` does.
+* Removed the Grasshopper plugin's reading of documents saved by development builds before 0.1.0 (the old preview default, inputs matched by name, a material saved by name only); documents of 0.1.0 and later open as before, and a Late envelope toggle saved by 0.1.x keeps its choice.
 * Removed from the worker what no caller read: `make_receiver(frame=)`, `info()`'s `"python"` and `"compas_pb"`, auralise's per-signal `"suffix"`, the results of `play`, `stop`, `pause` and `resume`, `playback_status`'s `"paused"` and `"duration"`, `sound_info`'s `"sampling_rate"` and `"frames"`, `energy_map`'s `"bands"` and `"inside"`, `specular_reflections`' `"orders"`, `worker.api.METHODS`, the service's `--no-autoreload` and `start_service(host=)`, and `install(hybrid=)` with the `"hybrid"` key of `worker.json`.
 
 

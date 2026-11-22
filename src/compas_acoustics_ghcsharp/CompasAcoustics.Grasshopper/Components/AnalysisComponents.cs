@@ -8,7 +8,7 @@ using Grasshopper.Kernel.Types;
 
 namespace CompasAcoustics.Grasshopper
 {
-    /// <summary>Which parameters Deconstruct Parameter gives: all, or the one named by ``select``.</summary>
+    /// <summary>Which parameters Deconstruct Parameter gives: all, or the one named by <c>select</c>.</summary>
     public static class DeconstructParameter
     {
         public static readonly string[] Names = { "EDT", "T20", "T30", "C50", "C80", "D50", "DRR", "Ts", "STI", "G", "SPL", "LF", "LFC" };
@@ -49,8 +49,6 @@ namespace CompasAcoustics.Grasshopper
 
     public sealed class AnalyseIrComponent : ComponentBase
     {
-        private static readonly string[] TimeScales = { "db", "linear" };
-
         public AnalyseIrComponent() : base("CA_Analyse_IR") { }
         protected override string SpecKey => "CA_Analyse_IR";
         public override Guid ComponentGuid => new Guid("410e7b44-f239-5e1e-ba74-5884e208b73e");
@@ -63,21 +61,16 @@ namespace CompasAcoustics.Grasshopper
             _ => null,
         };
 
-        protected override IReadOnlyDictionary<string, string[]> MenuChoices { get; } = new Dictionary<string, string[]> { [Param_TimeParameter.Choice] = TimeScales };
+        protected override IReadOnlyDictionary<string, string[]> MenuChoices { get; } = new Dictionary<string, string[]> { [Param_TimeParameter.Choice] = Param_TimeParameter.Options };
 
         protected override void Solve(IGH_DataAccess access)
         {
-            var ir = Item<ImpulseResponseGoo>(access, "ir");
-            if (ir?.Value == null)
-            {
-                Warn("Input parameter 'ir' failed to collect data.");
+            if (Required<ImpulseResponseGoo>(access, "ir") is not { } ir)
                 return;
-            }
             var timeScale = Choice(Param_TimeParameter.Choice);
             RunInBackground(access, new Background("analysis", new object?[] { ir.Value, timeScale }, new Dictionary<string, object?>()), (outcome, _) =>
             {
-                var result = (IDictionary<string, object?>)outcome.Result!;
-                ShowWarnings(result);
+                var result = outcome.Result;
                 Status(timeScale == "db" ? "time in dB" : "time linear");
                 var parameters = ((IEnumerable<object?>)result["parameters"]!).Cast<IDictionary<string, object?>>().Select(ParameterGoo.FromDictionary).ToList();
                 access.SetDataList("parameters", parameters);
@@ -123,10 +116,10 @@ namespace CompasAcoustics.Grasshopper
 
         protected override void Solve(IGH_DataAccess access)
         {
-            var given = List<ParameterGoo>(access, "parameters").Where(p => p?.Value != null).ToList();
+            var given = Items<ParameterGoo>(access, "parameters").Where(p => p?.Value != null).ToList();
             if (given.Count == 0)
             {
-                Warn("Input parameter 'parameters' failed to collect data.");
+                WarnMissing("parameters");
                 return;
             }
             var selection = DeconstructParameter.Select(given.Select(p => p.Value).ToList(), Text(access, "select"), Warn);
@@ -177,7 +170,7 @@ namespace CompasAcoustics.Grasshopper
             var sound = Item<IGH_Goo>(access, "sound");
             if (sound == null || (sound is GH_String text && string.IsNullOrEmpty(text.Value)))
             {
-                Warn("Input parameter 'sound' failed to collect data.");
+                WarnMissing("sound");
                 Message = null;
                 return;
             }
@@ -192,7 +185,7 @@ namespace CompasAcoustics.Grasshopper
                 Message = null;
                 return;
             }
-            Message = $"channels: {channels}";
+            Status($"channels: {channels}");
             access.SetData(0, channels);
         }
     }

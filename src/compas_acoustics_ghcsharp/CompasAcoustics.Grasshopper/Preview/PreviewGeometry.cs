@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Drawing;
-using System.Globalization;
 using System.Linq;
 using CompasAcoustics.Pb;
 using CompasPb.Data;
@@ -38,7 +36,7 @@ namespace CompasAcoustics.Grasshopper
         public const double FacingArrow = 0.4;
         public const double UpTick = 0.15;
 
-        /// <summary>``a`` of the first-order pattern ``|a + (1 - a) cos t|``.</summary>
+        /// <summary><c>a</c> of the first-order pattern <c>|a + (1 - a) cos t|</c>.</summary>
         public static double PatternWeight(string? directivity) => directivity switch
         {
             "cardioid" => 0.5,
@@ -55,7 +53,7 @@ namespace CompasAcoustics.Grasshopper
         {
             var centre = Points.Of(source.Point);
             var direction = Unit(Points.Of(source.Direction), Vector3d.XAxis);
-            // the lobe lies in the plane of the direction and world z (world x when the source faces up or down)
+            // the lobe's plane and the cube's up: world z off the direction (world x when the source faces up or down)
             var side = Vector3d.ZAxis - (Vector3d.ZAxis * direction) * direction;
             if (side.Length < 1e-9)
                 side = Vector3d.XAxis - (Vector3d.XAxis * direction) * direction;
@@ -69,14 +67,10 @@ namespace CompasAcoustics.Grasshopper
                 lobe.Add(centre + r * (Math.Cos(t) * direction + Math.Sin(t) * side));
             }
             lobe.Add(lobe[0]);
-            // the cube's up is world z, or x for a source facing up or down
-            var up = Vector3d.ZAxis - (Vector3d.ZAxis * direction) * direction;
-            up = up.Length < 1e-9 ? Vector3d.XAxis - (Vector3d.XAxis * direction) * direction : up;
-            up /= up.Length;
-            var left = Vector3d.CrossProduct(up, direction);
+            var left = Vector3d.CrossProduct(side, direction);
             left /= left.Length;
             return new SourcePreview(centre, new Line(centre, centre + SourceArrow * direction), lobe, source.Name,
-                Cube(centre, direction, left, up, SourceRadius), centre + SourceRadius * direction, direction, 0.6 * SourceRadius);
+                Cube(centre, direction, left, side, SourceRadius), centre + SourceRadius * direction, direction, 0.6 * SourceRadius);
         }
 
         public static ReceiverPreview Receiver(ReceiverData receiver)
@@ -92,7 +86,7 @@ namespace CompasAcoustics.Grasshopper
                 centre + HeadRadius * y, centre - HeadRadius * y, y, receiver.Name);
         }
 
-        /// <summary>The 12 edges of a cube of half-size ``h`` around ``centre``, along the axes ``x``, ``y``, ``z``.</summary>
+        /// <summary>The 12 edges of a cube of half-size <paramref name="h"/> around <paramref name="centre"/>, along the axes <paramref name="x"/>, <paramref name="y"/>, <paramref name="z"/>.</summary>
         private static Line[] Cube(Point3d centre, Vector3d x, Vector3d y, Vector3d z, double h)
         {
             Point3d Corner(int i) => centre + h * ((i & 1) == 0 ? -1 : 1) * x + h * ((i & 2) == 0 ? -1 : 1) * y + h * ((i & 4) == 0 ? -1 : 1) * z;
@@ -131,6 +125,18 @@ namespace CompasAcoustics.Grasshopper
             return new ObjectPreview(Array.Empty<Point3d>(), Array.Empty<int[]>(), polyline, obstacle, Array.Empty<Line>());
         }
 
+        /// <summary>Newell's normal of a polygon, robust for any number of corners; its length is twice the polygon's area.</summary>
+        internal static Vector3d Newell(IReadOnlyList<Point3d> polygon)
+        {
+            var normal = Vector3d.Zero;
+            for (var i = 0; i < polygon.Count; i++)
+            {
+                Point3d a = polygon[i], b = polygon[(i + 1) % polygon.Count];
+                normal += new Vector3d((a.Y - b.Y) * (a.Z + b.Z), (a.Z - b.Z) * (a.X + b.X), (a.X - b.X) * (a.Y + b.Y));
+            }
+            return normal;
+        }
+
         /// <summary>Two faces meeting at less than this angle (cosine of 1 degree) are one surface: their side is not an edge.</summary>
         private const double Coplanar = 0.99985;
 
@@ -145,13 +151,7 @@ namespace CompasAcoustics.Grasshopper
             var sides = new Dictionary<((long, long, long), (long, long, long)), (Line line, List<Vector3d> normals)>();
             foreach (var face in faces.Where(f => f.Length >= 3))
             {
-                // Newell's normal, robust for a polygon of any size
-                var normal = Vector3d.Zero;
-                for (var i = 0; i < face.Length; i++)
-                {
-                    Point3d a = vertices[face[i]], b = vertices[face[(i + 1) % face.Length]];
-                    normal += new Vector3d((a.Y - b.Y) * (a.Z + b.Z), (a.Z - b.Z) * (a.X + b.X), (a.X - b.X) * (a.Y + b.Y));
-                }
+                var normal = Newell(face.Select(i => vertices[i]).ToArray());
                 normal = normal.Length > 0 ? normal / normal.Length : normal;
                 for (var i = 0; i < face.Length; i++)
                 {

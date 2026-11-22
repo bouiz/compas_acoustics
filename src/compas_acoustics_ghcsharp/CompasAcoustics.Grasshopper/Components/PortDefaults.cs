@@ -33,14 +33,21 @@ namespace CompasAcoustics.Grasshopper
             }
         }
 
-        /// <summary>Whether ``value`` is the declared default of a port nothing is connected to.</summary>
+        /// <summary>Whether <paramref name="value"/> is the declared default of a port nothing is connected to.</summary>
         public static bool Untouched(int sourceCount, object? declared, object value) =>
             sourceCount == 0 && declared != null && Equals(Convert.ChangeType(declared, value.GetType(), CultureInfo.InvariantCulture), value);
     }
 
-    /// <summary>The named values of a ``source_idx`` or ``receiver_idx`` port: the indices of the connected scene, with their names (<see cref="ComponentBase.SetIndexOptions"/>).</summary>
+    /// <summary>
+    /// The <c>source_idx</c> and <c>receiver_idx</c> ports: their dropdowns (All, or one of the connected scene's), and their
+    /// named values, the indices with their names (<see cref="ComponentBase.SetIndexOptions"/>).
+    /// </summary>
     public static class SceneIndices
     {
+        public static readonly DropdownControl SourceDropdown = new("source_idx", new[] { "" }, "", new[] { "All" }, "Source");
+
+        public static readonly DropdownControl ReceiverDropdown = new("receiver_idx", new[] { "" }, "", new[] { "All" }, "Receiver");
+
         public static List<(string name, int value)> Of(IEnumerable<string> names) => names.Select((name, i) => ($"{i}: {name}", i)).ToList();
     }
 }

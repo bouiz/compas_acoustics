@@ -14,8 +14,8 @@ using Grasshopper.Kernel.Types;
 namespace CompasAcoustics.Grasshopper
 {
     /// <summary>
-    /// Simulate Binaural and Simulate Ambisonics: the hybrid engine in the worker, started by Run. A subclass names its method
-    /// and its output; the inputs only one of them has (``sh_order``, ``hrtf``) are read where the component has them.
+    /// Simulate Binaural and Simulate Ambisonics: the hybrid method in the worker, started by Run. A subclass names its method
+    /// and its output, and gives the settings only it has.
     /// </summary>
     public abstract class SimulateHybridComponent : ComponentBase
     {
@@ -23,13 +23,10 @@ namespace CompasAcoustics.Grasshopper
 
         protected SimulateHybridComponent(string key) : base(key) { }
 
-        /// <summary>
-        /// A definition saved with the Late envelope toggle that came before its modes keeps its choice: on reads as
-        /// directional, off as off. A shown toggle's boolean does not survive Grasshopper's read into the text input, so it
-        /// is taken from the saved input first; a hidden one is saved as True or False.
-        /// </summary>
+        /// <summary>A late_envelope input that holds a boolean reads as a mode: true as directional, false as off.</summary>
         public override bool Read(GH_IReader reader)
         {
+            // before base.Read: a boolean does not survive Grasshopper's read into a text input
             var toggle = SavedToggle(reader, "late_envelope");
             var read = base.Read(reader);
             if (ControlPort("late_envelope") is Param_String port)
@@ -48,7 +45,7 @@ namespace CompasAcoustics.Grasshopper
             return read;
         }
 
-        /// <summary>The boolean in the saved persistent data of the input ``name``, if it held one.</summary>
+        /// <summary>The boolean in the saved persistent data of the input <paramref name="name"/>, if it held one.</summary>
         private static bool? SavedToggle(GH_IReader reader, string name)
         {
             for (var i = 0; reader.ChunkExists("param_input", i); i++)
@@ -98,13 +95,13 @@ namespace CompasAcoustics.Grasshopper
             .Append(new ButtonControl("run", "Run"))
             .ToList();
 
-        /// <summary>The controls of the method's own inputs, after the ISM order (Ambisonics' SH order).</summary>
+        /// <summary>The controls of the method's own inputs, after the ISM order.</summary>
         protected virtual IEnumerable<Control> MethodControls => Array.Empty<Control>();
 
-        /// <summary>The buttons of the method's own inputs, before Run (Binaural's HRTF set).</summary>
+        /// <summary>The buttons of the method's own inputs, before Run.</summary>
         protected virtual IEnumerable<Control> MethodButtons => Array.Empty<Control>();
 
-        /// <summary>The ambisonic order the method renders; null for one without (Binaural).</summary>
+        /// <summary>The ambisonic order the method renders; null for a method without one.</summary>
         protected virtual int? ShOrder => null;
 
         private bool Has(string port) => Params.Input.Exists(p => p.Name == port);
@@ -114,19 +111,15 @@ namespace CompasAcoustics.Grasshopper
 
         protected override void Solve(IGH_DataAccess access)
         {
-            var scene = Item<SceneGoo>(access, "scene");
-            if (scene?.Value == null)
-            {
-                Warn("Input parameter 'scene' failed to collect data.");
+            if (Required<SceneGoo>(access, "scene") is not { } scene)
                 return;
-            }
             var tail = Text(access, "tail");
             var reference = Item<IrGraphGoo>(access, "reference");
             // checked before 'run' so that it shows as soon as the tail is chosen, not only after pressing Run
             if (tail == "reference" && reference == null)
             {
                 Warn("tail 'reference' needs a reference: connect the mono_ir_graph of Simulate Mono to 'reference', or choose another tail.");
-                Message = "connect a reference";
+                Status("connect a reference");
                 SetGraph(access, scene.Value.Guid);
                 return;
             }
@@ -152,21 +145,13 @@ namespace CompasAcoustics.Grasshopper
             if (hrtf != null)
                 settings["hrtf"] = hrtf;
             var refs = references?.ToDictionary(kv => kv.Key, kv => (object?)kv.Value);
-            var args = new object?[] { scene.Value, Method, settings, refs };
-            // a seed drawn for this solution is not a change of the inputs
-            var keySettings = new Dictionary<string, object?>(settings);
-            if (seed == null)
-                keySettings.Remove("seed");
-            var key = AsyncRuns.Key("simulate", new object?[] { scene.Value, Method, keySettings, refs }, new Dictionary<string, object?>());
-            var request = new Background("simulate", args, new Dictionary<string, object?>(), new Context(scene, settings["seed"], hrtf), key);
+            var request = Simulation(scene, Method, settings, refs, seed != null, new Context(scene, settings["seed"], hrtf));
             var shown = false;
             void Deliver(Outcome outcome, bool fresh)
             {
-                var result = (IDictionary<string, object?>)outcome.Result!;
-                ShowWarnings(result);
                 if (fresh)
-                    Keep((Context)outcome.Context!, result);
-                ShowStatus(fresh ? RunMessage((Context)outcome.Context!) : HybridRun.Status(_last, scene.Value.Guid, tail, shOrder, ismOrder, diffraction));
+                    Keep((Context)outcome.Context!, outcome.Result);
+                ShowStatus(fresh ? (RunMessage((Context)outcome.Context!), false) : HybridRun.Status(_last, scene.Value.Guid, tail, shOrder, ismOrder, diffraction));
                 SetGraph(access, scene.Value.Guid);
                 shown = true;
             }
@@ -182,17 +167,17 @@ namespace CompasAcoustics.Grasshopper
                     SetGraph(access, scene.Value.Guid);
                 }
                 if (decision.Interrupted)
-                    ShowStatus("settings changed, press Run");
+                    ShowStatus(("settings changed, press Run", true));
             }
             else if (!shown && decision.Kind != RunKind.Failed)
                 SetGraph(access, scene.Value.Guid);
         }
 
         /// <summary>The message; while the settings differ from the last result, a warning colours the body.</summary>
-        private void ShowStatus(string text)
+        private void ShowStatus((string text, bool changed) status)
         {
-            Status(text);
-            if (text.StartsWith("settings changed"))
+            Status(status.text);
+            if (status.changed)
                 Warn("The settings differ from the last run: press Run to update the responses.");
         }
 
@@ -220,9 +205,9 @@ namespace CompasAcoustics.Grasshopper
         {
             var generation = _last?.Generation ?? new Dictionary<string, object?>();
             generation.TryGetValue("tail", out var tail);
-            var order = generation.TryGetValue("sh_order", out var sh) ? $", order {sh}" : "";
+            var order = generation.TryGetValue("sh_order", out var sh) ? $", SH order {MessageText.Show(sh)}" : "";
             var set = Has("hrtf") ? $", hrtf {(string.IsNullOrEmpty(context.Hrtf) ? "ku100" : Path.GetFileName(context.Hrtf))}" : "";
-            return $"{context.Scene.SamplingRate}Hz, {Method}, tail: {tail ?? "auto"}{order}, seed {context.Seed}{set}";
+            return $"{MessageText.Rate(context.Scene.SamplingRate)}, {Method}, tail {tail ?? "auto"}{order}, seed {MessageText.Show(context.Seed)}{set}";
         }
     }
 

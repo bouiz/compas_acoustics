@@ -9,7 +9,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         public void Status_TrimsTo40CharactersAndKeepsTheFullText()
         {
             Assert.Equal(("done, 2 IRs", null), MessageText.Status("done, 2 IRs"));
-            var full = "44100Hz, hybrid, tail: reference, order 1, seed 123, hrtf ku100";
+            var full = "44.1 kHz, binaural, tail reference, seed 1234567890, hrtf ku100";
             var (shown, kept) = MessageText.Status(full);
             Assert.Equal(40, shown.Length);
             Assert.EndsWith("...", shown);
@@ -56,7 +56,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal("Util", spec.Subcategory);
             Assert.Empty(spec.Inputs);
             Assert.Equal(new[] { "python", "version", "running" }, spec.Outputs.Select(p => p.Name));
-            Assert.Equal(24, ComponentSpec.Names().Count());
+            Assert.Equal(24, EmbeddedSpecs.Names().Count());
         }
     }
 }

@@ -1,12 +1,11 @@
 using System.Collections.Generic;
 using System.Drawing;
-using System.Linq;
 using Rhino.Display;
 using Rhino.Geometry;
 
 namespace CompasAcoustics.Grasshopper
 {
-    /// <summary>Draws the previews in Grasshopper's preview colour (``color`` is the selected or unselected one).</summary>
+    /// <summary>Draws the previews in Grasshopper's preview colour (<c>color</c> is the selected or unselected one).</summary>
     internal static class PreviewDrawing
     {
         public static readonly Color ObstacleEdge = Color.FromArgb(255, 127, 14);
