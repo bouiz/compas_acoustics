@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using CompasAcoustics.Pb;
+using Google.Protobuf;
 using Grasshopper.Kernel;
 using Grasshopper.Kernel.Types;
 using Rhino.Geometry;
@@ -125,17 +126,32 @@ namespace CompasAcoustics.Grasshopper
 
     public sealed class RoomSceneComponent : ComponentBase
     {
-        /// <summary>The volume of the scene's room from the worker; null for an open room, or a worker that does not give it.</summary>
-        internal static double? RoomVolume(Worker worker, SceneData scene)
+        // the last scene's measures, by a hash of its bytes: an unchanged scene asks the worker once
+        private (string hash, (double? volume, double? area) measures)? _measured;
+
+        /// <summary>
+        /// The volume and surface of the scene's room as the simulations take it, from the worker's room_measures; each null
+        /// where the worker gives none (an open room has no volume); null when the call fails.
+        /// </summary>
+        internal (double? volume, double? area)? Measures(Worker worker, SceneData scene)
         {
+            var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(scene.ToByteArray()));
+            if (_measured is { } known && known.hash == hash)
+                return known.measures;
+            IDictionary<string, object?>? answer;
             try
             {
-                return worker.Call("room_volume", scene) is { } volume ? Convert.ToDouble(volume, System.Globalization.CultureInfo.InvariantCulture) : null;
+                answer = worker.Call("room_measures", scene) as IDictionary<string, object?>;
             }
             catch (Exception e) when (e is WorkerException || WorkerClient.IsGone(e))
             {
                 return null;
             }
+            double? Number(string key) => answer != null && answer.TryGetValue(key, out var v) && v != null
+                ? Convert.ToDouble(v, System.Globalization.CultureInfo.InvariantCulture) : null;
+            var measures = (Number("volume"), Number("area"));
+            _measured = (hash, measures);
+            return measures;
         }
 
         public RoomSceneComponent() : base("CA_Model") { }
@@ -191,8 +207,8 @@ namespace CompasAcoustics.Grasshopper
             var rate = long.Parse(Choice("sampling_rate"), System.Globalization.CultureInfo.InvariantCulture);
             var scene = (SceneData)Worker.Call("make_scene", objects, sources, receivers, Text(access, "name"), rate)!;
             var goo = new SceneGoo(scene);
-            var room = goo.Preview;
-            var (shown, full) = MessageText.Scene(RoomVolume(Worker, scene), room?.Area ?? 0,
+            var measures = Measures(Worker, scene);
+            var (shown, full) = MessageText.Scene(measures?.volume, measures?.area ?? goo.Preview?.Area ?? 0,
                 scene.AcousticObjects.Count, scene.Sources.Count, scene.Receivers.Count, scene.SamplingRate);
             Status(shown, full);
             access.SetData(0, goo);

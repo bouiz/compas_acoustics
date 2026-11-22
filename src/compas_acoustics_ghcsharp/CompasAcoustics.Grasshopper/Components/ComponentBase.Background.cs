@@ -20,7 +20,6 @@ namespace CompasAcoustics.Grasshopper
 
         private BackgroundRuns? _runs;
         private Timer? _ticker;
-        private readonly Dictionary<int, (Background request, string key)> _keys = new();
 
         /// <summary>Whether the component runs its worker calls in the background (its body has room for Cancel).</summary>
         protected virtual bool RunsInBackground => false;
@@ -46,7 +45,7 @@ namespace CompasAcoustics.Grasshopper
         /// </summary>
         protected RunDecision RunInBackground(IGH_DataAccess access, Background request, Action<Outcome, bool> deliver, bool start = true, bool restart = false)
         {
-            var key = KeyOf(access.Iteration, request);
+            var key = request.Key ?? BackgroundRuns.Key(request.Function, request.Args, request.Kwargs);
             var wasRunning = Runs.AnyRunning;
             var decision = Runs.Next(access.Iteration, key, start, restart);
             if (decision.Kind == RunKind.Start)
@@ -103,22 +102,6 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>The call itself; a component may check the worker first.</summary>
         protected virtual Task<object?> Call(Background request, string callId, CancellationToken cancel) =>
             Worker.CallAsync(request.Function, callId, request.Args, request.Kwargs, cancel);
-
-        /// <summary>The hash of <paramref name="request"/>, kept while the same arguments and equal keywords come again.</summary>
-        private string KeyOf(int iteration, Background request)
-        {
-            if (request.Key != null)
-                return request.Key;
-            if (_keys.TryGetValue(iteration, out var known) && SameCall(known.request, request))
-                return known.key;
-            var key = BackgroundRuns.Key(request.Function, request.Args, request.Kwargs);
-            _keys[iteration] = (request, key);
-            return key;
-        }
-
-        private static bool SameCall(Background a, Background b) =>
-            a.Function == b.Function && a.Args.Length == b.Args.Length && a.Args.Zip(b.Args).All(p => ReferenceEquals(p.First, p.Second))
-            && a.Kwargs.Count == b.Kwargs.Count && a.Kwargs.All(kv => b.Kwargs.TryGetValue(kv.Key, out var v) && Equals(kv.Value, v));
 
         private string RunningMessage()
         {

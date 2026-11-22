@@ -55,7 +55,7 @@ __all__ = [
     "make_receiver",
     "make_acoustic_object",
     "make_scene",
-    "room_volume",
+    "room_measures",
     "analysis",
     "auralise",
     "play",
@@ -201,14 +201,16 @@ def make_scene(objects, sources, receivers, name=None, sampling_rate=None):
     return scene
 
 
-def room_volume(scene):
-    """The volume in m3 that ``scene``'s surfaces close, as the simulation methods take it; None if they close none."""
+def room_measures(scene):
+    """``{"volume", "area"}`` of ``scene`` as the simulation methods take them, in m3 and m2: the volume its surfaces
+    close (None if they close none) and the area exposed to the air, the ``S`` of Sabine and Eyring (None without
+    surfaces)."""
     try:
         geometry = RoomGeometry.from_scene(scene)
     except ValueError:
         # a scene without surfaces
-        return None
-    return float(geometry.volume) if geometry.is_closed else None
+        return {"volume": None, "area": None}
+    return {"volume": float(geometry.volume) if geometry.is_closed else None, "area": geometry.surface_area}
 
 
 # =============================================================================
