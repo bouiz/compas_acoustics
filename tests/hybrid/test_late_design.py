@@ -169,6 +169,30 @@ def test_the_lines_filters_are_pyfdns_bit_for_bit_block_by_block():
         assert np.array_equal(ours.process_block(signal[start:stop]), theirs.process_block(signal[start:stop]))
 
 
+def test_without_scipys_private_kernel_the_network_falls_back_to_pyfdn_with_the_same_output(monkeypatch):
+    import importlib.util
+    import sys
+
+    from pyFDN.td import SOSBank
+
+    import compas_acoustics.hybrid.late as late
+
+    monkeypatch.setitem(sys.modules, "scipy.signal._sosfilt", None)
+    spec = importlib.util.spec_from_file_location("compas_acoustics.hybrid._late_without_kernel", late.__file__)
+    fallback = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(fallback)
+    assert fallback._SOSBank is SOSBank and late._SOSBank is not SOSBank
+
+    level = np.stack([np.full(N_BANDS, 1.0), np.full(N_BANDS, 0.3)], axis=1)
+    target = RoomTarget(rt=np.stack([np.full(N_BANDS, 0.3), np.full(N_BANDS, 1.2)], axis=1), level=level, bands=BANDS.copy(), fs=FS)
+    builds = design_fdn(target, delays_of(16))
+    rng = np.random.default_rng(1)
+    drive, tap = rng.standard_normal((4000, 16)), rng.standard_normal((4000, 16))
+    line_eq = builds[0][1]["post_delay"]
+    expected = late.run_network(builds, drive, tap=tap, line_eq=line_eq)
+    assert np.array_equal(fallback.run_network(builds, drive, tap=tap, line_eq=line_eq), expected)
+
+
 def test_a_single_line_emerges_after_that_lines_delay():
     delays = delays_of(16)
     builds = design_fdn(target_with(), delays)

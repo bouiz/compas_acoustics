@@ -11,24 +11,26 @@ import pyfar as pf
 import pyFDN
 import spharpy
 from pyFDN.td import SOSBank
-from scipy.signal._sosfilt import _sosfilt
 
 from .pair import Pair
 from .target import RoomTarget
 
+try:
+    # a private scipy kernel: the network filters every line once per block, at most its shortest delay long, where
+    # sosfilt's checks of its arguments take longer than the filtering; without it pyFDN's SOSBank gives the same output
+    from scipy.signal._sosfilt import _sosfilt
+except ImportError:
+    _SOSBank = SOSBank
+else:
 
-class _SOSBank(SOSBank):
-    """pyFDN's cascade per line with the kernel of ``scipy.signal.sosfilt`` called directly, on the same state.
+    class _SOSBank(SOSBank):
+        """pyFDN's cascade per line with the kernel of ``scipy.signal.sosfilt`` called directly, on the same state."""
 
-    The network filters every line once per block, at most its shortest delay long, where ``sosfilt``'s checks of
-    its arguments take longer than the filtering; the output is bit-identical.
-    """
-
-    def process_block(self, block):
-        out = np.array(np.asarray(block, dtype=float).T, order="C")
-        for i in range(self.in_channels):
-            _sosfilt(self.sos[i], out[i : i + 1], self._state[i : i + 1])
-        return out.T
+        def process_block(self, block):
+            out = np.array(np.asarray(block, dtype=float).T, order="C")
+            for i in range(self.in_channels):
+                _sosfilt(self.sos[i], out[i : i + 1], self._state[i : i + 1])
+            return out.T
 
 
 #: Fewest delay lines at any ambisonic order: Kirsch et al. (2023, Secs. 1.2 and 3.3) use 96 for offline simulation

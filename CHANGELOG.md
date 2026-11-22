@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Changed names in the hybrid engine: `hybrid.late.render` is `hybrid.late.run_network`; `hybrid.diffraction.toolbox_frame` and `toolbox_cyl` are `edge_frame` and `edge_cyl`; the `Pair` argument of the engine's functions and `HybridCore.spec` are `pair`; `hybrid.diffraction.pair_valid` takes the two angles; the first argument of `room.pra.directivity_to_pra` is `directivity`.
 * Changed the worker's error for an unknown `time_scale` to name its options once.
 * Changed the Grasshopper Simulate Mono, Simulate Binaural and Simulate Ambisonics messages to one format (`48 kHz, ...`, `SH order N` for the hybrid's spherical harmonic order); a message longer than the strip is cut there, the full text in the tooltip. Corrected component texts: Play reads Pause while playing, Install Worker installs a version range, the hybrid seed also seeds the rays the method traces. Material Library bars use the picker's colours.
+* Changed the hybrid's feedback delay network to fall back to pyFDN's `SOSBank` when scipy's private `sosfilt` kernel cannot be imported; the output is the same.
 
 ### Fixed
 
