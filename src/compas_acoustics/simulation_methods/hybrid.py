@@ -41,6 +41,7 @@ from compas_acoustics.ir import ImpulseResponse
 from compas_acoustics.receiver import Receiver
 from compas_acoustics.room.air import AirConditions
 from compas_acoustics.room.air import air_or_default
+from compas_acoustics.room.diffuse import predicted_rt
 from compas_acoustics.room.pra import directivity_to_pra
 from compas_acoustics.room.pra import points_to_array
 from compas_acoustics.room.pra import source_to_pra
@@ -276,8 +277,8 @@ class _HybridMethod(SimulationMethod):
     def _pair_inputs(self, context, geometry, room, rotations, references, damping, scattered, histograms, air_absorption, air):
         """Every source-receiver pair's :class:`_PairInputs`, sources outer, receivers inner."""
         fs = context.sampling_rate
-        # The longest Eyring RT, held within 0.5 to 12 s, against which a given reference's length is checked
-        eyring_rt = default_duration(geometry, air_absorption, air=air, factor=1.0)
+        # The longest Eyring RT, against which a reference's length is checked
+        eyring_rt = None if references is None else float(predicted_rt(geometry, air_absorption=air_absorption, air=air, warn=False).max())
         inputs = []
         for s, source in enumerate(context.sources):
             directivity = None if source.directivity == "omnidirectional" else directivity_to_pra(source.directivity, source.direction)

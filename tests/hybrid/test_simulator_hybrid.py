@@ -530,6 +530,34 @@ def test_a_reference_of_two_thirds_of_its_reverberation_time_is_long_enough():
         Ambisonics()._check_reference_length(1.5, target, 1.3, "rec, src")
 
 
+HARD = AcousticMaterial("hard", 0.01, 0.05)
+
+
+def test_an_eyring_tail_in_a_room_above_12_s_warns_nothing_about_ray_tracing():
+    from compas_acoustics.room.diffuse import predicted_rt
+
+    scene = make(materials=HARD)
+    assert predicted_rt(RoomGeometry.from_scene(scene), warn=False).max() > 12.0
+    with warnings.catch_warnings(record=True) as record:
+        warnings.simplefilter("always")
+        scene.simulate(Ambisonics(tail="eyring", image_source_order=1, duration=0.3))
+    assert not [w for w in record if "ray tracing" in str(w.message)]
+
+
+def test_a_reference_shorter_than_two_thirds_of_an_rt_above_12_s_warns_with_that_rt():
+    import re
+
+    from compas_acoustics.room.diffuse import predicted_rt
+
+    scene = make(materials=HARD)
+    short = references(scene, duration=1.0)
+    with pytest.warns(UserWarning, match="less than 2/3 of its reverberation time") as record:
+        scene.simulate(Ambisonics(short, image_source_order=1, duration=0.3))
+    (message,) = [str(w.message) for w in record if "less than 2/3 of its reverberation time" in str(w.message)]
+    rt = float(re.search(r"reverberation time \(([0-9.]+) s\)", message).group(1))
+    assert rt >= round(float(predicted_rt(RoomGeometry.from_scene(scene), warn=False).max()), 1) > 12.0
+
+
 def test_a_receiver_without_a_visible_image_beside_a_visible_one_renders():
     """A reference of order 0 has no image at the receiver behind the panel while the other receiver sees the source."""
     scene = make([Receiver("behind", 8.0, 4.0, 1.5), Receiver("in_view", 2.0, 7.0, 1.5)], panel=True)
