@@ -13,6 +13,8 @@ from dataclasses import replace
 
 import numpy as np
 import pyfar as pf
+from scipy.signal import lfilter
+
 from ..room.geometry import DEFAULT_SCATTERING
 
 
@@ -72,8 +74,13 @@ def _allpass(x: np.ndarray, tau: int, g: float) -> np.ndarray:
     """``(g + z^-tau) / (1 + g z^-tau)`` along axis 0, ``tau`` rows at a time.
 
     ``y[n] = g x[n] + x[n - tau] - g y[n - tau]``: every row of a block depends only on the block before it, so a
-    block is one vector operation. It agrees with ``scipy.signal.lfilter`` to about 2e-16 of the peak.
+    block is one vector operation. It agrees with ``scipy.signal.lfilter`` to about 2e-16 of the peak; for
+    ``tau <= 2``, where the blocks are too short to pay, ``lfilter`` runs instead.
     """
+    if tau <= 2:
+        b, a = np.zeros(tau + 1), np.zeros(tau + 1)
+        b[0], b[-1], a[0], a[-1] = g, 1.0, 1.0, g
+        return lfilter(b, a, x, axis=0)
     y = np.empty_like(x)
     y[:tau] = g * x[:tau]
     for start in range(tau, x.shape[0], tau):

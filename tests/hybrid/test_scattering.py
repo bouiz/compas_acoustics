@@ -108,7 +108,7 @@ def test_smear_is_an_allpass_with_the_papers_delays():
     assert np.array_equal(smeared[:, 0], smeared[:, 1])
 
 
-@pytest.mark.parametrize("tau", [1, 7, 20, 64, 202, 431])
+@pytest.mark.parametrize("tau", [1, 2, 3, 7, 20, 64, 202, 431])
 def test_the_block_allpass_is_scipys_lfilter_to_1e_12_of_the_peak(tau):
     from scipy.signal import lfilter
 
