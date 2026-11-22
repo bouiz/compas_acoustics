@@ -512,7 +512,7 @@ def test_coplanar_edges_of_a_rotated_box_are_a_pair_at_every_point():
                     for b in t:
                         p1 = e1.start + a * (e1.end - e1.start)
                         p2 = e2.start + b * (e2.end - e2.start)
-                        assert pair_valid(e1, e2, p1, p2)
+                        assert pair_valid(e1, e2, toolbox_cyl(e1, p2[None])[0, 1], toolbox_cyl(e2, p1[None])[0, 1])
 
 
 def test_segments_are_floored_when_a_point_is_on_the_edge_line():
@@ -526,7 +526,7 @@ def test_an_edge_behind_another_is_not_a_pair():
     edges = obstacle_edges(box_geometry())
     e1 = edges[0]
     inside = toolbox_frame(e1)[0].mean(axis=0) + 0.1 * e1.face_a + 0.1 * e1.face_b
-    assert not pair_valid(e1, edges[1], toolbox_frame(e1)[0].mean(axis=0), inside)
+    assert not pair_valid(e1, edges[1], toolbox_cyl(e1, inside[None])[0, 1], toolbox_cyl(edges[1], toolbox_frame(e1)[0].mean(axis=0)[None])[0, 1])
 
 
 def test_btms_segments_of_a_free_edge_sum_to_the_kernel_on_the_whole_edge():

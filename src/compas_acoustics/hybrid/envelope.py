@@ -98,6 +98,8 @@ def octave_band_split(x: np.ndarray, fs: float) -> np.ndarray:
 def _octave_bands(columns: np.ndarray, fs: float):
     """The bands of :func:`octave_band_split` of ``columns`` (n, C), one (n, C) array at a time."""
     n_fft = scipy.fft.next_fast_len(columns.shape[0] + _N_FILT - 1, real=True)
+    # workers=-1 splits the columns by the core count, which changes their rounding: the bands can differ between
+    # machines by a few 1e-16 of their peak
     spectrum = scipy.fft.rfft(columns, n_fft, axis=0, workers=-1)
     response = _bank_response(float(fs), n_fft)
     delay = _N_FILT // 2

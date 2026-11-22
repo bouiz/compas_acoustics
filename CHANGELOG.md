@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Changed the worker to check the token of a call before registering it, so an unauthorised call leaves a running call with the same id alone; a POST to an unknown route without the token answers 401.
 * Changed `room.diffuse.predicted_rt` to compute Sabine and Eyring itself on every Python, in pyrato's order of operations (identical results on Python >= 3.11; on Python < 3.11 a mean absorption at or below 1e-10 now gives a large finite Sabine time, as pyrato does, instead of inf).
 * Changed `hybrid.synthesis.prepare` to take `diffraction` as `None`, `"udfa"` or `"btms"` and to require `duration_s`; `Binaural` and `Ambisonics` still take `diffraction=True` and default to 1.5 times each pair's longest target reverberation time.
+* Changed the allpass cascade of the hybrid's surface scattering (`scattering=True`) to run block by block, about 28 times faster; the responses agree with the former filter to about 1e-14 of their peak.
+* Changed BTMS diffraction to compute the edge coordinates of the second order once per segment, not once per segment pair, and the diffracting edges once per room geometry: about 1.4 times faster, the responses bit-identical. The edge warnings come once per simulation, not once per source-receiver pair.
+* Changed `RoomGeometry` to compute its face areas, normals, exposed faces and volume once; the responses are bit-identical.
 
 ### Removed
 

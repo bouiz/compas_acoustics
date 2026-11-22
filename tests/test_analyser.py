@@ -517,12 +517,26 @@ def test_each_octave_filter_is_designed_once(monkeypatch):
 
     monkeypatch.setattr(pf.dsp.filter, "fractional_octave_bands", counted)
     analysis._octave_band_filter.cache_clear()
+    analysis._octave_bank.cache_clear()
     # not analyse(): pyrato's STI designs its own filters
     for seed in range(2):
         analyser = Analyser(make_ir(seed=seed))
         analyser.reverberation_times()
         analyser.clarity_definition()
-    assert len(designs) == len(Defaults().DEFAULT_FREQUENCY_BANDS)
+    # one per band for the zero-phase bands, and the bank of all seven for the causal ones
+    assert len(designs) == len(Defaults().DEFAULT_FREQUENCY_BANDS) + 1
+
+
+def test_the_bank_gives_the_samples_of_the_single_band_filters():
+    import pyfar as pf
+
+    from compas_acoustics import analyser as analysis
+
+    x = np.random.default_rng(0).standard_normal(4800)
+    for fs in (44100, 48000):
+        bank = analysis._octave_bank(fs).process(pf.Signal(x, fs)).time.squeeze()
+        single = [analysis._octave_band_filter(fs, f).process(pf.Signal(x, fs)).time.squeeze() for f in Defaults().DEFAULT_FREQUENCY_BANDS]
+        assert np.array_equal(bank, np.stack(single))
 
 
 def test_analyse_filters_the_bands_of_the_decay_once_for_the_reverberation_times_and_center_time(monkeypatch):

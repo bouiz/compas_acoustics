@@ -15,6 +15,7 @@ from compas_acoustics.hybrid.late import directional_delays
 from compas_acoustics.hybrid.late import fdn_directions
 from compas_acoustics.hybrid.late import render
 from compas_acoustics.hybrid.pair import Pair
+from compas_acoustics.hybrid.scattering import _allpass
 from compas_acoustics.hybrid.scattering import allpass_delays
 from compas_acoustics.hybrid.scattering import complementary_scattering
 from compas_acoustics.hybrid.scattering import scattering_decay_time
@@ -105,6 +106,18 @@ def test_smear_is_an_allpass_with_the_papers_delays():
     assert smeared.shape == impulse.shape
     assert np.sum(smeared[:, 0] ** 2) == pytest.approx(1.0, rel=1e-3)
     assert np.array_equal(smeared[:, 0], smeared[:, 1])
+
+
+@pytest.mark.parametrize("tau", [1, 7, 20, 64, 202, 431])
+def test_the_block_allpass_is_scipys_lfilter_to_1e_12_of_the_peak(tau):
+    from scipy.signal import lfilter
+
+    x = np.random.default_rng(tau).standard_normal((24000, 96))
+    g = 1.0 / np.sqrt(2.0)
+    b, a = np.zeros(tau + 1), np.zeros(tau + 1)
+    b[0], b[-1], a[0], a[-1] = g, 1.0, 1.0, g
+    expected = lfilter(b, a, x, axis=0)
+    assert np.max(np.abs(_allpass(x, tau, g) - expected)) <= 1e-12 * np.max(np.abs(expected))
 
 
 def test_tap_is_heard_through_the_lines_attenuation_filters():

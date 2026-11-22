@@ -51,6 +51,12 @@ def _octave_band_filter(sampling_rate, center_frequency):
     )
 
 
+@lru_cache(maxsize=None)
+def _octave_bank(sampling_rate):
+    # The seven bands of _octave_band_filter in one filter: the same coefficients and samples, one call per segment
+    return pf.dsp.filter.fractional_octave_bands(signal=None, num_fractions=1, sampling_rate=sampling_rate, frequency_range=(125, 8000), order=14)
+
+
 def _iso3382_start(ir_array, threshold_db=20.0):
     """Start sample of an impulse response: the last sample before the maximum that is more than ``threshold_db``
     below it (20 dB: ISO 3382-1:2009, p. 22).
@@ -245,19 +251,19 @@ class Analyser:
         sig = pf.Signal(np.asarray(impulse_response, dtype=float), self.sampling_rate)
         return _octave_band_filter(self.sampling_rate, center_frequency).process(sig).time.squeeze()
 
-    def _band_signals(self, segment, bands) -> dict:
-        """Causal octave bands of a time segment, padded 0.5 s so that the filters ring out."""
-        padded = np.concatenate([np.asarray(segment, dtype=float), np.zeros(int(0.5 * self.sampling_rate))])
-        return {f: self._filter_impulse_response(padded, f) for f in bands}
+    def _band_signals(self, segment) -> dict:
+        """Causal octave bands of a time segment by centre frequency, padded 0.5 s so that the filters ring out."""
+        padded = pf.Signal(np.concatenate([np.asarray(segment, dtype=float), np.zeros(int(0.5 * self.sampling_rate))]), self.sampling_rate)
+        return dict(zip(self.frequency_bands, _octave_bank(self.sampling_rate).process(padded).time.squeeze()))
 
     def _band_edcs(self, segment):
         """Schroeder curves of :meth:`_band_signals`, one channel per band."""
-        filtered = pf.Signal(np.stack(list(self._band_signals(segment, self.frequency_bands).values())), self.sampling_rate)
+        filtered = pf.Signal(np.stack(list(self._band_signals(segment).values())), self.sampling_rate)
         return pyrato.edc.schroeder_integration(filtered)
 
-    def _band_energies(self, segment, bands) -> dict:
+    def _band_energies(self, segment) -> dict:
         """Energies of :meth:`_band_signals`: filter delay and ringing stay with the segment."""
-        return {f: float(np.sum(band**2)) for f, band in self._band_signals(segment, bands).items()}
+        return {f: float(np.sum(band**2)) for f, band in self._band_signals(segment).items()}
 
     def _direct_sound_onset(self, ir_array) -> int:
         """Index of the direct sound (:func:`_iso3382_start`), the first arrival found even when an obstacle blocks it.
@@ -344,7 +350,7 @@ class Analyser:
         early_50, early_80 = (onset + int(round(t * self.sampling_rate)) for t in (0.05, 0.08))
 
         energies = {
-            name: self._band_energies(segment, bands)
+            name: self._band_energies(segment)
             for name, segment in (
                 ("early_50", ir_array[onset:early_50]),
                 ("late_50", ir_array[early_50:]),
@@ -385,8 +391,8 @@ class Analyser:
             return np.nan
 
         bands = list(self.frequency_bands)
-        direct = self._band_energies(ir_array[start:end], bands)
-        reverberant = self._band_energies(ir_array[end:], bands)
+        direct = self._band_energies(ir_array[start:end])
+        reverberant = self._band_energies(ir_array[end:])
         filtered = sosfilt(butter(2, (700.0, 4000.0), "bandpass", fs=self.sampling_rate, output="sos"), ir_array)
         return {
             "DRR": [ratio(direct[freq], reverberant[freq]) for freq in bands],
@@ -476,10 +482,10 @@ class Analyser:
             start, stop = (onset + int(round(t * fs)) for t in window)
             return ir_array[start : min(stop, len(ir_array))]
 
-        direct = self._band_energies(segment((0.0, 0.010)), freqs)
+        direct = self._band_energies(segment((0.0, 0.010)))
         result = {"freqs": freqs}
         for name, window in {"ST_early": (0.020, 0.100), "ST_late": (0.100, 1.000)}.items():
-            reflected = self._band_energies(segment(window), freqs)
+            reflected = self._band_energies(segment(window))
             values = {f: 10.0 * np.log10(reflected[f] / direct[f]) if reflected[f] > 0 and direct[f] > 0 else np.nan for f in freqs}
             result[name] = [round(float(values[f]), 2) for f in freqs]
             result[f"{name}_overall"] = round(float(np.nanmean([values[f] for f in overall_bands])), 2)
@@ -602,9 +608,9 @@ class Analyser:
 
         overall_bands = [125, 250, 500, 1000]
         start, stop = (onset + int(round(t * fs)) for t in (0.005, 0.080))
-        omni_early = self._band_signals(w[onset:stop], freqs)
-        omni_lateral = self._band_signals(w[start:stop], freqs)
-        lateral_early = self._band_signals(lateral[start:stop], freqs)
+        omni_early = self._band_signals(w[onset:stop])
+        omni_lateral = self._band_signals(w[start:stop])
+        lateral_early = self._band_signals(lateral[start:stop])
 
         lf, lfc = {}, {}
         for f in freqs:

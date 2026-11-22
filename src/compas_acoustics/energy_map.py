@@ -208,12 +208,10 @@ def _interpolate(receivers: np.ndarray, energy: np.ndarray, points: np.ndarray) 
     return np.einsum("nk,nkbt->nbt", weights, energy[index])
 
 
-def _level_weights(source, bands) -> np.ndarray:
+def _level_weights(source) -> np.ndarray:
     """Per band, the factor that makes the package-scale free field at 1 m on axis, ``1 / (16 pi^2)``, equal
     ``10^(spl / 10)``."""
-    spl = np.asarray(source.spl, dtype=float)
-    by_band = dict(zip(Defaults().DEFAULT_FREQUENCY_BANDS, spl))
-    return np.array([10.0 ** ((by_band[int(f)] + 20.0 * np.log10(4.0 * np.pi)) / 10.0) for f in bands])
+    return np.array([10.0 ** ((spl + 20.0 * np.log10(4.0 * np.pi)) / 10.0) for spl in np.asarray(source.spl, dtype=float)])
 
 
 def _ray_energy(geometry, sources, mics, fs, order, duration, n_rays, air_absorption, seed, bands) -> np.ndarray:
@@ -239,11 +237,13 @@ def _ray_energy(geometry, sources, mics, fs, order, duration, n_rays, air_absorp
         air_absorption=air_absorption,
         seed=seed,
     )
+    # one room's grid for every histogram
+    index = [int(np.argmin(np.abs(histograms[0][0].bands - f))) for f in bands]
+    weights = [_level_weights(source)[:, np.newaxis] for source in sources]
     for m, per_source in enumerate(histograms):
-        for source, histogram in zip(sources, per_source):
-            index = [int(np.argmin(np.abs(histogram.bands - f))) for f in bands]
+        for weight, histogram in zip(weights, per_source):
             energy = histogram.energy.sum(axis=0)[index, :n_bins]
-            total[m, :, : energy.shape[1]] += energy * _level_weights(source, bands)[:, np.newaxis]
+            total[m, :, : energy.shape[1]] += energy * weight
     return total
 
 
@@ -280,7 +280,7 @@ def _image_source_energy(geometry, sources, mics, fs, order, air_absorption, ban
         damping = np.asarray(pra_source.damping, dtype=float)
         if damping.shape[0] == 1:
             damping = np.repeat(damping, len(centres), axis=0)
-        weights = _level_weights(source, bands)
+        weights = _level_weights(source)
         for m, mic in enumerate(mics):
             visible = np.flatnonzero(np.asarray(room.visibility[s][m], dtype=bool))
             if not visible.size:

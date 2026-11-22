@@ -351,6 +351,8 @@ class RayField(_PackageDtype, Data):
         engine = simulation.room_engine
         walls = engine.walls
         max_dist = float(engine.max_dist)
+        kept_by_wall = [max(1.0 - float(np.mean(np.asarray(wall.absorption, dtype=float))), 0.0) for wall in walls]
+        scatter_by_wall = [_scatter_coefficient(wall, scatter_band) for wall in walls] if include_scattering else None
 
         if sources is None:
             sources = scene.sources
@@ -395,11 +397,10 @@ class RayField(_PackageDtype, Data):
                     travel_distance += float(hit_distance)
                     wall = walls[wall_index]
 
-                    absorption = float(np.mean(np.asarray(wall.absorption, dtype=float)))
-                    transmitted *= max(1.0 - absorption, 0.0)
+                    transmitted *= kept_by_wall[wall_index]
 
                     if include_scattering:
-                        scatter = _scatter_coefficient(wall, scatter_band)
+                        scatter = scatter_by_wall[wall_index]
                         if scatter > 0.0:
                             scattered_reflections.extend(
                                 _make_scattered_rays(

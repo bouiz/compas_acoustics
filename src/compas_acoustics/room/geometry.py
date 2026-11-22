@@ -444,10 +444,18 @@ class RoomGeometry:
             obstacle_face_materials=tuple(group[2] for group in groups if group[0] == "obstacle"),
         )
 
-    def _face_geometry(self) -> List[Tuple[float, np.ndarray, np.ndarray]]:
-        return [_polygon_area_and_centroid(self.vertices[list(face)]) for face in self.faces]
+    @cached_property
+    def _face_geometry(self) -> Tuple[Tuple[float, np.ndarray, np.ndarray], ...]:
+        """``(area, unit normal, vertex mean)`` of every face, the arrays read-only."""
+        geometry = []
+        for face in self.faces:
+            area, normal, centroid = _polygon_area_and_centroid(self.vertices[list(face)])
+            normal.setflags(write=False)
+            centroid.setflags(write=False)
+            geometry.append((area, normal, centroid))
+        return tuple(geometry)
 
-    @property
+    @cached_property
     def volume(self) -> float:
         """The air volume: the boundary's less the volume each closed obstacle encloses; a closed room only."""
         if not self.is_closed:
@@ -461,7 +469,8 @@ class RoomGeometry:
             enclosed += abs(_signed_volume(drawn, wound))
         return _signed_volume(self.vertices, boundary) - enclosed
 
-    def _exposed_faces(self) -> List[int]:
+    @cached_property
+    def _exposed_faces(self) -> Tuple[int, ...]:
         """Indices into ``faces`` of the faces the air touches.
 
         The boundary faces; of an obstacle that closes a volume (a cabinet) its front copies only, since the back
@@ -475,20 +484,20 @@ class RoomGeometry:
         copies = [first + k for k in range(count)]
         copies += [first + count + k for k in range(count) if self.face_names[first + k] not in closed]
         if not copies:
-            return boundary
-        geometry = self._face_geometry()
+            return tuple(boundary)
+        geometry = self._face_geometry
         on_boundary = _lying_on(
             np.array([geometry[i][2] for i in copies]),
             [(self.vertices[list(self.faces[i])], geometry[i][1], geometry[i][2]) for i in boundary],
         )
-        return boundary + [i for i, lying in zip(copies, on_boundary) if not lying]
+        return tuple(boundary + [i for i, lying in zip(copies, on_boundary) if not lying])
 
     @property
     def surfaces(self) -> List[Tuple[float, SurfaceMaterial]]:
         """``(area, material)`` per material over the faces exposed to the air (see :meth:`_exposed_faces`)."""
-        geometry = self._face_geometry()
+        geometry = self._face_geometry
         areas: Dict[str, float] = {}
-        for i in self._exposed_faces():
+        for i in self._exposed_faces:
             name = self.face_materials[i]
             areas[name] = areas.get(name, 0.0) + geometry[i][0]
         return [(areas[name], self.materials[name]) for name in areas]
@@ -496,13 +505,13 @@ class RoomGeometry:
     @property
     def surface_area(self) -> float:
         """Total area exposed to the air: the ``S`` of Sabine, Eyring and the mean free path ``4 V / S``."""
-        geometry = self._face_geometry()
-        return float(sum(geometry[i][0] for i in self._exposed_faces()))
+        geometry = self._face_geometry
+        return float(sum(geometry[i][0] for i in self._exposed_faces))
 
     def area_normals(self) -> np.ndarray:
         """The unit normal of every exposed face times its area, (n_exposed, 3); the boundary faces come first."""
-        geometry = self._face_geometry()
-        return np.array([geometry[i][0] * geometry[i][1] for i in self._exposed_faces()]).reshape(-1, 3)
+        geometry = self._face_geometry
+        return np.array([geometry[i][0] * geometry[i][1] for i in self._exposed_faces]).reshape(-1, 3)
 
     def faces_with_materials(self) -> List[Tuple[np.ndarray, str]]:
         """Every face as ``(vertices (k, 3), material name)``, obstacle copies included."""

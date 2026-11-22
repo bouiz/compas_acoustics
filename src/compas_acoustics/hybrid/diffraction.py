@@ -12,7 +12,9 @@ edge.
 
 from __future__ import annotations
 
+import threading
 import warnings
+import weakref
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -199,12 +201,11 @@ def coplanar_thetas(e1: Edge, e2: Edge) -> tuple[float, float]:
     return 0.0, 0.0 if same else TWO_PI
 
 
-def pair_valid(e1: Edge, e2: Edge, point1: np.ndarray, point2: np.ndarray) -> bool:
-    """Is point2 (on e2) outside e1's solid and point1 (on e1) outside e2's?"""
+def pair_valid(e1: Edge, e2: Edge, theta_2_about_1: float, theta_1_about_2: float) -> bool:
+    """Is a point of e2 at ``theta_2_about_1`` (:func:`toolbox_cyl` of e1) outside e1's solid, and a point of e1 at
+    ``theta_1_about_2`` outside e2's?"""
     tol = 1e-9
-    t2 = toolbox_cyl(e1, np.asarray(point2)[None, :])[0, 1]
-    t1 = toolbox_cyl(e2, np.asarray(point1)[None, :])[0, 1]
-    return bool(-tol <= t2 <= e1.theta_w + tol and -tol <= t1 <= e2.theta_w + tol)
+    return bool(-tol <= theta_2_about_1 <= e1.theta_w + tol and -tol <= theta_1_about_2 <= e2.theta_w + tol)
 
 
 class ObstacleEdgeWarning(UserWarning):
@@ -675,6 +676,20 @@ def _clear(occ: Occluders, points: list[np.ndarray], on: list[frozenset[int]]) -
     return not any(occ.blocked(a, b, sa | sb) for (a, sa), (b, sb) in pairwise(zip(points, on)))
 
 
+_PARTS: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+_PARTS_LOCK = threading.Lock()
+
+
+def _geometry_parts(geometry: RoomGeometry) -> tuple[Occluders, list[Edge]]:
+    """The occluders and the diffracting edges of a geometry, built once per geometry object (a run renders all its
+    pairs, on threads, from one geometry), so the edge warnings come once per geometry."""
+    with _PARTS_LOCK:
+        parts = _PARTS.get(geometry)
+        if parts is None:
+            parts = _PARTS[geometry] = (Occluders.from_geometry(geometry), diffraction_edges(geometry))
+    return parts
+
+
 @dataclass(frozen=True)
 class _Setup:
     """What both renderers take from a pair: the occluders, the edges, and the source and the receiver with their images
@@ -690,8 +705,7 @@ class _Setup:
     @classmethod
     def of(cls, spec: Pair, max_order: int) -> _Setup:
         receiver = np.asarray(spec.receiver, dtype=float)
-        occ = Occluders.from_geometry(spec.geometry)
-        edges = diffraction_edges(spec.geometry)
+        occ, edges = _geometry_parts(spec.geometry)
         air = spec.air_attenuation()
         return cls(spec, occ, edges, air, _ends(spec.source, occ, max_order >= 1), _ends(receiver, occ, max_order >= 1))
 
@@ -912,23 +926,29 @@ def btms_paths(spec: Pair, *, max_order: int = 1, second_order: bool = True) -> 
                 nu = np.pi / np.array([e1.theta_w, e2.theta_w])
                 skip = frozenset(e1.faces) | frozenset(e2.faces)
                 r2_about_1 = toolbox_cyl(e1, mid2)[:, 0]
+                receiving = np.flatnonzero(to_receiver)
+                # per segment of e2: its midpoint's angle and its ends about e1, the same for every segment of e1
+                mid2_about_1 = {n: toolbox_cyl(e1, mid2[n][None, :])[0, 1] for n in receiving}
+                ends2_about_1 = {n: toolbox_cyl(e1, np.array([lo2[n], hi2[n]])) for n in receiving}
+                if along:
+                    for cyl in ends2_about_1.values():
+                        cyl[:, 1] = theta_2_about_1
                 for k in np.flatnonzero(from_source):
                     p0, p1, m1 = lo1[k], hi1[k], mid1[k]
-                    r1_about_2 = toolbox_cyl(e2, m1[None, :])[0, 0]
-                    for n in np.flatnonzero(to_receiver):
+                    r1_about_2, mid1_about_2 = toolbox_cyl(e2, m1[None, :])[0, :2]
+                    e1_about_2 = toolbox_cyl(e2, np.array([p0, p1]))
+                    if along:
+                        e1_about_2[:, 1] = theta_1_about_2
+                    for n in receiving:
                         q0, q1, m2 = lo2[n], hi2[n], mid2[n]
                         if r1_about_2 < 1e-9 or r2_about_1[n] < 1e-9:
                             continue
-                        if not pair_valid(e1, e2, m1, m2) or occ.blocked(m1, m2, skip):
+                        if not pair_valid(e1, e2, mid2_about_1[n], mid1_about_2) or occ.blocked(m1, m2, skip):
                             continue
                         limits = np.array([z1[k], z2[n]])
                         steps, dz = element_grid(limits[:, 1] - limits[:, 0], c, fs)
                         start = second_order_start(src.position, rec.position, (p0, p1), (q0, q1), c, fs)
-                        e2_about_1 = toolbox_cyl(e1, np.array([q0, q1]))
-                        e1_about_2 = toolbox_cyl(e2, np.array([p0, p1]))
-                        if along:
-                            e2_about_1[:, 1], e1_about_2[:, 1] = theta_2_about_1, theta_1_about_2
-                        ir = wedge2nd_ir(cyl_s, cyl_r, e2_about_1, e1_about_2, nu, limits, dz, steps, along, start * c / fs, c, fs)
+                        ir = wedge2nd_ir(cyl_s, cyl_r, ends2_about_1[n], e1_about_2, nu, limits, dz, steps, along, start * c / fs, c, fs)
                         if thin_plate:
                             ir = 2.0 * ir
                         length = np.linalg.norm(m1 - src.position) + np.linalg.norm(m2 - m1) + np.linalg.norm(rec.position - m2)
