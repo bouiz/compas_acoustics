@@ -40,6 +40,7 @@ _SECONDS_PER_PAIR = 2.4e-8  # s per (face, receiver, source, frequency) in one p
 _GAIN_PER_WORKER = 0.38  # the speed-up each worker beyond the first added, measured with 14 workers (5.9 x) on the same machine
 _MIN_PARALLEL_SECONDS = 5.0  # runs estimated below this in one process stay in it: starting the worker processes takes about 1 s
 _POLL = 1.0  # s between the progress reports while the workers run
+_TERMINATE_SECONDS = 5.0  # s a cancelled worker has to exit after SIGTERM before it is killed
 _STEEP_TILT = 45.0  # degrees
 _STEEP_SHARE = 0.10
 _STEEP = "steep relief: kirchhoff ignores multiple reflections, so s may be off; use bem"
@@ -317,6 +318,15 @@ def _kill_pool(executor):
     for process in processes:
         try:
             process.terminate()
+        except Exception:  # noqa: BLE001 - already gone
+            pass
+    # a process still running after SIGTERM is killed, so that a cancel always stops the workers
+    for process in processes:
+        try:
+            process.join(timeout=_TERMINATE_SECONDS)
+            if process.is_alive():
+                process.kill()
+                process.join(timeout=_TERMINATE_SECONDS)
         except Exception:  # noqa: BLE001 - already gone
             pass
 
