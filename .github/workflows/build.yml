@@ -43,6 +43,8 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
           management-tool: uv
+          # the lab extra (trimesh, embreex, mesh2scattering) is for Python >= 3.11; on 3.9 and 3.10 it adds nothing
+          extras: dev,lab
           invoke-tasks: lint test format
 
   grasshopper-plugin-test:
