@@ -147,21 +147,21 @@ def test_warns_below_the_feature_scale():
     s = ScatteringSample.disc(sine_tile(period=0.0708, depth=0.0204), diameter=0.8, period=(0.0708, 0.05))
     nominal, exact = third_octave_centres()
     msgs = KirchhoffSolver().warnings(s, nominal, exact, 343.0)
-    assert any("kirchhoff: below" in m for m in msgs)
+    assert any("kirchhoff is unreliable below" in m for m in msgs)
 
 
 def test_no_feature_warning_without_period_or_feature_size():
     s = ScatteringSample.as_drawn(sine_tile(period=0.0708, depth=0.0204))
     nominal, exact = third_octave_centres()
-    assert not any("kirchhoff: below" in m for m in KirchhoffSolver().warnings(s, nominal, exact, 343.0))
+    assert not any("kirchhoff is unreliable below" in m for m in KirchhoffSolver().warnings(s, nominal, exact, 343.0))
 
 
 def test_warns_on_steep_relief():
     steep = ScatteringSample.disc(sine_tile(period=0.02, depth=0.03), diameter=0.3)
     gentle = ScatteringSample.disc(sine_tile(period=0.2, depth=0.01), diameter=0.6)
     nominal, exact = third_octave_centres()
-    assert "kirchhoff: steep relief; multiple reflections are ignored" in KirchhoffSolver().warnings(steep, nominal, exact, 343.0)
-    assert "kirchhoff: steep relief; multiple reflections are ignored" not in KirchhoffSolver().warnings(gentle, nominal, exact, 343.0)
+    assert "steep relief: kirchhoff ignores multiple reflections, so s may be off; use bem" in KirchhoffSolver().warnings(steep, nominal, exact, 343.0)
+    assert "steep relief: kirchhoff ignores multiple reflections, so s may be off; use bem" not in KirchhoffSolver().warnings(gentle, nominal, exact, 343.0)
 
 
 def _reference_pressures(sample, sources, receivers, frequencies, c, shadowing=False):

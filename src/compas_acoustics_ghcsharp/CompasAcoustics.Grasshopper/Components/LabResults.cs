@@ -33,16 +33,34 @@ namespace CompasAcoustics.Grasshopper
         private static IEnumerable<double> Numbers(object? list) =>
             list is IEnumerable<object?> items ? items.Select(v => Convert.ToDouble(v, CultureInfo.InvariantCulture)) : Enumerable.Empty<double>();
 
-        /// <summary>The strip of a wave-method Lab whose inputs changed since its last run, whose outputs are still the last run's.</summary>
-        public const string StaleStatus = "inputs changed, press Run";
+        /// <summary>
+        /// The Run button's label: what pressing it does while a wave method waits for it (<paramref name="waiting"/>) — start, or update
+        /// outputs that are the last run's (<paramref name="stale"/>) — and plain Run otherwise.
+        /// </summary>
+        public static string RunLabel(bool waiting, bool stale) => !waiting ? "Run" : stale ? "Press Run to update" : "Press Run to start";
+
+        /// <summary>
+        /// The starts of the sample's warnings that state a fact and flag no fault (the ISO 17497-1 depth limit, a proxy reference):
+        /// Scattering Sample shows them as Remarks. They are the starts of the texts of <c>compas_acoustics.lab.sample._warnings</c> and
+        /// <c>_PROXY_WARNING</c>, which tests/lab/test_sample.py pins.
+        /// </summary>
+        public static readonly string[] SampleNoteStarts = { "deeper than ISO 17497-1 allows", "with a 'reference' proxy" };
+
+        /// <summary>The sample's warnings as <c>(warnings, notes)</c>: those that start as one of <see cref="SampleNoteStarts"/> are the notes.</summary>
+        public static (string[] warnings, string[] notes) SampleMessages(IEnumerable<string> messages)
+        {
+            var all = messages.Distinct().ToArray();
+            bool IsNote(string m) => SampleNoteStarts.Any(s => m.StartsWith(s, StringComparison.Ordinal));
+            return (all.Where(m => !IsNote(m)).ToArray(), all.Where(IsNote).ToArray());
+        }
 
         /// <summary>
         /// What the Lab warns when its outputs are not those of its inputs: the outputs are the last run's (<paramref name="delivered"/>),
         /// or a run was stopped because the inputs changed (<paramref name="interrupted"/>). Null when nothing is stale.
         /// </summary>
         public static string? StaleNotice(bool delivered, bool interrupted) =>
-            interrupted ? "The inputs changed while a run was going: it was stopped; press Run to start it again."
-            : delivered ? "The inputs differ from the last run: the outputs are the last run's; press Run to update."
+            interrupted ? "Inputs changed during the run, so it stopped. Press Run to restart."
+            : delivered ? "Inputs changed: the outputs are the last run's. Press Run to update."
             : null;
 
         /// <summary>The strip of a result: its method and the range of its scattering coefficients, as <c>geometric, s 0.00–0.44</c>.</summary>

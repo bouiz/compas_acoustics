@@ -53,13 +53,6 @@
                 "default": "none"
             },
             {
-                "name": "name",
-                "description": "Optional. Name of the sample.",
-                "optional": true,
-                "scriptParamAccess": 0,
-                "typeHintID": "str"
-            },
-            {
                 "name": "plane",
                 "description": "Mounting plane of the object: its origin on the mounting surface and its Z axis pointing out into the room, where the sound comes from. Leave empty when the object already lies on the World XY plane facing +Z.",
                 "optional": true,

@@ -551,7 +551,7 @@ def test_make_scattering_sample_as_drawn_and_disc():
 
 
 def test_a_disc_without_a_diameter_is_refused():
-    with pytest.raises(ValueError, match="a disc sample needs a diameter"):
+    with pytest.raises(ValueError, match="disc mode needs a 'diameter'"):
         api.make_scattering_sample(_flat_quad(), mode="disc")
 
 
@@ -559,7 +559,7 @@ def test_a_disc_without_a_diameter_is_refused():
 def test_a_disc_with_a_diameter_that_is_not_positive_is_refused(diameter):
     from lab_shapes import flat_tile
 
-    with pytest.raises(ValueError, match="diameter is a positive length in m, not"):
+    with pytest.raises(ValueError, match="'diameter' must be greater than 0, not"):
         call("make_scattering_sample", flat_tile(), mode="disc", diameter=diameter)
 
 
@@ -579,23 +579,38 @@ def test_run_scattering_lab_returns_the_result_the_material_octaves_and_the_warn
     assert not any("heuristic: s_max" in w for w in out["warnings"])
 
 
-def test_the_heuristic_note_of_the_geometric_method_is_a_note_and_not_a_warning():
-    from compas_acoustics.lab.scattering import HEURISTIC_NOTES
+def test_the_facts_of_a_run_are_notes_and_not_warnings():
+    from compas_acoustics.lab.scattering import _HEURISTIC
 
     out = call("run_scattering_lab", _lab_disc(), method="geometric", preset="survey", settings={"n_rays": 500})
-    assert out["notes"] == list(HEURISTIC_NOTES)
+    # the heuristic and the 8000 Hz octave an 'iso' run does not simulate state what the run is: no fault
+    assert _HEURISTIC in out["notes"] and any(n.startswith("8000 Hz is not simulated") for n in out["notes"])
     assert not set(out["notes"]) & set(out["warnings"])
-    # a real warning of the same run stays one
-    assert any("8000 Hz octave was not simulated" in w for w in out["warnings"])
+    extended = call("run_scattering_lab", _lab_disc(), method="geometric", preset="survey", band_range="extended", settings={"n_rays": 500})
+    assert any("outside ISO 17497" in n for n in extended["notes"]) and not any("ISO" in w for w in extended["warnings"])
 
 
-def test_split_notes_leaves_a_kirchhoff_run_without_notes():
-    from compas_acoustics.lab.scattering import HEURISTIC_NOTES
+def test_the_lab_leaves_out_the_samples_own_warnings():
+    from lab_shapes import sine_tile
 
-    kirchhoff = ["the 8000 Hz octave was not simulated; the material takes the 4000 Hz value", "bands above 5000 Hz are beyond ISO 354"]
-    assert api._split_notes(kirchhoff, HEURISTIC_NOTES) == (kirchhoff, [])
-    geometric = [HEURISTIC_NOTES[0], kirchhoff[0]]
-    assert api._split_notes(geometric, HEURISTIC_NOTES) == ([kirchhoff[0]], [HEURISTIC_NOTES[0]])
+    deep = call("make_scattering_sample", sine_tile(0.1, 0.05), mode="disc", diameter=0.4)
+    assert deep.warnings  # deeper than d/16: the Scattering Sample shows it
+    out = call("run_scattering_lab", deep, method="geometric", preset="survey", settings={"n_rays": 500})
+    assert not set(deep.warnings) & set(out["warnings"] + out["notes"])
+
+
+def test_split_notes_sorts_by_the_templates_and_drops_what_is_news_only_before_a_run():
+    from compas_acoustics.lab.scattering import _FILLED_TOP
+    from compas_acoustics.lab.scattering import _LOST
+    from compas_acoustics.lab.scattering import _SLOW
+    from compas_acoustics.lab.scattering import DURATION_TEMPLATES
+    from compas_acoustics.lab.scattering import NOTE_TEMPLATES
+
+    filled, lost, slow = _FILLED_TOP.format(g=4000), _LOST.format(percent=3.2, bounces=20), _SLOW.format(method="kirchhoff", time="2.0 h")
+    assert api._split_notes([lost, filled, slow], NOTE_TEMPLATES, DURATION_TEMPLATES) == ([lost], [filled])
+    # a template matches its own messages only, not one that only starts like them
+    longer = filled + ", and more"
+    assert api._split_notes([longer], NOTE_TEMPLATES) == ([longer], [])
 
 
 def test_the_extended_band_range_simulates_8_kHz_too():
@@ -611,7 +626,7 @@ def test_an_unknown_band_range_is_refused():
 def test_without_trimesh_the_lab_names_kirchhoff(monkeypatch):
     monkeypatch.setitem(sys.modules, "trimesh", None)
     # a ValueError, because the service answers that with its message and an ImportError with a traceback
-    with pytest.raises(ValueError, match='method="kirchhoff"'):
+    with pytest.raises(ValueError, match="or use kirchhoff"):
         api.run_scattering_lab(_lab_disc(), preset="survey", settings={"n_rays": 100})
 
 

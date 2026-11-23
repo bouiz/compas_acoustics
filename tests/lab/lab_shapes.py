@@ -99,3 +99,12 @@ def sawtooth_tile(period=0.05, slope_deg=20.0, width=0.05):
     rise = period * np.tan(np.radians(slope_deg))
     vertices = [[0, 0, 0], [period, 0, rise], [period, width, rise], [0, width, 0], [period, 0, 0], [period, width, 0]]
     return Mesh.from_vertices_and_faces(vertices, [[0, 1, 2, 3], [1, 4, 5, 2]])
+
+
+def overhanging_strip():
+    """A profile extruded 0.2 m along y that leans back over itself near x = 0.2: an overhang, so its rim folds back in plan."""
+    profile = [(0.0, 0.0), (0.1, 0.02), (0.2, 0.04), (0.19, 0.1), (0.18, 0.15), (0.3, 0.16), (0.4, 0.16)]
+    n = len(profile) - 1
+    vertices = [[x, y, z] for y in (0.0, 0.2) for x, z in profile]
+    faces = [[i, i + 1, i + n + 2, i + n + 1] for i in range(n)]
+    return Mesh.from_vertices_and_faces(vertices, faces)

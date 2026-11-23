@@ -59,7 +59,8 @@ namespace CompasAcoustics.Grasshopper
             log($"Creating a Python {PythonVersion} environment...");
             Run(uv, log, "venv", "--python", PythonVersion, environment);
             log($"Installing compas_acoustics {_requirement}; the first time this can download several GB...");
-            Run(uv, log, "pip", "install", "--python", python, $"compas_acoustics{_requirement}");
+            // the lab extra: the geometric scattering method's ray caster (trimesh, embreex) and bem's mesh2scattering
+            Run(uv, log, "pip", "install", "--python", python, $"compas_acoustics[lab]{_requirement}");
             log("Importing compas_acoustics, the first time is slow...");
             Run(python, log, "-c", Warmup);
 

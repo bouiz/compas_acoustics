@@ -42,29 +42,36 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>
         /// The call of <c>make_scattering_sample</c>: the mesh and the mode as arguments, every input that is set as a keyword
         /// (<paramref name="frame"/>, the mounting plane, as <c>frame</c>);
-        /// <c>problem</c> says why the inputs cannot make a sample, and then there is no call to make.
+        /// <c>problem</c> says why the inputs cannot make a sample, and then there is no call to make; <c>unused</c> names a given input the
+        /// mode does not use (a disc's <c>reference</c>), which is left out of the call.
         /// </summary>
-        public static (object?[] args, Dictionary<string, object?> kwargs, string? problem) Sample(MeshData mesh, string mode, double? diameter,
-            MeshData? reference, double? baseplate, string? symmetry, string? name, FrameData? frame)
+        public static (object?[] args, Dictionary<string, object?> kwargs, string? problem, string? unused) Sample(MeshData mesh, string mode, double? diameter,
+            MeshData? reference, double? baseplate, string? symmetry, FrameData? frame)
         {
             var kwargs = new Dictionary<string, object?>();
             if (diameter is double d)
                 kwargs["diameter"] = d;
-            if (reference != null)
+            var disc = mode == "disc";
+            if (reference != null && !disc)
                 kwargs["reference"] = reference;
             if (baseplate is double b)
                 kwargs["baseplate"] = b;
             if (!string.IsNullOrEmpty(symmetry))
                 kwargs["symmetry"] = symmetry;
-            if (!string.IsNullOrEmpty(name))
-                kwargs["name"] = name;
             if (frame != null)
                 kwargs["frame"] = frame;
-            var problem = mode == "disc" && diameter == null ? "A disc sample needs 'diameter'."
-                : mode == "disc" && reference != null ? "'reference' is used in as_drawn mode only."
-                : null;
-            return (new object?[] { mesh, mode }, kwargs, problem);
+            var problem = disc && diameter == null ? "Disc mode needs a 'diameter'." : null;
+            var unused = disc && reference != null ? "Disc mode does not use 'reference'." : null;
+            return (new object?[] { mesh, mode }, kwargs, problem, unused);
         }
+
+        /// <summary>The note that <paramref name="method"/> does not use the inputs <paramref name="names"/>: <c>kirchhoff does not use 'n_rays' or 'max_bounces'.</c></summary>
+        public static string? Unused(string method, IReadOnlyList<string> names) => names.Count switch
+        {
+            0 => null,
+            1 => $"{method} does not use '{names[0]}'.",
+            _ => $"{method} does not use {string.Join(", ", names.Take(names.Count - 1).Select(n => $"'{n}'"))} or '{names[^1]}'.",
+        };
 
         /// <summary>The strip of a sample: its mode and diameter, as the lab measures it.</summary>
         public static string SampleStatus(string mode, double diameter) => string.Create(CultureInfo.InvariantCulture, $"{mode}, d {diameter:0.00} m");
@@ -74,27 +81,33 @@ namespace CompasAcoustics.Grasshopper
 
         /// <summary>
         /// The call of <c>run_scattering_lab</c>: the sample and the method as arguments; the preset (if set), the band range and
-        /// the method's settings (<c>n_rays</c> of the geometric method, <c>cache_dir</c> of bem) as keywords. <c>problem</c> says
-        /// why the inputs cannot make a call: a setting of another method.
+        /// the method's settings (<c>n_rays</c> and <c>max_bounces</c> of the geometric method, <c>cache_dir</c> of bem) as keywords.
+        /// A setting of another method is left out of the call, and <c>unused</c> names it.
         /// </summary>
-        public static (object?[] args, Dictionary<string, object?> kwargs, string? problem) Lab(ScatteringSampleData sample, string method, string? preset,
-            string bandRange, int? nRays, string? cacheDir)
+        public static (object?[] args, Dictionary<string, object?> kwargs, string? unused) Lab(ScatteringSampleData sample, string method, string? preset,
+            string bandRange, int? nRays, int? maxBounces, string? cacheDir)
         {
             var kwargs = new Dictionary<string, object?>();
             if (!string.IsNullOrEmpty(preset))
                 kwargs["preset"] = preset;
             kwargs["band_range"] = bandRange;
             var settings = new Dictionary<string, object?>();
-            if (nRays is int rays)
-                settings["n_rays"] = (long)rays;
-            if (!string.IsNullOrEmpty(cacheDir))
-                settings["cache_dir"] = cacheDir;
+            var unused = new List<string>();
+            void Set(string name, object? value, string owner)
+            {
+                if (value == null)
+                    return;
+                if (method == owner)
+                    settings[name] = value;
+                else
+                    unused.Add(name);
+            }
+            Set("n_rays", nRays is int rays ? (long)rays : null, "geometric");
+            Set("max_bounces", maxBounces is int bounces ? (long)bounces : null, "geometric");
+            Set("cache_dir", string.IsNullOrEmpty(cacheDir) ? null : cacheDir, "bem");
             if (settings.Count > 0)
                 kwargs["settings"] = settings;
-            var problem = nRays != null && method != "geometric" ? "'n_rays' is used by the geometric method only."
-                : !string.IsNullOrEmpty(cacheDir) && method != "bem" ? "'cache_dir' is used by bem only."
-                : null;
-            return (new object?[] { sample, method }, kwargs, problem);
+            return (new object?[] { sample, method }, kwargs, Unused(method, unused));
         }
 
         /// <summary>

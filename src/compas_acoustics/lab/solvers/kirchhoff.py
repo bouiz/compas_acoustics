@@ -38,8 +38,9 @@ _MIN_PARALLEL_SECONDS = 5.0  # runs estimated below this in one process stay in 
 _POLL = 1.0  # s between the progress reports while the workers run
 _STEEP_TILT = 45.0  # degrees
 _STEEP_SHARE = 0.10
-_STEEP = "kirchhoff: steep relief; multiple reflections are ignored"
-_BELOW = "kirchhoff: below {:.0f} Hz the features ({:.4g} m) are smaller than the wavelength; s is unreliable there"
+_STEEP = "steep relief: kirchhoff ignores multiple reflections, so s may be off; use bem"
+_SERIAL = "kirchhoff's parallel workers failed ({}): the rest runs in one process, which is slower"
+_BELOW = "kirchhoff is unreliable below {:.0f} Hz (wavelength > the {:.3g} m features): use bem"
 
 
 def triangle_phase_integral(triangles, q):
@@ -469,7 +470,7 @@ class KirchhoffSolver(ScatteringSolver):
                 report()
         except BrokenProcessPool as error:
             _kill_pool(executor)
-            warnings.warn("kirchhoff: the worker processes failed ({}); the remaining sources run in this process".format(error), stacklevel=4)
+            warnings.warn(_SERIAL.format(type(error).__name__), stacklevel=4)
             return sorted(remaining)
         return []
 

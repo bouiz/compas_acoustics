@@ -39,40 +39,29 @@ __all__ = ["DEFAULT_PRESETS", "measure_scattering", "preview_sources"]
 METHODS = ("geometric", "kirchhoff", "bem")
 DEFAULT_PRESETS = {"geometric": "standard", "kirchhoff": "standard", "bem": "standard"}
 _ISO_TOP = 5000  # Hz, the highest band of ISO 354 and ISO 17497-1/-2
-_BEYOND_ISO = "bands above 5000 Hz are beyond ISO 354 and ISO 17497 (100-5000 Hz)"
-_FILLED = "the {f} Hz octave was not simulated; the material takes the {g} Hz value"
+_BEYOND_ISO = "bands above 5000 Hz are outside ISO 17497 (100-5000 Hz)"
+_FILLED = "{f} Hz is not simulated and takes the {g} Hz value"
+_FILLED_TOP = "8000 Hz is not simulated and takes the {g} Hz value: simulate up to 8000 Hz to include it"
+_FILLED_MANY = "{f} Hz are not simulated and take the nearest simulated octave: widen the band range"
 _FLOOR_DB = -300.0  # the level given where |p|² is 0 (log10(0))
 _BATCH_BYTES = 512 * 2**20  # the pressures of a source batch (both bodies); the reduction's temporaries take about as much again
 _LONG_RUN = 600.0  # s: a run estimated longer than this is warned about before it starts
-_SLOW = (
-    "{method}: this run takes about {time} ({sources} sources x {frequencies} frequencies x {receivers} receivers x {faces} faces, {workers} "
-    "workers); the 'standard' or 'survey' preset, a narrower band_range or a smaller diameter is faster"
-)
-_UNCONVERGED = "bem: NumCalc did not converge for the {bodies} at {frequencies} Hz; s in the {octaves} Hz octaves is unreliable"
-_HEURISTIC = (
-    "geometric: s is frequency-modelled from the geometry (heuristic: s_max·(1 − exp(−(k·h)²)) from specular rays, with no phase and no "
-    "diffraction), and d and the polar levels are the same at every frequency and depend on bin_deg; use kirchhoff or bem for the physics "
-    "(an sbr method is planned)"
-)
-#: The warnings of :func:`measure_scattering` that only state what the method is and flag no fault: the worker returns them as notes
-HEURISTIC_NOTES = (_HEURISTIC,)
-_SHALLOW = (
-    "geometric: the object's depth h = {depth:.3g} m is small against the wavelength at {frequency:.0f} Hz: the heuristic returns s close to 0 "
-    "although the rays scatter (mean s_max {s_max:.2f}); use kirchhoff or bem"
-)
-_BACKING = (
-    "geometric: the object stands a mean {mean:.3g} m above the mounting plane z = 0, more than twice the spread of its relief (2σ = {two_sigma:.3g} m), "
-    "so the depth h = {depth:.3g} m comes from a base or backing, not from the relief; the plane sits baseplate = {baseplate:.3g} m above the back face "
-    "of a closed mesh, so a thicker backing counts as relief. If the backing sits flush on the wall, pass its thickness: as_drawn(mesh, baseplate=...)"
-)
+_SLOW = "{method} takes about {time}: a smaller 'preset', bands up to 5000 Hz or a smaller sample is faster"
+_UNCONVERGED = "bem did not converge at {frequencies} Hz: s at {octaves} Hz is unreliable"
+_SOLVER_UNCONVERGED = "bem: NumCalc did not converge"  # the start of the BEM solver's own warning, which _UNCONVERGED replaces in a result
+_HEURISTIC = "geometric s is a heuristic, and d the same at every frequency: use kirchhoff or bem for physics"
+#: The warnings of :func:`measure_scattering` that state what the run is and flag no fault, as format templates: the worker returns
+#: them as notes (the method's heuristic, the bands beyond ISO 17497 a band range asked for, the octaves it does not simulate)
+NOTE_TEMPLATES = (_HEURISTIC, _BEYOND_ISO, _FILLED, _FILLED_TOP, _FILLED_MANY)
+#: The warning of :func:`measure_scattering` that tells, before a run, how long it takes: the worker, which answers after it, leaves it out
+DURATION_TEMPLATES = (_SLOW,)
+_SHALLOW = "too shallow (h {depth:.3g} m) for the geometric heuristic, so s is about 0: use kirchhoff or bem"
+_BACKING = "h = {depth:.3g} m is mostly backing, not relief: set 'baseplate' (now {baseplate:.3g} m) to its thickness"
 _BACKING_SPREAD = 1e-6  # m: below this spread the object is taken to have a uniform height (a box), which has no relief to mistake the base for
 _SHALLOW_CURVE = 0.5  # the depth curve at the top band below which, with a mean s_max above _SHALLOW_S_MAX, the geometric method warns
 _SHALLOW_S_MAX = 0.05
-_LOST = (
-    "geometric: up to {percent:.1f} % of the rays of a source are lost, still bouncing after max_bounces = {bounces}; lost energy of only one of "
-    "the sample and the reference counts as scattering; a larger max_bounces loses fewer"
-)
-_NO_TRIMESH = 'the "geometric" method needs trimesh (Python >= 3.11, pip install compas_acoustics[lab]); pass method="kirchhoff" to run without it'
+_LOST = "{percent:.1f} % of rays are lost after {bounces} reflections, so s may be too high: raise 'max_bounces'"
+_NO_TRIMESH = "the geometric method needs trimesh and embreex: run Install Worker or use kirchhoff"
 _GEOMETRIC_OPTIONS = inspect.signature(geometric_response)  # the options of the geometric method, and their defaults
 _LOST_LIMIT = 0.01  # the lost fraction of a source above which the geometric method warns
 
@@ -157,6 +146,16 @@ def _diffusion(intensity_sample, intensity_reference, weights):
     return normalised_diffusion(diffusion_coefficient(intensity_sample, weights), diffusion_coefficient(intensity_reference, weights))
 
 
+def _filled(pairs):
+    """One warning for the octaves filled from a simulated one (``fill_octaves``' ``(filled, source)`` pairs); None if none were filled."""
+    if not pairs:
+        return None
+    if len(pairs) == 1:
+        f, g = pairs[0]
+        return (_FILLED_TOP if f == 8000 else _FILLED).format(f=f, g=g)
+    return _FILLED_MANY.format(f=", ".join(str(f) for f, _ in pairs))
+
+
 def _unconverged(entries, exact, nominal):
     """The result warning and the octaves (Hz) of the unconverged BEM steps in ``generation["unconverged"]``; ``(None, [])`` if none."""
     if not entries:
@@ -229,25 +228,28 @@ def _correlation(sample, method, sources, preview, band_range, nominal, exact, c
     polar_reference = np.empty_like(polar_sample)
     solver_generation = {}
     batches = _pressures(solver, sample, sources, receivers, frequencies, c)
-    try:
-        for indices, pressures in batches:
-            if not (np.isfinite(pressures.sample).all() and np.isfinite(pressures.reference).all()):
-                raise RuntimeError("{}: the solver returned non-finite pressures for {!r}".format(method, sample.name))
-            # source by source, so that the sums over the receivers do not depend on the batch size
-            for row, i in enumerate(indices):
-                one = slice(row, row + 1)
-                p_sample, p_reference = pressures.sample[one], pressures.reference[one]  # (1, n_receivers, n_frequencies)
-                s_f[i] = scattering_freefield(p_sample, p_reference, receivers.weights)[0]
-                d_f[i] = _diffusion(np.abs(p_sample) ** 2, np.abs(p_reference) ** 2, receivers.weights)[0]
-                if i in preview:
-                    slot = preview.index(i)
-                    polar_sample[slot : slot + 1], polar_reference[slot : slot + 1] = _polar_levels(p_sample, p_reference, nominal)
-            solver_generation = pressures.generation
-            del pressures
-    finally:
-        close = getattr(batches, "close", None)
-        if close is not None:
-            close()  # stops a batchable solver's workers when a batch raised
+    with _warnings.catch_warnings():
+        # the BEM solver's own warning of unconverged steps: the result's (_UNCONVERGED, with its octaves) replaces it
+        _warnings.filterwarnings("ignore", message=_SOLVER_UNCONVERGED)
+        try:
+            for indices, pressures in batches:
+                if not (np.isfinite(pressures.sample).all() and np.isfinite(pressures.reference).all()):
+                    raise RuntimeError("{} returned invalid pressures (NaN or inf) for {!r}: check the sample mesh".format(method, sample.name))
+                # source by source, so that the sums over the receivers do not depend on the batch size
+                for row, i in enumerate(indices):
+                    one = slice(row, row + 1)
+                    p_sample, p_reference = pressures.sample[one], pressures.reference[one]  # (1, n_receivers, n_frequencies)
+                    s_f[i] = scattering_freefield(p_sample, p_reference, receivers.weights)[0]
+                    d_f[i] = _diffusion(np.abs(p_sample) ** 2, np.abs(p_reference) ** 2, receivers.weights)[0]
+                    if i in preview:
+                        slot = preview.index(i)
+                        polar_sample[slot : slot + 1], polar_reference[slot : slot + 1] = _polar_levels(p_sample, p_reference, nominal)
+                solver_generation = pressures.generation
+                del pressures
+        finally:
+            close = getattr(batches, "close", None)
+            if close is not None:
+                close()  # stops a batchable solver's workers when a batch raised
 
     messages = list(solver.warnings(sample, nominal, exact, c))
     unconverged_message, unconverged_octaves = _unconverged(solver_generation.get("unconverged"), exact, nominal)
@@ -291,7 +293,7 @@ def _geometric(sample, sources, preview, nominal, exact, c, solver_options):
     try:
         response = geometric_response(*options.args, **options.kwargs)
     except ImportError as error:  # from the ray caster: trimesh or its backend is missing
-        raise ImportError("{}: {}".format(_NO_TRIMESH, error)) from error
+        raise ImportError(_NO_TRIMESH) from error
     n_bands = len(nominal)
 
     # the lost fraction is one more bin: lost by both bodies it cancels, lost by one it counts as scattering
@@ -350,7 +352,9 @@ def _result(sample, measured, method, preset, band_range, c, sources, preview, n
     messages = list(sample.warnings) + list(measured.messages)
     if nominal.max() > _ISO_TOP:
         messages.append(_BEYOND_ISO)
-    messages.extend(_FILLED.format(f=f, g=g) for f, g in filled)
+    filled_message = _filled(filled)
+    if filled_message:
+        messages.append(filled_message)
     for message in messages:
         _warnings.warn(message)
 

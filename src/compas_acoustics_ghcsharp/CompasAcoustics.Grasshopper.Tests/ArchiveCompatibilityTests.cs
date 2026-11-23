@@ -63,6 +63,22 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(old.Params.Input.Single(p => p.Name == "sound_file").InstanceGuid, fresh.Params.Input.Single(p => p.Name == "sound_file").InstanceGuid);
         }
 
+        [Fact]
+        public void AScatteringSampleSavedWithItsNameInput_ReadsEachInputByName()
+        {
+            // the name input before plane, removed: its text must not land in plane
+            var old = new ScatteringSampleComponent();
+            var name = new Param_String { Name = "name", NickName = "name", Optional = true };
+            name.PersistentData.Append(new GH_String("tile"));
+            old.Params.RegisterInputParam(name, old.Params.Input.FindIndex(p => p.Name == "plane"));
+            var fresh = new ScatteringSampleComponent();
+            var (archive, read) = SaveThenRead(old, fresh);
+            Assert.True(read);
+            Assert.Empty(Errors(archive));
+            Assert.Equal(new[] { "geometry", "mode", "diameter", "reference", "baseplate", "symmetry", "plane" }, fresh.Params.Input.Select(p => p.Name));
+            Assert.Equal(old.Params.Input.Single(p => p.Name == "plane").InstanceGuid, fresh.Params.Input.Single(p => p.Name == "plane").InstanceGuid);
+        }
+
         private static SimulateAmbisonicsComponent WithTheOldLateEnvelopeToggle(bool on)
         {
             // as saved before late_envelope took modes: a boolean input in the same place

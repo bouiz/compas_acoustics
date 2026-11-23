@@ -27,8 +27,11 @@ _WELD = 1e-6  # m
 _VERTICAL = 1e-9  # m, the xy distance under which outline points are taken to lie on one vertical
 _AREA = 1e-2  # relative difference of the bottom areas up to which a proxy shares the sample's footprint (a circle tessellated with another segment count differs by about 1e-3)
 _SYMMETRIES = ("none", "rotational")
-_PROXY_WARNING = "the reference is a user proxy: s is the share of the sample's reflection the proxy does not reproduce, not the ISO 17497 coefficient"
-_OUTLINE = "the relief must have exactly one closed outline (found {}): fill its holes and join its parts"
+_PROXY_WARNING = "with a 'reference' proxy, s is relative to the proxy, not the ISO 17497 value"
+_OUTLINE = "the relief needs one closed outline, found {}: join its parts and fill its holes"
+_PINCHED = "the relief's outline is pinched (two parts touch at a point): separate them"
+_OPEN_OUTLINE = "the relief's outline does not close: repair its rim"
+_NO_AREA = "the relief's outline has no area: give it a footprint on the XY plane"
 
 
 class ScatteringSample(_PackageDtype, Data):
@@ -140,7 +143,7 @@ class ScatteringSample(_PackageDtype, Data):
         V, T = _tile(V, T, period, diameter, offset)
         V, T = _clip_to_polygon(V, T, diameter / 2.0, segments)
         sample, reference, depth = _close(V, T, baseplate)
-        return cls(sample, reference, "disc", diameter, period, depth, feature_size, symmetry, baseplate, _warnings(depth, diameter))
+        return cls(sample, reference, "disc", diameter, period, depth, feature_size, symmetry, baseplate, _warnings(depth, diameter, "disc"))
 
     @classmethod
     def as_drawn(cls, mesh, baseplate=0.01, symmetry="none", feature_size=None, reference=None):
@@ -182,7 +185,7 @@ class ScatteringSample(_PackageDtype, Data):
             depth = float(V[:, 2].max())
             flat = _flat_body(V[_bottom_loop(V, T, -baseplate), :2], baseplate)
         diameter = _outline_diameter(flat)
-        warnings = _warnings(depth, diameter)
+        warnings = _warnings(depth, diameter, "as_drawn")
         if reference is None:
             return cls(sample, flat, "as_drawn", diameter, None, depth, feature_size, symmetry, baseplate, warnings)
         proxy = _proxy(reference, is_open, floor, baseplate)
@@ -202,9 +205,7 @@ def _proxy(mesh, sample_is_open, floor, baseplate):
     proxy_is_open = bool((counts == 1).any())
     if proxy_is_open != sample_is_open:
         raise ValueError(
-            "the sample is {} but the proxy is {}: give a proxy of the same kind, both open reliefs or both closed meshes".format(
-                "open" if sample_is_open else "closed", "open" if proxy_is_open else "closed"
-            )
+            "'reference' is {} but the relief is {}: make both open or both closed".format("open" if proxy_is_open else "closed", "open" if sample_is_open else "closed")
         )
     tolerance = 1e-6 * max(float(np.ptp(V, axis=0).max()), 1e-9)
     V = V - [0.0, 0.0, floor]
@@ -212,13 +213,10 @@ def _proxy(mesh, sample_is_open, floor, baseplate):
     try:
         if proxy_is_open:
             if low < -baseplate - tolerance:
-                raise ValueError(
-                    "the proxy reaches z = {:.4g} m, below the sample's baseplate at z = {:.4g} m (the sample's lowest point is at z = 0): "
-                    "an open proxy must lie above the baseplate".format(low, -baseplate)
-                )
+                raise ValueError("'reference' reaches below the baseplate (z = {:.4g} m): raise it".format(-baseplate))
             return _close(V, T, baseplate, 0.0, "proxy")[0]
         if abs(low + baseplate) > tolerance:
-            raise ValueError("the proxy's lowest point is at z = {:.4g} m, the sample's at z = {:.4g} m: a closed proxy stands on the sample's floor".format(low, -baseplate))
+            raise ValueError("'reference' must stand on the relief's floor at z = {:.4g} m, not z = {:.4g} m".format(-baseplate, low))
         T = _orient(V, T)
         _bottom_loop(V, T, -baseplate)
         return _to_body(V, T, "proxy")
@@ -227,13 +225,13 @@ def _proxy(mesh, sample_is_open, floor, baseplate):
 
 
 def _naming_the_proxy(error):
-    """``error``'s message about the relief, turned into one about the proxy."""
+    """``error``'s message about the relief, turned into one about the proxy, the input ``'reference'``."""
     message = str(error)
-    if "proxy" in message:
+    if "'reference'" in message:
         return ValueError(message)
     if "the relief" in message:
-        return ValueError(message.replace("the relief", "the proxy"))
-    return ValueError("the proxy: " + message)
+        return ValueError(message.replace("the relief's", "the reference's").replace("the relief", "'reference'"))
+    return ValueError("'reference': " + message)
 
 
 def _same_outline(sample, proxy, diameter):
@@ -243,18 +241,10 @@ def _same_outline(sample, proxy, diameter):
         xy = np.array([body.vertex_coordinates(v)[:2] for v in body.vertices()])
         boxes.append(np.concatenate([xy.min(axis=0), xy.max(axis=0)]))
     if np.abs(boxes[0] - boxes[1]).max() > 1e-3 * diameter:
-        raise ValueError(
-            "the proxy's outline (bounding box {}) differs from the sample's ({})".format(
-                np.array2string(boxes[1], precision=4, separator=", "), np.array2string(boxes[0], precision=4, separator=", ")
-            )
-        )
+        raise ValueError("'reference' has another outline than the relief (its bounding box differs): give it the same one")
     areas = [_bottom_area(body) for body in (sample, proxy)]
     if abs(areas[1] - areas[0]) > _AREA * areas[0]:
-        raise ValueError(
-            "the proxy's footprint (bottom area {:.6g} m²) differs from the sample's ({:.6g} m²) although their bounding boxes agree: give the proxy the sample's outline".format(
-                areas[1], areas[0]
-            )
-        )
+        raise ValueError("'reference' has another footprint than the relief ({:.4g} vs {:.4g} m²): give it the same outline".format(areas[1], areas[0]))
 
 
 def _bottom_area(body):
@@ -285,7 +275,7 @@ def _require_footprint(V, T):
     cross = np.cross(p[:, 1] - p[:, 0], p[:, 2] - p[:, 0])
     surface = np.linalg.norm(cross, axis=1).sum()
     if not np.abs(cross[:, 2]).sum() > 1e-9 * surface:
-        raise ValueError("the footprint has no area: lay the object on the XY plane (Z up) or pass its mounting plane")
+        raise ValueError("the footprint has no area: lay the object on the XY plane or give its mounting plane")
 
 
 def _weld(V, T, tolerance=_WELD):
@@ -379,7 +369,7 @@ def _boundary_loops(T):
     for a, b in directed:
         if (min(a, b), max(a, b)) in boundary:
             if a in following:
-                raise ValueError(_OUTLINE.format("a pinched outline"))
+                raise ValueError(_PINCHED)
             following[a] = b
     loops = []
     while following:
@@ -389,7 +379,7 @@ def _boundary_loops(T):
             loop.append(v)
             v = following.pop(v)
         if v != start:
-            raise ValueError(_OUTLINE.format("an outline that does not close"))
+            raise ValueError(_OPEN_OUTLINE)
         loops.append(np.array(loop))
     return loops
 
@@ -426,14 +416,14 @@ def _columns(V, loop):
     xy = V[loop, :2]
     new = np.linalg.norm(xy - np.roll(xy, 1, axis=0), axis=1) > _VERTICAL
     if new.sum() < 3:
-        raise ValueError(_OUTLINE.format("an outline with no area"))
+        raise ValueError(_NO_AREA)
     start = np.flatnonzero(new)[0]
     loop, new = np.roll(loop, -start), np.roll(new, -start)
     columns = np.split(loop, np.flatnonzero(new)[1:])
     for column in columns:
         dz = np.diff(V[column, 2])
         if not ((dz > 0).all() or (dz < 0).all()):
-            raise ValueError("a vertical face meets the outline more than once at xy {}; move the rim off it".format(V[column[0], :2]))
+            raise ValueError("a vertical face crosses the rim twice at xy ({:.3g}, {:.3g}): move it off the rim".format(*(V[column[0], :2] + 0.0)))
     return columns
 
 
@@ -475,11 +465,27 @@ def _to_body(V, T, what):
     """A closed, outward-oriented mesh: raises ``ValueError`` unless every edge is used by exactly two triangles, once each way."""
     _, counts = _edge_counts(T)
     directed = T[:, [0, 1, 1, 2, 2, 0]].reshape(-1, 2)
-    if (counts != 2).any() or len(np.unique(directed, axis=0)) < len(directed):
-        raise ValueError("the {} is not a closed, consistently oriented body ({} edges not shared by two faces); check the relief".format(what, int((counts != 2).sum())))
+    bad = int((counts != 2).sum())
+    if bad:
+        raise ValueError("the {} is not a closed mesh ({} open or non-manifold edges): repair it".format(what, bad))
+    if len(np.unique(directed, axis=0)) < len(directed):
+        raise ValueError("the {}'s faces point inconsistent ways: unify its normals".format(what))
     if _signed_volume(V, T) < 0:
         T = T[:, ::-1]
     return _to_mesh(V, T)
+
+
+def _untriangulable(outline):
+    """Why ``outline`` (xy) has no bottom: where it first turns straight back on itself, as a relief that overhangs at its rim does."""
+    before = outline - np.roll(outline, 1, axis=0)
+    after = np.roll(outline, -1, axis=0) - outline
+    cross = before[:, 0] * after[:, 1] - before[:, 1] * after[:, 0]
+    size = np.linalg.norm(before, axis=1) * np.linalg.norm(after, axis=1)
+    back = np.flatnonzero((np.abs(cross) <= 1e-6 * size) & ((before * after).sum(axis=1) < 0))
+    if len(back) == 0:
+        return "the relief's outline crosses itself seen from above: check its rim"
+    x, y = outline[back[0]]
+    return "the relief overhangs its rim near (x, y) = ({:.3g}, {:.3g}): remove the overhang".format(x + 0.0, y + 0.0)
 
 
 def _cap(outline):
@@ -495,9 +501,12 @@ def _cap(outline):
     da, db = a - centroid, b - centroid
     if (da[:, 0] * db[:, 1] - da[:, 1] * db[:, 0] > 1e-12 * abs(area)).all():
         return centroid[None, :], np.column_stack([np.full(m, m), np.arange(m), np.roll(np.arange(m), -1)])
-    cap = np.array(earclip_polygon(Polygon([[x, y, 0.0] for x, y in outline])), dtype=int).reshape(-1, 3)
+    try:
+        cap = np.array(earclip_polygon(Polygon([[x, y, 0.0] for x, y in outline])), dtype=int).reshape(-1, 3)
+    except IndexError:  # compas' ear clipping finds no ear on an outline that runs back over itself
+        cap = np.zeros((0, 3), dtype=int)
     if len(cap) != m - 2:
-        raise ValueError("the outline could not be triangulated ({} triangles for {} points); is it self-intersecting?".format(len(cap), m))
+        raise ValueError(_untriangulable(outline))
     p = outline[cap]
     flip = np.cross(p[:, 1] - p[:, 0], p[:, 2] - p[:, 0]) < 0
     cap[flip] = cap[flip][:, ::-1]
@@ -512,7 +521,7 @@ def _bottom_loop(V, T, z):
     normals = np.cross(p[:, 1] - p[:, 0], p[:, 2] - p[:, 0])
     lowest = (np.abs(p[:, :, 2] - z) < _WELD).all(axis=1) & (normals[:, 2] < 0)
     if not lowest.any():
-        raise ValueError("a closed mesh needs a flat bottom at its lowest point, to outline its reference")
+        raise ValueError("a closed relief needs a flat bottom face at its lowest point: add a base")
     loops = _boundary_loops(T[lowest])
     if len(loops) != 1:
         raise ValueError(_OUTLINE.format(len(loops)))
@@ -539,11 +548,12 @@ def _to_mesh(V, T):
     return Mesh.from_vertices_and_faces(V.tolist(), T.tolist())
 
 
-def _warnings(depth, diameter):
-    """ISO 17497-1 §6.3.2's depth limit ``h ≤ d/16``, and a size that suggests a model in millimetres."""
+def _warnings(depth, diameter, mode):
+    """ISO 17497-1 §6.3.2's depth limit ``h ≤ d/16`` (the fix: a wider sample, in disc mode a larger diameter), and a size that suggests a model in millimetres."""
     warnings = []
     if depth > diameter / 16:
-        warnings.append("ISO 17497-1 6.3.2: structural depth {:.4g} m exceeds d/16 = {:.4g} m".format(depth, diameter / 16))
+        fix = "increase 'diameter'" if mode == "disc" else "widen the sample"
+        warnings.append("deeper than ISO 17497-1 allows (h {:.3g} m > d/16 = {:.3g} m): {}".format(depth, diameter / 16, fix))
     if diameter > 20:
-        warnings.append("the sample is {:.4g} m across; is the model in millimetres?".format(diameter))
+        warnings.append("the sample is {:.4g} m across: is the model in millimetres?".format(diameter))
     return warnings

@@ -61,7 +61,7 @@ from .base import ScatteringSolver
 
 __all__ = ["BemSolver", "cache_key", "estimate_elements", "parse_convergence", "plan_splits"]
 
-_INSTALL = 'the BEM solver needs Python >= 3.11 and mesh2scattering >= 1.0.5: pip install "compas_acoustics[lab]"'
+_INSTALL = "bem needs Python 3.11+ and mesh2scattering: run Install Worker (pip: compas_acoustics[lab])"
 _GRID = "receivers"
 _BODIES = ("sample", "reference")
 _POLL = 2.0  # s
@@ -69,17 +69,9 @@ _FLAT = math.cos(1e-3)  # faces within 1 mrad (0.06°) of each other count as on
 _MAX_RESIDUAL = 1e-6  # the final relative residual of NumCalc's CGS solve above which a step counts as unconverged
 _SOLVER_LINE = re.compile(r"number of iterations\s*=\s*(\d+)\s*,\s*relative error\s*=\s*(\S+)")
 _CAPPED = "Maximum number of iterations is reached"
-_UNCONVERGED = (
-    "bem: NumCalc did not converge for the {body} at {frequencies} Hz (iteration cap reached or final residual > 1e-6, worst {residual}); s at those frequencies is unreliable"
-)
-_TOO_BIG = (
-    "the BEM mesh of the {body} would have about {n:,} elements at {f:.0f} Hz (edge {edge:.3g} m), more than 10 x max_elements = {limit:,}; "
-    "is the model in millimetres? Use a smaller diameter or the Kirchhoff method"
-)
-_BIG = (
-    "the BEM mesh of the {body} has about {n:,} elements at {f:.0f} Hz, above max_elements = {limit:,} "
-    "(the remeshed body is typically 2-2.5 x the area estimate); this is slow: use a smaller diameter or the Kirchhoff method"
-)
+_UNCONVERGED = "bem: NumCalc did not converge for the {body} at {frequencies} Hz (worst residual {residual}): s there is unreliable"
+_TOO_BIG = "BEM mesh of the {body} too large (~{n:,} elements at {f:.0f} Hz): is the model in mm? Else use kirchhoff"
+_BIG = "large BEM mesh (~{n:,} elements at {f:.0f} Hz), so the run is slow: use kirchhoff or a smaller sample"
 
 
 def plan_splits(frequencies, nominal_octaves=Defaults.DEFAULT_FREQUENCY_BANDS) -> List[np.ndarray]:
@@ -233,7 +225,7 @@ def _flip_to_delaunay(V, F, max_length=None, max_passes=100000):
         chosen = chosen[np.sort(unique_new)]
         F[f1[chosen]] = np.column_stack([va[chosen], vd[chosen], vc[chosen]])
         F[f2[chosen]] = np.column_stack([vd[chosen], vb[chosen], vc[chosen]])
-    raise RuntimeError("the edge flips did not converge")
+    raise RuntimeError("bem could not remesh the sample (the edge flips did not converge): clean or simplify the mesh")
 
 
 def _collapse_short_edges(V, F, edge, shortest):
@@ -509,6 +501,7 @@ class BemSolver(ScatteringSolver):
                     raise ValueError(_TOO_BIG.format(body=body, n=n, f=split.max(), edge=edge, limit=10 * self.max_elements))
         largest = max((estimate_elements(getattr(sample, body), edges[-1]), body) for body in _BODIES)
         if largest[0] > self.max_elements:
+            self._big = True
             warnings.warn(_BIG.format(body=largest[1], n=largest[0], f=splits[-1].max(), limit=self.max_elements), stacklevel=3)
 
     def _numcalc(self):
@@ -532,6 +525,7 @@ class BemSolver(ScatteringSolver):
         frequencies = np.atleast_1d(np.asarray(frequencies, dtype=float))
         splits = plan_splits(frequencies)
         edges = self._edges(splits, c)
+        self._big = False  # whether this solve has warned about the mesh size: once, by the estimate or else by the first remeshed body
         self._check_size(sample, splits, edges)
         m2s = _require()
         numcalc_path = self._numcalc()
@@ -607,7 +601,8 @@ class BemSolver(ScatteringSolver):
         V, F = _remesh(getattr(sample, title), edge)
         if len(F) > 10 * self.max_elements:
             raise ValueError(_TOO_BIG.format(body=title, n=len(F), f=frequencies.max(), edge=edge, limit=10 * self.max_elements))
-        if len(F) > self.max_elements:
+        if len(F) > self.max_elements and not getattr(self, "_big", False):
+            self._big = True
             warnings.warn(_BIG.format(body=title, n=len(F), f=frequencies.max(), limit=self.max_elements), stacklevel=4)
         return V, F
 
@@ -688,7 +683,7 @@ class BemSolver(ScatteringSolver):
         if process.returncode != 0 or count() < len(steps):
             with open(log_path, errors="replace") as handle:
                 tail = "".join(handle.readlines()[-20:])
-            raise RuntimeError("NumCalc finished {} of {} steps in {} (exit code {}); see {}:\n{}".format(len(done), len(steps), folder, process.returncode, log_path, tail))
+            raise RuntimeError("NumCalc stopped after {} of {} steps (exit code {}): see {}\n{}".format(len(done), len(steps), process.returncode, log_path, tail))
 
     def _read(self, project, title, sources, receivers, radius, frequencies):
         """The scattered pressures of a finished project, (n_sources, n_receivers, n_frequencies) in the order of the grids given."""
@@ -720,13 +715,3 @@ class BemSolver(ScatteringSolver):
         if distance.max() > 1e-6 * radius:
             raise RuntimeError("{}: the receivers do not match the receiver grid (off by {:.3g} m)".format(path, distance.max()))
         return p[s_order][:, r_order][:, :, f_order]
-
-    def warnings(self, sample, nominal_bands, exact_bands, c) -> List[str]:
-        """A note when the mesh for the highest simulated frequency (the top band's ``fc·2^(1/9)``) exceeds ``max_elements``."""
-        exact = np.atleast_1d(np.asarray(exact_bands, dtype=float))
-        if not exact.size:
-            return []
-        f_max = exact.max() * 2 ** (1 / 9)
-        edge = c / (f_max * self.elements_per_wavelength)
-        n, body = max((estimate_elements(getattr(sample, b), edge), b) for b in _BODIES)
-        return [_BIG.format(body=body, n=n, f=f_max, limit=self.max_elements)] if n > self.max_elements else []

@@ -31,39 +31,44 @@ namespace CompasAcoustics.Grasshopper
             var goo = Item<IGH_Goo>(access, "geometry");
             if (goo == null)
             {
-                Warn("No geometry provided.");
+                Warn("Input parameter 'geometry' failed to collect data.");
                 return;
             }
             var mesh = LabRequests.MeshOf(goo.ScriptVariable());
             if (mesh == null)
             {
-                Warn("Input parameter 'geometry' is not a mesh, Brep, surface or SubD with faces.");
+                Warn("'geometry' must be a mesh, Brep, surface or SubD.");
                 return;
             }
             var referenceGoo = Item<IGH_Goo>(access, "reference");
             var reference = referenceGoo == null ? null : LabRequests.MeshOf(referenceGoo.ScriptVariable());
             if (referenceGoo != null && reference == null)
             {
-                Warn("Input parameter 'reference' is not a mesh, Brep, surface or SubD with faces.");
+                Warn("'reference' must be a mesh, Brep, surface or SubD.");
                 return;
             }
             var plane = Value<Plane>(access, "plane");
             if (plane is Plane unusable && !unusable.IsValid)
             {
-                Warn("Input parameter 'plane' is not a valid plane.");
+                Warn("'plane' is not a valid plane.");
                 return;
             }
-            var (args, kwargs, problem) = LabRequests.Sample(mesh, Text(access, "mode") ?? Modes[0], Value<double>(access, "diameter"), reference,
-                Value<double>(access, "baseplate"), Text(access, "symmetry"), Text(access, "name"),
+            var (args, kwargs, problem, unused) = LabRequests.Sample(mesh, Text(access, "mode") ?? Modes[0], Value<double>(access, "diameter"), reference,
+                Value<double>(access, "baseplate"), Text(access, "symmetry"),
                 plane is Plane given ? MeshConversion.ToFrameData(given) : null);
             if (problem != null)
             {
                 Warn(problem);
                 return;
             }
+            if (unused != null)
+                Remark(unused);
             var sample = (ScatteringSampleData)Worker.Call("make_scattering_sample", args, kwargs)!;
-            foreach (var warning in sample.Warnings)
+            var (warnings, notes) = LabResults.SampleMessages(sample.Warnings);
+            foreach (var warning in warnings)
                 Warn(warning);
+            foreach (var note in notes)
+                Remark(note);
             Status(LabRequests.SampleStatus(sample.Mode, sample.Diameter));
             access.SetData(0, new ScatteringSampleGoo(sample));
         }
@@ -79,6 +84,8 @@ namespace CompasAcoustics.Grasshopper
         internal static readonly string[] Presets = { "", "survey", "standard", "fine" };
         internal static readonly string[] PresetLabels = { "Default", "survey (13)", "standard (97)", "fine (864)" };
         internal static readonly string[] BandRanges = { "iso", "extended" };
+        // the ranges of compas_acoustics.lab's ISO_BAND_RANGE and EXTENDED_BAND_RANGE, the one-third octave centres simulated
+        internal static readonly string[] BandRangeLabels = { "ISO 100–5000 Hz", "100–8000 Hz" };
 
         public ScatteringLabComponent() : base("CA_Scattering_Lab") { }
         protected override string SpecKey => "CA_Scattering_Lab";
@@ -91,7 +98,7 @@ namespace CompasAcoustics.Grasshopper
         {
             new DropdownControl("method", Methods, Methods[0]),
             new DropdownControl("preset", Presets, "", PresetLabels, "Preset"),
-            new DropdownControl("band_range", BandRanges, BandRanges[0], Title: "Band range"),
+            new DropdownControl("band_range", BandRanges, BandRanges[0], BandRangeLabels, "Band range"),
             new ButtonControl("run", "Run"),
         };
 
@@ -106,13 +113,10 @@ namespace CompasAcoustics.Grasshopper
                 return;
             }
             var method = Text(access, "method") ?? Methods[0];
-            var (args, kwargs, problem) = LabRequests.Lab(sample.Value, method, Text(access, "preset"), Text(access, "band_range") ?? BandRanges[0],
-                Value<int>(access, "n_rays"), Text(access, "cache_dir"));
-            if (problem != null)
-            {
-                Warn(problem);
-                return;
-            }
+            var (args, kwargs, unused) = LabRequests.Lab(sample.Value, method, Text(access, "preset"), Text(access, "band_range") ?? BandRanges[0],
+                Value<int>(access, "n_rays"), Value<int>(access, "max_bounces"), Text(access, "cache_dir"));
+            if (unused != null)
+                Remark(unused);
             var delivered = false;
             // the wave methods take minutes to hours and Grasshopper recomputes on every upstream change: they start on Run,
             // a press with unchanged inputs runs again; until then the outputs of the last run stay
@@ -132,15 +136,23 @@ namespace CompasAcoustics.Grasshopper
                     delivered = true;
                 },
                 start: LabRequests.StartsWithoutRun(method) || pressed, restart: pressed);
-            if (decision.Kind == RunKind.Idle)
+            var waiting = decision.Kind == RunKind.Idle;
+            _runLabel = LabResults.RunLabel(waiting, delivered);
+            if (waiting)
             {
-                Remark("Press Run: kirchhoff and bem take minutes to hours.");
                 var notice = LabResults.StaleNotice(delivered, decision.Interrupted);
                 if (notice != null)
                     Warn(notice);
-                Status(delivered ? LabResults.StaleStatus : "press Run");
+                // the strip keeps the last run's summary, which the notice says is stale; with no run yet, the Run button says what to do
+                if (!delivered)
+                    Status("");
             }
         }
+
+        private string _runLabel = "Run";
+
+        /// <summary>The Run button says what to do while a wave method waits for it: <see cref="LabResults.RunLabel"/>.</summary>
+        public override string? ButtonLabel(string port) => port == "run" ? _runLabel : null;
     }
 
     /// <summary>

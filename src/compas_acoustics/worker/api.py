@@ -5,6 +5,7 @@ input raises ValueError or TypeError, which the service answers with its message
 """
 
 import importlib.util
+import re
 import sys
 import warnings
 
@@ -57,9 +58,19 @@ def _messages(caught):
     return list(dict.fromkeys(str(w.message) for w in caught if issubclass(w.category, UserWarning)))
 
 
-def _split_notes(messages, notes):
-    """``messages`` as ``(warnings, notes)``: the messages that are one of the exact texts in ``notes`` are the notes."""
-    return [m for m in messages if m not in notes], [m for m in messages if m in notes]
+def _template(text):
+    """A pattern that matches the messages the format template ``text`` makes: each replacement field matches any text."""
+    return re.compile(re.sub(r"\\\{[^{}]*?\\\}", ".+?", re.escape(text)) + r"\Z", re.DOTALL)
+
+
+def _split_notes(messages, notes, dropped=()):
+    """``messages`` as ``(warnings, notes)``: those that one of the format templates ``notes`` makes are the notes; those of ``dropped`` go."""
+
+    def made_by(message, templates):
+        return any(_template(t).match(message) for t in templates)
+
+    kept = [m for m in messages if not made_by(m, dropped)]
+    return [m for m in kept if not made_by(m, notes)], [m for m in kept if made_by(m, notes)]
 
 
 def info():
@@ -700,9 +711,9 @@ def make_scattering_sample(mesh, mode="as_drawn", diameter=None, reference=None,
         reference = reference.transformed(to_world) if reference is not None else None
     if mode == "disc":
         if diameter is None:
-            raise ValueError("a disc sample needs a diameter")
+            raise ValueError("disc mode needs a 'diameter'")
         if not diameter > 0:
-            raise ValueError(f"diameter is a positive length in m, not {diameter!r}")
+            raise ValueError(f"'diameter' must be greater than 0, not {diameter!r}")
         period = list(period) if period is not None else []
         if period and len(period) != 2:
             raise ValueError(f"period is 2 numbers, the tile's x and y, not {len(period)}")
@@ -733,8 +744,10 @@ def run_scattering_lab(sample, method="geometric", preset=None, band_range="iso"
     -------
     dict
         ``{"result": ScatteringResult, "scattering_coefficients": [7 floats], "octave_bands": [int], "warnings": [str], "notes": [str]}``:
-        the coefficients on the material's 7 octaves 125 to 8000 Hz, and the octaves that were simulated. ``notes`` holds the heuristic
-        note of the geometric method (``[]`` for kirchhoff and bem), which is no fault and so is not in ``warnings``.
+        the coefficients on the material's 7 octaves 125 to 8000 Hz, and the octaves that were simulated. ``notes`` holds what states
+        what the run is and flags no fault (the geometric method's heuristic, the octaves not simulated, bands beyond ISO 17497, Kirchhoff
+        falling back to one process); ``warnings`` holds the rest. Neither holds the sample's own warnings (the Scattering Sample shows
+        them) nor how long the run takes, which is news only before it.
 
     Raises
     ------
@@ -745,7 +758,11 @@ def run_scattering_lab(sample, method="geometric", preset=None, band_range="iso"
     from compas_acoustics.lab import EXTENDED_BAND_RANGE
     from compas_acoustics.lab import ISO_BAND_RANGE
     from compas_acoustics.lab import measure_scattering
-    from compas_acoustics.lab.scattering import HEURISTIC_NOTES
+    from compas_acoustics.lab.grids import _SLOW_GRID
+    from compas_acoustics.lab.scattering import DURATION_TEMPLATES
+    from compas_acoustics.lab.scattering import NOTE_TEMPLATES
+    from compas_acoustics.lab.solvers.bem import _BIG
+    from compas_acoustics.lab.solvers.kirchhoff import _SERIAL
 
     band_range = band_range or BAND_RANGES[0]
     ranges = {"iso": ISO_BAND_RANGE, "extended": EXTENDED_BAND_RANGE}
@@ -758,7 +775,9 @@ def run_scattering_lab(sample, method="geometric", preset=None, band_range="iso"
         except ImportError as error:
             # the service answers a ValueError with its message and an ImportError with a traceback
             raise ValueError(str(error)) from error
-    messages, notes = _split_notes(_messages(caught), HEURISTIC_NOTES)
+    # the sample's own warnings are the Scattering Sample's; how long the run takes is news only before it
+    messages = [m for m in _messages(caught) if m not in sample.warnings]
+    messages, notes = _split_notes(messages, NOTE_TEMPLATES + (_SERIAL,), dropped=DURATION_TEMPLATES + (_SLOW_GRID, _BIG))
     return {"result": result, "scattering_coefficients": result.scattering_coefficients, "octave_bands": list(result.octave_bands), "warnings": messages, "notes": notes}
 
 

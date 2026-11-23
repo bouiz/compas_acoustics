@@ -8,6 +8,7 @@ from scipy.spatial import SphericalVoronoi
 
 _SYMMETRIES = ("none", "rotational")
 _MAX_RECEIVERS = 50000
+_SLOW_GRID = "{:,} receivers make this run slow: simulate up to 5000 Hz or use a smaller sample"
 
 
 def _preset_rings(name):
@@ -125,7 +126,7 @@ class ReceiverGrid(object):
         delta = math.radians(spacing_deg)
         n = int(math.ceil(2.0 * math.pi / delta**2))
         if n > _MAX_RECEIVERS:
-            warnings.warn("receiver grid has {} points (spacing {} deg); this is slow".format(n, spacing_deg))
+            warnings.warn(_SLOW_GRID.format(n))
         i = np.arange(n)
         z = (i + 0.5) / n
         phi = i * math.pi * (3.0 - math.sqrt(5.0))

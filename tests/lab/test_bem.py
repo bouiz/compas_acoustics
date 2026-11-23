@@ -60,7 +60,7 @@ def test_remeshed_body_far_above_limit_raises_before_writing(tmp_path, monkeypat
     monkeypatch.setattr(bem, "_remesh", lambda mesh, edge: bem._arrays(mesh))
     sample = ScatteringSample.disc(flat_tile(), diameter=0.3)
     assert estimate_elements(sample.sample, 343.0 / (500.0 * 6)) <= 50
-    with pytest.warns(UserWarning, match="max_elements"):
+    with pytest.warns(UserWarning, match="large BEM mesh"):
         with pytest.raises(ValueError, match="elements"):
             BemSolver(cache_dir=str(tmp_path), numcalc_path="NumCalc", max_elements=5).solve(
                 sample, SourceGrid.preset("survey", "rotational"), ReceiverGrid.hemisphere(5.0, 10.0), np.array([500.0]), 343.0

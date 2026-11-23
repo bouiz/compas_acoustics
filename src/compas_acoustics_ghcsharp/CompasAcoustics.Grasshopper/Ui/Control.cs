@@ -82,7 +82,10 @@ namespace CompasAcoustics.Grasshopper
             return name.Length == 0 ? name : char.ToUpperInvariant(name[0]) + name.Substring(1);
         }
 
-        /// <summary>What an option of a switch or dropdown reads: its label, else the value itself.</summary>
+        /// <summary>
+        /// What an option of a switch or dropdown reads: its label, else the value with its underscores as spaces (``as_drawn`` reads
+        /// "as drawn"). Only the text shown: the value, which the worker gets and a definition saves, keeps them.
+        /// </summary>
         public static string Label(Control control, string value)
         {
             var (options, labels) = control switch
@@ -92,7 +95,7 @@ namespace CompasAcoustics.Grasshopper
                 _ => (Array.Empty<string>(), null),
             };
             var i = Array.IndexOf(options, value);
-            return labels != null && i >= 0 && i < labels.Length ? labels[i] : value;
+            return labels != null && i >= 0 && i < labels.Length ? labels[i] : value.Replace('_', ' ');
         }
 
         private static bool IsInline(Control? control) => control is ToggleControl { Inline: true } or ButtonControl { Inline: true };

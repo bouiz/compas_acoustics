@@ -10,6 +10,7 @@ from lab_shapes import bumped_box
 from lab_shapes import flat_tile
 from lab_shapes import footprint_area
 from lab_shapes import open_l_shaped_relief
+from lab_shapes import overhanging_strip
 from lab_shapes import sine_tile
 from lab_shapes import sawtooth_tile
 from lab_shapes import step_tile
@@ -115,7 +116,7 @@ def test_a_proxy_replaces_the_flat_reference():
     assert P[away, 2].max() == pytest.approx(0.0)
     assert P[:, 2].min() == pytest.approx(-0.01)
     assert any("proxy" in w for w in s.warnings)
-    assert "not the ISO 17497 coefficient" in " ".join(s.warnings)
+    assert "not the ISO 17497 value" in " ".join(s.warnings)
 
 
 def test_without_a_proxy_the_reference_is_flat():
@@ -211,7 +212,7 @@ def _lifted(mesh, dz):
         # the same bounding box, another footprint: a flat square over a flat disc (20 % of the rays fell through the square's corners)
         (_polar_disc_patch, _square_patch, "footprint"),
         # a closed proxy floating 0.1 m above the sample's lowest point
-        (lambda: bumped_box(size=1.0, thickness=0.5, bump=0.0), lambda: _lifted(bumped_box(size=1.0, thickness=0.3, bump=0.0), 0.1), "lowest point"),
+        (lambda: bumped_box(size=1.0, thickness=0.5, bump=0.0), lambda: _lifted(bumped_box(size=1.0, thickness=0.3, bump=0.0), 0.1), "floor"),
         # a closed proxy whose lowest point is a vertex
         (lambda: bumped_box(size=1.0, thickness=0.5, bump=0.0), _box_with_a_pointed_bottom, "flat bottom"),
         # an open proxy 0.03 m below the sample's floor, more than the 0.01 m baseplate
@@ -220,10 +221,10 @@ def _lifted(mesh, dz):
         (open_l_shaped_relief, two_separate_patches, "outline"),
     ],
 )
-def test_a_proxy_that_does_not_fit_the_sample_is_refused_naming_the_proxy(relief, proxy, match):
+def test_a_proxy_that_does_not_fit_the_sample_is_refused_naming_the_reference_input(relief, proxy, match):
     with pytest.raises(ValueError, match=match) as raised:
         ScatteringSample.as_drawn(relief(), reference=proxy())
-    assert "proxy" in str(raised.value)
+    assert "'reference'" in str(raised.value)
 
 
 def test_a_proxy_of_the_same_footprint_is_accepted():
@@ -246,5 +247,20 @@ def test_a_circle_tessellated_with_another_segment_count_is_accepted_as_proxy():
 
 def test_a_proxy_whose_area_differs_by_a_few_percent_is_still_refused():
     """A 16-gon against a 128-gon: bounding boxes agree, the areas differ by 2.5 %, above the 1e-2 tolerance."""
-    with pytest.raises(ValueError, match="proxy"):
+    with pytest.raises(ValueError, match="'reference' has another footprint"):
         ScatteringSample.as_drawn(_polygon(16), reference=_polygon(128))
+
+
+def test_a_relief_that_overhangs_at_its_rim_is_refused_with_where_it_folds_back():
+    # its rim, seen from above, runs back over itself near x = 0.2: no bottom can close it
+    with pytest.raises(ValueError, match=r"the relief overhangs its rim near \(x, y\) = \(0\.2, 0\): remove the overhang"):
+        ScatteringSample.as_drawn(overhanging_strip())
+
+
+def test_the_starts_of_the_sample_notes_are_those_scattering_sample_shows_as_remarks():
+    # LabResults.SampleNoteStarts (the Grasshopper plugin) shows the sample's warnings that start so as Remarks: keep the two in step
+    from compas_acoustics.lab.sample import _PROXY_WARNING
+    from compas_acoustics.lab.sample import _warnings
+
+    assert _warnings(0.2, 1.0, "disc")[0].startswith("deeper than ISO 17497-1 allows")
+    assert _PROXY_WARNING.startswith("with a 'reference' proxy")

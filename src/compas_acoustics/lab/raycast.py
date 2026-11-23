@@ -19,8 +19,8 @@ import numpy as np
 
 __all__ = ["RayCaster"]
 
-_INSTALL_HINT = "ray casting needs trimesh and an Embree backend; install them with: pip install compas_acoustics[lab]"
-_NO_EMBREE = "ray casting needs trimesh's Embree backend, which is missing (trimesh would fall back to rtree, much slower); install it with: pip install embreex"
+_INSTALL_HINT = "ray casting needs trimesh and embreex: run Install Worker, or pip install compas_acoustics[lab]"
+_NO_EMBREE = "ray casting needs embreex (without it, it is much slower): run Install Worker, or pip install embreex"
 
 
 class RayCaster:

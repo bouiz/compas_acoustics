@@ -52,7 +52,7 @@ def test_shapes_and_bands(monkeypatch):
     assert r.bands == list(THIRD_OCTAVE_CENTRES[:18]) and len(r.s_bands) == 18  # default: ISO 100-5000
     assert r.octave_bands == [125, 250, 500, 1000, 2000, 4000] and len(r.scattering_coefficients) == 7
     assert r.filled_octaves == [8000] and r.scattering_coefficients[6] == r.scattering_coefficients[5]
-    assert any("8000 Hz octave was not simulated" in w for w in r.warnings)
+    assert any("8000 Hz is not simulated" in w for w in r.warnings)
     assert r.s_angle.shape == (13, 18) and r.polar_sample_db.shape[:2] == (13, 6)
     assert np.allclose(r.s_octaves, 0.0, atol=1e-9)  # identical pressures -> no scattering
     assert np.isclose(r.polar_reference_db.max(axis=2), 0.0).all()
@@ -62,7 +62,7 @@ def test_extended_range_simulates_8000_and_warns_beyond_iso(monkeypatch):
     monkeypatch.setattr(scattering, "_solver", lambda method, **kw: FakeSolver())
     r = measure_scattering(ScatteringSample.disc(flat_tile(), diameter=0.4), method="kirchhoff", preset="survey", band_range=EXTENDED_BAND_RANGE)
     assert r.bands[-1] == 8000 and r.octave_bands[-1] == 8000 and r.filled_octaves == []
-    assert any("beyond ISO" in w for w in r.warnings)
+    assert any("outside ISO 17497" in w for w in r.warnings)
 
 
 def test_default_preset_is_standard_and_an_explicit_one_overrides_it(monkeypatch):
@@ -83,7 +83,7 @@ def test_warnings_are_also_emitted(monkeypatch):
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         r = measure_scattering(ScatteringSample.disc(flat_tile(), diameter=0.4), method="kirchhoff", preset="survey", band_range=(4000, 4000))
-    assert "the 8000 Hz octave was not simulated; the material takes the 4000 Hz value" in r.warnings
+    assert "125, 250, 500, 1000, 2000, 8000 Hz are not simulated and take the nearest simulated octave: widen the band range" in r.warnings
     assert r.filled_octaves == [125, 250, 500, 1000, 2000, 8000]
     assert set(r.warnings) <= {str(w.message) for w in caught}
 
@@ -131,7 +131,7 @@ def test_unconverged_steps_reach_the_warnings_and_mark_their_octaves(monkeypatch
     with pytest.warns(UserWarning, match="did not converge"):
         r = measure_scattering(ScatteringSample.disc(flat_tile(), diameter=0.4), method="bem", preset="survey")
     assert r.unconverged_octaves == [125, 500]
-    assert "bem: NumCalc did not converge for the sample and the reference at 93, 631 Hz; s in the 125, 500 Hz octaves is unreliable" in r.warnings
+    assert "bem did not converge at 93, 631 Hz: s at 125, 500 Hz is unreliable" in r.warnings
     t = json_loads(json_dumps(r))
     assert t.unconverged_octaves == [125, 500] and t.generation["unconverged"][1]["residual"] is None
     import json
@@ -177,7 +177,7 @@ class SlowSolver(FakeSolver):
 
 def test_a_long_run_is_warned_about_before_it_starts(monkeypatch):
     monkeypatch.setattr(scattering, "_solver", lambda method, **kw: SlowSolver())
-    with pytest.warns(UserWarning, match=r"kirchhoff: this run takes about 2.0 h \(13 sources x 3 frequencies"):
+    with pytest.warns(UserWarning, match=r"kirchhoff takes about 2.0 h: a smaller 'preset'"):
         measure_scattering(ScatteringSample.disc(flat_tile(), diameter=0.4), method="kirchhoff", preset="survey", band_range=(1000, 1000))
 
 
@@ -205,7 +205,7 @@ def test_geometric_is_the_default_method():
 
 
 def heuristic_warning(result):
-    return next(w for w in result.warnings if w.startswith("geometric: s is frequency-modelled"))
+    return next(w for w in result.warnings if w.startswith("geometric s is a heuristic"))
 
 
 def test_geometric_flat_disc_scatters_nothing():
@@ -216,11 +216,11 @@ def test_geometric_flat_disc_scatters_nothing():
     assert np.allclose(r.s_octaves, 0.0, atol=1e-9) and np.allclose(r.d_octaves, 0.0, atol=1e-9)
     assert r.method == "geometric" and r.generation["heuristic"] is True and r.generation["preset"] == "standard"
     assert any("heuristic" in w for w in r.warnings) and set(r.warnings) <= {str(w.message) for w in caught}
-    # the methods the warning tells the user to use exist ("use a, b or c for the physics"; a method only planned may be named elsewhere)
-    advice = re.search(r"use (.+?) for the physics", next(w for w in r.warnings if "heuristic" in w)).group(1)
+    # the methods the warning tells the user to use exist ("use a, b or c for physics")
+    advice = re.search(r"use (.+?) for physics", next(w for w in r.warnings if "heuristic" in w)).group(1)
     recommended = re.split(r",\s*|\s+or\s+", advice)
     assert recommended and set(recommended) <= set(scattering.METHODS), recommended
-    assert "bin_deg" in heuristic_warning(r) and "every frequency" in heuristic_warning(r)  # d and the polar levels
+    assert "every frequency" in heuristic_warning(r)  # d
     assert not any("lost" in w for w in r.warnings) and r.generation["lost"] == 0.0
     assert r.generation["reference"] == "flat" and r.generation["n_rays"] == 2000 and r.generation["receivers"] == len(r.receiver_directions)
     # the specular cell holds everything: 0 dB there, -300 dB (empty) elsewhere, the same at every octave
@@ -237,7 +237,7 @@ def test_geometric_sawtooth_rises_with_frequency():
     assert len(r.scattering_coefficients) == 7 and r.s_angle.shape == (97, 18) and r.d_angle.shape == (97, 18)
     assert np.allclose(r.d_angle, r.d_angle[:, :1])  # d is the same at every band
     assert r.generation["depth"] == pytest.approx(0.0105, abs=0.001)
-    assert not any("small against the wavelength" in w for w in r.warnings)  # the depth curve is 0.61 at 5 kHz
+    assert not any("too shallow" in w for w in r.warnings)  # the depth curve is 0.61 at 5 kHz
 
 
 def test_geometric_runs_in_seconds():
@@ -293,9 +293,10 @@ def test_geometric_sawtooth_warns_about_no_lost_rays():
 def test_geometric_without_trimesh_names_the_way_out(monkeypatch):
     sample = ScatteringSample.disc(flat_tile(), 0.4)
     monkeypatch.setitem(sys.modules, "trimesh", None)  # import trimesh raises ImportError
-    with pytest.raises(ImportError, match='pass method="kirchhoff" to run without it') as raised:
+    with pytest.raises(ImportError, match="or use kirchhoff") as raised:
         measure_scattering(sample, method="geometric", preset="survey", n_rays=10)
-    assert "Python >= 3.11" in str(raised.value) and isinstance(raised.value.__cause__, ImportError)
+    assert "Install Worker" in str(raised.value) and isinstance(raised.value.__cause__, ImportError)
+    assert "compas_acoustics[lab]" in str(raised.value.__cause__)  # the ray caster's own message, for a script, names the pip extra
     monkeypatch.setattr(scattering, "_solver", lambda method, **kw: FakeSolver())
     assert measure_scattering(sample, method="kirchhoff", preset="survey", band_range=(1000, 1000)).method == "kirchhoff"
 
@@ -310,16 +311,16 @@ def test_geometric_mounted_box_scatters_at_high_frequency():
     # a box of uniform height: before the depth took the mean height difference, h was 0 and s was 0 in every octave although s_max is 0.27-0.94
     r = measure_scattering(ScatteringSample.as_drawn(bumped_box(size=1.0, thickness=0.5, bump=0.0)), method="geometric", preset="survey", n_rays=5000)
     assert r.generation["depth"] == pytest.approx(0.49, abs=1e-9)
-    assert r.s_octaves[-1] > 0.3 and not any("small against the wavelength" in w for w in r.warnings)
+    assert r.s_octaves[-1] > 0.3 and not any("too shallow" in w for w in r.warnings)
 
 
 def test_geometric_warns_when_the_depth_curve_hides_the_scattering():
     pytest.importorskip("embreex")
     # the sawtooth (h = 0.0105 m, mean s_max about 1) up to 1 kHz only: the depth curve at the top band is 1 - exp(-(k h)^2) = 0.04
-    with pytest.warns(UserWarning, match="small against the wavelength"):
+    with pytest.warns(UserWarning, match="too shallow"):
         r = measure_scattering(ScatteringSample.disc(sawtooth_tile(), 0.4), method="geometric", preset="survey", band_range=(100, 1000), n_rays=2000)
-    message = next(w for w in r.warnings if "small against the wavelength" in w)
-    assert "1000 Hz" in message and "use kirchhoff or bem" in message
+    message = next(w for w in r.warnings if "too shallow" in w)
+    assert "use kirchhoff or bem" in message
 
 
 def test_the_reference_kind_is_recorded_for_every_method(monkeypatch):
@@ -335,7 +336,7 @@ def test_geometric_without_embree_names_embreex_and_kirchhoff(monkeypatch):
     monkeypatch.setattr(trimesh_ray, "has_embree", False)
     with pytest.raises(ImportError, match="embreex") as raised:
         measure_scattering(ScatteringSample.disc(flat_tile(), 0.4), method="geometric", preset="survey", n_rays=10)
-    assert 'pass method="kirchhoff" to run without it' in str(raised.value)
+    assert "or use kirchhoff" in str(raised.value)
 
 
 def test_geometric_warns_when_a_backing_thicker_than_the_baseplate_counts_as_relief():
@@ -344,7 +345,7 @@ def test_geometric_warns_when_a_backing_thicker_than_the_baseplate_counts_as_rel
     with pytest.warns(UserWarning, match="backing") as caught:
         r = measure_scattering(ScatteringSample.as_drawn(backing), method="geometric", preset="survey", n_rays=2000)
     message = next(w for w in r.warnings if "backing" in w)
-    assert "baseplate" in message and "0.01" in message and "flush" in message  # the default baseplate and the remedy are named
+    assert "'baseplate' (now 0.01 m)" in message  # the default baseplate and the remedy are named
     assert message in [str(w.message) for w in caught]  # through warnings.warn as well as result.warnings
 
 

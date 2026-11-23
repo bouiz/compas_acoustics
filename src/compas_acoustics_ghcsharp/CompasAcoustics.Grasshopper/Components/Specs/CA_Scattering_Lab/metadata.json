@@ -45,6 +45,13 @@
                 "typeHintID": "int"
             },
             {
+                "name": "max_bounces",
+                "description": "Optional. Geometric method only: the reflections a ray may make between the relief's parts before it counts as lost (default 20). Raise it when the Lab warns about lost rays.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "int"
+            },
+            {
                 "name": "cache_dir",
                 "description": "Optional. The bem method only: NumCalc's project folder, so that an interrupted run resumes.",
                 "optional": true,
