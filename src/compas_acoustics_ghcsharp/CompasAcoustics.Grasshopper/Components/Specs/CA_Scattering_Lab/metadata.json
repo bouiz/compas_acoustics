@@ -24,10 +24,11 @@
             },
             {
                 "name": "preset",
-                "description": "Optional. The measurement's size: 'survey', 'standard' or 'fine'; empty is the method's own (standard).",
+                "description": "The source directions the sample is measured from: 'survey' (13, default), 'standard' (97) or 'fine' (864). survey is the quickest, a first look; its random-incidence s can be up to 0.29 off near the onset of grating lobes, so use standard or fine for the values a room model takes.",
                 "optional": true,
                 "scriptParamAccess": 0,
-                "typeHintID": "str"
+                "typeHintID": "str",
+                "default": "survey"
             },
             {
                 "name": "band_range",
@@ -73,7 +74,7 @@
             },
             {
                 "name": "scattering",
-                "description": "Scattering coefficient of the 7 material octave bands, 125 to 8000 Hz (an octave that was not simulated is filled from the nearest one). Pairs with the bands of Lab Material, not with diffusion.",
+                "description": "Scattering coefficient of the 7 material octave bands, 125 to 8000 Hz (an octave that was not simulated is filled from the nearest one). Pairs with the scattering of Construct Material, not with diffusion.",
                 "typeHintID": "float"
             },
             {

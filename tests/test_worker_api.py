@@ -533,7 +533,7 @@ def _lab_disc():
 
 
 def test_the_lab_functions_are_listed():
-    for name in ("make_scattering_sample", "run_scattering_lab", "polar_balloon", "lab_material"):
+    for name in ("make_scattering_sample", "run_scattering_lab", "polar_balloon"):
         assert name in api.__all__
 
 
@@ -759,32 +759,6 @@ def test_polar_balloon_refuses_a_floor_that_is_not_negative(floor_db):
         call("polar_balloon", _geometric_result(), floor_db=floor_db)
 
 
-def test_lab_material_from_the_lab_result():
-    result = _geometric_result()
-    out = call("lab_material", "my panel", [0.1, 0.1, 0.2, 0.2, 0.3, 0.3, 0.3], result=result, category="Wood")
-    material = out["material"]
-    assert isinstance(material, AcousticMaterial) and material.name == "my panel"
-    assert list(material.absorption_coefficients) == pytest.approx([0.1, 0.1, 0.2, 0.2, 0.3, 0.3, 0.3])
-    assert list(material.scattering_coefficients) == pytest.approx(result.scattering_coefficients)
-    assert out["warnings"] == []
-    assert out["notes"] == [api.MATERIAL_HEURISTIC_NOTE]
-    clipped = call("lab_material", "x", [1.5], category="")
-    assert any("clipped" in w for w in clipped["warnings"])
-
-
-def test_lab_material_takes_its_absorption_from_a_material():
-    library = MaterialsLibrary()
-    source = library.material_from_name(library.material_names[0])
-    out = call("lab_material", "copy", source)
-    assert list(out["material"].absorption_coefficients) == pytest.approx(list(source.absorption_coefficients))
-
-
-@pytest.mark.parametrize("absorption", [None, []])
-def test_lab_material_refuses_a_missing_absorption(absorption):
-    with pytest.raises(ValueError, match="absorption is required: 1 or 7 values, or a material to take them from"):
-        api.lab_material("x", absorption)
-
-
 # ---------------------------------------------------------------------------
 # The coefficient lab: the orientation of the object (final review, I1)
 # ---------------------------------------------------------------------------
@@ -871,13 +845,3 @@ def test_a_relief_lying_on_the_wrong_plane_is_told_to_lie_on_xy():
         api.make_scattering_sample(wall_mesh)
     # given its plane it is a sample as any other
     assert api.make_scattering_sample(wall_mesh, frame=frame).diameter == pytest.approx(api.make_scattering_sample(_wavy_panel()).diameter)
-
-
-def test_lab_material_flags_a_heuristic_scattering_and_not_a_measured_one():
-    geometric = call("lab_material", "heuristic", [0.1], result=_geometric_result())
-    assert any("heuristic geometric method: use kirchhoff or bem for a measurement" in n for n in geometric["notes"])
-    assert not any("heuristic" in w for w in geometric["warnings"])
-    measured = _geometric_result()
-    measured.generation = {"method": "kirchhoff", "preset": "survey"}
-    out = api.lab_material("measured", [0.1], result=measured)
-    assert out["warnings"] == [] and out["notes"] == []

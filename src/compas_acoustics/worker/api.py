@@ -36,7 +36,6 @@ __all__ = [
     "make_scattering_sample",
     "run_scattering_lab",
     "polar_balloon",
-    "lab_material",
 ]
 
 
@@ -647,7 +646,7 @@ def sound_info(path):
 
 
 # =============================================================================
-# The coefficient lab: what Scattering Sample, Scattering Lab, Polar Balloon and Lab Material do
+# The coefficient lab: what Scattering Sample, Scattering Lab and Polar Preview do
 # =============================================================================
 
 SAMPLE_MODES = ["as_drawn", "disc"]
@@ -862,46 +861,3 @@ def polar_balloon(result, preview=0, octave=1000, body="sample", radius=1.0, flo
     theta, phi = np.radians(colatitude), np.radians(azimuth)
     source = 1.2 * radius * np.array([np.sin(theta) * np.cos(phi), np.sin(theta) * np.sin(phi), np.cos(theta)])
     return {"mesh": mesh, "levels": [float(v) for v in levels], "source": [float(v) for v in source], "label": f"θ {colatitude:g}°, φ {azimuth:g}°, {octave} Hz, {body}"}
-
-
-#: The note of :func:`lab_material` for a scattering from the geometric method (a note, not a warning)
-MATERIAL_HEURISTIC_NOTE = "s comes from the heuristic geometric method: use kirchhoff or bem for a measurement"
-
-
-def lab_material(name, absorption, result=None, category=None):
-    """An :class:`AcousticMaterial` of a given absorption and a measured scattering, as the Lab Material component makes it.
-
-    Parameters
-    ----------
-    name : str
-    absorption : sequence of float or :class:`AcousticMaterial`
-        1 value for every octave, or 7 for 125 to 8000 Hz; or a material to take its 7 absorption coefficients from.
-    result : :class:`compas_acoustics.lab.ScatteringResult`, optional
-        The scattering to take the material's scattering coefficients from.
-    category : str, optional
-
-    Returns
-    -------
-    dict
-        ``{"material": AcousticMaterial, "warnings": [str], "notes": [str]}``: the warnings are those of
-        :func:`compas_acoustics.lab.lab_material`, a coefficient clipped to [0, 1] for one; ``notes`` holds the note that the scattering
-        is heuristic (``[]`` for a measured one).
-
-    Raises
-    ------
-    ValueError
-        If ``absorption`` is missing or empty, or not 1 or 7 values.
-    """
-    import numpy as np
-
-    from compas_acoustics.lab import lab_material as make_lab_material
-
-    if absorption is None or (isinstance(absorption, (list, tuple, np.ndarray)) and len(absorption) == 0):
-        raise ValueError("absorption is required: 1 or 7 values, or a material to take them from")
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        material = make_lab_material(name, absorption, scattering=result, category=category or None)
-    messages, notes = _split_notes(_messages(caught), (MATERIAL_HEURISTIC_NOTE,))
-    if result is not None and result.generation.get("heuristic"):
-        notes.append(MATERIAL_HEURISTIC_NOTE)
-    return {"material": material, "warnings": messages, "notes": notes}

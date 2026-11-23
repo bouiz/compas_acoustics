@@ -138,7 +138,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(ComponentSpec.Load("CA_Simulate_Mono").Inputs.Single(p => p.Name == "ray_tracing").Description, mono.ControlTooltip("ray_tracing").text);
             Assert.EndsWith("(default 48 kHz)", new RoomSceneComponent().ControlTooltip("sampling_rate").text);
             Assert.Equal(("level", "none, relative or individual (default relative)"), new AuraliseComponent().ControlTooltip("level"));
-            Assert.EndsWith("(default on)", new VisualiseRaysComponent().ControlTooltip("preview").text);
+            Assert.EndsWith("(default on)", new VisualiseRaysComponent().ControlTooltip("show").text);
         }
 
         [Fact]

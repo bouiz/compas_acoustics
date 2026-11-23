@@ -81,8 +81,9 @@ namespace CompasAcoustics.Grasshopper
     public sealed class ScatteringLabComponent : ComponentBase
     {
         internal static readonly string[] Methods = { "geometric", "kirchhoff", "bem" };
-        internal static readonly string[] Presets = { "", "survey", "standard", "fine" };
-        internal static readonly string[] PresetLabels = { "Default", "survey (13)", "standard (97)", "fine (864)" };
+        // survey (13 source directions) first, the Lab's default: a quick look; standard and fine are more accurate (see the input's description)
+        internal static readonly string[] Presets = { "survey", "standard", "fine" };
+        internal static readonly string[] PresetLabels = { "survey (13)", "standard (97)", "fine (864)" };
         internal static readonly string[] BandRanges = { "iso", "extended" };
         // the ranges of compas_acoustics.lab's ISO_BAND_RANGE and EXTENDED_BAND_RANGE, the one-third octave centres simulated
         internal static readonly string[] BandRangeLabels = { "ISO 100–5000 Hz", "100–8000 Hz" };
@@ -97,7 +98,7 @@ namespace CompasAcoustics.Grasshopper
         public override IReadOnlyList<Control> Controls { get; } = new Control[]
         {
             new DropdownControl("method", Methods, Methods[0]),
-            new DropdownControl("preset", Presets, "", PresetLabels, "Preset"),
+            new DropdownControl("preset", Presets, Presets[0], PresetLabels, "Preset"),
             new DropdownControl("band_range", BandRanges, BandRanges[0], BandRangeLabels, "Band range"),
             new ButtonControl("run", "Run"),
         };
@@ -113,7 +114,8 @@ namespace CompasAcoustics.Grasshopper
                 return;
             }
             var method = Text(access, "method") ?? Methods[0];
-            var (args, kwargs, unused) = LabRequests.Lab(sample.Value, method, Text(access, "preset"), Text(access, "band_range") ?? BandRanges[0],
+            // an empty preset (a definition saved when "Default" was an option, or an empty wire) is the default the dropdown shows
+            var (args, kwargs, unused) = LabRequests.Lab(sample.Value, method, Text(access, "preset") is { Length: > 0 } preset ? preset : Presets[0], Text(access, "band_range") ?? BandRanges[0],
                 Value<int>(access, "n_rays"), Value<int>(access, "max_bounces"), Text(access, "cache_dir"));
             if (unused != null)
                 Remark(unused);
@@ -242,47 +244,6 @@ namespace CompasAcoustics.Grasshopper
             base.DrawViewportWires(args);
             if (_source.IsValid)
                 args.Display.DrawLine(_source, Color.FromArgb(60, 60, 60), 2);
-        }
-    }
-
-    /// <summary>
-    /// An AcousticMaterial from an absorption (numbers, or taken from a material) and an optional lab result, for the faces of the
-    /// proxy in the room model (the lab's worker function lab_material).
-    /// </summary>
-    public sealed class LabMaterialComponent : ComponentBase
-    {
-        public LabMaterialComponent() : base("CA_Lab_Material") { }
-        protected override string SpecKey => "CA_Lab_Material";
-        public override Guid ComponentGuid => new Guid("94143bb0-1ea1-5d3c-9bc9-edbeb8bfeea7");
-
-        protected override IGH_Param? CreateParam(PortSpec port, bool input) => port.Name switch
-        {
-            "material" => new Param_Material(),
-            "result" => input ? new Param_ScatteringResult() : null,
-            _ => null,
-        };
-
-        public override IReadOnlyList<Control> Controls { get; } = new Control[] { new DropdownControl("category", ConstructMaterialComponent.Categories, "Other") };
-
-        protected override void Solve(IGH_DataAccess access)
-        {
-            var name = Text(access, "name");
-            if (name == null)
-            {
-                Warn("Input parameter 'name' failed to collect data.");
-                return;
-            }
-            var (args, kwargs, problem) = LabRequests.Material(name, List<double>(access, "absorption"), Item<MaterialGoo>(access, "material")?.Value,
-                Item<ScatteringResultGoo>(access, "result")?.Value, Text(access, "category"));
-            if (problem != null)
-            {
-                Warn(problem);
-                return;
-            }
-            var answer = (IDictionary<string, object?>)Worker.Call("lab_material", args, kwargs)!;
-            ShowWarnings(answer);
-            ShowNotes(answer);
-            access.SetData(0, new MaterialGoo((AcousticMaterialData)answer["material"]!));
         }
     }
 }

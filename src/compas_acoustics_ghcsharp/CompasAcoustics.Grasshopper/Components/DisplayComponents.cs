@@ -17,8 +17,12 @@ namespace CompasAcoustics.Grasshopper
 
         protected DisplayComponent(string key) : base(key) { }
 
-        /// <summary>The drawing on and off on the body: the component's preview, as its right-click menu sets it.</summary>
-        protected static readonly ToggleControl PreviewSwitch = new("preview", "Preview");
+        /// <summary>
+        /// The drawing on and off on the body: the component's preview, as its right-click menu sets it. Its port is no input's name: a
+        /// control on an input's name sets that input (Polar Preview's preview, its source index, took every click of a switch named so).
+        /// Hidden holds its state, which Grasshopper saves, so the name is saved nowhere.
+        /// </summary>
+        protected static readonly ToggleControl PreviewSwitch = new("show", "Preview");
 
         /// <summary>The source of a ``source_idx`` input: All, or one of the wired scene's.</summary>
         protected static readonly DropdownControl SourceDropdown = new("source_idx", new[] { "" }, "", new[] { "All" }, "Source");

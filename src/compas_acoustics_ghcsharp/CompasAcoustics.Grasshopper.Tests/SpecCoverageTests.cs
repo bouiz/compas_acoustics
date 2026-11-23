@@ -24,7 +24,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             ["CA_Deconstruct_IR_Graph"] = "DeconstructIrGraphComponent",
             ["CA_Deconstruct_Material"] = "DeconstructMaterialComponent",
             ["CA_Install_Worker"] = "InstallWorkerComponent",
-            ["CA_Lab_Material"] = "LabMaterialComponent",
             ["CA_Material_Library"] = "MaterialLibraryComponent",
             ["CA_Model"] = "RoomSceneComponent",
             ["CA_Plot_2D"] = "Plot2DComponent",
