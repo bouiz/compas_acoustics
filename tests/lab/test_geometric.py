@@ -80,11 +80,13 @@ def test_a_right_angle_groove_retroreflects_with_enough_bounces():
 
 def test_a_sample_equal_to_its_proxy_scatters_nothing():
     pytest.importorskip("embreex")
-    # a closed disc body, drawn as is, with itself as the proxy (a single bare tile would lose every ray that meets its free-standing side walls)
+    # a closed disc body, drawn as is, with itself as the proxy (a single bare tile would lose every ray that meets its
+    # free-standing side walls)
     body = ScatteringSample.disc(sawtooth_tile(), 0.4).sample
     sample = ScatteringSample.as_drawn(body, reference=body)
     assert sample.reference_kind == "proxy"
-    # max_bounces=1: the rays that need a second reflection (the riser, the baffle beyond the rim) are lost, identically in both
+    # max_bounces=1: the rays that need a second reflection (the riser, the baffle beyond the rim) are lost, identically
+    # in both
     response = geometric_response(sample, SourceGrid.preset("survey"), n_rays=2000, max_bounces=1)
     # the lost fraction is one more bin of the histograms (Task 5 does the same)
     with_lost = (np.column_stack([response.sample, response.lost_sample]), np.column_stack([response.reference, response.lost_reference]))
@@ -175,8 +177,9 @@ def test_the_object_is_mounted_in_a_baffle_so_a_windward_wall_does_not_throw_ray
     ring = sources.colatitude == 80.0
     # measured with the baffle: 0 on this ring (20000 rays, one ray is 5e-5), free-standing it was 0.12 to 0.27
     assert response.lost_sample[ring].max() < 1e-3
-    # the rays that leave exactly along the horizon (colatitude 50 = 90 - 2 x 20 reflects off the slope to d_z = 0) are binned, not lost: that ring
-    # lost 0.011 when they were; what remains in the preset (at most 0.0004, 2026-10-24) are rays still bouncing after max_bounces
+    # the rays that leave exactly along the horizon (colatitude 50 = 90 - 2 x 20 reflects off the slope to d_z = 0) are
+    # binned, not lost: that ring lost 0.011 when they were; what remains in the preset (at most 0.0004, 2026-10-24) are
+    # rays still bouncing after max_bounces
     assert response.lost_sample.max() < 1e-3
 
 
@@ -188,7 +191,8 @@ def _box(top=0.2, bottom=-0.1):
 
 
 def _exit(start, direction, max_bounces=4, body=None, footprint=None):
-    """Trace one ray off a body (the box by default, its footprint the unit square); return the cell directions, the energy per cell and the lost fraction."""
+    """Trace one ray off a body (the box by default, its footprint the unit square); return the cell directions, the
+    energy per cell and the lost fraction."""
     grid = ReceiverGrid.hemisphere(10.0, 1.0)
     if footprint is None:
         footprint = np.array([[[0, 0], [1, 0], [1, 1]], [[0, 0], [1, 1], [0, 1]]], dtype=float)
@@ -200,8 +204,9 @@ def _exit(start, direction, max_bounces=4, body=None, footprint=None):
 
 def test_a_ray_reflected_downward_by_a_wall_bounces_on_the_baffle_and_leaves_upward():
     pytest.importorskip("embreex")
-    # a ray along (-sin60, 0, -cos60) meets the east wall x = 1 at z = 0.1 (it starts 1 m east of it and 0.1 + 1/tan(60) = 0.677 high), reflects to
-    # (+sin60, 0, -cos60), reaches z = 0 at x = 1 + 0.1 tan(60) = 1.173 and is reflected there to (+sin60, 0, +cos60): colatitude 60, azimuth 0
+    # a ray along (-sin60, 0, -cos60) meets the east wall x = 1 at z = 0.1 (it starts 1 m east of it and 0.1 + 1/tan(60)
+    # = 0.677 high), reflects to (+sin60, 0, -cos60), reaches z = 0 at x = 1 + 0.1 tan(60) = 1.173 and is reflected
+    # there to (+sin60, 0, +cos60): colatitude 60, azimuth 0
     a, b = np.sin(np.radians(60.0)), np.cos(np.radians(60.0))
     directions, energy, lost = _exit([2.0, 0.5, 0.1 + b / a], [-a, 0.0, -b])
     assert lost == 0.0 and energy.sum() == pytest.approx(1.0, abs=1e-12)
@@ -213,9 +218,9 @@ def test_a_ray_reflected_downward_by_a_wall_bounces_on_the_baffle_and_leaves_upw
 
 def test_a_ray_whose_first_face_is_below_the_baffle_outside_the_footprint_meets_the_baffle_first():
     pytest.importorskip("embreex")
-    # a 45 degree ray from (2, 0.5, 0.95) would meet the east wall x = 1 at z = -0.05, but it crosses z = 0 at x = 1.05, 0.05 outside the footprint
-    # (the unit square): there it is reflected to (-1, 0, +1)/sqrt2, meets the wall at z = 0.05 and is reflected to (+1, 0, +1)/sqrt2:
-    # colatitude 45, azimuth 0 (two bounces; with one it is lost)
+    # a 45 degree ray from (2, 0.5, 0.95) would meet the east wall x = 1 at z = -0.05, but it crosses z = 0 at x = 1.05,
+    # 0.05 outside the footprint (the unit square): there it is reflected to (-1, 0, +1)/sqrt2, meets the wall at z =
+    # 0.05 and is reflected to (+1, 0, +1)/sqrt2: colatitude 45, azimuth 0 (two bounces; with one it is lost)
     s = np.sqrt(0.5)
     directions, energy, lost = _exit([2.0, 0.5, 0.95], [-s, 0.0, -s])
     assert lost == 0.0 and energy.sum() == pytest.approx(1.0, abs=1e-12)
@@ -240,13 +245,14 @@ def test_the_footprint_test_includes_its_edge_and_nothing_beyond():
 
 def test_the_baffle_is_only_outside_the_footprint():
     pytest.importorskip("embreex")
-    # the wedge as drawn (baseplate 0.1): top z = 0.1 - 0.2 x, below the plane z = 0 for x > 0.5, bottom at z = -0.1, footprint the unit square
+    # the wedge as drawn (baseplate 0.1): top z = 0.1 - 0.2 x, below the plane z = 0 for x > 0.5, bottom at z = -0.1,
+    # footprint the unit square
     sample = ScatteringSample.as_drawn(_wedge(), baseplate=0.1)
     corners, _ = _bottom_triangles(sample.reference, sample.baseplate)
     footprint = corners[:, :, :2]
     s = np.sqrt(0.5)
-    # crossing z = 0 at x = 0.9, inside: the ray meets the slope at x = 1/1.2, z = -0.0667, below the plane, and reflects off it as drawn:
-    # n = (0.2, 0, 1)/1.0198, d' = d - 2 (d.n) n = (-0.3807, 0, 0.9249)
+    # crossing z = 0 at x = 0.9, inside: the ray meets the slope at x = 1/1.2, z = -0.0667, below the plane, and
+    # reflects off it as drawn: n = (0.2, 0, 1)/1.0198, d' = d - 2 (d.n) n = (-0.3807, 0, 0.9249)
     directions, energy, lost = _exit([1.9, 0.5, 1.0], [-s, 0.0, -s], body=sample.sample, footprint=footprint)
     assert lost == 0.0 and energy.sum() == pytest.approx(1.0, abs=1e-12)
     assert np.argmax(energy) == np.argmax(directions @ [-0.3807, 0.0, 0.9249])
@@ -258,7 +264,8 @@ def test_the_baffle_is_only_outside_the_footprint():
 
 def test_a_ray_that_leaves_along_the_horizon_is_binned_in_the_nearest_cell():
     pytest.importorskip("embreex")
-    # reflects off the east wall to +x, d_z = 0: it grazes the baffle plane, it is not trapped, so it goes into the cell nearest to +x
+    # reflects off the east wall to +x, d_z = 0: it grazes the baffle plane, it is not trapped, so it goes into the cell
+    # nearest to +x
     directions, energy, lost = _exit([2.0, 0.5, 0.15], [-1.0, 0.0, 0.0], max_bounces=4)
     assert lost == 0.0 and energy.sum() == pytest.approx(1.0, abs=1e-12)
     assert np.argmax(energy) == np.argmax(directions @ [1.0, 0.0, 0.0])
@@ -274,12 +281,14 @@ def _wedge():
 @pytest.mark.parametrize("baseplate", [0.01, 0.1])
 def test_a_sloped_face_in_the_baseplate_band_inside_the_footprint_reflects_as_drawn(baseplate):
     pytest.importorskip("embreex")
-    # a closed mesh as drawn has its lowest point at z = -baseplate, so part of its slope is below z = 0; the baffle is only outside the footprint
+    # a closed mesh as drawn has its lowest point at z = -baseplate, so part of its slope is below z = 0; the baffle is
+    # only outside the footprint
     sample = ScatteringSample.as_drawn(_wedge(), baseplate=baseplate)
     response = geometric_response(sample, SourceGrid.preset("survey"), n_rays=5000)
     colatitude = np.degrees(np.arccos(np.clip(response.directions[:, 2], -1.0, 1.0)))
     energy = response.sample[0]
-    # normal incidence on a slope of 0.2 leaves at 2 atan(0.2) = 22.6 degrees; the 10 degree cells are within +-5 degrees of it
+    # normal incidence on a slope of 0.2 leaves at 2 atan(0.2) = 22.6 degrees; the 10 degree cells are within +-5
+    # degrees of it
     assert energy[np.abs(colatitude - 22.6) < 6.0].sum() > 0.99
     assert energy[colatitude < 5.0].sum() == 0.0
     assert response.lost_sample[0] == 0.0
@@ -287,7 +296,8 @@ def test_a_sloped_face_in_the_baseplate_band_inside_the_footprint_reflects_as_dr
 
 def test_a_mounted_box_has_its_height_as_depth():
     pytest.importorskip("embreex")
-    # uniform height over the footprint: 2 sigma of the height difference is 0, its mean is the height (0.5 m box, its bottom 0.01 m below z = 0)
+    # uniform height over the footprint: 2 sigma of the height difference is 0, its mean is the height (0.5 m box, its
+    # bottom 0.01 m below z = 0)
     sample = ScatteringSample.as_drawn(bumped_box(size=1.0, thickness=0.5, bump=0.0))
     response = geometric_response(sample, SourceGrid.preset("survey"), n_rays=2000)
     assert response.depth == pytest.approx(0.49, abs=1e-9)
@@ -305,7 +315,8 @@ def test_the_options_are_checked(options, name):
 def test_the_response_reports_the_mean_and_the_spread_of_the_height():
     pytest.importorskip("embreex")
     H = 0.05 * np.tan(np.radians(20.0))
-    # the sawtooth on a flat reference: heights uniform in [0, H], mean H/2, spread H/sqrt(12); the depth is the larger of 2 sigma and the mean
+    # the sawtooth on a flat reference: heights uniform in [0, H], mean H/2, spread H/sqrt(12); the depth is the larger
+    # of 2 sigma and the mean
     saw = geometric_response(ScatteringSample.disc(sawtooth_tile(), 0.4), SourceGrid.preset("survey"), n_rays=20000)
     assert saw.height_mean == pytest.approx(H / 2, rel=0.05) and saw.height_spread == pytest.approx(H / np.sqrt(12), rel=0.05)
     assert saw.depth == pytest.approx(max(2 * saw.height_spread, saw.height_mean), rel=1e-12)

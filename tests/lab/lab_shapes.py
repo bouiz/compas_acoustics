@@ -61,14 +61,16 @@ def footprint_area(mesh):
 
 
 def step_tile(size=0.1, height=0.02):
-    """One period of a step relief: z = 0 for x < size/2, z = height above, a vertical riser up at size/2 and down at size."""
+    """One period of a step relief: z = 0 for x < size/2, z = height above, a vertical riser up at size/2 and down at
+    size."""
     h, w = size / 2, size
     vertices = [[0, 0, 0], [h, 0, 0], [h, w, 0], [0, w, 0], [h, 0, height], [w, 0, height], [w, w, height], [h, w, height], [w, 0, 0], [w, w, 0]]
     return Mesh.from_vertices_and_faces(vertices, [[0, 1, 2, 3], [1, 4, 7, 2], [4, 5, 6, 7], [5, 8, 9, 6]])
 
 
 def bumped_box(size=1.0, thickness=0.01, bump=0.02):
-    """A closed box ``size`` × ``size`` × ``thickness``, its top a 2×2 quad grid with the centre vertex raised by ``bump``."""
+    """A closed box ``size`` × ``size`` × ``thickness``, its top a 2×2 quad grid with the centre vertex raised by
+    ``bump``."""
     s, t = size / 2, thickness
     top = [[x, y, t + (bump if (x, y) == (s, s) else 0.0)] for y in (0, s, size) for x in (0, s, size)]
     vertices = top + [[0, 0, 0], [size, 0, 0], [size, size, 0], [0, size, 0]]
@@ -78,9 +80,11 @@ def bumped_box(size=1.0, thickness=0.01, bump=0.02):
 
 
 def flat_tile_with_zero_area_face(size=0.1):
-    """The flat tile with a zero-area triangle (three collinear vertices) along its edge y = 0, as Rhino exports leave them.
+    """The flat tile with a zero-area triangle (three collinear vertices) along its edge y = 0, as Rhino exports leave
+    them.
 
-    The square is a pentagon with a vertex at the middle of that edge; the triangle (corner, middle, corner) closes the edge again.
+    The square is a pentagon with a vertex at the middle of that edge; the triangle (corner, middle, corner) closes the
+    edge again.
     """
     h = size / 2
     vertices = [[0, 0, 0], [size, 0, 0], [size, size, 0], [0, size, 0], [h, 0, 0]]
@@ -88,21 +92,24 @@ def flat_tile_with_zero_area_face(size=0.1):
 
 
 def v_groove_tile(period=0.04, width=0.05):
-    """One period of ``z = |x − period/2|`` as two quads along x, ``width`` deep in y: a 90° groove, ridges at the tile edges at z = period/2."""
+    """One period of ``z = |x − period/2|`` as two quads along x, ``width`` deep in y: a 90° groove, ridges at the tile
+    edges at z = period/2."""
     h = period / 2
     vertices = [[0, 0, h], [h, 0, 0], [period, 0, h], [0, width, h], [h, width, 0], [period, width, h]]
     return Mesh.from_vertices_and_faces(vertices, [[0, 1, 4, 3], [1, 2, 5, 4]])
 
 
 def sawtooth_tile(period=0.05, slope_deg=20.0, width=0.05):
-    """One period of a sawtooth: a slanted quad rising ``period·tan(slope)`` over x in [0, period], and a vertical riser back down at x = period."""
+    """One period of a sawtooth: a slanted quad rising ``period·tan(slope)`` over x in [0, period], and a vertical riser
+    back down at x = period."""
     rise = period * np.tan(np.radians(slope_deg))
     vertices = [[0, 0, 0], [period, 0, rise], [period, width, rise], [0, width, 0], [period, 0, 0], [period, width, 0]]
     return Mesh.from_vertices_and_faces(vertices, [[0, 1, 2, 3], [1, 4, 5, 2]])
 
 
 def overhanging_strip():
-    """A profile extruded 0.2 m along y that leans back over itself near x = 0.2: an overhang, so its rim folds back in plan."""
+    """A profile extruded 0.2 m along y that leans back over itself near x = 0.2: an overhang, so its rim folds back in
+    plan."""
     profile = [(0.0, 0.0), (0.1, 0.02), (0.2, 0.04), (0.19, 0.1), (0.18, 0.15), (0.3, 0.16), (0.4, 0.16)]
     n = len(profile) - 1
     vertices = [[x, y, z] for y in (0.0, 0.2) for x, z in profile]

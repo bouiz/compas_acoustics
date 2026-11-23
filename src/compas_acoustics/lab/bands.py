@@ -86,7 +86,8 @@ def _nearest_octave(f, octaves):
 def fold_to_octaves(values, nominal):
     """Mean of the one-third-octave values inside each octave (ISO 354 §8.3, ISO 11654).
 
-    Each band belongs to the octave whose nominal centre is nearest on a log scale (125 <- 100, 125, 160; ...; 8000 <- 6300, 8000, 10000).
+    Each band belongs to the octave whose nominal centre is nearest on a log scale (125 <- 100, 125, 160; ...; 8000 <-
+    6300, 8000, 10000).
 
     Parameters
     ----------
@@ -121,7 +122,8 @@ def fill_octaves(octaves, values):
     Returns
     -------
     tuple
-        ``(filled, pairs)``: values on the 7 octaves of ``Defaults.DEFAULT_FREQUENCY_BANDS`` and the ``(filled, source)`` pairs.
+        ``(filled, pairs)``: values on the 7 octaves of ``Defaults.DEFAULT_FREQUENCY_BANDS`` and the ``(filled,
+        source)`` pairs.
     """
     values = np.asarray(values, dtype=float)
     index = {o: k for k, o in enumerate(octaves)}

@@ -233,7 +233,8 @@ def test_numcalc_runner_launches_fast_and_up_to_a_nearly_full_cpu(tmp_path, monk
 
 
 def test_sofa_with_string_variables_round_trips(tmp_path):
-    # netCDF4 1.7.4 and later fail on sofar's stringtochar(..., encoding="utf-8"): the BEM results could not be written (2026-10-26)
+    # netCDF4 1.7.4 and later fail on sofar's stringtochar(..., encoding="utf-8"): the BEM results could not be written
+    # (2026-10-26)
     sofar = pytest.importorskip("sofar")
     path = str(tmp_path / "tf.sofa")
     sofa = sofar.Sofa("GeneralTF")

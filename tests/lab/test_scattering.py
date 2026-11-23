@@ -112,7 +112,8 @@ def test_result_round_trips_through_json():
 
 
 class UnconvergedSolver(FakeSolver):
-    """Reports unconverged steps as BemSolver does: at 100·2^(-1/9) Hz (the 125 Hz octave) and at 630 Hz (the 500 Hz octave)."""
+    """Reports unconverged steps as BemSolver does: at 100·2^(-1/9) Hz (the 125 Hz octave) and at 630 Hz (the 500 Hz
+    octave)."""
 
     def solve(self, sample, sources, receivers, frequencies, c):
         p = super().solve(sample, sources, receivers, frequencies, c)
@@ -189,7 +190,8 @@ def test_the_correlation_methods_return_d(monkeypatch):
     assert same.d_angle.shape == same.s_angle.shape and len(same.d_bands) == len(same.bands) and len(same.d_octaves) == len(same.octave_bands)
     sine = measure_scattering(ScatteringSample.disc(sine_tile(0.0708, 0.0204), diameter=0.4), method="kirchhoff", preset="survey", band_range=(2000, 4000))
     assert np.isfinite(sine.d_angle).all()
-    # measured 2026-10-24: d_octaves 0.0093 (2 kHz), 0.0175 (4 kHz); d_n may be negative in general (a sample less uniform than its reference)
+    # measured 2026-10-24: d_octaves 0.0093 (2 kHz), 0.0175 (4 kHz); d_n may be negative in general (a sample less
+    # uniform than its reference)
     assert all(0.0 <= d <= 1.0 for d in sine.d_octaves) and max(sine.d_octaves) > 0.0
 
 
@@ -264,12 +266,14 @@ def test_geometric_with_a_proxy_marks_the_result(monkeypatch):
     monkeypatch.setattr(scattering, "geometric_response", spy_response)
     monkeypatch.setattr(scattering, "heuristic_s", spy_heuristic)
     body = ScatteringSample.disc(sawtooth_tile(), 0.4).sample
-    # max_bounces=1: the rays that need a second reflection (the riser, the baffle beyond the rim) are lost, by both bodies alike
+    # max_bounces=1: the rays that need a second reflection (the riser, the baffle beyond the rim) are lost, by both
+    # bodies alike
     r = measure_scattering(ScatteringSample.as_drawn(body, reference=body), method="geometric", preset="survey", n_rays=2000, max_bounces=1)
     assert any("proxy" in w for w in r.warnings) and r.generation["reference"] == "proxy"
     lost = seen["response"].lost_sample
     assert lost.max() > 0.01 and np.array_equal(lost, seen["response"].lost_reference)  # not vacuous: rays are lost
-    # a body against itself: what is lost is lost in both and cancels in s_max itself (the depth is 0, so s(f) is 0 whatever s_max is)
+    # a body against itself: what is lost is lost in both and cancels in s_max itself (the depth is 0, so s(f) is 0
+    # whatever s_max is)
     assert np.abs(seen["s_max"]).max() < 1e-12
     assert np.allclose(r.s_octaves, 0.0, atol=1e-9)
 
@@ -279,7 +283,8 @@ def test_geometric_sawtooth_warns_about_no_lost_rays():
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         r = measure_scattering(ScatteringSample.disc(sawtooth_tile(), 0.4), method="geometric", preset="standard", n_rays=5000)
-    # measured 2026-10-24 at 5000 rays: at most 0.0002 of a source's rays lost (0.011 before horizontal exits were binned)
+    # measured 2026-10-24 at 5000 rays: at most 0.0002 of a source's rays lost (0.011 before horizontal exits were
+    # binned)
     assert r.generation["lost"] < 0.002
     assert not any("lost" in w for w in r.warnings) and not any("lost" in str(w.message) for w in caught)
 
@@ -302,7 +307,8 @@ def test_geometric_rejects_an_unknown_option():
 
 def test_geometric_mounted_box_scatters_at_high_frequency():
     pytest.importorskip("embreex")
-    # a box of uniform height: before the depth took the mean height difference, h was 0 and s was 0 in every octave although s_max is 0.27-0.94
+    # a box of uniform height: before the depth took the mean height difference, h was 0 and s was 0 in every octave
+    # although s_max is 0.27-0.94
     r = measure_scattering(ScatteringSample.as_drawn(bumped_box(size=1.0, thickness=0.5, bump=0.0)), method="geometric", preset="survey", n_rays=5000)
     assert r.generation["depth"] == pytest.approx(0.49, abs=1e-9)
     assert r.s_octaves[-1] > 0.3 and not any("too shallow" in w for w in r.warnings)
@@ -310,7 +316,8 @@ def test_geometric_mounted_box_scatters_at_high_frequency():
 
 def test_geometric_warns_when_the_depth_curve_hides_the_scattering():
     pytest.importorskip("embreex")
-    # the sawtooth (h = 0.0105 m, mean s_max about 1) up to 1 kHz only: the depth curve at the top band is 1 - exp(-(k h)^2) = 0.04
+    # the sawtooth (h = 0.0105 m, mean s_max about 1) up to 1 kHz only: the depth curve at the top band is 1 - exp(-(k
+    # h)^2) = 0.04
     with pytest.warns(UserWarning, match="too shallow"):
         r = measure_scattering(ScatteringSample.disc(sawtooth_tile(), 0.4), method="geometric", preset="survey", band_range=(100, 1000), n_rays=2000)
     message = next(w for w in r.warnings if "too shallow" in w)

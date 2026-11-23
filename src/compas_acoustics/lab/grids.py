@@ -34,8 +34,9 @@ class SourceGrid(object):
     -----
     Presets: ``survey`` is ISO 17497-2 Table 1 (colatitude 0, 30 and 60 degrees, azimuth step 60 degrees, 13 sources),
     and ``standard`` uses colatitudes 0..80 degrees in 10 degree steps with a 30 degree azimuth step (97 sources).
-    The Paris weights (Kuttruff, *Room Acoustics*) of a ring are ``(sin^2(theta_hi) - sin^2(theta_lo)) / n_azimuth``, with ring
-    bounds at the midpoints between consecutive colatitudes, 0 degrees below the first ring and 90 degrees above the last.
+    The Paris weights (Kuttruff, *Room Acoustics*) of a ring are ``(sin^2(theta_hi) - sin^2(theta_lo)) / n_azimuth``,
+    with ring bounds at the midpoints between consecutive colatitudes, 0 degrees below the first ring and 90 degrees
+    above the last.
     """
 
     def __init__(self, colatitude, azimuth):
@@ -117,8 +118,9 @@ class ReceiverGrid(object):
     def hemisphere(cls, spacing_deg, radius):
         """Receivers on the upper hemisphere, nominally ``spacing_deg`` apart (ISO 17497-2 section 6.2.2).
 
-        A Fibonacci (golden-angle) spiral of ``ceil(2 pi / spacing^2)`` points; the weights are the areas of the spherical
-        Voronoi cells of the points together with their mirror images in z = 0, which keeps the tiling symmetric.
+        A Fibonacci (golden-angle) spiral of ``ceil(2 pi / spacing^2)`` points; the weights are the areas of the
+        spherical Voronoi cells of the points together with their mirror images in z = 0, which keeps the tiling
+        symmetric.
         """
         delta = math.radians(spacing_deg)
         n = int(math.ceil(2.0 * math.pi / delta**2))
@@ -137,7 +139,8 @@ class ReceiverGrid(object):
 
 
 def receiver_spacing(diameter, f_max, c):
-    """Receiver spacing in degrees: ``min(5, 50 * lambda_min / d)`` (ISO 17497-2 section 6.2.2, Embrechts eq. 6, Heimes eq. 6).
+    """Receiver spacing in degrees: ``min(5, 50 * lambda_min / d)`` (ISO 17497-2 section 6.2.2, Embrechts eq. 6, Heimes
+    eq. 6).
 
     Parameters
     ----------

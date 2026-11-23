@@ -1,28 +1,35 @@
-"""Validation of the BEM solver against Heimes & Vorländer's simulated sine surface, and the Kirchhoff solver's measured gap to BEM.
+"""Validation of the BEM solver against Heimes & Vorländer's simulated sine surface, and the Kirchhoff solver's measured
+gap to BEM.
 
-Reference data: Heimes, A., Vorländer, M. (2025), results of the "optimal" simulation, Zenodo 15673498, ``results_simulation_optimal.zip``
-(CC BY 4.0). Download and extract it outside the repository and set ``HEIMES_RESULTS`` to the extracted folder, the one that holds
-``sine.scattering.sofa`` (s per incidence angle, from their ``1.4_calc_scattering_from_s_d.py``) and ``sine.scattering_rand.sofa``
-(random incidence, ``1.5_random_scattering.py``). Without it every test here is skipped.
+Reference data: Heimes, A., Vorländer, M. (2025), results of the "optimal" simulation, Zenodo 15673498,
+``results_simulation_optimal.zip`` (CC BY 4.0). Download and extract it outside the repository and set
+``HEIMES_RESULTS`` to the extracted folder, the one that holds ``sine.scattering.sofa`` (s per incidence angle, from
+their ``1.4_calc_scattering_from_s_d.py``) and ``sine.scattering_rand.sofa`` (random incidence,
+``1.5_random_scattering.py``). Without it every test here is skipped.
 
-The sample (their ``0.1_simulate_optimal.py``): a sine relief with period Λ = 80 mm across x (grooves along y), n = 10 periods on a disc of
-d = 0.8 m, depth h = 0.051/2.5 m, a 10 mm baseplate, c = 346.18 m/s. Their sources are plane waves at azimuth 0, the incidence plane across
-the grooves, at colatitudes 1.26° + k·2.52°. Their s comes at 1/9-octave steps of Λ/λ; it is interpolated (linear in log f) onto our three
-frequencies per one-third-octave band and averaged as ours are (Heimes eq. 11), so both sides are compared on the same bands of
-``EXTENDED_BAND_RANGE``. Λ/λ = 0.5…2 is 2.2…8.7 kHz for this sample. The paper's one-third-octave agreement is |Δs| ≲ 0.1 for
-Λ/λ ≥ 0.5; |Δs| is compared at the 0.01 resolution at which ISO 17497-1 §8.3 presents s, i.e. rounded to 0.01 before the check against 0.1.
+The sample (their ``0.1_simulate_optimal.py``): a sine relief with period Λ = 80 mm across x (grooves along y), n = 10
+periods on a disc of d = 0.8 m, depth h = 0.051/2.5 m, a 10 mm baseplate, c = 346.18 m/s. Their sources are plane waves
+at azimuth 0, the incidence plane across the grooves, at colatitudes 1.26° + k·2.52°. Their s comes at 1/9-octave steps
+of Λ/λ; it is interpolated (linear in log f) onto our three frequencies per one-third-octave band and averaged as ours
+are (Heimes eq. 11), so both sides are compared on the same bands of ``EXTENDED_BAND_RANGE``. Λ/λ = 0.5…2 is 2.2…8.7 kHz
+for this sample. The paper's one-third-octave agreement is |Δs| ≲
+0.1 for Λ/λ ≥ 0.5; |Δs| is compared at the 0.01 resolution at which ISO 17497-1 §8.3 presents s, i.e. rounded to 0.01
+before the check against 0.1.
 
-``HEIMES_BEM_CACHE`` (optional) is the BEM cache folder; the per-angle tests and the gap test share it, so the BEM runs once per angle.
+``HEIMES_BEM_CACHE`` (optional) is the BEM cache folder; the per-angle tests and the gap test share it, so the BEM runs
+once per angle.
 
 Commands (the BEM cost per frequency is in docs/superpowers/plans/2026-10-23-coefficient-lab-v1-a-spike-findings.md):
 
 - per angle and the Kirchhoff gap (two single-source BEM runs, about 3 h on a 14-core M-series Mac)::
 
-    HEIMES_RESULTS=<folder> HEIMES_BEM_CACHE=<cache> python -m pytest tests/lab/test_validation_heimes.py -v -s -k "per_angle or gap"
+    HEIMES_RESULTS=<folder> HEIMES_BEM_CACHE=<cache> python -m pytest tests/lab/test_validation_heimes.py -v -s -k
+    "per_angle or gap"
 
 - random incidence (97 sources x 60 frequencies x 2 bodies, overnight and longer)::
 
-    HEIMES_RESULTS=<folder> HEIMES_BEM_CACHE=<cache> python -m pytest tests/lab/test_validation_heimes.py -v -s -k random_incidence
+    HEIMES_RESULTS=<folder> HEIMES_BEM_CACHE=<cache> python -m pytest tests/lab/test_validation_heimes.py -v -s -k
+    random_incidence
 """
 
 import functools
@@ -85,8 +92,8 @@ def _read(name):
 def _onto_bands(frequencies, s):
     """Values at Heimes's frequencies -> {Λ/λ of the band centre: band value} on our bands.
 
-    Interpolated linearly in log f at our three frequencies per band and averaged (Heimes eq. 11), for the bands whose three frequencies
-    lie within the data.
+    Interpolated linearly in log f at our three frequencies per band and averaged (Heimes eq. 11), for the bands whose
+    three frequencies lie within the data.
     """
     frequencies = np.asarray(frequencies, dtype=float)
     s = np.asarray(s, dtype=float)
@@ -104,7 +111,8 @@ def _by_ratio(values):
 
 
 def heimes_scattering(theta):
-    """Heimes's s for the source at colatitude ``theta`` (degrees, azimuth 0), from ``sine.scattering.sofa``: {Λ/λ: s} on our bands."""
+    """Heimes's s for the source at colatitude ``theta`` (degrees, azimuth 0), from ``sine.scattering.sofa``: {Λ/λ: s}
+    on our bands."""
     data, sources = _read("sine.scattering.sofa")
     colatitude = np.degrees(sources.colatitude)
     i = int(np.argmin(np.abs(colatitude - theta)))
@@ -120,7 +128,8 @@ def heimes_scattering_random():
 
 @functools.lru_cache(maxsize=None)
 def heimes_sample():
-    """The sine sample of Heimes's ``0.1_simulate_optimal.py``: Λ = 80 mm across x, h = 0.051/2.5 m, d = 0.8 m, 10 mm baseplate."""
+    """The sine sample of Heimes's ``0.1_simulate_optimal.py``: Λ = 80 mm across x, h = 0.051/2.5 m, d = 0.8 m, 10 mm
+    baseplate."""
     return ScatteringSample.disc(sine_tile(LAMBDA, DEPTH), diameter=DIAMETER, feature_size=LAMBDA)
 
 
@@ -155,16 +164,18 @@ def bem_sine_s_angle(theta):
 
 
 def bem_sine_s_random():
-    """Our BEM random-incidence s, ``measure_scattering(method="bem", preset="standard")`` at c = 346.18 m/s: {Λ/λ: s_rand}."""
+    """Our BEM random-incidence s, ``measure_scattering(method="bem", preset="standard")`` at c = 346.18 m/s: {Λ/λ:
+    s_rand}."""
     result = measure_scattering(heimes_sample(), method="bem", preset="standard", band_range=BAND_RANGE, air=_AIR, **_bem_options())
     return _by_ratio(result.s_bands)
 
 
 def kirchhoff_vs_bem_gap(preset=None):
-    """max over the sources of |s_kirchhoff − s_bem| per octave (the octave value: the mean of its one-third-octave bands).
+    """max over the sources of |s_kirchhoff − s_bem| per octave (the octave value: the mean of its one-third-octave
+    bands).
 
-    With ``preset=None`` the sources are the single sources at ``ANGLES`` (azimuth 0) that the per-angle tests run, so the BEM is reused;
-    with a preset name both methods run on that source grid.
+    With ``preset=None`` the sources are the single sources at ``ANGLES`` (azimuth 0) that the per-angle tests run, so
+    the BEM is reused; with a preset name both methods run on that source grid.
 
     Returns
     -------

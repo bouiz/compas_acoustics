@@ -95,12 +95,14 @@ def _user_warnings():
 
 
 def _template(text):
-    """A pattern that matches the messages the format template ``text`` makes: each replacement field matches any text."""
+    """A pattern that matches the messages the format template ``text`` makes: each replacement field matches any
+    text."""
     return re.compile(re.sub(r"\\\{[^{}]*?\\\}", ".+?", re.escape(text)) + r"\Z", re.DOTALL)
 
 
 def _split_notes(messages, notes, dropped=()):
-    """``messages`` as ``(warnings, notes)``: those that one of the format templates ``notes`` makes are the notes; those of ``dropped`` go."""
+    """``messages`` as ``(warnings, notes)``: those that one of the format templates ``notes`` makes are the notes;
+    those of ``dropped`` go."""
 
     def made_by(message, templates):
         return any(_template(t).match(message) for t in templates)
@@ -520,8 +522,8 @@ BALLOON_BODIES = ["sample", "reference"]
 def make_scattering_sample(mesh, mode="as_drawn", diameter=None, reference=None, baseplate=0.01, symmetry="none", period=None, name=None, frame=None):
     """A :class:`ScatteringSample` of a relief, as the Scattering Sample component makes it.
 
-    The lab measures a relief that lies on the world XY plane, its mounting surface at z = 0 and the sound coming from +z; give ``frame``
-    for an object that lies elsewhere.
+    The lab measures a relief that lies on the world XY plane, its mounting surface at z = 0 and the sound coming from
+    +z; give ``frame`` for an object that lies elsewhere.
 
     Parameters
     ----------
@@ -541,9 +543,9 @@ def make_scattering_sample(mesh, mode="as_drawn", diameter=None, reference=None,
         The tile period (x, y) in m of the ``'disc'`` mode; the tile's bounding box when None or empty.
     name : str, optional
     frame : :class:`compas.geometry.Frame`, optional
-        The mounting plane of the object: its origin on the mounting surface and its Z axis pointing out into the room, where the sound
-        comes from. ``mesh`` and ``reference`` are moved from it to the world XY plane before anything else. None when the object lies
-        on the world XY plane facing +z.
+        The mounting plane of the object: its origin on the mounting surface and its Z axis pointing out into the room,
+        where the sound comes from. ``mesh`` and ``reference`` are moved from it to the world XY plane before anything
+        else. None when the object lies on the world XY plane facing +z.
 
     Returns
     -------
@@ -552,8 +554,8 @@ def make_scattering_sample(mesh, mode="as_drawn", diameter=None, reference=None,
     Raises
     ------
     ValueError
-        For an unknown mode, a disc without a diameter, a ``period`` that is not 2 numbers, a ``frame`` that is not a frame, or an object
-        whose footprint on the XY plane has no area.
+        For an unknown mode, a disc without a diameter, a ``period`` that is not 2 numbers, a ``frame`` that is not a
+        frame, or an object whose footprint on the XY plane has no area.
     """
     from compas.geometry import Frame
     from compas.geometry import Transformation
@@ -588,7 +590,8 @@ def make_scattering_sample(mesh, mode="as_drawn", diameter=None, reference=None,
 
 
 def run_scattering_lab(sample, method="geometric", preset=None, band_range="iso", settings=None):
-    """Measure the scattering of ``sample`` with :func:`compas_acoustics.lab.measure_scattering`, as the Scattering Lab component does.
+    """Measure the scattering of ``sample`` with :func:`compas_acoustics.lab.measure_scattering`, as the Scattering Lab
+    component does.
 
     Parameters
     ----------
@@ -605,17 +608,18 @@ def run_scattering_lab(sample, method="geometric", preset=None, band_range="iso"
     Returns
     -------
     dict
-        ``{"result": ScatteringResult, "scattering_coefficients": [7 floats], "octave_bands": [int], "warnings": [str], "notes": [str]}``:
-        the coefficients on the material's 7 octaves 125 to 8000 Hz, and the octaves that were simulated. ``notes`` holds what states
-        what the run is and flags no fault (the geometric method's heuristic, the octaves not simulated, bands beyond ISO 17497, Kirchhoff
-        falling back to one process); ``warnings`` holds the rest. Neither holds the sample's own warnings (the Scattering Sample shows
-        them) nor how long the run takes, which is news only before it.
+        ``{"result": ScatteringResult, "scattering_coefficients": [7 floats], "octave_bands": [int], "warnings": [str],
+        "notes": [str]}``: the coefficients on the material's 7 octaves 125 to 8000 Hz, and the octaves that were
+        simulated. ``notes`` holds what states what the run is and flags no fault (the geometric method's heuristic, the
+        octaves not simulated, bands beyond ISO 17497, Kirchhoff falling back to one process); ``warnings`` holds the
+        rest. Neither holds the sample's own warnings (the Scattering Sample shows them) nor how long the run takes,
+        which is news only before it.
 
     Raises
     ------
     ValueError
-        For an unknown ``band_range``, or a lab that cannot run here (the geometric method without trimesh and embreex: the message
-        names ``method="kirchhoff"``, which needs neither).
+        For an unknown ``band_range``, or a lab that cannot run here (the geometric method without trimesh and embreex:
+        the message names ``method="kirchhoff"``, which needs neither).
     """
     from compas_acoustics.lab import EXTENDED_BAND_RANGE
     from compas_acoustics.lab import ISO_BAND_RANGE
@@ -643,8 +647,8 @@ def run_scattering_lab(sample, method="geometric", preset=None, band_range="iso"
     return {"result": result, "scattering_coefficients": result.scattering_coefficients, "octave_bands": list(result.octave_bands), "warnings": messages, "notes": notes}
 
 
-#: The start of the error of a call that names a result by its guid when the worker does not hold it (it restarted, or let it go to
-#: stay within _HELD_BYTES): the caller sends the result itself instead
+#: The start of the error of a call that names a result by its guid when the worker does not hold it (it restarted, or
+#: let it go to stay within _HELD_BYTES): the caller sends the result itself instead
 NOT_HELD = "result not held:"
 _HELD_BYTES = 1024 * 2**20  # the polar levels the held results may take in all; the newest result is held whatever its size
 _held = OrderedDict()  # guid -> ScatteringResult, the least recently used first
@@ -656,7 +660,8 @@ def _polar_bytes(result):
 
 
 def _hold(result):
-    """Keep ``result`` by its guid, so that Polar Preview can name it instead of sending it again; let the least recently used go."""
+    """Keep ``result`` by its guid, so that Polar Preview can name it instead of sending it again; let the least
+    recently used go."""
     with _held_lock:
         _held[str(result.guid)] = result
         _held.move_to_end(str(result.guid))
@@ -665,7 +670,8 @@ def _hold(result):
 
 
 def _the_result(result):
-    """``result`` itself, or the held result its guid names; ``ValueError`` starting with :data:`NOT_HELD` when that is not held."""
+    """``result`` itself, or the held result its guid names; ``ValueError`` starting with :data:`NOT_HELD` when that is
+    not held."""
     if not isinstance(result, str):
         _hold(result)
         return result
@@ -684,14 +690,15 @@ def polar_balloon(result, preview=0, octave=1000, body="sample", radius=1.0, flo
 
     Each receiver direction is moved out to ``radius * (r_min + (1 - r_min) * clip(1 - level / floor_db, 0, 1))`` with
     ``r_min = 0.03``: the level 0 dB, the maximum of the flat reference, at ``radius``, a level of ``floor_db`` or below
-    (the empty cells of a sparse geometric result are at -300 dB) at ``r_min * radius``, and linear in between. The radius never
-    reaches 0, so that no two vertices coincide and the mesh stays valid.
+    (the empty cells of a sparse geometric result are at -300 dB) at ``r_min * radius``, and linear in between. The
+    radius never reaches 0, so that no two vertices coincide and the mesh stays valid.
 
     Parameters
     ----------
     result : :class:`compas_acoustics.lab.ScatteringResult` or str
-        The result, or the guid of one the worker holds: one :func:`run_scattering_lab` made or a call was given. A guid the worker
-        does not hold is a ``ValueError`` starting with :data:`NOT_HELD`, and the caller sends the result itself.
+        The result, or the guid of one the worker holds: one :func:`run_scattering_lab` made or a call was given. A guid
+        the worker does not hold is a ``ValueError`` starting with :data:`NOT_HELD`, and the caller sends the result
+        itself.
     preview : int
         The index into ``result.polar_source_indices``.
     octave : int
@@ -706,14 +713,14 @@ def polar_balloon(result, preview=0, octave=1000, body="sample", radius=1.0, flo
     Returns
     -------
     dict
-        ``{"mesh": Mesh, "levels": [dB per vertex], "source": [x, y, z], "label": str}``: ``source`` is the unit vector towards the preview
-        source times ``1.2 * radius``.
+        ``{"mesh": Mesh, "levels": [dB per vertex], "source": [x, y, z], "label": str}``: ``source`` is the unit vector
+        towards the preview source times ``1.2 * radius``.
 
     Raises
     ------
     ValueError
-        For a ``preview``, ``octave`` or ``body`` the result does not have (the message lists the valid values), or a ``floor_db`` that
-        is not negative.
+        For a ``preview``, ``octave`` or ``body`` the result does not have (the message lists the valid values), or a
+        ``floor_db`` that is not negative.
     """
     import numpy as np
     from compas.datastructures import Mesh

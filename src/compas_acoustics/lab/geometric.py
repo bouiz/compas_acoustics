@@ -1,26 +1,31 @@
 """The geometric scattering engine: specular rays off the rigid sample and reference, binned on the receiver hemisphere.
 
-Per source direction, parallel rays aimed at uniformly random points of the reference's footprint are reflected specularly off the rigid
-sample and, with the same rays, off the rigid reference (the flat footprint or a proxy), and leave upward into one cell of a receiver
-hemisphere grid. Every ray is either binned or counted as lost, and the two are counted separately. There is no phase and no
-diffraction: the rim and any wave effect are ignored, and the frequency dependence is not computed but imposed afterwards by
-:func:`heuristic_s`, in the form of ``AcousticMaterial.scattering_coefficients_from_depth``, from the depth of the relief: ``h = max(2 σ, |mean|)``
-of the height difference between the sample and the reference over the footprint, so a relief gets twice its standard deviation and an object of
-uniform height over its footprint (a box, a cylinder, a flat-topped panel) its height.
+Per source direction, parallel rays aimed at uniformly random points of the reference's footprint are reflected
+specularly off the rigid sample and, with the same rays, off the rigid reference (the flat footprint or a proxy), and
+leave upward into one cell of a receiver hemisphere grid. Every ray is either binned or counted as lost, and the two are
+counted separately. There is no phase and no diffraction: the rim and any wave effect are ignored, and the frequency
+dependence is not computed but imposed afterwards by
+:func:`heuristic_s`, in the form of ``AcousticMaterial.scattering_coefficients_from_depth``, from the depth of the
+relief: ``h = max(2 σ, |mean|)`` of the height difference between the sample and the reference over the footprint, so a
+relief gets twice its standard deviation and an object of uniform height over its footprint (a box, a cylinder, a
+flat-topped panel) its height.
 
-The object is treated as mounted in a rigid infinite baffle at z = 0 (the objects of the lab are mounted on a wall, floor or ceiling), outside
-its footprint: a ray travelling downward that reaches z = 0 before any face, at a point outside the footprint (the xy projection of the reference's
-flat bottom face), is reflected specularly on the plane, which counts as one bounce. Inside the footprint there is no baffle: a ray reflects off
-whatever face it meets, below z = 0 included (the bottom of a closed mesh lies below z = 0). A ray that leaves upward is binned, and so is one that
-leaves exactly along the horizon (``d_z == 0``: it grazes the baffle plane, it is not trapped), into the cell nearest its direction. A ray still
-bouncing after ``max_bounces`` is lost; so would be one leaving downward without meeting a face or the baffle, which a closed body does not let happen.
+The object is treated as mounted in a rigid infinite baffle at z = 0 (the objects of the lab are mounted on a wall,
+floor or ceiling), outside its footprint: a ray travelling downward that reaches z = 0 before any face, at a point
+outside the footprint (the xy projection of the reference's flat bottom face), is reflected specularly on the plane,
+which counts as one bounce. Inside the footprint there is no baffle: a ray reflects off whatever face it meets, below z
+= 0 included (the bottom of a closed mesh lies below z = 0). A ray that leaves upward is binned, and so is one that
+leaves exactly along the horizon (``d_z == 0``: it grazes the baffle plane, it is not trapped), into the cell nearest
+its direction. A ray still bouncing after ``max_bounces`` is lost; so would be one leaving downward without meeting a
+face or the baffle, which a closed body does not let happen.
 
 Accuracy record
 ---------------
-Against the Kirchhoff method, 2026-10-24 (``tests/lab/test_geometric_validation.py``, which prints this table). The sample is Heimes &
-Vorländer's sine relief (period 0.08 m, depth 0.051/2.5 m = 20.4 mm, disc of 0.8 m, c = 346.18 m/s), both methods with ``preset="survey"``
-and the ISO band range, the geometric one at its defaults (``n_rays=50000``, ``bin_deg=10``). The last two columns are the geometric s at
-5000 and 50000 rays per source, the Monte-Carlo spread (the seed is fixed, so this is the spread over the footprint points)::
+Against the Kirchhoff method, 2026-10-24 (``tests/lab/test_geometric_validation.py``, which prints this table). The
+sample is Heimes & Vorländer's sine relief (period 0.08 m, depth 0.051/2.5 m = 20.4 mm, disc of 0.8 m, c = 346.18 m/s),
+both methods with ``preset="survey"`` and the ISO band range, the geometric one at its defaults (``n_rays=50000``,
+``bin_deg=10``). The last two columns are the geometric s at 5000 and 50000 rays per source, the Monte-Carlo spread (the
+seed is fixed, so this is the spread over the footprint points)::
 
     octave  s_geometric  s_kirchhoff  |delta|   g(5000)  g(50000)
        125        0.001        0.002    0.001     0.001     0.001
@@ -31,25 +36,29 @@ and the ISO band range, the geometric one at its defaults (``n_rays=50000``, ``b
       4000        0.625        0.440    0.186     0.632     0.625
     max |delta| = 0.191, mean |delta| = 0.077
 
-Run time on the development machine (macOS, 8 or more cores): geometric 1.6 s, Kirchhoff 45.4 s (about 28 times as long). The ray count is not what limits the
-accuracy: 5000 rays per source change s by at most 0.007.
+Run time on the development machine (macOS, 8 or more cores): geometric 1.6 s, Kirchhoff 45.4 s (about 28 times as
+long). The ray count is not what limits the accuracy: 5000 rays per source change s by at most 0.007.
 
-What the numbers show: the heuristic follows the rise of s with frequency but sits above Kirchhoff from 500 Hz up, by 0.06 at 1 kHz and
-by about 0.19 at 2 and 4 kHz, the octaves where s is large. Below 500 Hz both are near 0. Kirchhoff itself warns that its s is unreliable
-below 4327 Hz for this sample (features of 0.08 m smaller than the wavelength), so the lower octaves are not a clean reference; at 4 kHz,
-where the features are about as large as the wavelength, the gap is the least ambiguous one, and it is an over-estimate. Open question for the owner: the
-depth of the curve is ``h = 2 σ`` of the height difference for a relief like this one (the depth is ``max(2 σ, |mean|)``; here 2 σ = 0.0142 m and
-|mean| = 0.0102 m, so the table holds for the later definition too); whether that factor, or the curve's form, should be changed is not settled by
-this one sample against one approximate method (the BEM, or Heimes's s, would be the better reference), and nothing was changed here.
+What the numbers show: the heuristic follows the rise of s with frequency but sits above Kirchhoff from 500 Hz up, by
+0.06 at 1 kHz and by about 0.19 at 2 and 4 kHz, the octaves where s is large. Below 500 Hz both are near 0. Kirchhoff
+itself warns that its s is unreliable below 4327 Hz for this sample (features of 0.08 m smaller than the wavelength), so
+the lower octaves are not a clean reference; at 4 kHz, where the features are about as large as the wavelength, the gap
+is the least ambiguous one, and it is an over-estimate. Open question for the owner: the depth of the curve is ``h = 2
+σ`` of the height difference for a relief like this one (the depth is ``max(2 σ, |mean|)``; here 2 σ = 0.0142 m and
+|mean| = 0.0102 m, so the table holds for the later definition too); whether that factor, or the curve's form, should be
+changed is not settled by this one sample against one approximate method (the BEM, or Heimes's s, would be the better
+reference), and nothing was changed here.
 
-Validity limits. The method has no phase: grating lobes, notches and phase-grating diffusers (periodic relief whose scattering is an interference effect)
-are invisible to it. It has no diffraction (the rim, edges, the
-shadow zone) and no cavity resonance, and a relief much smaller than the wavelength still gets the geometric s_max, reduced only by
-the depth curve. The frequency dependence is that curve, a heuristic, not computed. The object is taken as mounted in a rigid baffle at
-z = 0: a free-standing object is not represented. The rays are aimed only at the footprint, so for a tall object at oblique incidence the rays
-that would strike its sides from outside the footprint are not traced. Directions are binned in cells of ``bin_deg``: a facet tilted by less than about half a
-bin from the reference's reflection counts as specular, so s_max is blind to slopes below that angle. A warning is raised only
-when the lost fraction exceeds 1 % for some source (of the sample or the reference); up to 1 % goes unreported and enters s_max as one extra bin.
+Validity limits. The method has no phase: grating lobes, notches and phase-grating diffusers (periodic relief whose
+scattering is an interference effect) are invisible to it. It has no diffraction (the rim, edges, the shadow zone) and
+no cavity resonance, and a relief much smaller than the wavelength still gets the geometric s_max, reduced only by the
+depth curve. The frequency dependence is that curve, a heuristic, not computed. The object is taken as mounted in a
+rigid baffle at z = 0: a free-standing object is not represented. The rays are aimed only at the footprint, so for a
+tall object at oblique incidence the rays that would strike its sides from outside the footprint are not traced.
+Directions are binned in cells of ``bin_deg``: a facet tilted by less than about half a bin from the reference's
+reflection counts as specular, so s_max is blind to slopes below that angle. A warning is raised only when the lost
+fraction exceeds 1 % for some source (of the sample or the reference); up to 1 % goes unreported and enters s_max as one
+extra bin.
 """
 
 from dataclasses import dataclass
@@ -82,14 +91,15 @@ class GeometricResponse:
     sample, reference : :class:`numpy.ndarray`
         The fraction of the incident energy that leaves into each cell, shape (n_sources, n_bins).
     lost_sample, lost_reference : :class:`numpy.ndarray`
-        The fraction still bouncing after ``max_bounces`` (trapped in a cavity), shape (n_sources,); rays leaving along the horizon are binned.
-        It is counted separately from the cells, so ``sample.sum(axis=1) + lost_sample`` is 1 as a check.
-        Pass it on as one more bin when comparing the two (see :func:`scattering_share`).
+        The fraction still bouncing after ``max_bounces`` (trapped in a cavity), shape (n_sources,); rays leaving along
+        the horizon are binned. It is counted separately from the cells, so ``sample.sum(axis=1) + lost_sample`` is 1 as
+        a check. Pass it on as one more bin when comparing the two (see :func:`scattering_share`).
     depth : float
         ``max(2 σ, |mean|)`` of the height difference between sample and reference over the footprint, in m.
     height_mean, height_spread : float
-        The mean and the standard deviation σ of that height difference in m. A mean above ``2 σ`` with a spread above 0 means the object stands on a
-        base or backing taller than its relief (see :func:`compas_acoustics.lab.scattering.measure_scattering`).
+        The mean and the standard deviation σ of that height difference in m. A mean above ``2 σ`` with a spread above 0
+        means the object stands on a base or backing taller than its relief (see
+        :func:`compas_acoustics.lab.scattering.measure_scattering`).
     """
 
     directions: np.ndarray
@@ -106,7 +116,8 @@ class GeometricResponse:
 def scattering_share(e_sample, e_reference):
     """One minus the overlap of two energy histograms, ``1 − Σ min(a, b)`` over the last axis.
 
-    Each histogram must sum to 1, so the lost fraction of a :class:`GeometricResponse` must be included as one extra bin::
+    Each histogram must sum to 1, so the lost fraction of a :class:`GeometricResponse` must be included as one extra
+    bin::
 
         scattering_share(np.column_stack([r.sample, r.lost_sample]), np.column_stack([r.reference, r.lost_reference]))
 
@@ -152,7 +163,8 @@ def geometric_response(sample, sources, bin_deg=10.0, n_rays=50000, max_bounces=
     n_rays : int, optional
         Rays per source, at least 1; each carries ``1 / n_rays`` of the energy.
     max_bounces : int, optional
-        A ray is reflected at most this many times (on a face or on the baffle plane z = 0), at least once; one that would be reflected once more is lost.
+        A ray is reflected at most this many times (on a face or on the baffle plane z = 0), at least once; one that
+        would be reflected once more is lost.
     seed : int, optional
         Seed of the footprint points, which are the same for the sample, the reference and every source.
 
@@ -169,9 +181,10 @@ def geometric_response(sample, sources, bin_deg=10.0, n_rays=50000, max_bounces=
 
     Notes
     -----
-    The footprint points are drawn from the flat bottom face of the reference (its triangles with normal −z at z = −baseplate),
-    area-weighted, and the rays are aimed at their xy position at z = 0. A ray starts above both bodies and travels along −û.
-    The bodies are treated as mounted in a rigid baffle at z = 0 (module docstring), for the sample and the reference alike.
+    The footprint points are drawn from the flat bottom face of the reference (its triangles with normal −z at z =
+    −baseplate), area-weighted, and the rays are aimed at their xy position at z = 0. A ray starts above both bodies and
+    travels along −û. The bodies are treated as mounted in a rigid baffle at z = 0 (module docstring), for the sample
+    and the reference alike.
     """
     _check_options(bin_deg, n_rays, max_bounces)
     reference = sample.reference
@@ -203,7 +216,8 @@ def geometric_response(sample, sources, bin_deg=10.0, n_rays=50000, max_bounces=
 
 
 def _check_options(bin_deg, n_rays, max_bounces):
-    """Raise ``ValueError``, naming the option, unless ``n_rays`` and ``max_bounces`` are integers ≥ 1 and ``0 < bin_deg ≤ 90``."""
+    """Raise ``ValueError``, naming the option, unless ``n_rays`` and ``max_bounces`` are integers ≥ 1 and ``0 < bin_deg
+    ≤ 90``."""
     for name, value in (("n_rays", n_rays), ("max_bounces", max_bounces)):
         if isinstance(value, bool) or not isinstance(value, (int, np.integer)) or value < 1:
             raise ValueError("{} must be an integer of at least 1, not {!r}".format(name, value))
@@ -212,7 +226,8 @@ def _check_options(bin_deg, n_rays, max_bounces):
 
 
 def _bottom_triangles(reference, baseplate):
-    """The triangles of the reference's flat bottom face (normal −z, all vertices at z = −baseplate): corners (m, 3, 3) and twice their areas (m,)."""
+    """The triangles of the reference's flat bottom face (normal −z, all vertices at z = −baseplate): corners (m, 3, 3)
+    and twice their areas (m,)."""
     vertices, faces = reference.to_vertices_and_faces(triangulated=True)
     vertices = np.asarray(vertices, dtype=float)
     triangles = vertices[np.asarray(faces, dtype=int)]
@@ -239,10 +254,11 @@ def _launch_points(corners, twice, n_rays, seed):
 
 
 def _inside(footprint, points):
-    """Whether each of ``points`` (k, 2) lies in the footprint, the union of the triangles ``footprint`` (m, 3, 2), edges included.
+    """Whether each of ``points`` (k, 2) lies in the footprint, the union of the triangles ``footprint`` (m, 3, 2),
+    edges included.
 
-    A point is in a triangle when the three cross products of its edges with the vector to the point share a sign (orientation does not matter),
-    up to ``_EDGE`` times the footprint's size squared.
+    A point is in a triangle when the three cross products of its edges with the vector to the point share a sign
+    (orientation does not matter), up to ``_EDGE`` times the footprint's size squared.
     """
     tolerance = _EDGE * float(np.ptp(footprint.reshape(-1, 2), axis=0).max()) ** 2
     a, b, c = footprint[:, 0], footprint[:, 1], footprint[:, 2]
@@ -260,14 +276,16 @@ def _inside(footprint, points):
 
 
 def _trace(caster, footprint, origins, direction, tree, n_bins, max_bounces):
-    """Bounce the rays, all with the same first ``direction``; return the energy fraction per cell and the lost fraction.
+    """Bounce the rays, all with the same first ``direction``; return the energy fraction per cell and the lost
+    fraction.
 
-    Outside ``footprint`` (triangles (m, 3, 2) in xy) the body is mounted in a rigid baffle at z = 0: a ray travelling downward that reaches
-    z = 0 before its first face (it misses, or the face is below the plane), at a point outside the footprint, is reflected specularly on the
-    plane. That counts as a bounce, like a reflection off a face. Inside the footprint a ray reflects off the face it hits, whatever its height.
-    A ray that meets nothing more leaves: upward or along the horizon (``d_z == 0``, grazing the baffle plane) into the nearest cell. The binned
-    and the lost rays (still bouncing after ``max_bounces``, or leaving downward through a leak in the body) are counted separately, so that their
-    sum is a check.
+    Outside ``footprint`` (triangles (m, 3, 2) in xy) the body is mounted in a rigid baffle at z = 0: a ray travelling
+    downward that reaches z = 0 before its first face (it misses, or the face is below the plane), at a point outside
+    the footprint, is reflected specularly on the plane. That counts as a bounce, like a reflection off a face. Inside
+    the footprint a ray reflects off the face it hits, whatever its height. A ray that meets nothing more leaves: upward
+    or along the horizon (``d_z == 0``, grazing the baffle plane) into the nearest cell. The binned and the lost rays
+    (still bouncing after ``max_bounces``, or leaving downward through a leak in the body) are counted separately, so
+    that their sum is a check.
     """
     n_rays = len(origins)
     origins = np.array(origins)
@@ -281,7 +299,8 @@ def _trace(caster, footprint, origins, direction, tree, n_bins, max_bounces):
         triangle, point = caster.first_hits(origins, directions, exclude)
         dz = directions[:, 2]
         hit = triangle >= 0
-        # a downward ray from at or above the plane meets it before its first face if it has none or the face is below the plane
+        # a downward ray from at or above the plane meets it before its first face if it has none or the face is below
+        # the plane
         ground = (dz < 0) & (origins[:, 2] >= _BELOW) & (~hit | (point[:, 2] < _BELOW))
         if ground.any():
             g = np.flatnonzero(ground)
@@ -320,11 +339,13 @@ def _trace(caster, footprint, origins, direction, tree, n_bins, max_bounces):
 
 
 def _depth(sample_caster, reference_caster, launch, height):
-    """The depth ``h = max(2 σ, |mean|)`` of the difference z between the heights where straight-down rays from ``height`` first hit the sample and the reference.
+    """The depth ``h = max(2 σ, |mean|)`` of the difference z between the heights where straight-down rays from
+    ``height`` first hit the sample and the reference.
 
-    ``2 σ`` is the depth of a relief (``2 H / sqrt(12)`` = 0.577 H for a sawtooth of height H, 0.707 H for a sine, against a mean of 0.5 H); the mean
-    is the height of an object of uniform height over its footprint (a box, a cylinder, a flat-topped panel), whose σ is 0.
-    Returns ``(h, mean, σ)``; the mean and σ tell a relief from a base under it (the mean far above 2 σ).
+    ``2 σ`` is the depth of a relief (``2 H / sqrt(12)`` = 0.577 H for a sawtooth of height H, 0.707 H for a sine,
+    against a mean of 0.5 H); the mean is the height of an object of uniform height over its footprint (a box, a
+    cylinder, a flat-topped panel), whose σ is 0. Returns ``(h, mean, σ)``; the mean and σ tell a relief from a base
+    under it (the mean far above 2 σ).
     """
     start = launch + [0.0, 0.0, height]
     down = np.tile([0.0, 0.0, -1.0], (len(launch), 1))

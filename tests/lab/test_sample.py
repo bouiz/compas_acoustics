@@ -194,7 +194,8 @@ def _square_patch(size=1.0, n=4):
 
 
 def _box_with_a_pointed_bottom():
-    """A closed unit-square body from a point at (0.5, 0.5, 0) up to a flat top at z = 0.5: its lowest point is a vertex, it has no flat bottom."""
+    """A closed unit-square body from a point at (0.5, 0.5, 0) up to a flat top at z = 0.5: its lowest point is a
+    vertex, it has no flat bottom."""
     V = [[0, 0, 0.1], [1, 0, 0.1], [1, 1, 0.1], [0, 1, 0.1], [0, 0, 0.5], [1, 0, 0.5], [1, 1, 0.5], [0, 1, 0.5], [0.5, 0.5, 0.0]]
     F = [[4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7], [1, 0, 8], [2, 1, 8], [3, 2, 8], [0, 3, 8]]
     return Mesh.from_vertices_and_faces(V, F)
@@ -209,7 +210,8 @@ def _lifted(mesh, dz):
 @pytest.mark.parametrize(
     "relief, proxy, match",
     [
-        # the same bounding box, another footprint: a flat square over a flat disc (20 % of the rays fell through the square's corners)
+        # the same bounding box, another footprint: a flat square over a flat disc (20 % of the rays fell through the
+        # square's corners)
         (_polar_disc_patch, _square_patch, "footprint"),
         # a closed proxy floating 0.1 m above the sample's lowest point
         (lambda: bumped_box(size=1.0, thickness=0.5, bump=0.0), lambda: _lifted(bumped_box(size=1.0, thickness=0.3, bump=0.0), 0.1), "floor"),
@@ -233,7 +235,8 @@ def test_a_proxy_of_the_same_footprint_is_accepted():
 
 
 def _polygon(n, radius=0.5, z=0.0):
-    """A flat n-gon face of the given circumradius at height z, a vertex at angle 0 (and, for n divisible by 4, at every right angle)."""
+    """A flat n-gon face of the given circumradius at height z, a vertex at angle 0 (and, for n divisible by 4, at every
+    right angle)."""
     angles = 2 * np.pi * np.arange(n) / n
     vertices = [[radius * np.cos(a), radius * np.sin(a), z] for a in angles]
     return Mesh.from_vertices_and_faces(vertices, [list(range(n))])
@@ -258,7 +261,8 @@ def test_a_relief_that_overhangs_at_its_rim_is_refused_with_where_it_folds_back(
 
 
 def test_the_starts_of_the_sample_notes_are_those_scattering_sample_shows_as_remarks():
-    # LabResults.SampleNoteStarts (the Grasshopper plugin) shows the sample's warnings that start so as Remarks: keep the two in step
+    # LabResults.SampleNoteStarts (the Grasshopper plugin) shows the sample's warnings that start so as Remarks: keep
+    # the two in step
     from compas_acoustics.lab.sample import _PROXY_WARNING
     from compas_acoustics.lab.sample import _warnings
 

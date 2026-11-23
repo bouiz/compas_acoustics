@@ -11,7 +11,8 @@ __all__ = ["Pressures", "ScatteringSolver"]
 
 @dataclass
 class Pressures:
-    """Free-field pressures of a sample and its flat reference, the input of the correlation method (Mommertz 2000; Heimes & Vorländer eq. 3).
+    """Free-field pressures of a sample and its flat reference, the input of the correlation method (Mommertz 2000;
+    Heimes & Vorländer eq. 3).
 
     Parameters
     ----------
@@ -30,9 +31,11 @@ class Pressures:
 
 
 class ScatteringSolver(object):
-    """A free-field solver: plane waves from each source direction onto the sample and its reference, pressures at the receivers.
+    """A free-field solver: plane waves from each source direction onto the sample and its reference, pressures at the
+    receivers.
 
-    Directions follow the lab's convention: a source direction û points from the sample towards the source, so its plane wave travels along −û.
+    Directions follow the lab's convention: a source direction û points from the sample towards the source, so its plane
+    wave travels along −û.
     """
 
     name = None
@@ -57,5 +60,6 @@ class ScatteringSolver(object):
         raise NotImplementedError
 
     def warnings(self, sample, nominal_bands, exact_bands, c) -> List[str]:
-        """Where this solver's results are unreliable for ``sample`` over the bands (nominal and exact centres in Hz)."""
+        """Where this solver's results are unreliable for ``sample`` over the bands (nominal and exact centres in
+        Hz)."""
         return []

@@ -1,10 +1,11 @@
 """Virtual free-field scattering measurement of a sample (ISO 17497-2; Heimes & Vorländer 2025).
 
-The pipeline of :func:`measure_scattering` for the wave methods (``"kirchhoff"``, ``"bem"``): plane waves from a source grid onto the sample
-and its reference, the pressures on a receiver hemisphere, the correlation coefficient per direction and frequency (Heimes & Vorländer
-eq. 3), its mean per one-third-octave band (eq. 11), the Paris random-incidence average, and octave values (ISO 354 §8.3, ISO 11654) for the
-material. The ``"geometric"`` method replaces the pressures by specular rays binned on the hemisphere (:mod:`.geometric`) and imposes a
-heuristic frequency dependence; the averaging that follows is the same.
+The pipeline of :func:`measure_scattering` for the wave methods (``"kirchhoff"``, ``"bem"``): plane waves from a source
+grid onto the sample and its reference, the pressures on a receiver hemisphere, the correlation coefficient per
+direction and frequency (Heimes & Vorländer eq. 3), its mean per one-third-octave band (eq. 11), the Paris
+random-incidence average, and octave values (ISO 354 §8.3, ISO 11654) for the material. The ``"geometric"`` method
+replaces the pressures by specular rays binned on the hemisphere (:mod:`.geometric`) and imposes a heuristic frequency
+dependence; the averaging that follows is the same.
 """
 
 import inspect
@@ -50,10 +51,12 @@ _SLOW = "{method} takes about {time}: a smaller 'preset', bands up to 5000 Hz or
 _UNCONVERGED = "bem did not converge at {frequencies} Hz: s at {octaves} Hz is unreliable"
 _SOLVER_UNCONVERGED = "bem: NumCalc did not converge"  # the start of the BEM solver's own warning, which _UNCONVERGED replaces in a result
 _HEURISTIC = "geometric s is a heuristic, and d the same at every frequency: use kirchhoff or bem for physics"
-#: The warnings of :func:`measure_scattering` that state what the run is and flag no fault, as format templates: the worker returns
-#: them as notes (the method's heuristic, the bands beyond ISO 17497 a band range asked for, the octaves it does not simulate)
+#: The warnings of :func:`measure_scattering` that state what the run is and flag no fault, as format templates: the
+#: worker returns them as notes (the method's heuristic, the bands beyond ISO 17497 a band range asked for, the octaves
+#: it does not simulate)
 NOTE_TEMPLATES = (_HEURISTIC, _BEYOND_ISO, _FILLED, _FILLED_TOP, _FILLED_MANY)
-#: The warning of :func:`measure_scattering` that tells, before a run, how long it takes: the worker, which answers after it, leaves it out
+#: The warning of :func:`measure_scattering` that tells, before a run, how long it takes: the worker, which answers
+#: after it, leaves it out
 DURATION_TEMPLATES = (_SLOW,)
 _SHALLOW = "too shallow (h {depth:.3g} m) for the geometric heuristic, so s is about 0: use kirchhoff or bem"
 _BACKING = "h = {depth:.3g} m is mostly backing, not relief: set 'baseplate' (now {baseplate:.3g} m) to its thickness"
@@ -72,7 +75,8 @@ def _check_method(method):
 
 
 def _solver(method, **solver_options):
-    """The solver of a wave method: the one place that maps names to solvers. BEM is imported only when asked for (it needs Python ≥ 3.11)."""
+    """The solver of a wave method: the one place that maps names to solvers. BEM is imported only when asked for (it
+    needs Python ≥ 3.11)."""
     _check_method(method)
     if method == "kirchhoff":
         from .solvers import KirchhoffSolver
@@ -92,10 +96,12 @@ def _duration(seconds):
 
 
 def _polar_levels(p_sample, p_reference, nominal):
-    """Levels per source, simulated octave and receiver in dB, relative to the reference's maximum for the same source and octave.
+    """Levels per source, simulated octave and receiver in dB, relative to the reference's maximum for the same source
+    and octave.
 
-    The level of an octave is the mean of |p|² over the simulation frequencies inside it: the mean per band of its three frequencies
-    (Heimes & Vorländer eq. 11), then the mean of the bands inside the octave (ISO 354 §8.3), which is the same with three per band.
+    The level of an octave is the mean of |p|² over the simulation frequencies inside it: the mean per band of its three
+    frequencies (Heimes & Vorländer eq. 11), then the mean of the bands inside the octave (ISO 354 §8.3), which is the
+    same with three per band.
 
     Returns
     -------
@@ -110,7 +116,8 @@ def _polar_levels(p_sample, p_reference, nominal):
 
 
 def _levels_db(sample, reference):
-    """``(sample_db, reference_db)``, float32: both energies (receivers on the last axis) in dB relative to the reference's maximum, −300 dB where 0."""
+    """``(sample_db, reference_db)``, float32: both energies (receivers on the last axis) in dB relative to the
+    reference's maximum, −300 dB where 0."""
     peak = reference.max(axis=-1, keepdims=True)
     peak = np.where(peak > 0, peak, 1.0)
     out = []
@@ -122,12 +129,14 @@ def _levels_db(sample, reference):
 
 
 def _diffusion(intensity_sample, intensity_reference, weights):
-    """The normalised diffusion ``d_n`` of the sample against the reference, from intensities with the receivers on axis 1."""
+    """The normalised diffusion ``d_n`` of the sample against the reference, from intensities with the receivers on axis
+    1."""
     return normalised_diffusion(diffusion_coefficient(intensity_sample, weights), diffusion_coefficient(intensity_reference, weights))
 
 
 def _filled(pairs):
-    """One warning for the octaves filled from a simulated one (``fill_octaves``' ``(filled, source)`` pairs); None if none were filled."""
+    """One warning for the octaves filled from a simulated one (``fill_octaves``' ``(filled, source)`` pairs); None if
+    none were filled."""
     if not pairs:
         return None
     if len(pairs) == 1:
@@ -137,7 +146,8 @@ def _filled(pairs):
 
 
 def _unconverged(entries, exact, nominal):
-    """The result warning and the octaves (Hz) of the unconverged BEM steps in ``generation["unconverged"]``; ``(None, [])`` if none."""
+    """The result warning and the octaves (Hz) of the unconverged BEM steps in ``generation["unconverged"]``; ``(None,
+    [])`` if none."""
     if not entries:
         return None, []
     frequencies = sorted({float(u["frequency"]) for u in entries})
@@ -178,7 +188,8 @@ class _Measured:
 
 
 def _correlation(sample, method, sources, preview, band_range, nominal, exact, c, solver_options):
-    """A wave method: the solver's pressures on the receiver hemisphere, reduced source by source to s (eq. 3) and d per frequency."""
+    """A wave method: the solver's pressures on the receiver hemisphere, reduced source by source to s (eq. 3) and d per
+    frequency."""
     frequencies = simulation_frequencies(band_range)
     receivers = ReceiverGrid.hemisphere(receiver_spacing(sample.diameter, frequencies.max(), c), radius=10.0 * sample.diameter)
 
@@ -248,7 +259,8 @@ def _correlation(sample, method, sources, preview, band_range, nominal, exact, c
 
 
 def _shallow(s_max, depth, nominal, exact, c):
-    """The warning when the depth curve at the highest band, ``1 − exp(−(k h)²)``, is below 0.5 while the mean s_max exceeds 0.05; else None."""
+    """The warning when the depth curve at the highest band, ``1 − exp(−(k h)²)``, is below 0.5 while the mean s_max
+    exceeds 0.05; else None."""
     curve = 1.0 - np.exp(-((2.0 * np.pi * float(exact[-1]) * depth / c) ** 2))
     mean = float(np.mean(s_max))
     if curve < _SHALLOW_CURVE and mean > _SHALLOW_S_MAX:
@@ -257,14 +269,16 @@ def _shallow(s_max, depth, nominal, exact, c):
 
 
 def _backing(response, baseplate):
-    """The warning when the object's mean height above the plane exceeds twice the spread of its relief (and the spread is above 0); else None."""
+    """The warning when the object's mean height above the plane exceeds twice the spread of its relief (and the spread
+    is above 0); else None."""
     if response.height_spread > _BACKING_SPREAD and response.height_mean > 2.0 * response.height_spread:
         return _BACKING.format(mean=response.height_mean, two_sigma=2.0 * response.height_spread, depth=response.depth, baseplate=baseplate)
     return None
 
 
 def _geometric(sample, sources, preview, nominal, exact, c, solver_options):
-    """The geometric method: specular rays binned on the hemisphere, s_max from the histograms' overlap, s(f) and d from the geometry."""
+    """The geometric method: specular rays binned on the hemisphere, s_max from the histograms' overlap, s(f) and d from
+    the geometry."""
     try:
         options = _GEOMETRIC_OPTIONS.bind(sample, sources, **solver_options)
     except TypeError as error:
@@ -374,45 +388,55 @@ def _result(sample, measured, method, preset, band_range, c, sources, preview, n
 
 
 def measure_scattering(sample, method="geometric", preset=None, band_range=ISO_BAND_RANGE, air=None, name=None, **solver_options) -> ScatteringResult:
-    """Measure the scattering and diffusion coefficients of a sample in a virtual free field (ISO 17497-2; Heimes & Vorländer 2025).
+    """Measure the scattering and diffusion coefficients of a sample in a virtual free field (ISO 17497-2; Heimes &
+    Vorländer 2025).
 
     Three methods, all on the same source grids, bands and averaging:
 
-    - ``"geometric"`` (the default, seconds): a fast **heuristic** preview, not a wave solution (:mod:`compas_acoustics.lab.geometric`).
-      It needs ``trimesh`` (ideally with the ``embreex`` backend), which the ``lab`` extra installs on Python ≥ 3.11 only
-      (``pip install compas_acoustics[lab]``); ``method="kirchhoff"`` runs without them (Rhino's Python 3.9 included).
-      ``n_rays`` specular rays per source, aimed at the footprint, reflect off the rigid sample and the rigid reference (mounted in a baffle
-      at z = 0) and are binned on a receiver hemisphere of ``bin_deg`` cells. ``s_max`` per source is one minus the overlap of the two
-      energy histograms, the lost fraction (rays still bouncing after ``max_bounces``) counted as one more bin;
-      the per-band ``s = s_max·(1 − exp(−(k h)²))`` is imposed at each band's exact centre, with ``h = max(2 σ, |mean|)`` of the height
-      difference between the sample and the reference over the footprint (a relief: twice its standard deviation; a box: its height).
-      There is no phase and no diffraction: no rim, no cavity resonance. d comes from the cells' energy per steradian and is the same at
-      every band, as are the polar levels; both depend on ``bin_deg``. The result is marked ``generation["heuristic"]`` and warned about;
-      more than 1 % lost rays for any source is warned about too, and so is a depth curve below 0.5 at the highest band while the mean
-      s_max exceeds 0.05 (s close to 0 although the rays scatter), and so is an object whose mean height above the plane exceeds twice the
-      spread of its relief (a closed mesh on a backing thicker than ``baseplate``: the backing sets the depth; pass its thickness as ``baseplate``).
+    - ``"geometric"`` (the default, seconds): a fast **heuristic** preview, not a wave solution
+      (:mod:`compas_acoustics.lab.geometric`). It needs ``trimesh`` (ideally with the ``embreex`` backend), which the
+      ``lab`` extra installs on Python ≥ 3.11 only (``pip install compas_acoustics[lab]``); ``method="kirchhoff"`` runs
+      without them (Rhino's Python 3.9 included). ``n_rays`` specular rays per source, aimed at the footprint, reflect
+      off the rigid sample and the rigid reference (mounted in a baffle at z = 0) and are binned on a receiver
+      hemisphere of ``bin_deg`` cells. ``s_max`` per source is one minus the overlap of the two energy histograms, the
+      lost fraction (rays still bouncing after ``max_bounces``) counted as one more bin; the per-band ``s = s_max·(1 −
+      exp(−(k h)²))`` is imposed at each band's exact centre, with ``h = max(2 σ, |mean|)`` of the height difference
+      between the sample and the reference over the footprint (a relief: twice its standard deviation; a box: its
+      height). There is no phase and no diffraction: no rim, no cavity resonance. d comes from the cells' energy per
+      steradian and is the same at every band, as are the polar levels; both depend on ``bin_deg``. The result is marked
+      ``generation["heuristic"]`` and warned about; more than 1 % lost rays for any source is warned about too, and so
+      is a depth curve below 0.5 at the highest band while the mean s_max exceeds
+      0.05 (s close to 0 although the rays scatter), and so is an object whose mean height above the plane exceeds twice
+      the spread of its relief (a closed mesh on a backing thicker than ``baseplate``: the backing sets the depth; pass
+      its thickness as ``baseplate``).
     - ``"kirchhoff"``: physical optics, the correlation coefficient below.
-    - ``"bem"``: the boundary element method (mesh2scattering/NumCalc, needs Python ≥ 3.11 and the ``lab`` extra), the same correlation.
+    - ``"bem"``: the boundary element method (mesh2scattering/NumCalc, needs Python ≥ 3.11 and the ``lab`` extra), the
+      same correlation.
 
-    For the wave methods the correlation coefficient (Mommertz 2000; Heimes & Vorländer eq. 3) of the sample's and the reference's
-    pressures on a receiver hemisphere of radius ``10·d``, at receiver spacing ``min(5°, 50·λ_min/d)`` (ISO 17497-2 §6.2.2, Heimes eq. 6),
-    is computed per source direction and frequency, averaged over the three frequencies of each one-third-octave band (eq. 11), weighted
-    over the sources with the Paris weights for random incidence, and averaged per octave (ISO 354 §8.3, ISO 11654).
+    For the wave methods the correlation coefficient (Mommertz 2000; Heimes & Vorländer eq. 3) of the sample's and the
+    reference's pressures on a receiver hemisphere of radius ``10·d``, at receiver spacing ``min(5°, 50·λ_min/d)`` (ISO
+    17497-2 §6.2.2, Heimes eq. 6), is computed per source direction and frequency, averaged over the three frequencies
+    of each one-third-octave band (eq. 11), weighted over the sources with the Paris weights for random incidence, and
+    averaged per octave (ISO 354 §8.3, ISO 11654).
 
-    Every method also returns the normalised diffusion coefficient ``d_n = (d − d_ref)/(1 − d_ref)``, d from ISO 17497-2 eq. 6 on the
-    intensities at the receivers weighted by their solid angles (|p|² for the wave methods, per frequency, then averaged per band like s),
-    with the same random incidence and octaves as s (``result.d_angle``, ``d_bands``, ``d_octaves``).
+    Every method also returns the normalised diffusion coefficient ``d_n = (d − d_ref)/(1 − d_ref)``, d from ISO 17497-2
+    eq. 6 on the intensities at the receivers weighted by their solid angles (|p|² for the wave methods, per frequency,
+    then averaged per band like s), with the same random incidence and octaves as s (``result.d_angle``, ``d_bands``,
+    ``d_octaves``).
 
-    A batchable solver (``solver.batchable``: Kirchhoff) runs source batch by source batch, each batch reduced to its correlation
-    coefficients before the next, so the pressures of all sources are never held at once (a batch holds at most 512 MB of them). The
-    polar levels are kept for every source direction, listed in ``result.polar_source_indices``. A Kirchhoff run estimated longer
-    than 10 minutes is warned about before it starts (:meth:`~compas_acoustics.lab.solvers.KirchhoffSolver.estimate_seconds`): the
-    default ``"standard"`` preset on a 0.8 m disc takes about 5 minutes on 14 cores.
+    A batchable solver (``solver.batchable``: Kirchhoff) runs source batch by source batch, each batch reduced to its
+    correlation coefficients before the next, so the pressures of all sources are never held at once (a batch holds at
+    most 512 MB of them). The polar levels are kept for every source direction, listed in
+    ``result.polar_source_indices``. A Kirchhoff run estimated longer than 10 minutes is warned about before it starts
+    (:meth:`~compas_acoustics.lab.solvers.KirchhoffSolver.estimate_seconds`): the default ``"standard"`` preset on a 0.8
+    m disc takes about 5 minutes on 14 cores.
 
-    Known limitations of the BEM (2026-10-24, Heimes & Vorländer's sine surface, d = 0.8 m): below about 700 Hz NumCalc's iterative solves
-    do not converge and those bands are wrong; such steps are listed in ``generation["unconverged"]``, warned about in
-    ``result.warnings`` and their octaves in ``result.unconverged_octaves``. Where it converges, the BEM's s sits 0.03–0.10 below Heimes &
-    Vorländer's in 11 of the 12 checked one-third octaves (Λ/λ ≥ 0.5, per angle at 31.5° and 61.74°); see
+    Known limitations of the BEM (2026-10-24, Heimes & Vorländer's sine surface, d = 0.8 m): below about 700 Hz
+    NumCalc's iterative solves do not converge and those bands are wrong; such steps are listed in
+    ``generation["unconverged"]``, warned about in ``result.warnings`` and their octaves in
+    ``result.unconverged_octaves``. Where it converges, the BEM's s sits
+    0.03–0.10 below Heimes & Vorländer's in 11 of the 12 checked one-third octaves (Λ/λ ≥ 0.5, per angle at 31.5° and
+    61.74°); see
     :class:`~compas_acoustics.lab.solvers.bem.BemSolver`.
 
     Parameters
@@ -424,17 +448,17 @@ def measure_scattering(sample, method="geometric", preset=None, band_range=ISO_B
         The source grid; by default ``DEFAULT_PRESETS[method]``: ``"standard"`` for every method.
         Comparisons between methods should pass the same preset.
     band_range : tuple of float, optional
-        The nominal one-third-octave centres simulated, inclusive: ``ISO_BAND_RANGE`` (100-5000 Hz, ISO 17497-1/-2 §5) by default,
-        ``EXTENDED_BAND_RANGE`` for the extension to 8 kHz beyond the standards.
+        The nominal one-third-octave centres simulated, inclusive: ``ISO_BAND_RANGE`` (100-5000 Hz, ISO 17497-1/-2 §5)
+        by default, ``EXTENDED_BAND_RANGE`` for the extension to 8 kHz beyond the standards.
     air : :class:`compas_acoustics.room.AirConditions`, optional
         Gives the speed of sound; the default air by default.
     name : str, optional
         The result's name; the sample's by default.
     **solver_options
-        For ``"geometric"``, passed to :func:`~compas_acoustics.lab.geometric.geometric_response`: ``n_rays`` (rays per source, 50000),
-        ``bin_deg`` (receiver cell spacing in degrees, 10), ``max_bounces`` (20) and ``seed`` (of the footprint points, 0); they are
-        recorded in ``generation``. For the wave methods, passed to the solver: ``KirchhoffSolver(shadowing, chunk, workers)`` or
-        ``BemSolver(cache_dir, numcalc_path, max_elements, ...)``.
+        For ``"geometric"``, passed to :func:`~compas_acoustics.lab.geometric.geometric_response`: ``n_rays`` (rays per
+        source, 50000), ``bin_deg`` (receiver cell spacing in degrees, 10), ``max_bounces`` (20) and ``seed`` (of the
+        footprint points, 0); they are recorded in ``generation``. For the wave methods, passed to the solver:
+        ``KirchhoffSolver(shadowing, chunk, workers)`` or ``BemSolver(cache_dir, numcalc_path, max_elements, ...)``.
 
     Returns
     -------
@@ -447,7 +471,8 @@ def measure_scattering(sample, method="geometric", preset=None, band_range=ISO_B
     TypeError
         If a solver option is not one of the method's.
     ImportError
-        If ``method="geometric"`` and ``trimesh`` or its ray backend is missing; the message names ``method="kirchhoff"`` as the way out.
+        If ``method="geometric"`` and ``trimesh`` or its ray backend is missing; the message names
+        ``method="kirchhoff"`` as the way out.
     RuntimeError
         If the solver returned non-finite pressures.
     """

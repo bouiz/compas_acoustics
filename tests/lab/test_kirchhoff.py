@@ -17,21 +17,25 @@ TRI = np.array([[[0.0, 0.0, 0.0], [0.3, 0.0, 0.05], [0.1, 0.2, -0.02]]])
 
 
 def brute(tri, q, n=400):
-    """The reference (not the code under test): the midpoint rule on n^2 and (2n)^2 sub-triangles, Richardson-extrapolated.
+    """The reference (not the code under test): the midpoint rule on n^2 and (2n)^2 sub-triangles,
+    Richardson-extrapolated.
 
     The midpoint rule alone has an error ~ (|q| h)^2 with h = edge / n: 4e-4 relative at n = 400 for the phase scale 50,
-    far above the 1e-6 pinned here. Its error is a clean 1/n^2 series, so (4 M(2n) - M(n)) / 3 removes the leading term (3e-8 at scale 50).
+    far above the 1e-6 pinned here. Its error is a clean 1/n^2 series, so (4 M(2n) - M(n)) / 3 removes the leading term
+    (3e-8 at scale 50).
     """
     return (4 * _midpoint(tri, q, 2 * n) - _midpoint(tri, q, n)) / 3
 
 
 def _midpoint(tri, q, n):
-    """Midpoint rule on the n^2 congruent sub-triangles of a uniform barycentric subdivision: each centroid carries 1/n^2 of the area."""
+    """Midpoint rule on the n^2 congruent sub-triangles of a uniform barycentric subdivision: each centroid carries
+    1/n^2 of the area."""
     a, b, c = (np.asarray(v, dtype=float) for v in tri)
     area = np.linalg.norm(np.cross(b - a, c - a)) / 2
     i, j = np.meshgrid(np.arange(n), np.arange(n), indexing="ij")
     up = i + j <= n - 1
-    # upward cells: corners (i, j), (i+1, j), (i, j+1) in steps of 1/n along (b - a, c - a); centroid at (i + 1/3, j + 1/3)
+    # upward cells: corners (i, j), (i+1, j), (i, j+1) in steps of 1/n along (b - a, c - a); centroid at (i + 1/3, j +
+    # 1/3)
     s_up, t_up = (i[up] + 1 / 3) / n, (j[up] + 1 / 3) / n
     down = i + j <= n - 2
     # downward cells: corners (i+1, j), (i, j+1), (i+1, j+1); centroid at (i + 2/3, j + 2/3)
@@ -108,7 +112,8 @@ def test_large_plate_reflects_specularly():
 
 
 def test_sine_surface_scatters_above_the_first_grating_lobe():
-    # Heimes: h = 20.4 mm, Lambda = 70.8 mm; at 31.5 deg the first lobe appears at Lambda/lambda = 1/(1 + sin 31.5) = 0.66
+    # Heimes: h = 20.4 mm, Lambda = 70.8 mm; at 31.5 deg the first lobe appears at Lambda/lambda = 1/(1 + sin 31.5) =
+    # 0.66
     s = ScatteringSample.disc(sine_tile(period=0.0708, depth=0.0204), diameter=0.8)
     src = SourceGrid(np.array([31.5]), np.array([0.0]))  # incidence plane across the grooves
     rec = ReceiverGrid.hemisphere(2.0, 10.0)
@@ -120,7 +125,8 @@ def test_sine_surface_scatters_above_the_first_grating_lobe():
 
 
 def test_reciprocal_when_every_face_is_lit_from_both_directions():
-    # gentle sine (slopes < 15 deg) so that the lit set is the same for both directions; the same azimuth (Ruling R2) so that the rim walls are too
+    # gentle sine (slopes < 15 deg) so that the lit set is the same for both directions; the same azimuth (Ruling R2) so
+    # that the rim walls are too
     s = ScatteringSample.disc(sine_tile(period=0.2, depth=0.01), diameter=0.6)
     u1 = SourceGrid(np.array([40.0]), np.array([0.0]))
     u2 = SourceGrid(np.array([20.0]), np.array([0.0]))
@@ -165,7 +171,8 @@ def test_warns_on_steep_relief():
 
 
 def _reference_pressures(sample, sources, receivers, frequencies, c, shadowing=False):
-    """The solver before its factors were reused across frequencies: triangle_phase_integral per source, frequency and receiver set."""
+    """The solver before its factors were reused across frequencies: triangle_phase_integral per source, frequency and
+    receiver set."""
     from compas_acoustics.lab.solvers.kirchhoff import _arrays
     from compas_acoustics.lab.solvers.kirchhoff import _occluded
 

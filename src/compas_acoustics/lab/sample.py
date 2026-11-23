@@ -6,7 +6,8 @@ A Rhino-made relief becomes two closed, outward-oriented triangle bodies with th
 - the **reference**: the same outline, flat at z = 0, on the same baseplate.
 
 ``ScatteringSample.disc`` repeats a tile and crops it to a disc (ISO 17497-1 §6.3.2 asks for a circular sample);
-``ScatteringSample.as_drawn`` takes a mesh as it is. The arrays are handled with numpy and turned into COMPAS meshes at the end.
+``ScatteringSample.as_drawn`` takes a mesh as it is. The arrays are handled with numpy and turned into COMPAS meshes at
+the end.
 """
 
 import numpy as np
@@ -113,7 +114,8 @@ class ScatteringSample(_PackageDtype, Data):
 
     @classmethod
     def disc(cls, tile, diameter, period=None, baseplate=0.01, segments=128, offset=(0.0, 0.0), symmetry="none", feature_size=None):
-        """A tile repeated over the plane and cropped to a disc of ``diameter`` (ISO 17497-1 §6.3.2, Heimes & Vorländer §3.2).
+        """A tile repeated over the plane and cropped to a disc of ``diameter`` (ISO 17497-1 §6.3.2, Heimes & Vorländer
+        §3.2).
 
         Parameters
         ----------
@@ -150,8 +152,8 @@ class ScatteringSample(_PackageDtype, Data):
         """A relief as drawn, closed on a baseplate unless it is closed already (Heimes & Vorländer §3.2).
 
         An open relief is walled down to ``z = −baseplate`` and closed by a bottom, like :meth:`disc`.
-        A closed mesh is used as it is, its lowest point moved to z = −baseplate (so its bottom ``baseplate`` lies below z = 0);
-        its reference is the outline of its bottom, flat at z = 0.
+        A closed mesh is used as it is, its lowest point moved to z = −baseplate (so its bottom ``baseplate`` lies below
+        z = 0); its reference is the outline of its bottom, flat at z = 0.
 
         Parameters
         ----------
@@ -161,9 +163,10 @@ class ScatteringSample(_PackageDtype, Data):
         symmetry : {"none", "rotational"}, optional
         feature_size : float, optional
         reference : :class:`compas.datastructures.Mesh`, optional
-            A proxy to use as the reference instead of the flat footprint: the simplified mesh the room model will carry the scattering coefficient on.
-            It must be open when ``mesh`` is open and closed when ``mesh`` is closed, share its outline, and is placed with the same z shift as ``mesh``.
-            ``s`` then measures the share of the relief's reflection that the proxy does not reproduce.
+            A proxy to use as the reference instead of the flat footprint: the simplified mesh the room model will carry
+            the scattering coefficient on. It must be open when ``mesh`` is open and closed when ``mesh`` is closed,
+            share its outline, and is placed with the same z shift as ``mesh``. ``s`` then measures the share of the
+            relief's reflection that the proxy does not reproduce.
 
         Raises
         ------
@@ -197,8 +200,9 @@ class ScatteringSample(_PackageDtype, Data):
 def _proxy(mesh, sample_is_open, floor, baseplate):
     """A proxy mesh as a closed body, moved by the sample's z shift and closed as the sample was.
 
-    An open proxy must not reach below the sample's baseplate (``z = −baseplate`` after the shift); a closed proxy must have its lowest point
-    where the sample has it (``z = −baseplate``) and a flat bottom there. Every error names the proxy.
+    An open proxy must not reach below the sample's baseplate (``z = −baseplate`` after the shift); a closed proxy must
+    have its lowest point where the sample has it (``z = −baseplate``) and a flat bottom there. Every error names the
+    proxy.
     """
     V, T = _clean(mesh)
     _, counts = _edge_counts(T)
@@ -235,7 +239,8 @@ def _naming_the_proxy(error):
 
 
 def _same_outline(sample, proxy, diameter):
-    """Raise ``ValueError`` unless the xy bounding boxes of two bodies agree within 1e-3 of the diameter and their bottom faces' areas within 1e-2 relative (``_AREA``)."""
+    """Raise ``ValueError`` unless the xy bounding boxes of two bodies agree within 1e-3 of the diameter and their
+    bottom faces' areas within 1e-2 relative (``_AREA``)."""
     boxes = []
     for body in (sample, proxy):
         xy = np.array([body.vertex_coordinates(v)[:2] for v in body.vertices()])
@@ -292,7 +297,8 @@ def _weld(V, T, tolerance=_WELD):
 
 
 def _tile(V, T, period, diameter, offset):
-    """Repeat a tile with ``period`` (x, y) over a grid that covers ``[−d/2, d/2]²`` shifted by ``offset``, then weld."""
+    """Repeat a tile with ``period`` (x, y) over a grid that covers ``[−d/2, d/2]²`` shifted by ``offset``, then
+    weld."""
     px, py = float(period[0]), float(period[1])
     if px <= 0 or py <= 0:
         raise ValueError("the tile period must be positive, not {}".format((px, py)))
@@ -307,10 +313,12 @@ def _tile(V, T, period, diameter, offset):
 
 
 def _clip_to_polygon(V, T, radius, segments, chunk=4096):
-    """Clip triangles to the regular ``segments``-gon inscribed in the circle of ``radius`` (Sutherland–Hodgman, one plane at a time).
+    """Clip triangles to the regular ``segments``-gon inscribed in the circle of ``radius`` (Sutherland–Hodgman, one
+    plane at a time).
 
     Triangles inside every half-space are kept, those outside any one are dropped, and the rest are clipped and fanned.
-    Intersections are computed from the lexicographically smaller end of each edge, so that neighbours get the same point.
+    Intersections are computed from the lexicographically smaller end of each edge, so that neighbours get the same
+    point.
     """
     angles = 2 * np.pi * (np.arange(segments) + 0.5) / segments
     normals = np.column_stack([np.cos(angles), np.sin(angles)])
@@ -397,7 +405,8 @@ def _orient(V, T):
 
 
 def _close(V, T, baseplate, floor=None, what="sample"):
-    """Close a relief: ``floor`` (by default its lowest point) at z = 0, walls from its one outline down to ``z = −baseplate`` and a bottom.
+    """Close a relief: ``floor`` (by default its lowest point) at z = 0, walls from its one outline down to ``z =
+    −baseplate`` and a bottom.
 
     Returns the sample, its flat reference and the structural depth (ISO 17497-1 §6.3.2; Heimes & Vorländer §3.2).
     """
@@ -412,7 +421,8 @@ def _close(V, T, baseplate, floor=None, what="sample"):
 
 
 def _columns(V, loop):
-    """Split an outline loop into columns: runs of consecutive vertices with the same xy, where a vertical face meets the rim."""
+    """Split an outline loop into columns: runs of consecutive vertices with the same xy, where a vertical face meets
+    the rim."""
     xy = V[loop, :2]
     new = np.linalg.norm(xy - np.roll(xy, 1, axis=0), axis=1) > _VERTICAL
     if new.sum() < 3:
@@ -428,7 +438,8 @@ def _columns(V, loop):
 
 
 def _walls_and_bottom(V, T, columns, baseplate):
-    """Add vertical walls from the outline ``columns`` (in its triangles' direction) down to ``z = −baseplate`` and a bottom facing −z.
+    """Add vertical walls from the outline ``columns`` (in its triangles' direction) down to ``z = −baseplate`` and a
+    bottom facing −z.
 
     Each wall spans two neighbouring columns and is fanned from its bottom corners, so it has no zero-area triangles.
     A column that rises along the outline belongs to the wall after it, one that falls to the wall before it.
@@ -453,7 +464,8 @@ def _walls_and_bottom(V, T, columns, baseplate):
 
 
 def _flat_body(outline, baseplate):
-    """A flat body on ``outline`` (xy, counter-clockwise or not): top at z = 0, walls and bottom at ``z = −baseplate``."""
+    """A flat body on ``outline`` (xy, counter-clockwise or not): top at z = 0, walls and bottom at ``z =
+    −baseplate``."""
     if _signed_area(outline) < 0:
         outline = outline[::-1]
     extra, cap = _cap(outline)
@@ -462,7 +474,8 @@ def _flat_body(outline, baseplate):
 
 
 def _to_body(V, T, what):
-    """A closed, outward-oriented mesh: raises ``ValueError`` unless every edge is used by exactly two triangles, once each way."""
+    """A closed, outward-oriented mesh: raises ``ValueError`` unless every edge is used by exactly two triangles, once
+    each way."""
     _, counts = _edge_counts(T)
     directed = T[:, [0, 1, 1, 2, 2, 0]].reshape(-1, 2)
     bad = int((counts != 2).sum())
@@ -476,7 +489,8 @@ def _to_body(V, T, what):
 
 
 def _untriangulable(outline):
-    """Why ``outline`` (xy) has no bottom: where it first turns straight back on itself, as a relief that overhangs at its rim does."""
+    """Why ``outline`` (xy) has no bottom: where it first turns straight back on itself, as a relief that overhangs at
+    its rim does."""
     before = outline - np.roll(outline, 1, axis=0)
     after = np.roll(outline, -1, axis=0) - outline
     cross = before[:, 0] * after[:, 1] - before[:, 1] * after[:, 0]
@@ -489,9 +503,11 @@ def _untriangulable(outline):
 
 
 def _cap(outline):
-    """Triangulate a polygon given counter-clockwise: a fan from its centroid if it sees every edge, otherwise ear clipping.
+    """Triangulate a polygon given counter-clockwise: a fan from its centroid if it sees every edge, otherwise ear
+    clipping.
 
-    Returns the extra points (the centroid, or none) and counter-clockwise triangles, indexing the outline then the extra points.
+    Returns the extra points (the centroid, or none) and counter-clockwise triangles, indexing the outline then the
+    extra points.
     """
     m = len(outline)
     a, b = outline, np.roll(outline, -1, axis=0)
@@ -549,7 +565,8 @@ def _to_mesh(V, T):
 
 
 def _warnings(depth, diameter, mode):
-    """ISO 17497-1 §6.3.2's depth limit ``h ≤ d/16`` (the fix: a wider sample, in disc mode a larger diameter), and a size that suggests a model in millimetres."""
+    """ISO 17497-1 §6.3.2's depth limit ``h ≤ d/16`` (the fix: a wider sample, in disc mode a larger diameter), and a
+    size that suggests a model in millimetres."""
     warnings = []
     if depth > diameter / 16:
         fix = "increase 'diameter'" if mode == "disc" else "widen the sample"

@@ -1,18 +1,20 @@
 """Ray casting against a closed triangulated body, for the geometric scattering method.
 
-:class:`RayCaster` finds, for many rays at once, the first triangle each one hits. It wraps ``trimesh``'s ray intersector, which uses
-Embree (the ``embreex`` package) when it is installed; ``trimesh`` is imported when a :class:`RayCaster` is built, never at module level,
-so :mod:`compas_acoustics.lab` still imports where it is missing (Rhino, Python 3.9).
+:class:`RayCaster` finds, for many rays at once, the first triangle each one hits. It wraps ``trimesh``'s ray
+intersector, which uses Embree (the ``embreex`` package) when it is installed; ``trimesh`` is imported when a
+:class:`RayCaster` is built, never at module level, so :mod:`compas_acoustics.lab` still imports where it is missing
+(Rhino, Python 3.9).
 
-Embree works in single precision (relative resolution 1.2e-7), which shapes two details. The body is shifted to the centre of its bounding
-box before it is handed over, so the coordinates Embree sees are of the order of the body's size whatever its position. Each ray starts
-1e-5 of the body's bounding size beyond its origin, so a ray leaving a bounce point does not hit the face it just left (an offset of
-1e-9, below single precision, leaves the origin on that face and the ray hits it at distance zero). The returned hit points are
-recomputed in double precision from the ray and the plane of the hit triangle, so they are not limited to single precision.
+Embree works in single precision (relative resolution 1.2e-7), which shapes two details. The body is shifted to the
+centre of its bounding box before it is handed over, so the coordinates Embree sees are of the order of the body's size
+whatever its position. Each ray starts 1e-5 of the body's bounding size beyond its origin, so a ray leaving a bounce
+point does not hit the face it just left (an offset of 1e-9, below single precision, leaves the origin on that face and
+the ray hits it at distance zero). The returned hit points are recomputed in double precision from the ray and the plane
+of the hit triangle, so they are not limited to single precision.
 
-Throughput, measured on 2026-10-24 (macOS arm64, Python 3.13, trimesh 5.1.1, embreex 4.4.0.post1): about 2.7e6 rays/s (2.6 to 2.8e6
-over runs) for 200 000 random rays aimed at the centre of an icosphere of 20 480 faces (``test_throughput_is_recorded``,
-``pytest -m slow -s``).
+Throughput, measured on 2026-10-24 (macOS arm64, Python 3.13, trimesh 5.1.1, embreex 4.4.0.post1): about 2.7e6 rays/s
+(2.6 to 2.8e6 over runs) for 200 000 random rays aimed at the centre of an icosphere of 20 480 faces
+(``test_throughput_is_recorded``, ``pytest -m slow -s``).
 """
 
 import numpy as np
@@ -77,22 +79,24 @@ class RayCaster:
         directions : :class:`numpy.ndarray`
             Unit ray directions, shape (n, 3).
         exclude : :class:`numpy.ndarray`, optional
-            Shape (n,) int: the triangle each ray has just left (-1 for none), for rays that start on the body. A hit on it is never
-            returned for that ray: a ray leaving a planar triangle cannot meet its plane again, so such a hit is a numerical self-hit.
-            Without it, a ray leaving a face at a grazing angle (sine of the elevation below about 1e-2) can report that face.
+            Shape (n,) int: the triangle each ray has just left (-1 for none), for rays that start on the body. A hit on
+            it is never returned for that ray: a ray leaving a planar triangle cannot meet its plane again, so such a
+            hit is a numerical self-hit. Without it, a ray leaving a face at a grazing angle (sine of the elevation
+            below about 1e-2) can report that face.
 
         Returns
         -------
         tuple of :class:`numpy.ndarray`
-            ``(triangle, point)``: ``triangle`` shape (n,) int, the index of the first triangle hit, -1 where the ray hits nothing;
-            ``point`` shape (n, 3), the hit point (zeros where the ray misses).
+            ``(triangle, point)``: ``triangle`` shape (n,) int, the index of the first triangle hit, -1 where the ray
+            hits nothing; ``point`` shape (n, 3), the hit point (zeros where the ray misses).
 
         Notes
         -----
-        A ray starts ``offset`` (1e-5 of the body's size) along its direction. That lifts it above the plane of the face it leaves by only
-        ``offset · |d · n|``, below single precision for a grazing ray. The start of a ray with an ``exclude`` triangle is therefore also
-        lifted ``offset`` along that triangle's normal, to the side the ray leaves it, a displacement of the ray of the order of ``offset``.
-        A ray still reporting its excluded triangle is lifted ten times as far, up to three times; one that still does is reported as a miss.
+        A ray starts ``offset`` (1e-5 of the body's size) along its direction. That lifts it above the plane of the face
+        it leaves by only ``offset · |d · n|``, below single precision for a grazing ray. The start of a ray with an
+        ``exclude`` triangle is therefore also lifted ``offset`` along that triangle's normal, to the side the ray
+        leaves it, a displacement of the ray of the order of ``offset``. A ray still reporting its excluded triangle is
+        lifted ten times as far, up to three times; one that still does is reported as a miss.
         """
         origins = np.asarray(origins, dtype=float).reshape(-1, 3)
         directions = np.asarray(directions, dtype=float).reshape(-1, 3)

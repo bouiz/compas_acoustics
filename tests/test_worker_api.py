@@ -648,9 +648,9 @@ def test_polar_balloon_of_a_flat_disc_points_its_peak_to_the_specular_direction(
     assert angle <= 10.0
     assert np.allclose(balloon["source"], source * 1.2)
     assert balloon["label"] == "θ {:g}°, φ {:g}°, 1000 Hz, reference".format(result.source_colatitude[index], result.source_azimuth[index])
-    # the faces point outward, and none uses the pole point added to close the hull: seen on the unit directions the vertices
-    # move along: that check does not depend on the shape of the spike (the centroid of the vertices holds here too, but it is
-    # only meaningful for a roughly round balloon)
+    # the faces point outward, and none uses the pole point added to close the hull: seen on the unit directions the
+    # vertices move along: that check does not depend on the shape of the spike (the centroid of the vertices holds here
+    # too, but it is only meaningful for a roughly round balloon)
     directions = vertices / np.linalg.norm(vertices, axis=1)[:, np.newaxis]
     for face in faces:
         a, b, c = directions[face[:3]]
@@ -713,7 +713,8 @@ def test_a_dense_balloon_is_a_valid_mesh_and_its_radius_is_linear_in_the_level_b
         assert np.allclose(levels, smooth, atol=0.051)  # the wire keeps a tenth of a dB
         assert (levels > 0).any() and (levels < floor_db).any() and ((levels > floor_db) & (levels < 0)).sum() >= 10
         radii = np.linalg.norm(vertices, axis=1)
-        # 3 % at and below the floor, linear between, the radius at 0 dB and above (the levels are the ones the tool returned)
+        # 3 % at and below the floor, linear between, the radius at 0 dB and above (the levels are the ones the tool
+        # returned)
         expected = radius * (0.03 + 0.97 * np.clip(1 - levels / floor_db, 0.0, 1.0))
         assert np.allclose(radii, expected, atol=2e-3 * radius)
         assert radii.max() == pytest.approx(radius, abs=1e-9)
@@ -767,7 +768,8 @@ def _closed_box(x=1.2, y=0.8, z=0.3):
 
 
 def _on_the_wall(mesh):
-    """``mesh`` turned 90 degrees about X and moved: what lay on the floor now stands on a wall at y = 4, facing -y, and the frame of that wall."""
+    """``mesh`` turned 90 degrees about X and moved: what lay on the floor now stands on a wall at y = 4, facing -y, and
+    the frame of that wall."""
     from compas.geometry import Rotation
     from compas.geometry import Translation
 

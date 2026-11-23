@@ -54,7 +54,8 @@ def test_a_ray_from_a_surface_point_does_not_hit_its_own_face():
 
 
 def _upward_rays(elevation_sin, n=20000, seed=1):
-    """``n`` rays leaving random points of the top face (z = 1) of the unit box upward at the given sine of the elevation: none can hit the box."""
+    """``n`` rays leaving random points of the top face (z = 1) of the unit box upward at the given sine of the
+    elevation: none can hit the box."""
     rng = np.random.default_rng(seed)
     origins = np.column_stack([rng.uniform(0.05, 0.95, n), rng.uniform(0.05, 0.95, n), np.ones(n)])
     azimuth = rng.uniform(0, 2 * np.pi, n)

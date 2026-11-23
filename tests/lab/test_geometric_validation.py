@@ -1,8 +1,10 @@
-"""The geometric method against the Kirchhoff method on the sine sample of the Heimes validation: a record of the gap, not a tolerance.
+"""The geometric method against the Kirchhoff method on the sine sample of the Heimes validation: a record of the gap,
+not a tolerance.
 
-Needs no external data, only ``trimesh`` with ``embreex``. The accuracy record in the docstring of ``compas_acoustics.lab.geometric`` is
-the output of this test (``pytest tests/lab/test_geometric_validation.py -v -s``). The sample is the one of ``test_validation_heimes.py``
-(its constants are copied here, because that module is skipped as a whole without the Zenodo data).
+Needs no external data, only ``trimesh`` with ``embreex``. The accuracy record in the docstring of
+``compas_acoustics.lab.geometric`` is the output of this test (``pytest tests/lab/test_geometric_validation.py -v -s``).
+The sample is the one of ``test_validation_heimes.py`` (its constants are copied here, because that module is skipped as
+a whole without the Zenodo data).
 """
 
 import math

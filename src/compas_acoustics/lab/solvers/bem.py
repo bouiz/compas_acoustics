@@ -1,44 +1,53 @@
 r"""The BEM free-field solver: mesh2scattering writes NumCalc projects, NumCalc solves them (Kreuzer et al. 2024).
 
-The sample and its flat reference are rigid closed bodies hit by unit plane waves; NumCalc's boundary element method gives the scattered
-pressure at the receivers, the input of the correlation method (Heimes & Vorländer §3.2 and App. A; Mommertz 2000).
+The sample and its flat reference are rigid closed bodies hit by unit plane waves; NumCalc's boundary element method
+gives the scattered pressure at the receivers, the input of the correlation method (Heimes & Vorländer §3.2 and App. A;
+Mommertz 2000).
 
 - **Splits.** The frequencies are grouped by octave band. Each split is meshed once, for its highest frequency, at
   ``elements_per_wavelength`` (6) elements per wavelength: the edge is :math:`c / (6 f_{max})`.
-- **Size check.** An estimate of the element count, the body's area over the area of an equilateral triangle of that edge, is checked
-  before anything is written or imported: above ``max_elements`` the solver warns, above ten times that it stops. A model left in
-  millimetres has 10⁶ times the elements. The remeshed body is typically 2-2.5 times the estimate, so its own count is checked
-  against ten times ``max_elements`` again: every split's bodies are remeshed and checked before the first project is written or run.
-- **Cache.** The projects live in ``<cache_dir>/<key>/split_<k>/{sample,reference}``, the key a hash of the geometry, the directions,
-  the frequencies, c and the edges. ``manage_numcalc`` skips finished steps but checks no geometry, so the key decides what is reused:
-  an interrupted run resumes, a changed one starts in a new folder.
-- **Run.** Each split runs in a child process (``python -m compas_acoustics.lab.solvers._numcalc``), polled every 2 s for progress;
-  cancelling the job kills it and its NumCalc instances, and the finished steps stay on disk.
-- **Convergence.** Every step's ``NC<N>-<N>.out`` is read (:func:`parse_convergence`): a step that hit NumCalc's iteration cap or ended
-  with a relative residual above 1e-6 is warned about and listed in ``generation["unconverged"]``. mesh2scattering's report marks such
-  steps as converged, so it is not trusted.
+- **Size check.** An estimate of the element count, the body's area over the area of an equilateral triangle of that
+  edge, is checked before anything is written or imported: above ``max_elements`` the solver warns, above ten times that
+  it stops. A model left in millimetres has 10⁶ times the elements. The remeshed body is typically 2-2.5 times the
+  estimate, so its own count is checked against ten times ``max_elements`` again: every split's bodies are remeshed and
+  checked before the first project is written or run.
+- **Cache.** The projects live in ``<cache_dir>/<key>/split_<k>/{sample,reference}``, the key a hash of the geometry,
+  the directions, the frequencies, c and the edges. ``manage_numcalc`` skips finished steps but checks no geometry, so
+  the key decides what is reused: an interrupted run resumes, a changed one starts in a new folder.
+- **Run.** Each split runs in a child process (``python -m compas_acoustics.lab.solvers._numcalc``), polled every 2 s
+  for progress; cancelling the job kills it and its NumCalc instances, and the finished steps stay on disk.
+- **Convergence.** Every step's ``NC<N>-<N>.out`` is read (:func:`parse_convergence`): a step that hit NumCalc's
+  iteration cap or ended with a relative residual above 1e-6 is warned about and listed in
+  ``generation["unconverged"]``. mesh2scattering's report marks such steps as converged, so it is not trusted.
 
-Known limitation (2026-10-24): on Heimes & Vorländer's sine surface (d = 0.8 m, Λ = 80 mm, 10 mm baseplate) the CGS solves do not
-converge below about 700 Hz. Every sample step of the 125, 250 and 500 Hz octaves stopped at the cap of 250 iterations, with final
-residuals from 2.6e-5 up to 11; at 125 Hz the reference's steps did too (residuals up to 4.4 and 183 for the two source angles), while
-from the 250 Hz octave on the reference converged in 20-26 iterations to about 1e-10, and from 735 Hz on both bodies converge (under 100
-iterations, about 1e-10). The pressures of those steps are wrong (sample-to-reference energy ratios of 0.003 to 100, where about 1 is
-expected). The cause is not settled: suspected are the single-level FMM and CGS/ILU settings at low frequency, and element shape (the
-remeshed sample keeps the tile's facets as edges grow, aspect L²/A up to about 930 in the 125 Hz split, against about 32 for the
-reference). Not fixed here; check ``generation["unconverged"]`` (and ``ScatteringResult.unconverged_octaves``) before trusting low bands.
+Known limitation (2026-10-24): on Heimes & Vorländer's sine surface (d = 0.8 m, Λ = 80 mm, 10 mm baseplate) the CGS
+solves do not converge below about 700 Hz. Every sample step of the 125, 250 and 500 Hz octaves stopped at the cap of
+250 iterations, with final residuals from 2.6e-5 up to 11; at 125 Hz the reference's steps did too (residuals up to 4.4
+and 183 for the two source angles), while from the 250 Hz octave on the reference converged in 20-26 iterations to about
+1e-10, and from 735 Hz on both bodies converge (under 100 iterations, about 1e-10). The pressures of those steps are
+wrong (sample-to-reference energy ratios of 0.003 to 100, where about 1 is expected). The cause is not settled:
+suspected are the single-level FMM and CGS/ILU settings at low frequency, and element shape (the remeshed sample keeps
+the tile's facets as edges grow, aspect L²/A up to about 930 in the 125 Hz split, against about 32 for the reference).
+Not fixed here; check ``generation["unconverged"]`` (and ``ScatteringResult.unconverged_octaves``) before trusting low
+bands.
 
-Known offset (2026-10-24): where the solves converge, this BEM's s sits 0.03-0.10 below Heimes & Vorländer's published s (Zenodo
-15673498) in 11 of the 12 checked one-third octaves (Λ/λ ≥ 0.5, per angle at colatitude 31.5° and 61.74°, azimuth 0; the per-angle
-validation in ``tests/lab/test_validation_heimes.py``). The cause is not settled; treat BEM's s as up to about 0.1 low there.
+Known offset (2026-10-24): where the solves converge, this BEM's s sits 0.03-0.10 below Heimes & Vorländer's published s
+(Zenodo 15673498) in 11 of the 12 checked one-third octaves (Λ/λ ≥ 0.5, per angle at colatitude 31.5° and 61.74°,
+azimuth 0; the per-angle validation in ``tests/lab/test_validation_heimes.py``). The cause is not settled; treat BEM's s
+as up to about
+0.1 low there.
 
-mesh2scattering needs Python ≥ 3.11 and is imported only inside the functions that need it, so this module imports on Python 3.9.
+mesh2scattering needs Python ≥ 3.11 and is imported only inside the functions that need it, so this module imports on
+Python 3.9.
 
 References
 ----------
-Kreuzer, W., Pollack, K., Brinkmann, F., Majdak, P. (2024). NumCalc: An open-source BEM code for solving acoustic scattering problems.
+Kreuzer, W., Pollack, K., Brinkmann, F., Majdak, P. (2024). NumCalc: An open-source BEM code for solving acoustic
+scattering problems.
 *Engineering Analysis with Boundary Elements* 161, 157-178. mesh2scattering: https://github.com/ahms5/mesh2scattering.
 
-Heimes, A., Vorländer, M. (2025). Scattering coefficients of 3D surfaces from free-field BEM simulations, §3.2 and App. A.
+Heimes, A., Vorländer, M. (2025). Scattering coefficients of 3D surfaces from free-field BEM simulations, §3.2 and App.
+A.
 """
 
 import contextlib
@@ -108,7 +117,8 @@ def _area(V, F):
 
 
 def estimate_elements(mesh, edge) -> int:
-    """The element count of a mesh of equilateral triangles of side ``edge`` over the area of ``mesh``: ``ceil(A / (√3/4 · edge²))``.
+    """The element count of a mesh of equilateral triangles of side ``edge`` over the area of ``mesh``: ``ceil(A / (√3/4
+    · edge²))``.
 
     Parameters
     ----------
@@ -124,8 +134,8 @@ def estimate_elements(mesh, edge) -> int:
 def cache_key(sample, sources, receivers, frequencies, c, edge) -> str:
     """12 hex characters of a SHA-1 over what the NumCalc projects depend on.
 
-    That is the vertex coordinates of the sample and the reference rounded to 1e-6 m, their faces, the source and receiver directions,
-    the frequencies, the speed of sound and the element edge (one or one per split).
+    That is the vertex coordinates of the sample and the reference rounded to 1e-6 m, their faces, the source and
+    receiver directions, the frequencies, the speed of sound and the element edge (one or one per split).
     """
 
     def add(label, array, decimals=None):
@@ -149,9 +159,9 @@ def cache_key(sample, sources, receivers, frequencies, c, edge) -> str:
     return h.hexdigest()[:12]
 
 
-# --------------------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 # remeshing: trimesh's midpoint subdivision with Delaunay edge flips in the planes
-# --------------------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
 
 def _normals(V, F):
@@ -169,9 +179,9 @@ def _cot(apex, p, q):
 def _flip_to_delaunay(V, F, max_length=None, max_passes=100000):
     """Lawson flips of the edges between two faces in one plane (within 1 mrad) that are not locally Delaunay.
 
-    A flip there leaves the surface as it is and removes the slivers that fans (earclipped caps) and long quads leave, which
-    midpoint subdivision would otherwise copy at every level. Each pass flips a set of edges with no face in common; with
-    ``max_length`` no flip makes an edge longer than that.
+    A flip there leaves the surface as it is and removes the slivers that fans (earclipped caps) and long quads leave,
+    which midpoint subdivision would otherwise copy at every level. Each pass flips a set of edges with no face in
+    common; with ``max_length`` no flip makes an edge longer than that.
     """
     F = F.copy()
     n = len(V)
@@ -229,12 +239,13 @@ def _flip_to_delaunay(V, F, max_length=None, max_passes=100000):
 
 
 def _collapse_short_edges(V, F, edge, shortest):
-    """Collapse the edges shorter than ``shortest`` where every face that remains keeps its plane (within 1 mrad) and orientation.
+    """Collapse the edges shorter than ``shortest`` where every face that remains keeps its plane (within 1 mrad) and
+    orientation.
 
-    A collapse of v onto u replaces v by u in v's other faces and removes the two faces on the edge. When u lies in the plane of each
-    of those faces the surface stays as it is: so a vertex inside a plane can move onto any neighbour, a vertex on a straight crease
-    only along the crease, and a corner not at all. No new edge may be longer than ``edge``, and the link condition keeps the mesh
-    manifold. Shortest edges first.
+    A collapse of v onto u replaces v by u in v's other faces and removes the two faces on the edge. When u lies in the
+    plane of each of those faces the surface stays as it is: so a vertex inside a plane can move onto any neighbour, a
+    vertex on a straight crease only along the crease, and a corner not at all. No new edge may be longer than ``edge``,
+    and the link condition keeps the mesh manifold. Shortest edges first.
 
     Returns
     -------
@@ -305,13 +316,15 @@ def _remesh(mesh, edge, max_rounds=8):
     """A closed triangle mesh with all edges at most ``edge`` and near-equilateral faces in the planes of the input.
 
     1. Delaunay flips in the planes (:func:`_flip_to_delaunay`) clear the sliver fans of the earclipped caps.
-    2. ``trimesh.remesh.subdivide_to_size`` bisects every edge longer than ``edge`` at shared midpoints, so the mesh stays closed.
-    3. Collapses of edges shorter than ``0.6 edge`` that leave every face in its plane (:func:`_collapse_short_edges`) and flips,
-       repeated, thin out the points that midpoint refinement crowds where many long edges meet.
+    2. ``trimesh.remesh.subdivide_to_size`` bisects every edge longer than ``edge`` at shared midpoints, so the mesh
+       stays closed.
+    3. Collapses of edges shorter than ``0.6 edge`` that leave every face in its plane (:func:`_collapse_short_edges`)
+       and flips, repeated, thin out the points that midpoint refinement crowds where many long edges meet.
 
-    This is isotropic remeshing (Botsch & Kobbelt 2004) restricted to moves that keep the surface: the vertices stay where they are.
-    Subdivision alone keeps the shape of every input triangle and gave 30-45 times the area estimate (:func:`estimate_elements`) on a
-    disc; this gives a few times it, more where the input's own faces are narrower than ``edge``.
+    This is isotropic remeshing (Botsch & Kobbelt 2004) restricted to moves that keep the surface: the vertices stay
+    where they are. Subdivision alone keeps the shape of every input triangle and gave 30-45 times the area estimate
+    (:func:`estimate_elements`) on a disc; this gives a few times it, more where the input's own faces are narrower than
+    ``edge``.
 
     Returns
     -------
@@ -333,9 +346,9 @@ def _remesh(mesh, edge, max_rounds=8):
     return V, F
 
 
-# --------------------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 # the solver
-# --------------------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
 
 def _require():
@@ -357,7 +370,8 @@ def _require():
 
 
 def _finished(source_folder, step):
-    """Whether NumCalc finished a frequency step (as ``mesh2scattering.numcalc``'s own check): its pEvalGrid and "End time:" exist."""
+    """Whether NumCalc finished a frequency step (as ``mesh2scattering.numcalc``'s own check): its pEvalGrid and "End
+    time:" exist."""
     if not os.path.isfile(os.path.join(source_folder, "be.out", "be.{}".format(step), "pEvalGrid")):
         return False
     out = os.path.join(source_folder, "NC{0}-{0}.out".format(step))
@@ -370,9 +384,9 @@ def _finished(source_folder, step):
 def parse_convergence(text):
     """The iterative solve of one NumCalc step from the text of its ``NC<N>-<N>.out``.
 
-    NumCalc writes ``CGS solver: number of iterations = 250, relative error = 0.0813976`` after the solve and, when it stopped at its
-    iteration cap, ``Warning: Maximum number of iterations is reached!`` before it. mesh2scattering's report marks such steps as
-    converged, so this is read from the output itself.
+    NumCalc writes ``CGS solver: number of iterations = 250, relative error = 0.0813976`` after the solve and, when it
+    stopped at its iteration cap, ``Warning: Maximum number of iterations is reached!`` before it. mesh2scattering's
+    report marks such steps as converged, so this is read from the output itself.
 
     Parameters
     ----------
@@ -382,9 +396,10 @@ def parse_convergence(text):
     Returns
     -------
     tuple or None
-        ``(iterations, residual, converged)``, converged meaning the cap was not reached and the residual is at most 1e-6; ``None``
-        when the file holds no iterative-solver line (a direct solve, or an unfinished step). A residual that does not parse as a
-        finite number is ``None`` (so ``generation["unconverged"]`` stays valid JSON) and counts as unconverged.
+        ``(iterations, residual, converged)``, converged meaning the cap was not reached and the residual is at most
+        1e-6; ``None`` when the file holds no iterative-solver line (a direct solve, or an unfinished step). A residual
+        that does not parse as a finite number is ``None`` (so ``generation["unconverged"]`` stays valid JSON) and
+        counts as unconverged.
     """
     matches = _SOLVER_LINE.findall(text)
     if not matches:
@@ -408,7 +423,8 @@ def _worse(residual, than):
 
 
 def _unconverged(project, body, n_sources, frequencies):
-    """The unconverged steps of one finished project, one entry per frequency (the worst source): body, frequency, iterations, residual."""
+    """The unconverged steps of one finished project, one entry per frequency (the worst source): body, frequency,
+    iterations, residual."""
     worst = {}
     for s in range(n_sources):
         folder = os.path.join(project, "NumCalc", "source_{}".format(s + 1))
@@ -452,24 +468,29 @@ def _kill_tree(process):
 
 
 class BemSolver(ScatteringSolver):
-    """Free-field BEM pressures of a rigid sample and its reference, with mesh2scattering and NumCalc (Kreuzer et al. 2024).
+    """Free-field BEM pressures of a rigid sample and its reference, with mesh2scattering and NumCalc (Kreuzer et al.
+    2024).
 
-    The setup follows Heimes & Vorländer §3.2 and App. A: both bodies closed on the baseplate, unit plane waves travelling along −û,
-    receivers on a hemisphere in the far field. See the module docstring for the splits, the cache and the run.
+    The setup follows Heimes & Vorländer §3.2 and App. A: both bodies closed on the baseplate, unit plane waves
+    travelling along −û, receivers on a hemisphere in the far field. See the module docstring for the splits, the cache
+    and the run.
 
-    Known limitations (2026-10-24, Heimes & Vorländer's sine surface, d = 0.8 m; module docstring): below about 700 Hz the iterative
-    solves do not converge and those bands are wrong (``generation["unconverged"]``); where they converge, s sits 0.03-0.10 below
-    Heimes & Vorländer's in 11 of the 12 checked one-third octaves (Λ/λ ≥ 0.5, per angle at 31.5° and 61.74°).
+    Known limitations (2026-10-24, Heimes & Vorländer's sine surface, d = 0.8 m; module docstring): below about 700 Hz
+    the iterative solves do not converge and those bands are wrong (``generation["unconverged"]``); where they converge,
+    s sits
+    0.03-0.10 below Heimes & Vorländer's in 11 of the 12 checked one-third octaves (Λ/λ ≥ 0.5, per angle at 31.5° and
+    61.74°).
 
     Parameters
     ----------
     cache_dir : str, optional
         Where the NumCalc projects are kept; ``~/.compas_acoustics/lab_cache`` by default.
     numcalc_path : str, optional
-        The NumCalc binary; by default ``$COMPAS_ACOUSTICS_NUMCALC``, else ``mesh2scattering.numcalc.build_or_fetch_numcalc()``.
+        The NumCalc binary; by default ``$COMPAS_ACOUSTICS_NUMCALC``, else
+        ``mesh2scattering.numcalc.build_or_fetch_numcalc()``.
     max_elements : int, optional
-        The elements per body above which the solver warns; above ten times this it stops. At 100 000 elements a frequency step
-        takes about 10 GB of RAM (53 000 took 3.5 GB and 75 s on the spike machine).
+        The elements per body above which the solver warns; above ten times this it stops. At 100 000 elements a
+        frequency step takes about 10 GB of RAM (53 000 took 3.5 GB and 75 s on the spike machine).
     elements_per_wavelength : int, optional
         The mesh resolution at each split's highest frequency.
     density : float, optional
@@ -487,7 +508,7 @@ class BemSolver(ScatteringSolver):
         if self.max_elements < 1 or self.elements_per_wavelength < 1:
             raise ValueError("max_elements and elements_per_wavelength must be at least 1")
 
-    # -- planning -------------------------------------------------------------------------------------------------------------
+    # -- planning ------------------------------------------------------------------------------------------------------
 
     def _edges(self, splits, c):
         return [float(c) / (float(s.max()) * self.elements_per_wavelength) for s in splits]
@@ -515,11 +536,12 @@ class BemSolver(ScatteringSolver):
 
     @staticmethod
     def radius(sample, f_max, c):
-        """The evaluation radius ``max(10 d, 2 d² / λ_min)``, in the far field of the sample (Heimes & Vorländer App. A)."""
+        """The evaluation radius ``max(10 d, 2 d² / λ_min)``, in the far field of the sample (Heimes & Vorländer App.
+        A)."""
         d = sample.diameter
         return float(max(10.0 * d, 2.0 * d**2 * f_max / c))
 
-    # -- solving --------------------------------------------------------------------------------------------------------------
+    # -- solving -------------------------------------------------------------------------------------------------------
 
     def solve(self, sample, sources, receivers, frequencies, c):
         frequencies = np.atleast_1d(np.asarray(frequencies, dtype=float))
@@ -589,12 +611,14 @@ class BemSolver(ScatteringSolver):
         return None
 
     def _mesh(self, project, title, sample, frequencies, edge):
-        """The remeshed body of a project not yet written, checked against ``max_elements``; None if the project is in the cache.
+        """The remeshed body of a project not yet written, checked against ``max_elements``; None if the project is in
+        the cache.
 
         Raises
         ------
         ValueError
-            If the remeshed body has more than ten times ``max_elements``: the estimate passed, but the mesh is larger than it.
+            If the remeshed body has more than ten times ``max_elements``: the estimate passed, but the mesh is larger
+            than it.
         """
         if self._written(project) is not None:
             return None
@@ -607,7 +631,8 @@ class BemSolver(ScatteringSolver):
         return V, F
 
     def _write(self, project, title, sample, sources, receivers, frequencies, edge, radius, c, mesh):
-        """Write one NumCalc project from its remeshed body ``(V, F)`` (:meth:`_mesh`) unless it is written; return its element count."""
+        """Write one NumCalc project from its remeshed body ``(V, F)`` (:meth:`_mesh`) unless it is written; return its
+        element count."""
         written = self._written(project)
         if written is not None:
             return written
@@ -650,7 +675,8 @@ class BemSolver(ScatteringSolver):
         return int(len(F))
 
     def _run(self, folder, numcalc_path, stage, n_sources, n_steps):
-        """Run the unfinished steps of a split's projects in a child process, reporting progress every 2 s; kill it on cancel."""
+        """Run the unfinished steps of a split's projects in a child process, reporting progress every 2 s; kill it on
+        cancel."""
         from compas_acoustics.worker import jobs
 
         steps = [(os.path.join(folder, body, "NumCalc", "source_{}".format(s + 1)), i + 1) for body in _BODIES for s in range(n_sources) for i in range(n_steps)]
@@ -686,7 +712,8 @@ class BemSolver(ScatteringSolver):
             raise RuntimeError("NumCalc stopped after {} of {} steps (exit code {}): see {}\n{}".format(len(done), len(steps), process.returncode, log_path, tail))
 
     def _read(self, project, title, sources, receivers, radius, frequencies):
-        """The scattered pressures of a finished project, (n_sources, n_receivers, n_frequencies) in the order of the grids given."""
+        """The scattered pressures of a finished project, (n_sources, n_receivers, n_frequencies) in the order of the
+        grids given."""
         import pyfar as pf
         import sofar
         from mesh2scattering import output
