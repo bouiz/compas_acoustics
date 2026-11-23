@@ -317,12 +317,16 @@ def _kill_pool(executor):
     # a worker that exits off the table and waits for it there. The table is read again after, for one added since.
     table = getattr(executor, "_processes", None) or {}
     listed = dict(table)
+    # the pool's thread waits for its workers too: until it ends, a worker it reaped may still read as alive
+    manager = getattr(executor, "_executor_manager_thread", None)
     executor.shutdown(wait=False, cancel_futures=True)
     stopped = set()
     while True:
         listed.update(table)
         processes = [p for pid, p in list(listed.items()) if pid not in stopped]
         if not processes:
+            if manager is not None:
+                manager.join(timeout=_TERMINATE_SECONDS)
             return
         for process in processes:
             try:

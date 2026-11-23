@@ -239,7 +239,8 @@ def test_cancel_stops_the_worker_processes(monkeypatch):
     s = ScatteringSample.disc(sine_tile(period=0.0708, depth=0.0204), diameter=0.3)
     with pytest.raises(jobs.Cancelled):
         KirchhoffSolver(workers=2).solve(s, SourceGrid.preset("survey"), ReceiverGrid.hemisphere(10.0, 10.0), np.array([1000.0, 4000.0]), 343.0)
-    assert not [child for child in multiprocessing.active_children() if child.pid not in before]
+    left = [child for child in multiprocessing.active_children() if child.pid not in before]
+    assert not left, [(child.pid, child.exitcode) for child in left]
 
 
 def test_runtime_estimate_scales_with_the_work_and_the_workers():
