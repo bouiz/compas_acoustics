@@ -313,13 +313,15 @@ def _solve_source(index, u):
 
 def _kill_pool(executor):
     """Stop a process pool now: cancel its queued sources and terminate its processes (the running sources are lost)."""
-    # private, but the only handle on the processes; shutdown drops the attribute, not the table, which the pool
-    # may still add a process to while it stops
+    # private, but the only handle on the processes. Listed before shutdown: once shut down, the pool's thread takes
+    # a worker that exits off the table and waits for it there. The table is read again after, for one added since.
     table = getattr(executor, "_processes", None) or {}
+    listed = dict(table)
     executor.shutdown(wait=False, cancel_futures=True)
     stopped = set()
     while True:
-        processes = [p for pid, p in list(table.items()) if pid not in stopped]
+        listed.update(table)
+        processes = [p for pid, p in list(listed.items()) if pid not in stopped]
         if not processes:
             return
         for process in processes:
