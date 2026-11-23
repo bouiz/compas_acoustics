@@ -110,6 +110,8 @@ class EnergyMap(_PackageDtype, Data):
     def from_scene(cls, scene, points, source_index=None, n_rays=None, image_source_order=1, duration=None, air_absorption=True, seed=True, ray_spacing=1.0) -> "EnergyMap":
         """The energy map of ``scene``'s sources at ``points``.
 
+        Points outside the room or inside a closed obstacle are left out with one ``UserWarning``.
+
         Parameters
         ----------
         scene : :class:`compas_acoustics.Scene`
@@ -131,8 +133,6 @@ class EnergyMap(_PackageDtype, Data):
             interpolated to the others from the four nearest by inverse squared distance; None traces them to every
             point. The image sources are computed at every point. The package's choice: a run costs rays times
             receivers.
-
-        Points outside the room or inside a closed obstacle are left out with one ``UserWarning``.
         """
         from compas_acoustics.room.geometry import RoomGeometry
         from compas_acoustics.room.raytracing import default_duration

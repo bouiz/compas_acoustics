@@ -151,7 +151,7 @@ def frequency_response(ir, sampling_rate, num_fractions=3, frequency_range=(20.0
 class Analyser:
     """Room acoustic parameters of an impulse response (:meth:`analyse`).
 
-    Every window starts at :attr:`onset`, the direct sound of channel 0 as ``pyfar.dsp.find_impulse_response_start``
+    Every window starts at ``onset``, the direct sound of channel 0 as ``pyfar.dsp.find_impulse_response_start``
     finds it with the 20 dB criterion of ISO 3382-1:2009, p. 22.
 
     Parameters
