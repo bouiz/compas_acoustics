@@ -158,9 +158,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void ADropdown_ShowsItsChoice_UnderItsTitle()
         {
-            // the dropdown shows its value; its input's name is the title above it
-            Assert.Equal("auto", ControlLayout.Text(new DropdownControl("tail", HybridRun.Tails), "auto"));
-            Assert.Equal("Run", ControlLayout.Text(new ButtonControl("run", "Run"), "Run"));
+            // its input's name is the title above it
             Assert.Equal("Tail", ControlLayout.Title(new DropdownControl("tail", HybridRun.Tails)));
             Assert.Equal("Role", ControlLayout.Title(new SwitchControl("role", new[] { "boundary", "obstacle" })));
             Assert.Equal("Time scale", ControlLayout.Title(new SwitchControl("time_scale", new[] { "db" })));

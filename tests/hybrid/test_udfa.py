@@ -53,7 +53,7 @@ def test_single_and_two_term_agree_for_a_source_on_a_knife_plane():
 
 @pytest.mark.parametrize("theta_w", [2 * np.pi, 1.5 * np.pi])
 def test_incident_shadow_boundary_jump_is_the_direct_sound(theta_w):
-    # 2024 eq. (6): just inside the shadow the diffraction carries what the
+    # 2024, Eq. (6): just inside the shadow the diffraction carries what the
     # direct sound carries just outside it
     eps = 1e-7
     s = np.pi / 4

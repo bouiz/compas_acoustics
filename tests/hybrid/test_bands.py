@@ -4,13 +4,12 @@ import numpy as np
 import pyFDN
 import pytest
 
-from compas_acoustics.hybrid.bands import BAND_EDGES, BANDS, check_bands
+from compas_acoustics.hybrid.bands import BANDS, check_bands
 
 
 def test_bands_match_pyfdn_defaults():
-    edges, centres = pyFDN.octave_bands()
+    _, centres = pyFDN.octave_bands()
     np.testing.assert_allclose(BANDS, centres)
-    np.testing.assert_allclose(BAND_EDGES, edges)
 
 
 def test_lowest_band_is_62_point_5_not_63():

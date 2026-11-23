@@ -38,7 +38,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             var analyse = new AnalyseIrComponent();
             Assert.Equal("db", analyse.Choice("time_scale"));
             var time = Assert.IsType<Param_TimeParameter>(analyse.Params.Output.Single(p => p.Name == "time"));
-            Assert.Equal(new[] { "db", "linear" }, time.Options);
+            Assert.Equal(new[] { "db", "linear" }, Param_TimeParameter.Options);
             analyse.SetChoice("time_scale", "linear");
             var back = new AnalyseIrComponent();
             Assert.True(back.Read(Saved(analyse)));

@@ -1,60 +1,68 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using GH_IO.Serialization;
-using Grasshopper.Kernel;
 
 namespace CompasAcoustics.Grasshopper
 {
     /// <summary>
-    /// Choices the component holds itself, without an input: a switch or dropdown on the body whose port is not an input
-    /// (Auralise's level), or a menu entry (Analyse IR's time scale on its time output). Saved with the document.
+    /// Choices the component holds itself, without an input: a switch, dropdown or toggle on the body whose port is not an
+    /// input, or a menu entry. Saved with the document.
     /// </summary>
     public abstract partial class ComponentBase
     {
         private const string ChoiceKey = "choice_";
         private readonly Dictionary<string, string> _choices = new();
+        private IReadOnlyDictionary<string, string[]>? _choiceOptions;
 
         /// <summary>Choices offered elsewhere than on the body, by name, the first option the default.</summary>
         protected virtual IReadOnlyDictionary<string, string[]> MenuChoices => new Dictionary<string, string[]>();
 
         /// <summary>Every choice without an input, with its options.</summary>
-        public IReadOnlyDictionary<string, string[]> Choices
+        public IReadOnlyDictionary<string, string[]> Choices => _choiceOptions ??= ChoiceOptions();
+
+        private Dictionary<string, string[]> ChoiceOptions()
         {
-            get
-            {
-                var choices = new Dictionary<string, string[]>(MenuChoices);
-                foreach (var control in Controls)
-                    if (CurrentSpec.Inputs.All(p => p.Name != control.Port))
-                        switch (control)
-                        {
-                            case SwitchControl s:
-                                choices[s.Port] = s.Options;
-                                break;
-                            case DropdownControl d:
-                                choices[d.Port] = d.Options;
-                                break;
-                            case ToggleControl t:
-                                choices[t.Port] = new[] { "on", "off" };
-                                break;
-                        }
-                return choices;
-            }
+            var choices = new Dictionary<string, string[]>(MenuChoices);
+            foreach (var control in Controls)
+                if (Spec.Inputs.All(p => p.Name != control.Port))
+                    switch (control)
+                    {
+                        case SwitchControl s:
+                            choices[s.Port] = s.Options;
+                            break;
+                        case DropdownControl d:
+                            choices[d.Port] = d.Options;
+                            break;
+                        case ToggleControl t:
+                            choices[t.Port] = new[] { "on", "off" };
+                            break;
+                    }
+            return choices;
         }
+
+        /// <summary>The option a switch or dropdown declares as its default; null for another control or none.</summary>
+        internal static string? DefaultOf(Control control) => control switch
+        {
+            SwitchControl s => s.Default,
+            DropdownControl d => d.Default,
+            _ => null,
+        };
 
         public bool IsChoice(string name) => Choices.ContainsKey(name);
 
         /// <summary>
-        /// The tooltip of the control of ``name``: its input's description, or the options of a choice without an input; and
-        /// its default, unless the description names it already.
+        /// The tooltip of the control of <paramref name="name"/>: its input's description, or the options of a choice without
+        /// an input; and its default, unless the description names it already.
         /// </summary>
         public (string title, string text) ControlTooltip(string name)
         {
             var text = "";
-            // a button of the component's own (Play, Rewind): what it does now
-            if (Controls.FirstOrDefault(c => c.Port == name) is ButtonControl button && CurrentSpec.Inputs.All(p => p.Name != name))
+            // a button without an input: what it does now
+            if (Controls.FirstOrDefault(c => c.Port == name) is ButtonControl button && Spec.Inputs.All(p => p.Name != name))
                 return (ButtonLabel(name) ?? button.Label, "");
-            if (CurrentSpec.Inputs.FirstOrDefault(p => p.Name == name) is { } port)
+            if (Spec.Inputs.FirstOrDefault(p => p.Name == name) is { } port)
                 text = port.Description;
             else if (Choices.TryGetValue(name, out var options) && options.Length > 0)
                 text = options.Length == 1 ? options[0] : $"{string.Join(", ", options.Take(options.Length - 1))} or {options[^1]}";
@@ -63,18 +71,17 @@ namespace CompasAcoustics.Grasshopper
             return (name, text.Length == 0 ? $"(default {shown})" : $"{text} (default {shown})");
         }
 
-        /// <summary>What the control of ``name`` shows untouched: its declared default, as it reads; null when there is none.</summary>
+        /// <summary>What the control of <paramref name="name"/> shows untouched: its declared default, as it reads; null when there is none.</summary>
         private string? DefaultLabel(string name)
         {
             var control = Controls.FirstOrDefault(c => c.Port == name);
-            var declared = CurrentSpec.Inputs.FirstOrDefault(p => p.Name == name)?.Default;
+            var declared = Spec.Inputs.FirstOrDefault(p => p.Name == name)?.Default is { } d ? Convert.ToString(d, CultureInfo.InvariantCulture) : null;
             string? value = control switch
             {
-                ToggleControl t when CurrentSpec.Inputs.Any(p => p.Name == name) => t.Default ? "on" : "off",
+                ToggleControl t when Spec.Inputs.Any(p => p.Name == name) => t.Default ? "on" : "off",
                 ToggleControl => Choice(name),
-                SwitchControl s => s.Default ?? (declared != null ? Convert.ToString(declared, System.Globalization.CultureInfo.InvariantCulture) : s.Options.FirstOrDefault()),
-                DropdownControl d => d.Default ?? (declared != null ? Convert.ToString(declared, System.Globalization.CultureInfo.InvariantCulture) : null),
-                SliderControl => declared != null ? Convert.ToString(declared, System.Globalization.CultureInfo.InvariantCulture) : null,
+                SwitchControl s => DefaultOf(s) ?? declared ?? s.Options.FirstOrDefault(),
+                DropdownControl or SliderControl => DefaultOf(control) ?? declared,
                 _ => null,
             };
             return value == null || control == null ? null : ControlLayout.Label(control, value);
@@ -91,13 +98,13 @@ namespace CompasAcoustics.Grasshopper
         }
 
         /// <summary>
-        /// Offer the indices of ``names`` on the index input ``port``: its dropdown reads "All" and each index with its name,
-        /// and the port, when shown, its named values.
+        /// Offer the indices of <paramref name="names"/> on the index input <paramref name="port"/>: its dropdown reads "All"
+        /// and each index with its name, and the port, when shown, its named values.
         /// </summary>
         public void SetIndexOptions(string port, IEnumerable<string> names)
         {
             var named = SceneIndices.Of(names);
-            _indexOptions[port] = (new[] { "" }.Concat(named.Select(n => n.value.ToString(System.Globalization.CultureInfo.InvariantCulture))).ToArray(),
+            _indexOptions[port] = (new[] { "" }.Concat(named.Select(n => n.value.ToString(CultureInfo.InvariantCulture))).ToArray(),
                 new[] { "All" }.Concat(named.Select(n => n.name)).ToArray());
             if (ControlPort(port) is global::Grasshopper.Kernel.Parameters.Param_Integer integer)
             {
@@ -107,29 +114,24 @@ namespace CompasAcoustics.Grasshopper
             }
         }
 
-        /// <summary>The range a slider runs over now: its own, unless the component knows better (the traced order, a field's length).</summary>
+        /// <summary>The range a slider runs over now: its own, unless the component sets it from its data.</summary>
         public virtual (double min, double max) SliderRange(SliderControl slider) => (slider.Min, slider.Max);
 
-        /// <summary>The value a slider shows when the component moves it (Billiard's time during playback); null for its input's.</summary>
+        /// <summary>The value a slider shows when the component moves it; null for its input's.</summary>
         public virtual double? SliderShown(SliderControl slider) => null;
 
-        /// <summary>The chosen option of ``name``, or its default: the switch's ``Default``, else its first option.</summary>
+        /// <summary>The chosen option of <paramref name="name"/>, or its default: the control's <c>Default</c>, else its first option.</summary>
         public virtual string Choice(string name)
         {
             if (_choices.TryGetValue(name, out var value))
                 return value;
-            var preset = Controls.FirstOrDefault(c => c.Port == name) switch
-            {
-                SwitchControl s => s.Default,
-                DropdownControl d => d.Default,
-                _ => null,
-            };
+            var preset = Controls.FirstOrDefault(c => c.Port == name) is { } control ? DefaultOf(control) : null;
             if (preset != null)
                 return preset;
             return Choices.TryGetValue(name, out var options) && options.Length > 0 ? options[0] : "";
         }
 
-        /// <summary>Choose ``value`` for ``name`` (an option of it), as an undoable change, and solve again.</summary>
+        /// <summary>Choose <paramref name="value"/> for <paramref name="name"/> (an option of it), as an undoable change, and solve again.</summary>
         public virtual void SetChoice(string name, string value)
         {
             if (!Choices.TryGetValue(name, out var options) || !options.Contains(value) || Choice(name) == value)

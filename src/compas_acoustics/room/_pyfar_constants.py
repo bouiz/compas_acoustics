@@ -1,4 +1,5 @@
-"""Cramer's speed of sound and ISO 9613-1 air attenuation, copied from pyfar 0.8.1 (``pyfar.constants``).
+"""Cramer's speed of sound and ISO 9613-1 air attenuation, copied from pyfar 0.8.1 (``pyfar.constants``), with
+three of its reference constants defined here and the text in ASCII.
 
 ``pyfar.constants`` needs pyfar >= 0.8, which needs Python >= 3.11; Rhino 8 runs Python 3.9. The two
 functions are used only there, when ``pyfar.constants`` cannot be imported. They return pyfar objects,
@@ -86,7 +87,7 @@ def speed_of_sound_cramer(
     co2_ppm = np.array(co2_ppm)
 
     if np.any(temperature < 0) or np.any(temperature > 30):
-        raise ValueError("Temperature must be between 0°C and 30°C.")
+        raise ValueError("Temperature must be between 0 deg C and 30 deg C.")
     if np.any(relative_humidity < 0) or np.any(relative_humidity > 1):
         raise ValueError("Relative humidity must be between 0 and 1.")
     if np.any(atmospheric_pressure < 75e3) or np.any(atmospheric_pressure > 102e3):
@@ -227,7 +228,7 @@ def air_attenuation(temperature, frequencies, relative_humidity, atmospheric_pre
         raise ValueError("temperature, relative_humidity, and atmospheric_pressure must have the same shape or be broadcastable.") from e
 
     if np.any(np.array(temperature) < -73):
-        raise ValueError("Temperature must be greater than -73°C.")
+        raise ValueError("Temperature must be greater than -73 deg C.")
     if np.any(np.array(frequencies) < 50):
         raise ValueError("frequencies must be greater than 50 Hz.")
     if np.any(np.array(relative_humidity) < 0) or np.any(np.array(relative_humidity) > 1):
@@ -338,7 +339,7 @@ def _air_attenuation_accuracy(concentration_water_vapour, temperature, atmospher
     if np.any(np.array(concentration_water_vapour) < 0) or np.any(np.array(concentration_water_vapour) > 100):
         raise ValueError(r"Concentration of water vapour must be between 0% and 100%.")
     if np.any(np.array(temperature) < -273.15):
-        raise ValueError("Temperature must be greater than -273.15°C.")
+        raise ValueError("Temperature must be greater than -273.15 deg C.")
     if np.any(np.array(atmospheric_pressure) < 0):
         raise ValueError("Atmospheric pressure must be greater than 0 Pa.")
     if np.any(np.array(frequencies) < 0):

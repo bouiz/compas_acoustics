@@ -1,7 +1,6 @@
 {
     "name": "Acoustic Scene",
     "nickname": "Scene",
-    "category": "COMPAS Acoustics",
     "subcategory": "Model",
     "description": "Create an acoustic scene with the specified objects, sources and receivers. Choose its sampling rate on the body: 44.1, 48 (default) or 96 kHz.",
     "exposure": 2,
@@ -33,7 +32,7 @@
             },
             {
                 "name": "name",
-                "description": "Name of the room scene.",
+                "description": "Name of the acoustic scene.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "str"
@@ -42,7 +41,7 @@
         "outputParameters": [
             {
                 "name": "scene",
-                "description": "Room scene object."
+                "description": "Acoustic scene object."
             }
         ]
     }

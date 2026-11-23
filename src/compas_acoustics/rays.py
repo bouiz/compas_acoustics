@@ -1,5 +1,5 @@
-"""Rays for display: traced rays and ray fields (:meth:`RayField.from_scene`), and the specular
-image-source paths between sources and receivers (:meth:`SpecularReflections.from_scene`), a ray field too."""
+"""Rays for display: ray fields (:meth:`RayField.from_scene`) and the specular image-source paths between sources and
+receivers (:meth:`SpecularReflections.from_scene`), a ray field too."""
 
 import numbers
 import warnings
@@ -71,6 +71,7 @@ class Ray(_PackageDtype, Polyline):
         self.source_index = source_index
         self.ray_index = ray_index
         self.distance_offset = distance_offset
+        self.scattered_reflections = []
 
         if direction is not None:
             self.direction = direction
@@ -89,15 +90,13 @@ class Ray(_PackageDtype, Polyline):
             direction=list(self.direction),
             distance_offset=self.distance_offset,
         )
-        scattered = getattr(self, "scattered_reflections", None)
-        if scattered:
-            data["scattered_reflections"] = scattered
+        if self.scattered_reflections:
+            data["scattered_reflections"] = self.scattered_reflections
         return data
 
     @classmethod
     def __from_data__(cls, data):
         data = dict(data)
-        data.pop("sound_speed", None)  # a legacy key, not a constructor argument
         scattered = data.pop("scattered_reflections", None)
         ray = cls(**data)
         if scattered:
@@ -145,13 +144,6 @@ class Ray(_PackageDtype, Polyline):
         """The number of segments (hops) of the ray."""
         return max(len(self.points) - 1, 0)
 
-    def is_in_cone(self, axis, half_angle_deg: float) -> bool:
-        """Whether the ray's direction is within ``half_angle_deg`` of ``axis``, a cone with its apex at the origin."""
-        axis_vector = Vector(*axis)
-        if not axis_vector.length or not self.direction.length:
-            return False
-        return self.direction.angle(axis_vector, degrees=True) <= half_angle_deg + 1e-9
-
     def _clone_with_points(self, points) -> "Ray":
         return Ray(
             points,
@@ -167,11 +159,7 @@ class Ray(_PackageDtype, Polyline):
         """A copy of the ray with its first ``order`` segments; None: all."""
         if order is None:
             return self._clone_with_points(self.points[:])
-        order = max(int(order), 0)
-        points = self.points[: order + 1]
-        if len(points) < 1:
-            points = self.points[:1]
-        return self._clone_with_points(points)
+        return self._clone_with_points(self.points[: max(int(order), 0) + 1])
 
     def up_to_distance(self, distance: Optional[float]) -> Optional["Ray"]:
         """A copy of the ray cut at ``distance`` from the source (``distance_offset`` included); None: all.
@@ -293,7 +281,7 @@ class RayField(_PackageDtype, Data):
         sources = {int(index): source for index, source in data.get("sources", [])}
         field = cls(data["rays"])
         for ray in field.rays:
-            for traced in [ray, *getattr(ray, "scattered_reflections", [])]:
+            for traced in [ray, *ray.scattered_reflections]:
                 traced.source = sources.get(traced.source_index)
         return field
 
@@ -320,12 +308,14 @@ class RayField(_PackageDtype, Data):
         scatter_band: Optional[int] = None,
         random_seed: Union[bool, int] = True,
     ):
-        """Trace rays through the scene for display.
+        """Trace rays through the scene, for display.
 
-        Each source emits with the density of its radiated energy, the square of its first-order pattern
-        ``p + (1 - p) cos(theta)`` about its ``direction``; with a cone (``direction`` and ``angle``) all
-        ``n_rays`` go into the cone, with the same density. With ``include_scattering`` each hit spawns
-        scattered rays, their number and spread set by the scattering coefficient.
+        Directions follow the energy of each source's first-order pattern, ``(p + (1 - p) cos(theta))^2``, on a
+        Fibonacci lattice; ``direction`` and ``angle`` put all ``n_rays`` into a cone. The scattered rays are the
+        package's own illustration, not the scattering of the simulation methods: a hit with coefficient ``s`` spawns
+        ``round(s * scatter_density)`` rays, cosine-weighted within ``90 s`` degrees of the axis
+        ``(1 - s) specular + s normal``, sharing ``s`` of the ray's energy. Absorption and scattering are means over the
+        octave grid of :meth:`RoomGeometry.to_pra` (from 62.5 Hz, nine bands at 48 kHz), not the seven material bands.
 
         Parameters
         ----------
@@ -333,30 +323,22 @@ class RayField(_PackageDtype, Data):
         n_rays : int, default=500
             Per source.
         max_reflection_order : int, default=10
-        direction : :class:`compas.geometry.Vector` or list, optional
-            The axis of a cone to emit into, apex at each source. Requires ``angle``.
-        angle : float, optional
-            The cone's half angle in degrees. Requires ``direction``.
+        direction, angle : optional
+            The cone's axis and half angle in degrees; both or neither.
         duration : float, optional
-            In seconds: a ray stops at the first reflection past the distance sound travels in it.
+            Seconds; a ray stops at the first reflection past it.
         energy_thres : float, optional
-            A ray stops when the energy its reflections leave it, by the band mean of each wall's
-            absorption (and scattering, with ``include_scattering``), falls below this.
+            A ray stops once the energy left to it falls below this.
         sources : list of :class:`compas_acoustics.Source`, optional
-            Default: all of the scene's. ``source_index`` is the index in ``scene.sources``.
+            Default: all of the scene's; ``source_index`` is the index in ``scene.sources``.
         include_scattering : bool, default=False
         scatter_density : int, default=10
-            Scattered rays per hit at scattering coefficient 1.
+            Scattered rays per hit at ``s`` = 1.
         scatter_max_bounces : int, default=1
-            Reflections traced for each scattered ray.
         scatter_band : int, optional
-            The band whose scattering coefficient is used; default the mean of all.
+            The band of that grid whose coefficient is used; default the mean of all.
         random_seed : bool or int, default=True
-            True seeds with 42, an int with that value, False or None leaves the scattering unseeded.
-
-        Returns
-        -------
-        :class:`compas_acoustics.RayField`
+            Seeds the scattered rays: True with 42, an int with that value, False or None not at all.
         """
         if (direction is None) != (angle is None):
             raise ValueError("Both 'direction' and 'angle' must be provided together to emit rays into a cone.")
@@ -369,6 +351,8 @@ class RayField(_PackageDtype, Data):
         engine = simulation.room_engine
         walls = engine.walls
         max_dist = float(engine.max_dist)
+        kept_by_wall = [max(1.0 - float(np.mean(np.asarray(wall.absorption, dtype=float))), 0.0) for wall in walls]
+        scatter_by_wall = [_scatter_coefficient(wall, scatter_band) for wall in walls] if include_scattering else None
 
         if sources is None:
             sources = scene.sources
@@ -382,8 +366,6 @@ class RayField(_PackageDtype, Data):
         )
 
         rng = np.random.default_rng(_seed(random_seed))
-        cone = direction
-
         distance_thres = _distance(duration * 1000.0) if duration is not None else None
 
         from compas_acoustics.worker import jobs
@@ -392,11 +374,11 @@ class RayField(_PackageDtype, Data):
         for n, (source_index, source) in enumerate(sim_sources):
             jobs.progress("tracing", n, len(sim_sources))
             source_position = np.asarray(source.position, dtype=float)
-            directions = _source_directions(source, cone, angle, n_rays)
+            directions = _source_directions(source, direction, angle, n_rays)
 
             for ray_index in range(directions.shape[0]):
                 initial_direction = directions[ray_index] / np.linalg.norm(directions[ray_index])
-                direction = initial_direction.copy()
+                heading = initial_direction.copy()
                 start = source_position.copy()
                 points = [Point(*start)]
                 scattered_reflections = []
@@ -404,7 +386,7 @@ class RayField(_PackageDtype, Data):
                 travel_distance = 0.0
 
                 for bounce in range(max_reflection_order):
-                    hit, wall_index, hit_distance = engine.next_wall_hit(start, start + direction * max_dist, False)
+                    hit, wall_index, hit_distance = engine.next_wall_hit(start, start + heading * max_dist, False)
                     if wall_index == -1:
                         break
 
@@ -413,18 +395,17 @@ class RayField(_PackageDtype, Data):
                     travel_distance += float(hit_distance)
                     wall = walls[wall_index]
 
-                    absorption = float(np.mean(np.asarray(wall.absorption, dtype=float)))
-                    transmitted *= max(1.0 - absorption, 0.0)
+                    transmitted *= kept_by_wall[wall_index]
 
                     if include_scattering:
-                        scatter = _scatter_coefficient(wall, scatter_band)
+                        scatter = scatter_by_wall[wall_index]
                         if scatter > 0.0:
                             scattered_reflections.extend(
                                 _make_scattered_rays(
                                     engine=engine,
                                     walls=walls,
                                     hit=hit,
-                                    incident_direction=direction,
+                                    incident_direction=heading,
                                     wall=wall,
                                     scatter=scatter,
                                     transmitted=transmitted,
@@ -446,7 +427,7 @@ class RayField(_PackageDtype, Data):
                     if energy_thres is not None and transmitted < energy_thres:
                         break
 
-                    direction = np.asarray(wall.normal_reflect(direction), dtype=float)
+                    heading = np.asarray(wall.normal_reflect(heading), dtype=float)
                     start = hit
 
                 ray = Ray(
@@ -466,43 +447,8 @@ class RayField(_PackageDtype, Data):
         """All scattered rays across every ray in the field."""
         scattered = []
         for ray in self.rays:
-            scattered.extend(getattr(ray, "scattered_reflections", []))
+            scattered.extend(ray.scattered_reflections)
         return scattered
-
-    @property
-    def duration_ms(self) -> float:
-        """The largest travel time of the specular rays in milliseconds, 0.0 when empty."""
-        return max((ray.travel_time for ray in self.rays), default=0.0)
-
-    def particles(self, time_ms: float):
-        """The position of every specular ray at ``time_ms`` (clamped to ``[0, duration_ms]``), for a billiard view.
-
-        Returns
-        -------
-        tuple of (list of :class:`compas.geometry.Point`, list of int, list of int)
-            The positions, their rays' ``ray_index`` and the reflections each has passed. A ray that
-            has ended gives no particle.
-        """
-        time_ms = min(max(time_ms, 0.0), self.duration_ms)
-        points = []
-        indices = []
-        orders = []
-        distance = _distance(time_ms)
-        for ray in self.rays:
-            if ray.travel_time < time_ms:
-                continue
-            part = ray.up_to_distance(distance)
-            if part is None:
-                # up_to_distance reports "not emerged" at distance == distance_offset too
-                if distance < ray.cumulative_distances[0]:
-                    continue
-                points.append(Point(*ray.points[0]))
-            else:
-                points.append(Point(*part.points[-1]))
-            indices.append(ray.ray_index)
-            # A particle on a wall is reflected only once it moves on, so the end of a ray is no reflection
-            orders.append(sum(1 for reached in ray.cumulative_distances[1:] if reached < distance - TOL.absolute))
-        return points, indices, orders
 
     def filter(
         self,
@@ -539,7 +485,7 @@ class RayField(_PackageDtype, Data):
                 continue
 
             scattered = []
-            for scattered_ray in getattr(ray, "scattered_reflections", []):
+            for scattered_ray in ray.scattered_reflections:
                 truncated_scattered = self._truncate_scattered(scattered_ray, reflection_order, travel_time_ms)
                 if truncated_scattered is not None:
                     scattered.append(truncated_scattered)
@@ -653,14 +599,15 @@ def _basis(axis, label):
 
 
 def _cone_sampling(direction, angle: float, n_rays: int):
-    """``n_rays`` unit directions (n_rays, 3) on the fibonacci lattice of the cap of half angle ``angle`` degrees about ``direction``."""
+    """``n_rays`` unit directions (n_rays, 3) on the Fibonacci lattice of the cap of half angle ``angle`` degrees about
+    ``direction``."""
     cosines = 1.0 - (np.arange(n_rays) + 0.5) / n_rays * (1.0 - np.cos(np.radians(angle)))
     return _spiral(direction, cosines, "Cone 'direction'")
 
 
 def _source_directions(source, cone, angle: Optional[float], n_rays: int):
-    """The ``n_rays`` unit directions a source emits, shape ``(n_rays, 3)``: the lattice of the cone, if given, or
-    of the sphere, with the density of the energy of the source's pattern about its facing."""
+    """The ``n_rays`` unit directions (n_rays, 3) a source emits: the lattice of the cone, if given, or of the sphere,
+    with the density of the energy of the source's pattern about its facing."""
     import pyroomacoustics as pra
 
     from compas_acoustics.room.pra import CARDIOID_P
@@ -673,7 +620,7 @@ def _source_directions(source, cone, angle: Optional[float], n_rays: int):
         return _pattern_sampling(source.direction, p, n_rays)
     if p == 1.0:
         return _cone_sampling(cone, angle, n_rays)
-    # the cone's lattice, 64 candidates per ray, thinned to the pattern
+    # the cone's lattice, 64 candidates per ray (the package's choice), thinned to the pattern
     candidates = _cone_sampling(cone, angle, n_rays * 64)
     facing = np.asarray(source.direction, dtype=float)
     weights = (p + (1.0 - p) * candidates @ (facing / np.linalg.norm(facing))) ** 2
@@ -686,9 +633,9 @@ def _source_directions(source, cone, angle: Optional[float], n_rays: int):
 
 
 def _pattern_sampling(axis, p: float, n_rays: int):
-    """``n_rays`` unit directions, shape ``(n_rays, 3)``, with the density (p + (1 - p) cos(theta))^2 about ``axis``.
+    """``n_rays`` unit directions (n_rays, 3) with the density (p + (1 - p) cos(theta))^2 about ``axis``.
 
-    The fibonacci lattice of the sphere with its cosines through the inverse of the pattern's distribution: the
+    The Fibonacci lattice of the sphere with its cosines through the inverse of the pattern's distribution: the
     energy within cos(theta) < u is ((p + (1 - p) u)^3 - (2p - 1)^3) / (1 - (2p - 1)^3), for p < 1.
     """
     q = (2.0 * p - 1.0) ** 3
@@ -841,12 +788,6 @@ class SpecularPath(Ray):
         data.update(order=self.order, walls=self.walls, image=list(self.image), receiver_index=self.receiver_index)
         return data
 
-    @classmethod
-    def __from_data__(cls, data):
-        data = dict(data)
-        data.pop("wall_names", None)  # a legacy key, not a constructor argument
-        return super().__from_data__(data)
-
     @property
     def reflection_order(self) -> int:
         """The number of walls the path is reflected by: its last segment ends at the receiver, not a wall."""
@@ -862,19 +803,9 @@ class SpecularReflections(RayField):
 
     Parameters
     ----------
-    paths : list of :class:`SpecularPath`, optional
+    rays : list of :class:`SpecularPath`, optional
     name : str, optional
     """
-
-    def __init__(self, paths: Optional[List[SpecularPath]] = None, name: Optional[str] = None):
-        super().__init__(paths, name=name)
-
-    @classmethod
-    def __from_data__(cls, data):
-        data = dict(data)
-        if "rays" not in data:  # the legacy layout, with the paths under "paths"
-            data["rays"] = data.pop("paths")
-        return super().__from_data__(data)
 
     @property
     def paths(self) -> List[SpecularPath]:
@@ -883,23 +814,13 @@ class SpecularReflections(RayField):
 
     @classmethod
     def from_scene(cls, scene, max_order: int = 3) -> "SpecularReflections":
-        """The paths of the visible image sources, orders 0 to ``max_order``, from every source to every receiver.
+        """The visible image-source paths of orders 0 to ``max_order``, for every source and receiver inside the room.
 
-        Only the last wall of each image is recorded, so each path is traced back from the receiver: through
-        that wall to the parent image, and on through whichever wall leads back to the source. An image found
-        twice (through an edge, from both wall orderings) is kept once. Sources and receivers outside the room
-        are left out with a ``UserWarning``.
-
-        Parameters
-        ----------
-        scene : :class:`compas_acoustics.Scene`
-        max_order : int, default=3
-
-        Returns
-        -------
-        :class:`SpecularReflections`
+        The search records only the last wall of an image; :func:`_trace_back` finds the others. An image found twice,
+        through an edge, is kept once. Sources and receivers outside the room are left out with a ``UserWarning``.
         """
         from compas_acoustics.room.geometry import RoomGeometry
+        from compas_acoustics.room.reflections import position_tolerance
         from compas_acoustics.simulation_methods.base import _warn_if_the_search_is_slow
 
         if max_order < 0:
@@ -918,7 +839,7 @@ class SpecularReflections(RayField):
         room.image_source_model()
 
         walls = room.room_engine.walls
-        tolerance = 1e-5 * max(float(np.ptp(geometry.vertices, axis=0).max()), 1.0)
+        tolerance = position_tolerance(geometry)
         paths = []
         untraced = 0
         for s, (source_index, source) in enumerate(sources):
@@ -932,7 +853,7 @@ class SpecularReflections(RayField):
                 kept = []
                 failed = []
                 for i in np.flatnonzero(np.asarray(room.visibility[s][m], dtype=bool)):
-                    # the first of each group at one position, as in compas_acoustics.hybrid.early
+                    # the first of each group at one position, as room.reflections.first_of_each_position keeps it
                     if _near(kept, images[i], tolerance):
                         continue
                     traced = _trace_back(walls, end, images[i], int(last_walls[i]), int(orders[i]), start, tolerance)
@@ -1007,11 +928,13 @@ def _mirror(wall, point) -> np.ndarray:
 
 
 def _trace_back(walls, receiver, image, last_wall: int, order: int, source, tolerance: float):
-    """The hit points and walls, source side first, of the path from ``source`` to ``receiver`` via ``image``.
+    """The hit points and walls, source side first, of the path from ``source`` to ``receiver`` via ``image``; None if
+    none is found.
 
-    ``image`` is a visible image of ``order`` generated by ``last_wall``; its parent is its mirror image in that
-    wall. The parent's generating wall is one the segment from the hit to the parent crosses, with the parent
-    behind it; at an edge several do, so each is tried until the mirrors lead back to the source. None if none does.
+    The segment from the receiver, then from each hit, to an image crosses the image's wall; its mirror in that wall
+    is the parent image.
+    The parent's wall is not recorded: each wall the parent lies in front of is tried until the mirrors end at the
+    source.
     """
     if order == 0:
         return ([], []) if np.linalg.norm(image - source) <= tolerance else None

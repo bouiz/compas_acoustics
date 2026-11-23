@@ -27,7 +27,7 @@ GHA_FILES = ["CompasAcoustics.gha", "CompasPb.dll", "Google.Protobuf.dll", "Newt
 
 @task
 def generate_csharp(ctx):
-    """Generate the C# bindings of compas_acoustics.pb for the Grasshopper plugin, and the schema hash it checks the worker against."""
+    """Generate the C# bindings of compas_acoustics.pb and the schema hash the plugin checks the worker against."""
     from compas_pb.invocations import setup_protoc
 
     from compas_acoustics.pb import schema_hash
@@ -63,7 +63,7 @@ def build_gha(ctx, configuration="Release", version=None):
 
 @task
 def docs_components(ctx):
-    """Generate the Grasshopper component pages and the example pages of the docs, and check their images (docs/_ext/ghcomponents)."""
+    """Generate the docs' Grasshopper component and example pages and check their images (docs/_ext/ghcomponents)."""
     with ctx.cd(ctx.base_folder):
         ctx.run('"{}" docs/_ext/ghcomponents'.format(sys.executable))
 

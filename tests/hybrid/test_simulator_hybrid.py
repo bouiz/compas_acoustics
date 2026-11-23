@@ -332,12 +332,26 @@ def test_a_graph_name_a_dict_and_a_method_give_the_same_result():
         {"late_envelope": True},
         {"tail": "air"},
         {"diffraction": "btm"},
+        {"image_source_order": -1},
+        {"duration": 0.0},
         {"normalization": "FuMa"},
     ],
 )
 def test_conflicting_settings_raise_at_construction(kwargs):
     with pytest.raises(ValueError):
         Ambisonics(**kwargs)
+
+
+def test_diffraction_true_is_udfa():
+    assert Ambisonics(diffraction=True).diffraction == "udfa"
+    assert Ambisonics(diffraction=False).diffraction is None
+
+
+def test_the_duration_defaults_to_one_and_a_half_times_the_pairs_longest_target_rt():
+    method = Ambisonics(tail="eyring", image_source_order=1)
+    (ir,) = make().simulate(method).values()
+    (result,) = method.results.values()
+    assert ir.ir.shape[0] == int(np.ceil(1.5 * float(result.core.target.rt.max()) * ir.sampling_rate))
 
 
 def test_tail_defaults():
@@ -516,6 +530,34 @@ def test_a_reference_of_two_thirds_of_its_reverberation_time_is_long_enough():
         Ambisonics()._check_reference_length(1.5, target, 1.3, "rec, src")
 
 
+HARD = AcousticMaterial("hard", 0.01, 0.05)
+
+
+def test_an_eyring_tail_in_a_room_above_12_s_warns_nothing_about_ray_tracing():
+    from compas_acoustics.room.diffuse import predicted_rt
+
+    scene = make(materials=HARD)
+    assert predicted_rt(RoomGeometry.from_scene(scene), warn=False).max() > 12.0
+    with warnings.catch_warnings(record=True) as record:
+        warnings.simplefilter("always")
+        scene.simulate(Ambisonics(tail="eyring", image_source_order=1, duration=0.3))
+    assert not [w for w in record if "ray tracing" in str(w.message)]
+
+
+def test_a_reference_shorter_than_two_thirds_of_an_rt_above_12_s_warns_with_that_rt():
+    import re
+
+    from compas_acoustics.room.diffuse import predicted_rt
+
+    scene = make(materials=HARD)
+    short = references(scene, duration=1.0)
+    with pytest.warns(UserWarning, match="less than 2/3 of its reverberation time") as record:
+        scene.simulate(Ambisonics(short, image_source_order=1, duration=0.3))
+    (message,) = [str(w.message) for w in record if "less than 2/3 of its reverberation time" in str(w.message)]
+    rt = float(re.search(r"reverberation time \(([0-9.]+) s\)", message).group(1))
+    assert rt >= round(float(predicted_rt(RoomGeometry.from_scene(scene), warn=False).max()), 1) > 12.0
+
+
 def test_a_receiver_without_a_visible_image_beside_a_visible_one_renders():
     """A reference of order 0 has no image at the receiver behind the panel while the other receiver sees the source."""
     scene = make([Receiver("behind", 8.0, 4.0, 1.5), Receiver("in_view", 2.0, 7.0, 1.5)], panel=True)
@@ -677,7 +719,7 @@ def test_omni_keeps_the_early_field():
     (d,), (o,) = directional.results.values(), omni.results.values()
     np.testing.assert_array_equal(d.early, o.early)
     fs = d.core.fs
-    a = int(round((np.linalg.norm(d.core.spec.source - d.core.spec.receiver) / d.core.spec.speed_of_sound + 0.08) * fs))
+    a = int(round((np.linalg.norm(d.core.pair.source - d.core.pair.receiver) / d.core.pair.speed_of_sound + 0.08) * fs))
     level = 10 * np.log10(np.sum(o.rir[a:, 0] ** 2) / np.sum(d.rir[a:, 0] ** 2))
     assert abs(level) < 1.0
     assert not np.allclose(d.late, o.late)

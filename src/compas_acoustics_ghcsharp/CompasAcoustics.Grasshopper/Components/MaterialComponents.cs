@@ -10,7 +10,7 @@ namespace CompasAcoustics.Grasshopper
 {
     public sealed class MaterialLibraryComponent : ComponentBase, IMaterialBody
     {
-        private const string ChoiceKey = "material_choice";
+        private const string MaterialKey = "material_choice";
         private static List<(string category, IReadOnlyList<string> names)>? _library;
         private static readonly Dictionary<string, AcousticMaterialData> Materials = new();
         private MaterialChoice? _choice;
@@ -64,24 +64,17 @@ namespace CompasAcoustics.Grasshopper
                 Message = null;
                 return;
             }
-            var absorption = List<double>(access, "absorption");
-            var scattering = List<double>(access, "scattering");
-            AcousticMaterialData material;
-            if (choice.AsInTheLibrary && absorption.Count == 0 && scattering.Count == 0)
-                material = Material(choice.Library!);
-            else
-            {
-                // a library material known by its name only gets its coefficients first
-                var known = choice.AsInTheLibrary && choice.Absorption.Length == 0 ? MaterialChoice.Of(Material(choice.Library!)) : choice;
-                var scatter = scattering.Count > 0 ? scattering : known.Scattering?.ToList();
-                material = (AcousticMaterialData)Worker.Call("make_material", known.Name,
-                    (absorption.Count > 0 ? absorption : known.Absorption.ToList()).Cast<object?>().ToList(),
-                    scatter?.Cast<object?>().ToList(), string.IsNullOrEmpty(known.Category) ? null : known.Category)!;
-            }
+            var absorption = Items<double>(access, "absorption");
+            var scattering = Items<double>(access, "scattering");
+            var material = choice.AsInTheLibrary && absorption.Count == 0 && scattering.Count == 0
+                ? Material(choice.Library!)
+                : ConstructMaterialComponent.Make(choice.Name, absorption.Count > 0 ? absorption : choice.Absorption,
+                    scattering.Count > 0 ? scattering : choice.Scattering, string.IsNullOrEmpty(choice.Category) ? null : choice.Category);
             _shown = material;
             var (message, warning) = MaterialChoice.Notes(choice, absorption.Count > 0, material);
             if (message != null)
-                Status(message, "This material has no scattering coefficients: simulations use 0.05 in every band. Set them in the picker or connect 'scattering'.");
+                Status(message, $"This material has no scattering coefficients: simulations use {MaterialChart.Format(MaterialChoice.DefaultScattering)} " +
+                                "in every band. Set them in the picker or connect 'scattering'.");
             else
                 Message = null;
             if (warning != null)
@@ -104,7 +97,7 @@ namespace CompasAcoustics.Grasshopper
             }
             catch (WorkerException e)
             {
-                Rhino.UI.Dialogs.ShowMessage(ErrorText(e), "COMPAS Acoustics");
+                Rhino.UI.Dialogs.ShowMessage(ErrorText(e), CategoryName);
                 return;
             }
             AcousticMaterialData? Lookup(string name)
@@ -130,15 +123,13 @@ namespace CompasAcoustics.Grasshopper
         public override bool Write(GH_IWriter writer)
         {
             if (_choice != null)
-                writer.SetString(ChoiceKey, _choice.Write());
+                writer.SetString(MaterialKey, _choice.Write());
             return base.Write(writer);
         }
 
         public override bool Read(GH_IReader reader)
         {
-            _choice = reader.ItemExists(ChoiceKey) ? MaterialChoice.Read(reader.GetString(ChoiceKey))
-                // saved before the picker edited coefficients: the library material's name
-                : reader.ItemExists("material") ? MaterialChoice.Named(reader.GetString("material")) : null;
+            _choice = reader.ItemExists(MaterialKey) ? MaterialChoice.Read(reader.GetString(MaterialKey)) : null;
             return base.Read(reader);
         }
     }
@@ -156,6 +147,7 @@ namespace CompasAcoustics.Grasshopper
         public string Caption => _shown?.Name ?? "no material";
 
         public Action? Pick => null;
+
         protected override string SpecKey => "CA_Construct_Material";
         public override Guid ComponentGuid => new Guid("85a391f4-dd65-55e0-be79-d14c979e945b");
 
@@ -170,25 +162,29 @@ namespace CompasAcoustics.Grasshopper
 
         public override IReadOnlyList<Control> Controls { get; } = new Control[] { new DropdownControl("category", Categories, "Other") };
 
+        /// <summary>The worker's material of these coefficients; <paramref name="scattering"/> null or empty for none.</summary>
+        internal static AcousticMaterialData Make(string name, IEnumerable<double> absorption, IEnumerable<double>? scattering, string? category)
+        {
+            var given = scattering?.Cast<object?>().ToList();
+            return (AcousticMaterialData)Worker.Call("make_material", name, absorption.Cast<object?>().ToList(), given is { Count: > 0 } ? given : null, category)!;
+        }
+
         protected override void Solve(IGH_DataAccess access)
         {
             _shown = null;
-            var absorption = List<double>(access, "absorption");
+            var absorption = Items<double>(access, "absorption");
             if (absorption.Count == 0)
             {
-                Warn("Input parameter 'absorption' failed to collect data.");
+                WarnMissing("absorption");
                 return;
             }
             var name = Text(access, "name");
             if (name == null)
             {
-                Warn("Input parameter 'name' failed to collect data.");
+                WarnMissing("name");
                 return;
             }
-            var scattering = List<double>(access, "scattering");
-            var material = Worker.Call("make_material", name, absorption.Cast<object?>().ToList(),
-                scattering.Count == 0 ? null : scattering.Cast<object?>().ToList(), Text(access, "category"));
-            _shown = (AcousticMaterialData)material!;
+            _shown = Make(name, absorption, Items<double>(access, "scattering"), Text(access, "category"));
             access.SetData(0, new MaterialGoo(_shown));
         }
     }
@@ -203,12 +199,8 @@ namespace CompasAcoustics.Grasshopper
 
         protected override void Solve(IGH_DataAccess access)
         {
-            var goo = Item<MaterialGoo>(access, "material");
-            if (goo?.Value == null)
-            {
-                Warn("Input parameter 'material' failed to collect data.");
+            if (Required<MaterialGoo>(access, "material") is not { } goo)
                 return;
-            }
             var material = goo.Value;
             access.SetDataList("absorption", material.AbsorptionCoefficients);
             access.SetDataList("scattering", material.ScatteringCoefficients);

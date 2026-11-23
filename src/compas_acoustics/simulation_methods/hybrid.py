@@ -1,9 +1,10 @@
-"""The hybrid methods :class:`Binaural` and :class:`Ambisonics`: image sources, optional edge diffraction, a directional FDN.
+""":class:`Binaural` and :class:`Ambisonics`: image sources, optional edge diffraction, a directional FDN.
 
-One image source search serves every pair and, with a ray-tracing tail, the reference too, whose one ray trace also
-gives the directional histograms with ``late_envelope="directional"``; a given ``Mono`` reference at the method's
-image source order lends its search to the early field; each pair is prepared by :func:`compas_acoustics.hybrid.synthesis.prepare`
-and rendered by :func:`~compas_acoustics.hybrid.binaural.render_binaural` or
+One image source search serves every pair. A ray-tracing tail's reference shares that search and, with
+``late_envelope="directional"``, its ray trace gives the directional histograms; a given ray-tracing ``Mono``
+reference at the same image source order shares its search too. Each pair is prepared by
+:func:`compas_acoustics.hybrid.synthesis.prepare` and rendered by
+:func:`~compas_acoustics.hybrid.binaural.render_binaural` or
 :func:`~compas_acoustics.hybrid.ambisonics.render_ambisonics`.
 """
 
@@ -14,13 +15,19 @@ import threading
 import warnings
 from abc import abstractmethod
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from dataclasses import replace
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 
 from compas_acoustics.hybrid.ambisonics import default_num_delays
 from compas_acoustics.hybrid.ambisonics import render_ambisonics
+from compas_acoustics.hybrid.binaural import DEFAULT_HRTF
+from compas_acoustics.hybrid.binaural import HrtfSet
+from compas_acoustics.hybrid.binaural import render_binaural
+from compas_acoustics.hybrid.early import ImageSourceSet
 from compas_acoustics.hybrid.early import image_sources
 from compas_acoustics.hybrid.envelope import histogram_rays
 from compas_acoustics.hybrid.late import MIN_DELAYS
@@ -31,14 +38,18 @@ from compas_acoustics.hybrid.synthesis import HybridResult
 from compas_acoustics.hybrid.synthesis import prepare
 from compas_acoustics.hybrid.target import RoomTarget
 from compas_acoustics.ir import ImpulseResponse
+from compas_acoustics.receiver import Receiver
 from compas_acoustics.room.air import AirConditions
 from compas_acoustics.room.air import air_or_default
-from compas_acoustics.room.geometry import pra_octave_grid
+from compas_acoustics.room.diffuse import predicted_rt
 from compas_acoustics.room.pra import directivity_to_pra
+from compas_acoustics.room.pra import points_to_array
 from compas_acoustics.room.pra import source_to_pra
 from compas_acoustics.room.raytracing import DURATION_RT_FACTOR
+from compas_acoustics.room.raytracing import DirectionalHistogram
 from compas_acoustics.room.raytracing import default_duration
 from compas_acoustics.room.reflections import damping_as_searched
+from compas_acoustics.source import Source
 
 from .base import SimulationContext
 from .base import SimulationMethod
@@ -54,8 +65,35 @@ _HRTF_LOCK = threading.Lock()
 TAILS = ("reference", "ray_tracing", "eyring", "sabine")
 
 
+@dataclass(frozen=True)
+class _PairInputs:
+    """What one source-receiver pair is rendered from."""
+
+    key: str
+    source: Source
+    receiver: Receiver
+    pair: Pair
+    iss: ImageSourceSet
+    target: RoomTarget
+    reference: Optional[np.ndarray]
+    histogram: Optional[DirectionalHistogram]
+    duration: float
+
+
+def _without_full_absorption(geometry):
+    """``geometry`` with every absorption coefficient at most 1 - 1e-6.
+
+    A fully absorbing surface (an open window, alpha = 1) has no reflection, which the directional absorption filters
+    cannot represent when a delay line sees nothing else; 1 - 1e-6 reflects -60 dB.
+    """
+    materials = {}
+    for name, material in geometry.materials.items():
+        materials[name] = replace(material, absorption=np.minimum(material.absorption, 1.0 - 1e-6))
+    return replace(geometry, materials=materials)
+
+
 class _HybridMethod(SimulationMethod):
-    """The references, image sources, network and directional histograms; a subclass sets ``num_delays`` and renders (:meth:`_response`)."""
+    """References, image sources, network and directional histograms; a subclass sets ``num_delays`` and renders."""
 
     num_delays: int
 
@@ -123,22 +161,10 @@ class _HybridMethod(SimulationMethod):
         """``core`` rendered in the method's format, and that rendering as the pair's response."""
 
     def compute(self, context: SimulationContext) -> dict:
-        fs = context.sampling_rate
-        geometry = context.geometry
-        # the 8 kHz octave's upper edge must lie below Nyquist
-        if fs <= 2.0 * 8000.0 * np.sqrt(2.0):
-            raise ValueError(f"the hybrid method needs a sample rate above 22627 Hz, got {fs}: the 8 kHz octave's upper edge must lie below Nyquist for the decay estimator")
-        if not geometry.is_closed:
-            where = f"; first open edge from {geometry.open_edge[0]} to {geometry.open_edge[1]}" if geometry.open_edge else ""
-            raise ValueError(f"the hybrid method needs boundary surfaces that close a volume{where}.")
-        if context.outside:
-            # in a closed room a point outside is a modelling error
-            raise ValueError(f"the hybrid method: {context.outside} lie outside the room")
+        self._check(context)
         # read before any work, so a receiver facing along its up vector (no orientation) fails early
-        rotations = {id(receiver): receiver.rotation for receiver in context.receivers}
-        # A fully absorbing surface (an open window, alpha = 1) has no reflection, which the directional
-        # absorption filters cannot represent when a delay line sees nothing else; 1 - 1e-6 reflects -60 dB.
-        geometry = replace(geometry, materials={name: replace(material, absorption=np.minimum(material.absorption, 1.0 - 1e-6)) for name, material in geometry.materials.items()})
+        rotations = [receiver.rotation for receiver in context.receivers]
+        geometry = _without_full_absorption(context.geometry)
         self.results = {}
         if not context.sources or not context.receivers:
             return {}
@@ -146,39 +172,26 @@ class _HybridMethod(SimulationMethod):
         _warn_if_the_search_is_slow(geometry, self.image_source_order)
         from compas_acoustics.worker import jobs
 
-        # the lines' grid sets the rays of a reference the method traces in both envelope modes, so that they share
-        # it; only "directional" sorts the rays by these directions
+        # With a late envelope the method's own reference is traced with the histogram's ray count in both modes;
+        # only "directional" bins the rays on the lines' directions.
         grid = directions = None
         if self.late_envelope:
             grid = fdn_directions(self.num_delays).cartesian
             grid = grid / np.linalg.norm(grid, axis=1, keepdims=True)
             if self.late_envelope == "directional":
-                directions = [grid @ rotations[id(receiver)].T for receiver in context.receivers]
+                directions = [grid @ rotation.T for rotation in rotations]
         jobs.progress("references")
         references, air_absorption, air, description, run = self._references(context, geometry, grid, directions)
         self.reference_rirs = references
 
-        # Built for ray tracing, an image's damping holds prod sqrt(1 - s), its specular part; the room scattering
-        # 1 - s gives the scattered parts (complementary_scattering). A reference run here has searched the room
-        # already, and the other builds' damping is read from that search.
         jobs.progress("image sources")
-        early_room = self._built(geometry, context, air, ray_tracing=self.scattering)
-        if run is None:
-            with pra_octave_grid():
-                early_room.image_source_model()
-            room, damping = early_room, None
-        else:
-            room, damping = run.room, damping_as_searched(run.room, early_room)
-        scattered = None
-        if self.scattering:
-            scattered = damping_as_searched(room, self._built(complementary_scattering(geometry), context, air, ray_tracing=True))
-        speed_of_sound = float(getattr(room, "c", 343.0))
+        room, damping, scattered = self._searched_room(geometry, context, air, run)
+        speed_of_sound = float(room.c)
         # The network needs an int, ``rng + slope``: without a seed, a fresh one from the OS
         rng = self.seed if self.seed is not None else int(np.random.default_rng().integers(2**31))
         generation = {
             "method": self.name,
             "scale": "package",
-            "valid_range_hz": None,
             "tail": self.tail,
             "reference": description,
             "air_absorption": air_absorption,
@@ -196,48 +209,88 @@ class _HybridMethod(SimulationMethod):
             "seed": self.seed,
             "scene": getattr(context.scene, "name", None),
         }
+        histograms, generation["histogram_rays"] = self._histograms(context, geometry, room, run, grid, directions, air_absorption, air)
 
-        # The longest Eyring RT, against which a given reference's length is checked
-        eyring_rt = default_duration(geometry, air_absorption, air=air, factor=1.0)
+        inputs = self._pair_inputs(context, geometry, room, rotations, references, damping, scattered, histograms, air_absorption, air)
+        return self._rendered(inputs, rng, generation, context.sampling_rate)
 
-        histograms = None
+    @staticmethod
+    def _check(context: SimulationContext) -> None:
+        fs = context.sampling_rate
+        geometry = context.geometry
+        if fs <= 2.0 * 8000.0 * np.sqrt(2.0):
+            raise ValueError(f"the hybrid method needs a sample rate above 22627 Hz, got {fs}: the 8 kHz octave's upper edge must lie below Nyquist for the decay estimator")
+        if not geometry.is_closed:
+            where = f"; first open edge from {geometry.open_edge[0]} to {geometry.open_edge[1]}" if geometry.open_edge else ""
+            raise ValueError(f"the hybrid method needs boundary surfaces that close a volume{where}.")
+        if context.outside:
+            # in a closed room a point outside is a modelling error
+            raise ValueError(f"the hybrid method: {context.outside} lie outside the room")
+
+    def _searched_room(self, geometry, context, air, run):
+        """``(room, damping, scattered)``: the searched room whose images the pairs take, and per source the specular
+        and scattered damping where they are not the room's own (None otherwise)."""
+        # A room built with ray_tracing=True holds each image's specular product, prod sqrt(1 - s); built on
+        # complementary_scattering it holds the scattered one. Where a reference run has searched the room, its search
+        # is reused and the other builds' damping is derived from it.
+        early_room = self._built(geometry, context, air, ray_tracing=self.scattering)
+        if run is None:
+            early_room.image_source_model()
+            room, damping = early_room, None
+        else:
+            room, damping = run.room, damping_as_searched(run.room, early_room)
+        scattered = None
+        if self.scattering:
+            scattered = damping_as_searched(room, self._built(complementary_scattering(geometry), context, air, ray_tracing=True))
+        return room, damping, scattered
+
+    def _histograms(self, context, geometry, room, run, grid, directions, air_absorption, air):
+        """``(histograms [mic][source] or None, their ray count or None)``: the reference run's, or traced here for
+        ``late_envelope="directional"`` with a given reference."""
         if run is not None and run.histograms is not None:
-            histograms = run.histograms
-            generation["histogram_rays"] = int(run.room.rt_args["n_rays"])
-        elif self.late_envelope == "directional":
-            from compas_acoustics.room.raytracing import directional_histograms
+            return run.histograms, int(run.room.rt_args["n_rays"])
+        if self.late_envelope != "directional":
+            return None, None
+        from compas_acoustics.room.raytracing import directional_histograms
+        from compas_acoustics.worker import jobs
 
-            jobs.progress("directional histograms")
-            tracer = Mono(ray_tracing=True)
-            generation["histogram_rays"] = self._histogram_rays(room, grid)
-            histograms = directional_histograms(
-                geometry,
-                [source_to_pra(source) for source in context.sources],
-                np.array([receiver.position for receiver in context.receivers], dtype=float).T,
-                fs,
-                directions,
-                max_order=self.image_source_order,
-                duration=self.duration if self.duration is not None else default_duration(geometry, air_absorption, air=air),
-                n_rays=generation["histogram_rays"],
-                receiver_radius=tracer.receiver_radius,
-                energy_threshold=tracer.energy_thres,
-                air_absorption=air_absorption,
-                seed=self.seed,
-                air=air,
-            )
+        jobs.progress("directional histograms")
+        tracer = Mono._RAY_TRACING_DEFAULTS
+        n_rays = histogram_rays(room.get_volume(), tracer["receiver_radius"], float(room.c), grid)
+        histograms = directional_histograms(
+            geometry,
+            [source_to_pra(source) for source in context.sources],
+            points_to_array([receiver.position for receiver in context.receivers]),
+            context.sampling_rate,
+            directions,
+            max_order=self.image_source_order,
+            duration=self.duration,
+            n_rays=n_rays,
+            receiver_radius=tracer["receiver_radius"],
+            energy_threshold=tracer["energy_thres"],
+            air_absorption=air_absorption,
+            seed=self.seed,
+            air=air,
+        )
+        return histograms, n_rays
 
-        pairs = []
+    def _pair_inputs(self, context, geometry, room, rotations, references, damping, scattered, histograms, air_absorption, air):
+        """Every source-receiver pair's :class:`_PairInputs`, sources outer, receivers inner."""
+        fs = context.sampling_rate
+        # The longest Eyring RT, against which a reference's length is checked
+        eyring_rt = None if references is None else float(predicted_rt(geometry, air_absorption=air_absorption, air=air, warn=False).max())
+        inputs = []
         for s, source in enumerate(context.sources):
             directivity = None if source.directivity == "omnidirectional" else directivity_to_pra(source.directivity, source.direction)
             for m, receiver in enumerate(context.receivers):
                 key = context.key(source, receiver)
-                spec = Pair(
+                pair = Pair(
                     geometry=geometry,
                     source=np.asarray(source.position, dtype=float),
                     receiver=np.asarray(receiver.position, dtype=float),
-                    receiver_rotation=rotations[id(receiver)],
+                    receiver_rotation=rotations[m],
                     fs=float(fs),
-                    speed_of_sound=speed_of_sound,
+                    speed_of_sound=float(room.c),
                     air_absorption=air_absorption,
                     air=air,
                 )
@@ -253,48 +306,66 @@ class _HybridMethod(SimulationMethod):
                     target = RoomTarget.from_rir(reference, fs, n_slopes=self.n_slopes, decay_db=self.decay_db)
                     self._check_reference_length(reference.size / fs, target, eyring_rt, key)
                 else:
-                    target = RoomTarget.from_room(spec, model=self.tail)
+                    target = RoomTarget.from_room(pair, model=self.tail)
                 iss = image_sources(
                     room,
                     s,
                     m,
-                    spec,
+                    pair,
                     directivity,
                     damping=None if damping is None else damping[s],
                     scattered=None if scattered is None else scattered[s],
                 )
-                pairs.append((key, source, receiver, spec, iss, target, reference, histograms[m][s] if histograms is not None else None))
+                inputs.append(
+                    _PairInputs(
+                        key=key,
+                        source=source,
+                        receiver=receiver,
+                        pair=pair,
+                        iss=iss,
+                        target=target,
+                        reference=reference,
+                        histogram=None if histograms is None else histograms[m][s],
+                        # the package's choice of default length: 1.5 times the pair's longest target RT
+                        duration=self.duration if self.duration is not None else 1.5 * float(target.rt.max()),
+                    )
+                )
+        return inputs
 
-        def rendered(pair):
-            key, source, receiver, spec, iss, target, reference, histogram = pair
+    def _rendered(self, inputs, rng, generation, fs) -> dict:
+        """The pairs rendered on threads, the responses by key in the pairs' order; :attr:`results` filled."""
+        from compas_acoustics.worker import jobs
+
+        def rendered(item):
             core = prepare(
-                spec,
-                iss,
-                target,
+                item.pair,
+                item.iss,
+                item.target,
                 max_order=self.image_source_order,
-                duration_s=self.duration,
+                duration_s=item.duration,
                 num_delays=self.num_delays,
                 directional_absorption=self.directional_absorption,
-                late_envelope=reference if self.late_envelope else None,
-                directional_envelope=histogram,
-                diffraction=self.diffraction or False,
+                late_envelope=item.reference if self.late_envelope else None,
+                directional_envelope=item.histogram,
+                diffraction=self.diffraction,
                 rng=rng,
                 scattering=self.scattering,
             )
-            return self._response(core, key, source, receiver, generation)
+            return self._response(core, item.key, item.source, item.receiver, generation)
 
-        # The pairs render on threads, as many as fit in 4 GB at a pair's peak of about 17 arrays of
-        # (n_samples, num_delays); each renders as alone, and the results are kept in the pairs' order.
-        longest = max(self.duration if self.duration is not None else 1.5 * float(np.max(pair[5].rt)) for pair in pairs)
+        # As many threads as keep the pairs' peak memory under 4 GB (about 17 arrays of (n_samples, num_delays) per
+        # pair; cap and estimate are the package's); results do not depend on the thread count and keep the pairs'
+        # order.
+        longest = max(item.duration for item in inputs)
         peak = 17 * np.ceil(longest * fs) * self.num_delays * 8
-        workers = max(1, min(len(pairs), os.cpu_count() or 1, int(4e9 // peak)))
+        workers = max(1, min(len(inputs), os.cpu_count() or 1, int(4e9 // peak)))
         rirs = {}
         with ThreadPoolExecutor(workers) as pool:
-            futures = [pool.submit(rendered, pair) for pair in pairs]
+            futures = [pool.submit(rendered, item) for item in inputs]
             try:
-                for i, (pair, future) in enumerate(zip(pairs, futures)):
-                    jobs.progress("rendering", i, len(pairs))
-                    self.results[pair[0]], rirs[pair[0]] = future.result()
+                for i, (item, future) in enumerate(zip(inputs, futures)):
+                    jobs.progress("rendering", i, len(inputs))
+                    self.results[item.key], rirs[item.key] = future.result()
             except BaseException:
                 pool.shutdown(cancel_futures=True)
                 raise
@@ -303,16 +374,10 @@ class _HybridMethod(SimulationMethod):
     def _built(self, geometry, context, air, ray_tracing: bool):
         """The room for the image source search, with every source and receiver, not yet searched."""
         room = geometry.to_pra(context.sampling_rate, self.image_source_order, ray_tracing=ray_tracing, air_absorption=False, air=air)
-        with pra_octave_grid():
-            for source in context.sources:
-                room.add_soundsource(source_to_pra(source))
-            room.add_microphone_array(np.array([receiver.position for receiver in context.receivers], dtype=float).T)
+        for source in context.sources:
+            room.add_soundsource(source_to_pra(source))
+        room.add_microphone_array(points_to_array([receiver.position for receiver in context.receivers]))
         return room
-
-    @staticmethod
-    def _histogram_rays(room, grid) -> int:
-        """The rays of the directional histogram (:func:`~compas_acoustics.hybrid.envelope.histogram_rays`) at ``Mono``'s receiver radius."""
-        return histogram_rays(room.get_volume(), Mono(ray_tracing=True).receiver_radius, float(getattr(room, "c", 343.0)), grid)
 
     def _check_reference_length(self, length, target, eyring_rt, key):
         """Warn when a reference ends before 2/3 of its reverberation time (the fitted or Eyring one, the longer).
@@ -330,14 +395,14 @@ class _HybridMethod(SimulationMethod):
             )
 
     def _references(self, context, geometry, grid, directions):
-        """``(references or None, air_absorption, air, description, run)`` for :attr:`tail`; ``run`` is the
-        :class:`~compas_acoustics.room.raytracing.RayTracedRun` of a reference the method traces itself, or of a
-        given ``Mono`` at the method's image source order, whose search then gives the early field's images; else None.
+        """``(references or None, air_absorption, air, description, run)`` for :attr:`tail`.
 
-        A reference the method traces itself is ``Mono(ray_tracing=True)`` at the method's image source order, seed and air, as long as
-        the longer of ``duration`` and the mono default, and, with a late envelope, with the histogram's rays: its
-        one search and trace also give the early field's images and, on ``directions`` (the lines' per receiver, in
-        room coordinates), the histograms.
+        ``run`` is the :class:`~compas_acoustics.room.raytracing.RayTracedRun` whose image source search the early
+        field reuses: that of the reference the method traces itself, or of a given ray-tracing ``Mono`` at the
+        method's image source order; else None. The method's own reference is ``Mono(ray_tracing=True)`` at its image
+        source order, seed and air, as long as the longer of ``duration`` and the mono default and, with a late
+        envelope, traced with the histogram's ray count. ``directions`` (per receiver, room coordinates) make that
+        trace return the histograms.
         """
         if self.tail in ("eyring", "sabine"):
             absorption = True if self.air_absorption is None else bool(self.air_absorption)
@@ -349,9 +414,10 @@ class _HybridMethod(SimulationMethod):
             duration = default_duration(context.geometry, absorption, air=self.air)
             if self.duration is not None:
                 duration = max(duration, self.duration)
-            n_rays = Mono().n_rays
+            n_rays = Mono._RAY_TRACING_DEFAULTS["n_rays"]
             if grid is not None:
-                n_rays = self._histogram_rays(geometry.to_pra(context.sampling_rate, 0, air=air_or_default(self.air)), grid)
+                volume_room = geometry.to_pra(context.sampling_rate, 0, air=air_or_default(self.air))
+                n_rays = histogram_rays(volume_room.get_volume(), Mono._RAY_TRACING_DEFAULTS["receiver_radius"], float(volume_room.c), grid)
             method = Mono(self.image_source_order, ray_tracing=True, air_absorption=absorption, n_rays=n_rays, duration=duration, seed=self.seed, air=self.air)
             references, run = method._run(context, directions)
             description = method.generation
@@ -414,58 +480,54 @@ class _HybridMethod(SimulationMethod):
 
 _ENGINE_PARAMETERS = """
     tail : {None, "reference", "ray_tracing", "eyring", "sabine"}
-        Where the decay target comes from: fitted to ``reference``; fitted to a ``Mono(ray_tracing=True)`` run
-        at the method's ``image_source_order``, ``seed``, ``air_absorption`` and ``air`` (with the late
-        envelope, at the histogram's ray count), which is kept in :attr:`reference_rirs`; or predicted from volume,
-        area and mean absorption (warns where the room is not diffuse). None: ``"reference"`` with a reference, else
-        ``"ray_tracing"``.
+        Where the decay target comes from: fitted to ``reference``; fitted to the method's own
+        ``Mono(ray_tracing=True)`` run at its ``image_source_order``, ``seed`` and air, kept in :attr:`reference_rirs`;
+        or predicted from volume, area and mean absorption (warns where the room is not diffuse). None:
+        ``"reference"`` with a reference, else ``"ray_tracing"``.
     image_source_order : int, default=3
-        The last order of the early field; it also drives the network.
+        The last order of the early field; its images drive the network.
     n_slopes : int, default=1
-        Decay slopes fitted to the reference; 0 lets DecayFitNet (Goetz et al. 2022) decide (needs
-        ``multislope``). An Eyring or Sabine tail has one.
+        Decay slopes fitted to the reference; 0 lets DecayFitNet (Goetz et al. 2022) decide (needs ``multislope``).
+        An Eyring or Sabine tail has one.
     decay_db : float, default=30.0
         Single-slope fit range from -5 dB: 30 is T30, 20 is T20.
     duration : float, optional
-        In seconds; default 1.5 times the longest target RT. A reference the method runs itself has the mono
-        method's default length, or ``duration`` where that is longer; a directional histogram traced for a given
-        reference takes ``duration``. A reference shorter than 2/3 of its reverberation time warns.
+        In seconds; default 1.5 times the longest RT of each pair's target (the package's choice). The method's own
+        reference lasts at least the mono default; a directional histogram traced for a given reference lasts
+        ``duration``, or the mono default. A reference shorter than 2/3 of its reverberation time warns.
     directional_absorption : bool, default=True
         Weight each delay line with the reflection of the boundary it faces.
     late_envelope : {"omni", "directional", False}, optional
-        How the late field follows the reference. ``"omni"``: attenuated per band to the reference's late energy;
-        the delay lines keep the network's spread over directions, weighted only by ``directional_absorption``.
-        ``"directional"``: as ``"omni"``, and each delay line given, per octave band, its direction's share of the
-        energy the rays bring in that band (directional histogram, Schroeder 2011). The rays are traced with
-        ``Mono(ray_tracing=True)``'s settings at ``image_source_order``, also with a given reference, as many as
-        give a direction's energy a standard deviation of 1 dB (Vorlaender 2020, Eq. 11.20); with a ray-tracing
-        tail they are the reference's own rays, and ``"omni"`` traces its reference with the same number, so both
-        modes follow one reference. The decay fitted to such a reference varies by one to two just noticeable
-        differences between ray seeds: pass ``reference=Mono(ray_tracing=True, n_rays=...)`` for a steadier one.
+        How the late field follows the reference.
+        ``"omni"``: each band is attenuated to the reference's late energy; the directions stay the network's.
+        ``"directional"``: as ``"omni"``, and per octave band each delay line takes its direction's share of the ray
+        energy (directional histogram: Lentz et al. 2007, Sec. 2.4; Schroeder 2011). The rays are traced with
+        ``Mono(ray_tracing=True)``'s settings at ``image_source_order``, also with a given reference; their number
+        gives a direction's energy a standard deviation of 1 dB (Vorlaender 2020, Eq. 11.20; the 1 dB is the
+        package's choice). A ray-tracing tail traces its reference with that number in both modes, so both follow
+        one reference.
         ``False``: the network's own decay to the target, no shaping.
-        Default ``"omni"`` for a reference or ray-tracing tail. This default is the package's choice: in offices
-        the traced late directions mix less than measured ones and those of another geometrical-acoustics model,
-        so the shares exaggerate the late anisotropy and change with the rays; ``"directional"`` follows the rays
-        where their directions hold. An Eyring or Sabine tail has no reference: its default is ``False``, and
-        ``"omni"`` or ``"directional"`` raises.
+        Default ``"omni"`` with a reference or a ray-tracing tail (the package's choice); with an Eyring or Sabine
+        tail the default is ``False`` and the other two raise.
     diffraction : {False, True, "udfa", "btms"}, default=False
-        Edge diffraction around obstacles and at room edges that open wider than 180 deg; ``True`` is
-        ``"udfa"``. ``"btms"`` is far slower than ``"udfa"``.
+        Edge diffraction around obstacles and at room edges wider than 180 deg: ``True`` or ``"udfa"`` (Kirsch and
+        Ewert 2023), or ``"btms"``, the BTMS model (Svensson et al. 1999), far slower.
     air_absorption : bool, optional
-        On the image sources and diffracted paths. Default the reference's setting, or True; it must agree with
-        the reference's, since the early field and the decay target share it.
+        On the image sources and diffracted paths. Default the reference's setting, or True; it must agree with the
+        reference's, since the early field and the decay target share it.
     seed : bool or int, default=True
-        For the feedback matrices, the delay jitter and the rays the method traces: True seeds with 42, an int with that value, False or None
-        leaves them unseeded (``generation["seed"] = None``). One seed gives both methods the same late field.
+        For the feedback matrices, the delay jitter and the rays the method traces: True seeds with 42, an int with
+        that value, False or None leaves them unseeded (``generation["seed"] = None``). Binaural and Ambisonics up to
+        third order have the same 96 delay lines, and one seed gives them the same network.
     normalize : bool, default=True
         Whether the responses are peak-normalized views.
     air : AirConditions, optional
-        Speed of sound and ISO 9613-1 absorption for the image sources, diffracted paths, predicted decay and the
-        reference run. Default the references' air, else ``AirConditions()``; it must agree with the references'.
+        Speed of sound and ISO 9613-1 absorption of the image sources, diffracted paths, predicted decay and the
+        method's own reference. Default the references' air, else ``AirConditions()``; it must agree with theirs.
     scattering : bool, default=False
-        Surface scattering after Ewert et al. (2025): each image keeps its specular part, ``prod sqrt(1 - s)``,
-        in the early field; its scattered part, ``prod sqrt(s)``, enters the delay lines of its hemisphere
-        through an allpass cascade. Both parts come from the one image source search.
+        Surface scattering after Ewert et al. (2025): each image keeps its specular part, ``prod sqrt(1 - s)``, in the
+        early field; its scattered part, ``prod sqrt(s)``, enters the delay lines of its hemisphere through an allpass
+        cascade. Both come from the one image source search.
 
     Attributes
     ----------
@@ -480,11 +542,12 @@ _ENGINE_PARAMETERS = """
 class Binaural(_HybridMethod):
     """Binaural room impulse responses: image sources, optional edge diffraction, a directional FDN.
 
-    The early field is the image sources up to ``image_source_order`` (and, with ``diffraction``, edge
-    diffraction). The last order drives a feedback delay network of 96 lines, one per direction, whose decay
-    follows a target (Wendt et al. 2014), the count Kirsch et al. (2023) use offline. Every early path and
-    delay line is filtered with the HRIR measured nearest its direction. Needs Python >= 3.11 and a closed
-    room. Responses are ears left then right, stored under ``'binaural'``; ``generation["hrtf"]`` names the set.
+    The early field is the image sources up to ``image_source_order`` and, with ``diffraction``, the diffracted
+    paths. The images of the last order drive a feedback delay network of 96 delay lines, one per direction (the
+    count Kirsch et al. 2023, Secs. 1.2 and 3.3, use offline), whose decay follows a target (Wendt et al. 2014,
+    Sec. 1.2). Every early path and delay line is filtered with the HRIR measured nearest its direction. Needs
+    Python >= 3.11 and a closed room. Responses are ears left then right, stored under ``'binaural'``;
+    ``generation["hrtf"]`` names the set.
 
     Parameters
     ----------
@@ -499,7 +562,8 @@ class Binaural(_HybridMethod):
     --------
     >>> import compas_acoustics as ca
     >>> scene = ca.Scene("office")
-    >>> scene.add_acoustic_objects(ca.AcousticObjectsLibrary.shoebox_room(6, 5, 3, materials=ca.AcousticMaterial("wall", 0.2, 0.1)))
+    >>> wall = ca.AcousticMaterial("wall", 0.2, 0.1)
+    >>> scene.add_acoustic_objects(ca.AcousticObjectsLibrary.shoebox_room(6, 5, 3, materials=wall))
     >>> scene.add_source(ca.Source("talker", 1.5, 1.5, 1.6))
     >>> scene.add_receiver(ca.Receiver("listener", 4.0, 3.0, 1.2))
     >>> ir = next(iter(scene.simulate(ca.Binaural(tail="eyring")).values()))  # doctest: +SKIP
@@ -539,17 +603,26 @@ class Binaural(_HybridMethod):
         if hrtf != "ku100" and not Path(hrtf).is_file():
             raise ValueError(f"hrtf must be 'ku100' or a SOFA file, not {hrtf!r}")
         super().__init__(
-            reference, tail, image_source_order, n_slopes, decay_db, duration, directional_absorption, late_envelope, diffraction, air_absorption, seed, normalize, air, scattering
+            reference=reference,
+            tail=tail,
+            image_source_order=image_source_order,
+            n_slopes=n_slopes,
+            decay_db=decay_db,
+            duration=duration,
+            directional_absorption=directional_absorption,
+            late_envelope=late_envelope,
+            diffraction=diffraction,
+            air_absorption=air_absorption,
+            seed=seed,
+            normalize=normalize,
+            air=air,
+            scattering=scattering,
         )
         self.hrtf = hrtf
         self._hrtf_set = None
         self._hrtf_loaded = None
 
     def _response(self, core, key, source, receiver, generation):
-        from compas_acoustics.hybrid.binaural import DEFAULT_HRTF
-        from compas_acoustics.hybrid.binaural import HrtfSet
-        from compas_acoustics.hybrid.binaural import render_binaural
-
         path = DEFAULT_HRTF if self.hrtf == "ku100" else Path(self.hrtf)
         # loaded once per run by the first pair to get here, again only when the set or the rate changed since
         with _HRTF_LOCK:
@@ -572,9 +645,10 @@ class Ambisonics(_HybridMethod):
     reference : str, dict, Mono or None
         As :class:`Binaural`.
     sh_order : int, default=1
-        The network has 96 delay lines up to third order (Kirsch et al. 2023), above that the smallest
-        equal-area grid supporting the order. The input gain ``sqrt(num_delays)`` offsets the output's
-        ``1 / sqrt(num_delays)``, so the late level does not depend on the count.
+        The network has 96 delay lines, the count Kirsch et al. (2023, Secs. 1.2 and 3.3) use offline, up to third
+        order, which the 96-point grid supports; above that the smallest equal-area grid supporting the order. The
+        input gain ``sqrt(num_delays)`` offsets the output's ``1 / sqrt(num_delays)``, so the late level does not
+        depend on the count.
     normalization : {"SN3D", "N3D"}, default="SN3D"
         ACN channel order, W = 1 for a unit plane wave.
 
@@ -582,7 +656,8 @@ class Ambisonics(_HybridMethod):
     --------
     >>> import compas_acoustics as ca
     >>> scene = ca.Scene("office")
-    >>> scene.add_acoustic_objects(ca.AcousticObjectsLibrary.shoebox_room(6, 5, 3, materials=ca.AcousticMaterial("wall", 0.2, 0.1)))
+    >>> wall = ca.AcousticMaterial("wall", 0.2, 0.1)
+    >>> scene.add_acoustic_objects(ca.AcousticObjectsLibrary.shoebox_room(6, 5, 3, materials=wall))
     >>> scene.add_source(ca.Source("talker", 1.5, 1.5, 1.6))
     >>> scene.add_receiver(ca.Receiver("listener", 4.0, 3.0, 1.2))
     >>> ir = next(iter(scene.simulate(ca.Ambisonics(tail="eyring", sh_order=2)).values()))  # doctest: +SKIP
@@ -618,7 +693,20 @@ class Ambisonics(_HybridMethod):
         if sh_order < 0:
             raise ValueError("sh_order must be non-negative")
         super().__init__(
-            reference, tail, image_source_order, n_slopes, decay_db, duration, directional_absorption, late_envelope, diffraction, air_absorption, seed, normalize, air, scattering
+            reference=reference,
+            tail=tail,
+            image_source_order=image_source_order,
+            n_slopes=n_slopes,
+            decay_db=decay_db,
+            duration=duration,
+            directional_absorption=directional_absorption,
+            late_envelope=late_envelope,
+            diffraction=diffraction,
+            air_absorption=air_absorption,
+            seed=seed,
+            normalize=normalize,
+            air=air,
+            scattering=scattering,
         )
         self.sh_order = int(sh_order)
         self.normalization = normalization
@@ -644,6 +732,8 @@ class Ambisonics(_HybridMethod):
         )
 
 
+# under python -OO the docstrings are None
 for _method in (Binaural, Ambisonics):
-    _method.__doc__ = _method.__doc__.replace("\n\n    Examples\n", _ENGINE_PARAMETERS + "\n\n    Examples\n", 1)
+    if _method.__doc__ is not None:
+        _method.__doc__ = _method.__doc__.replace("\n\n    Examples\n", _ENGINE_PARAMETERS + "\n\n    Examples\n", 1)
 del _method

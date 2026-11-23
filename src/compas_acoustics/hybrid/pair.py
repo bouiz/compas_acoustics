@@ -1,4 +1,4 @@
-"""One source-receiver pair of a scene, the ``spec`` the hybrid modules take."""
+"""One source-receiver pair of a scene, as the hybrid modules take it."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ class Pair:
     receiver: np.ndarray
     receiver_rotation: np.ndarray
     fs: float
-    speed_of_sound: float = 343.0
+    speed_of_sound: float
     air_absorption: bool = True
     air: Optional[AirConditions] = None
 

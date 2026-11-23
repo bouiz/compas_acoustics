@@ -3,7 +3,8 @@
 import numpy as np
 import pytest
 
-from _rooms import box_room, images, pair
+from _rooms import box_room, images
+from _rooms import pair as make_pair
 from compas_acoustics.hybrid.synthesis import prepare
 from compas_acoustics.hybrid.ambisonics import render_ambisonics
 from compas_acoustics.hybrid.target import RoomTarget
@@ -126,7 +127,7 @@ def test_a_reference_on_another_scale_warns():
 
 # -------------------------------------------------------------- the pipeline --
 def shoebox():
-    return pair(
+    return make_pair(
         geometry=box_room((7.0, 5.0, 3.0), SurfaceMaterial("wall", np.full(8, 0.2))),
         source=np.array([1.5, 1.5, 1.6]),
         receiver=np.array([5.0, 3.0, 1.5]),
@@ -136,17 +137,42 @@ def shoebox():
 
 
 def test_without_a_reference_nothing_changes():
-    spec = shoebox()
-    default = render_ambisonics(prepare(spec, images(spec, 3), RoomTarget.from_room(spec), max_order=2, duration_s=0.5))
-    none = render_ambisonics(prepare(spec, images(spec, 3), RoomTarget.from_room(spec), max_order=2, duration_s=0.5, late_envelope=None))
+    pair = shoebox()
+    default = render_ambisonics(prepare(pair, images(pair, 3), RoomTarget.from_room(pair), max_order=2, duration_s=0.5))
+    none = render_ambisonics(prepare(pair, images(pair, 3), RoomTarget.from_room(pair), max_order=2, duration_s=0.5, late_envelope=None))
     np.testing.assert_array_equal(default.rir, none.rir)
 
 
 def test_a_reference_shapes_only_the_late_field():
-    spec = shoebox()
-    plain = render_ambisonics(prepare(spec, images(spec, 3), RoomTarget.from_room(spec), max_order=2, duration_s=0.5))
+    pair = shoebox()
+    plain = render_ambisonics(prepare(pair, images(pair, 3), RoomTarget.from_room(pair), max_order=2, duration_s=0.5))
     reference = plain.early[:, 0] + 0.5 * plain.late[:, 0]
-    shaped = render_ambisonics(prepare(spec, images(spec, 3), RoomTarget.from_room(spec), max_order=2, duration_s=0.5, late_envelope=reference))
+    shaped = render_ambisonics(prepare(pair, images(pair, 3), RoomTarget.from_room(pair), max_order=2, duration_s=0.5, late_envelope=reference))
     np.testing.assert_array_equal(shaped.early, plain.early)
     np.testing.assert_allclose(shaped.rir, shaped.early + shaped.late)
     assert np.sum(shaped.late**2) < np.sum(plain.late**2)
+
+
+def test_below_32_khz_the_bank_has_eight_bands_and_the_shaping_uses_only_those():
+    """At 24 kHz the 16 kHz band is at or above Nyquist: eight bands, every one written and summed."""
+    fs = 24000.0
+    n = int(1.0 * fs)
+    t = np.arange(n) / fs
+    rng = np.random.default_rng(3)
+    early_w = np.zeros(n)
+    early_w[int(0.01 * fs)] = 1.0
+    lines = 0.02 * rng.standard_normal((n, 16)) * (10 ** (-3 * t / 0.6) * (t >= 0.03))[:, None]
+    late_w = lines.sum(axis=1) / 4.0
+    reference = early_w + 0.5 * late_w
+
+    bands = octave_band_split(lines, fs)
+    assert bands.shape == (8, n, 16)
+    np.testing.assert_allclose(bands.sum(axis=0), lines, atol=1e-6 * np.max(np.abs(lines)))
+    gains = envelope_gains(reference, early_w, late_w, fs)
+    assert gains.shape == (8, n)
+
+    first = shape_late(lines, early_w, late_w, reference, fs)
+    second = shape_late(lines, early_w, late_w, reference, fs)
+    assert np.all(np.isfinite(first))
+    assert np.array_equal(first, second)
+    np.testing.assert_array_equal(first, np.einsum("bn,bnc->nc", gains, bands))

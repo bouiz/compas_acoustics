@@ -44,16 +44,18 @@ namespace CompasAcoustics.Grasshopper
         private void OnStateChanged() =>
             Rhino.RhinoApp.InvokeOnUiThread(new Action(() => OnPingDocument()?.ScheduleSolution(1, _ => ExpireSolution(false))));
 
+        private static string StateLine(Worker worker) =>
+            MessageText.WorkerLine(worker.State, worker.StartedAt is DateTime t ? (DateTime.Now - t).TotalSeconds : null);
+
         /// <summary>The lines the body shows: state, Python, version and schema.</summary>
         public static string[] Lines(Worker worker)
         {
-            var state = MessageText.WorkerLine(worker.State, worker.StartedAt is DateTime t ? (DateTime.Now - t).TotalSeconds : null);
             var version = worker.State == WorkerState.Running
                 ? $"compas_acoustics {worker.RunningVersion}, schema ok"
-                : worker.LastError is string error && error.Contains("schema")
+                : worker.Incompatible
                     ? "schema mismatch: use Install Worker again"
-                    : $"plugin {Worker.Version}";
-            return new[] { state, worker.Python ?? "no Python: use Install Worker", version };
+                    : $"plugin {Versions.Plugin}";
+            return new[] { StateLine(worker), worker.Python ?? "no Python: use Install Worker", version };
         }
 
         protected override void Solve(IGH_DataAccess access)
@@ -73,7 +75,7 @@ namespace CompasAcoustics.Grasshopper
                 });
             if (Pressed("open_log"))
                 OpenWorkerLog();
-            Message = MessageText.WorkerLine(worker.State, worker.StartedAt is DateTime t ? (DateTime.Now - t).TotalSeconds : null);
+            Status(StateLine(worker));
             if (worker.LastError is string error && worker.State != WorkerState.Running)
                 Warn(WorkerException.Summary(error));
             access.SetData("python", worker.Python);
@@ -101,7 +103,7 @@ namespace CompasAcoustics.Grasshopper
         protected override void RenderExtra(GH_Canvas canvas, Graphics g)
         {
             var area = ExtraArea;
-            using var font = new Font(FontFamily.GenericSansSerif, 6f);
+            var font = ChartPainter.Small;
             using var format = new StringFormat { Trimming = StringTrimming.EllipsisPath, FormatFlags = StringFormatFlags.NoWrap };
             var lines = WorkerComponent.Lines(Worker.Instance);
             for (var i = 0; i < lines.Length; i++)

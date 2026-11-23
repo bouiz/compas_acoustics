@@ -9,7 +9,7 @@ namespace CompasAcoustics.Grasshopper
     public sealed class CompasAcousticsInfo : GH_AssemblyInfo
     {
         public override string Name => "COMPAS Acoustics";
-        public override string Version => Worker.Version;
+        public override string Version => Versions.Plugin;
         public override string Description => "Room acoustic simulation, analysis and auralisation with compas_acoustics, run in its Python worker.";
         public override Guid Id => new Guid("7f0b6a3e-2f4d-4a51-9a1c-3c8e2d5b9e41");
         public override string AuthorName => "Gramazio Kohler Research, ETH Zurich";

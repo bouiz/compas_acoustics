@@ -1,4 +1,3 @@
-using System;
 using Google.Protobuf;
 using Grasshopper.Kernel.Types;
 using GH_IO.Serialization;
@@ -77,10 +76,16 @@ namespace CompasAcoustics.Grasshopper
                 Value = null!;
                 return true;
             }
-            var message = new TMessage();
-            message.MergeFrom(reader.GetByteArray(Key));
-            Value = message;
+            Value = Parse(reader.GetByteArray(Key));
             return true;
+        }
+
+        /// <summary>The message of these protobuf bytes.</summary>
+        internal static TMessage Parse(byte[] bytes)
+        {
+            var message = new TMessage();
+            message.MergeFrom(bytes);
+            return message;
         }
     }
 }

@@ -1,13 +1,10 @@
 import json
 from datetime import datetime
 from datetime import timezone
-from math import gcd
 from pathlib import Path
 
 import numpy as np
 from compas.data import Data
-from numpy.typing import NDArray
-from scipy import signal
 
 from compas_acoustics.defaults import Defaults
 from compas_acoustics.defaults import _PackageDtype
@@ -18,11 +15,11 @@ __all__ = ["ImpulseResponse"]
 
 
 class ImpulseResponse(_PackageDtype, Data):
-    """An impulse response between a source and a receiver.
+    """An impulse response between a source and a receiver, stored at its raw level.
 
-    Stored at its raw level with its normalization factor, the peak of all channels. :attr:`ir`
-    is peak-normalized by default; :meth:`denormalized` and :meth:`denormalize_group` give the raw
-    level, which keeps distance and level differences between responses.
+    :attr:`ir` is peak-normalized by default (the peak of all channels, :attr:`normalization_factor`);
+    :meth:`denormalized` gives the raw level, and :meth:`denormalize_group` scales a group so that its loudest response
+    peaks at 1. Both keep the level differences between responses.
 
     Parameters
     ----------
@@ -35,7 +32,7 @@ class ImpulseResponse(_PackageDtype, Data):
     normalized : bool, optional
         Whether :attr:`ir` is peak-normalized; default True.
     generation : dict, optional
-        The method and its settings; written to the JSON metadata on export.
+        The method and its settings, written to the JSON metadata on export.
     ambisonic_order : int, optional
         None for a mono or binaural response.
     normalization : str, optional
@@ -132,7 +129,7 @@ class ImpulseResponse(_PackageDtype, Data):
 
     @staticmethod
     def denormalize_group(impulse_responses):
-        """Raw impulse responses scaled together so the loudest peaks at 1.
+        """The raw arrays of the responses, scaled together so that the loudest peaks at 1.
 
         Parameters
         ----------
@@ -141,7 +138,6 @@ class ImpulseResponse(_PackageDtype, Data):
         Returns
         -------
         list or dict of np.ndarray
-            In the container type of the input.
         """
         is_dict = isinstance(impulse_responses, dict)
         items = list(impulse_responses.values()) if is_dict else list(impulse_responses)
@@ -152,34 +148,14 @@ class ImpulseResponse(_PackageDtype, Data):
         scaled = [ir._raw_ir / reference for ir in items]
         return dict(zip(impulse_responses.keys(), scaled)) if is_dict else scaled
 
-    def resampled(self, target_sampling_rate: int, method: str = "poly") -> NDArray[np.float64]:
-        """:attr:`ir` resampled to ``target_sampling_rate`` along axis 0, by ``"poly"`` or ``"fft"``."""
-        ir_array = np.asarray(self.ir, dtype=np.float64)
-
-        if self.sampling_rate == target_sampling_rate:
-            return ir_array.copy()
-
-        if method == "poly":
-            g = gcd(int(self.sampling_rate), int(target_sampling_rate))
-            up = int(target_sampling_rate) // g
-            down = int(self.sampling_rate) // g
-            return signal.resample_poly(ir_array, up, down, axis=0)
-
-        if method == "fft":
-            new_len = int(round(len(ir_array) * target_sampling_rate / self.sampling_rate))
-            return signal.resample(ir_array, new_len, axis=0)
-
-        raise ValueError("method must be 'poly' or 'fft'")
-
-    def direct_sound_index(self, speed_of_sound: float = None) -> int:
+    def direct_sound_index(self) -> int:
         """Sample of the direct sound.
 
-        On the package scale (``generation['scale'] == 'package'``) the geometric one, distance / c,
-        even when early ray-traced bins are louder or an obstacle blocks it; otherwise the largest
-        sample of the omnidirectional channel.
+        On the package scale the geometric one, distance / c, even when an early ray-traced bin is louder or an obstacle
+        blocks it; otherwise the largest sample of the omnidirectional channel.
         """
         if self.generation.get("scale") == "package":
-            c = speed_of_sound or self.generation.get("speed_of_sound") or Defaults().DEFAULT_SPEED_OF_SOUND
+            c = self.generation.get("speed_of_sound") or Defaults().DEFAULT_SPEED_OF_SOUND
             distance = float(np.linalg.norm(np.subtract(self.receiver.position, self.source.position)))
             return int(round(distance / c * self.sampling_rate))
         omni = self._raw_ir if self._raw_ir.ndim == 1 else self._raw_ir[:, 0]
@@ -229,9 +205,8 @@ class ImpulseResponse(_PackageDtype, Data):
         }
 
     def to_wav(self, filepath):
-        """Write the peak-normalized response as a 32-bit float WAV, and :attr:`metadata` as JSON beside it.
-
-        The JSON holds the normalization factor, from which :meth:`from_wav` restores the raw level.
+        """Write the peak-normalized response as a 32-bit float WAV, and :attr:`metadata` with the normalization factor
+        as JSON beside it.
 
         Returns
         -------
@@ -248,17 +223,15 @@ class ImpulseResponse(_PackageDtype, Data):
 
     @classmethod
     def from_wav(cls, filepath, source: Source = None, receiver: Receiver = None, normalized: bool = True):
-        """Read a WAV written by :meth:`to_wav`, restoring the raw level from its JSON metadata.
-
-        Without metadata the WAV is taken as the raw response.
+        """Read a WAV written by :meth:`to_wav` at the raw level of its JSON metadata; without metadata the WAV is raw.
 
         Parameters
         ----------
         filepath : str
         source, receiver : Source, Receiver, optional
-            Used instead of the ones in the metadata.
+            Used instead of those of the metadata.
         normalized : bool, optional
-            Whether :attr:`ir` is peak-normalized; default True.
+            As in :class:`ImpulseResponse`.
 
         Returns
         -------

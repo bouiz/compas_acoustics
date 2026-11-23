@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from compas_acoustics import AirConditions
-from compas_acoustics.room.air import speed_of_sound
+from compas_acoustics.room.air import air_or_default
 
 try:
     import pyfar.constants  # noqa: F401
@@ -95,7 +95,7 @@ def test_round_trip_through_a_dict():
 
 
 def test_without_a_medium_the_speed_of_sound_is_the_default_mediums():
-    assert speed_of_sound(None) == AirConditions().speed_of_sound == pytest.approx(343.98, abs=0.01)
+    assert air_or_default(None).speed_of_sound == AirConditions().speed_of_sound == pytest.approx(343.98, abs=0.01)
 
 
 def test_predicted_rt_follows_the_medium():

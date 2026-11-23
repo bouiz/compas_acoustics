@@ -1,4 +1,4 @@
-"""Binaural rendering of the hybrid: every early path and every delay line through the HRIR measured nearest its direction."""
+"""Binaural rendering of the hybrid: every early path and delay line through the HRIR measured nearest its direction."""
 
 from __future__ import annotations
 
@@ -11,6 +11,12 @@ from scipy.signal import fftconvolve
 
 from compas_acoustics.defaults import Defaults
 
+from .diffraction import encode_btms
+from .diffraction import encode_diffraction
+from .early import render_images
+from .synthesis import HybridCore
+from .synthesis import HybridResult
+
 __all__ = ["DEFAULT_HRTF", "HrtfSet", "render_binaural"]
 
 # The HRTF set every binaural rendering uses unless given another
@@ -21,8 +27,8 @@ DEFAULT_HRTF = Path(Defaults().HRTF_LIBRARY_PATH) / "KU100_HRIR_L2702.sofa"
 class HrtfSet:
     """Head-related impulse responses and the directions they were measured from.
 
-    ``hrirs`` is (directions, 2, taps), ears left then right; ``directions`` are unit
-    vectors in the listener's frame (x front, y left, z up), as SOFA stores them.
+    ``hrirs`` is (directions, 2, taps), ears left then right; ``directions`` are unit vectors in the listener's frame
+    (x front, y left, z up), as SOFA stores them.
     """
 
     hrirs: np.ndarray
@@ -46,8 +52,8 @@ class HrtfSet:
 
 
 def hrir_groups(hrtf: HrtfSet, doa) -> tuple[np.ndarray, np.ndarray]:
-    """The measured directions nearest the directions of arrival ``doa`` (M, 3), and the (M, G) one-hot
-    weights that sum the paths sharing one onto a channel per measured direction."""
+    """The measured directions nearest the directions of arrival ``doa`` (M, 3), and the (M, G) one-hot weights that
+    sum the paths sharing one onto a channel per measured direction."""
     nearest = hrtf.nearest(doa)
     groups = np.unique(nearest)
     return groups, (nearest[:, np.newaxis] == groups[np.newaxis, :]).astype(float)
@@ -61,23 +67,15 @@ def render_groups(monos: np.ndarray, groups: np.ndarray, hrtf: HrtfSet, n_sample
     return out
 
 
-def render_binaural(core, hrtf: HrtfSet):
-    """A :class:`~compas_acoustics.hybrid.synthesis.HybridCore` at the two ears, (n, 2), as a
-    :class:`~compas_acoustics.hybrid.synthesis.HybridResult`.
+def render_binaural(core: HybridCore, hrtf: HrtfSet) -> HybridResult:
+    """A :class:`~compas_acoustics.hybrid.synthesis.HybridCore` at the two ears, (n, 2).
 
-    Early part: every image, diffracted path and BTMS contribution has the band magnitude, fractional delay
-    and radiation taper of :func:`~compas_acoustics.hybrid.early.render_images` and goes through the HRIR
-    measured nearest its direction; paths sharing an HRIR are summed first. Late part: line ``i`` after the late envelope
+    Every image, diffracted path and BTMS contribution goes through the HRIR measured nearest its direction, the paths
+    sharing an HRIR summed first. Line ``i``, after the late envelope
     (:meth:`~compas_acoustics.hybrid.synthesis.HybridCore.shaped_lines`, fitted against the paths' omnidirectional
-    sum), over ``sqrt(N)`` (the W row of the ambisonic output matrix), through the HRIR nearest
+    sum) and over ``sqrt(N)`` (the W row of the ambisonic output matrix), goes through the HRIR nearest
     ``core.line_directions[i]``.
     """
-    # pyFDN, on Python >= 3.11 only; the Auraliser imports this module without it
-    from compas_acoustics.hybrid.diffraction import encode_btms
-    from compas_acoustics.hybrid.diffraction import encode_diffraction
-    from compas_acoustics.hybrid.early import render_images
-    from compas_acoustics.hybrid.synthesis import HybridResult
-
     if hrtf.sampling_rate != int(core.fs):
         raise ValueError(f"the HRTF set has sample rate {hrtf.sampling_rate}; the response has {core.fs}")
     n = core.n_samples
@@ -99,8 +97,6 @@ def render_binaural(core, hrtf: HrtfSet):
     shaped = core.shaped_lines(early_w)
     lines = shaped / np.sqrt(shaped.shape[1])
     nearest = hrtf.nearest(core.line_directions)
-    late = np.zeros((n, 2))
-    for index in np.unique(nearest):
-        line = lines[:, nearest == index].sum(axis=1)
-        late += fftconvolve(line[:, np.newaxis], hrtf.hrirs[index].T, axes=0)[:n]
+    groups = np.unique(nearest)
+    late = render_groups(np.stack([lines[:, nearest == index].sum(axis=1) for index in groups], axis=1), groups, hrtf, n)
     return HybridResult(core=core, rir=early + late, early=early, late=late, late_lines=shaped, normalization=None)

@@ -16,14 +16,13 @@ namespace CompasAcoustics.Grasshopper
         public override string TypeDescription => "A compas_acoustics ImpulseResponse, at its raw level.";
         public override string Name => Value?.Name ?? "";
         public int SamplingRate => Value?.SamplingRate ?? 0;
-        public int Samples => Value == null || Value.Shape.Count == 0 ? 0 : (int)Value.Shape[0];
         public int Channels => Value == null ? 0 : Value.Shape.Count > 1 ? (int)Value.Shape[1] : 1;
         public string SourceGuid => Value?.Source?.Guid ?? "";
         public string ReceiverGuid => Value?.Receiver?.Guid ?? "";
         public string SourceName => Value?.Source?.Name ?? "";
         public string ReceiverName => Value?.Receiver?.Name ?? "";
 
-        /// <summary>The method's description of the run, e.g. ``method``, ``output``, ``seed``.</summary>
+        /// <summary>The method's description of the run, e.g. <c>method</c>, <c>output</c>, <c>seed</c>.</summary>
         public IDictionary<string, object?> Generation
         {
             get
@@ -41,8 +40,7 @@ namespace CompasAcoustics.Grasshopper
             }
         }
 
-        public string? Method => Generation.TryGetValue("method", out var method) ? method as string : null;
-        /// <summary>``mono``, ``binaural`` (two channels, no ambisonic order) or ``ambisonic``, as ``ImpulseResponse.format``.</summary>
+        /// <summary><c>mono</c>, <c>binaural</c> (two channels, no ambisonic order) or <c>ambisonic</c>, as <c>ImpulseResponse.format</c>.</summary>
         public string Format => Value == null ? "" : Channels == 1 ? "mono" : Channels == 2 && Value?.HasAmbisonicOrder != true ? "binaural" : "ambisonic";
 
         public override string ToString() => Value == null ? "Null ImpulseResponse" : $"IR {SourceName} -> {ReceiverName}, {Channels} ch, {SamplingRate} Hz";

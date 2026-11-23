@@ -96,11 +96,6 @@ def test_points_near_an_obstacle_are_inside():
     assert all(room.is_inside(np.array(p)) for p in points)
 
 
-def test_enclosure_only_leaves_obstacles_out():
-    room = geometry(extra=[panel()]).to_pra(48000, 1, enclosure_only=True)
-    assert len(room.walls) == 6
-
-
 def pillar(role="obstacle"):
     from compas.geometry import Box
     from compas.geometry import Frame
@@ -260,18 +255,15 @@ def test_a_source_blocked_at_every_receiver_leaks_no_direct_sound():
 
 def rooms_own(g, render, sources, mics, order):
     """The room's own responses on the package scale, cut to ours' lengths by the caller."""
-    from compas_acoustics.room.geometry import pra_octave_grid
-
     pra.random.seed(1)
-    with pra_octave_grid():
-        room = g.to_pra(48000, order, ray_tracing=render == "rays", air_absorption=True)
-        for s in sources:
-            room.add_soundsource(pra.SoundSource(s.position, directivity=s.directivity))
-        room.add_microphone_array(pra.MicrophoneArray(mics, 48000))
-        if render == "rays":
-            room.set_ray_tracing(n_rays=2000, receiver_radius=0.5, energy_thres=1e-7, time_thres=0.3, hist_bin_size=0.004)
-        room.compute_rir()
-        orders = [[np.asarray(s.orders)[np.asarray(room.visibility[i][m], dtype=bool)] for i, s in enumerate(room.sources)] for m in range(mics.shape[1])]
+    room = g.to_pra(48000, order, ray_tracing=render == "rays", air_absorption=True)
+    for s in sources:
+        room.add_soundsource(pra.SoundSource(s.position, directivity=s.directivity))
+    room.add_microphone_array(pra.MicrophoneArray(mics, 48000))
+    if render == "rays":
+        room.set_ray_tracing(n_rays=2000, receiver_radius=0.5, energy_thres=1e-7, time_thres=0.3, hist_bin_size=0.004)
+    room.compute_rir()
+    orders = [[np.asarray(s.orders)[np.asarray(room.visibility[i][m], dtype=bool)] for i, s in enumerate(room.sources)] for m in range(mics.shape[1])]
     latency = pra.constants.get("frac_delay_length") // 2
     return [[np.asarray(rir, dtype=float)[latency:] / (4.0 * np.pi) for rir in row] for row in room.rir], orders
 
@@ -295,7 +287,7 @@ def test_visible_pairs_match_the_rooms_own_responses(render, order):
 @pytest.mark.parametrize("order", [1, 3])
 @pytest.mark.parametrize("render", ["images", "rays"])
 def test_a_blocked_direct_sound_keeps_the_visible_reflections(render, order):
-    """Behind the panel the direct sound is blocked and reflections arrive: those are rendered as the room renders them."""
+    """Behind the panel the direct sound is blocked and reflections arrive, rendered as the room renders them."""
     g = geometry(extra=(panel(),))
     sources = [pra.SoundSource(SOURCE)]
     mics = np.array([BEHIND_PANEL, IN_VIEW], dtype=float).T
@@ -314,7 +306,7 @@ def responses_of(g, render, sources, mics, order):
 
 @pytest.mark.parametrize("copies", [False, True])
 def test_a_directional_source_is_traced_as_the_room_traces_it(copies):
-    """Its rays are drawn as the room draws them, with or without the copies of the receivers that sort them by direction."""
+    """Its rays are drawn as the room draws them, with or without the receiver copies that sort them by direction."""
     from compas_acoustics.room.pra import CARDIOID_P
 
     def sources():

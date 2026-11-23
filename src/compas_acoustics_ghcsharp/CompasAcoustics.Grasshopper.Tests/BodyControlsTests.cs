@@ -212,6 +212,8 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal("HRTF: KU100", binaural.ButtonLabel("hrtf"));
             ControlState.Choose(binaural, binaural.ControlPort("hrtf")!, "/sets/my_head.sofa");
             Assert.Equal("HRTF: my_head.sofa", binaural.ButtonLabel("hrtf"));
+            Assert.Equal("my_head.sofa", SimulateHybridComponent.HrtfLabel("/sets/my_head.sofa"));
+            Assert.Equal("ku100", SimulateHybridComponent.HrtfLabel(null));
             // Run last, set apart from the controls above it
             Assert.Equal("run", binaural.Controls[^1].Port);
             Assert.Equal("run", ambisonics.Controls[^1].Port);
@@ -392,6 +394,19 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(13, category.Options.Length);
             Assert.Equal("Other", category.Default);
             Assert.Contains("Stone & Tiles", category.Options);
+        }
+
+        [Fact]
+        public void TheHrtfSetChosenOnTheBody_IsUsedWhileItsInputIsHidden()
+        {
+            var binaural = new SimulateBinauralComponent();
+            binaural.ShowControlPorts(false);
+            Assert.DoesNotContain(binaural.Params.Input, p => p.Name == "hrtf");
+            Assert.Null(binaural.Hrtf(null!));
+            ControlState.Choose(binaural, binaural.ControlPort("hrtf")!, "/sets/my_head.sofa");
+            // a hidden input is read from the body, without the solution's data access
+            Assert.Equal("/sets/my_head.sofa", binaural.Hrtf(null!));
+            Assert.Null(new SimulateAmbisonicsComponent().Hrtf(null!));
         }
     }
 }

@@ -3,16 +3,14 @@ using System.Linq;
 using CompasAcoustics.Pb;
 using GH_IO.Serialization;
 using Google.Protobuf;
-using Grasshopper.Kernel;
 using Grasshopper.Kernel.Types;
-using Rhino.Geometry;
 
 namespace CompasAcoustics.Grasshopper
 {
     /// <summary>
     /// The responses of one simulation, with the scene's sources and receivers: what Simulate Mono, Simulate Binaural and
-    /// Simulate Ambisonics output and Deconstruct IR Graph takes. ``Method`` names the graph attribute the responses belong to:
-    /// ``mono``, ``binaural`` or ``ambisonics``.
+    /// Simulate Ambisonics output and Deconstruct IR Graph takes. <c>Method</c> names the graph attribute the responses belong
+    /// to: <c>mono</c>, <c>binaural</c> or <c>ambisonics</c>.
     /// </summary>
     public sealed class IrGraphGoo : GH_Goo<IrGraphGoo.Content>
     {
@@ -23,7 +21,7 @@ namespace CompasAcoustics.Grasshopper
 
         public IrGraphGoo(Content value) { Value = value; }
 
-        /// <summary>The graph of ``attribute`` from the ``responses`` the worker's simulate returned for it, keyed ``receiverGuid_sourceGuid``.</summary>
+        /// <summary>The graph of <paramref name="attribute"/> from the <paramref name="responses"/> the worker's simulate returned for it, keyed <c>receiverGuid_sourceGuid</c>.</summary>
         public static IrGraphGoo FromSimulation(SceneGoo scene, string attribute, IDictionary<string, object?> responses) =>
             new IrGraphGoo(new Content(attribute, scene.Sources, scene.Receivers,
                 responses.Values.OfType<ImpulseResponseData>().Select(ir => new ImpulseResponseGoo(ir)).ToList()));
@@ -66,15 +64,11 @@ namespace CompasAcoustics.Grasshopper
                 writer.SetByteArray(name, i, messages[i].ToByteArray());
         }
 
-        private static IEnumerable<T> Load<T>(GH_IReader reader, string name) where T : IMessage<T>, new()
+        private static IEnumerable<T> Load<T>(GH_IReader reader, string name) where T : class, IMessage<T>, new()
         {
             var count = reader.ItemExists(name + "_count") ? reader.GetInt32(name + "_count") : 0;
             for (var i = 0; i < count; i++)
-            {
-                var message = new T();
-                message.MergeFrom(reader.GetByteArray(name, i));
-                yield return message;
-            }
+                yield return MessageGoo<T>.Parse(reader.GetByteArray(name, i));
         }
     }
 }

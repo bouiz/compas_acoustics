@@ -24,7 +24,7 @@ def test_the_geometry_grid_is_pyfdns():
 
 
 def test_a_pair_takes_positions_as_arrays():
-    pair = Pair(shoebox(), [1.5, 1.5, 1.6], [5, 3, 1.5], np.eye(3), 48000.0)
+    pair = Pair(shoebox(), [1.5, 1.5, 1.6], [5, 3, 1.5], np.eye(3), 48000.0, 343.0)
     assert pair.source.shape == (3,)
     assert pair.receiver.dtype == float
 
@@ -33,12 +33,12 @@ def test_a_pair_needs_a_closed_room():
     with pytest.warns(UserWarning):
         open_room = shoebox(leaves=5)
     with pytest.raises(ValueError, match="closed"):
-        Pair(open_room, [1.5, 1.5, 1.6], [5, 3, 1.5], np.eye(3), 48000.0)
+        Pair(open_room, [1.5, 1.5, 1.6], [5, 3, 1.5], np.eye(3), 48000.0, 343.0)
 
 
 def test_a_pair_needs_a_proper_rotation():
     with pytest.raises(ValueError, match="rotation"):
-        Pair(shoebox(), [1.5, 1.5, 1.6], [5, 3, 1.5], np.diag([1.0, -1.0, 1.0]), 48000.0)
+        Pair(shoebox(), [1.5, 1.5, 1.6], [5, 3, 1.5], np.diag([1.0, -1.0, 1.0]), 48000.0, 343.0)
 
 
 def test_the_package_scale_removes_the_latency_and_the_1_over_r_convention():

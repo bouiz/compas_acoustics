@@ -21,8 +21,8 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void ForValues_DropsTheAxisAStepBelowAMinimumThatLiesOnATick()
         {
-            Assert.Equal(new[] { 0.5, 1.0, 1.5, 2.0, 2.5 }, Ticks.ForValues(new[] { 0.98, 1.17, 1.69, 1.94, 2.16, 1.77, 1.15 }));
-            Assert.Equal(new[] { -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0 }, Ticks.ForValues(new[] { -1.0, 2.0 }));
+            Assert.Equal(new[] { 0.5, 1.0, 1.5, 2.0, 2.5 }, Ticks.ForValues(new[] { 0.98, 1.17, 1.69, 1.94, 2.16, 1.77, 1.15 }, out _));
+            Assert.Equal(new[] { -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0 }, Ticks.ForValues(new[] { -1.0, 2.0 }, out _));
         }
 
         [Fact]

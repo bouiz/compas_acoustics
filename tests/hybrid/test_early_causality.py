@@ -1,7 +1,7 @@
 """The early field is causal: nothing is heard before it arrives.
 
 The radiation taper (a fourth-order 35 Hz high-pass that keeps DC out, see
-``early._radiation_taper``) multiplies every path's spectrum as a causal
+``early._dc_block``) multiplies every path's spectrum as a causal
 Butterworth high-pass. A zero-phase magnitude would ring symmetrically about each
 arrival, and its low-frequency half before the arrival would reach back to the
 start of the response.
@@ -14,13 +14,14 @@ import numpy as np
 import pyfar as pf
 import pytest
 
-from _rooms import images, pair
+from _rooms import images
+from _rooms import pair as make_pair
 from compas_acoustics.hybrid.synthesis import prepare
 from compas_acoustics.hybrid.ambisonics import render_ambisonics
 from compas_acoustics.hybrid.target import RoomTarget
 from compas_acoustics.hybrid.early import (
     ImageSourceSet,
-    _radiation_taper,
+    _dc_block,
     render_images,
 )
 from compas_acoustics.hybrid.bands import BANDS
@@ -39,13 +40,13 @@ def before_arrival_db(signal, arrival, margin=48):
 def test_the_taper_keeps_the_butterworth_magnitude():
     freq = np.fft.rfftfreq(1 << 16, 1 / FS)
     ratio = (freq / 35.0) ** 4
-    np.testing.assert_allclose(np.abs(_radiation_taper(freq)), ratio / np.sqrt(1 + ratio**2), rtol=1e-12, atol=1e-15)
-    assert _radiation_taper(np.array([0.0]))[0] == 0.0
+    np.testing.assert_allclose(np.abs(_dc_block(freq)), ratio / np.sqrt(1 + ratio**2), rtol=1e-12, atol=1e-15)
+    assert _dc_block(np.array([0.0]))[0] == 0.0
 
 
 def test_the_taper_is_causal():
     nfft = 1 << 16
-    h = np.fft.irfft(_radiation_taper(np.fft.rfftfreq(nfft, 1 / FS)), nfft)
+    h = np.fft.irfft(_dc_block(np.fft.rfftfreq(nfft, 1 / FS)), nfft)
     # The second half of the circular response is negative time. Its last millisecond, left out, holds the Gibbs
     # ripple of band-limiting the analog response at Nyquist, in the samples next to t = 0.
     assert np.sum(h[nfft // 2 : nfft - 48] ** 2) / np.sum(h**2) < 1e-6
@@ -79,8 +80,8 @@ def l_room():
 @pytest.mark.parametrize("model", ["udfa", "btms"])
 def test_diffraction_adds_nothing_before_the_direct_sound_could_arrive(model):
     # around the corner the wall hides the direct sound, and no diffracted path is shorter than it
-    spec = pair(geometry=l_room(), source=np.array(SOURCE), receiver=np.array(RECEIVER), air_absorption=False, speed_of_sound=C)
-    off = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2)).early[:, 0]
-    on = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction=model)).early[:, 0]
+    pair = make_pair(geometry=l_room(), source=np.array(SOURCE), receiver=np.array(RECEIVER), air_absorption=False, speed_of_sound=C)
+    off = render_ambisonics(prepare(pair, images(pair, 2), RoomTarget.from_room(pair), max_order=1, duration_s=0.2)).early[:, 0]
+    on = render_ambisonics(prepare(pair, images(pair, 2), RoomTarget.from_room(pair), max_order=1, duration_s=0.2, diffraction=model)).early[:, 0]
     hidden = int(np.linalg.norm(np.subtract(SOURCE, RECEIVER)) / C * FS)
     assert before_arrival_db(on - off, hidden) < -50.0

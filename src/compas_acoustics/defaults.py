@@ -1,5 +1,8 @@
 import functools
+import numbers
 import os
+
+import numpy as np
 
 __all__ = ["Defaults"]
 
@@ -17,6 +20,20 @@ def _speed_of_sound() -> float:
     from compas_acoustics.room.air import AirConditions
 
     return AirConditions().speed_of_sound
+
+
+def _per_band(values, label):
+    """One float per frequency band from one number, or from any iterable of one or one per band.
+
+    Any iterable, since Grasshopper passes a .NET List[Double].
+    """
+    count = Defaults.NUMBER_OF_FREQUENCY_BANDS
+    values = [float(values)] if isinstance(values, numbers.Real) else np.asarray(list(values), dtype=float).reshape(-1).tolist()
+    if len(values) == 1:
+        values = values * count
+    if len(values) != count:
+        raise ValueError(f"{label} must be one value or {count}, one per frequency band, got {len(values)}.")
+    return values
 
 
 class Defaults:
