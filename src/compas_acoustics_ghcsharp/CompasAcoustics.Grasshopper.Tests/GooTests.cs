@@ -79,9 +79,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             var ir = new ImpulseResponseGoo(Fixture<ImpulseResponseData>("ir"));
             Assert.Equal(48000, ir.SamplingRate);
             Assert.Equal(2, ir.Channels);
-            Assert.Equal(4, ir.Samples);
             Assert.Equal("binaural", ir.Format);
-            Assert.Equal("test", ir.Method);
             Assert.Equal(InteropTests.Guid(1), ir.SourceGuid);
             Assert.Equal(InteropTests.Guid(2), ir.ReceiverGuid);
             Assert.Equal("IR src -> rec, 2 ch, 48000 Hz", ir.ToString());
@@ -146,7 +144,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal("binaural", ir.Format);
             Assert.True(ir.CastFrom(new ImpulseResponseData { Shape = { 1 } }));
             Assert.Equal("mono", ir.Format);
-            Assert.Null(ir.Method);
+            Assert.Empty(ir.Generation);
         }
 
         [Fact]

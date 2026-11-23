@@ -95,12 +95,12 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void RunningText_ShowsMinutesSecondsAndProgress()
         {
-            Assert.Equal("running 0:42", AsyncRuns.RunningText(42.4, null));
-            Assert.Equal("running 1:12, ray tracing 3/4", AsyncRuns.RunningText(72, "ray tracing 3/4"));
+            Assert.Equal("running 0:42", BackgroundRuns.RunningText(42.4, null));
+            Assert.Equal("running 1:12, ray tracing 3/4", BackgroundRuns.RunningText(72, "ray tracing 3/4"));
         }
     }
 
-    public class AsyncRunsTests
+    public class BackgroundRunsTests
     {
         private static WorkerJob Job(TaskCompletionSource<object?> tcs) => new((id, ct) => tcs.Task, _ => null, () => 0);
 
@@ -115,7 +115,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void FirstSolve_Starts_ThenKeepsRunningForTheSameInputs()
         {
-            var runs = new AsyncRuns();
+            var runs = new BackgroundRuns();
             Assert.Equal(RunKind.Start, runs.Next(0, "a", true).Kind);
             var tcs = new TaskCompletionSource<object?>();
             var job = Job(tcs);
@@ -128,7 +128,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void AFinishedRun_IsDeliveredAndKept()
         {
-            var runs = new AsyncRuns();
+            var runs = new BackgroundRuns();
             var tcs = new TaskCompletionSource<object?>();
             var job = Job(tcs);
             runs.Next(0, "a", true);
@@ -145,7 +145,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void ChangedInputs_CancelTheRunAndStartAgainWithThePreviousResult()
         {
-            var runs = new AsyncRuns();
+            var runs = new BackgroundRuns();
             var first = new TaskCompletionSource<object?>();
             var job = Job(first);
             runs.Next(0, "a", true);
@@ -166,14 +166,14 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void WithoutLeaveToStart_ChangedInputsAreIdle()
         {
-            var runs = new AsyncRuns();
+            var runs = new BackgroundRuns();
             Assert.Equal(RunKind.Idle, runs.Next(0, "a", false).Kind);
         }
 
         [Fact]
         public void ACancelledRun_StaysCancelledUntilTheInputsChange()
         {
-            var runs = new AsyncRuns();
+            var runs = new BackgroundRuns();
             var tcs = new TaskCompletionSource<object?>();
             var job = Job(tcs);
             runs.Next(0, "a", true);
@@ -188,7 +188,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void AFailedRun_GivesItsMessageOnce()
         {
-            var runs = new AsyncRuns();
+            var runs = new BackgroundRuns();
             var job = new WorkerJob((id, ct) => Task.FromException<object?>(new WorkerException("ValueError: bad", 400)), _ => null, () => 0);
             var done = new ManualResetEventSlim();
             job.Completed += _ => done.Set();
@@ -203,7 +203,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void Hybrid_ChangeWhileRunning_CancelsAndSaysInterrupted()
         {
-            var runs = new AsyncRuns();
+            var runs = new BackgroundRuns();
             var job = Job(new TaskCompletionSource<object?>());
             runs.Next(0, "a", true);
             runs.Started(0, "a", job);
@@ -217,7 +217,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void Restart_StartsAgainForInputsWithAResult_ButDeliversAFreshResultFirst()
         {
-            var runs = new AsyncRuns();
+            var runs = new BackgroundRuns();
             var tcs = new TaskCompletionSource<object?>();
             var job = Job(tcs);
             runs.Next(0, "a", true, restart: true);
@@ -234,7 +234,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void Iterations_RunApart()
         {
-            var runs = new AsyncRuns();
+            var runs = new BackgroundRuns();
             Assert.Equal(RunKind.Start, runs.Next(0, "a", true).Kind);
             runs.Started(0, "a", Job(new TaskCompletionSource<object?>()));
             Assert.Equal(RunKind.Start, runs.Next(1, "a", true).Kind);
@@ -243,9 +243,9 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void Key_IsTheSameForTheSameRequestAndDiffersOtherwise()
         {
-            var a = AsyncRuns.Key("simulate", new object?[] { "x", 1L }, new Dictionary<string, object?> { ["seed"] = null });
-            var b = AsyncRuns.Key("simulate", new object?[] { "x", 1L }, new Dictionary<string, object?> { ["seed"] = null });
-            var c = AsyncRuns.Key("simulate", new object?[] { "x", 2L }, new Dictionary<string, object?> { ["seed"] = null });
+            var a = BackgroundRuns.Key("simulate", new object?[] { "x", 1L }, new Dictionary<string, object?> { ["seed"] = null });
+            var b = BackgroundRuns.Key("simulate", new object?[] { "x", 1L }, new Dictionary<string, object?> { ["seed"] = null });
+            var c = BackgroundRuns.Key("simulate", new object?[] { "x", 2L }, new Dictionary<string, object?> { ["seed"] = null });
             Assert.Equal(a, b);
             Assert.NotEqual(a, c);
         }
@@ -275,7 +275,7 @@ namespace CompasAcoustics.Grasshopper.Tests
                 }
                 if (path == "/ping") return FakeHandler.Pong();
                 if (path == "/api/info")
-                    return FakeHandler.Result(new Dictionary<string, object?> { ["compas_acoustics"] = Worker.LibraryVersion, ["schema"] = Schema.Hash, ["hybrid"] = true });
+                    return FakeHandler.Result(new Dictionary<string, object?> { ["compas_acoustics"] = Versions.Library, ["schema"] = Schema.Hash, ["hybrid"] = true });
                 if (path.StartsWith("/cancel/"))
                 {
                     _release.Set();

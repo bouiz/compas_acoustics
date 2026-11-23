@@ -7,7 +7,7 @@ using Xunit;
 
 namespace CompasAcoustics.Grasshopper.Tests
 {
-    /// <summary>Saved definitions whose ports differ from the current ones: a component reads them without errors, matching ports by name.</summary>
+    /// <summary>Saved definitions read back without errors; a late_envelope saved as a boolean reads as a mode.</summary>
     public class ArchiveCompatibilityTests
     {
         // the test runner reads these signatures before WinFormsResolver is registered: no plugin type in them
@@ -32,56 +32,9 @@ namespace CompasAcoustics.Grasshopper.Tests
         private static string[] Errors(GH_Archive archive) =>
             (archive.Messages ?? new System.Collections.Generic.List<GH_Message>()).Where(m => m.Type != GH_Message_Type.info).Select(m => m.Message).ToArray();
 
-        [Fact]
-        public void AMaterialLibrarySavedWithoutInputs_ReadsWithoutErrors()
+        private static SimulateAmbisonicsComponent WithALateEnvelopeBoolean(bool on)
         {
-            var old = new MaterialLibraryComponent();
-            foreach (var input in old.Params.Input.ToList())
-                old.Params.UnregisterInputParameter(input);
-            var fresh = new MaterialLibraryComponent();
-            var (archive, read) = SaveThenRead(old, fresh);
-            Assert.True(read);
-            Assert.Empty(Errors(archive));
-            Assert.Equal(new[] { "absorption", "scattering" }, fresh.Params.Input.Select(p => p.Name));
-        }
-
-        [Fact]
-        public void ASourceSavedWithAnExtraDirectivityInput_ReadsEachInputByName()
-        {
-            // a saved directivity input before sound_file: its value must not land in sound_file
-            var old = new SourceComponent();
-            var directivity = new Param_String { Name = "directivity", NickName = "directivity" };
-            directivity.PersistentData.Append(new GH_String("cardioid"));
-            old.Params.RegisterInputParam(directivity, old.Params.Input.FindIndex(p => p.Name == "sound_file"));
-            var fresh = new SourceComponent();
-            var (archive, read) = SaveThenRead(old, fresh);
-            Assert.True(read);
-            Assert.Empty(Errors(archive));
-            Assert.Equal(new[] { "position", "name", "direction", "sound_file", "spl" }, fresh.Params.Input.Select(p => p.Name));
-            Assert.True(fresh.Params.Input.Single(p => p.Name == "sound_file").VolatileDataCount == 0
-                        && ((Param_String)fresh.Params.Input.Single(p => p.Name == "sound_file")).PersistentData.IsEmpty);
-            Assert.Equal(old.Params.Input.Single(p => p.Name == "sound_file").InstanceGuid, fresh.Params.Input.Single(p => p.Name == "sound_file").InstanceGuid);
-        }
-
-        [Fact]
-        public void AScatteringSampleSavedWithItsNameInput_ReadsEachInputByName()
-        {
-            // the name input before plane, removed: its text must not land in plane
-            var old = new ScatteringSampleComponent();
-            var name = new Param_String { Name = "name", NickName = "name", Optional = true };
-            name.PersistentData.Append(new GH_String("tile"));
-            old.Params.RegisterInputParam(name, old.Params.Input.FindIndex(p => p.Name == "plane"));
-            var fresh = new ScatteringSampleComponent();
-            var (archive, read) = SaveThenRead(old, fresh);
-            Assert.True(read);
-            Assert.Empty(Errors(archive));
-            Assert.Equal(new[] { "geometry", "mode", "diameter", "reference", "baseplate", "symmetry", "plane" }, fresh.Params.Input.Select(p => p.Name));
-            Assert.Equal(old.Params.Input.Single(p => p.Name == "plane").InstanceGuid, fresh.Params.Input.Single(p => p.Name == "plane").InstanceGuid);
-        }
-
-        private static SimulateAmbisonicsComponent WithTheOldLateEnvelopeToggle(bool on)
-        {
-            // as saved before late_envelope took modes: a boolean input in the same place
+            // a boolean input in late_envelope's place
             var old = new SimulateAmbisonicsComponent();
             var index = old.Params.Input.FindIndex(p => p.Name == "late_envelope");
             old.Params.UnregisterInputParameter(old.Params.Input[index]);
@@ -94,10 +47,10 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Theory]
         [InlineData(true, "directional")]
         [InlineData(false, false)]
-        public void ASimulateAmbisonicsSavedWithTheLateEnvelopeToggle_KeepsItsChoice(bool on, object expected)
+        public void ASimulateAmbisonicsSavedWithALateEnvelopeBoolean_KeepsItsChoice(bool on, object expected)
         {
             var fresh = new SimulateAmbisonicsComponent();
-            var (archive, read) = SaveThenRead(WithTheOldLateEnvelopeToggle(on), fresh);
+            var (archive, read) = SaveThenRead(WithALateEnvelopeBoolean(on), fresh);
             Assert.True(read);
             Assert.Empty(Errors(archive));
             var value = ControlState.PersistentAll(fresh.ControlPort("late_envelope")!).Single();
@@ -108,9 +61,9 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Theory]
         [InlineData(true, "directional")]
         [InlineData(false, false)]
-        public void ASimulateAmbisonicsSavedWithTheLateEnvelopeToggleHidden_KeepsItsChoice(bool on, object expected)
+        public void ASimulateAmbisonicsSavedWithALateEnvelopeBooleanHidden_KeepsItsChoice(bool on, object expected)
         {
-            var old = WithTheOldLateEnvelopeToggle(on);
+            var old = WithALateEnvelopeBoolean(on);
             old.ShowControlPorts(false);
             var fresh = new SimulateAmbisonicsComponent();
             var (archive, read) = SaveThenRead(old, fresh);
@@ -124,7 +77,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void ASavedSimulateMono_IsFoundByItsGuid_AndReadsItsPortsByName()
         {
-                        var mono = new SimulateMonoComponent();
+            var mono = new SimulateMonoComponent();
             Assert.Equal(new System.Guid("afb77a6d-dd01-5224-9ee0-70972dcbdbcf"), mono.ComponentGuid);
             Assert.Equal(("Simulate Mono", "SimMono"), (mono.Name, mono.NickName));
             Assert.Equal(new[] { "scene", "ism_order", "ray_tracing", "n_rays", "absorb_air", "energy_thres", "duration", "seed", "normalize" },

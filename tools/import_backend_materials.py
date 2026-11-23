@@ -1,28 +1,16 @@
 """Import acoustic materials from simulation backends into the compas_acoustics materials library.
 
-Materials are fetched from the backends' GitHub repositories, converted to
-:class:`compas_acoustics.AcousticMaterial` (7 octave bands, 125 Hz - 8 kHz), assigned a
-:class:`compas_acoustics.MaterialCategory` and written to the materials library as
-``<key>_from_<backend>.json``, named ``"<key> (from <backend>)"``.
-
-The script can be re-run at any time: the files previously imported from a backend
-are replaced, hand-made materials in the library are left untouched.
+The backend is pyroomacoustics (MIT), ``pyroomacoustics/data/materials.json`` fetched from GitHub. Each material is
+converted to :class:`compas_acoustics.AcousticMaterial` (7 octave bands, 125 Hz - 8 kHz), given a
+:class:`compas_acoustics.MaterialCategory` and written as ``<key>_from_<backend>.json``, named
+``"<key> (from <backend>)"``. Entries with only scattering coefficients are skipped: an ``AcousticMaterial`` requires
+absorption. A re-run replaces the files imported before and leaves hand-made materials alone.
 
 Usage::
 
-    python tools/import_backend_materials.py                      # all backends
-    python tools/import_backend_materials.py pyroomacoustics      # only one
-    python tools/import_backend_materials.py --dry-run            # show what would change
+    python tools/import_backend_materials.py [pyroomacoustics] [--ref REF] [--library DIR] [--dry-run]
 
 Set ``GITHUB_TOKEN`` to avoid GitHub API rate limits.
-
-Backends:
-
-* pyroomacoustics (MIT): ``pyroomacoustics/data/materials.json``. Entries with only
-  scattering coefficients (diffusers, audience scattering) are skipped, since an
-  ``AcousticMaterial`` requires absorption.
-* misuka (BSD-3/MIT): has no material database, materials are defined per scene
-  (see its tutorials). The script checks for one and reports it if it ever appears.
 """
 
 import argparse
@@ -57,11 +45,6 @@ def github_commit(repo, ref):
     """Resolve a branch/tag to a commit SHA, so imports are traceable."""
     data = json.loads(_request("https://api.github.com/repos/{}/commits/{}".format(repo, ref)))
     return data["sha"]
-
-
-def github_tree(repo, sha):
-    data = json.loads(_request("https://api.github.com/repos/{}/git/trees/{}?recursive=1".format(repo, sha)))
-    return [item["path"] for item in data["tree"] if item["type"] == "blob"]
 
 
 def github_raw(repo, sha, path):
@@ -163,29 +146,11 @@ def import_pyroomacoustics(ref):
 
 
 # ============================================================================
-# misuka
-# ============================================================================
-
-MISUKA_REPO = "misuka-renderer/misuka"
-
-
-def import_misuka(ref):
-    sha = github_commit(MISUKA_REPO, ref)
-    candidates = [p for p in github_tree(MISUKA_REPO, sha) if re.search(r"material", p, re.I) and p.endswith((".json", ".csv", ".yaml", ".yml", ".xml"))]
-    if candidates:
-        print("  misuka now has material-like data files, consider writing an importer: {}".format(", ".join(candidates)))
-    else:
-        print("  misuka has no material database at {} (materials are defined per scene), nothing to import".format(sha[:7]))
-    return []
-
-
-# ============================================================================
 # main
 # ============================================================================
 
 IMPORTERS = {
     "pyroomacoustics": import_pyroomacoustics,
-    "misuka": import_misuka,
 }
 
 

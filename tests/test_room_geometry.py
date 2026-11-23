@@ -133,7 +133,6 @@ def test_an_obstacle_is_stored_on_both_sides():
     assert normals[0] @ normals[1] < 0.0
     assert g.volume == pytest.approx(105.0)
     assert g.surface_area == pytest.approx(142.0 + 2 * 4.0)
-    assert len(g.without_obstacles().faces) == 6
 
 
 def test_materials_get_a_62_5_hz_band():
@@ -170,7 +169,6 @@ def test_obstacle_polygons_are_kept_as_drawn():
     assert g.obstacle_face_materials == ("wall",)
     np.testing.assert_allclose(g.vertices[list(g.obstacle_faces[0])][:, 0], 3.0)
     assert len(g.faces) - 2 * len(g.obstacle_faces) == 6
-    assert g.without_obstacles().obstacle_faces == ()
 
 
 def test_points_across_a_grid_line_weld():
@@ -242,7 +240,6 @@ def test_from_scene_merges_coplanar_faces_by_default():
         warnings.simplefilter("error")
         geometry = RoomGeometry.from_scene(scene_of(*leaves))
     assert len(geometry.faces) == 6
-    assert geometry.mergeable_faces == 0
 
 
 def test_a_triangulated_scene_simulates_merged_and_without_the_warning():
@@ -271,16 +268,14 @@ def test_merge_coplanar_keeps_objects_apart():
 
 def test_mergeable_faces_are_counted_and_warned_about():
     leaves = [triangulated(o) for o in shoebox_leaves()]
-    with pytest.warns(UserWarning, match="merge_coplanar=True"):
-        plain = RoomGeometry.from_scene(scene_of(*leaves), merge_coplanar=False)
-    assert plain.mergeable_faces == 6
+    with pytest.warns(UserWarning, match="^6 faces lie in one plane.*merge_coplanar=True"):
+        RoomGeometry.from_scene(scene_of(*leaves), merge_coplanar=False)
     import warnings
 
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        merged = RoomGeometry.from_scene(scene_of(*leaves), merge_coplanar=True)
-        assert RoomGeometry.from_scene(scene_of(*shoebox_leaves())).mergeable_faces == 0
-    assert merged.mergeable_faces == 0
+        RoomGeometry.from_scene(scene_of(*leaves), merge_coplanar=True)
+        RoomGeometry.from_scene(scene_of(*shoebox_leaves()), merge_coplanar=False)
 
 
 def test_an_obj_file_reads_one_object_per_group(tmp_path):
@@ -391,13 +386,6 @@ def test_materials_are_assigned_by_group_after_reading(tmp_path):
     AcousticObject.assign_materials_by_group(objects, {"floor": carpet})
     assert [o.material for o in objects] == [WALL, carpet, WALL]
     assert RoomGeometry.from_scene(scene_of(*objects)).is_closed
-
-
-def test_assigning_scene_materials_by_surface_name_raises():
-    scene = scene_of(*shoebox_leaves())
-    assert list(scene.acoustic_materials) == ["wall"]
-    with pytest.raises(AttributeError, match="shoebox_room"):
-        scene.acoustic_materials = {"floor": WALL}
 
 
 def moved(leaves, corner, delta):

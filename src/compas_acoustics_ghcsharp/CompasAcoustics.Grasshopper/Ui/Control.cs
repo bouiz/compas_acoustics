@@ -7,24 +7,25 @@ using Grasshopper.Kernel.Types;
 
 namespace CompasAcoustics.Grasshopper
 {
-    /// <summary>A control drawn on a component's body. ``Port`` is the input it sets; a wire into that input wins.</summary>
+    /// <summary>A control drawn on a component's body. <c>Port</c> is the input it sets; a wire into that input wins.</summary>
     public abstract record Control(string Port);
 
-    /// <summary>A row of two to four options, one chosen; ``Default`` (else the first) when none is; ``Labels`` what the segments read.</summary>
-    public sealed record SwitchControl(string Port, string[] Options, string? Default = null, string[]? Labels = null) : Control(Port);
+    /// <summary>A row of two to four options, one chosen; <c>Default</c> (else the first) when none is.</summary>
+    public sealed record SwitchControl(string Port, string[] Options, string? Default = null) : Control(Port);
 
     /// <summary>
-    /// The chosen option, with a menu of the others. ``Options`` are the input's values (empty clears it), ``Labels`` what
-    /// they read; ``Title`` replaces the input's name above it. A component may give the options itself (<see cref="ComponentBase.OptionsOf"/>).
+    /// The chosen option, with a menu of the others. <c>Options</c> are the input's values (empty clears it), <c>Labels</c>
+    /// what they read; <c>Title</c> replaces the input's name above it. A component may give the options itself
+    /// (<see cref="ComponentBase.OptionsOf"/>).
     /// </summary>
     public sealed record DropdownControl(string Port, string[] Options, string? Default = null, string[]? Labels = null, string? Title = null) : Control(Port);
 
-    /// <summary>Several options lit at once, for a list input: none lit is ``Default``.</summary>
+    /// <summary>Several options lit at once, for a list input: none lit is <c>Default</c>.</summary>
     public sealed record MultiSwitchControl(string Port, string[] Options, string[] Default) : Control(Port);
 
     /// <summary>
-    /// A trigger: a press runs the component once with ``Pressed(Port)`` true. ``Port`` need not be an input (``cancel``).
-    /// ``Inline`` buttons that follow each other share one row; an ``Icon`` button draws the glyph of what it reads.
+    /// A trigger: a press runs the component once with <c>Pressed(Port)</c> true. <c>Port</c> need not be an input.
+    /// <c>Inline</c> buttons that follow each other share one row; an <c>Icon</c> button draws the glyph of what it reads.
     /// </summary>
     public sealed record ButtonControl(string Port, string Label, bool Inline = false, bool Icon = false) : Control(Port);
 
@@ -32,15 +33,15 @@ namespace CompasAcoustics.Grasshopper
     public enum Glyph { None, Play, Pause, Stop, Rewind }
 
     /// <summary>
-    /// One button that switches on and off, dark when on: a bool input (``Default`` until chosen), or a choice the component
-    /// holds (``on``/``off``). Toggles marked ``Inline`` that follow each other share one row.
+    /// One button that switches on and off, dark when on: a bool input (<c>Default</c> until chosen), or a choice the component
+    /// holds (<c>on</c>/<c>off</c>). Toggles marked <c>Inline</c> that follow each other share one row.
     /// </summary>
     public sealed record ToggleControl(string Port, string Label, bool Inline = false, bool Default = true) : Control(Port);
 
     /// <summary>
-    /// A number from ``Min`` to ``Max`` in steps of ``Step``, dragged; a component may give the range itself
-    /// (<see cref="ComponentBase.SliderRange"/>). ``Live``: the input follows the knob while it is dragged (Billiard's time),
-    /// else it is set when the knob is let go. ``Title`` replaces the input's name above it.
+    /// A number from <c>Min</c> to <c>Max</c> in steps of <c>Step</c>, dragged; a component may give the range itself
+    /// (<see cref="ComponentBase.SliderRange"/>). <c>Live</c>: the input follows the knob while it is dragged, else it is set
+    /// when the knob is let go. <c>Title</c> replaces the input's name above it.
     /// </summary>
     public sealed record SliderControl(string Port, double Min, double Max, string Unit, double Step = 0.1, bool Live = false, string? Title = null) : Control(Port);
 
@@ -58,7 +59,7 @@ namespace CompasAcoustics.Grasshopper
     public sealed record StepSliderControl(string Port, string[] Options, string? Default = null, string[]? Labels = null, string? Title = null) : Control(Port);
 
     /// <summary>
-    /// Where a control is drawn: its row, for a switch the box of each option, and ``Title``, the row above a control that
+    /// Where a control is drawn: its row, for a switch the box of each option, and <c>Title</c>, the row above a control that
     /// names its input (empty for a button or toggle).
     /// </summary>
     public sealed record ControlBox(Control Control, RectangleF Bounds, RectangleF[] Segments, RectangleF Title = default);
@@ -72,16 +73,13 @@ namespace CompasAcoustics.Grasshopper
         public const float TitleHeight = 16;
         /// <summary>Between a title and its control.</summary>
         public const float TitleGap = 2;
-        /// <summary>
-        /// Above a row without a title (toggles, buttons) that follows another control: as far as a title's words stand from
-        /// the control above it, its margin and the empty top of its row.
-        /// </summary>
+        /// <summary>The gap above a row of buttons or toggles that follows another control.</summary>
         public const float ButtonGap = 10;
 
         /// <summary>Whether a control has its title above it: switches, dropdowns and sliders; a button or toggle carries its label.</summary>
         public static bool HasTitle(Control control) => control is SwitchControl or DropdownControl or MultiSwitchControl or SliderControl or IncidenceControl or StepSliderControl;
 
-        /// <summary>The title of a control: a dropdown's own, else its input's name, capitalised, ``time_scale`` as ``Time scale``.</summary>
+        /// <summary>The title of a control: a dropdown's or slider's own, else its input's name, capitalised, <c>time_scale</c> as <c>Time scale</c>.</summary>
         public static string Title(Control control)
         {
             switch (control)
@@ -107,7 +105,7 @@ namespace CompasAcoustics.Grasshopper
         {
             var (options, labels) = control switch
             {
-                SwitchControl s => (s.Options, s.Labels),
+                SwitchControl s => (s.Options, null),
                 DropdownControl d => (d.Options, d.Labels),
                 _ => (Array.Empty<string>(), null),
             };
@@ -117,11 +115,11 @@ namespace CompasAcoustics.Grasshopper
 
         private static bool IsInline(Control? control) => control is ToggleControl { Inline: true } or ButtonControl { Inline: true };
 
-        /// <summary>Whether ``control`` goes on the row of ``previous``: inline toggles with toggles, inline buttons with buttons.</summary>
+        /// <summary>Whether <paramref name="control"/> goes on the row of <paramref name="previous"/>: inline toggles with toggles, inline buttons with buttons.</summary>
         private static bool InRow(Control control, Control? previous) =>
             IsInline(control) && IsInline(previous) && control.GetType() == previous!.GetType();
 
-        /// <summary>The glyph an icon button draws for what it reads (Play reads Stop while playing); None for a word.</summary>
+        /// <summary>The glyph an icon button draws for what it reads; None for a word.</summary>
         public static Glyph GlyphOf(string label) => label switch
         {
             "Play" => Glyph.Play,
@@ -184,10 +182,7 @@ namespace CompasAcoustics.Grasshopper
             return boxes;
         }
 
-        /// <summary>What a control reads: the value it is given (the input's name is the title above).</summary>
-        public static string Text(Control control, string value) => value;
-
-        /// <summary>The control under ``point``, and the option of a switch (-1 for the others); null outside every control.</summary>
+        /// <summary>The control under <paramref name="point"/>, and the option of a switch (-1 for the others); null outside every control.</summary>
         public static (ControlBox box, int segment)? HitTest(IEnumerable<ControlBox> boxes, PointF point)
         {
             foreach (var box in boxes)
@@ -208,7 +203,7 @@ namespace CompasAcoustics.Grasshopper
     {
         private static string Invariant(object value) => Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? "";
 
-        /// <summary>The value a choice shows: a wired value wins (and the control greys), else the port's own value, else ``fallback`` or the first option.</summary>
+        /// <summary>The value a choice shows: a wired value wins (and the control greys), else the port's own value, else <paramref name="fallback"/> or the first option.</summary>
         public static (string value, bool wired) Resolve(int sourceCount, string? wiredValue, string? persistent, string[] options, string? fallback = null)
         {
             if (sourceCount > 0)
@@ -223,7 +218,7 @@ namespace CompasAcoustics.Grasshopper
             return Resolve(port.SourceCount, wired, persistent == null ? null : Invariant(persistent), options, fallback);
         }
 
-        /// <summary>A toggle on a bool input: on or off, and whether a wire sets it; ``fallback`` until the input has a value.</summary>
+        /// <summary>A toggle on a bool input: on or off, and whether a wire sets it; <paramref name="fallback"/> until the input has a value.</summary>
         public static (bool on, bool wired) Toggle(IGH_Param port, bool fallback)
         {
             var (value, wired) = Of(port, new[] { "True", "False" }, fallback ? "True" : "False");
@@ -245,7 +240,7 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>Every value of the port's own data, as text (a list input).</summary>
         public static string[] PersistentAll(IGH_Param port) => Data(port).Select(g => Invariant(g.ScriptVariable())).ToArray();
 
-        /// <summary>The options lit on a list input: its own values, or ``fallback`` when it has none.</summary>
+        /// <summary>The options lit on a list input: its own values, or <paramref name="fallback"/> when it has none.</summary>
         public static string[] Members(IGH_Param port, string[] fallback)
         {
             var values = PersistentAll(port);
@@ -265,7 +260,7 @@ namespace CompasAcoustics.Grasshopper
             };
         }
 
-        /// <summary>Give the port ``values`` as its own data (none: empty) without solving: a file read, or a solve in progress.</summary>
+        /// <summary>Give the port <paramref name="values"/> as its own data (none: empty) without solving: a file read, or a solve in progress.</summary>
         public static void Assign(IGH_Param port, IEnumerable<string> values)
         {
             var goo = values.Select(v => Goo(port, v)).Where(g => g != null).ToList();
@@ -290,7 +285,7 @@ namespace CompasAcoustics.Grasshopper
             }
         }
 
-        /// <summary>Make ``values`` the port's own data (an empty value clears it), as an undoable change, and recompute the component.</summary>
+        /// <summary>Make <paramref name="values"/> the port's own data (an empty value clears it), as an undoable change, and recompute the component.</summary>
         public static void ChooseAll(GH_Component component, IGH_Param port, string[] values)
         {
             values = values.Where(v => v.Length > 0).ToArray();
@@ -303,8 +298,8 @@ namespace CompasAcoustics.Grasshopper
         }
 
         /// <summary>
-        /// A step of a live slider's drag: ``value`` becomes the port's own and the component solves again, without an undo
-        /// step (the drag records one when it starts).
+        /// A step of a live slider's drag: <paramref name="value"/> becomes the port's own and the component solves again,
+        /// without an undo step (the drag records one when it starts).
         /// </summary>
         public static void Scrub(GH_Component component, IGH_Param port, string value)
         {
@@ -327,12 +322,12 @@ namespace CompasAcoustics.Grasshopper
             }
         }
 
-        /// <summary>Make ``value`` the port's own value (empty clears it), as an undoable change, and recompute the component.</summary>
+        /// <summary>Make <paramref name="value"/> the port's own value (empty clears it), as an undoable change, and recompute the component.</summary>
         public static void Choose(GH_Component component, IGH_Param port, string value) => ChooseAll(component, port, new[] { value });
 
         public static void ChooseNumber(GH_Component component, IGH_Param port, double value) => Choose(component, port, Invariant(value));
 
-        /// <summary>Light or unlight ``option`` on a list input, from what it shows (``fallback`` when it has no values).</summary>
+        /// <summary>Light or unlight <paramref name="option"/> on a list input, from what it shows (<paramref name="fallback"/> when it has no values).</summary>
         public static void ToggleMember(GH_Component component, IGH_Param port, string option, string[] fallback)
         {
             var lit = Members(port, fallback).ToList();
@@ -341,7 +336,7 @@ namespace CompasAcoustics.Grasshopper
             ChooseAll(component, port, lit.OrderBy(v => double.TryParse(v, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : 0).ToArray());
         }
 
-        /// <summary>A button press: the component's next solution sees ``Pressed(port)``.</summary>
+        /// <summary>A button press: the component's next solution sees <c>Pressed(port)</c>.</summary>
         public static void Press(ComponentBase component, string port)
         {
             component.MarkPressed(port);

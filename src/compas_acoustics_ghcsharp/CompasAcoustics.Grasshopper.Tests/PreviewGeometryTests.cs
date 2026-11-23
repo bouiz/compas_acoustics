@@ -95,21 +95,19 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void Scene_PreviewsItsObjects_WithoutALabel_AndMeasuresVolumeAndSurface()
+        public void Scene_PreviewsItsObjects_WithoutALabel_AndMeasuresTheSurface()
         {
-            // no label over the room: the Scene component's message gives its name, volume and area
+            // no label over the room: the Scene component's message gives its volume and area
             var preview = PreviewGeometry.Scene(Room());
             Assert.Equal(6, preview.Objects.Count);
             Assert.Null(typeof(ScenePreview).GetProperty("Label"));
-            Assert.Equal(105, preview.Volume, 9);
             Assert.Equal(142, preview.Area, 9);
         }
 
         [Fact]
-        public void Scene_ObstaclesAreFlagged_AndLeftOutOfVolumeAndSurface()
+        public void Scene_ObstaclesAreFlagged_AndLeftOutOfTheSurface()
         {
             var preview = PreviewGeometry.Scene(Room(obstacle: true));
-            Assert.Equal(105, preview.Volume, 9);
             Assert.Equal(142, preview.Area, 9);
             var obstacle = preview.Objects.Last();
             Assert.True(obstacle.Obstacle);

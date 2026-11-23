@@ -18,8 +18,8 @@ Materials
     mirror would (0: smooth, 1: very rough). The materials library has 95 of them in categories.
 
 Sources and receivers
-:   Where the sound is made and where it is heard: a point with a direction. A source can have a sound power level
-    and a sound file; a receiver is a listener's position and the way they face.
+:   Where the sound is made and where it is heard: a point with a direction. A source can have a sound pressure level
+    (on its axis at 1 m) and a sound file; a receiver is a listener's position and the way they face.
 
 ## The impulse response
 
@@ -53,7 +53,7 @@ The analyser derives these parameters (after ISO 3382) from an impulse response,
 | D50 | Definition: the share of the energy that arrives in the first 50 ms. Percent. | |
 | DRR | Direct-to-reverberant ratio: the direct sound against everything after it. dB. | |
 | Ts | Centre time: the centre of gravity of the energy in time. Lower is clearer. Seconds. | |
-| STI | Speech transmission index: speech intelligibility from 0 (bad) to 1 (excellent). | |
+| STI | Speech transmission index: speech intelligibility from 0 (bad) to 1 (excellent). Per band, the modulation transfer index. | |
 | G | Strength: how loud the room makes a source, against the same source 10 m away in free field. dB. | A simulated response. |
 | SPL | Sound pressure level at the receiver from the source's level at 1 m, overall A-weighted. dB. | A simulated response. |
 | LF, LFC | Early lateral energy fraction: how much early sound arrives from the sides, which widens the apparent source. | An ambisonic response. |

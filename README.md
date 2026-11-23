@@ -51,7 +51,7 @@ binaural = scene.simulate(ca.Binaural())  # needs Python >= 3.11
 ambisonics = scene.simulate(ca.Ambisonics(sh_order=1))  # ACN/SN3D, for a decoder elsewhere
 
 speech = ca.Defaults().ANECHOIC_SOUNDFILES_LIBRARY_PATH + "/female_speech.wav"
-signal = ca.Auraliser("room", list(binaural.values()), anechoic_sounds=[speech]).convolve()  # (samples, 2)
+signal = ca.Auraliser(list(binaural.values()), anechoic_sounds=[speech]).convolve()  # (samples, 2)
 ```
 
 `Auraliser` convolves and keeps the format of its responses: mono, binaural, or ambisonic ACN/SN3D (AmbiX) to save as a

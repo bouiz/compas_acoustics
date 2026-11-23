@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 
 namespace CompasAcoustics.Grasshopper
@@ -13,10 +12,10 @@ namespace CompasAcoustics.Grasshopper
 
         /// <summary>
         /// Unset inputs are left out so that the method's own defaults apply; air absorption is always stated (default on).
-        /// Without ray tracing its inputs are dropped and named in ``ignored``; with it, an empty seed draws a new one.
+        /// Without ray tracing its inputs are dropped and named in <paramref name="ignored"/>; with it, an empty seed draws a new one.
         /// </summary>
         public static Dictionary<string, object?> Mono(int? ismOrder, bool rayTracing, int? nRays, bool? absorbAir, double? energyThres,
-            double? duration, int? seed, bool? normalize, out string[] ignored, out int drawnSeed)
+            double? duration, int? seed, bool? normalize, out string[] ignored)
         {
             var given = new Dictionary<string, object?>
             {
@@ -30,7 +29,6 @@ namespace CompasAcoustics.Grasshopper
             };
             var settings = given.Where(kv => kv.Value != null).ToDictionary(kv => kv.Key, kv => kv.Value);
             ignored = Array.Empty<string>();
-            drawnSeed = seed ?? 0;
             if (!rayTracing)
             {
                 ignored = RayTracingOnly.Where(settings.ContainsKey).ToArray();
@@ -40,29 +38,19 @@ namespace CompasAcoustics.Grasshopper
             else if (!settings.ContainsKey("seed"))
             {
                 // the method's own default is a fixed seed; an empty input draws a new one each run
-                drawnSeed = Random.Shared.Next(int.MaxValue);
-                settings["seed"] = (long)drawnSeed;
+                settings["seed"] = (long)Random.Shared.Next(int.MaxValue);
             }
             settings["ray_tracing"] = rayTracing;
             return settings;
         }
 
+        /// <summary>The message of a run: the rate, the method, the image source order, the air absorption, and with ray tracing the rays and seed.</summary>
         public static string MonoMessage(int samplingRate, IReadOnlyDictionary<string, object?> settings)
         {
             var rayTracing = settings.TryGetValue("ray_tracing", out var rt) && rt is true;
-            string Get(string key, string fallback) => settings.TryGetValue(key, out var v) && v != null ? Show(v) : fallback;
-            return string.Format(CultureInfo.InvariantCulture, "{0}Hz, {1}, order={2}, rays={3}, air={4}, seed={5}",
-                samplingRate, rayTracing ? "ISM + ray tracing" : "ISM", Get("image_source_order", "default"),
-                rayTracing ? Get("n_rays", "default") : "-", Get("air_absorption", "default"), rayTracing ? Get("seed", "-") : "-");
+            string Get(string key) => settings.TryGetValue(key, out var v) && v != null ? MessageText.Show(v) : "default";
+            var rays = rayTracing ? $", rays {Get("n_rays")}, seed {Get("seed")}" : "";
+            return $"{MessageText.Rate(samplingRate)}, {(rayTracing ? "ISM + ray tracing" : "ISM")}, ISM order {Get("image_source_order")}, air {Get("air_absorption")}{rays}";
         }
-
-        /// <summary>A value as Python's ``str`` shows it.</summary>
-        internal static string Show(object value) => value switch
-        {
-            bool b => b ? "True" : "False",
-            double d => PythonFormat.G(d, 17) is var g && g.Contains('.') || g.Contains('e') ? g : g + ".0",
-            IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
-            _ => value.ToString() ?? "",
-        };
     }
 }

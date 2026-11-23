@@ -54,7 +54,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void EverySpec_HasItsComponent()
         {
-            Assert.Equal(ComponentSpec.Names().OrderBy(n => n, StringComparer.Ordinal), Components.Keys.OrderBy(n => n, StringComparer.Ordinal));
+            Assert.Equal(EmbeddedSpecs.Names().OrderBy(n => n, StringComparer.Ordinal), Components.Keys.OrderBy(n => n, StringComparer.Ordinal));
             var types = TypeNames();
             Assert.All(Components.Values, name => Assert.Contains(name, types));
         }

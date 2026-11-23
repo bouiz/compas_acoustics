@@ -7,9 +7,6 @@ namespace CompasAcoustics.Grasshopper
     /// <summary>Axis ticks and curve decimation of Plot 2D.</summary>
     public static class Ticks
     {
-        /// <summary>A curve is drawn with the minimum and maximum of each of this many bins along the x axis.</summary>
-        public const int CurveBins = 1000;
-
         public static double OrderOfMagnitude(double value) => Math.Pow(10, Math.Floor(Math.Log10(value)));
 
         public static double Remap(double value, double fromMin, double fromMax, double toMin, double toMax) =>
@@ -17,7 +14,7 @@ namespace CompasAcoustics.Grasshopper
 
         private static bool IsClose(double a, double b) => Math.Abs(a - b) <= Math.Max(1e-9 * Math.Max(Math.Abs(a), Math.Abs(b)), 0.0);
 
-        /// <summary>Heckbert's label placement: a "nice" step that cuts ``range`` in about ``segments`` steps.</summary>
+        /// <summary>Heckbert's label placement: a "nice" step that cuts <paramref name="range"/> in about <paramref name="segments"/> steps.</summary>
         public static double NiceStep(double range, int segments = 5)
         {
             var raw = range / segments;
@@ -31,7 +28,7 @@ namespace CompasAcoustics.Grasshopper
 
         private static int Decimals(double step) => Math.Max(0, -(int)Math.Floor(Math.Log10(step)));
 
-        /// <summary>Nice ticks from at or below ``low`` to at or above ``high``.</summary>
+        /// <summary>Nice ticks from at or below <paramref name="low"/> to at or above <paramref name="high"/>.</summary>
         public static double[] Linear(double low, double high) => Linear(low, high, out _);
 
         /// <param name="integral">Whether the ticks are whole numbers, which <see cref="Label"/> prints as ints.</param>
@@ -49,8 +46,6 @@ namespace CompasAcoustics.Grasshopper
         }
 
         /// <summary>The y ticks of a bands plot: around the values, a step below a minimum that would lie on the axis.</summary>
-        public static double[] ForValues(IReadOnlyList<double> values) => ForValues(values, out _);
-
         public static double[] ForValues(IReadOnlyList<double> values, out bool integral)
         {
             integral = false;
@@ -82,10 +77,11 @@ namespace CompasAcoustics.Grasshopper
         }
 
         /// <summary>
-        /// The indices of the minimum and maximum of ``values`` in each of ``bins`` along ``positions`` (0 to 1), in order:
-        /// drawn through these, a curve of many more points than the chart is wide looks as it does at full resolution.
+        /// The indices of the minimum and maximum of <paramref name="values"/> in each of <paramref name="bins"/> along
+        /// <paramref name="positions"/> (0 to 1), in order: drawn through these, a curve of many more points than the chart is
+        /// wide looks as it does at full resolution.
         /// </summary>
-        public static int[] MinMaxIndices(IReadOnlyList<double> positions, IReadOnlyList<double> values, int bins = CurveBins)
+        public static int[] MinMaxIndices(IReadOnlyList<double> positions, IReadOnlyList<double> values, int bins)
         {
             if (values.Count <= 2 * bins)
                 return Enumerable.Range(0, values.Count).ToArray();
@@ -104,7 +100,7 @@ namespace CompasAcoustics.Grasshopper
             return lowest.Concat(highest).Where(i => i >= 0).Distinct().OrderBy(i => i).ToArray();
         }
 
-        /// <summary>A tick's label: an int for whole-number ticks, else the float as Python's ``str`` prints it.</summary>
+        /// <summary>A tick's label: an int for whole-number ticks, else the float as Python's <c>str</c> prints it.</summary>
         public static string Label(double tick, bool integral) =>
             integral ? ((long)Math.Round(tick)).ToString(System.Globalization.CultureInfo.InvariantCulture) : PythonFormat.Repr(tick);
     }

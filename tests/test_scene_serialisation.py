@@ -113,11 +113,11 @@ def test_the_services_are_plain_classes_that_pickle():
     ir = traced_response()
     analyser = Analyser(ir)
     analyser.analyse()
-    auraliser = Auraliser("a", {"s": {"ir": np.ones((10, 1)), "sampling_rate": 48000}}, {"s": {"filepath": "x.wav"}}, "mono")
+    auraliser = Auraliser({"s": {"ir": np.ones((10, 1)), "sampling_rate": 48000}}, {"s": {"filepath": "x.wav"}})
     for service in (analyser, auraliser, MaterialsLibrary()):
         assert not isinstance(service, Data)
     assert pickle.loads(pickle.dumps(analyser)).analysis_data.keys() == analyser.analysis_data.keys()
-    assert pickle.loads(pickle.dumps(auraliser)).name == "a"
+    assert pickle.loads(pickle.dumps(auraliser)).impulse_responses.keys() == auraliser.impulse_responses.keys()
     assert pickle.loads(pickle.dumps(MaterialsLibrary())).index == MaterialsLibrary().index
 
 

@@ -9,8 +9,8 @@ FS, C = 48000.0, 344.0
 
 
 def test_zero_length_edge_gives_silence():
-    ir, _, _, zfirst = wedge1st_ir(FS, C, np.pi / 2, 1.0, 0.3, 0.0, 1.5, 4.0, 0.2, np.array([0.4, 0.4]))
-    assert np.all(ir == 0.0) and zfirst is None
+    ir, _ = wedge1st_ir(FS, C, np.pi / 2, 1.0, 0.3, 0.0, 1.5, 4.0, 0.2, np.array([0.4, 0.4]))
+    assert np.all(ir == 0.0)
 
 
 def test_segments_sum_to_the_whole_edge():

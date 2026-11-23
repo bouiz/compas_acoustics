@@ -23,8 +23,8 @@ namespace CompasAcoustics.Grasshopper
     public sealed class MaterialUi : ComponentUi
     {
         private const float Height = ChartLayout.StripHeight;
-        private static readonly Color AbsorptionColor = Color.FromArgb(70, 70, 70);
-        private static readonly Color ScatteringColor = Color.FromArgb(110, 165, 220);
+        private static readonly Color AbsorptionColor = Color.FromArgb(MaterialChart.AbsorptionRgb.r, MaterialChart.AbsorptionRgb.g, MaterialChart.AbsorptionRgb.b);
+        private static readonly Color ScatteringColor = Color.FromArgb(MaterialChart.ScatteringRgb.r, MaterialChart.ScatteringRgb.g, MaterialChart.ScatteringRgb.b);
 
         public MaterialUi(ComponentBase owner) : base(owner) { }
 
@@ -35,10 +35,9 @@ namespace CompasAcoustics.Grasshopper
         protected override void RenderExtra(GH_Canvas canvas, Graphics g)
         {
             var area = ExtraArea;
-            using var font = new Font(FontFamily.GenericSansSerif, 6f);
             var caption = new RectangleF(area.Left + 3, area.Top + 1, area.Width - 6, 10);
             using var format = new StringFormat { Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap };
-            g.DrawString(Body.Caption, font, Body.Shown == null ? Brushes.Gray : Brushes.Black, caption, format);
+            g.DrawString(Body.Caption, ChartPainter.Small, Body.Shown == null ? Brushes.Gray : Brushes.Black, caption, format);
             var strip = ChartLayout.StripArea(area);
             g.FillRectangle(Brushes.White, strip);
             if (Body.Shown is not { } material)
@@ -48,19 +47,7 @@ namespace CompasAcoustics.Grasshopper
             var chart = MaterialChart.Strip(material.AbsorptionCoefficients.ToList(),
                 material.ScatteringCoefficients.Count > 0 ? material.ScatteringCoefficients.ToList() : null, strip, labelWidth);
             var plot = chart.Plot;
-            using (var grid = new Pen(Color.FromArgb(230, 230, 230)))
-                foreach (var (y, text) in chart.Values)
-                {
-                    g.DrawLine(grid, plot.Left, y, plot.Right, y);
-                    var size = g.MeasureString(text, ChartPainter.Tiny);
-                    g.DrawString(text, ChartPainter.Tiny, Brushes.DimGray, plot.Left - size.Width - ChartLayout.TickGap + 2, y - size.Height / 2);
-                }
-            foreach (var (x, text) in chart.Bands)
-            {
-                var size = g.MeasureString(text, ChartPainter.Tiny);
-                g.DrawString(text, ChartPainter.Tiny, Brushes.DimGray, x - size.Width / 2, plot.Bottom + 1);
-            }
-            g.DrawRectangle(Pens.Gray, plot.X, plot.Y, plot.Width, plot.Height);
+            ChartPainter.Axes(g, plot, chart.Values, chart.Bands, compact: true);
             // the picker's paired bars, absorption then scattering per band
             var (absorption, scattering) = MaterialChart.PairedBars(material.AbsorptionCoefficients.ToList(),
                 material.ScatteringCoefficients.Count > 0 ? material.ScatteringCoefficients.ToList() : null, plot);

@@ -37,12 +37,15 @@ namespace CompasAcoustics.Grasshopper.Tests
             if (path == "/ping")
                 return FakeHandler.Pong();
             if (path == "/api/info")
-                return FakeHandler.Result(new Dictionary<string, object?> { ["compas_acoustics"] = Worker.LibraryVersion, ["schema"] = Schema.Hash, ["hybrid"] = true });
+                return FakeHandler.Result(new Dictionary<string, object?> { ["compas_acoustics"] = Versions.Library, ["schema"] = Schema.Hash, ["hybrid"] = true });
             var payload = body.Length > 0 ? FakeHandler.Serializer.Unpack(body) as IDictionary<string, object?> : null;
             _calls.Add((path, payload));
             if (_fail)
                 return FakeHandler.Answer(HttpStatusCode.BadRequest, new Dictionary<string, object?> { ["error"] = "PortAudio error: no device" });
-            return FakeHandler.Result(new Dictionary<string, object?> { ["warnings"] = new List<object?>(), ["duration"] = 2.0 });
+            // as the worker answers: play, pause, resume and stop return nothing
+            return path == "/api/playback_status"
+                ? FakeHandler.Result(new Dictionary<string, object?> { ["playing"] = false, ["position"] = 0.0 })
+                : FakeHandler.Result(null);
         }
 
         private static AudioData Stereo(double seconds = 2.0, int rate = 100)

@@ -124,7 +124,7 @@ namespace CompasAcoustics.Grasshopper
                 clone.Guid = "";
                 keyed[0] = clone;
             }
-            return AsyncRuns.Key("run_scattering_lab", keyed, kwargs);
+            return BackgroundRuns.Key("run_scattering_lab", keyed, kwargs);
         }
 
         /// <summary>The start of the worker's error when a call names a result by a guid it does not hold (<c>compas_acoustics.worker.api.NOT_HELD</c>).</summary>

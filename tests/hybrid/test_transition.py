@@ -33,7 +33,7 @@ TARGET = RoomTarget(rt=np.full(8, 0.6), level=np.ones(8), bands=BANDS.copy(), fs
 SOURCE, RECEIVER = (2.0, 4.0, 1.5), (7.12, 5.07, 1.61)
 
 
-def pair(order):
+def make_pair(order):
     scene = Scene("t")
     scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(*DIMS, materials=WALL))
     geometry = RoomGeometry.from_scene(scene)
@@ -41,28 +41,28 @@ def pair(order):
     room.add_source(list(SOURCE))
     room.add_microphone(np.reshape(RECEIVER, (3, 1)))
     room.image_source_model()
-    spec = Pair(geometry, np.asarray(SOURCE), np.asarray(RECEIVER), np.eye(3), float(FS))
-    return spec, image_sources(room, 0, 0, spec)
+    pair = Pair(geometry, np.asarray(SOURCE), np.asarray(RECEIVER), np.eye(3), float(FS), 343.0)
+    return pair, image_sources(room, 0, 0, pair)
 
 
 def test_the_last_rendered_order_drives_the_network():
-    spec, iss = pair(2)
-    result = render_ambisonics(prepare(spec, iss, TARGET, max_order=2, duration_s=0.3))
+    pair, iss = make_pair(2)
+    result = render_ambisonics(prepare(pair, iss, TARGET, max_order=2, duration_s=0.3))
     assert result.core.driving_images == int(np.sum(iss.order == 2))
     np.testing.assert_array_equal(np.unique(result.core.images.order), [0, 1, 2])
 
 
 def test_images_above_the_rendered_order_are_ignored():
-    spec, deep = pair(3)
-    _, shallow = pair(2)
-    a = render_ambisonics(prepare(spec, deep, TARGET, max_order=2, duration_s=0.3))
-    b = render_ambisonics(prepare(spec, shallow, TARGET, max_order=2, duration_s=0.3))
+    pair, deep = make_pair(3)
+    _, shallow = make_pair(2)
+    a = render_ambisonics(prepare(pair, deep, TARGET, max_order=2, duration_s=0.3))
+    b = render_ambisonics(prepare(pair, shallow, TARGET, max_order=2, duration_s=0.3))
     np.testing.assert_allclose(a.rir, b.rir, rtol=0, atol=1e-12 * np.abs(b.rir).max())
 
 
 def test_the_network_is_heard_one_line_after_the_last_order():
-    spec, iss = pair(2)
-    result = render_ambisonics(prepare(spec, iss, TARGET, max_order=2, duration_s=0.3))
+    pair, iss = make_pair(2)
+    result = render_ambisonics(prepare(pair, iss, TARGET, max_order=2, duration_s=0.3))
     first = iss.delay[iss.order == 2].min() * FS + np.asarray(result.core.builds[0][0].delays).min()
     energy = result.late[:, 0] ** 2
     # before that only the zero-phase band magnitude's pre-ringing, each image entering some 48 lines of
@@ -78,7 +78,7 @@ def unit(xyz):
 def test_each_image_enters_the_lines_opposite_its_arrival():
     """Weighted most on the line nearest its reverse direction, none on the lines of its own hemisphere."""
     directions = fdn_directions()
-    _, iss = pair(1)
+    _, iss = make_pair(1)
     weights = scattering_weights(iss.doa, directions, opposite=True)
     cosines = unit(iss.doa.cartesian) @ unit(directions.cartesian).T
     np.testing.assert_array_equal(np.argmax(weights, axis=1), np.argmax(-cosines, axis=1))
@@ -88,7 +88,7 @@ def test_each_image_enters_the_lines_opposite_its_arrival():
 
 def test_without_opposite_the_weights_follow_the_direction_of_arrival():
     directions = fdn_directions()
-    _, iss = pair(1)
+    _, iss = make_pair(1)
     weights = scattering_weights(iss.doa, directions)
     cosines = unit(iss.doa.cartesian) @ unit(directions.cartesian).T
     np.testing.assert_array_equal(np.argmax(weights, axis=1), np.argmax(cosines, axis=1))

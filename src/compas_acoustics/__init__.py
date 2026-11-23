@@ -62,12 +62,10 @@ __all__ = [
 
 
 def __getattr__(name):
-    # The binaural and ambisonics methods need pyFDN, which compas_acoustics requires on Python >= 3.11 only, so they are imported on first use
+    # The binaural and ambisonics methods need pyFDN, which compas_acoustics requires on Python >= 3.11 only, so they
+    # are imported on first use
     if name in ("Binaural", "Ambisonics"):
-        try:
-            from . import simulation_methods
+        from . import simulation_methods
 
-            return getattr(simulation_methods, name)
-        except ImportError as error:
-            raise ImportError(f"compas_acoustics.{name} needs Python >= 3.11, where compas_acoustics installs pyFDN") from error
+        return getattr(simulation_methods, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

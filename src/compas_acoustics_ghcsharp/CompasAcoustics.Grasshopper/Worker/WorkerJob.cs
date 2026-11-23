@@ -36,10 +36,6 @@ namespace CompasAcoustics.Grasshopper
             _now = now ?? (() => Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency);
         }
 
-        /// <summary>A job that calls ``function`` of the worker.</summary>
-        public static WorkerJob Of(Worker worker, string function, object?[] args, IDictionary<string, object?> kwargs) =>
-            new((id, cancel) => worker.CallAsync(function, id, args, kwargs, cancel), worker.Progress);
-
         public string CallId { get; } = Guid.NewGuid().ToString("N");
 
         public JobState State { get; private set; } = JobState.Idle;
@@ -51,7 +47,7 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>Seconds since the start; frozen when the job ends.</summary>
         public double Elapsed => (_ended ?? _now()) - _started;
 
-        /// <summary>The worker's last report, e.g. ``ray tracing 3/4``; null before the first.</summary>
+        /// <summary>The worker's last report, e.g. <c>ray tracing 3/4</c>; null before the first.</summary>
         public string? ProgressText { get; private set; }
 
         /// <summary>Raised on a thread-pool thread when the call ends, also after <see cref="Cancel"/>.</summary>
@@ -120,7 +116,7 @@ namespace CompasAcoustics.Grasshopper
                 ProgressText = text;
         }
 
-        /// <summary>A report as text: ``stage``, ``stage 3`` or ``stage 3/4`` (``done`` counts the finished items).</summary>
+        /// <summary>A report as text: <c>stage</c>, <c>stage 3</c> or <c>stage 3/4</c> (<c>done</c> counts the finished items).</summary>
         public static string? Describe(IDictionary<string, object?>? report)
         {
             if (report == null || !report.TryGetValue("stage", out var stage) || stage is not string text)

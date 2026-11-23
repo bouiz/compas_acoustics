@@ -17,20 +17,21 @@ _log = logging.getLogger(__name__)
 
 
 class Scene(_PackageDtype, Data):
-    """The acoustic model of a room: its surfaces with materials, sources, receivers, and the impulse responses simulated for them.
+    """A room: its surfaces with their materials, sources, receivers, and the impulse responses simulated for them.
 
     Parameters
     ----------
     name : str
     description : str, optional
     sampling_rate : int, optional
-        The sample rate every simulation method runs at; default 48000.
+        Of every simulation; default 48000.
 
     Examples
     --------
     >>> import compas_acoustics as ca
     >>> scene = ca.Scene("office")
-    >>> scene.add_acoustic_objects(ca.AcousticObjectsLibrary.shoebox_room(6, 5, 3, materials=ca.AcousticMaterial("wall", 0.2, 0.1)))
+    >>> room = ca.AcousticObjectsLibrary.shoebox_room(6, 5, 3, materials=ca.AcousticMaterial("wall", 0.2, 0.1))
+    >>> scene.add_acoustic_objects(room)
     >>> scene.add_source(ca.Source("talker", 1.5, 1.5, 1.6))
     >>> scene.add_receiver(ca.Receiver("listener", 4.0, 3.0, 1.2))
     >>> len(scene.acoustic_objects), len(scene.sources), len(scene.receivers)
@@ -83,10 +84,6 @@ class Scene(_PackageDtype, Data):
         return scene
 
     @property
-    def id(self):
-        return self.guid
-
-    @property
     def acoustic_objects(self):
         return self._acoustic_objects
 
@@ -100,37 +97,12 @@ class Scene(_PackageDtype, Data):
         return self._receivers
 
     @property
-    def number_of_acoustic_objects(self):
-        return len(self._acoustic_objects)
-
-    @property
-    def number_of_sources(self):
-        return len(self.sources)
-
-    @property
-    def number_of_receivers(self):
-        return len(self._receivers)
-
-    @property
     def name(self):
         return self._name
 
     @name.setter
     def name(self, name: str):
         self._name = name
-
-    @property
-    def acoustic_materials(self):
-        """The unique acoustic materials of the scene, keyed by name (as :attr:`scene_materials`)."""
-        return self.scene_materials
-
-    @acoustic_materials.setter
-    def acoustic_materials(self, materials):
-        raise AttributeError(
-            "Scene materials are not assigned by surface name. Give each AcousticObject its material, e.g. "
-            "AcousticObjectsLibrary.shoebox_room(..., materials={'floor': carpet, ...}) or "
-            "AcousticObject.from_obj(path, materials={'<group>': material})."
-        )
 
     @property
     def scene_materials(self):
@@ -141,41 +113,6 @@ class Scene(_PackageDtype, Data):
             if material is not None:
                 materials[material.name] = material
         return materials
-
-    def print_scene_materials(self):
-        print(f"Scene '{self.name}' materials:")
-        for acoustic_object in self.acoustic_objects:
-            material_name = acoustic_object.material.name if acoustic_object.material else "none"
-            print(f"  {acoustic_object.name}: {material_name}")
-
-    def display_materials_in_viewer(self):
-        import compas
-
-        if compas.is_rhino():
-            raise RuntimeError("Displaying materials is not supported in Rhino.")
-        from random import random
-
-        from compas.colors import Color
-        from compas_viewer import Viewer
-        from compas_viewer.scene import Tag
-
-        material_colors = {name: Color(random(), random(), random(), 0.5) for name in self.scene_materials}
-        default_color = Color(0.5, 0.5, 0.5, 0.5)
-
-        viewer = Viewer()
-
-        for acoustic_object in self.acoustic_objects:
-            material = acoustic_object.material
-            material_name = material.name if material else "none"
-            color = material_colors.get(material_name, default_color)
-
-            mesh = acoustic_object.acoustic_geometry
-            tag = Tag(material_name, mesh.centroid(), height=30, color=color)
-            viewer.scene.add(tag, name=f"tag_{acoustic_object.name}")
-
-            facecolor = {fkey: color for fkey in mesh.faces()}
-            viewer.scene.add(mesh, name=acoustic_object.name, show_points=True, facecolor=facecolor)
-        viewer.show()
 
     def add_acoustic_object(self, acoustic_object):
         self._acoustic_objects.append(acoustic_object)
@@ -206,16 +143,9 @@ class Scene(_PackageDtype, Data):
         if not self.ir_graph.has_node(node_key):
             self.ir_graph.add_node(node_key, attr_dict={"type": node_type, "data": node_data})
 
-    def clear_ir_edges(self) -> None:
-        for edge in list(self.ir_graph.edges()):
-            self.ir_graph.delete_edge(edge)
-
     def add_impulse_response(self, source: Source, receiver: Receiver, ir: ImpulseResponse, attribute: str = "data") -> None:
-        """Store ``ir`` on the source-receiver edge under ``attribute``.
-
-        Each method stores its responses under its name (``'mono'``, ``'binaural'``, ``'ambisonics'``);
-        ``'data'`` holds the latest mono response.
-        """
+        """Store ``ir`` on the source-receiver edge under ``attribute``: a method's name, or ``'data'``, the latest mono
+        response."""
         source_key = str(source.guid)
         receiver_key = str(receiver.guid)
 
@@ -271,19 +201,10 @@ class Scene(_PackageDtype, Data):
                 out[f"{ir.receiver.guid}_{ir.source.guid}"] = ir
         return out
 
-    def simulation_methods(self) -> list:
-        """The names of the simulation methods whose responses are on the IR graph, ``'data'`` aside."""
-        names = {}
-        for edge in self.ir_graph.edges():
-            for name in self.ir_graph.edge_attributes(edge):
-                if name != "data":
-                    names.setdefault(name, None)
-        return list(names)
-
     def simulate(self, method) -> dict:
-        """Run a simulation method at :attr:`sampling_rate` and store its responses on the IR graph under ``method.name``.
+        """Run a simulation method at :attr:`sampling_rate` and store its responses on the IR graph under its name.
 
-        A mono method's responses also go under ``'data'``, which analysis and auralisation read by default.
+        A mono method's responses also go under ``'data'``, the default of :meth:`impulse_responses`.
 
         Parameters
         ----------

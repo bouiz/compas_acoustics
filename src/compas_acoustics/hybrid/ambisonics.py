@@ -1,6 +1,7 @@
-"""Ambisonic rendering of a :class:`~compas_acoustics.hybrid.synthesis.HybridCore`: paths encoded at their directions, delay lines through the output matrix.
+"""Ambisonic rendering of a :class:`~compas_acoustics.hybrid.synthesis.HybridCore`.
 
-The order sets the number of delay lines (:func:`default_num_delays`) and their projection (:func:`ambisonic_output_matrix`).
+Early paths are encoded at their directions and delay lines projected through the output matrix. The order sets the
+number of delay lines (:func:`default_num_delays`) and their projection (:func:`ambisonic_output_matrix`).
 """
 
 from __future__ import annotations
@@ -24,11 +25,11 @@ __all__ = ["render_ambisonics", "ambisonic_output_matrix", "default_num_delays"]
 
 
 def render_ambisonics(core: HybridCore, sh_order: int = 1, normalization: Literal["SN3D", "N3D"] = "SN3D") -> HybridResult:
-    """The core as an ambisonic response: every early path encoded at its direction, every line projected through
-    the output matrix of its direction (:func:`ambisonic_output_matrix`), ACN channels at ``sh_order``.
+    """The core as an ambisonic response, ACN channels at ``sh_order``.
 
-    Everything is computed in N3D; ``normalization`` sets the output, SN3D (AmbiX) or N3D, both with W = 1 for a
-    unit plane wave. An order the core's grid cannot carry raises (the output matrix's leakage check).
+    Every early path is encoded at its direction and every line projected through the output matrix
+    (:func:`ambisonic_output_matrix`). Everything is computed in N3D; ``normalization`` sets the output, SN3D
+    (AmbiX) or N3D, both with W = 1 for a unit plane wave. An order the core's grid cannot carry raises.
     """
     if normalization not in ("SN3D", "N3D"):
         raise ValueError(f"normalization must be 'SN3D' or 'N3D', not {normalization!r}")
@@ -45,46 +46,32 @@ def render_ambisonics(core: HybridCore, sh_order: int = 1, normalization: Litera
 
 
 def _from_n3d(x: np.ndarray, normalization: str) -> np.ndarray:
-    """ACN channels on the last axis, from N3D to ``normalization``: SN3D is
-    N3D / sqrt(2n + 1) per order n, so W is untouched."""
+    """ACN channels on the last axis from N3D to ``normalization``; SN3D is N3D / sqrt(2n + 1) per order n."""
     if normalization == "N3D":
         return x
     order = np.floor(np.sqrt(np.arange(x.shape[-1]))).astype(int)
     return x / np.sqrt(2 * order + 1)
 
 
-def ambisonic_output_matrix(
-    sh_order: int,
-    directions: pf.Coordinates,
-    *,
-    normalization: str = "NM",
-    max_leakage: float = 0.05,
-) -> np.ndarray:
-    """Output matrix C mapping delay lines to ambisonic channels.
+def ambisonic_output_matrix(sh_order: int, directions: pf.Coordinates) -> np.ndarray:
+    """Output matrix ``C`` (n_channels, N) from delay lines to ambisonic channels, ACN.
 
-    Column ``i`` is the spherical harmonic vector of direction ``i``, so each
-    delay line radiates from its own direction and the late field is diffuse in
-    expectation. Scaled by ``1 / sqrt(N)`` so total output energy does not grow
-    with the number of delay lines.
-
-    ``normalization="NM"`` is N3D with W = 1 for a unit plane wave (without the 1/sqrt(4 pi)). Its basis is
-    orthonormal, so ``C @ C.T`` of an ideal grid is a multiple of the identity and the leakage compares like
-    with like across orders (in SN3D the diagonal falls as 1 / (2n + 1)).
-
-    The late field is isotropic only if ``C @ C.T`` is diagonal; its off-diagonal entries are the channels'
-    cross-correlation, which depends on how well the grid supports ``sh_order``. The largest of them over the
-    mean diagonal is the leakage; a grid leaking more than ``max_leakage`` raises ``ValueError``.
+    Column ``i`` is the spherical harmonic vector of direction ``i`` over ``sqrt(N)``, so the output energy does not
+    grow with the number of lines. The basis is spharpy's ``"NM"``, N3D with W = 1 for a unit plane wave,
+    orthonormal: on an ideal grid ``C @ C.T`` is a multiple of the identity. Its largest off-diagonal entry over its
+    mean diagonal is the leakage between channels; a grid leaking more than 5 % (the package's choice) does not
+    support ``sh_order`` and raises ``ValueError``.
     """
-    sh = spharpy.spherical.spherical_harmonic_basis_real(sh_order, directions, normalization=normalization, channel_convention="ACN")
+    sh = spharpy.spherical.spherical_harmonic_basis_real(sh_order, directions, normalization="NM", channel_convention="ACN")
     C = sh.T / np.sqrt(sh.shape[0])
 
     gram = C @ C.T
     off_diagonal = gram - np.diag(np.diag(gram))
     leakage = np.max(np.abs(off_diagonal)) / np.mean(np.abs(np.diag(gram)))
-    if leakage > max_leakage:
+    if leakage > 0.05:
         raise ValueError(
             f"direction grid leaks {leakage:.1%} between ambisonic channels, "
-            f"above the {max_leakage:.0%} limit: it does not support sh_order="
+            f"above the 5% limit: it does not support sh_order="
             f"{sh_order}; default_num_delays({sh_order}) gives a number of "
             f"delay lines whose grid does."
         )
@@ -92,17 +79,17 @@ def ambisonic_output_matrix(
 
 
 @cache
-def default_num_delays(sh_order: int, minimum: int | None = None) -> int:
+def default_num_delays(sh_order: int) -> int:
     """Smallest workable number of delay lines for an ambisonic order.
 
     The grid must hold exactly one point per line and support the order within the leakage limit of
-    :func:`ambisonic_output_matrix`. The counts that do are irregular (20, 23, 24, 27, 28 ... at second
-    order), so they are searched from ``4 (N + 1) ** 2``, for echo density, and never below ``minimum``
-    (:data:`MIN_DELAYS` when None): 96 lines at orders 0 to 3, 100 at fourth order.
+    :func:`ambisonic_output_matrix`. The counts that do are irregular (20, 23, 24, 27, 28 ... at second order), so
+    they are searched from ``4 (N + 1) ** 2``, for echo density (the package's choice), and never below
+    :data:`MIN_DELAYS`: 96 lines at orders 0 to 3, 100 at fourth order.
     """
     if sh_order < 0:
         raise ValueError("sh_order must be non-negative")
-    start = max(MIN_DELAYS if minimum is None else minimum, 4 * (sh_order + 1) ** 2)
+    start = max(MIN_DELAYS, 4 * (sh_order + 1) ** 2)
     for num_delays in range(start, 4 * start + 1):
         directions = spharpy.samplings.equal_area(n_max=sh_order, n_points=num_delays)
         if directions.cshape[0] != num_delays:

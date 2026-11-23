@@ -11,30 +11,31 @@ import pyfar as pf
 import pyFDN
 import spharpy
 from pyFDN.td import SOSBank
-from scipy.signal._sosfilt import _sosfilt
 
 from .pair import Pair
 from .target import RoomTarget
 
+try:
+    # a private scipy kernel: the network filters every line once per block, at most its shortest delay long, where
+    # sosfilt's checks of its arguments take longer than the filtering; without it pyFDN's SOSBank gives the same output
+    from scipy.signal._sosfilt import _sosfilt
+except ImportError:
+    _SOSBank = SOSBank
+else:
 
-class _SOSBank(SOSBank):
-    """pyFDN's cascade per line with the kernel of ``scipy.signal.sosfilt`` called directly, on the same state.
+    class _SOSBank(SOSBank):
+        """pyFDN's cascade per line with the kernel of ``scipy.signal.sosfilt`` called directly, on the same state."""
 
-    The network filters every line once per block, at most its shortest delay long, where ``sosfilt``'s checks of
-    its arguments take longer than the filtering; the output is bit-identical.
-    """
-
-    def process_block(self, block):
-        out = np.array(np.asarray(block, dtype=float).T, order="C")
-        for i in range(self.in_channels):
-            _sosfilt(self.sos[i], out[i : i + 1], self._state[i : i + 1])
-        return out.T
+        def process_block(self, block):
+            out = np.array(np.asarray(block, dtype=float).T, order="C")
+            for i in range(self.in_channels):
+                _sosfilt(self.sos[i], out[i : i + 1], self._state[i : i + 1])
+            return out.T
 
 
-#: Fewest delay lines at any ambisonic order: Kirsch, Wendt and van de Par (2023, Secs. 1.2 and 3.3) use 96
-#: for offline simulation whatever the rendered directions, so the tail's character does not change with the
-#: count and a small network's recurrent patterns are avoided. The 96-point equal-area grid supports orders 0
-#: to 3.
+#: Fewest delay lines at any ambisonic order: Kirsch et al. (2023, Secs. 1.2 and 3.3) use 96 for offline simulation
+#: whatever the rendered directions, so the tail's character does not change with the count and a small network's
+#: recurrent patterns are avoided. The 96-point equal-area grid supports orders 0 to 3.
 MIN_DELAYS = 96
 
 
@@ -48,17 +49,17 @@ def fdn_directions(num_delays: int = MIN_DELAYS) -> pf.Coordinates:
     return spharpy.samplings.equal_area(n_max=0, n_points=num_delays)
 
 
-def _nearest_coprime(targets: np.ndarray, tolerance: float = 0.03) -> np.ndarray:
+def _nearest_coprime(targets: np.ndarray) -> np.ndarray:
     """Distinct integers near their targets, pairwise coprime where that fits.
 
-    Coprimality is sought within ``tolerance`` of each target, else the nearest unused integer is taken, so
-    no length strays far from its target.
+    Coprimality is sought within 3 % of each target (the package's choice), else the nearest unused integer is
+    taken, so no length strays far from its target.
     """
     chosen: list[int] = []
     out = np.empty(targets.size, dtype=int)
     for idx in np.argsort(targets)[::-1]:
         centre = max(int(round(targets[idx])), 2)
-        reach = max(2, int(tolerance * centre))
+        reach = max(2, int(0.03 * centre))
         offsets = [0] + [s * k for k in range(1, reach + 1) for s in (1, -1)]
         candidates = [centre + o for o in offsets if centre + o >= 2]
         pick = next(
@@ -73,31 +74,31 @@ def _nearest_coprime(targets: np.ndarray, tolerance: float = 0.03) -> np.ndarray
 
 
 def directional_delays(
-    spec: Pair,
+    pair: Pair,
     directions: pf.Coordinates,
     *,
-    spread: float = 0.1,
     rng: int | np.random.Generator = 0,
 ) -> np.ndarray:
     """Delay line lengths in samples, each the room's free path along its direction.
 
-    The room-dimension delays of Kirsch, Poppitz and Wendt (2021) and Kirsch, Wendt and van de Par (2023), per
-    direction and for any closed geometry: a uniform field along ``u`` meets the boundary at the rate
-    ``c sum_f A_f |n_f . u| / (2 V)``, so line ``i`` takes ``2 V / sum_f A_f |n_f . u_i|``. For a shoebox that is
-    ``1 / (|u_x| / L_x + |u_y| / L_y + |u_z| / L_z)``; its mean over the sphere is Cauchy's ``4 V / S``.
+    The room-dimension delays of Kirsch et al. (2021, Sec. VI.B; 2023, Sec. 3.3), taken per direction and for any
+    closed geometry: a uniform field along ``u`` meets the boundary at the rate ``c sum_f A_f |n_f . u| / (2 V)``,
+    so line ``i`` is ``2 V / sum_f A_f |n_f . u_i|`` long, in a shoebox
+    ``1 / (|u_x| / L_x + |u_y| / L_y + |u_z| / L_z)``. The rates average over the sphere to ``c S / (4 V)``, the
+    mean free path ``4 V / S``.
 
-    ``u`` and ``-u`` share a free path, so ``spread`` jitters each length uniformly by up to that fraction,
-    drawn from ``rng``, before the lengths are made coprime, lest opposite lines ring together. ``directions``
-    are in the receiver's frame and are rotated back to the room's before projecting.
+    ``u`` and ``-u`` share a free path, so each length is jittered uniformly by up to 0.1 of it, drawn from
+    ``rng``, before the lengths are made coprime (:func:`_nearest_coprime`), lest opposite lines ring together. The
+    jitter and the coprime lengths are the package's choice; Wendt et al. (2014, Eq. 1) add up to 0.1 of the mean
+    room dimension. ``directions`` are in the receiver's frame.
     """
     unit = directions.cartesian
     unit = unit / np.linalg.norm(unit, axis=1, keepdims=True)
-    if spec.receiver_rotation is not None:
-        unit = unit @ spec.receiver_rotation.T
-    projected = np.abs(unit @ spec.geometry.area_normals().T).sum(axis=1)
-    free_path_samples = 2.0 * spec.geometry.volume / projected / spec.speed_of_sound * spec.fs
+    unit = unit @ pair.receiver_rotation.T
+    projected = np.abs(unit @ pair.geometry.area_normals().T).sum(axis=1)
+    free_path_samples = 2.0 * pair.geometry.volume / projected / pair.speed_of_sound * pair.fs
     generator = np.random.default_rng(rng)
-    jitter = 1.0 + spread * generator.uniform(-1.0, 1.0, size=free_path_samples.size)
+    jitter = 1.0 + 0.1 * generator.uniform(-1.0, 1.0, size=free_path_samples.size)
     return _nearest_coprime(free_path_samples * jitter)
 
 
@@ -105,26 +106,20 @@ def design_fdn(
     target: RoomTarget,
     delays: np.ndarray | Sequence[np.ndarray],
     *,
-    matrix: str = "orthogonal",
-    dc_factor: float = 1.0,
-    nyquist_factor: float = 0.5,
     rng: int = 0,
 ) -> list[tuple[pyFDN.DSS, dict]]:
-    """Design one FDN per decay slope of ``target``, with one output: the lines' omnidirectional sum.
+    """One network per decay slope of ``target``, as ``(pyFDN.DSS, filters)`` pairs.
 
-    Each network is a ``(pyFDN.DSS, filters)`` pair as ``pyFDN.fdn_dss_gallery`` returns it, ``filters`` holding
-    its ``"post_delay"`` attenuation and its ``"post_output"`` slope weight (None for one slope).
+    ``delays`` (samples) is one array for every slope or one per slope. Each network has a random orthogonal
+    feedback matrix seeded ``rng + slope``, the attenuation ``filters["post_delay"]`` following ``target.rt``
+    (:meth:`~compas_acoustics.hybrid.target.RoomTarget.geq_bands`) and, as ``C``, the lines' omnidirectional sum,
+    ``1 / sqrt(N)`` each, which the late envelope compares with its reference; the renderers project the lines
+    themselves.
 
-    ``delays`` (samples) is one array shared by every slope or one per slope. ``C`` is the W row of the
-    ambisonic output matrix, ``1 / sqrt(N)`` per line, which the late envelope compares with its reference;
-    renderers project the lines themselves (:func:`render`). Each slope's attenuation follows ``target.rt``
-    (:meth:`~compas_acoustics.hybrid.target.RoomTarget.geq_bands` with ``dc_factor`` and ``nyquist_factor``)
-    and its feedback matrix is seeded ``rng + slope``, also any ``matrix`` other than ``"orthogonal"``, taken
-    from ``pyFDN.fdn_matrix_gallery``.
-
-    A multi-exponential decay sums independent networks with one input, each weighted per band by
-    ``level_k / sqrt(sum_j level_j ** 2)`` as an output filter, which keeps the slopes' level ratios and one
-    network's initial energy. A single slope has no output filter.
+    With several slopes the networks share their input, and ``filters["post_output"]`` weights each per band by
+    ``level_k / sqrt(sum_j level_j ** 2)``, which keeps the slopes' level ratios and one network's initial energy;
+    with one slope it is None. One network per slope is the package's choice; Kirsch et al. (2023, Sec. 2.1.2)
+    superpose one network per room of two coupled rooms.
     """
     n_slopes = target.n_slopes
     delays = np.asarray(delays, dtype=int)
@@ -154,13 +149,11 @@ def design_fdn(
             rt=None,
             rng=rng + slope,
         )
-        if matrix != "orthogonal":
-            dss = dss._replace(A=pyFDN.fdn_matrix_gallery(num_delays, matrix, rng=rng + slope))
         dss = dss._replace(C=C)
         filters = dict(
             filters,
             post_delay=pyFDN.decay_to_graphic_eq(
-                target.geq_bands(slope, dc_factor=dc_factor, nyquist_factor=nyquist_factor),
+                target.geq_bands(slope),
                 delays[slope],
                 target.fs,
             ),
@@ -173,28 +166,23 @@ def design_fdn(
     return builds
 
 
-def render(
+def run_network(
     builds: Sequence[tuple[pyFDN.DSS, dict]],
     drive: np.ndarray,
     *,
     tap: np.ndarray | None = None,
     line_eq: np.ndarray | None = None,
 ) -> np.ndarray:
-    """Run the network with a separate input per delay line; the lines' outputs, (n, num_delays).
+    """Run the networks with one input per delay line; the lines' outputs, (n, num_delays), summed over the slopes.
 
-    ``drive`` (n_samples, num_delays) enters line ``i`` in column ``i`` (``B`` identity, ``D`` zero). Column ``i`` of
-    the result is what line ``i`` radiates, after ``line_eq`` and the slope weights, summed over the slopes'
-    networks; the ambisonic late field is it times ``C.T``.
+    ``drive`` (n, num_delays) enters line ``i`` in column ``i``. ``line_eq``, an SOS bank (n_sections, 6,
+    num_delays), and the slope weights (``post_output``) filter each line after the feedback is taken, so they
+    colour a line without changing its decay: the directional boundary absorption of Kirsch et al. (2023,
+    Sec. 1.2). The ambisonic late field is the result times ``C.T``.
 
-    ``line_eq``, an SOS bank (n_sections, 6, num_delays), filters each line on its way out, after the feedback
-    is taken, so it colours a direction without touching the decay: the directional boundary absorption of
-    Kirsch et al. (2023). The lines go through an identity output matrix and are filtered here, as are the
-    networks' slope weights (``post_output``).
-
-    ``tap``, of the same shape, enters each line skipping its delay, "initially skipping the FDN delays" (Ewert
-    et al. 2025, Sec. 3.1.2): it passes the attenuation filters ``f``, is heard at once and recirculates, exactly
-    ``f(tap)`` at the outputs plus ``A f(tap)`` into the lines with a static ``A``. The scattered parts of
-    :mod:`compas_acoustics.hybrid.scattering` enter there.
+    ``tap`` (n, num_delays) enters each line skipping its delay (Ewert et al. 2025, Sec. 3.1.2): with ``f`` the
+    attenuation filters, ``f(tap)`` is heard at once and ``A f(tap)`` enters the lines, which needs a static ``A``.
+    The scattered parts of :mod:`compas_acoustics.hybrid.scattering` enter there.
     """
     builds = list(builds)
     if not builds:

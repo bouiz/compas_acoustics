@@ -1,10 +1,8 @@
 """Run compas_acoustics in a second interpreter, the worker, and call it over HTTP with protobuf payloads.
 
-On Python 3.9 the binaural and ambisonics methods, STI and G are not available. The worker is a local HTTP service
-(:mod:`compas_acoustics.worker.service`) in a Python >= 3.11 with compas_acoustics installed
-(:mod:`compas_acoustics.worker.install`); :func:`client` starts it on first use. Arguments and results travel as
-:mod:`compas_acoustics.pb` messages. Every session starts its own worker on a free port of 127.0.0.1 with a random
-token, without which calls are refused; it stops when the session ends or dies.
+For a Python 3.9 host, where the binaural and ambisonics methods, STI and G are not available. :func:`client` starts
+the worker (:mod:`.service`, in the Python >= 3.11 that :mod:`.install` creates) on first use, on a free port of
+127.0.0.1 with a random token; it stops with the session.
 """
 
 import atexit
@@ -18,11 +16,13 @@ import tempfile
 import time
 from pathlib import Path
 
-# Pings, PING_SECONDS apart, before giving up on a starting worker; the first start of a fresh environment imports uncached
+# Pings, PING_SECONDS apart, before giving up on a starting worker; the first start of a fresh environment imports
+# uncached
 CONNECTION_ATTEMPTS = 1200
 PING_SECONDS = 0.1
 CONFIG = Path.home() / ".compas_acoustics" / "worker.json"
-# One file per running worker, {"pid", "port", "token"}, so that Install Worker can stop them before replacing the environment
+# One file per running worker, {"pid", "port", "token"}, so that Install Worker can stop them before replacing the
+# environment
 WORKERS = Path.home() / ".compas_acoustics" / "workers"
 TOKEN_VARIABLE = "COMPAS_ACOUSTICS_WORKER_TOKEN"
 PARENT_VARIABLE = "COMPAS_ACOUSTICS_WORKER_PARENT"
@@ -54,7 +54,7 @@ class WorkerError(RuntimeError):
 
 
 def worker_python():
-    """The worker's interpreter: ``$COMPAS_ACOUSTICS_WORKER_PYTHON``, else the one in :data:`CONFIG`; None if neither exists."""
+    """``$COMPAS_ACOUSTICS_WORKER_PYTHON``, else the interpreter in :data:`CONFIG`; None if neither exists."""
     python = os.environ.get("COMPAS_ACOUSTICS_WORKER_PYTHON")
     if not python and CONFIG.exists():
         python = json.loads(CONFIG.read_text()).get("python")
@@ -62,10 +62,7 @@ def worker_python():
 
 
 def fingerprint():
-    """A hash of the package's Python sources, which tells whether two installations run the same code.
-
-    The version number does not: it stays the same between reinstalls of a development version.
-    """
+    """A hash of the package's Python sources: two installations of one development version can differ."""
     root = Path(__file__).resolve().parents[1]
     digest = hashlib.sha256()
     for path in sorted(root.rglob("*.py")):
@@ -96,10 +93,7 @@ def _spawn(python, port, env, log):
 
 
 def _request(port, path, body=b"", token=None, timeout=None, headers=None):
-    """POST ``body`` to the worker, or GET with ``body=None`` (and for ``/ping``): ``(status, body)``.
-
-    An error status is an answer, not an exception.
-    """
+    """POST ``body`` to the worker, or GET with ``body=None`` and for ``/ping``: ``(status, body)``, errors too."""
     import urllib.error
     import urllib.request
 
@@ -135,7 +129,7 @@ class Client:
             return False
 
     def call(self, function, *args, call_id=None, **kwargs):
-        """Call ``function`` of the worker API; with a ``call_id``, :meth:`cancel` and :meth:`progress` reach the call."""
+        """Call ``function`` of the worker API; a ``call_id`` lets :meth:`cancel` and :meth:`progress` reach it."""
         from compas_pb import pb_dump_bts
 
         import compas_acoustics.pb  # noqa: F401  (registers the converters)
@@ -157,7 +151,7 @@ class Client:
         return self._result(*self._send(f"/cancel/{call_id}"))
 
     def progress(self, call_id):
-        """The last stage the call ``call_id`` reported, ``{"stage", "done", "of", "cancelled"}``; None once it answered."""
+        """The call's last stage, ``{"stage", "done", "of", "cancelled"}``; None once it answered."""
         status, body = self._send(f"/progress/{call_id}", body=None)
         return None if status == 404 else self._result(status, body)
 
@@ -188,7 +182,7 @@ class Client:
 
     @classmethod
     def start(cls, python):
-        """Start a worker with ``python`` and wait until it answers; refuse one that runs other compas_acoustics sources."""
+        """Start a worker with ``python`` and wait until it answers; refuse one that runs other sources."""
         from compas_acoustics import __version__
 
         token = secrets.token_hex(16)
@@ -207,7 +201,11 @@ class Client:
         info = candidate.info()
         if (info["compas_acoustics"], info["fingerprint"]) != (__version__, fingerprint()):
             candidate.stop()
-            raise RuntimeError(f"The worker at {python} runs a different compas_acoustics ({info['compas_acoustics']}) than this Python ({__version__}): reinstall the worker.")
+            if info["compas_acoustics"] == __version__:
+                runs = f"other sources of compas_acoustics {__version__} than this Python"
+            else:
+                runs = f"a different compas_acoustics ({info['compas_acoustics']}) than this Python ({__version__})"
+            raise RuntimeError(f"The worker at {python} runs {runs}: reinstall the worker.")
         return candidate
 
 
@@ -243,7 +241,7 @@ def stop():
 def stop_running_workers(workers=None):
     """Ask every worker recorded in :data:`WORKERS` to shut down, and forget those that are gone.
 
-    ``compas_acoustics.worker.install`` calls this before it replaces the worker environment, whose files a running worker holds open on Windows.
+    On Windows a running worker holds the files of the environment that :mod:`.install` replaces.
     """
     folder = Path(WORKERS if workers is None else workers)
     for record in sorted(folder.glob("*.json")) if folder.is_dir() else []:
@@ -262,19 +260,9 @@ def stop_running_workers(workers=None):
 def simulate(scene, method, settings, references=None):
     """Run ``method`` (``"binaural"``, ``"ambisonics"`` or ``"mono"``) with ``settings`` on ``scene`` in the worker.
 
-    The responses are stored on ``scene.ir_graph`` as :meth:`Scene.simulate` stores them, at the scene's ``sampling_rate``,
-    under the method's name.
-
-    Parameters
-    ----------
-    references : dict, optional
-        ``{key: ImpulseResponse}`` passed to the method as ``reference``.
-
-    Returns
-    -------
-    tuple of (dict, list of str)
-        The responses by key, as :meth:`Scene.simulate` returns them, and the messages of the UserWarnings
-        raised in the worker.
+    The responses are stored on ``scene.ir_graph`` under the method's name, as :meth:`Scene.simulate` stores them;
+    ``references`` (``{key: ImpulseResponse}``) is the method's ``reference``. Returns the responses by key and the
+    messages of the UserWarnings raised in the worker.
     """
     from compas_acoustics.simulation_methods import SimulationContext
 
@@ -291,26 +279,17 @@ def simulate(scene, method, settings, references=None):
 def analyse(ir):
     """Analyse ``ir`` here, with STI and G from the worker when this Python's pyrato cannot compute them.
 
-    STI and G need pyrato >= 1.0, which needs Python >= 3.11. With a worker configured they are computed
-    there; every other parameter is computed here, as without a worker.
-
-    Parameters
-    ----------
-    ir : :class:`compas_acoustics.ImpulseResponse`
-
-    Returns
-    -------
-    tuple of (:class:`compas_acoustics.Analyser`, list of str)
-        The analyser, its :attr:`~compas_acoustics.Analyser.analysis_data` filled, and the messages of the UserWarnings raised in the worker.
+    STI and G need pyrato >= 1.0, which needs Python >= 3.11. Returns the :class:`~compas_acoustics.Analyser`, its
+    ``analysis_data`` filled, and the messages of the UserWarnings raised in the worker.
     """
     import warnings
 
     from compas_acoustics import Analyser
     from compas_acoustics import ImpulseResponse
-    from compas_acoustics import analyser as analysis
+    from compas_acoustics.analyser import _STI_SUPPORTED
 
     analyser = Analyser(ir)
-    if analysis._STI_SUPPORTED or worker_python() is None or not isinstance(ir, ImpulseResponse):
+    if _STI_SUPPORTED or worker_python() is None or not isinstance(ir, ImpulseResponse):
         analyser.analyse()
         return analyser, []
     with warnings.catch_warnings():

@@ -13,7 +13,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         private readonly string _home = Directory.CreateTempSubdirectory("compas_acoustics_home_").FullName;
         private readonly string _python;
         private readonly FakeStarter _starter = new();
-        private string _version = Worker.LibraryVersion;
+        private string _version = Versions.Library;
         private string _schema = Schema.Hash;
         private int _pingsBeforeUp;
         private int _foreignPongs;
@@ -154,7 +154,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         public void ConfiguredPython_ReadsWorkerJson()
         {
             Directory.CreateDirectory(Path.Combine(_home, ".compas_acoustics"));
-            File.WriteAllText(Path.Combine(_home, ".compas_acoustics", "worker.json"), "{\"python\": \"" + _python.Replace("\\", "\\\\") + "\", \"hybrid\": true}");
+            File.WriteAllText(Path.Combine(_home, ".compas_acoustics", "worker.json"), "{\"python\": \"" + _python.Replace("\\", "\\\\") + "\"}");
             Assert.Equal(_python, Worker.ConfiguredPython(name => null, _home));
         }
 
@@ -228,10 +228,10 @@ namespace CompasAcoustics.Grasshopper.Tests
             _version = "0.0.1";
             var error = Assert.Throws<WorkerException>(() => Make().Call("make_scene"));
             Assert.Contains("0.0.1", error.Message);
-            Assert.Contains(Worker.Requirement, error.Message);
+            Assert.Contains(Versions.Requirement, error.Message);
             Assert.Contains("use Install Worker again", error.Message);
             Assert.Equal(1, _shutdowns);
-            _version = Worker.LibraryVersion;
+            _version = Versions.Library;
             _schema = "0000";
             error = Assert.Throws<WorkerException>(() => Make().Call("make_scene"));
             Assert.Contains("0000", error.Message);
@@ -306,7 +306,7 @@ namespace CompasAcoustics.Grasshopper.Tests
                 name => name == "COMPAS_ACOUSTICS_WORKER_PYTHON" ? _python : null, _home, TimeSpan.Zero);
             Assert.Throws<WorkerException>(() => worker.Call("make_scene"));
             Assert.True(_starter.Processes.Single().Killed);
-            Assert.False(worker.Running);
+            Assert.NotEqual(WorkerState.Running, worker.State);
         }
 
         [Fact]
@@ -315,7 +315,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             var init = File.ReadAllText(Path.Combine(InteropTests.RepositoryRoot(), "src", "compas_acoustics", "__init__.py"));
             var python = System.Text.RegularExpressions.Regex.Match(init, "__version__ = \"([^\"]+)\"");
             Assert.True(python.Success, "__version__ is not in src/compas_acoustics/__init__.py");
-            Assert.True(Worker.Compatible(python.Groups[1].Value), $"compas_acoustics {python.Groups[1].Value} is not in the plugin's {Worker.Requirement}");
+            Assert.True(Versions.Compatible(python.Groups[1].Value), $"compas_acoustics {python.Groups[1].Value} is not in the plugin's {Versions.Requirement}");
         }
 
         [Theory]
@@ -329,6 +329,6 @@ namespace CompasAcoustics.Grasshopper.Tests
         [InlineData(null, "1.2.0", false)]
         [InlineData("dev", "1.2.0", false)]
         public void Compatible_IsUpToTheNextBreakingRelease(string? version, string minimum, bool compatible) =>
-            Assert.Equal(compatible, Worker.Compatible(version, minimum));
+            Assert.Equal(compatible, Versions.Compatible(version, minimum));
     }
 }

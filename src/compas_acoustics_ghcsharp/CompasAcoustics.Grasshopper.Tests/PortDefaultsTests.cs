@@ -32,7 +32,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void APortDescription_LeavesTheDefaultToThePort()
         {
-            foreach (var key in ComponentSpec.Names())
+            foreach (var key in EmbeddedSpecs.Names())
                 foreach (var port in ComponentSpec.Load(key).Inputs.Where(p => p.Default != null))
                 {
                     Assert.DoesNotContain("(default", port.Description);

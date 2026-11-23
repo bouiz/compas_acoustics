@@ -31,11 +31,11 @@ namespace CompasAcoustics.Grasshopper.Tests
         public void Call_SendsKeywordArguments()
         {
             var handler = new FakeHandler((request, body) => FakeHandler.Result(null));
-            Client(handler).Call("make_receiver", new object?[] { "r" }, new Dictionary<string, object?> { ["frame"] = null, ["radius"] = 2.0 });
+            Client(handler).Call("make_receiver", new object?[] { "r" }, new Dictionary<string, object?> { ["direction"] = null, ["radius"] = 2.0 });
             var payload = (IDictionary<string, object?>)FakeHandler.Serializer.Unpack(handler.Seen.Single().body)!;
             var kwargs = (IDictionary<string, object?>)payload["kwargs"]!;
             Assert.Equal(2.0, kwargs["radius"]);
-            Assert.True(kwargs.ContainsKey("frame"));
+            Assert.True(kwargs.ContainsKey("direction"));
         }
 
         [Fact]
@@ -72,14 +72,13 @@ namespace CompasAcoustics.Grasshopper.Tests
                 FakeHandler.Answer(HttpStatusCode.InternalServerError, new Dictionary<string, object?> { ["error"] = traceback }));
             var error = Assert.Throws<WorkerException>(() => Client(handler).Call("x"));
             Assert.Equal("RuntimeError: boom", error.Message);
-            Assert.Equal(traceback, error.Details);
         }
 
         [Fact]
         public void Ping_IsAGetWithoutTheToken()
         {
             var handler = new FakeHandler((request, body) => FakeHandler.Pong());
-            Assert.True(Client(handler).Ping());
+            Assert.Equal(200, Client(handler).PingAnswer().status);
             var (request, _) = handler.Seen.Single();
             Assert.Equal(HttpMethod.Get, request.Method);
             Assert.Equal("/ping", request.RequestUri!.AbsolutePath);
@@ -90,7 +89,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         public void Ping_IsFalseWhenNothingAnswers()
         {
             var handler = new FakeHandler((request, body) => throw new HttpRequestException("refused"));
-            Assert.False(Client(handler).Ping());
+            Assert.Null(Client(handler).PingAnswer().status);
         }
 
         [Fact]

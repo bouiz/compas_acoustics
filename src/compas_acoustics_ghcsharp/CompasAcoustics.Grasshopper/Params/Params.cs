@@ -1,6 +1,6 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using System;
 using Grasshopper.Kernel;
 using Grasshopper.Kernel.Types;
 
@@ -109,7 +109,7 @@ namespace CompasAcoustics.Grasshopper
         public override Guid ComponentGuid => new Guid("4ce3744d-a381-5d83-ac3e-aeb3ecc19a7f");
     }
 
-    /// <summary>Analyse IR's time output: a right-click on it chooses the time scale, dB or linear, which the component holds.</summary>
+    /// <summary>Analyse Impulse Response's time output: a right-click on it chooses the time scale, dB or linear, which the component holds.</summary>
     public sealed class Param_TimeParameter : CompasAcousticsParam<ParameterGoo>
     {
         public const string Choice = "time_scale";
@@ -121,7 +121,7 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>The component whose choice this output shows.</summary>
         internal ComponentBase? Owner { get; set; }
 
-        public string[] Options => new[] { "db", "linear" };
+        public static readonly string[] Options = { "db", "linear" };
 
         private static string Label(string option) => option == "db" ? "Time scale: dB" : "Time scale: linear";
 

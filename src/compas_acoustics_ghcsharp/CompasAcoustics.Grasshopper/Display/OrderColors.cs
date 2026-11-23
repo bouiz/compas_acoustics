@@ -5,7 +5,7 @@ namespace CompasAcoustics.Grasshopper
     /// <summary>The colour of a reflection order, the same in every display component.</summary>
     public static class OrderColors
     {
-        // order 0 (the direct sound) black, then matplotlib's tab10 from order 1, repeating after order 10
+        // order 0 (the direct sound) black, then the colours of matplotlib's tab10, red first, from order 1, repeating after order 10
         private static readonly int[][] Rgb =
         {
             new[] { 0, 0, 0 }, new[] { 214, 39, 40 }, new[] { 31, 119, 180 }, new[] { 44, 160, 44 }, new[] { 255, 127, 14 },

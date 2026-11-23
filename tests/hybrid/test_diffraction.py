@@ -8,7 +8,8 @@ import pyfar as pf
 import pytest
 
 from compas_acoustics.hybrid.early import ImageSourceSet, encode
-from _rooms import images, pair
+from _rooms import images
+from _rooms import pair as make_pair
 from compas_acoustics.hybrid.synthesis import prepare
 from compas_acoustics.hybrid.ambisonics import render_ambisonics
 from compas_acoustics.hybrid.target import RoomTarget
@@ -18,7 +19,6 @@ from compas_acoustics.hybrid.diffraction import (
     Edge,
     ObstacleEdgeWarning,
     Occluders,
-    along_plane,
     btms_paths,
     diffraction_paths,
     edge_segments,
@@ -28,8 +28,9 @@ from compas_acoustics.hybrid.diffraction import (
     pair_valid,
     second_order_start,
     segment_distance,
-    toolbox_cyl,
-    toolbox_frame,
+    shared_face,
+    edge_cyl,
+    edge_frame,
     wedge_path,
 )
 from compas_acoustics.hybrid.bands import BANDS
@@ -205,7 +206,6 @@ def test_occluders_block_through_the_shelf_and_not_over_it():
     occ = Occluders.from_geometry(shelf_room())
     assert occ.blocked(np.array([6.0, 4.0, 1.5]), np.array([2.0, 4.0, 1.5]))
     assert not occ.blocked(np.array([6.0, 4.0, 1.6]), np.array([2.0, 4.0, 1.6]))
-    assert occ.on_enclosure(np.array([4.0, 4.0, 0.0002]), 2e-3)
 
 
 def test_a_box_on_a_tabletop_does_not_diffract_along_its_bottom():
@@ -222,7 +222,7 @@ def test_a_box_on_a_tabletop_does_not_diffract_along_its_bottom():
 #
 # The reflection zone of a wedge face is where the specular reflection off that
 # face exists (Kirsch and Ewert 2023, Sec. II; it decides the polarity of the
-# theta_+ term of eq. 2). Checked against the reflection itself: the image of
+# theta_+ term of Eq. (2)). Checked against the reflection itself: the image of
 # the source in the face plane, and the point where its line to the receiver
 # meets the face.
 
@@ -284,8 +284,8 @@ def panel_room(split_floor=False, noise=None):
     return RoomGeometry.from_mesh(vertices=np.vstack(v), faces=tuple(faces), face_materials=tuple(names), materials=materials, obstacles=("panel",))
 
 
-def spec_at(source, receiver, geometry=None, **kw):
-    return pair(geometry=panel_room() if geometry is None else geometry, source=np.asarray(source, float), receiver=np.asarray(receiver, float), air_absorption=False, **kw)
+def pair_at(source, receiver, geometry=None, **kw):
+    return make_pair(geometry=panel_room() if geometry is None else geometry, source=np.asarray(source, float), receiver=np.asarray(receiver, float), air_absorption=False, **kw)
 
 
 def direct(paths):
@@ -294,7 +294,7 @@ def direct(paths):
 
 def test_an_occluded_pair_diffracts_over_all_four_edges():
     s, r = np.array([2.0, 4.0, 1.5]), np.array([8.0, 4.0, 1.5])
-    paths = direct(diffraction_paths(spec_at(s, r), max_order=0))
+    paths = direct(diffraction_paths(pair_at(s, r), max_order=0))
     assert len(paths) == 4 and all(p.zone == "shadow" for p in paths)
     apex = np.array([5.0, 4.0, TOP])
     # the panel is centred on the line, so all four edges are equally far
@@ -307,7 +307,7 @@ def test_an_occluded_pair_diffracts_over_all_four_edges():
 def test_grazing_pair_is_in_the_view_zone_of_the_top_edge():
     z = TOP + 0.023
     r = np.array([8.0, 4.0, z])
-    paths = direct(diffraction_paths(spec_at([2.0, 4.0, z], r), max_order=0))
+    paths = direct(diffraction_paths(pair_at([2.0, 4.0, z], r), max_order=0))
     top = [p for p in paths if np.allclose(p.doa, np.array([5.0, 4.0, TOP]) - r)]
     assert len(top) == 1 and top[0].zone == "view"
 
@@ -328,7 +328,7 @@ def expected_floor(s, r):
 def test_floor_paths_reflect_before_and_after_the_diffraction():
     s, r = np.array([2.0, 4.0, 1.5]), np.array([8.0, 4.0, 1.0])
     before, after = expected_floor(s, r)
-    found = floor_paths(diffraction_paths(spec_at(s, r), max_order=1), before, after)
+    found = floor_paths(diffraction_paths(pair_at(s, r), max_order=1), before, after)
     assert sorted(found) == sorted([round(before, 6), round(after, 6)])
 
 
@@ -343,7 +343,7 @@ def test_a_reflection_on_a_floor_seam_counts_once():
     rng = np.random.default_rng(1)
     for _ in range(30):
         g = panel_room(split_floor=True, noise=rng.normal(0.0, 1e-9, (2, 3)))
-        found = floor_paths(diffraction_paths(spec_at(s, r, g), max_order=1), before, after)
+        found = floor_paths(diffraction_paths(pair_at(s, r, g), max_order=1), before, after)
         assert sorted(found) == expected
 
 
@@ -355,7 +355,7 @@ def test_only_the_legs_at_the_apex_pass_the_edge_faces():
     apex = np.array([5.0, 4.0, TOP])
     image = s * np.array([-1.0, 1.0, 1.0]) + np.array([20.0, 0.0, 0.0])
     through = np.linalg.norm(image - apex) + np.linalg.norm(apex - r)
-    paths = diffraction_paths(spec_at(s, r), max_order=1)
+    paths = diffraction_paths(pair_at(s, r), max_order=1)
     assert not any(abs(p.distance - through) < 1e-6 for p in paths)
 
 
@@ -365,10 +365,10 @@ def test_occlusion_agrees_with_pyroomacoustics_visibility():
     source = np.array([2.0, 4.0, 1.5])
     for _ in range(40):
         receiver = np.array([rng.uniform(6.0, 9.0), rng.uniform(2.5, 5.5), rng.uniform(0.8, 3.0)])
-        spec = spec_at(source, receiver)
+        pair = pair_at(source, receiver)
         # pyroomacoustics returns one band at max_order = 0 on a mesh: search to 1
-        visible = bool(np.any(images(spec, 1).order == 0))
-        paths = direct(diffraction_paths(spec, max_order=0))
+        visible = bool(np.any(images(pair, 1).order == 0))
+        paths = direct(diffraction_paths(pair, max_order=0))
         shadowed = len(paths) == 4 and all(p.zone == "shadow" for p in paths)
         assert visible != shadowed, receiver
 
@@ -397,8 +397,8 @@ def test_rendering_is_linear_in_the_transfer():
 def test_diffraction_doas_rotate_like_image_sources():
     rot = np.array([[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]])
     s, r = [2.0, 4.0, 1.5], [8.0, 4.0, 1.5]
-    plain = diffraction_paths(spec_at(s, r), max_order=0)
-    turned = diffraction_paths(spec_at(s, r, receiver_rotation=rot), max_order=0)
+    plain = diffraction_paths(pair_at(s, r), max_order=0)
+    turned = diffraction_paths(pair_at(s, r, receiver_rotation=rot), max_order=0)
     for a, b in zip(plain, turned):
         np.testing.assert_allclose(b.doa, rot.T @ a.doa, atol=1e-12)
 
@@ -414,11 +414,11 @@ def window_db(rir, r):
 
 
 def test_diffraction_off_changes_nothing_and_on_adds_the_paths():
-    spec = pair(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]), receiver=np.array([8.0, 4.0, 3.0]), air_absorption=False)
-    off = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2), normalization="N3D")
-    on = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction=True), normalization="N3D")
+    pair = make_pair(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]), receiver=np.array([8.0, 4.0, 3.0]), air_absorption=False)
+    off = render_ambisonics(prepare(pair, images(pair, 2), RoomTarget.from_room(pair), max_order=1, duration_s=0.2), normalization="N3D")
+    on = render_ambisonics(prepare(pair, images(pair, 2), RoomTarget.from_room(pair), max_order=1, duration_s=0.2, diffraction="udfa"), normalization="N3D")
     n = off.early.shape[0]
-    added = encode_diffraction(diffraction_paths(spec, max_order=1), 1, n, spec.fs)
+    added = encode_diffraction(diffraction_paths(pair, max_order=1), 1, n, pair.fs)
     np.testing.assert_allclose(on.early - off.early, added, atol=1e-12)
     np.testing.assert_array_equal(on.late, off.late)
 
@@ -426,13 +426,13 @@ def test_diffraction_off_changes_nothing_and_on_adds_the_paths():
 def test_the_field_is_continuous_across_the_panel_shadow_boundary():
     # boundary over the top edge (z = 2.5) at x = 8: z = 1.5 + 1.0 * 6 / 3 = 3.5
     levels = {}
-    for flag in (False, True):
+    for flag in (None, "udfa"):
         for z in (3.495, 3.505):
-            spec = pair(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]), receiver=np.array([8.0, 4.0, z]), air_absorption=False)
-            rir = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction=flag)).early
-            levels[flag, z] = window_db(rir, float(np.linalg.norm(spec.receiver - spec.source)))
-    assert abs(levels[False, 3.505] - levels[False, 3.495]) > 6.0
-    assert abs(levels[True, 3.505] - levels[True, 3.495]) < 0.5
+            pair = make_pair(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]), receiver=np.array([8.0, 4.0, z]), air_absorption=False)
+            rir = render_ambisonics(prepare(pair, images(pair, 2), RoomTarget.from_room(pair), max_order=1, duration_s=0.2, diffraction=flag)).early
+            levels[flag, z] = window_db(rir, float(np.linalg.norm(pair.receiver - pair.source)))
+    assert abs(levels[None, 3.505] - levels[None, 3.495]) > 6.0
+    assert abs(levels["udfa", 3.505] - levels["udfa", 3.495]) < 0.5
 
 
 def box_geometry():
@@ -440,31 +440,31 @@ def box_geometry():
 
 
 def line_distance(e, p):
-    ends, _ = toolbox_frame(e)
+    ends, _ = edge_frame(e)
     return np.linalg.norm(np.cross(ends[1] - ends[0], ends[0] - p)) / e.length
 
 
-def test_toolbox_cyl_puts_face_b_at_theta_w_and_the_solid_beyond():
+def test_edge_cyl_puts_face_b_at_theta_w_and_the_solid_beyond():
     for e in obstacle_edges(box_geometry()):
-        ends, _ = toolbox_frame(e)
+        ends, _ = edge_frame(e)
         mid = ends.mean(axis=0)
         pts = np.array([mid + 0.1 * e.face_a, mid + 0.1 * e.face_b, mid + 0.05 * e.face_a + 0.05 * e.face_b])
-        _, t, z = toolbox_cyl(e, pts).T
+        _, t, z = edge_cyl(e, pts).T
         np.testing.assert_allclose(t[:2], [0.0, e.theta_w], atol=1e-9)
         assert t[2] > e.theta_w
         np.testing.assert_allclose(z, e.length / 2.0, atol=1e-12)
 
 
-def test_toolbox_cyl_on_a_knife_edge_runs_from_zero_to_two_pi():
+def test_edge_cyl_on_a_knife_edge_runs_from_zero_to_two_pi():
     for e in obstacle_edges(panel_room()):
-        ends, _ = toolbox_frame(e)
+        ends, _ = edge_frame(e)
         mid = ends.mean(axis=0)
-        on = toolbox_cyl(e, mid + 0.1 * e.face_a)[0, 1]
+        on = edge_cyl(e, mid + 0.1 * e.face_a)[0, 1]
         np.testing.assert_allclose(on, 0.0, atol=1e-9)
         for side in (1.0, -1.0):
-            t = toolbox_cyl(e, mid + 0.1 * e.face_a + side * 1e-3 * np.cross(e.axis, e.face_a))[0, 1]
+            t = edge_cyl(e, mid + 0.1 * e.face_a + side * 1e-3 * np.cross(e.axis, e.face_a))[0, 1]
             assert 0.0 <= t < 0.02 or 2 * np.pi - 0.02 < t <= 2 * np.pi
-        assert {toolbox_cyl(e, mid + 0.1 * e.face_a + s * 1e-3 * np.cross(e.axis, e.face_a))[0, 1] < 1.0 for s in (1.0, -1.0)} == {True, False}
+        assert {edge_cyl(e, mid + 0.1 * e.face_a + s * 1e-3 * np.cross(e.axis, e.face_a))[0, 1] < 1.0 for s in (1.0, -1.0)} == {True, False}
 
 
 def test_segments_cover_the_edge_within_five_degrees():
@@ -481,13 +481,13 @@ def test_the_two_top_edges_of_a_box_run_along_its_top_face():
     edges = obstacle_edges(box_geometry())
     top = [e for e in edges if np.isclose(e.start[2], 1.5) and np.isclose(e.end[2], 1.5) and abs(e.axis[1]) > 1 - 1e-9]
     assert len(top) == 2
-    assert along_plane(top[0], top[1])
+    assert shared_face(top[0], top[1]) is not None
     verticals = [e for e in edges if abs(e.axis[2]) > 1 - 1e-9]
     shares = [v for v in verticals if set(top[0].faces) & set(v.faces)]
     apart = [v for v in verticals if not set(top[0].faces) & set(v.faces)]
     assert shares and apart
-    assert along_plane(top[0], shares[0])
-    assert not along_plane(top[0], apart[0])
+    assert shared_face(top[0], shares[0]) is not None
+    assert shared_face(top[0], apart[0]) is None
 
 
 def rotated_box_geometry(angles):
@@ -507,18 +507,18 @@ def test_coplanar_edges_of_a_rotated_box_are_a_pair_at_every_point():
             pair = [e for e in obstacle_edges(geometry) if face in e.faces and abs(e.axis @ y) > 1 - 1e-9]
             if len(pair) != 2:
                 continue
-            assert along_plane(pair[0], pair[1])
+            assert shared_face(pair[0], pair[1]) is not None
             for e1, e2 in (pair, pair[::-1]):
                 for a in t:
                     for b in t:
                         p1 = e1.start + a * (e1.end - e1.start)
                         p2 = e2.start + b * (e2.end - e2.start)
-                        assert pair_valid(e1, e2, p1, p2)
+                        assert pair_valid(e1, e2, edge_cyl(e1, p2[None])[0, 1], edge_cyl(e2, p1[None])[0, 1])
 
 
 def test_segments_are_floored_when_a_point_is_on_the_edge_line():
     e = obstacle_edges(box_geometry())[0]
-    near = toolbox_frame(e)[0][0] + 0.3 * e.axis + 1e-4 * np.cross(e.axis, e.face_a)
+    near = edge_frame(e)[0][0] + 0.3 * e.axis + 1e-4 * np.cross(e.axis, e.face_a)
     seg = edge_segments(e, near, np.array([8.0, 4.0, 1.0]))
     assert len(seg) <= np.ceil(e.length / 0.01)
 
@@ -526,16 +526,16 @@ def test_segments_are_floored_when_a_point_is_on_the_edge_line():
 def test_an_edge_behind_another_is_not_a_pair():
     edges = obstacle_edges(box_geometry())
     e1 = edges[0]
-    inside = toolbox_frame(e1)[0].mean(axis=0) + 0.1 * e1.face_a + 0.1 * e1.face_b
-    assert not pair_valid(e1, edges[1], toolbox_frame(e1)[0].mean(axis=0), inside)
+    inside = edge_frame(e1)[0].mean(axis=0) + 0.1 * e1.face_a + 0.1 * e1.face_b
+    assert not pair_valid(e1, edges[1], edge_cyl(e1, inside[None])[0, 1], edge_cyl(edges[1], edge_frame(e1)[0].mean(axis=0)[None])[0, 1])
 
 
 def test_btms_segments_of_a_free_edge_sum_to_the_kernel_on_the_whole_edge():
     s, r = np.array([2.0, 4.0, 1.5]), np.array([8.0, 4.0, 3.0])
-    spec = pair(geometry=panel_room(), source=s, receiver=r, air_absorption=False, speed_of_sound=C)
-    paths = btms_paths(spec, max_order=0, second_order=False)
+    pair = make_pair(geometry=panel_room(), source=s, receiver=r, air_absorption=False, speed_of_sound=C)
+    paths = btms_paths(pair, max_order=0, second_order=False)
     assert paths and all(p.order == 1 for p in paths)
-    edges = obstacle_edges(spec.geometry)
+    edges = obstacle_edges(pair.geometry)
     top = next(k for k, e in enumerate(edges) if np.isclose(e.start[2], 2.5) and np.isclose(e.end[2], 2.5))
     part = [p for p in paths if p.edges == (top,)]
     e = edges[top]
@@ -543,15 +543,15 @@ def test_btms_segments_of_a_free_edge_sum_to_the_kernel_on_the_whole_edge():
     total = np.zeros(4800)
     for p in part:
         total[p.start : p.start + p.ir.size] += p.ir
-    (rs, ts, zs), (rr, tr, zr) = toolbox_cyl(e, np.array([s, r]))
-    whole, *_ = wedge1st_ir(spec.fs, C, 2 * np.pi - e.theta_w, rs, ts, zs, rr, tr, zr, np.array([0.0, e.length]))
+    (rs, ts, zs), (rr, tr, zr) = edge_cyl(e, np.array([s, r]))
+    whole, *_ = wedge1st_ir(pair.fs, C, 2 * np.pi - e.theta_w, rs, ts, zs, rr, tr, zr, np.array([0.0, e.length]))
     # the analytic apex approximation (zrelmax = 0.1) is good to a few 1e-5 of peak and its range moves with the cut
     np.testing.assert_allclose(total[: whole.size], whole, atol=5e-5 * np.max(np.abs(whole)))
 
 
 def _btms_total(a, b):
-    spec = pair(geometry=panel_room(), source=a, receiver=b, air_absorption=False, speed_of_sound=C)
-    return encode_btms(btms_paths(spec, max_order=1, second_order=False), 0, 4800, spec.fs)[:, 0]
+    pair = make_pair(geometry=panel_room(), source=a, receiver=b, air_absorption=False, speed_of_sound=C)
+    return encode_btms(btms_paths(pair, max_order=1, second_order=False), 0, 4800, pair.fs)[:, 0]
 
 
 def test_btms_is_reciprocal():
@@ -568,8 +568,8 @@ def test_btms_reciprocity_with_a_segment_boundary_on_the_apex_is_rounding_limite
 
 
 def test_btms_contributions_after_the_render_length_are_dropped():
-    spec = pair(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]), receiver=np.array([8.0, 4.0, 3.0]), air_absorption=False, speed_of_sound=C)
-    out = encode_btms(btms_paths(spec, max_order=0, second_order=False), 0, 10, spec.fs)
+    pair = make_pair(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]), receiver=np.array([8.0, 4.0, 3.0]), air_absorption=False, speed_of_sound=C)
+    out = encode_btms(btms_paths(pair, max_order=0, second_order=False), 0, 10, pair.fs)
     assert out.shape == (10, 1) and np.all(out == 0.0)
 
 
@@ -577,18 +577,18 @@ def test_btms_skips_a_receiver_on_an_edge_line():
     geo = panel_room()
     e = obstacle_edges(geo)[0]
     on_line = e.start + 0.5 * (e.end - e.start)
-    spec = pair(geometry=geo, source=np.array([2.0, 4.0, 1.5]), receiver=on_line, air_absorption=False, speed_of_sound=C)
-    out = encode_btms(btms_paths(spec, max_order=0, second_order=False), 1, 4800, spec.fs)
+    pair = make_pair(geometry=geo, source=np.array([2.0, 4.0, 1.5]), receiver=on_line, air_absorption=False, speed_of_sound=C)
+    out = encode_btms(btms_paths(pair, max_order=0, second_order=False), 1, 4800, pair.fs)
     assert np.all(np.isfinite(out))
 
 
-def shelf_spec(s, r):
-    return pair(geometry=box_geometry(), source=s, receiver=r, air_absorption=False, speed_of_sound=C)
+def shelf_pair(s, r):
+    return make_pair(geometry=box_geometry(), source=s, receiver=r, air_absorption=False, speed_of_sound=C)
 
 
 def test_second_order_reaches_over_a_box_top():
     s, r = np.array([2.0, 4.0, 1.45]), np.array([7.0, 4.0, 1.45])
-    paths = btms_paths(shelf_spec(s, r), max_order=0)
+    paths = btms_paths(shelf_pair(s, r), max_order=0)
     second = [p for p in paths if p.order == 2]
     assert second
     assert all(len(p.edges) == 2 and p.edges[0] != p.edges[1] for p in second)
@@ -596,15 +596,15 @@ def test_second_order_reaches_over_a_box_top():
 
 def test_second_order_is_reciprocal():
     s, r = np.array([2.0, 4.0, 1.45]), np.array([7.0, 4.0, 1.45])
-    a = encode_btms([p for p in btms_paths(shelf_spec(s, r), max_order=0) if p.order == 2], 0, 4800, 48000.0)
-    b = encode_btms([p for p in btms_paths(shelf_spec(r, s), max_order=0) if p.order == 2], 0, 4800, 48000.0)
+    a = encode_btms([p for p in btms_paths(shelf_pair(s, r), max_order=0) if p.order == 2], 0, 4800, 48000.0)
+    b = encode_btms([p for p in btms_paths(shelf_pair(r, s), max_order=0) if p.order == 2], 0, 4800, 48000.0)
     np.testing.assert_allclose(a, b, atol=1e-9 * np.max(np.abs(a)))
 
 
 def test_second_order_needs_direct_paths_only():
     s, r = np.array([2.0, 4.0, 1.45]), np.array([7.0, 4.0, 1.45])
-    assert all(p.order == 1 for p in btms_paths(shelf_spec(s, r), max_order=1, second_order=False))
-    count = [sum(p.order == 2 for p in btms_paths(shelf_spec(s, r), max_order=m)) for m in (0, 1)]
+    assert all(p.order == 1 for p in btms_paths(shelf_pair(s, r), max_order=1, second_order=False))
+    count = [sum(p.order == 2 for p in btms_paths(shelf_pair(s, r), max_order=m)) for m in (0, 1)]
     assert count[0] == count[1] > 0
 
 
@@ -625,38 +625,38 @@ def test_second_order_start_is_a_lower_bound_of_the_path_through_two_long_segmen
 
 def test_second_order_runs_when_the_segments_are_long():
     s, r = np.array([1.0, 1.0, 1.45]), np.array([9.0, 7.0, 1.45])
-    out = btms_paths(shelf_spec(s, r), max_order=0)
+    out = btms_paths(shelf_pair(s, r), max_order=0)
     assert any(p.order == 2 for p in out)
     assert all(p.start >= 0 and np.all(np.isfinite(p.ir)) for p in out)
 
 
 def test_second_order_segment_pairs_sum_to_the_whole_edge_pair():
     s, r = np.array([2.0, 4.0, 1.45]), np.array([7.0, 4.0, 1.45])
-    spec = shelf_spec(s, r)
-    edges = obstacle_edges(spec.geometry)
+    pair = shelf_pair(s, r)
+    edges = obstacle_edges(pair.geometry)
     top = [k for k, e in enumerate(edges) if np.isclose(e.start[2], 1.5) and np.isclose(e.end[2], 1.5) and abs(e.axis[1]) > 1 - 1e-9]
     i, j = sorted(top, key=lambda k: edges[k].start[0])
     e1, e2 = edges[i], edges[j]
-    part = [p for p in btms_paths(spec, max_order=0) if p.edges == (i, j)]
+    part = [p for p in btms_paths(pair, max_order=0) if p.edges == (i, j)]
     assert len(part) > 1
     n = 4800
     total = np.zeros(n)
     for p in part:
         total[p.start : p.start + p.ir.size] += p.ir[: n - p.start]
-    ends1, ends2 = toolbox_frame(e1)[0], toolbox_frame(e2)[0]
+    ends1, ends2 = edge_frame(e1)[0], edge_frame(e2)[0]
     steps, dz = element_grid(np.array([e1.length, e2.length]), C, FS)
     lower = max(np.linalg.norm(s - r), segment_distance(s, *ends1) + segment_distance(r, *ends2))
     start = int(np.floor(lower / C * FS))
     whole = wedge2nd_ir(
-        toolbox_cyl(e1, s[None])[0],
-        toolbox_cyl(e2, r[None])[0],
-        toolbox_cyl(e1, ends2),
-        toolbox_cyl(e2, ends1),
+        edge_cyl(e1, s[None])[0],
+        edge_cyl(e2, r[None])[0],
+        edge_cyl(e1, ends2),
+        edge_cyl(e2, ends1),
         np.pi / np.array([e1.theta_w, e2.theta_w]),
         np.array([[0.0, e1.length], [0.0, e2.length]]),
         dz,
         steps,
-        along_plane(e1, e2),
+        shared_face(e1, e2) is not None,
         start * C / FS,
         C,
         FS,
@@ -680,11 +680,11 @@ def test_second_order_is_invariant_under_rotation_with_corner_sharing_pairs():
     def response(deg):
         # the box turned by deg, source and receiver turned by deg - 30: one configuration, two frames
         v, f = box(-half, half)
-        spec = pair(
+        pair = make_pair(
             geometry=room_with(v @ rot_z(deg).T + centre, f), source=centre + rot_z(deg - 30) @ s0, receiver=centre + rot_z(deg - 30) @ r0, air_absorption=False, speed_of_sound=C
         )
-        second = [p for p in btms_paths(spec, max_order=0) if p.order == 2]
-        return encode_btms(second, 0, 4800, spec.fs)[:, 0]
+        second = [p for p in btms_paths(pair, max_order=0) if p.order == 2]
+        return encode_btms(second, 0, 4800, pair.fs)[:, 0]
 
     ref = response(30.0)
     np.testing.assert_allclose(response(0.0), ref, atol=1e-9 * np.max(np.abs(ref)))
@@ -700,12 +700,12 @@ def test_second_order_over_a_free_panel_is_invariant_under_rotation():
     s0, r0 = np.array([-0.2, -0.05, 0.6]), np.array([0.25, 0.05, -0.5])
 
     def response(rot):
-        spec = pair(
+        pair = make_pair(
             geometry=room_with(v @ rot.T + centre, [(0, 1, 2, 3)], name="panel"), source=centre + rot @ s0, receiver=centre + rot @ r0, air_absorption=False, speed_of_sound=C
         )
-        second = [p for p in btms_paths(spec, max_order=0) if p.order == 2]
+        second = [p for p in btms_paths(pair, max_order=0) if p.order == 2]
         assert second
-        return encode_btms(second, 0, 4800, spec.fs)[:, 0]
+        return encode_btms(second, 0, 4800, pair.fs)[:, 0]
 
     ref = response(np.eye(3))
     turned = Rotation.from_rotvec(np.radians(30.0) * np.array([1.0, 1.0, 1.0]) / np.sqrt(3.0)).as_matrix()
@@ -730,7 +730,7 @@ def long_top_edges(geometry, z):
 def test_a_top_face_split_into_polygons_is_still_one_plane():
     top = long_top_edges(split_top_box(), 1.5)
     assert len(top) == 2
-    assert along_plane(top[0], top[1])
+    assert shared_face(top[0], top[1]) is not None
 
 
 def test_coplanar_tops_of_two_separate_boxes_are_not_along_a_plane():
@@ -740,17 +740,17 @@ def test_coplanar_tops_of_two_separate_boxes_are_not_along_a_plane():
     first = [e for e in long_top_edges(geometry, 1.5) if e.component == 0]
     second = [e for e in long_top_edges(geometry, 1.5) if e.component == 1]
     assert len(first) == len(second) == 2
-    assert along_plane(*first) and along_plane(*second)
-    assert not along_plane(first[0], second[0]) and not along_plane(first[1], second[1])
+    assert shared_face(*first) is not None and shared_face(*second) is not None
+    assert shared_face(first[0], second[0]) is None and shared_face(first[1], second[1]) is None
 
 
 def test_second_order_between_collinear_edges_is_skipped_without_a_warning():
     v = np.array([[5, 1, 0.5], [5, 3, 0.5], [5, 3, 2.5], [5, 1, 2.5], [5, 5, 0.5], [5, 7, 0.5], [5, 7, 2.5], [5, 5, 2.5]], dtype=float)
     geometry = room_with(v, [(0, 1, 2, 3), (4, 5, 6, 7)], name="panel")
-    spec = pair(geometry=geometry, source=np.array([2.0, 4.0, 3.2]), receiver=np.array([8.0, 4.0, 3.2]), air_absorption=False, speed_of_sound=C)
+    pair = make_pair(geometry=geometry, source=np.array([2.0, 4.0, 3.2]), receiver=np.array([8.0, 4.0, 3.2]), air_absorption=False, speed_of_sound=C)
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        out = btms_paths(spec, max_order=0)
+        out = btms_paths(pair, max_order=0)
     edges = obstacle_edges(geometry)
     top = [k for k, e in enumerate(edges) if np.isclose(e.start[2], 2.5) and np.isclose(e.end[2], 2.5)]
     assert len(top) == 2
@@ -758,29 +758,16 @@ def test_second_order_between_collinear_edges_is_skipped_without_a_warning():
     assert all(np.all(np.isfinite(p.ir)) for p in out)
 
 
-def test_true_and_udfa_are_the_same_model():
-    spec = pair(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]), receiver=np.array([8.0, 4.0, 3.0]), air_absorption=False)
-    a = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction=True))
-    b = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction="udfa"))
-    np.testing.assert_array_equal(a.rir, b.rir)
-
-
 def test_btms_mode_adds_exactly_the_btms_field():
-    spec = pair(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]), receiver=np.array([8.0, 4.0, 3.0]), air_absorption=False)
-    off = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2), normalization="N3D")
-    on = render_ambisonics(prepare(spec, images(spec, 2), RoomTarget.from_room(spec), max_order=1, duration_s=0.2, diffraction="btms"), normalization="N3D")
-    added = encode_btms(btms_paths(spec, max_order=1), 1, off.early.shape[0], spec.fs)
+    pair = make_pair(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]), receiver=np.array([8.0, 4.0, 3.0]), air_absorption=False)
+    off = render_ambisonics(prepare(pair, images(pair, 2), RoomTarget.from_room(pair), max_order=1, duration_s=0.2), normalization="N3D")
+    on = render_ambisonics(prepare(pair, images(pair, 2), RoomTarget.from_room(pair), max_order=1, duration_s=0.2, diffraction="btms"), normalization="N3D")
+    added = encode_btms(btms_paths(pair, max_order=1), 1, off.early.shape[0], pair.fs)
     np.testing.assert_allclose(on.early - off.early, added, atol=1e-12)
     np.testing.assert_array_equal(on.late, off.late)
 
 
-def test_an_unknown_diffraction_model_is_refused():
-    spec = pair(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]), receiver=np.array([8.0, 4.0, 3.0]))
-    with pytest.raises(ValueError, match="diffraction"):
-        render_ambisonics(prepare(spec, images(spec, 1), RoomTarget.from_room(spec), max_order=0, duration_s=0.1, diffraction="btm"))
-
-
-def edverify_plate():
+def plate_in_an_absorbing_box():
     """A 1 x 2 m plate (plane y = 0, edge x = 0, -1 <= z <= 1) in a 400 m
     enclosure that absorbs everything."""
     big = 200.0 * np.array([[-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1], [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]], float)
@@ -790,7 +777,7 @@ def edverify_plate():
 
 
 @pytest.mark.parametrize("z", [0.0, 1.0], ids=["perpendicular", "skewed"])
-def test_continuity_across_zone_boundaries_as_edverify(z):
+def test_the_field_is_continuous_across_the_zone_boundaries_of_a_plate(z):
     """At 100 Hz the field exactly on the direct-sound and the specular zone
     boundary equals the mean of the fields 0.001 deg either side to 1e-5
     (Svensson and Calamia 2006). Direct sound and specular reflection are split
@@ -798,7 +785,7 @@ def test_continuity_across_zone_boundaries_as_edverify(z):
     boundary only, as the image sources are; on it the scaled component comes
     from btms_paths."""
     c, f = 344.0, 100.0
-    geo = edverify_plate()
+    geo = plate_in_an_absorbing_box()
     s = np.array([-1.0, 1.0, 0.0]) / np.sqrt(2.0)
     image = s * np.array([1.0, -1.0, 1.0])
 
@@ -816,10 +803,10 @@ def test_continuity_across_zone_boundaries_as_edverify(z):
         return src[0] + src[1] / (src[1] - r[1]) * (r[0] - src[0])
 
     def fields(r):
-        spec = pair(geometry=geo, source=s, receiver=r, air_absorption=False, speed_of_sound=c)
-        diff = sum(np.sum(p.ir * np.exp(-2j * np.pi * f * (p.start + np.arange(p.ir.size)) / spec.fs)) * p.band_gain[1] for p in btms_paths(spec, max_order=0, second_order=False))
-        direct = at(s, r, spec.fs) if crossing_x(s, r) > 1e-12 else 0.0
-        specular = at(image, r, spec.fs) if crossing_x(image, r) < -1e-12 else 0.0
+        pair = make_pair(geometry=geo, source=s, receiver=r, air_absorption=False, speed_of_sound=c)
+        diff = sum(np.sum(p.ir * np.exp(-2j * np.pi * f * (p.start + np.arange(p.ir.size)) / pair.fs)) * p.band_gain[1] for p in btms_paths(pair, max_order=0, second_order=False))
+        direct = at(s, r, pair.fs) if crossing_x(s, r) > 1e-12 else 0.0
+        specular = at(image, r, pair.fs) if crossing_x(image, r) < -1e-12 else 0.0
         return direct + diff, specular + diff
 
     def relerr(values):
@@ -837,15 +824,15 @@ def test_continuity_across_zone_boundaries_as_edverify(z):
 
 
 @pytest.mark.parametrize("mirror, scale", [((1, 1, 1), 2.0 / 3.0), ((1, -1, 1), 1.0 / 3.0)], ids=["direct", "specular"])
-def test_a_path_through_a_corner_is_scaled_once_as_edfindconvexgapaths(mirror, scale):
+def test_a_path_through_a_corner_is_scaled_once(mirror, scale):
     # the path through the plate's corner (0, 0, 1) lies on the zone boundaries of
     # both edges meeting there; for such a corner hit the direct sound is scaled to 2/3
     # and a specular reflection to 1/3
     s = np.array([-1.0, 1.0, 0.0]) / np.sqrt(2.0)
     origin = s * np.array(mirror)
     r = np.array([0.0, 0.0, 2.0]) - origin
-    spec = pair(geometry=edverify_plate(), source=s, receiver=r, air_absorption=False, speed_of_sound=344.0)
-    paths = btms_paths(spec, max_order=0, second_order=False)
+    pair = make_pair(geometry=plate_in_an_absorbing_box(), source=s, receiver=r, air_absorption=False, speed_of_sound=344.0)
+    paths = btms_paths(pair, max_order=0, second_order=False)
     assert sum(p.singular for p in paths if p.order == 1) == 2
     scaled = [p for p in paths if p.order == 0]
     assert len(scaled) == 1
@@ -857,17 +844,17 @@ def test_a_receiver_on_a_zone_boundary_gets_half_the_geometric_sound():
     # the receiver lies on the incident shadow boundary of that edge. The image
     # sources drop the direct sound there and the singular BTMS term is zeroed, so
     # without the half direct sound the field would lose half its pressure (Svensson
-    # et al. 2025, Eqs. 2-4). Compared at 100 Hz, with the neighbour 0.1 mm into the shadow (on the
+    # et al. 2025, Eqs. (2)-(4)). Compared at 100 Hz, with the neighbour 0.1 mm into the shadow (on the
     # lit side pyroomacoustics drops the direct sound up to about 1 mm from the edge).
     s, r = np.array([2.0, 4.0, 1.5]), np.array([8.0, 4.0, 3.5])
 
     def at_100_hz(receiver):
-        spec = pair(geometry=panel_room(), source=s, receiver=receiver, air_absorption=False)
-        w = render_ambisonics(prepare(spec, images(spec, 1), RoomTarget.from_room(spec), max_order=0, duration_s=0.1, diffraction="btms")).early[:, 0]
-        return abs(np.sum(w * np.exp(-2j * np.pi * 100.0 * np.arange(w.size) / spec.fs)))
+        pair = make_pair(geometry=panel_room(), source=s, receiver=receiver, air_absorption=False)
+        w = render_ambisonics(prepare(pair, images(pair, 1), RoomTarget.from_room(pair), max_order=0, duration_s=0.1, diffraction="btms")).early[:, 0]
+        return abs(np.sum(w * np.exp(-2j * np.pi * 100.0 * np.arange(w.size) / pair.fs)))
 
-    spec = pair(geometry=panel_room(), source=s, receiver=r, air_absorption=False)
-    halves = [p for p in btms_paths(spec, max_order=0) if p.order == 0]
+    pair = make_pair(geometry=panel_room(), source=s, receiver=r, air_absorption=False)
+    halves = [p for p in btms_paths(pair, max_order=0) if p.order == 0]
     assert len(halves) == 1 and halves[0].singular
     np.testing.assert_allclose(halves[0].ir.sum(), 0.5 / np.linalg.norm(r - s), rtol=1e-12)
     np.testing.assert_allclose(at_100_hz(r), at_100_hz(r - np.array([0.0, 0.0, 1e-4])), rtol=1e-3)

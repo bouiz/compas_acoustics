@@ -12,7 +12,7 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>A face without a level: outside the room or inside an obstacle.</summary>
         public static readonly Color Outside = Color.FromArgb(160, 160, 160);
 
-        /// <summary>The colour of ``value`` on the scale from ``low`` (blue) to ``high`` (red); -inf (no energy yet) is the lowest.</summary>
+        /// <summary>The colour of <paramref name="value"/> on the scale from <paramref name="low"/> (blue) to <paramref name="high"/> (red); -inf (no energy yet) is the lowest.</summary>
         public static Color Of(double value, double low, double high)
         {
             if (double.IsNaN(value))
@@ -41,8 +41,8 @@ namespace CompasAcoustics.Grasshopper
             }).ToArray();
 
         /// <summary>
-        /// The faces split into grids until no edge is longer than ``spacing``: a quad into quads, a triangle into triangles,
-        /// so the map has a point every ``spacing`` metres whatever the mesh it was given (a plane of one face).
+        /// The faces split into grids until no edge is longer than <paramref name="spacing"/>: a quad into quads, a triangle into
+        /// triangles, so the map has a point every <paramref name="spacing"/> metres whatever the mesh it was given (a plane of one face).
         /// </summary>
         public static (Point3d[] corners, int[][] faces) Subdivide(IReadOnlyList<Point3d> vertices, IReadOnlyList<int[]> faces, double spacing)
         {
@@ -101,13 +101,7 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>A face's lift: along its normal, turned upward on a floor or ceiling (|z| over 0.5), as wound on a wall.</summary>
         public static Vector3d Offset(IReadOnlyList<Point3d> face)
         {
-            // Newell's normal
-            var normal = Vector3d.Zero;
-            for (var i = 0; i < face.Count; i++)
-            {
-                Point3d a = face[i], b = face[(i + 1) % face.Count];
-                normal += new Vector3d((a.Y - b.Y) * (a.Z + b.Z), (a.Z - b.Z) * (a.X + b.X), (a.X - b.X) * (a.Y + b.Y));
-            }
+            var normal = PreviewGeometry.Newell(face);
             var length = normal.Length;
             if (length < 1e-12)
                 return new Vector3d(0, 0, Lift);

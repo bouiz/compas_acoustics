@@ -76,7 +76,7 @@ recording, in the format of the responses: here binaural, for headphones.
 
 ```python
 speech = ca.Defaults().ANECHOIC_SOUNDFILES_LIBRARY_PATH + "/female_speech.wav"
-signal = ca.Auraliser("room", list(binaural.values()), anechoic_sounds=[speech]).convolve()
+signal = ca.Auraliser(list(binaural.values()), anechoic_sounds=[speech]).convolve()
 ```
 
 Ambisonic responses are convolved the same way and give an ambisonic (AmbiX)

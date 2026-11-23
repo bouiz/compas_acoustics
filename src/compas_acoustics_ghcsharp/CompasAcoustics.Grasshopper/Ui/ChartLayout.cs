@@ -13,9 +13,9 @@ namespace CompasAcoustics.Grasshopper
     public sealed record YTick(float Y, string Text);
 
     /// <summary>
-    /// A chart of one acoustic parameter in canvas pixels (y down): a line through a dot per band (``Dots``), or a line per
-    /// channel for a time or frequency response. ``Bars`` place each band, for the line and the readout; ``Data`` holds the
-    /// values of each line's points.
+    /// A chart of one acoustic parameter in canvas pixels (y down): a line through a dot per band (<c>Dots</c>), or a line per
+    /// channel for a time or frequency response. <c>Bars</c> place each band, for the line and the readout; <c>Data</c> holds
+    /// the values of each line's points.
     /// </summary>
     public sealed record Chart(string Title, RectangleF Plot, IReadOnlyList<ChartBar> Bars, IReadOnlyList<PointF[]> Lines,
         IReadOnlyList<(double x, double y)[]> Data, IReadOnlyList<XTick> XTicks, IReadOnlyList<YTick> YTicks, string XTitle, string YTitle,
@@ -34,8 +34,9 @@ namespace CompasAcoustics.Grasshopper
         public const float TickGap = 2, TitleGap = 4;
 
         /// <summary>
-        /// Where the y title goes, reading upwards: ``TitleGap`` left of the tick labels (``ticksWidth`` wide), centred on the
-        /// plot, inside ``area``. ``text`` is the size of the title written level; the box is that size turned a quarter.
+        /// Where the y title goes, reading upwards: <see cref="TitleGap"/> left of the tick labels (<paramref name="ticksWidth"/>
+        /// wide), centred on the plot, inside <paramref name="area"/>. <paramref name="text"/> is the size of the title written
+        /// level; the box is that size turned a quarter.
         /// </summary>
         public static RectangleF YTitleBox(RectangleF area, RectangleF plot, SizeF text, float ticksWidth)
         {
@@ -45,11 +46,7 @@ namespace CompasAcoustics.Grasshopper
             return new RectangleF(right - text.Height, top, text.Height, height);
         }
 
-        /// <summary>
-        /// The pixels of a ``width`` by ``height`` image (row by row) turned a quarter counter-clockwise, so that level text
-        /// reads upwards: the image is ``height`` wide and ``width`` high. Done by hand because Bitmap.RotateFlip turns the
-        /// other way on the Mac.
-        /// </summary>
+        /// <summary>The pixels of a <paramref name="width"/> x <paramref name="height"/> image (row by row) turned a quarter turn counter-clockwise.</summary>
         public static int[] TurnUpward(int width, int height, int[] pixels)
         {
             var turned = new int[pixels.Length];
@@ -58,33 +55,21 @@ namespace CompasAcoustics.Grasshopper
                     turned[(width - 1 - x) * height + y] = pixels[y * width + x];
             return turned;
         }
+
         private static readonly double[] FrequencyAxis = { 20.0, 20000.0 };
         private static readonly double[] FrequencyTicks = { 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000 };
         private const float BarFill = 0.6f;
 
         /// <summary>
-        /// The chart in ``area``; without ``axes`` the plot fills the area (Deconstruct Parameter's strip). ``left`` is the
-        /// left margin (<see cref="LeftMargin"/> once the tick labels are measured); by default <see cref="Left"/>.
+        /// The chart of <paramref name="p"/> in <paramref name="area"/>. <paramref name="left"/> replaces the default left
+        /// margin. <paramref name="compact"/>: the strip of Deconstruct Parameter, without titles and with three value labels.
         /// </summary>
-        /// <param name="compact">
-        /// Deconstruct Parameter's strip: no titles, the band labels below, and on the left only the lowest, middle and
-        /// highest value of the axis.
-        /// </param>
-        public static Chart Build(ParameterGoo.Content p, RectangleF area, bool axes = true, float? left = null, bool compact = false)
+        public static Chart Build(ParameterGoo.Content p, RectangleF area, float? left = null, bool compact = false)
         {
-            RectangleF plot;
-            if (compact)
-            {
-                var margin = left ?? 20;
-                plot = new RectangleF(area.Left + margin, area.Top + CompactTop, Math.Max(area.Width - margin - CompactRight, 1),
-                    Math.Max(area.Height - CompactTop - CompactBottom, 1));
-            }
-            else
-            {
-                var margin = left ?? Left;
-                plot = axes ? new RectangleF(area.Left + margin, area.Top + Top, Math.Max(area.Width - margin - Right, 1), Math.Max(area.Height - Top - Bottom, 1)) : area;
-            }
-            var overall = p.Overall is double o ? $"overall {PythonFormat.Repr(o)}" : null;
+            var margin = left ?? (compact ? 20 : Left);
+            var plot = compact ? CompactPlot(area, margin)
+                : new RectangleF(area.Left + margin, area.Top + Top, Math.Max(area.Width - margin - Right, 1), Math.Max(area.Height - Top - Bottom, 1));
+            var overall = Overall(p);
             var chart = p.XScale == "bands" ? BandChart(p, plot, overall) : Curve(p, plot, overall);
             if (!compact)
                 return chart;
@@ -95,8 +80,11 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>The height of a body with a compact chart (Deconstruct Parameter, Material Library), and of its header row.</summary>
         public const float StripHeight = 60, StripHeader = 11;
 
+        /// <summary>The overall value as a chart shows it; null without one.</summary>
+        private static string? Overall(ParameterGoo.Content p) => p.Overall is double o ? $"overall {PythonFormat.Repr(o)}" : null;
+
         /// <summary>The header above Deconstruct Parameter's strip: the overall value (the parameter is chosen just above it).</summary>
-        public static string StripHeaderText(ParameterGoo.Content p) => p.Overall is double o ? $"overall {PythonFormat.Repr(o)}" : "";
+        public static string StripHeaderText(ParameterGoo.Content p) => Overall(p) ?? "";
 
         /// <summary>Where a body of <see cref="StripHeight"/> draws its compact chart: below its header row.</summary>
         public static RectangleF StripArea(RectangleF body) =>
@@ -104,6 +92,10 @@ namespace CompasAcoustics.Grasshopper
 
         /// <summary>The compact chart's margins: a little room above, the band labels below.</summary>
         public const float CompactTop = 4, CompactRight = 6, CompactBottom = 10;
+
+        /// <summary>The plot of a compact chart in <paramref name="area"/>, <paramref name="left"/> the margin of its value labels.</summary>
+        public static RectangleF CompactPlot(RectangleF area, float left) =>
+            new(area.Left + left, area.Top + CompactTop, Math.Max(area.Width - left - CompactRight, 1), Math.Max(area.Height - CompactTop - CompactBottom, 1));
 
         /// <summary>The reverberation times, whose axis starts at 0.</summary>
         private static readonly HashSet<string> ReverberationTimes = new() { "EDT", "T20", "T30" };

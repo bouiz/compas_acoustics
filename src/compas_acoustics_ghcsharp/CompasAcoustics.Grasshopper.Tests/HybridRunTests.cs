@@ -46,7 +46,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         [InlineData("True", "directional")]
         [InlineData("true", "directional")]
         [InlineData("False", false)]
-        public void Settings_PassesTheLateEnvelopeMode_AndReadsTheOldToggle(string choice, object expected)
+        public void Settings_PassesTheLateEnvelopeMode_AndReadsABoolean(string choice, object expected)
         {
             var settings = HybridRun.Settings(null, null, null, choice, 1, null, null, 48000, out _);
             Assert.Equal(expected, settings["late_envelope"]);
@@ -98,33 +98,33 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void Status_WithoutLastResult_SaysPressRun()
         {
-            Assert.Equal("press Run", HybridRun.Status(null, "scene", null, null, null, null));
+            Assert.Equal(("press Run", false), HybridRun.Status(null, "scene", null, null, null, null));
         }
 
         [Fact]
         public void Status_ForAnotherScene_SaysPressRun()
         {
-            Assert.Equal("press Run", HybridRun.Status(Last("old"), "new", null, null, null, null));
+            Assert.Equal(("press Run", false), HybridRun.Status(Last("old"), "new", null, null, null, null));
         }
 
         [Fact]
         public void Status_SaysDoneWithTheCountAndSummary_TheOrderOnlyWhereThereIsOne()
         {
-            Assert.Equal("done, 2 IRs, tail: reference, order 1 (Run to redo)", HybridRun.Status(Last("scene", count: 2), "scene", null, null, null, null));
-            Assert.Equal("done, 1 IR, tail: reference, order 1 (Run to redo)", HybridRun.Status(Last("scene"), "scene", "auto", 1, 3, "none"));
-            Assert.Equal("done, 1 IR, tail: reference (Run to redo)", HybridRun.Status(Last("scene", shOrder: null), "scene", null, null, null, null));
+            Assert.Equal(("done, 2 IRs, tail reference, SH order 1 (Run to redo)", false), HybridRun.Status(Last("scene", count: 2), "scene", null, null, null, null));
+            Assert.Equal(("done, 1 IR, tail reference, SH order 1 (Run to redo)", false), HybridRun.Status(Last("scene"), "scene", "auto", 1, 3, "none"));
+            Assert.Equal(("done, 1 IR, tail reference (Run to redo)", false), HybridRun.Status(Last("scene", shOrder: null), "scene", null, null, null, null));
         }
 
         [Fact]
         public void Status_SaysSettingsChanged()
         {
             var last = Last("scene");
-            const string changed = "settings changed, press Run (tail: reference, order 1)";
+            var changed = ("settings changed, press Run (tail reference, SH order 1)", true);
             Assert.Equal(changed, HybridRun.Status(last, "scene", null, null, 4, null));
             Assert.Equal(changed, HybridRun.Status(last, "scene", "eyring", null, null, null));
             Assert.Equal(changed, HybridRun.Status(last, "scene", null, 2, null, null));
             Assert.Equal(changed, HybridRun.Status(last, "scene", null, null, null, "udfa"));
-            Assert.Equal("done, 1 IR, tail: reference, order 1 (Run to redo)", HybridRun.Status(Last("scene", diffraction: "udfa"), "scene", null, null, null, "udfa"));
+            Assert.Equal(("done, 1 IR, tail reference, SH order 1 (Run to redo)", false), HybridRun.Status(Last("scene", diffraction: "udfa"), "scene", null, null, null, "udfa"));
         }
     }
 }

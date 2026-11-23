@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Threading;
@@ -8,6 +9,16 @@ using CompasPb;
 
 namespace CompasAcoustics.Grasshopper.Tests
 {
+    /// <summary>The keys of the component specs embedded in the plugin, in ordinal order.</summary>
+    internal static class EmbeddedSpecs
+    {
+        public static IEnumerable<string> Names() =>
+            typeof(ComponentSpec).Assembly.GetManifestResourceNames()
+                .Where(n => n.StartsWith("Specs/") && n.EndsWith("metadata.json"))
+                .Select(n => n.Substring("Specs/".Length).Split('/', '\\')[0])
+                .OrderBy(n => n, StringComparer.Ordinal);
+    }
+
     /// <summary>An HttpMessageHandler that answers with a function, for the client without a worker.</summary>
     internal sealed class FakeHandler : HttpMessageHandler
     {

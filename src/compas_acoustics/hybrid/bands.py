@@ -7,12 +7,8 @@ import pyFDN
 
 from compas_acoustics.room.geometry import SYNTHESIS_BANDS
 
-BAND_EDGES, BANDS = pyFDN.octave_bands()
+_, BANDS = pyFDN.octave_bands()
 N_BANDS = BANDS.size
-
-# The estimator's per-band level matches the total energy in each band, so a white decay's level rises
-# as sqrt(bandwidth): a spectral density needs these to become a level
-BANDWIDTHS = BAND_EDGES[:, 1] - BAND_EDGES[:, 0]
 
 
 def check_bands(bands: np.ndarray) -> None:

@@ -13,8 +13,9 @@ from compas_acoustics.hybrid.early import image_sources
 from compas_acoustics.hybrid.late import design_fdn
 from compas_acoustics.hybrid.late import directional_delays
 from compas_acoustics.hybrid.late import fdn_directions
-from compas_acoustics.hybrid.late import render
+from compas_acoustics.hybrid.late import run_network
 from compas_acoustics.hybrid.pair import Pair
+from compas_acoustics.hybrid.scattering import _allpass
 from compas_acoustics.hybrid.scattering import allpass_delays
 from compas_acoustics.hybrid.scattering import complementary_scattering
 from compas_acoustics.hybrid.scattering import scattering_decay_time
@@ -23,10 +24,8 @@ from compas_acoustics.hybrid.scattering import smear
 from compas_acoustics.hybrid.synthesis import prepare
 from compas_acoustics.hybrid.ambisonics import render_ambisonics
 from compas_acoustics.hybrid.target import RoomTarget
-from compas_acoustics.room.pra import receivers_to_pra_mic_array
 from compas_acoustics.room.pra import source_to_pra
 from compas_acoustics.room.geometry import RoomGeometry
-from compas_acoustics.room.geometry import pra_octave_grid
 from compas_acoustics.simulation_methods import Ambisonics
 
 FS = 48000
@@ -53,36 +52,35 @@ def scene(scattering):
     return s
 
 
-def pair(s):
+def make_pair(s):
     geometry = RoomGeometry.from_scene(s)
     receiver = s.receivers[0]
     return Pair(geometry, s.sources[0].position, receiver.position, receiver.rotation, float(FS), 343.0, False)
 
 
 def computed(geometry, s, ray_tracing):
-    with pra_octave_grid():
-        room = geometry.to_pra(FS, ORDER, ray_tracing=ray_tracing)
-        room.add_soundsource(source_to_pra(s.sources[0]))
-        room.add_microphone_array(receivers_to_pra_mic_array(s.receivers, sampling_rate=FS))
-        room.image_source_model()
+    room = geometry.to_pra(FS, ORDER, ray_tracing=ray_tracing)
+    room.add_soundsource(source_to_pra(s.sources[0]))
+    room.add_microphone_array(np.array([r.position for r in s.receivers], dtype=float).T)
+    room.image_source_model()
     return room
 
 
 def split(scattering):
-    """``(spec, full, parts)``: the images without scattering, and split into specular and scattered parts."""
+    """``(pair, full, parts)``: the images without scattering, and split into specular and scattered parts."""
     s = scene(scattering)
-    spec = pair(s)
-    full = image_sources(computed(spec.geometry, s, False), 0, 0, spec)
+    pair = make_pair(s)
+    full = image_sources(computed(pair.geometry, s, False), 0, 0, pair)
     parts = image_sources(
-        computed(spec.geometry, s, True),
+        computed(pair.geometry, s, True),
         0,
         0,
-        spec,
-        scattered=computed(complementary_scattering(spec.geometry), s, True).sources[0].damping,
+        pair,
+        scattered=computed(complementary_scattering(pair.geometry), s, True).sources[0].damping,
     )
     assert np.array_equal(full.order, parts.order)
     assert np.allclose(full.delay, parts.delay)
-    return spec, full, parts
+    return pair, full, parts
 
 
 @pytest.mark.parametrize("s", [0.0, 1.0])
@@ -110,19 +108,31 @@ def test_smear_is_an_allpass_with_the_papers_delays():
     assert np.array_equal(smeared[:, 0], smeared[:, 1])
 
 
+@pytest.mark.parametrize("tau", [1, 2, 3, 7, 20, 64, 202, 431])
+def test_the_block_allpass_is_scipys_lfilter_to_1e_12_of_the_peak(tau):
+    from scipy.signal import lfilter
+
+    x = np.random.default_rng(tau).standard_normal((24000, 96))
+    g = 1.0 / np.sqrt(2.0)
+    b, a = np.zeros(tau + 1), np.zeros(tau + 1)
+    b[0], b[-1], a[0], a[-1] = g, 1.0, 1.0, g
+    expected = lfilter(b, a, x, axis=0)
+    assert np.max(np.abs(_allpass(x, tau, g) - expected)) <= 1e-12 * np.max(np.abs(expected))
+
+
 def test_tap_is_heard_through_the_lines_attenuation_filters():
     """A scattered part enters a line ahead by the line's delay, so it passes the line's absorption filter
     before it is heard: the tap equals driving that line one delay earlier."""
-    spec = pair(scene(0.1))
+    pair = make_pair(scene(0.1))
     directions = fdn_directions()
-    builds = design_fdn(RoomTarget.from_room(spec, model="eyring"), [directional_delays(spec, directions)])
+    builds = design_fdn(RoomTarget.from_room(pair, model="eyring"), [directional_delays(pair, directions)])
     line = 3
     delay = int(np.asarray(builds[0][0].delays)[line])
     tap = np.zeros((6000, directions.csize))
     tap[delay + 50, line] = 1.0
     drive = np.zeros_like(tap)
     drive[50, line] = 1.0
-    assert np.allclose(render(builds, np.zeros_like(tap), tap=tap), render(builds, drive), atol=1e-12)
+    assert np.allclose(run_network(builds, np.zeros_like(tap), tap=tap), run_network(builds, drive), atol=1e-12)
 
 
 def test_zero_scattering_changes_nothing():
@@ -158,24 +168,24 @@ def test_scattering_is_off_by_default():
 
 def test_scattering_needs_the_scattered_parts():
     s = scene(0.1)
-    spec = pair(s)
-    iss = image_sources(computed(spec.geometry, s, False), 0, 0, spec)
+    pair = make_pair(s)
+    iss = image_sources(computed(pair.geometry, s, False), 0, 0, pair)
     with pytest.raises(ValueError, match="scattered"):
-        render_ambisonics(prepare(spec, iss, RoomTarget.from_room(spec, model="eyring"), max_order=1, duration_s=0.2, scattering=True))
+        render_ambisonics(prepare(pair, iss, RoomTarget.from_room(pair, model="eyring"), max_order=1, duration_s=0.2, scattering=True))
 
 
 def test_prepare_assembles_the_tap_from_the_scattered_parts_of_orders_one_to_the_last():
-    """The late lines equal the network driven by the specular last order plus the tap built here from the public pieces."""
+    """The late lines equal the network driven by the specular last order plus the tap built from the public pieces."""
     from dataclasses import replace as replace_fields
 
     from compas_acoustics.hybrid.directional import directional_absorption_filters
     from compas_acoustics.hybrid.early import render_images
 
-    last, duration, speed, drive_gain = 2, 0.3, 331.0, 1.7
-    spec, _, parts = split(0.3)
-    spec = replace_fields(spec, speed_of_sound=speed)
-    target = RoomTarget.from_room(spec, model="eyring")
-    result = render_ambisonics(prepare(spec, parts, target, max_order=last, duration_s=duration, scattering=True, drive_gain=drive_gain))
+    last, duration, speed, drive_gain = 2, 0.3, 331.0, float(np.sqrt(96))
+    pair, _, parts = split(0.3)
+    pair = replace_fields(pair, speed_of_sound=speed)
+    target = RoomTarget.from_room(pair, model="eyring")
+    result = render_ambisonics(prepare(pair, parts, target, max_order=last, duration_s=duration, scattering=True))
 
     def subset(mask):
         xyz = parts.doa.cartesian[mask]
@@ -192,7 +202,7 @@ def test_prepare_assembles_the_tap_from_the_scattered_parts_of_orders_one_to_the
     def lines(tap_orders):
         n_samples = int(np.ceil(duration * FS))
         directions = fdn_directions()
-        delays = [directional_delays(spec, directions, rng=slope) for slope in range(target.n_slopes)]
+        delays = [directional_delays(pair, directions, rng=slope) for slope in range(target.n_slopes)]
         builds = design_fdn(target, delays, rng=0)
         driving = subset(parts.order == last)
         drive = render_images(driving, scattering_weights(driving.doa, directions, opposite=True), n_samples)
@@ -207,7 +217,7 @@ def test_prepare_assembles_the_tap_from_the_scattered_parts_of_orders_one_to_the
             )
             * drive_gain
         )
-        return render(builds, drive * drive_gain, tap=tap, line_eq=directional_absorption_filters(spec, directions))
+        return run_network(builds, drive * drive_gain, tap=tap, line_eq=directional_absorption_filters(pair, directions))
 
     expected = lines(range(1, last + 1))
     assert np.max(np.abs(expected)) > 0.0

@@ -1,4 +1,4 @@
-"""Surface scattering of image sources, and ray casts against the faces of a room.
+"""Surface scattering of image sources.
 
 After Ewert, Goessling, Buttler, van de Par and Hu, "Computationally-efficient rendering of diffuse reflections
 for geometrical acoustics based room simulation", Acta Acustica 9, 9 (2025).
@@ -21,9 +21,10 @@ from ..room.geometry import DEFAULT_SCATTERING
 def complementary_scattering(geometry):
     """``geometry`` with every material's scattering ``s`` replaced by ``1 - s``.
 
-    Built for ray tracing, an image's damping takes ``sqrt(1 - s)`` for every wall of non-zero scattering it
-    reflects off, so the room gives the specular part, ``prod sqrt(1 - s_i)``, and this one the scattered part,
-    ``prod sqrt(s_i)``, both exact at ``s = 0`` and 1. A material without coefficients scatters ``DEFAULT_SCATTERING``.
+    In a room built for ray tracing an image's damping takes ``sqrt(1 - s)`` at every wall of non-zero scattering it
+    reflects off: the specular part, ``prod sqrt(1 - s_i)``. Built from this geometry it is the scattered part,
+    ``prod sqrt(s_i)``. The two are power-complementary for a single reflection, as the decomposition filters of
+    Ewert et al. (2025, Sec. 2.1.3) are. A material without coefficients scatters ``DEFAULT_SCATTERING``.
     """
     return replace(
         geometry,
@@ -40,14 +41,14 @@ def complementary_scattering(geometry):
 def scattering_decay_time(distance: float, speed_of_sound: float) -> float:
     """Local decay time ``T_s`` of an ideal diffuse reflection, in seconds.
 
-    Ewert et al. (2025), Sec. 2.1.2: ``T_s = 6 (10**(1/5) - 1) 2R / c``, about ``7 R / c``, for a reflector at
+    Ewert et al. (2025, Sec. 2.1.2): ``T_s = 6 (10**(1/5) - 1) 2R / c``, about ``7 R / c``, for a reflector at
     distance ``R``; for a general room "the mean free path length".
     """
     return 6.0 * (10.0**0.2 - 1.0) * 2.0 * distance / speed_of_sound
 
 
 def allpass_delays(decay_time: float, fs: float) -> np.ndarray:
-    """Delays in samples of the four-allpass cascade, Ewert et al. (2025) Eq. 13.
+    """Delays in samples of the four-allpass cascade, Ewert et al. (2025, Eq. 13).
 
     ``tau_s = T_s log10(1/g) / 3`` and ``tau_i = tau_s fs / eta**(i-1)``, ``g = 1/sqrt(2)``, ``eta = pi``, rounded,
     never below one sample.
@@ -60,17 +61,32 @@ def allpass_delays(decay_time: float, fs: float) -> np.ndarray:
 def smear(signal: np.ndarray, decay_time: float, fs: float) -> np.ndarray:
     """The surface-scattering allpass cascade along axis 0 of ``signal``.
 
-    Four Schroeder allpasses ``(g + z^-tau) / (1 + g z^-tau)``, ``g = 1/sqrt(2)``
-    (Ewert et al. 2025, Eq. 12), with the delays of :func:`allpass_delays`.
+    Four allpasses ``(g + z^-tau) / (1 + g z^-tau)``, ``g = 1/sqrt(2)`` (Ewert et al. 2025, Eq. 12), with the delays
+    of :func:`allpass_delays`.
     """
     out = np.asarray(signal, dtype=float)
     for tau in allpass_delays(decay_time, fs):
-        b = np.zeros(tau + 1)
-        a = np.zeros(tau + 1)
-        b[0], b[-1] = 1.0 / np.sqrt(2.0), 1.0
-        a[0], a[-1] = 1.0, 1.0 / np.sqrt(2.0)
-        out = lfilter(b, a, out, axis=0)
+        out = _allpass(out, int(tau), 1.0 / np.sqrt(2.0))
     return out
+
+
+def _allpass(x: np.ndarray, tau: int, g: float) -> np.ndarray:
+    """``(g + z^-tau) / (1 + g z^-tau)`` along axis 0, ``tau`` rows at a time.
+
+    ``y[n] = g x[n] + x[n - tau] - g y[n - tau]``: every row of a block depends only on the block before it, so a
+    block is one vector operation. It agrees with ``scipy.signal.lfilter`` to about 2e-16 of the peak; for
+    ``tau <= 2``, where the blocks are too short to pay, ``lfilter`` runs instead.
+    """
+    if tau <= 2:
+        b, a = np.zeros(tau + 1), np.zeros(tau + 1)
+        b[0], b[-1], a[0], a[-1] = g, 1.0, 1.0, g
+        return lfilter(b, a, x, axis=0)
+    y = np.empty_like(x)
+    y[:tau] = g * x[:tau]
+    for start in range(tau, x.shape[0], tau):
+        stop = min(start + tau, x.shape[0])
+        y[start:stop] = g * x[start:stop] + (x[start - tau : stop - tau] - g * y[start - tau : stop - tau])
+    return y
 
 
 def scattering_weights(doa: pf.Coordinates, directions: pf.Coordinates, opposite: bool = False) -> np.ndarray:
@@ -93,50 +109,3 @@ def scattering_weights(doa: pf.Coordinates, directions: pf.Coordinates, opposite
     weights = np.clip(arrival @ lines.T, 0.0, None)
     norm = np.linalg.norm(weights, axis=1, keepdims=True)
     return weights / np.where(norm > 0.0, norm, 1.0)
-
-
-def _unit_normal(vertices: np.ndarray) -> np.ndarray:
-    normal = 0.5 * np.cross(vertices, np.roll(vertices, -1, axis=0)).sum(axis=0)
-    return normal / np.linalg.norm(normal)
-
-
-def _first_hit(faces: list[tuple[np.ndarray, str]], origin: np.ndarray, directions: np.ndarray) -> np.ndarray:
-    """Index of the first face each ray from ``origin`` meets, -1 for none.
-
-    Points within a small tolerance of a face outline count as on it, because
-    image sources of rooms with round coordinates routinely aim exactly at the
-    seam between two faces.
-    """
-    directions = directions / np.linalg.norm(directions, axis=1, keepdims=True)
-    extent = max(float(np.ptp(np.vstack([v for v, _ in faces]), axis=0).max()), 1.0)
-    tol = 1e-6 * extent
-    best_t = np.full(directions.shape[0], np.inf)
-    best = np.full(directions.shape[0], -1, dtype=int)
-    for index, (vertices, _) in enumerate(faces):
-        normal = _unit_normal(vertices)
-        denom = directions @ normal
-        with np.errstate(divide="ignore", invalid="ignore"):
-            t = ((vertices[0] - origin) @ normal) / denom
-        candidate = (np.abs(denom) > 1e-12) & (t > tol) & (t < best_t - tol)
-        if not np.any(candidate):
-            continue
-        rows = np.flatnonzero(candidate)
-        points = origin + t[rows, np.newaxis] * directions[rows]
-        keep = [i for i in range(3) if i != int(np.argmax(np.abs(normal)))]
-        q = points[:, keep]
-        poly = vertices[:, keep]
-        inside = np.zeros(rows.size, dtype=bool)
-        near = np.zeros(rows.size, dtype=bool)
-        for (ax, ay), (bx, by) in zip(poly, np.roll(poly, -1, axis=0)):
-            crosses = (ay > q[:, 1]) != (by > q[:, 1])
-            with np.errstate(divide="ignore", invalid="ignore"):
-                x_cross = (bx - ax) * (q[:, 1] - ay) / (by - ay) + ax
-            inside ^= crosses & (q[:, 0] < x_cross)
-            edge = np.array([bx - ax, by - ay])
-            along = np.clip(((q - [ax, ay]) @ edge) / float(edge @ edge), 0.0, 1.0)
-            closest = np.array([ax, ay]) + along[:, np.newaxis] * edge
-            near |= np.linalg.norm(q - closest, axis=1) <= tol
-        hit = rows[inside | near]
-        best_t[hit] = t[hit]
-        best[hit] = index
-    return best

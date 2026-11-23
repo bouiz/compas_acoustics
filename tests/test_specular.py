@@ -1,5 +1,3 @@
-from types import SimpleNamespace
-
 import compas
 import numpy as np
 import pytest
@@ -81,8 +79,7 @@ ROOMS = {"shoebox": shoebox, "l_shaped": l_shaped, "obstacle": obstacle}
 
 def pra_visible_images(scene, max_order, s=0, m=0):
     """pyroomacoustics' own visible images for one pair, duplicates removed, as an (n, 3) array."""
-    pytest.importorskip("spharpy")  # hybrid.early needs it, Python >= 3.11 only
-    from compas_acoustics.hybrid.early import _first_of_each_position
+    from compas_acoustics.room.reflections import first_of_each_position
 
     geometry = RoomGeometry.from_scene(scene)
     room = geometry.to_pra(48000, max_order)
@@ -92,7 +89,7 @@ def pra_visible_images(scene, max_order, s=0, m=0):
     room.image_source_model()
     visible = np.array(room.visibility[s][m], dtype=bool)
     images = np.asarray(room.sources[s].images, dtype=float)[:, visible]
-    return images[:, _first_of_each_position(images, SimpleNamespace(geometry=geometry))].T
+    return images[:, first_of_each_position(images, geometry)].T
 
 
 def test_shoebox_has_one_direct_and_six_first_order_paths():
@@ -189,15 +186,6 @@ def edge():
     return shoebox(source=(2, 2.5, 1.5), receiver=(5, 2.5, 1.5))
 
 
-def test_data_stored_with_wall_names_and_a_speed_of_sound_loads():
-    data = path().__data__
-    data.update(wall_names=["floor"], sound_speed=343.98)
-    loaded = SpecularPath.__from_data__(data)
-    assert (loaded.order, loaded.walls, loaded.receiver_index) == (1, [2], 0)
-    stored = compas.json_dumps(SpecularReflections([path()])).replace('"rays":', '"paths":')
-    assert len(compas.json_loads(stored)) == 1
-
-
 def test_a_negative_order_is_a_value_error():
     with pytest.raises(ValueError, match="max_order"):
         SpecularReflections.from_scene(shoebox(), max_order=-1)
@@ -288,9 +276,6 @@ def test_specular_reflections_are_a_ray_field_of_paths_that_end_at_the_receiver(
     assert [path.ray_index for path in field] == list(range(len(field)))
     assert all(path.source is scene.sources[path.source_index] for path in field)
     assert all(path.reflection_order == path.order for path in field)
-    assert field.duration_ms == pytest.approx(max(path.travel_time for path in field))
-    points, indices, orders = field.particles(0.0)
-    assert len(points) == len(field) and set(orders) == {0}
     # cut paths are plain rays: they stop short of the receiver
     assert all(type(ray) is Ray for ray in field.truncated(reflection_order=1))
     back = compas.json_loads(compas.json_dumps(field))

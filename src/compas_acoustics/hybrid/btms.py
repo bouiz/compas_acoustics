@@ -1,13 +1,15 @@
 """Edge diffraction by the Biot-Tolstoy-Medwin-Svensson (BTMS) model.
 
-Svensson, Fred and Vanderkooy (1999), "An analytic secondary source model of
-edge diffraction impulse responses", J. Acoust. Soc. Am. 106(5), 2331-2344.
-Time-domain kernels in the edge-cylindrical coordinates of EDtoolbox: z along
-the edge, theta from the reference face into the open region, closed wedge
-angle 2 pi - theta_w, free field 1/r.
+Svensson, Fred and Vanderkooy (1999), "An analytic secondary source model of edge diffraction impulse responses", J.
+Acoust. Soc. Am. 106(5), 2331-2344. Time-domain kernels in the edge-cylindrical coordinates of EDtoolbox: z along the
+edge, theta from the reference face into the open region, closed wedge angle 2 pi - theta_w, free field 1/r.
 
-wedge1st_ir follows EDwedge1st_ir, wedge2nd_ir EDwedge2nd and _coordtrans1
-EDcoordtrans1 of Svensson's Edge Diffraction Toolbox v0.504:
+wedge1st_ir follows EDwedge1st_ir, with _edge_z_of_path and _slot_integrals (its integration intervals and seven-point
+start), wedge2nd_ir EDwedge2nd, _coordtrans1 EDcoordtrans1 and element_grid EDcreindexmatrix and EDmakeHODirs of
+Svensson's Edge Diffraction Toolbox v0.504; btms_paths and coplanar_thetas in compas_acoustics.hybrid.diffraction take
+their rules for the angles of coplanar edges (EDed2geo), the scaled geometric component on a zone boundary
+(EDfindconvexGApaths), its split between two samples (EDmakefirstorderirs) and the doubled thin-plate path
+(EDmakeHODirs) from the same toolbox:
 
     Copyright (c) 2018, Peter Svensson All rights reserved.
 
@@ -34,8 +36,10 @@ EDcoordtrans1 of Svensson's Edge Diffraction Toolbox v0.504:
     NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-betaoverml and _quadstep are written from the paper and the adaptive Simpson
-rule, not from the toolbox.
+The first-order integrand (:func:`_btm_integrand`) is the published line integral: Calamia and Svensson (2007), "Fast
+time-domain edge-diffraction calculations for interactive acoustic simulations", EURASIP J. Adv. Signal Process. 2007,
+63560, Eqs. (2)-(4). It is integrated by the standard adaptive Simpson rule with Richardson extrapolation
+(:func:`_adaptive_simpson`).
 """
 
 from __future__ import annotations
@@ -43,37 +47,47 @@ from __future__ import annotations
 import numpy as np
 
 
-def betaoverml(z, rs, rr, zs, zr, nu, sin_nu_phi, cos_nu_phi):
-    """beta(z) / (m l): the four-term edge-source directivity over the two
-    distances, Svensson et al. (1999); nu = pi / theta_w, phi = pi +- theta_S
-    +- theta_R."""
-    z = np.asarray(z, dtype=float)
-    m = np.sqrt((z - zs) ** 2 + rs**2)
-    l = np.sqrt((z - zr) ** 2 + rr**2)
-    y = (m * l + (z - zs) * (z - zr)) / (rs * rr)
-    cosh_nu_eta = np.cosh(nu * np.arccosh(np.maximum(y, 1.0)))
-    # a term on its zone boundary is 0/0 where the path reaches the apex (z = 0 for a
-    # segment starting there); the apex region drops it, so does the integrand
-    den = [cosh_nu_eta - cphi for cphi in cos_nu_phi]
-    beta = sum(np.where(d == 0, 0.0, s / np.where(d == 0, 1.0, d)) for s, d in zip(sin_nu_phi, den))
-    return beta / (m * l)
+def _btm_integrand(source: tuple[float, float], receiver: tuple[float, float], nu: float, phi: np.ndarray):
+    """The integrand of the first-order BTM line integral, sum_i beta_i / (m l), as a function of the edge coordinate z
+    (Calamia and Svensson 2007, Eqs. (2)-(4)).
+
+    ``source`` and ``receiver`` are (r, z) about the edge, ``nu = pi / theta_w`` and ``phi`` the four angles pi +-
+    theta_S +- theta_R. A term whose numerator and denominator both vanish (on its zone boundary, at the apex) is taken
+    as 0; the analytic apex term of :func:`wedge1st_ir` covers it (the package's choice).
+    """
+    (r_s, z_s), (r_r, z_r) = source, receiver
+    sin_nu_phi, cos_nu_phi = np.sin(nu * phi), np.cos(nu * phi)
+
+    def integrand(z):
+        z = np.asarray(z, dtype=float)
+        m = np.sqrt((z - z_s) ** 2 + r_s**2)
+        l = np.sqrt((z - z_r) ** 2 + r_r**2)
+        cosh_nu_eta = np.cosh(nu * np.arccosh(np.maximum((m * l + (z - z_s) * (z - z_r)) / (r_s * r_r), 1.0)))
+        beta = 0
+        for numerator, cos_term in zip(sin_nu_phi, cos_nu_phi):
+            denominator = cosh_nu_eta - cos_term
+            beta = beta + np.where(denominator == 0, 0.0, numerator / np.where(denominator == 0, 1.0, denominator))
+        return beta / (m * l)
+
+    return integrand
 
 
-def _quadstep(a, b, fa, fc, fb, tol, rs, rr, zs, zr, nu, sin_nu_phi, cos_nu_phi):
-    """Adaptive Simpson on [a, b] for every interval at once: three-point and
-    five-point Simpson, one Richardson step, intervals whose estimates differ
-    by more than tol are halved."""
-    c = (a + b) / 2.0
-    fd, fe = (betaoverml(x, rs, rr, zs, zr, nu, sin_nu_phi, cos_nu_phi) for x in ((a + c) / 2.0, (c + b) / 2.0))
-    h = (b - a) / 6.0
-    q1 = h * (fa + 4.0 * fc + fb)
-    q2 = h / 2.0 * (fa + 4.0 * fd + 2.0 * fc + 4.0 * fe + fb)
-    q = q2 + (q2 - q1) / 15.0
-    open_ = np.flatnonzero(np.abs(q2 - q) > tol)
-    if open_.size:
-        q[open_] = _quadstep(a[open_], c[open_], fa[open_], fd[open_], fc[open_], tol, rs, rr, zs, zr, nu, sin_nu_phi, cos_nu_phi) + _quadstep(
-            c[open_], b[open_], fc[open_], fe[open_], fb[open_], tol, rs, rr, zs, zr, nu, sin_nu_phi, cos_nu_phi
-        )
+def _adaptive_simpson(f, a, b, tol, fa, fm, fb):
+    """The integral of ``f`` over each interval [a, b] of the arrays ``a``, ``b``, by the standard adaptive Simpson rule
+    with Richardson extrapolation; ``fa``, ``fm`` and ``fb`` are ``f`` at a, (a + b) / 2 and b.
+
+    Simpson's rule on the interval and on its two halves, the halves' sum corrected by its difference from the whole
+    over 15; where that correction exceeds ``tol`` the two halves are integrated the same way.
+    """
+    m = (a + b) / 2.0
+    f_left, f_right = f((a + m) / 2.0), f((m + b) / 2.0)
+    whole = (b - a) / 6.0 * (fa + 4.0 * fm + fb)
+    halves = (b - a) / 12.0 * (fa + 4.0 * f_left + 2.0 * fm + 4.0 * f_right + fb)
+    q = halves + (halves - whole) / 15.0
+    refine = np.flatnonzero(np.abs(q - halves) > tol)
+    if refine.size:
+        left = _adaptive_simpson(f, a[refine], m[refine], tol, fa[refine], f_left[refine], fm[refine])
+        q[refine] = left + _adaptive_simpson(f, m[refine], b[refine], tol, fm[refine], f_right[refine], fb[refine])
     return q
 
 
@@ -81,19 +95,12 @@ def _round_half_away(x):
     return (np.sign(x) * np.floor(np.abs(x) + 0.5)).astype(int)
 
 
-def _slot_integrals(zstarts, zends, tol, rs, rr, zs, zr, nu, s, c):
+def _slot_integrals(zstarts, zends, f, tol):
+    # the toolbox's seven-point start (EDwedge1st_ir.m)
     h = 0.13579 * (zends - zstarts)
     x = np.stack([zstarts, zstarts + h, zstarts + 2 * h, (zstarts + zends) / 2, zends - 2 * h, zends - h, zends], axis=1)
-    y = betaoverml(x, rs, rr, zs, zr, nu, s, c)
-    args = (tol, rs, rr, zs, zr, nu, s, c)
-    q = np.stack(
-        [
-            _quadstep(x[:, 0], x[:, 2], y[:, 0], y[:, 1], y[:, 2], *args),
-            _quadstep(x[:, 2], x[:, 4], y[:, 2], y[:, 3], y[:, 4], *args),
-            _quadstep(x[:, 4], x[:, 6], y[:, 4], y[:, 5], y[:, 6], *args),
-        ],
-        axis=1,
-    )
+    y = f(x)
+    q = np.stack([_adaptive_simpson(f, x[:, k], x[:, k + 2], tol, y[:, k], y[:, k + 1], y[:, k + 2]) for k in (0, 2, 4)], axis=1)
     return q.sum(axis=1)
 
 
@@ -109,25 +116,23 @@ def _edge_z_of_path(x, rs, rr, zs, zr):
 
 
 def wedge1st_ir(fs, c, closed_angle, rs, thetas, zs, rr, thetar, zr, zw, r_irstart=0.0):
-    """First-order diffraction impulse response of a finite rigid wedge for a
-    point source (free field 1/r), EDwedge1st_ir.m, method 'New'.
+    """First-order diffraction impulse response of a finite rigid wedge for a point source (free field 1/r),
+    EDwedge1st_ir.m, method 'New'.
 
-    Returns (ir, initdelay, singular, zfirst); ir[0] is the sample at
-    r_irstart / c, singular flags the beta terms on a zone boundary, zfirst is
-    None for an edge of zero length."""
+    Returns (ir, singular); ir[0] is the sample at r_irstart / c, singular flags the beta terms on a zone boundary.
+    """
     zw = np.asarray(zw, dtype=float)
     if zw[1] - zw[0] == 0:
-        return np.zeros(2), 0.0, np.zeros(4, dtype=bool), None
+        return np.zeros(2), np.zeros(4, dtype=bool)
 
     eps = np.finfo(float).eps
     ny = np.pi / (2 * np.pi - closed_angle)
-    initdelay = r_irstart / c
     sampconst = c / fs
+    # toolbox values (EDwedge1st_ir.m): integration tolerance; extent of the analytic apex term, relative to min(rs, rr)
     tol = 1e-11
     zrelmax = 0.1
 
     za = (rs * zr + rr * zs) / (rs + rr)
-    zfirst = za
     zs = zs - za
     zr = zr - za
     zw = zw - za
@@ -138,7 +143,7 @@ def wedge1st_ir(fs, c, closed_angle, rs, thetas, zs, rr, thetar, zr, zw, r_irsta
     absnyfivec = np.abs(ny * fivec)
     sinnyfivec = np.sin(ny * fivec)
     cosnyfivec = np.cos(ny * fivec)
-    integ = (rs, rr, zs, zr, ny, sinnyfivec, cosnyfivec)
+    integrand = _btm_integrand((rs, zs), (rr, zr), ny, fivec)
 
     perpcase = zs == zr
     symmcase = rs == rr
@@ -258,23 +263,19 @@ def wedge1st_ir(fs, c, closed_angle, rs, thetas, zs, rr, thetar, zr, zw, r_irsta
             ir[arrivalsampnumb] += approxintvalvec.real
 
             if splitinteg:
-                ir[arrivalsampnumb] += _slot_integrals(np.array([zrangespecial]), zrange_apex[:1], tol, *integ)[0]
+                ir[arrivalsampnumb] += _slot_integrals(np.array([zrangespecial]), zrange_apex[:1], integrand, tol)[0]
 
-            qsum = _slot_integrals(zrange_apex[:-1], zrange_apex[1:], tol, *integ)
+            qsum = _slot_integrals(zrange_apex[:-1], zrange_apex[1:], integrand, tol)
             # the toolbox's ir(arrivalsampnumb + [2:length(zrange_apex)]), 1-based
             ir[arrivalsampnumb + 1 : arrivalsampnumb + zrange_apex.size] += qsum
             ir = ir * (-ny / 2 / np.pi)
-        else:
-            Rend1 = np.sqrt(rs**2 + (zw[0] - zs) ** 2) + np.sqrt(rr**2 + (zw[0] - zr) ** 2)
-            Rend2 = np.sqrt(rs**2 + (zw[1] - zs) ** 2) + np.sqrt(rr**2 + (zw[1] - zr) ** 2)
-            zfirst = 0.0 if Rend1 < Rend2 else zw[1] - zw[0]
 
         if tailincluded:
-            qsum = _slot_integrals(zrange_tail[:-1], zrange_tail[1:], tol, *integ)
+            qsum = _slot_integrals(zrange_tail[:-1], zrange_tail[1:], integrand, tol)
             # the toolbox's ir(endsampnumb_apex + [1:length(zrange_tail)-1]), 1-based
             ir[endsampnumb_apex : endsampnumb_apex + zrange_tail.size - 1] += qsum * (-ny / 4 / np.pi)
 
-    return ir, initdelay, singularterm, float(zfirst)
+    return ir, singularterm
 
 
 def _df(nu, b, angle):
@@ -282,9 +283,8 @@ def _df(nu, b, angle):
 
 
 def _coordtrans1(points, edge_ends, ref_normal):
-    """Cylindrical coordinates (r, theta, z) of points about an edge, EDcoordtrans1.m
-    (several points): origin at edge_ends[0], z along the edge, theta = 0 on the
-    reference plane with normal ref_normal."""
+    """Cylindrical coordinates (r, theta, z) of points about an edge, EDcoordtrans1.m (several points): origin at
+    edge_ends[0], z along the edge, theta = 0 on the reference plane with normal ref_normal."""
     points = np.atleast_2d(np.asarray(points, dtype=float))
     edge_ends = np.asarray(edge_ends, dtype=float)
     n = np.asarray(ref_normal, dtype=float)
@@ -298,16 +298,15 @@ def _coordtrans1(points, edge_ends, ref_normal):
     theta = np.zeros(points.shape[0])
     iv = r > 0
     x, y, ri = xyz[iv, 0], xyz[iv, 1], r[iv]
-    t = np.real(np.arccos(x / ri) * (y != 0))
+    t = np.arccos(x / ri) * (y != 0)
     t = t + np.pi * ((y == 0) & (x < 0))
     theta[iv] = np.where(y >= 0, t, 2 * np.pi - t)
     return r, theta, z
 
 
 def element_grid(lengths, c, fs):
-    """Edge-element midpoints of an edge pair as fractions of the two edge
-    lengths, rows in the order of EDcreindexmatrix (edge 2 fastest), and the
-    element lengths dz (EDmakeHODirs.m, order 2, element size c / fs)."""
+    """Edge-element midpoints of an edge pair as fractions of the two edge lengths, rows in the order of
+    EDcreindexmatrix (edge 2 fastest), and the element lengths dz (EDmakeHODirs.m, order 2, element size c / fs)."""
     lengths = np.asarray(lengths, dtype=float)
     ndiv = np.ceil(lengths / (c / fs)).astype(int)
     dz = lengths / ndiv
@@ -316,16 +315,14 @@ def element_grid(lengths, c, fs):
 
 
 def wedge2nd_ir(cyl_s, cyl_r, cyl_e2_r1, cyl_e1_r2, nu, edge_limits, dz, steps, path_along_plane, r_irstart, c, fs):
-    """Edge-to-edge (second-order) diffraction impulse response of a pair of
-    rigid wedges, EDwedge2nd.m with method 'n' and swapbigmatrix = 0.
+    """Edge-to-edge (second-order) diffraction impulse response of a pair of rigid wedges, EDwedge2nd.m with method 'n'
+    and swapbigmatrix = 0.
 
-    cyl_s, cyl_r are (r, theta, z) of source and receiver about edges 1 and 2;
-    cyl_e2_r1 are the two ends of edge 2 about edge 1, cyl_e1_r2 the ends of
-    edge 1 about edge 2; nu = (pi / theta_w1, pi / theta_w2); edge_limits rows
-    are [start, end] along each edge; steps and dz are the element_grid
-    midpoints and element lengths; path_along_plane selects the form for two
-    edges bounding a common plane.
-    ir[0] is the sample at r_irstart / c."""
+    cyl_s, cyl_r are (r, theta, z) of source and receiver about edges 1 and 2; cyl_e2_r1 are the two ends of edge 2
+    about edge 1, cyl_e1_r2 the ends of edge 1 about edge 2; nu = (pi / theta_w1, pi / theta_w2); edge_limits rows are
+    [start, end] along each edge; steps and dz are the element_grid midpoints and element lengths; path_along_plane
+    selects the form for two edges bounding a common plane. ir[0] is the sample at r_irstart / c.
+    """
     nu1, nu2 = nu
     nu_closed2 = np.pi / nu2
     multfac = 1.0 / (float(bool(path_along_plane)) + 1.0)

@@ -33,7 +33,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         public void AComponent_HasThePortsNamesAndPlaceOfItsSpec(string typeName)
         {
             var component = Make(typeName);
-            var key = ComponentSpec.Names().Single(name => ComponentSpec.Load(name).Name == component.Name);
+            var key = EmbeddedSpecs.Names().Single(name => ComponentSpec.Load(name).Name == component.Name);
             var spec = ComponentSpec.Load(key);
             Assert.Equal(spec.Nickname, component.NickName);
             Assert.Equal(spec.Description, component.Description);

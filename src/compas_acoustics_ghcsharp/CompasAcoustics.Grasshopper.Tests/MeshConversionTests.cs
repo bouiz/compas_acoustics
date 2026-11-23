@@ -27,7 +27,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void ToFrameData_AndBack_KeepsTheAxes()
+        public void ToFrameData_WritesTheOriginAndTheXAndYAxes()
         {
             // Plane's constructors call Rhino's native code, which tests do not have
             var plane = Plane.WorldXY;
@@ -38,10 +38,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             var frame = MeshConversion.ToFrameData(plane);
             Assert.Equal(new[] { 1.0, 2.0, 3.0 }, new[] { frame.Point.X, frame.Point.Y, frame.Point.Z });
             Assert.Equal(new[] { 0.0, 1.0, 0.0 }, new[] { frame.Xaxis.X, frame.Xaxis.Y, frame.Xaxis.Z });
-            var back = MeshConversion.ToPlane(frame);
-            Assert.Equal(plane.Origin, back.Origin);
-            Assert.Equal(plane.XAxis, back.XAxis);
-            Assert.Equal(plane.ZAxis, back.ZAxis);
+            Assert.Equal(new[] { -1.0, 0.0, 0.0 }, new[] { frame.Yaxis.X, frame.Yaxis.Y, frame.Yaxis.Z });
         }
 
         [Fact]
