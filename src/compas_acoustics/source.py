@@ -1,11 +1,10 @@
-import numbers
-
-import numpy as np
 from compas.geometry import Point
 from compas.geometry import Vector
 
-from compas_acoustics.defaults import Defaults
 from compas_acoustics.defaults import _PackageDtype
+from compas_acoustics.defaults import _per_band
+from compas_acoustics.receiver import _NAME
+from compas_acoustics.receiver import _POSITION
 
 __all__ = ["Source"]
 
@@ -13,9 +12,14 @@ __all__ = ["Source"]
 class Source(_PackageDtype, Point):
     """A sound source: position, directivity and facing, an optional sound file, and its level.
 
-    ``spl`` is the free-field level on its axis at 1 m per octave band, 125 Hz to 8 kHz, in dB re 20 uPa (the
-    voice presets give the talker levels of ANSI S3.5-1997). On the package scale the direct sound is
-    ``1 / (4 pi r)`` with gain 1 on axis, so ``Lp = spl + G - 20 dB`` (:meth:`Analyser.sound_pressure_level`).
+    ``directivity`` is a first-order pattern ``p + (1 - p) cos(theta)`` about ``direction``, one of
+    ``'omnidirectional'`` (the default), ``'cardioid'``, ``'supercardioid'``, ``'hypercardioid'`` and
+    ``'bidirectional'`` (:data:`compas_acoustics.room.pra.CARDIOID_P`); the name is checked when a method simulates
+    the source.
+
+    ``spl`` is the free-field level on its axis at 1 m per octave band, 125 Hz to 8 kHz, in dB re 20 uPa, 120 dB in
+    every band unless set (the package's choice). On the package scale the direct sound is ``1 / (4 pi r)`` with gain 1
+    on axis, so ``Lp = spl + G - 20 dB`` (:meth:`Analyser.sound_pressure_level`).
     """
 
     def __init__(self, name: str, x: float, y: float, z: float, directivity: str = None, direction: Vector = None, sound_file: str = None):
@@ -27,17 +31,7 @@ class Source(_PackageDtype, Point):
         self.spl = 120.0
         self.sound_file = sound_file
 
-    @property
-    def name(self):
-        return self._name
-
-    @name.setter
-    def name(self, name):
-        if " " in name:
-            raise ValueError("Source name cannot contain spaces.")
-        if any(char.isupper() for char in name):
-            raise ValueError("Source name must be lowercase.")
-        self._name = name
+    name = _NAME
 
     @property
     def direction(self):
@@ -58,27 +52,9 @@ class Source(_PackageDtype, Point):
 
     @spl.setter
     def spl(self, spl):
-        count = Defaults().NUMBER_OF_FREQUENCY_BANDS
-        # any iterable: Grasshopper passes a .NET List[Double]
-        values = [float(spl)] if isinstance(spl, numbers.Real) else [float(v) for v in np.asarray(list(spl), dtype=float).reshape(-1)]
-        if len(values) == 1:
-            values = values * count
-        if len(values) != count:
-            raise ValueError(f"SPL must be one value or a list of {count} float values corresponding to frequency bands.")
-        self._spl = values
+        self._spl = _per_band(spl, "SPL")
 
-    @property
-    def position(self):
-        return [self.x, self.y, self.z]
-
-    @position.setter
-    def position(self, position: list):
-        if len(position) != 3:
-            raise ValueError("Position must be a list of three float values representing x, y, z coordinates.")
-        self.x = position[0]
-        self.y = position[1]
-        self.z = position[2]
-        return self.position
+    position = _POSITION
 
     @property
     def sound_file(self):
@@ -96,42 +72,6 @@ class Source(_PackageDtype, Point):
             raise ValueError(f"Sound file {file_path} does not exist.")
 
         self._sound_file = str(file_path)
-
-    @property
-    def id(self):
-        return self.guid
-
-    @classmethod
-    def omni(cls, name: str, x: float, y: float, z: float):
-        source = cls(name, x, y, z)
-        source.description = "omni"
-        return source
-
-    @classmethod
-    def _voice(cls, name, x, y, z, effort, levels):
-        # levels at 62.5 Hz to 8 kHz (ANSI S3.5-1997)
-        source = cls(name, x, y, z)
-        source.description = f"voice {effort}"
-        source.directional = True
-        by_band = dict(zip([62.5, 125, 250, 500, 1000, 2000, 4000, 8000], levels))
-        source.spl = [by_band[f] for f in Defaults().DEFAULT_FREQUENCY_BANDS]
-        return source
-
-    @classmethod
-    def voice_normal(cls, name: str, x: float, y: float, z: float):
-        return cls._voice(name, x, y, z, "normal", [45.0, 55.0, 65.0, 69.0, 63.0, 55.8, 50.0, 44.0])
-
-    @classmethod
-    def voice_raised(cls, name: str, x: float, y: float, z: float):
-        return cls._voice(name, x, y, z, "raised", [48.0, 60.0, 70.0, 75.0, 72.0, 64.0, 57.0, 49.0])
-
-    @classmethod
-    def voice_loud(cls, name: str, x: float, y: float, z: float):
-        return cls._voice(name, x, y, z, "loud", [52.0, 64.0, 72.0, 80.0, 80.0, 73.0, 66.0, 55.0])
-
-    @classmethod
-    def voice_shouting(cls, name: str, x: float, y: float, z: float):
-        return cls._voice(name, x, y, z, "shouting", [52.0, 65.0, 73.0, 84.0, 89.0, 82.0, 75.0, 64.0])
 
     @property
     def __data__(self):

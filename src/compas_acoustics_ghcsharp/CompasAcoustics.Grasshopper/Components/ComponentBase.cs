@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using Grasshopper.Kernel;
 using Grasshopper.Kernel.Parameters;
+using Grasshopper.Kernel.Types;
 
 namespace CompasAcoustics.Grasshopper
 {
@@ -40,18 +41,14 @@ namespace CompasAcoustics.Grasshopper
 
         private ComponentBase(ComponentSpec spec) : base(spec.Name, spec.Nickname, spec.Description, CategoryName, RibbonSubcategory(spec.Subcategory))
         {
-            Spec = spec;
         }
 
-        // set by the constructor; read by RegisterInputParams, which GH_Component's constructor calls before it
-        protected ComponentSpec Spec { get; private set; } = null!;
+        private ComponentSpec Spec => ComponentSpec.Load(SpecKey);
 
-        private ComponentSpec CurrentSpec => Spec ?? ComponentSpec.Load(SpecKey);
-
-        /// <summary>The spec's folder name, e.g. ``CA_Model``.</summary>
+        /// <summary>The spec's folder name, e.g. <c>CA_Model</c>.</summary>
         protected abstract string SpecKey { get; }
 
-        public override GH_Exposure Exposure => CurrentSpec.Exposure;
+        public override GH_Exposure Exposure => Spec.Exposure;
 
         protected override Bitmap Icon
         {
@@ -68,7 +65,7 @@ namespace CompasAcoustics.Grasshopper
             }
         }
 
-        /// <summary>The parameter of a ``ghdoc`` input or of an output; the default follows the spec's type hint.</summary>
+        /// <summary>The parameter of a <c>ghdoc</c> input or of an output; the default follows the spec's type hint.</summary>
         protected virtual IGH_Param? CreateParam(PortSpec port, bool input) => null;
 
         /// <summary>The controls drawn on the body, below the ports; each sets its input unless a wire does.</summary>
@@ -76,7 +73,7 @@ namespace CompasAcoustics.Grasshopper
 
         private readonly HashSet<string> _pressed = new();
 
-        /// <summary>Whether the button of ``port`` was pressed for this solution (or a wire into ``port`` is true).</summary>
+        /// <summary>Whether the button of <paramref name="port"/> was pressed for this solution (or a wire into it is true).</summary>
         public bool Pressed(string port) => _pressed.Contains(port);
 
         internal void MarkPressed(string port) => _pressed.Add(port);
@@ -86,7 +83,7 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>Whether a button on the body acts at once (<see cref="OnButton"/>) instead of solving the component once.</summary>
         public virtual bool HandlesButton(string port) => false;
 
-        /// <summary>A button the component handles itself was pressed (Auralise's Save opens a dialog).</summary>
+        /// <summary>A button the component handles itself was pressed.</summary>
         public virtual void OnButton(string port) { }
 
         /// <summary>A slider without an input port was set; the component keeps the value itself.</summary>
@@ -95,7 +92,7 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>The whole text of a message cut to <see cref="MessageText.Max"/> characters; the body's tooltip shows it.</summary>
         public string? FullMessage { get; private set; }
 
-        /// <summary>Set the message strip: at most 40 characters, the full text in the tooltip.</summary>
+        /// <summary>Set the message strip: at most <see cref="MessageText.Max"/> characters a line, the full text in the tooltip.</summary>
         protected void Status(string text, string? full = null) => (Message, FullMessage) = MessageText.Status(text, full);
 
         protected override void BeforeSolveInstance()
@@ -128,15 +125,12 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>Whether a new component starts with its preview off (the surfaces it previews are in Rhino already).</summary>
         public virtual bool PreviewOffByDefault => false;
 
-        // Grasshopper previews every previewable parameter, inputs included: a geometry, point or plane input would draw
-        // the geometry wired into it again, on top of the Rhino objects it comes from. Only the outputs preview.
-        /// <summary>Whether ``output`` previews; the Visualise components draw themselves instead, and data drawn by the
-        /// component that makes it (a source, a receiver) is not drawn again where it passes through.</summary>
+        /// <summary>Whether <paramref name="output"/> is drawn in the viewport. Inputs never are: they would repeat the geometry wired into them.</summary>
         public virtual bool PreviewsOutput(IGH_Param output) => true;
 
         private IEnumerable<IGH_PreviewObject> PreviewedOutputs => Params.Output.Where(PreviewsOutput).OfType<IGH_PreviewObject>();
 
-        /// <summary>The label a button shows now, when it changes (Play reads Pause while playing); null for its own.</summary>
+        /// <summary>The label a button shows now, when it differs from its own; null for its own.</summary>
         public virtual string? ButtonLabel(string port) => null;
 
         // Grasshopper draws a component that cannot preview in the dark "preview off" grey; every component here is drawn
@@ -196,7 +190,7 @@ namespace CompasAcoustics.Grasshopper
 
         protected override void RegisterInputParams(GH_InputParamManager manager)
         {
-            foreach (var port in CurrentSpec.Inputs)
+            foreach (var port in Spec.Inputs)
             {
                 var param = CreateParam(port, true) ?? DefaultParam(port.TypeHint);
                 var index = manager.AddParameter(param, port.Name, port.Name, port.Description, port.Access);
@@ -209,7 +203,7 @@ namespace CompasAcoustics.Grasshopper
 
         protected override void RegisterOutputParams(GH_OutputParamManager manager)
         {
-            foreach (var port in CurrentSpec.Outputs)
+            foreach (var port in Spec.Outputs)
                 manager.AddParameter(CreateParam(port, false) ?? DefaultParam(port.TypeHint), port.Name, port.Name, port.Description, GH_ParamAccess.item);
         }
 
@@ -221,27 +215,31 @@ namespace CompasAcoustics.Grasshopper
                     _runs?.CancelAll();
                 Solve(access);
             }
-            catch (WorkerException e)
+            // an HttpRequestException: the worker stopped answering twice in a row (the call restarts it once)
+            catch (Exception e) when (e is WorkerException or System.Net.Http.HttpRequestException)
             {
                 Error(ErrorText(e));
-            }
-            catch (System.Net.Http.HttpRequestException e)
-            {
-                // the worker stopped answering twice in a row (the call restarts it once)
-                Error($"The worker does not answer: {e.Message}. Recompute to start it again.");
             }
         }
 
         protected abstract void Solve(IGH_DataAccess access);
 
-        /// <summary>The text a worker error shows: its message, the last line of a traceback.</summary>
-        public static string ErrorText(WorkerException error) => WorkerException.Summary(error.Message);
+        /// <summary>The text an error shows: a worker error's message (the last line of a traceback), or that the worker does not answer.</summary>
+        public static string ErrorText(Exception error) => error switch
+        {
+            WorkerException w => WorkerException.Summary(w.Message),
+            System.Net.Http.HttpRequestException h => $"The worker does not answer: {h.Message}. Recompute to start it again.",
+            _ => error.Message,
+        };
 
         protected void Warn(string text) => AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, text);
 
         protected void Error(string text) => AddRuntimeMessage(GH_RuntimeMessageLevel.Error, text);
 
         protected void Remark(string text) => AddRuntimeMessage(GH_RuntimeMessageLevel.Remark, text);
+
+        /// <summary>Warn that the input <paramref name="name"/> has no data.</summary>
+        protected void WarnMissing(string name) => Warn($"Input parameter '{name}' failed to collect data.");
 
         /// <summary>The warnings a worker result lists, each as a Warning.</summary>
         protected void ShowWarnings(IDictionary<string, object?> result)
@@ -260,10 +258,16 @@ namespace CompasAcoustics.Grasshopper
             return access.GetData(name, ref value) ? value : null;
         }
 
-        /// <summary>
-        /// An optional value input: its value, or null when nothing is connected and the port shows its untouched default
-        /// (the method's own default, so leaving it out changes nothing and keeps the messages that name given inputs).
-        /// </summary>
+        /// <summary>A required item input: its valid value, or null after a warning.</summary>
+        protected T? Required<T>(IGH_DataAccess access, string name) where T : class, IGH_Goo
+        {
+            if (Item<T>(access, name) is { IsValid: true } item)
+                return item;
+            WarnMissing(name);
+            return null;
+        }
+
+        /// <summary>An optional value input: null when nothing is connected and the port still holds its declared default, so that the worker applies its own.</summary>
         protected T? Value<T>(IGH_DataAccess access, string name) where T : struct
         {
             // a hidden input has no wire: the body's value (a button's press is read with Pressed)
@@ -273,7 +277,7 @@ namespace CompasAcoustics.Grasshopper
             if (!access.GetData(name, ref value))
                 return null;
             var port = Params.Input.Find(p => p.Name == name);
-            var declared = CurrentSpec.Inputs.FirstOrDefault(p => p.Name == name)?.Default;
+            var declared = Spec.Inputs.FirstOrDefault(p => p.Name == name)?.Default;
             return port != null && PortDefaults.Untouched(port.SourceCount, declared, value) ? null : value;
         }
 
@@ -288,7 +292,8 @@ namespace CompasAcoustics.Grasshopper
             return access.GetData(name, ref value) && !string.IsNullOrEmpty(value) ? value : null;
         }
 
-        protected List<T> List<T>(IGH_DataAccess access, string name)
+        /// <summary>A list input: its values, empty when nothing is connected.</summary>
+        protected List<T> Items<T>(IGH_DataAccess access, string name)
         {
             if (_hidden.ContainsKey(name))
                 return HiddenList<T>(name);

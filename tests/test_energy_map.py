@@ -32,7 +32,8 @@ def test_the_rays_give_every_point_its_target_of_hits_within_a_floor_and_a_cap()
     from compas_acoustics.energy_map import map_rays
 
     c = Defaults().DEFAULT_SPEED_OF_SOUND
-    # Vorlaender (2008) Eq. 11.12 over the response length: a ray of length cT crosses a sphere of radius 0.5 m cT pi r^2 / V times
+    # Vorlaender (2008) Eq. 11.12 over the response length: a ray of length cT crosses a sphere of radius 0.5 m
+    # cT pi r^2 / V times
     assert map_rays(12000.0, 5.0) == math.ceil(16000 * 12000.0 / (math.pi * 0.25 * c * 5.0))
     assert map_rays(105.0, 0.8) == 20000
     assert map_rays(1e6, 1.0) == 250000
@@ -80,6 +81,22 @@ def test_direct_sound_alone_gives_the_free_field_level():
     scene = shoebox((20.0, 20.0, 10.0), 0.99, 0.0, [(10.0, 10.0, 5.0)])
     m = EnergyMap.from_scene(scene, [[12.0, 10.0, 5.0]], n_rays=2000, air_absorption=False)
     assert m.spl()[0] == pytest.approx([80 - 6.02] * 7, abs=0.3)
+
+
+def test_at_44100_hz_the_map_takes_the_tracers_bins_and_the_image_sources_land_on_them():
+    import math
+
+    scene = shoebox((30.0, 12.0, 12.0), 0.99, 0.0, [(8.0, 6.0, 6.0)])
+    scene.sampling_rate = 44100
+    tracer_bin = 176 / 44100
+    # 9.98 bins of 4 ms: bin 9 on a 4 ms grid, bin 10 on the tracer's
+    travel = 9.98 * 0.004
+    distance = travel * Defaults().DEFAULT_SPEED_OF_SOUND
+    m = EnergyMap.from_scene(scene, [[8.0 + distance, 6.0, 6.0]], n_rays=2000, duration=0.5, air_absorption=False)
+    assert m.bin_size == tracer_bin
+    assert m.energy.shape[2] == math.ceil(0.5 / tracer_bin)
+    assert int(travel / 0.004) != int(travel / tracer_bin)
+    assert np.argmax(m.energy[0, 3]) == int(travel / tracer_bin)
 
 
 def test_the_late_level_matches_the_pyroomacoustics_response_at_the_same_point():

@@ -10,9 +10,9 @@ using CompasPb;
 namespace CompasAcoustics.Grasshopper
 {
     /// <summary>
-    /// The HTTP client of one running worker (compas_acoustics.worker.service): ``POST /api/&lt;function&gt;`` with the
-    /// compas_pb payload ``{"args": [...], "kwargs": {...}}`` and the bearer token, answered with ``{"result": ...}`` or
-    /// ``{"error": text}``.
+    /// The HTTP client of one running worker (compas_acoustics.worker.service): <c>POST /api/&lt;function&gt;</c> with the
+    /// compas_pb payload <c>{"args": [...], "kwargs": {...}}</c> and the bearer token, answered with <c>{"result": ...}</c> or
+    /// <c>{"error": text}</c>.
     /// </summary>
     public sealed class WorkerClient
     {
@@ -35,9 +35,12 @@ namespace CompasAcoustics.Grasshopper
 
         public const string CallIdHeader = "X-Call-Id";
 
+        /// <summary>Whether <paramref name="error"/> says that no worker answered.</summary>
+        internal static bool IsGone(Exception error) => error is HttpRequestException or OperationCanceledException or System.IO.IOException;
+
         public object? Call(string function, params object?[] args) => Call(function, args, new Dictionary<string, object?>());
 
-        /// <summary>Call ``function`` of the worker API; its result, as CompasPb unpacks it.</summary>
+        /// <summary>Call <paramref name="function"/> of the worker API; its result, as CompasPb unpacks it.</summary>
         /// <param name="callId">The id under which <see cref="Cancel"/> and <see cref="Progress"/> find the call.</param>
         /// <exception cref="WorkerException">The worker answered with an error (status 499: the call was cancelled).</exception>
         /// <exception cref="HttpRequestException">No worker answered.</exception>
@@ -58,7 +61,7 @@ namespace CompasAcoustics.Grasshopper
             return Result(Send(request, CancellationToken.None));
         }
 
-        /// <summary>Ask the call sent with ``callId`` to stop at its next stage; false when the worker knows no such call.</summary>
+        /// <summary>Ask the call sent with <paramref name="callId"/> to stop at its next stage; false when the worker knows no such call.</summary>
         public bool Cancel(string callId)
         {
             using var cancel = new CancellationTokenSource(PingTimeout);
@@ -69,7 +72,7 @@ namespace CompasAcoustics.Grasshopper
             return Result(Send(request, cancel.Token)) is true;
         }
 
-        /// <summary>The last stage the call ``callId`` reported (``stage``, ``done``, ``of``); null when it is unknown or finished.</summary>
+        /// <summary>The last stage the call <paramref name="callId"/> reported (<c>stage</c>, <c>done</c>, <c>of</c>); null when it is unknown or finished.</summary>
         public IDictionary<string, object?>? Progress(string callId)
         {
             using var cancel = new CancellationTokenSource(PingTimeout);
@@ -96,16 +99,11 @@ namespace CompasAcoustics.Grasshopper
             return result;
         }
 
-        public bool Ping() => PingStatus() == 200;
-
-        /// <summary>The HTTP status ``GET /ping`` answers with; null when nothing answers.</summary>
-        public int? PingStatus() => PingAnswer().status;
-
-        /// <summary>What a worker started with ``token`` answers ``GET /ping`` with after ``pong ``.</summary>
+        /// <summary>What a worker started with <paramref name="token"/> answers <c>GET /ping</c> with after <c>pong </c>.</summary>
         public static string Identity(string token) =>
             Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token))).Substring(0, 16).ToLowerInvariant();
 
-        /// <summary>The status of ``GET /ping`` and the identity after ``pong``; null when nothing answers, or the answer names none.</summary>
+        /// <summary>The status of <c>GET /ping</c> and the identity after <c>pong</c>; null when nothing answers, or the answer names none.</summary>
         public (int? status, string? identity) PingAnswer()
         {
             try
@@ -116,7 +114,7 @@ namespace CompasAcoustics.Grasshopper
                 var body = response.Content.ReadAsStringAsync(cancel.Token).GetAwaiter().GetResult();
                 return ((int)response.StatusCode, body.StartsWith("pong ") ? body.Substring(5).Trim() : null);
             }
-            catch (Exception e) when (e is HttpRequestException || e is OperationCanceledException || e is System.IO.IOException)
+            catch (Exception e) when (IsGone(e))
             {
                 return (null, null);
             }

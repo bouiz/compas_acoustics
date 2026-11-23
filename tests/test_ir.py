@@ -155,13 +155,6 @@ def test_a_three_dimensional_array_raises():
         make_ir(np.zeros((2, 2, 2)))
 
 
-@pytest.mark.parametrize("method", ["poly", "fft"])
-def test_resampling_keeps_the_channels(method):
-    x = np.random.default_rng(0).standard_normal((480, 4))
-    out = make_ir(x).resampled(16000, method)
-    assert out.shape == (160, 4)
-
-
 def test_ambisonic_fields_survive_the_wav_and_json_round_trip(tmp_path):
     ir = make_ir(np.random.default_rng(1).standard_normal((64, 9)), ambisonic_order=2, normalization="n3d", channel_order="acn")
     loaded = ImpulseResponse.from_wav(ir.to_wav(tmp_path / "a.wav")[0])

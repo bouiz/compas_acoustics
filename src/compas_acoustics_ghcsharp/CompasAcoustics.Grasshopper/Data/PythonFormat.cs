@@ -3,7 +3,7 @@ using System.Globalization;
 
 namespace CompasAcoustics.Grasshopper
 {
-    /// <summary>Python's ``format(x, ".{p}g")``, so that panels print numbers as compas_acoustics does.</summary>
+    /// <summary>Python's <c>format(x, ".{p}g")</c>, so that panels print numbers as compas_acoustics does.</summary>
     public static class PythonFormat
     {
         public static string G(double value, int precision = 6)
@@ -28,7 +28,7 @@ namespace CompasAcoustics.Grasshopper
             return Trim(rounded.ToString("F" + Math.Max(0, precision - 1 - exponent), CultureInfo.InvariantCulture));
         }
 
-        /// <summary>Python's ``str`` of a float: the shortest text that reads back as the value.</summary>
+        /// <summary>Python's <c>str</c> of a float: the shortest text that reads back as the value.</summary>
         public static string Repr(double value)
         {
             if (double.IsNaN(value))

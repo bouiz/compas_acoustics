@@ -14,7 +14,7 @@ namespace CompasAcoustics.Grasshopper
 
         public static float BodyHeight(int charts, SizeF chart) => Math.Max(charts, 1) * chart.Height + SaveRow;
 
-        /// <summary>A chart resized to ``width``, at least ``minWidth``, keeping its aspect ratio.</summary>
+        /// <summary>A chart resized to <paramref name="width"/>, at least <paramref name="minWidth"/>, keeping its aspect ratio.</summary>
         public static SizeF Resize(SizeF current, float width, float minWidth)
         {
             var w = Math.Max(width, minWidth);

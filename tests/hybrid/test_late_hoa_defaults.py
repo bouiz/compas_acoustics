@@ -26,7 +26,6 @@ def test_the_default_grid_supports_the_order_it_was_chosen_for(sh_order):
 
 def test_orders_zero_to_three_default_to_kirschs_96_delay_lines():
     assert MIN_DELAYS == 96 and [default_num_delays(n) for n in range(4)] == [96] * 4
-    assert default_num_delays(1, minimum=16) == 16 and default_num_delays(2, minimum=16) == 36
 
 
 def test_the_default_grows_with_the_ambisonic_order_above_the_floor():

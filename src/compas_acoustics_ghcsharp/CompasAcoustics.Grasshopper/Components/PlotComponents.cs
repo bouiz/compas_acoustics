@@ -34,10 +34,10 @@ namespace CompasAcoustics.Grasshopper
 
         protected override void Solve(IGH_DataAccess access)
         {
-            var data = List<ParameterGoo>(access, "data").Where(p => p?.Value != null).ToList();
+            var data = Items<ParameterGoo>(access, "data").Where(p => p?.Value != null).ToList();
             if (data.Count == 0)
             {
-                Warn("Input parameter 'data' failed to collect data.");
+                WarnMissing("data");
                 return;
             }
             _charts.AddRange(data.Select(p => p.Value));

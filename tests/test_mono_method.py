@@ -279,7 +279,7 @@ def test_the_default_duration_follows_the_medium():
 
     g = geometry()
     assert default_duration(g, air_absorption=True, air=None) == default_duration(g, air_absorption=True)
-    dry = default_duration(g, air_absorption=True, speed_of_sound=AirConditions(humidity=10.0).speed_of_sound, air=AirConditions(humidity=10.0))
+    dry = default_duration(g, air_absorption=True, air=AirConditions(humidity=10.0))
     assert dry != default_duration(g, air_absorption=True)
 
 

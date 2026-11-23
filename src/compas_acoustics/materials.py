@@ -1,10 +1,8 @@
 """Acoustic materials: absorption, scattering and transmission per band, and the library of them."""
 
-import math
 import numbers
 import os
 import re
-import warnings
 from enum import Enum
 
 import numpy as np
@@ -13,6 +11,7 @@ from compas.data import json_load
 
 from compas_acoustics.defaults import Defaults
 from compas_acoustics.defaults import _PackageDtype
+from compas_acoustics.defaults import _per_band
 
 __all__ = ["AcousticMaterial", "MaterialCategory", "MaterialsLibrary"]
 
@@ -48,15 +47,16 @@ class MaterialCategory(str, Enum):
 
 
 class AcousticMaterial(_PackageDtype, Data):
-    """Absorption, scattering and transmission coefficients per octave band of :attr:`Defaults.DEFAULT_FREQUENCY_BANDS`.
+    """Absorption, scattering and transmission coefficients per octave band, 125 Hz to 8 kHz.
 
     Parameters
     ----------
     name : str
     absorption_coefficients : float or list of float
-        One per band, or one for every band.
+        One for every band, or one per band; so are the other coefficients.
     scattering_coefficients : float or list of float, optional
     transmission_coefficients : float or list of float, optional
+        Stored and serialised only: the simulation methods do not use them.
     description : str, optional
     category : :class:`MaterialCategory` or str, optional
         Default ``MaterialCategory.OTHER``.
@@ -73,7 +73,7 @@ class AcousticMaterial(_PackageDtype, Data):
         description: str = None,
         category=None,
         data_origin: str = None,
-    ):  # noqa: E501
+    ):
         super().__init__()
         self.name = name
         self.description = description
@@ -140,8 +140,8 @@ class AcousticMaterial(_PackageDtype, Data):
 
     @frequency_bands.setter
     def frequency_bands(self, frequency_bands):
-        # The coefficients are validated against these bands and the JSON form does not store them,
-        # so any other grid would be silently misread
+        # The coefficients are validated against these bands and the JSON form does not store them, so any other grid
+        # would be silently misread
         bands = Defaults().DEFAULT_FREQUENCY_BANDS
         if frequency_bands and [float(f) for f in frequency_bands] != [float(f) for f in bands]:
             raise ValueError(f"Material frequency bands must be {bands} Hz, got {list(frequency_bands)}.")
@@ -158,56 +158,20 @@ class AcousticMaterial(_PackageDtype, Data):
         else:
             self._data_origin = "user"
 
-    def scattering_coefficients_from_depth(self, depth, s_max=0.8, c=Defaults().DEFAULT_SPEED_OF_SOUND):
-        """Set the scattering coefficients from a surface depth: ``s = s_max (1 - exp(-(k d)^2))`` per band.
-
-        After Dalenbaeck (1995), Room acoustic prediction and auralization - how close can we get to
-        reality?, ICA Trondheim; and Paetynen and Lokki (2010), Acta Acust. united Ac. 96(1).
-
-        Parameters
-        ----------
-        depth : float
-            The surface's characteristic depth, in metres.
-        s_max : float, optional
-            Default 0.8.
-        c : float, optional
-            Speed of sound in m/s; default that of ``AirConditions()``.
-
-        Returns
-        -------
-        list of float
-        """
-        if depth > 2:
-            warnings.warn(f"Depth value should be in meters! Calculating scattering coefficients for depth {depth} meters.")
-        self.scattering_coefficients = [round(s_max * (1 - math.exp(-((2 * math.pi * f / c * depth) ** 2))), 3) for f in self.frequency_bands]
-        return self.scattering_coefficients
-
     def _sanitize_coefficients(self, coefficients, coeff_type: str):
         """One float per frequency band; a single value applies to every band; None for None or an empty list."""
         if coefficients is None:
             return None
-        count = Defaults().NUMBER_OF_FREQUENCY_BANDS
-        if isinstance(coefficients, (str, numbers.Real)):
-            values = [float(coefficients)] * count
-        else:
-            # any iterable: Grasshopper passes a .NET List[Double]
-            values = np.asarray(list(coefficients), dtype=float).reshape(-1).tolist()
-            if not values:
+        if isinstance(coefficients, str):
+            coefficients = float(coefficients)
+        elif not isinstance(coefficients, numbers.Real):
+            coefficients = list(coefficients)
+            if not np.size(coefficients):
                 return None
-            if len(values) == 1:
-                values = values * count
-            if len(values) != count:
-                raise ValueError(f"{coeff_type} coefficients list must have {count} values corresponding to the frequency bands.")
+        values = _per_band(coefficients, f"{coeff_type} coefficients")
         if not all(0.0 <= v <= 1.0 for v in values):
             raise ValueError(f"{coeff_type} coefficients must lie in [0, 1], got {values}.")
         return values
-
-    def add_to_library(self):
-        """Write the material to the library folder."""
-        # TODO check if material with same name exists
-        # TODO check if material with same properties exists
-        path = os.path.join(Defaults().MATERIALS_LIBRARY_PATH, f"{self.slug}.json")
-        self.to_json(path, compact=True, minimal=True)
 
     @property
     def __data__(self):

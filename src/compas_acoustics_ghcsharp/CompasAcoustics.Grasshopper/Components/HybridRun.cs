@@ -16,7 +16,7 @@ namespace CompasAcoustics.Grasshopper
 
         /// <summary>
         /// What the methods take for the Late envelope choice: null for auto (the method's own default by tail), the mode, or
-        /// false for off. A definition saved with the on/off toggle that came before holds True or False.
+        /// false for off. A boolean reads as directional (true) or off (false).
         /// </summary>
         public static object? LateEnvelope(string? choice) => choice?.Trim().ToLowerInvariant() switch
         {
@@ -32,7 +32,7 @@ namespace CompasAcoustics.Grasshopper
 
         /// <summary>
         /// The settings both methods take: unset inputs are left out so that the method's own defaults apply, an empty seed
-        /// draws a new one. ``references`` are the mono responses of a reference graph by pair key.
+        /// draws a new one. <paramref name="references"/> are the mono responses of a reference graph by pair key.
         /// </summary>
         public static Dictionary<string, object?> Settings(string? tail, int? ismOrder, string? diffraction, string? lateEnvelope, int? seed,
             bool? normalize, IrGraphGoo? reference, int sceneSamplingRate, out Dictionary<string, ImpulseResponseData>? references)
@@ -71,29 +71,24 @@ namespace CompasAcoustics.Grasshopper
             _ => diffraction,
         };
 
-        private static string Show(object? value) => value switch
-        {
-            null => "None",
-            bool b => b ? "True" : "False",
-            IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
-            _ => value.ToString() ?? "",
-        };
-
         private static bool Differs(int? given, object? last) => given is int g && !(last is IConvertible c && Convert.ToInt64(c, CultureInfo.InvariantCulture) == g);
 
-        /// <summary>What the component says while it is not running: the last result for this scene, or that there is none.</summary>
-        public static string Status(LastResult? last, string sceneGuid, string? tail, int? shOrder, int? ismOrder, string? diffraction)
+        /// <summary>
+        /// What the component says while it is not running: the last result for this scene, or that there is none; and
+        /// whether the settings differ from that result's.
+        /// </summary>
+        public static (string text, bool changed) Status(LastResult? last, string sceneGuid, string? tail, int? shOrder, int? ismOrder, string? diffraction)
         {
             if (last == null || last.SceneGuid != sceneGuid || last.Graph.Value.Responses.Count == 0)
-                return "press Run";
+                return ("press Run", false);
             var runs = last.Graph.Value.Responses.Count;
             object? Last(string key) => last.Generation.TryGetValue(key, out var value) ? value : null;
             var changed = (!string.IsNullOrEmpty(tail) && tail != "auto" && tail != Last("tail") as string)
                           || Differs(shOrder, Last("sh_order"))
                           || Differs(ismOrder, Last("image_source_order"))
                           || (diffraction != null && !Equals(Model(diffraction), Model(Last("diffraction"))));
-            var summary = $"tail: {Show(Last("tail"))}" + (Last("sh_order") is { } order ? $", order {Show(order)}" : "");
-            return changed ? $"settings changed, press Run ({summary})" : $"done, {runs} IR{(runs == 1 ? "" : "s")}, {summary} (Run to redo)";
+            var summary = $"tail {MessageText.Show(Last("tail"))}" + (Last("sh_order") is { } order ? $", SH order {MessageText.Show(order)}" : "");
+            return (changed ? $"settings changed, press Run ({summary})" : $"done, {runs} IR{(runs == 1 ? "" : "s")}, {summary} (Run to redo)", changed);
         }
     }
 }

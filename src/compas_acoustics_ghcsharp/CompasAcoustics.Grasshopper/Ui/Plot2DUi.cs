@@ -22,8 +22,8 @@ namespace CompasAcoustics.Grasshopper
         private static readonly Dictionary<string, Bitmap> Upward = new();
 
         /// <summary>
-        /// ``text`` reading upwards, as an image four times its size: the Mac draws text under a rotated transform at odd
-        /// angles and places, so the text is drawn level and its pixels are turned.
+        /// <paramref name="text"/> reading upwards, as an image at four times its size. Drawn level and turned pixel by pixel:
+        /// rotated text and Bitmap.RotateFlip do not render alike on Windows and macOS.
         /// </summary>
         private static Bitmap UpwardText(string text, Font font)
         {
@@ -68,7 +68,7 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>The font of the ticks and the axis titles.</summary>
         public static readonly Font Small = new(FontFamily.GenericSansSerif, 6f);
 
-        /// <summary>The chart in ``area``, its left margin fitted to the y title and the tick labels.</summary>
+        /// <summary>The chart in <paramref name="area"/>, its left margin fitted to the y title and the tick labels.</summary>
         public static Chart Fitted(ParameterGoo.Content content, RectangleF area)
         {
             var first = ChartLayout.Build(content, area);
@@ -92,20 +92,7 @@ namespace CompasAcoustics.Grasshopper
                 g.DrawString(chart.Overall, font, Brushes.DimGray, area.Right - ChartLayout.Right - size.Width, area.Top + 4);
             }
             var plot = chart.Plot;
-            using (var grid = new Pen(Color.FromArgb(230, 230, 230)))
-                foreach (var tick in chart.YTicks)
-                {
-                    g.DrawLine(grid, plot.Left, tick.Y, plot.Right, tick.Y);
-                    var size = g.MeasureString(tick.Text, font);
-                    g.DrawString(tick.Text, font, Brushes.DimGray, plot.Left - size.Width - ChartLayout.TickGap, tick.Y - size.Height / 2);
-                }
-            foreach (var tick in chart.XTicks)
-            {
-                g.DrawLine(Pens.Gray, tick.X, plot.Bottom, tick.X, plot.Bottom + 3);
-                var size = g.MeasureString(tick.Text, font);
-                g.DrawString(tick.Text, font, Brushes.DimGray, tick.X - size.Width / 2, plot.Bottom + 3);
-            }
-            g.DrawRectangle(Pens.Gray, plot.X, plot.Y, plot.Width, plot.Height);
+            Axes(g, plot, chart.YTicks.Select(t => (t.Y, t.Text)), chart.XTicks.Select(t => (t.X, t.Text)), compact: false);
             if (chart.ZeroY is float zero)
                 g.DrawLine(Pens.Gray, plot.Left, zero, plot.Right, zero);
             var state = g.SmoothingMode;
@@ -137,7 +124,7 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>The font of the compact chart's labels.</summary>
         public static readonly Font Tiny = new(FontFamily.GenericSansSerif, 5f);
 
-        /// <summary>The compact chart in ``area``, its left margin fitted to its three value labels.</summary>
+        /// <summary>The compact chart in <paramref name="area"/>, its left margin fitted to its three value labels.</summary>
         public static Chart FittedCompact(ParameterGoo.Content content, RectangleF area)
         {
             var first = ChartLayout.Build(content, area, compact: true);
@@ -148,20 +135,7 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>Deconstruct Parameter's strip: a line through a dot per band, the bands below, three values beside.</summary>
         public static void DrawCompact(Graphics g, Chart chart)
         {
-            var plot = chart.Plot;
-            using (var grid = new Pen(Color.FromArgb(230, 230, 230)))
-                foreach (var tick in chart.YTicks)
-                {
-                    g.DrawLine(grid, plot.Left, tick.Y, plot.Right, tick.Y);
-                    var size = g.MeasureString(tick.Text, Tiny);
-                    g.DrawString(tick.Text, Tiny, Brushes.DimGray, plot.Left - size.Width - ChartLayout.TickGap + 2, tick.Y - size.Height / 2);
-                }
-            foreach (var tick in chart.XTicks)
-            {
-                var size = g.MeasureString(tick.Text, Tiny);
-                g.DrawString(tick.Text, Tiny, Brushes.DimGray, tick.X - size.Width / 2, plot.Bottom + 1);
-            }
-            g.DrawRectangle(Pens.Gray, plot.X, plot.Y, plot.Width, plot.Height);
+            Axes(g, chart.Plot, chart.YTicks.Select(t => (t.Y, t.Text)), chart.XTicks.Select(t => (t.X, t.Text)), compact: true);
             var state = g.SmoothingMode;
             g.SmoothingMode = SmoothingMode.AntiAlias;
             var color = ChannelColors[0];
@@ -176,12 +150,35 @@ namespace CompasAcoustics.Grasshopper
             }
             g.SmoothingMode = state;
         }
+
+        /// <summary>
+        /// A chart's axes: a grid line and label per value, the labels below the plot (with a tick each unless
+        /// <paramref name="compact"/>), and the plot's frame; in <see cref="Tiny"/> when compact, else in <see cref="Small"/>.
+        /// </summary>
+        public static void Axes(Graphics g, RectangleF plot, IEnumerable<(float y, string text)> values, IEnumerable<(float x, string text)> below, bool compact)
+        {
+            var font = compact ? Tiny : Small;
+            using (var grid = new Pen(Color.FromArgb(230, 230, 230)))
+                foreach (var (y, text) in values)
+                {
+                    g.DrawLine(grid, plot.Left, y, plot.Right, y);
+                    var size = g.MeasureString(text, font);
+                    g.DrawString(text, font, Brushes.DimGray, plot.Left - size.Width - ChartLayout.TickGap + (compact ? 2 : 0), y - size.Height / 2);
+                }
+            foreach (var (x, text) in below)
+            {
+                if (!compact)
+                    g.DrawLine(Pens.Gray, x, plot.Bottom, x, plot.Bottom + 3);
+                var size = g.MeasureString(text, font);
+                g.DrawString(text, font, Brushes.DimGray, x - size.Width / 2, plot.Bottom + (compact ? 1 : 3));
+            }
+            g.DrawRectangle(Pens.Gray, plot.X, plot.Y, plot.Width, plot.Height);
+        }
     }
 
     /// <summary>Plot 2D's body: one chart per parameter, stacked, resized by the corner grip, values in the tooltip.</summary>
     public sealed class Plot2DUi : ComponentUi
     {
-        private const float Grip = 8;
         private const float MinWidth = 160;
         private readonly Dictionary<(ParameterGoo.Content, RectangleF), Chart> _cache = new();
         private bool _resizing;
@@ -226,17 +223,13 @@ namespace CompasAcoustics.Grasshopper
             {
                 using var font = new Font(FontFamily.GenericSansSerif, 7f);
                 g.FillRectangle(Brushes.White, Slot(0));
-                g.DrawString("connect a parameter, or the time or frequency output of Analyse IR", font, Brushes.Gray, Slot(0));
+                g.DrawString("connect a parameter, or the time or frequency output of Analyse Impulse Response", font, Brushes.Gray, Slot(0));
             }
             for (var i = 0; i < Plot.Charts.Count; i++)
                 ChartPainter.Draw(g, ChartOf(i), Slot(i));
-            var save = Plot2DLayout.SaveButton(Body);
-            using (var button = GH_Capsule.CreateTextCapsule(Rectangle.Round(save), Rectangle.Round(save),
-                       Plot.Charts.Count == 0 ? GH_Palette.Hidden : _saving ? GH_Palette.Grey : GH_Palette.Black, "Save", 2, 0))
-                button.Render(g, Selected, Owner.Locked, false);
-            var body = Body;
-            g.DrawLine(Pens.Gray, body.Right - Grip, body.Bottom - 2, body.Right - 2, body.Bottom - Grip);
-            g.DrawLine(Pens.Gray, body.Right - Grip / 2, body.Bottom - 2, body.Right - 2, body.Bottom - Grip / 2);
+            Painter.Capsule(g, Plot2DLayout.SaveButton(Body), Plot.Charts.Count == 0 ? GH_Palette.Hidden : _saving ? GH_Palette.Grey : GH_Palette.Black,
+                "Save", Selected, Owner.Locked);
+            Painter.DrawGrip(g, Body);
         }
 
         protected override GH_ObjectResponse? RespondToExtraMouseDown(GH_Canvas sender, GH_CanvasMouseEvent e)
@@ -249,7 +242,7 @@ namespace CompasAcoustics.Grasshopper
                 sender.Invalidate();
                 return GH_ObjectResponse.Capture;
             }
-            if (!body.Contains(p) || p.X < body.Right - Grip * 1.5f || p.Y < body.Bottom - Grip * 1.5f)
+            if (!Painter.OnGrip(body, p))
                 return null;
             _resizing = true;
             return GH_ObjectResponse.Capture;
@@ -352,9 +345,7 @@ namespace CompasAcoustics.Grasshopper
             if (Component.Strip is not { } p)
                 return;
             var area = ExtraArea;
-            using var font = new Font(FontFamily.GenericSansSerif, 6f);
-            var header = ChartLayout.StripHeaderText(p);
-            g.DrawString(header, font, Brushes.Black, area.Left + 3, area.Top + 1);
+            g.DrawString(ChartLayout.StripHeaderText(p), ChartPainter.Small, Brushes.Black, area.Left + 3, area.Top + 1);
             var strip = ChartLayout.StripArea(area);
             g.FillRectangle(Brushes.White, strip);
             ChartPainter.DrawCompact(g, ChartPainter.FittedCompact(p, strip));

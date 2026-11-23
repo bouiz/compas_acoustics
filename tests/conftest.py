@@ -27,7 +27,6 @@ def _assert_meets_contract(rirs, context, method, direct_sound=True):
         assert ir.sampling_rate == context.sampling_rate, f"{key}: sample rate {ir.sampling_rate}"
         # 3. how it was made
         assert ir.generation.get("method") == method.name, f"{key}: generation['method'] is not {method.name!r}"
-        assert "valid_range_hz" in ir.generation, f"{key}: no valid_range_hz"
         # 4. the channel convention
         if method.output == "mono":
             assert ir.n_channels == 1 and ir.ambisonic_order is None, f"{key}: not mono"

@@ -16,7 +16,7 @@ PROTOBUF_DEFS = os.path.join(os.path.dirname(__file__), "protobuf_defs")
 
 
 def schema_hash(root=PROTOBUF_DEFS):
-    """The sha256 of every ``.proto`` under ``root``, by relative path: equal on both ends of a wire that agree on the schema."""
+    """The sha256 of every ``.proto`` under ``root`` by relative path: equal where both ends agree on the schema."""
     root = Path(root)
     digest = hashlib.sha256()
     for path in sorted(root.rglob("*.proto")):
@@ -30,7 +30,7 @@ SCHEMA = schema_hash()
 
 
 def plain(value):
-    """``value`` with numpy scalars and arrays as Python numbers and lists, and tuples as lists: what compas_pb can write."""
+    """``value`` as compas_pb can write it: numpy scalars and arrays as Python numbers and lists, tuples as lists."""
     import numpy as np
 
     if isinstance(value, dict):

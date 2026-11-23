@@ -1,8 +1,8 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using CompasAcoustics.Pb;
 using CompasPb.Data;
-using Grasshopper.Kernel;
 using Rhino.Geometry;
 
 namespace CompasAcoustics.Grasshopper
@@ -12,6 +12,17 @@ namespace CompasAcoustics.Grasshopper
         public static Point3d Of(PointData? point) => point == null ? Point3d.Unset : new Point3d(point.X, point.Y, point.Z);
 
         public static Vector3d Of(VectorData? vector) => vector == null ? Vector3d.Unset : new Vector3d(vector.X, vector.Y, vector.Z);
+
+        /// <summary>The preview of <paramref name="value"/>, built once per message: <paramref name="cache"/> keeps the last one.</summary>
+        public static TPreview? Cached<TMessage, TPreview>(TMessage? value, ref (TMessage of, TPreview preview)? cache, Func<TMessage, TPreview> build)
+            where TMessage : class where TPreview : class
+        {
+            if (value == null)
+                return null;
+            if (cache is not { } known || !ReferenceEquals(known.of, value))
+                cache = known = (value, build(value));
+            return known.preview;
+        }
     }
 
     public sealed class MaterialGoo : MessageGoo<AcousticMaterialData>
@@ -41,7 +52,7 @@ namespace CompasAcoustics.Grasshopper
     {
         private (SourceData of, SourcePreview preview)? _preview;
 
-        public SourcePreview? Preview => Value == null ? null : (_preview is { } p && ReferenceEquals(p.of, Value) ? p : (_preview = (Value, PreviewGeometry.Source(Value))).Value).preview;
+        public SourcePreview? Preview => Points.Cached(Value, ref _preview, PreviewGeometry.Source);
 
         public BoundingBox ClippingBox => Preview == null ? BoundingBox.Empty : PreviewDrawing.Box(Preview.Centre, PreviewGeometry.SourceArrow);
 
@@ -58,7 +69,6 @@ namespace CompasAcoustics.Grasshopper
         public override string Name => Value?.Name ?? "";
         public string Guid => Value?.Guid ?? "";
         public Point3d Position => Points.Of(Value?.Point);
-        public Vector3d Direction => Points.Of(Value?.Direction);
         public string? SoundFile => Value != null && Value.HasSoundFile ? Value.SoundFile : null;
         protected override MessageGoo<SourceData> Create(SourceData? value) => value == null ? new SourceGoo() : new SourceGoo(value);
     }
@@ -67,7 +77,7 @@ namespace CompasAcoustics.Grasshopper
     {
         private (ReceiverData of, ReceiverPreview preview)? _preview;
 
-        public ReceiverPreview? Preview => Value == null ? null : (_preview is { } p && ReferenceEquals(p.of, Value) ? p : (_preview = (Value, PreviewGeometry.Receiver(Value))).Value).preview;
+        public ReceiverPreview? Preview => Points.Cached(Value, ref _preview, PreviewGeometry.Receiver);
 
         public BoundingBox ClippingBox => Preview == null ? BoundingBox.Empty : PreviewDrawing.Box(Preview.Centre, PreviewGeometry.FacingArrow);
 
@@ -88,9 +98,8 @@ namespace CompasAcoustics.Grasshopper
     }
 
     /// <summary>
-    /// Model data drawn only from its own parameter, under the preview toggle of the component that makes it: not
-    /// IGH_PreviewData, which Grasshopper's generic parameters (Merge, Data) would draw too, past that toggle. Surfaces only
-    /// as edges: a mesh would cover the Rhino surface it comes from.
+    /// Data its own parameter draws, as edges only, under the preview toggle of the component that outputs it. Not
+    /// IGH_PreviewData, which Grasshopper's generic parameters would draw as well.
     /// </summary>
     public interface IOwnPreview
     {
@@ -104,7 +113,7 @@ namespace CompasAcoustics.Grasshopper
         private (AcousticObjectData of, ObjectPreview preview)? _preview;
 
         /// <summary>The object's surface, built once for each message.</summary>
-        public ObjectPreview? Preview => Value == null ? null : (_preview is { } p && ReferenceEquals(p.of, Value) ? p : (_preview = (Value, PreviewGeometry.Object(Value))).Value).preview;
+        public ObjectPreview? Preview => Points.Cached(Value, ref _preview, PreviewGeometry.Object);
 
         public BoundingBox ClippingBox
         {
@@ -124,7 +133,6 @@ namespace CompasAcoustics.Grasshopper
                 PreviewDrawing.ObjectWires(pipeline, new[] { preview }, color, thickness);
         }
 
-
         public AcousticObjectGoo() { }
         public AcousticObjectGoo(AcousticObjectData value) : base(value) { }
         public override string TypeName => "AcousticObject";
@@ -138,7 +146,7 @@ namespace CompasAcoustics.Grasshopper
         private (SceneData of, ScenePreview preview)? _preview;
 
         /// <summary>The preview geometry, built once for each message.</summary>
-        public ScenePreview? Preview => Value == null ? null : (_preview is { } p && ReferenceEquals(p.of, Value) ? p : (_preview = (Value, PreviewGeometry.Scene(Value))).Value).preview;
+        public ScenePreview? Preview => Points.Cached(Value, ref _preview, PreviewGeometry.Scene);
 
         public BoundingBox ClippingBox => Preview?.Box ?? BoundingBox.Empty;
 
@@ -147,7 +155,6 @@ namespace CompasAcoustics.Grasshopper
             if (Preview != null)
                 PreviewDrawing.SceneWires(pipeline, Preview, color, thickness);
         }
-
 
         public SceneGoo() { }
         public SceneGoo(SceneData value) : base(value) { }

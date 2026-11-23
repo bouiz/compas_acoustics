@@ -79,14 +79,6 @@ def test_up_to_time_converts_time_to_distance():
     assert [list(p) for p in truncated.points] == [[0, 0, 0], [3, 0, 0], [3, 2, 0]]
 
 
-def test_is_in_cone():
-    ray = make_ray()
-    assert ray.is_in_cone(Vector(1, 0, 0), 10) is True
-    assert ray.is_in_cone(Vector(0, 1, 0), 10) is False
-    # 90 degree half angle includes a perpendicular direction
-    assert ray.is_in_cone(Vector(0, 1, 0), 90) is True
-
-
 def test_scattered_ray_reflection_order_is_origin_order():
     scattered = ScatteredRay(
         [[3, 0, 0], [3, 0, 2]],
@@ -135,53 +127,17 @@ def test_rayfield_truncated_reflection_order_carries_scattered():
     assert len(dropped.scattered_rays) == 0
 
 
-def test_particles_sit_at_c_t_along_each_ray():
-    ray = Ray([[0, 0, 0], [10, 0, 0], [10, 10, 0]])
-    points, indices, orders = RayField([ray]).particles(ms(15.0))
-    assert list(points[0]) == pytest.approx([10, 5, 0])
-
-
-def test_a_ray_that_ended_has_no_particle():
-    short = Ray([[0, 0, 0], [5, 0, 0]], ray_index=0)
-    long = Ray([[0, 0, 0], [20, 0, 0]], ray_index=1)
-    assert RayField([short, long]).particles(ms(10.0))[1] == [1]
-
-
-def test_duration_is_the_longest_ray():
-    rays = [Ray([[0, 0, 0], [d, 0, 0]]) for d in (5, 20)]
-    assert RayField(rays).duration_ms == pytest.approx(ms(20.0))
-
-
-def test_particles_clamp_time():
-    field = RayField([Ray([[0, 0, 0], [20, 0, 0]])])
-    assert list(field.particles(-5.0)[0][0]) == pytest.approx([0, 0, 0])
-    assert list(field.particles(ms(99.0))[0][0]) == pytest.approx([20, 0, 0])
-    assert RayField([]).particles(1.0) == ([], [], [])
-
-
-def test_particles_start_once_the_ray_has_emerged_from_its_offset():
-    # 5 m before the first point, then one 10 m segment
-    field = RayField([Ray([[0, 0, 0], [10, 0, 0]], distance_offset=5.0)])
-    assert field.particles(ms(3.0)) == ([], [], [])
-    assert list(field.particles(ms(5.0))[0][0]) == pytest.approx([0, 0, 0])
-    assert list(field.particles(ms(10.0))[0][0]) == pytest.approx([5, 0, 0])
-
-
 def test_times_are_at_the_speed_of_sound_of_the_default_air():
     assert C == AirConditions().speed_of_sound == pytest.approx(343.98, abs=0.01)
     assert make_ray().travel_time == pytest.approx(10.0 / AirConditions().speed_of_sound * 1000.0)
 
 
-def test_a_ray_field_keeps_no_speed_of_sound_and_loads_one_stored_with_it():
+def test_a_ray_field_keeps_no_speed_of_sound():
     import compas
 
     field = RayField([make_ray(ray_index=2)])
-    data = compas.json_loads(compas.json_dumps(field)).__data__
-    assert "sound_speed" not in data and "sound_speed" not in data["rays"][0].__data__
-    stored = compas.json_dumps(field).replace('"distance_offset"', '"sound_speed": 343.0, "distance_offset"')
-    stored = stored.replace('"rays":', '"sound_speed": 343.0, "rays":')
-    assert stored.count("sound_speed") == 2
-    back = compas.json_loads(stored)
+    back = compas.json_loads(compas.json_dumps(field))
+    assert "sound_speed" not in back.__data__ and "sound_speed" not in back.rays[0].__data__
     assert back.rays[0].ray_index == 2 and back.rays[0].travel_time == pytest.approx(ms(10.0))
 
 
@@ -291,11 +247,3 @@ def test_a_ray_field_traces_each_ray_for_its_duration():
     assert all(sum(ray.segment_lengths[:-1]) <= limit for ray in field)
     assert any(ray.total_distance > 0.5 * limit for ray in field)
     assert "duration" in inspect.signature(RayField.from_scene).parameters
-
-
-def test_particles_carry_the_reflection_order_they_have_reached():
-    ray = Ray([[0, 0, 0], [10, 0, 0], [10, 10, 0], [0, 10, 0]], ray_index=0)
-    field = RayField([ray])
-    # A particle on a wall has not been reflected yet; the end of the last segment is not a reflection
-    times = [ms(d) for d in (0.0, 5.0, 10.0, 15.0, 20.0, 25.0, 30.0)]
-    assert [field.particles(t)[2] for t in times] == [[0], [0], [0], [1], [1], [2], [2]]

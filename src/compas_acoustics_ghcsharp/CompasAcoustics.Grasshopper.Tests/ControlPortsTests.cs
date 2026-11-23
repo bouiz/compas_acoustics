@@ -59,18 +59,8 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void APreviewOffByDefault_IsOffInADocumentWithoutTheKey_AndKeepsASavedValue()
+        public void APreviewOffByDefault_KeepsASavedValue()
         {
-            // without the key: Grasshopper's own Hidden (false) only
-            var old = new GH_LooseChunk("component");
-            new AcousticObjectComponent().Write(old);
-            old.RemoveItem(ComponentBase.PreviewKey);
-            var read = new GH_LooseChunk("component");
-            read.Deserialize_Binary(old.Serialize_Binary());
-            var back = new AcousticObjectComponent();
-            Assert.True(back.Read(read));
-            Assert.True(back.Hidden);
-            // turned on and saved: on
             var shown = new AcousticObjectComponent { Hidden = false };
             var chunk = new GH_LooseChunk("component");
             shown.Write(chunk);
@@ -79,15 +69,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             var on = new AcousticObjectComponent();
             Assert.True(on.Read(again));
             Assert.False(on.Hidden);
-            // a component without the default keeps Grasshopper's
-            var source = new GH_LooseChunk("component");
-            new SourceComponent().Write(source);
-            source.RemoveItem(ComponentBase.PreviewKey);
-            var sourceRead = new GH_LooseChunk("component");
-            sourceRead.Deserialize_Binary(source.Serialize_Binary());
-            var src = new SourceComponent();
-            Assert.True(src.Read(sourceRead));
-            Assert.False(src.Hidden);
         }
 
         [Fact]

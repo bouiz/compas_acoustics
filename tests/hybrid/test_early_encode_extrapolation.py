@@ -7,8 +7,8 @@ content in two places that matter:
 * At DC every image's phase ramp is exactly 1, so all gains add coherently
   into a DC component a source cannot radiate, which also biases the DRR.
 * Above 8 kHz a flat hold leaves the top 1.5 octaves at 48 kHz with neither
-  wall roll-off nor air absorption, while the FDN's own ``nyquist_factor``
-  shortens its decay there.
+  wall roll-off nor air absorption, while the FDN's own decay
+  (``RoomTarget.geq_bands``) shortens there.
 """
 
 import numpy as np

@@ -24,10 +24,6 @@ scene.add_receiver(receiver_1)
 # scene.add_receiver(receiver_2)
 
 
-########### what are the scene's surface groups?
-# scene.print_scene_materials()
-
-
 ########### create acoustic materials
 concrete = ca.AcousticMaterial(name='concrete', absorption_coefficients=[0.01, 0.01, 0.02, 0.02, 0.02, 0.05, 0.05], scattering_coefficients=[0.01, 0.01, 0.03, 0.05, 0.1, 0.1, 0.1])
 plasterboard = ca.AcousticMaterial(name='plasterboard', absorption_coefficients=[0.15, 0.1, 0.06, 0.04, 0.04, 0.05, 0.05], scattering_coefficients=[0.01, 0.01, 0.03, 0.05, 0.2, 0.1, 0.1])

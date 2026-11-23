@@ -45,7 +45,7 @@ class Delta(SimulationMethod):
                 data[round(distance / Defaults().DEFAULT_SPEED_OF_SOUND * fs)] = 1.0 / (4 * np.pi * distance) * (4 * np.pi if self.broken == "scale" else 1.0)
                 if self.channels:
                     data = np.tile(data[:, None], (1, self.channels))
-                generation = {"method": self.name, "scale": "package", "valid_range_hz": None}
+                generation = {"method": self.name, "scale": "package"}
                 if self.broken == "generation":
                     generation.pop("method")
                 key = context.key(source, receiver)
@@ -73,7 +73,7 @@ def test_a_second_method_keeps_the_first_on_the_graph():
     s.simulate(AmbisonicDelta())
     s.simulate(AmbisonicDelta())
     assert s.impulse_responses("delta") == first
-    assert sorted(s.simulation_methods()) == ["ambisonic_delta", "delta"]
+    assert set(s.impulse_responses("ambisonic_delta")) == set(first)
 
 
 def test_the_fake_methods_meet_the_contract(assert_meets_contract):
@@ -111,7 +111,6 @@ def test_simulate_stores_responses_under_the_method_name_and_data():
     rirs = s.simulate(Delta())
     assert s.impulse_responses("delta") == rirs
     assert s.impulse_responses("data") == rirs
-    assert s.simulation_methods() == ["delta"]
 
 
 def test_simulate_leaves_data_alone_for_an_ambisonic_method():

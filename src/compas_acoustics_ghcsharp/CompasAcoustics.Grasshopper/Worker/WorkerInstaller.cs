@@ -41,7 +41,7 @@ namespace CompasAcoustics.Grasshopper
             var rhinoPython = RhinoPython(_home);
             if (!File.Exists(rhinoPython))
                 throw new WorkerException($"Rhino's Python is not set up ({rhinoPython} is missing): open Rhino's ScriptEditor once, then install again.");
-            var root = Path.Combine(_home, ".compas_acoustics");
+            var root = Worker.Folder(_home);
             var environment = Path.Combine(root, "worker");
             var python = Path.Combine(environment, OperatingSystem.IsWindows() ? "Scripts/python.exe" : "bin/python");
 
@@ -63,7 +63,7 @@ namespace CompasAcoustics.Grasshopper
             log("Importing compas_acoustics, the first time is slow...");
             Run(python, log, "-c", Warmup);
 
-            File.WriteAllText(Path.Combine(root, "worker.json"), JsonSerializer.Serialize(new { python, hybrid = true }));
+            File.WriteAllText(Path.Combine(root, "worker.json"), JsonSerializer.Serialize(new { python }));
             log($"Installed compas_acoustics {_requirement} at {python}");
             return python;
         }
@@ -94,7 +94,7 @@ namespace CompasAcoustics.Grasshopper
             var info = new ProcessStartInfo(program) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true };
             foreach (var arg in args)
                 info.ArgumentList.Add(arg);
-            // Rhino's Python paths would load its 3.9 packages into the worker
+            // as for the worker's own process (Worker.StartProcess)
             info.Environment.Remove("PYTHONHOME");
             info.Environment.Remove("PYTHONPATH");
             using var process = new Process { StartInfo = info };

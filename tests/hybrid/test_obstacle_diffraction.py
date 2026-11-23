@@ -51,8 +51,8 @@ def test_a_shelf_on_the_floor_has_four_top_and_four_vertical_edges():
 
 
 def test_an_occluded_pair_diffracts_over_all_four_panel_edges():
-    spec = Pair(room(panel()), SOURCE, RECEIVER, np.eye(3), 48000.0, 343.0, False)
-    paths = [p for p in diffraction_paths(spec, max_order=0) if p.order == 0]
+    pair = Pair(room(panel()), SOURCE, RECEIVER, np.eye(3), 48000.0, 343.0, False)
+    paths = [p for p in diffraction_paths(pair, max_order=0) if p.order == 0]
     assert len(paths) == 4
     assert all(p.zone == "shadow" for p in paths)
     apex = np.array([5.0, 4.0, TOP])
@@ -61,8 +61,8 @@ def test_an_occluded_pair_diffracts_over_all_four_panel_edges():
 
 
 def test_first_order_paths_reflect_off_the_enclosure():
-    spec = Pair(room(panel()), SOURCE, RECEIVER, np.eye(3), 48000.0, 343.0, False)
-    assert any(p.order == 1 for p in diffraction_paths(spec, max_order=1))
+    pair = Pair(room(panel()), SOURCE, RECEIVER, np.eye(3), 48000.0, 343.0, False)
+    assert any(p.order == 1 for p in diffraction_paths(pair, max_order=1))
 
 
 def test_the_doa_is_in_the_receiver_frame():
@@ -74,4 +74,4 @@ def test_the_doa_is_in_the_receiver_frame():
 
 
 def test_a_rectangular_room_without_obstacles_has_no_diffraction_paths():
-    assert diffraction_paths(Pair(room(), SOURCE, RECEIVER, np.eye(3), 48000.0), max_order=0) == []
+    assert diffraction_paths(Pair(room(), SOURCE, RECEIVER, np.eye(3), 48000.0, 343.0), max_order=0) == []

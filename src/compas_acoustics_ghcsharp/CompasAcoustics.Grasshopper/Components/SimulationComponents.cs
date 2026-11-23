@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using CompasAcoustics.Pb;
 using Grasshopper;
 using Grasshopper.Kernel;
 using Grasshopper.Kernel.Data;
@@ -31,33 +30,20 @@ namespace CompasAcoustics.Grasshopper
 
         protected override void Solve(IGH_DataAccess access)
         {
-            var scene = Item<SceneGoo>(access, "scene");
-            if (scene?.Value == null)
-            {
-                Warn("Input parameter 'scene' failed to collect data.");
+            if (Required<SceneGoo>(access, "scene") is not { } scene)
                 return;
-            }
             var rayTracing = Value<bool>(access, "ray_tracing") ?? true;
+            var seed = Value<int>(access, "seed");
             var settings = SimulationSettings.Mono(Value<int>(access, "ism_order"), rayTracing, Value<int>(access, "n_rays"),
                 Value<bool>(access, "absorb_air"), Value<double>(access, "energy_thres"), Value<double>(access, "duration"),
-                Value<int>(access, "seed"), Value<bool>(access, "normalize"), out var ignored, out _);
+                seed, Value<bool>(access, "normalize"), out var ignored);
             if (ignored.Length > 0)
                 Remark($"Ray tracing is off, so {string.Join(", ", ignored)} are not used.");
-            var seed = Value<int>(access, "seed");
-            // a seed drawn for this solution is not a change of the inputs
-            var keySettings = new Dictionary<string, object?>(settings);
-            if (seed == null)
-                keySettings.Remove("seed");
-            var request = new Background("simulate", new object?[] { scene.Value, "mono", settings, null }, new Dictionary<string, object?>(),
-                (scene, settings), AsyncRuns.Key("simulate", new object?[] { scene.Value, "mono", keySettings, null }, new Dictionary<string, object?>()));
-            RunInBackground(access, request, (outcome, _) =>
+            RunInBackground(access, Simulation(scene, "mono", settings, null, seed != null, (scene, settings)), (outcome, _) =>
             {
                 var (ran, used) = ((SceneGoo, Dictionary<string, object?>))outcome.Context!;
-                var result = (IDictionary<string, object?>)outcome.Result!;
-                // points outside the room, open rooms, mergeable faces, a slow image source search
-                ShowWarnings(result);
                 Status(SimulationSettings.MonoMessage(ran.SamplingRate, used));
-                var responses = (IDictionary<string, object?>)((IDictionary<string, object?>)result["responses"]!)["mono"]!;
+                var responses = (IDictionary<string, object?>)((IDictionary<string, object?>)outcome.Result["responses"]!)["mono"]!;
                 access.SetData(0, IrGraphGoo.FromSimulation(ran, "mono", responses));
             });
         }
@@ -81,27 +67,19 @@ namespace CompasAcoustics.Grasshopper
             _ => null,
         };
 
-        public override IReadOnlyList<Control> Controls { get; } = new Control[]
-        {
-            new DropdownControl("source_idx", new[] { "" }, "", new[] { "All" }, "Source"),
-            new DropdownControl("receiver_idx", new[] { "" }, "", new[] { "All" }, "Receiver"),
-        };
+        public override IReadOnlyList<Control> Controls { get; } = new Control[] { SceneIndices.SourceDropdown, SceneIndices.ReceiverDropdown };
 
         /// <summary>Nothing: the sources and receivers are drawn by their own components, the edges are an output to wire on.</summary>
         public override bool PreviewsOutput(IGH_Param output) => false;
 
         protected override void Solve(IGH_DataAccess access)
         {
-            var graph = Item<IrGraphGoo>(access, "ir_graph");
-            if (graph?.Value == null)
-            {
-                Warn("Input parameter 'ir_graph' failed to collect data.");
+            if (Required<IrGraphGoo>(access, "ir_graph") is not { } graph)
                 return;
-            }
-            Message = graph.Value.Method;
+            Status(graph.Value.Method);
             SetIndexOptions("source_idx", graph.Value.Sources.Select(x => x.Name));
             SetIndexOptions("receiver_idx", graph.Value.Receivers.Select(x => x.Name));
-            var branches = IrGraphGrouping.Group(graph.Value, List<int>(access, "source_idx"), List<int>(access, "receiver_idx"), Warn);
+            var branches = IrGraphGrouping.Group(graph.Value, Items<int>(access, "source_idx"), Items<int>(access, "receiver_idx"), Warn);
             var irs = new DataTree<ImpulseResponseGoo>();
             var sources = new DataTree<SourceGoo>();
             var receivers = new DataTree<ReceiverGoo>();

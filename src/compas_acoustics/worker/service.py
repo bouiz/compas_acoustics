@@ -1,26 +1,20 @@
-"""The worker's HTTP service: localhost only, only :mod:`compas_acoustics.worker.api`, only for callers that hold the token.
+"""The worker's HTTP service on 127.0.0.1, for callers that hold the token.
 
-Started by :func:`compas_acoustics.worker.client`, or by the Grasshopper plugin, as
-``python -m compas_acoustics.worker.service --port N``, with the token in ``COMPAS_ACOUSTICS_WORKER_TOKEN``
-and the client's process id in ``COMPAS_ACOUSTICS_WORKER_PARENT``. The worker exits when that process is gone.
+Started by :func:`compas_acoustics.worker.client` or the Grasshopper plugin as
+``python -m compas_acoustics.worker.service --port N``, with the token in ``COMPAS_ACOUSTICS_WORKER_TOKEN`` and the
+client's process id in ``COMPAS_ACOUSTICS_WORKER_PARENT``; it exits when that process is gone. Bodies are compas_pb
+payloads.
 
-Routes, on 127.0.0.1:
+* ``GET /ping``: ``pong <id>``, without the token; ``<id>`` is the first 16 hex digits of the token's SHA-256.
+* ``POST /api/<function>``: ``{"args": [...], "kwargs": {...}}`` for a function of
+  :data:`compas_acoustics.worker.api.__all__`; answers ``{"result": ...}``.
+* ``POST /cancel/<call id>``, ``GET /progress/<call id>``: stop, or report on, the call sent with ``X-Call-Id``
+  (:mod:`compas_acoustics.worker.jobs`).
+* ``POST /shutdown``.
 
-* ``GET /ping``: ``200 pong <id>``, without the token, to tell a started worker; ``<id>`` is the first 16 hex
-  digits of the token's SHA-256, so a client tells its own worker from another one on a reused port.
-* ``POST /api/<function>``: a function of :data:`compas_acoustics.worker.api.__all__`. The body is
-  ``compas_pb.pb_dump_bts({"args": [...], "kwargs": {...}})``, the answer ``pb_dump_bts({"result": result})``
-  (compas_pb refuses an empty or zero top-level value, so the result is always wrapped).
-* ``POST /shutdown``: stop the worker.
-* ``POST /cancel/<call id>``: ask the call sent with ``X-Call-Id: <call id>`` to stop at its next stage
-  (:mod:`compas_acoustics.worker.jobs`); answers ``{"result": true}``, or false for an unknown id. A cancelled call
-  answers 499 with ``{"error": "cancelled"}``.
-* ``GET /progress/<call id>``: the call's last stage, ``{"result": {"stage", "done", "of", "cancelled"}}``; 404 for an
-  unknown or finished call.
-
-All but ``/ping`` need ``Authorization: Bearer <token>``. Errors answer ``{"error": text}``: 401 without the
-token, 404 for a function outside the API, 400 for a body that is not a compas_pb payload and for the
-ValueError or TypeError of a function (its message), 500 for any other exception (its traceback).
+All but ``/ping`` need ``Authorization: Bearer <token>``. Errors answer ``{"error": text}``: 401 without the token,
+404 for an unknown route, function or call, 400 for a body that is not a compas_pb payload and for a function's
+ValueError or TypeError, 499 for a cancelled call, 500 for any other exception (its traceback).
 """
 
 import argparse
@@ -40,6 +34,7 @@ from compas_acoustics.worker import CONTENT_TYPE
 from compas_acoustics.worker import PARENT_VARIABLE
 from compas_acoustics.worker import TOKEN_VARIABLE
 from compas_acoustics.worker import WORKERS
+from compas_acoustics.worker import jobs
 
 __all__ = ["WorkerService", "dispatch", "process_is_alive", "start_service"]
 
@@ -67,26 +62,23 @@ def dispatch(token, authorization, function, body, call_id=None):
 
     With a ``call_id`` the call runs as a job that :func:`compas_acoustics.worker.jobs.cancel` can stop.
     """
-    from compas_acoustics.worker import jobs
-
+    if not authorized(token, authorization):
+        return _error(401, "Unauthorised.")
     if not call_id:
-        return _dispatch(token, authorization, function, body)
+        return _dispatch(function, body)
     jobs.start(call_id)
     try:
-        return _dispatch(token, authorization, function, body)
+        return _dispatch(function, body)
     finally:
         jobs.finish(call_id)
 
 
-def _dispatch(token, authorization, function, body):
+def _dispatch(function, body):
     from compas_pb import pb_load_bts
 
     import compas_acoustics.pb  # noqa: F401  (registers the converters)
     from compas_acoustics.worker import api
-    from compas_acoustics.worker import jobs
 
-    if not authorized(token, authorization):
-        return _error(401, "Unauthorised.")
     if function not in api.__all__:
         return _error(404, f"{function} is not part of the compas_acoustics worker API.")
     try:
@@ -121,8 +113,6 @@ class _Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
-        from compas_acoustics.worker import jobs
-
         if self.path == "/ping":
             self._answer(200, b"pong " + hashlib.sha256(self.server.token.encode()).hexdigest()[:16].encode(), "text/plain")
         elif self.path.startswith("/progress/"):
@@ -138,22 +128,16 @@ class _Handler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length") or 0)
         body = self.rfile.read(length) if length else b""
         authorization = self.headers.get("Authorization")
-        if self.path == "/shutdown":
-            if not authorized(self.server.token, authorization):
-                self._answer(*_error(401, "Unauthorised."))
-                return
+        if self.path.startswith("/api/"):
+            call_id = (self.headers.get("X-Call-Id") or "")[:64] or None
+            self._answer(*dispatch(self.server.token, authorization, self.path[len("/api/") :], body, call_id))
+        elif not authorized(self.server.token, authorization):
+            self._answer(*_error(401, "Unauthorised."))
+        elif self.path == "/shutdown":
             self._answer(200, b"", "text/plain")
             threading.Thread(target=self.server.shutdown, daemon=True).start()
         elif self.path.startswith("/cancel/"):
-            from compas_acoustics.worker import jobs
-
-            if not authorized(self.server.token, authorization):
-                self._answer(*_error(401, "Unauthorised."))
-                return
             self._answer(200, _encode({"result": jobs.cancel(self.path[len("/cancel/") :])}))
-        elif self.path.startswith("/api/"):
-            call_id = (self.headers.get("X-Call-Id") or "")[:64] or None
-            self._answer(*dispatch(self.server.token, authorization, self.path[len("/api/") :], body, call_id))
         else:
             self._answer(*_error(404, "Not found."))
 
@@ -209,10 +193,10 @@ def _exit_with_the_client(pid, record):
     os._exit(0)
 
 
-def start_service(port, token, parent=None, host="127.0.0.1"):
+def start_service(port, token, parent=None):
     import compas_acoustics.pb  # noqa: F401  (the first call should not pay for the imports)
 
-    server = WorkerService((host, port), token)
+    server = WorkerService(("127.0.0.1", port), token)
     record = _record(port, token)
     if parent:
         threading.Thread(target=_exit_with_the_client, args=(parent, record), daemon=True).start()
@@ -226,8 +210,6 @@ def start_service(port, token, parent=None, host="127.0.0.1"):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, required=True)
-    # accepted and ignored: the worker never reloads modules
-    parser.add_argument("--no-autoreload", action="store_true")
     token = os.environ.pop(TOKEN_VARIABLE, None)
     if not token:
         sys.exit(f"{TOKEN_VARIABLE} is not set: the worker is started by compas_acoustics.worker.client() or the Grasshopper plugin.")

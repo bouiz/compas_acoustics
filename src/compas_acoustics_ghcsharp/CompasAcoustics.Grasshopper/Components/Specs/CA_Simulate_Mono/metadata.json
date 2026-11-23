@@ -1,15 +1,14 @@
 {
     "name": "Simulate Mono",
     "nickname": "SimMono",
-    "category": "COMPAS Acoustics",
     "subcategory": "Simulation",
-    "description": "Simulate mono room impulse responses with pyroomacoustics: the image source method (ISM), plus ray tracing (RT) by default. The reference of Simulate Binaural and Simulate Ambisonics. Writes the responses to the impulse response graph under 'mono' and 'data'.",
+    "description": "Simulate mono room impulse responses with pyroomacoustics: the image source method (ISM), plus ray tracing (RT) by default. The reference of Simulate Binaural and Simulate Ambisonics. Writes the responses to the impulse response graph under 'mono'.",
     "exposure": 2,
     "ports": {
         "inputParameters": [
             {
                 "name": "scene",
-                "description": "Room scene object.",
+                "description": "Acoustic scene object.",
                 "optional": false,
                 "scriptParamAccess": 0,
                 "typeHintID": "ghdoc"
@@ -114,7 +113,7 @@
             },
             {
                 "name": "normalize",
-                "description": "Whether the impulse responses are peak-normalized (default True). The raw level is always kept and used for auralisation.",
+                "description": "Whether the impulse responses are peak-normalised (default True). The raw level is always kept and used for auralisation.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "bool"

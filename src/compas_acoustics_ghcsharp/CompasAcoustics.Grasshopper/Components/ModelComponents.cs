@@ -2,9 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using CompasAcoustics.Pb;
-using CompasPb.Data;
+using Google.Protobuf;
 using Grasshopper.Kernel;
-using Grasshopper.Kernel.Parameters;
 using Grasshopper.Kernel.Types;
 using Rhino.Geometry;
 
@@ -42,7 +41,7 @@ namespace CompasAcoustics.Grasshopper
         {
             var position = Value<Point3d>(access, "position") ?? Point3d.Origin;
             var direction = Value<Vector3d>(access, "direction") ?? Vector3d.XAxis;
-            var spl = List<double>(access, "spl");
+            var spl = Items<double>(access, "spl");
             var source = (SourceData)Worker.Call("make_source", Text(access, "name"), MeshConversion.Xyz(position), MeshConversion.Xyz(direction),
                 Text(access, "directivity"), Text(access, "sound_file"), spl.Count == 0 ? null : spl.Cast<object?>().ToList())!;
             access.SetData(0, new SourceGoo(source));
@@ -127,6 +126,34 @@ namespace CompasAcoustics.Grasshopper
 
     public sealed class RoomSceneComponent : ComponentBase
     {
+        // the last scene's measures, by a hash of its bytes: an unchanged scene asks the worker once
+        private (string hash, (double? volume, double? area) measures)? _measured;
+
+        /// <summary>
+        /// The volume and surface of the scene's room as the simulations take it, from the worker's room_measures; each null
+        /// where the worker gives none (an open room has no volume); null when the call fails.
+        /// </summary>
+        internal (double? volume, double? area)? Measures(Worker worker, SceneData scene)
+        {
+            var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(scene.ToByteArray()));
+            if (_measured is { } known && known.hash == hash)
+                return known.measures;
+            IDictionary<string, object?>? answer;
+            try
+            {
+                answer = worker.Call("room_measures", scene) as IDictionary<string, object?>;
+            }
+            catch (Exception e) when (e is WorkerException || WorkerClient.IsGone(e))
+            {
+                return null;
+            }
+            double? Number(string key) => answer != null && answer.TryGetValue(key, out var v) && v != null
+                ? Convert.ToDouble(v, System.Globalization.CultureInfo.InvariantCulture) : null;
+            var measures = (Number("volume"), Number("area"));
+            _measured = (hash, measures);
+            return measures;
+        }
+
         public RoomSceneComponent() : base("CA_Model") { }
         protected override string SpecKey => "CA_Model";
         public override Guid ComponentGuid => new Guid("63ac4b6f-5c00-50a5-973f-6337bd1f2b11");
@@ -150,9 +177,9 @@ namespace CompasAcoustics.Grasshopper
 
         protected override void Solve(IGH_DataAccess access)
         {
-            var given = List<AcousticObjectGoo>(access, "objects");
-            var sources = List<SourceGoo>(access, "sources").Where(s => s?.Value != null).Select(s => (object?)s.Value).ToList();
-            var receivers = List<ReceiverGoo>(access, "receivers").Where(r => r?.Value != null).Select(r => (object?)r.Value).ToList();
+            var given = Items<AcousticObjectGoo>(access, "objects");
+            var sources = Items<SourceGoo>(access, "sources").Where(s => s?.Value != null).Select(s => (object?)s.Value).ToList();
+            var receivers = Items<ReceiverGoo>(access, "receivers").Where(r => r?.Value != null).Select(r => (object?)r.Value).ToList();
             if (given.Count == 0)
             {
                 Warn("No objects provided.");
@@ -180,8 +207,8 @@ namespace CompasAcoustics.Grasshopper
             var rate = long.Parse(Choice("sampling_rate"), System.Globalization.CultureInfo.InvariantCulture);
             var scene = (SceneData)Worker.Call("make_scene", objects, sources, receivers, Text(access, "name"), rate)!;
             var goo = new SceneGoo(scene);
-            var room = goo.Preview;
-            var (shown, full) = MessageText.Scene(room?.Volume ?? 0, room?.Area ?? 0,
+            var measures = Measures(Worker, scene);
+            var (shown, full) = MessageText.Scene(measures?.volume, measures?.area ?? goo.Preview?.Area ?? 0,
                 scene.AcousticObjects.Count, scene.Sources.Count, scene.Receivers.Count, scene.SamplingRate);
             Status(shown, full);
             access.SetData(0, goo);

@@ -9,7 +9,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         public void Status_TrimsTo40CharactersAndKeepsTheFullText()
         {
             Assert.Equal(("done, 2 IRs", null), MessageText.Status("done, 2 IRs"));
-            var full = "44100Hz, hybrid, tail: reference, order 1, seed 123, hrtf ku100";
+            var full = "44.1 kHz, binaural, tail reference, seed 1234567890, hrtf ku100";
             var (shown, kept) = MessageText.Status(full);
             Assert.Equal(40, shown.Length);
             Assert.EndsWith("...", shown);
@@ -34,6 +34,8 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal("Volume: 105 m3\nTotal area: 142 m2", shown);
             Assert.Equal("Volume: 105 m3\nTotal area: 142 m2\n6 objects, 1 source, 2 receivers, 48 kHz", full);
             Assert.Equal("Volume: 1786 m3\nTotal area: 1279 m2", MessageText.Scene(1786.4, 1279.2, 1, 2, 1, 44100).shown);
+            // without the room's volume (an open room, or a worker that does not give it): the surface alone
+            Assert.Equal(("Total area: 142 m2", "Total area: 142 m2\n6 objects, 1 source, 2 receivers, 48 kHz"), MessageText.Scene(null, 142, 6, 1, 2, 48000));
             // the strip's limit is a line's: two short lines are not cut
             Assert.Equal(("Volume: 1786 m3\nTotal area: 1279 m2", null), MessageText.Status("Volume: 1786 m3\nTotal area: 1279 m2"));
         }
@@ -56,7 +58,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal("Util", spec.Subcategory);
             Assert.Empty(spec.Inputs);
             Assert.Equal(new[] { "python", "version", "running" }, spec.Outputs.Select(p => p.Name));
-            Assert.Equal(24, ComponentSpec.Names().Count());
+            Assert.Equal(24, EmbeddedSpecs.Names().Count());
         }
     }
 }

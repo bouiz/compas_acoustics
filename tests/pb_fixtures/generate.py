@@ -1,4 +1,5 @@
-"""Write the compas_pb payloads the C# tests read (src/compas_acoustics_ghcsharp/CompasAcoustics.Grasshopper.Tests/Fixtures).
+"""Write the compas_pb payloads the C# tests read, in
+src/compas_acoustics_ghcsharp/CompasAcoustics.Grasshopper.Tests/Fixtures.
 
 Run after a schema change, from the repository root, with compas_acoustics installed::
 

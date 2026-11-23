@@ -3,7 +3,7 @@
 For Python scripts; in Grasshopper the Install Worker component does this. Run with a Python that has
 compas_acoustics, with the wheel to install::
 
-    python -m compas_acoustics.worker.install --wheel compas_acoustics-0.1.0-py3-none-any.whl [--hybrid]
+    python -m compas_acoustics.worker.install --wheel compas_acoustics-<version>-py3-none-any.whl
 """
 
 import argparse
@@ -32,7 +32,7 @@ def _uv():
     raise RuntimeError(f"uv was installed into {target}, but its executable was not found there.")
 
 
-def install_worker(wheel, hybrid=False, home=WORKER_HOME, config=CONFIG, python_version="3.12"):
+def install_worker(wheel, home=WORKER_HOME, config=CONFIG, python_version="3.12"):
     """Create the worker environment in ``home`` and record its interpreter in ``config``; returns the interpreter."""
     uv = _uv()
     home, config = Path(home), Path(config)
@@ -46,17 +46,16 @@ def install_worker(wheel, hybrid=False, home=WORKER_HOME, config=CONFIG, python_
     # On Python >= 3.11 compas_acoustics requires the hybrid method's packages too
     subprocess.run([uv, "pip", "install", "--python", str(python), "compas_acoustics @ {}".format(Path(wheel).resolve().as_uri())], check=True, env=env)
     # The first import of the scientific stack is slow; do it here, not on the first Grasshopper call
-    subprocess.run([str(python), "-c", "import compas_acoustics.simulation_methods as m; m.Binaural" if hybrid else "import compas_acoustics.worker.api"], check=True, env=env)
+    subprocess.run([str(python), "-c", "import compas_acoustics.simulation_methods as m; m.Binaural"], check=True, env=env)
     config.parent.mkdir(parents=True, exist_ok=True)
-    config.write_text(json.dumps({"python": str(python), "hybrid": hybrid}))
+    config.write_text(json.dumps({"python": str(python)}))
     return python
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--wheel", required=True)
-    parser.add_argument("--hybrid", action="store_true", help="check that the binaural and ambisonics methods import (pyFDN comes with compas_acoustics on Python >= 3.11)")
     parser.add_argument("--home", default=str(WORKER_HOME))
     parser.add_argument("--config", default=str(CONFIG))
     args = parser.parse_args()
-    print("Worker Python:", install_worker(args.wheel, args.hybrid, args.home, args.config))
+    print("Worker Python:", install_worker(args.wheel, args.home, args.config))

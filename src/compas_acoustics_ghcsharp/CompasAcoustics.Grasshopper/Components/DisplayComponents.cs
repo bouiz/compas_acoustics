@@ -10,9 +10,12 @@ using Rhino.Geometry;
 
 namespace CompasAcoustics.Grasshopper
 {
-    /// <summary>A component that draws its own geometry in the colour of each reflection order, besides the previews of its outputs.</summary>
+    /// <summary>A component that draws its own geometry, besides the previews of its outputs.</summary>
     public abstract class DisplayComponent : ComponentBase
     {
+        /// <summary>The time between two frames of a playback.</summary>
+        protected const int FrameMs = 33;
+
         protected BoundingBox Box = BoundingBox.Empty;
 
         protected DisplayComponent(string key) : base(key) { }
@@ -20,14 +23,31 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>The drawing on and off on the body: the component's preview, as its right-click menu sets it.</summary>
         protected static readonly ToggleControl PreviewSwitch = new("preview", "Preview");
 
-        /// <summary>The source of a ``source_idx`` input: All, or one of the wired scene's.</summary>
-        protected static readonly DropdownControl SourceDropdown = new("source_idx", new[] { "" }, "", new[] { "All" }, "Source");
-
-        /// <summary>Not the outputs: the component draws its rays, paths or particles itself (Rays' curves would show every ray before Play).</summary>
+        /// <summary>Not the outputs: the component draws its geometry itself.</summary>
         public override bool PreviewsOutput(IGH_Param output) => false;
 
         /// <summary>What the Play button reads, and so the glyph it draws: Pause while the playback moves.</summary>
         public static string PlayLabel(Playback playback) => playback.Running ? "Pause" : "Play";
+
+        /// <summary>A playback on the clock of this process.</summary>
+        protected static Playback NewPlayback() => new(() => System.Diagnostics.Stopwatch.GetTimestamp() / (double)System.Diagnostics.Stopwatch.Frequency);
+
+        /// <summary>
+        /// The Play and Rewind buttons of <paramref name="playback"/>: Play pauses a moving playback (it holds where it is;
+        /// Play goes on), Rewind goes back to the start. Whether Play starts or resumes the playback.
+        /// </summary>
+        protected bool PressPlayback(Playback playback)
+        {
+            var play = Pressed("play");
+            if (play && playback.Running)
+            {
+                playback.Pause();
+                play = false;
+            }
+            if (Pressed("rewind"))
+                playback.Rewind();
+            return play;
+        }
 
         public override string Choice(string name) => name == PreviewSwitch.Port ? (Hidden ? "off" : "on") : base.Choice(name);
 
@@ -102,36 +122,30 @@ namespace CompasAcoustics.Grasshopper
 
         public override IReadOnlyList<Control> Controls { get; } = new Control[]
         {
-            PreviewSwitch, SourceDropdown, new DropdownControl("receiver_idx", new[] { "" }, "", new[] { "All" }, "Receiver"),
+            PreviewSwitch, SceneIndices.SourceDropdown, SceneIndices.ReceiverDropdown,
             new MultiSwitchControl("order", new[] { "0", "1", "2", "3", "4" }, new[] { "1" }),
         };
 
         protected override void Solve(IGH_DataAccess access)
         {
-            var scene = Item<SceneGoo>(access, "scene");
-            if (scene?.Value == null)
-            {
-                Warn("Input parameter 'scene' failed to collect data.");
+            if (Required<SceneGoo>(access, "scene") is not { } scene)
                 return;
-            }
             SetIndexOptions("source_idx", scene.Value.Sources.Select(x => x.Name));
             SetIndexOptions("receiver_idx", scene.Value.Receivers.Select(x => x.Name));
-            var orders = List<int>(access, "order").Select(o => (object?)(long)o).ToList();
+            var orders = Items<int>(access, "order").Select(o => (object?)(long)o).ToList();
             var source = Value<int>(access, "source_idx");
             var receiver = Value<int>(access, "receiver_idx");
             var kwargs = new Dictionary<string, object?> { ["source_index"] = source is int s ? (long)s : null, ["receiver_index"] = receiver is int r ? (long)r : null };
             RunInBackground(access, new Background("specular_reflections", new object?[] { scene.Value, orders }, kwargs), (outcome, _) =>
             {
-                var result = (IDictionary<string, object?>)outcome.Result!;
-                // orders left out, indices out of range, sources and receivers outside the room
-                ShowWarnings(result);
+                var result = outcome.Result;
                 var found = (SpecularReflectionsData)result["reflections"]!;
                 var paths = RayGeometry.FromReflections(found);
                 // drawn here, not output as geometry: Grasshopper would preview polylines in one colour on top
                 _drawn.AddRange(paths.Select(p => (RayGeometry.ToPolyline(p.Ray), OrderColors.Of(p.Order))));
                 Box = BoxOf(paths.SelectMany(p => p.Ray.Points));
                 var counts = ((IEnumerable<object?>)result["counts"]!).Cast<IList<object?>>().Select(c => $"order {c[0]}: {c[1]}").ToList();
-                Message = counts.Count > 0 ? string.Join(", ", counts) : "no paths";
+                Status(counts.Count > 0 ? string.Join(", ", counts) : "no paths");
                 access.SetData("reflections", new ReflectionsGoo(found));
                 access.SetDataList("order", paths.Select(p => p.Order));
                 access.SetDataList("time", paths.Select(p => p.Ray.TravelTimeMs(Worker.SpeedOfSound)));
@@ -149,14 +163,15 @@ namespace CompasAcoustics.Grasshopper
     public sealed class VisualiseRaysComponent : DisplayComponent
     {
         private const int LineThickness = 1;
-        private const int FrameMs = 33;
         private readonly Dictionary<int, List<Line>> _drawn = new();
-        private readonly Playback _playback = new(() => System.Diagnostics.Stopwatch.GetTimestamp() / (double)System.Diagnostics.Stopwatch.Frequency);
+        private readonly Playback _playback = NewPlayback();
         private int _maxOrder = 10;
+        // the shown field's rays and curves, the same for every frame of a playback
+        private (RayFieldData shown, List<RayGeometry.Ray> rays, PolylineCurve[] specular, PolylineCurve[] scattered)? _converted;
 
         public override IReadOnlyList<Control> Controls { get; } = new Control[]
         {
-            PreviewSwitch, SourceDropdown, new ToggleControl("scattering", "Scattering", Default: false),
+            PreviewSwitch, SceneIndices.SourceDropdown, new ToggleControl("scattering", "Scattering", Default: false),
             new SliderControl("order", 1, 10, "", Step: 1), new ButtonControl("play", "Play", Inline: true, Icon: true), new ButtonControl("rewind", "Rewind", Inline: true, Icon: true),
         };
 
@@ -167,8 +182,9 @@ namespace CompasAcoustics.Grasshopper
 
         public override string? ButtonLabel(string port) => port == "play" ? PlayLabel(_playback) : null;
 
-        /// <summary>How far the rays are drawn: nothing until Play, then as far as sound has travelled in ``timeMs``.</summary>
+        /// <summary>How far the rays are drawn: nothing until Play, then as far as sound has travelled in <paramref name="timeMs"/>.</summary>
         public static double DrawnDistance(bool active, double timeMs, double speedOfSound) => active ? timeMs / 1000.0 * speedOfSound : 0.0;
+
         protected override string SpecKey => "CA_Visualise_Rays";
         public override Guid ComponentGuid => new Guid("e693b3da-9ac2-56bb-a810-2910e8e4af8e");
 
@@ -186,12 +202,8 @@ namespace CompasAcoustics.Grasshopper
 
         protected override void Solve(IGH_DataAccess access)
         {
-            var scene = Item<SceneGoo>(access, "scene");
-            if (scene?.Value == null)
-            {
-                Warn("Input parameter 'scene' failed to collect data.");
+            if (Required<SceneGoo>(access, "scene") is not { } scene)
                 return;
-            }
             SetIndexOptions("source_idx", scene.Value.Sources.Select(x => x.Name));
             var maxOrder = Value<int>(access, "max_order") ?? 10;
             _maxOrder = maxOrder;
@@ -200,7 +212,7 @@ namespace CompasAcoustics.Grasshopper
             var kwargs = new Dictionary<string, object?>
             {
                 ["source_index"] = Value<int>(access, "source_idx") is int s ? (long)s : null,
-                ["n_rays"] = (long)(Value<int>(access, "n_rays") ?? 500),
+                ["n_rays"] = Value<int>(access, "n_rays") is int n ? (long)n : null,
                 ["max_order"] = (long)maxOrder,
                 ["direction"] = direction is Vector3d d ? MeshConversion.Xyz(d) : null,
                 ["angle"] = Value<double>(access, "angle"),
@@ -208,31 +220,24 @@ namespace CompasAcoustics.Grasshopper
                 ["seed"] = Value<int>(access, "seed") is int seed ? (long)seed : null,
                 ["order"] = order is int o ? (long)o : null,
             };
-            RunInBackground(access, new Background("ray_field", new object?[] { scene.Value }, kwargs, order ?? maxOrder), (outcome, _) =>
+            RunInBackground(access, new Background("ray_field", new object?[] { scene.Value }, kwargs), (outcome, _) =>
             {
-                var result = (IDictionary<string, object?>)outcome.Result!;
-                // sources outside the room
-                ShowWarnings(result);
-                var field = (RayFieldData)result["field"]!;
-                var shown = (RayFieldData)result["shown"]!;
-                Message = $"{field.Rays.Count} rays, order={outcome.Context}, seed={result["seed"]}";
-                var rays = RayGeometry.FromField(shown);
+                var field = (RayFieldData)outcome.Result["field"]!;
+                var shown = (RayFieldData)outcome.Result["shown"]!;
+                if (_converted is not { } converted || !ReferenceEquals(converted.shown, shown))
+                {
+                    var all = RayGeometry.FromField(shown);
+                    _converted = converted = (shown, all, all.Where(r => !r.Scattered).Select(r => new PolylineCurve(r.Points)).ToArray(),
+                        all.Where(r => r.Scattered).Select(r => new PolylineCurve(r.Points)).ToArray());
+                }
+                var rays = converted.rays;
                 // nothing until Play: all rays at once are a blur; Play draws them as far as sound has travelled
                 var speedOfSound = Worker.SpeedOfSound;
-                // one button: Play, and Pause while playing (it holds the rays where they are; Play goes on)
-                var play = Pressed("play");
-                if (play && _playback.Running)
-                {
-                    _playback.Pause();
-                    play = false;
-                }
-                if (Pressed("rewind"))
-                    _playback.Rewind();
-                var frame = _playback.Update(null, play, null, rays.Select(r => r.TravelTimeMs(speedOfSound)).DefaultIfEmpty(0).Max());
+                var frame = _playback.Update(null, PressPlayback(_playback), null, Particles.DurationMs(rays, speedOfSound));
                 if (frame.Animating)
                     OnPingDocument()?.ScheduleSolution(FrameMs, document => ExpireSolution(false));
                 var distance = DrawnDistance(_playback.Active, frame.T, speedOfSound);
-                Message = _playback.Active ? frame.Message : $"{field.Rays.Count} rays, press Play";
+                Status(_playback.Active ? frame.Message : $"{field.Rays.Count} rays, press Play");
                 foreach (var ray in rays)
                     foreach (var (k, line) in RayGeometry.Segments(RayGeometry.UpTo(ray, distance)))
                     {
@@ -242,8 +247,8 @@ namespace CompasAcoustics.Grasshopper
                     }
                 Box = BoxOf(rays.SelectMany(r => r.Points));
                 access.SetData("ray_field", new RayFieldGoo(field));
-                access.SetDataList("rays", rays.Where(r => !r.Scattered).Select(r => new PolylineCurve(r.Points)));
-                access.SetDataList("scattered", rays.Where(r => r.Scattered).Select(r => new PolylineCurve(r.Points)));
+                access.SetDataList("rays", converted.specular);
+                access.SetDataList("scattered", converted.scattered);
             });
         }
 
@@ -254,28 +259,27 @@ namespace CompasAcoustics.Grasshopper
                 args.Display.DrawLines(lines, OrderColors.Of(k), LineThickness);
         }
     }
-}
 
-namespace CompasAcoustics.Grasshopper
-{
     public sealed class VisualiseBilliardComponent : DisplayComponent
     {
-        private const int FrameMs = 33;
         private const float ParticleRadius = 4;
         private readonly Dictionary<int, List<Point3d>> _drawn = new();
-        private readonly Playback _playback = new(() => System.Diagnostics.Stopwatch.GetTimestamp() / (double)System.Diagnostics.Stopwatch.Frequency);
+        private readonly Playback _playback = NewPlayback();
         private double _durationMs;
         private double? _shownMs;
+        // the field's rays, the same for every frame of a playback
+        private (RayFieldData field, List<RayGeometry.Ray> rays)? _converted;
 
         public VisualiseBilliardComponent() : base("CA_Visualise_Billiard") { }
 
-        /// <summary>The playback speed, in ms of sound per second: ``factor`` (default 1) of the whole field in 10 s.</summary>
+        /// <summary>The playback speed, in ms of sound per second: <paramref name="factor"/> (default 1) of the whole field in 10 s.</summary>
         public static double Rate(double? factor, double durationMs) => (factor ?? 1.0) * durationMs / 10.0;
 
         public override (double min, double max) SliderRange(SliderControl slider) => slider.Port == "time" ? (0, Math.Round(_durationMs, 1)) : base.SliderRange(slider);
 
         /// <summary>The time slider follows the frame shown, as playback moves it.</summary>
         public override double? SliderShown(SliderControl slider) => slider.Port == "time" ? _shownMs : null;
+
         protected override string SpecKey => "CA_Visualise_Billiard";
         public override Guid ComponentGuid => new Guid("1dd7e727-b816-578f-8eaa-253a9a153829");
 
@@ -297,22 +301,19 @@ namespace CompasAcoustics.Grasshopper
             var field = Item<RayFieldGoo>(access, "ray_field");
             if (field?.Value == null || field.Value.Rays.Count == 0)
             {
-                Message = "";
-                Warn(field?.Value == null ? "Input parameter 'ray_field' failed to collect data." : "The ray field has no rays.");
+                Message = null;
+                if (field?.Value == null)
+                    WarnMissing("ray_field");
+                else
+                    Warn("The ray field has no rays.");
                 return;
             }
             Worker.EnsureStarted();
             var speedOfSound = Worker.SpeedOfSound;
-            var rays = RayGeometry.Specular(field.Value);
-            // one button: Play, and Pause while playing (it holds the particles where they are; Play goes on)
-            var pressed = Pressed("play");
-            if (pressed && _playback.Running)
-            {
-                _playback.Pause();
-                pressed = false;
-            }
-            if (Pressed("rewind"))
-                _playback.Rewind();
+            if (_converted is not { } converted || !ReferenceEquals(converted.field, field.Value))
+                _converted = converted = (field.Value, RayGeometry.Specular(field.Value));
+            var rays = converted.rays;
+            var pressed = PressPlayback(_playback);
             // Play on the body plays the whole field: the time the slider scrubbed to is let go. A shown input has
             // collected it for this solve already, so it is passed as none now and collected again on the next frame.
             var letGo = pressed && ControlPort("time") is { SourceCount: 0 };
@@ -331,8 +332,8 @@ namespace CompasAcoustics.Grasshopper
                         time.ExpireSolution(false);
                     ExpireSolution(false);
                 });
-            Message = frame.Message;
-            var particles = Particles.At(rays, frame.T, speedOfSound);
+            Status(frame.Message);
+            var particles = Particles.At(rays, frame.T, speedOfSound, _durationMs);
             foreach (var (point, order) in particles)
             {
                 if (!_drawn.TryGetValue(order, out var points))
@@ -351,10 +352,7 @@ namespace CompasAcoustics.Grasshopper
                 args.Display.DrawPoints(points, Rhino.Display.PointStyle.RoundSimple, ParticleRadius, OrderColors.Of(order));
         }
     }
-}
 
-namespace CompasAcoustics.Grasshopper
-{
     /// <summary>A mesh coloured by the sound pressure level of the scene's sources at its face centres (the worker's energy_map).</summary>
     public sealed class VisualiseEnergyMapComponent : DisplayComponent
     {
@@ -370,7 +368,7 @@ namespace CompasAcoustics.Grasshopper
         {
             PreviewSwitch,
             new DropdownControl("frequency_bands", new[] { "", "0", "1", "2", "3", "4", "5", "6" }, "", new[] { "Full (A-weighted)" }.Concat(Bands).ToArray()),
-            SourceDropdown,
+            SceneIndices.SourceDropdown,
         };
 
         protected override IGH_Param? CreateParam(PortSpec port, bool input) => (input, port.Name) switch
@@ -390,12 +388,8 @@ namespace CompasAcoustics.Grasshopper
 
         protected override void Solve(IGH_DataAccess access)
         {
-            var scene = Item<SceneGoo>(access, "scene");
-            if (scene?.Value == null)
-            {
-                Warn("Input parameter 'scene' failed to collect data.");
+            if (Required<SceneGoo>(access, "scene") is not { } scene)
                 return;
-            }
             var spacing = Value<double>(access, "spacing") ?? 0.25;
             if (spacing <= 0)
             {
@@ -418,7 +412,7 @@ namespace CompasAcoustics.Grasshopper
             var range = Value<Interval>(access, "range");
             // a point every 'spacing': the faces of the mesh given (a plane of one face) split into grids
             var (corners, faceCorners) = EnergyMapColours.Subdivide(mesh.Vertices.ToPoint3dArray(),
-                mesh.Faces.Select(f => f.IsQuad ? new[] { f.A, f.B, f.C, f.D } : new[] { f.A, f.B, f.C }).ToArray(), spacing);
+                mesh.Faces.Select(MeshConversion.Corners).ToArray(), spacing);
             var centres = EnergyMapColours.FaceCentres(corners, faceCorners);
             // the image source order, the rays and their seed are the worker's: the same scene gives the same map
             var kwargs = new Dictionary<string, object?> { ["source_index"] = Value<int>(access, "source_idx") is int s ? (long)s : null };
@@ -426,10 +420,8 @@ namespace CompasAcoustics.Grasshopper
             // the mesh travels with its result: while a changed mesh runs, the last map is drawn on the mesh it was made for
             RunInBackground(access, new Background("energy_map", new object?[] { scene.Value, points }, kwargs, (mesh, corners, faceCorners)), (outcome, _) =>
             {
-                var result = (IDictionary<string, object?>)outcome.Result!;
+                var result = outcome.Result;
                 var (_, vertices, faces) = ((Mesh, Point3d[], int[][]))outcome.Context!;
-                // points outside the room
-                ShowWarnings(result);
                 var level = band is int index
                     ? Rows(result["spl"]).Select(row => row[index]).ToArray()
                     : Numbers(result["spl_a"]);
@@ -448,7 +440,7 @@ namespace CompasAcoustics.Grasshopper
             });
         }
 
-        /// <summary>The analysis surface as a mesh: a mesh as it is, a surface or Brep meshed with faces no larger than ``spacing``.</summary>
+        /// <summary>The analysis surface as a mesh: a mesh as it is, a surface or Brep meshed with faces no larger than <paramref name="spacing"/>.</summary>
         private static Mesh? SurfaceMesh(object? geometry, double spacing)
         {
             Brep? brep = geometry switch
