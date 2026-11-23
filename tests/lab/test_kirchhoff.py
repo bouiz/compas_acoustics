@@ -234,12 +234,12 @@ def test_cancel_stops_the_worker_processes(monkeypatch):
 
     monkeypatch.setattr(jobs, "progress", progress)
     monkeypatch.setattr(kirchhoff, "_MIN_PARALLEL_SECONDS", 0.0)
+    # pytest-xdist runs other tests in this process: only the children this solve starts count
+    before = {child.pid for child in multiprocessing.active_children()}
     s = ScatteringSample.disc(sine_tile(period=0.0708, depth=0.0204), diameter=0.3)
     with pytest.raises(jobs.Cancelled):
         KirchhoffSolver(workers=2).solve(s, SourceGrid.preset("survey"), ReceiverGrid.hemisphere(10.0, 10.0), np.array([1000.0, 4000.0]), 343.0)
-    for child in multiprocessing.active_children():
-        child.join(timeout=10)
-    assert not multiprocessing.active_children()
+    assert not [child for child in multiprocessing.active_children() if child.pid not in before]
 
 
 def test_runtime_estimate_scales_with_the_work_and_the_workers():

@@ -313,22 +313,30 @@ def _solve_source(index, u):
 
 def _kill_pool(executor):
     """Stop a process pool now: cancel its queued sources and terminate its processes (the running sources are lost)."""
-    processes = list(getattr(executor, "_processes", {}).values())  # private, but the only handle on the processes
+    # private, but the only handle on the processes; shutdown drops the attribute, not the table, which the pool
+    # may still add a process to while it stops
+    table = getattr(executor, "_processes", None) or {}
     executor.shutdown(wait=False, cancel_futures=True)
-    for process in processes:
-        try:
-            process.terminate()
-        except Exception:  # noqa: BLE001 - already gone
-            pass
-    # a process still running after SIGTERM is killed, so that a cancel always stops the workers
-    for process in processes:
-        try:
-            process.join(timeout=_TERMINATE_SECONDS)
-            if process.is_alive():
-                process.kill()
+    stopped = set()
+    while True:
+        processes = [p for pid, p in list(table.items()) if pid not in stopped]
+        if not processes:
+            return
+        for process in processes:
+            try:
+                process.terminate()
+            except Exception:  # noqa: BLE001 - already gone
+                pass
+        # a process still running after SIGTERM is killed, so that a cancel always stops the workers
+        for process in processes:
+            try:
                 process.join(timeout=_TERMINATE_SECONDS)
-        except Exception:  # noqa: BLE001 - already gone
-            pass
+                if process.is_alive():
+                    process.kill()
+                    process.join(timeout=_TERMINATE_SECONDS)
+            except Exception:  # noqa: BLE001 - already gone
+                pass
+        stopped.update(p.pid for p in processes)
 
 
 class KirchhoffSolver(ScatteringSolver):
