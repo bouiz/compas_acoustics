@@ -16,6 +16,8 @@ namespace CompasAcoustics.Grasshopper
         private List<ControlBox> _boxes = new();
         private ControlBox? _down;
         private double? _dragged;
+        private double? _azimuth; // the last azimuth chosen on a ring of several, kept when the colatitude changes
+        private string? _stepped; // the stop a step slider's knob is dragged to, set on the input when it is let go
 
         public ComponentUi(ComponentBase owner) : base(owner) { }
 
@@ -34,6 +36,17 @@ namespace CompasAcoustics.Grasshopper
         {
             base.Layout();
             var controls = Component.BodyControls;
+            var minWidth = ControlLayout.MinWidth(controls);
+            if (Bounds.Width < minWidth)
+            {
+                // controls that need room (the incidence dials): the component's box wider by the difference, its ports on its edges
+                var inner = LayoutComponentBox(Owner);
+                inner.Inflate((minWidth - Bounds.Width) / 2, 0);
+                LayoutInputParams(Owner, inner);
+                LayoutOutputParams(Owner, inner);
+                m_innerBounds = inner;
+                Bounds = LayoutBounds(Owner, inner);
+            }
             var box = Bounds;
             var height = ControlLayout.Height(controls);
             ControlArea = new RectangleF(box.X, box.Bottom, box.Width, height);
@@ -51,10 +64,41 @@ namespace CompasAcoustics.Grasshopper
             {
                 if (!box.Title.IsEmpty)
                     Painter.DrawTitle(graphics, box);
+                if (box.Control is StepSliderControl step)
+                {
+                    var (value, wired, offered) = StepState(step, box);
+                    StepSlider.Draw(graphics, box.Bounds, step, ReferenceEquals(box, _down) ? _stepped ?? value : value, offered, wired);
+                    continue;
+                }
+                if (box.Control is IncidenceControl incidence)
+                {
+                    var (directions, current, wired) = IncidenceState(incidence);
+                    IncidenceDials.Draw(graphics, box.Bounds, directions, current, wired);
+                    continue;
+                }
                 var range = box.Control is SliderControl slider ? Component.SliderRange(slider) : ((double, double)?)null;
                 Painter.Draw(graphics, box, Value(box), Selected, Owner.Locked, ReferenceEquals(box, _down), ReferenceEquals(box, _down) ? _dragged : null, range);
             }
             RenderExtra(canvas, graphics);
+        }
+
+        /// <summary>A step slider's stop (its input's value, or the nearest offered stop), whether a wire sets it, and the stops offered.</summary>
+        private (string? value, bool wired, IReadOnlyCollection<string>? offered) StepState(StepSliderControl step, ControlBox box)
+        {
+            var offered = Component.OfferedOptionsOf(step.Port);
+            var port = Component.ControlPort(step.Port);
+            var (value, wired) = port == null ? (step.Default ?? step.Options[0], false) : ControlState.Of(port, step.Options, step.Default);
+            return (wired ? value : StepSlider.Shown(box.Bounds, value, step.Options, offered), wired, offered);
+        }
+
+        /// <summary>An incidence control's directions, the one its input holds (the first until it holds one), and whether a wire sets it.</summary>
+        private (IReadOnlyList<Incidence> directions, Incidence? current, bool wired) IncidenceState(IncidenceControl control)
+        {
+            var directions = Component.IncidencesOf(control.Port);
+            var port = Component.ControlPort(control.Port);
+            var (value, wired) = port == null ? ("0", false) : ControlState.Of(port, Array.Empty<string>(), "0");
+            var index = int.TryParse(value, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var i) ? i : 0;
+            return (directions, directions.FirstOrDefault(d => d.Index == index) ?? directions.FirstOrDefault(), wired);
         }
 
         /// <summary>Draw the body below the controls.</summary>
@@ -119,6 +163,26 @@ namespace CompasAcoustics.Grasshopper
                 return GH_ObjectResponse.Handled;
             switch (box.Control)
             {
+                case StepSliderControl step when port != null:
+                    _down = box;
+                    _stepped = StepSlider.Nearest(box.Bounds, e.CanvasLocation.X, step.Options, Component.OfferedOptionsOf(step.Port));
+                    sender.Invalidate();
+                    return GH_ObjectResponse.Capture;
+                case IncidenceControl incidence when port != null:
+                {
+                    var (directions, current, _) = IncidenceState(incidence);
+                    var (theta, phi) = IncidenceDials.Hit(box.Bounds, e.CanvasLocation, directions, current);
+                    if (theta == null && phi == null)
+                        return GH_ObjectResponse.Handled;
+                    var chosen = IncidenceDials.Choose(directions, current, theta, phi, _azimuth);
+                    if (chosen == null)
+                        return GH_ObjectResponse.Handled;
+                    if (IncidenceDials.Ring(directions, chosen.Theta).Length > 1)
+                        _azimuth = chosen.Phi;
+                    if (chosen != current)
+                        ControlState.Choose(Component, port, chosen.Index.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                    return GH_ObjectResponse.Handled;
+                }
                 case SwitchControl s when segment >= 0 && port != null:
                     ControlState.Choose(Component, port, s.Options[segment]);
                     return GH_ObjectResponse.Handled;
@@ -177,6 +241,13 @@ namespace CompasAcoustics.Grasshopper
 
         public override GH_ObjectResponse RespondToMouseMove(GH_Canvas sender, GH_CanvasMouseEvent e)
         {
+            if (_down?.Control is StepSliderControl step)
+            {
+                // the knob snaps from offered stop to offered stop; the input is set when it is let go
+                _stepped = StepSlider.Nearest(_down.Bounds, e.CanvasLocation.X, step.Options, Component.OfferedOptionsOf(step.Port)) ?? _stepped;
+                sender.Invalidate();
+                return GH_ObjectResponse.Handled;
+            }
             if (_down?.Control is SliderControl slider)
             {
                 var before = _dragged;
@@ -202,6 +273,12 @@ namespace CompasAcoustics.Grasshopper
                 else
                     ControlState.Press(Component, button.Port);
             }
+            else if (box.Control is StepSliderControl && _stepped is string stop && Component.ControlPort(box.Control.Port) is { } stepPort)
+            {
+                var (shown, _, _) = StepState((StepSliderControl)box.Control, box);
+                if (stop != shown)
+                    ControlState.Choose(Component, stepPort, stop);
+            }
             else if (box.Control is SliderControl { Live: true })
             {
                 // set at every step of the drag already
@@ -215,6 +292,7 @@ namespace CompasAcoustics.Grasshopper
                     Component.SliderChanged(box.Control.Port, value);
             }
             _dragged = null;
+            _stepped = null;
             sender.Invalidate();
             return GH_ObjectResponse.Release;
         }

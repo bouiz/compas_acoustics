@@ -332,8 +332,8 @@ class KirchhoffSolver(ScatteringSolver):
     **Runtime** (measured 2026-10-24 on a 14-core M-series Mac, 10 performance and 4 efficiency cores, Python 3.13). On the 0.8 m disc
     of ``sine_tile(0.0708, 0.0204)`` (``tests/lab/lab_shapes.py``; 7964 + 3504 faces), 1316 receivers and the 54 frequencies of the ISO
     range, one source takes 20-24 s in one process (80 s before the factors were reused across frequencies), and 2.9-3.4 s per source
-    with 14 workers (about 6 times faster, not 14: the cores share memory bandwidth and 4 of them are efficiency cores). The ``"fine"``
-    preset (864 sources) then takes about 42-49 min. :meth:`estimate_seconds` scales these: 2.4e-8 s per (face, receiver, source, frequency) in one process,
+    with 14 workers (about 6 times faster, not 14: the cores share memory bandwidth and 4 of them are efficiency cores). The
+    ``"standard"`` preset (97 sources) then takes about 5 min. :meth:`estimate_seconds` scales these: 2.4e-8 s per (face, receiver, source, frequency) in one process,
     faces counted over both bodies, and 0.38 of a process gained per further worker.
 
     **Known accuracy** (measured 2026-10-24). Against :class:`~compas_acoustics.lab.solvers.bem.BemSolver` on Heimes & Vorländer's

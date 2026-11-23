@@ -49,7 +49,9 @@ def test_random_incidence_of_constant_is_constant():
 
 def test_random_incidence_of_sin2_is_one_half():
     # (1/pi) * integral of sin^2(theta) cos(theta) sin(theta) over the hemisphere = 1/2
-    g = SourceGrid.preset("fine")
+    # Heimes and Vorlaender's dense grid: 36 rings 2.52 degrees apart, 24 azimuths each
+    colatitude, azimuth = np.meshgrid(np.arange(1.26, 90, 2.52), np.arange(0, 360, 15.0), indexing="ij")
+    g = SourceGrid(colatitude.ravel(), azimuth.ravel())
     s = np.sin(np.radians(g.colatitude))[:, None] ** 2
     assert random_incidence(s, g)[0] == pytest.approx(0.5, abs=1e-2)
 

@@ -58,13 +58,13 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void SampleStatus_NamesTheModeAndTheDiameter_WhateverTheCulture()
+        public void SampleStatus_NamesTheDiameter_WhateverTheCulture()
         {
             var culture = System.Threading.Thread.CurrentThread.CurrentCulture;
             try
             {
                 System.Threading.Thread.CurrentThread.CurrentCulture = new System.Globalization.CultureInfo("de-CH");
-                Assert.Equal("disc, d 0.80 m", LabRequests.SampleStatus("disc", 0.8));
+                Assert.Equal("d 0.80 m", LabRequests.SampleStatus(0.8));
             }
             finally
             {
@@ -143,7 +143,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.NotEmpty(((ScatteringSampleData)args[0]!).Guid);
             // another method, preset or vertex is another run
             Assert.NotEqual(key, LabRequests.RunKey(LabRequests.Lab(LabSample(), "bem", "survey", "iso", null, null, null).args, LabRequests.Lab(LabSample(), "bem", "survey", "iso", null, null, null).kwargs));
-            Assert.NotEqual(key, LabRequests.RunKey(LabRequests.Lab(LabSample(), "kirchhoff", "fine", "iso", null, null, null).args, LabRequests.Lab(LabSample(), "kirchhoff", "fine", "iso", null, null, null).kwargs));
+            Assert.NotEqual(key, LabRequests.RunKey(LabRequests.Lab(LabSample(), "kirchhoff", "standard", "iso", null, null, null).args, LabRequests.Lab(LabSample(), "kirchhoff", "standard", "iso", null, null, null).kwargs));
             var moved = LabSample().Clone();
             moved.Sample.Vertices[0] += 0.001;
             var (movedArgs, movedKwargs, _) = LabRequests.Lab(moved, "kirchhoff", "survey", "iso", null, null, null);
@@ -271,7 +271,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             var (_, kwargs, _) = LabRequests.Lab(LabSample(), "geometric", null, "iso", null, null, null);
             Assert.Equal(new[] { "band_range" }, kwargs.Keys);
             Assert.DoesNotContain("preset", LabRequests.Lab(LabSample(), "geometric", "", "iso", null, null, null).kwargs.Keys);
-            Assert.Equal("fine", LabRequests.Lab(LabSample(), "geometric", "fine", "iso", null, null, null).kwargs["preset"]);
+            Assert.Equal("standard", LabRequests.Lab(LabSample(), "geometric", "standard", "iso", null, null, null).kwargs["preset"]);
             // an empty cache_dir is not a value
             Assert.DoesNotContain("settings", LabRequests.Lab(LabSample(), "bem", null, "iso", null, null, "").kwargs.Keys);
         }
@@ -324,14 +324,14 @@ namespace CompasAcoustics.Grasshopper.Tests
             try
             {
                 System.Threading.Thread.CurrentThread.CurrentCulture = new System.Globalization.CultureInfo("de-CH");
-                Assert.Equal("geometric, s 0.00–0.44", LabResults.Summary(result));
+                Assert.Equal("s 0.00–0.44", LabResults.Summary(result));
             }
             finally
             {
                 System.Threading.Thread.CurrentThread.CurrentCulture = culture;
             }
             result.SOctaves.Clear();
-            Assert.Equal("geometric", LabResults.Summary(result));
+            Assert.Equal("", LabResults.Summary(result));
         }
 
         [Fact]
@@ -356,7 +356,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             var controls = component.Controls;
             Assert.Equal(new[] { "geometric", "kirchhoff", "bem" }, controls.OfType<DropdownControl>().Single(c => c.Port == "method").Options);
             var preset = controls.OfType<DropdownControl>().Single(c => c.Port == "preset");
-            Assert.Equal(new[] { "survey", "standard", "fine" }, preset.Options);
+            Assert.Equal(new[] { "survey", "standard" }, preset.Options);
             Assert.Equal("survey", preset.Default);
             Assert.Equal("survey", inputs["preset"].Default);
             var bandRange = controls.OfType<DropdownControl>().Single(c => c.Port == "band_range");
@@ -398,6 +398,32 @@ namespace CompasAcoustics.Grasshopper.Tests
             {
                 System.Threading.Thread.CurrentThread.CurrentCulture = culture;
             }
+        }
+
+        [Fact]
+        public void NamingTheResult_SendsTheGuid_AndTheResultOnlyWhenTheWorkerDoesNotHoldIt()
+        {
+            var result = new ScatteringResultData { Guid = "5f0c1e8a-0000-4000-8000-000000000001" };
+            var sent = new List<object?>();
+            object? Held(object?[] args) { sent.Add(args[0]); return "balloon"; }
+            Assert.Equal("balloon", LabRequests.NamingTheResult(new object?[] { result, "x" }, Held));
+            Assert.Equal(new object?[] { result.Guid }, sent);
+
+            // a worker that restarted holds nothing: it is sent the result, once
+            sent.Clear();
+            object? Restarted(object?[] args)
+            {
+                sent.Add(args[0]);
+                if (args[0] is string guid)
+                    throw new WorkerException($"{LabRequests.NotHeld} {guid}", 400);
+                return "balloon";
+            }
+            Assert.Equal("balloon", LabRequests.NamingTheResult(new object?[] { result }, Restarted));
+            Assert.Equal(new object?[] { result.Guid, result }, sent);
+
+            // any other error is the call's own
+            object? Broken(object?[] args) => throw new WorkerException("'octave' must be one of 125 Hz", 400);
+            Assert.Throws<WorkerException>(() => LabRequests.NamingTheResult(new object?[] { result }, Broken));
         }
 
         [Fact]
@@ -467,7 +493,13 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal("point", inputs["centre"].TypeHint);
             var component = new PolarPreviewComponent();
             Assert.Equal(new System.Guid("caa96e48-6c1b-5a10-bf2f-b8fcb160f04b"), component.ComponentGuid);
-            Assert.Equal(new[] { "preview", "octave", "body" }, component.Controls.OfType<DropdownControl>().Select(c => c.Port));
+            Assert.Equal(new[] { "body" }, component.Controls.OfType<DropdownControl>().Select(c => c.Port));
+            var slider = component.Controls.OfType<StepSliderControl>().Single(c => c.Port == "octave");
+            Assert.Equal(new[] { "125", "250", "500", "1000", "2000", "4000", "8000" }, slider.Options);
+            Assert.Equal(new[] { "125", "250", "500", "1k", "2k", "4k", "8k" }, slider.Labels);
+            Assert.Equal(("1000", "Octave"), (slider.Default, slider.Title));
+            // the preview input picks the incidence direction of the balloon: its dropdown says so
+            Assert.Equal("Incidence sound", component.Controls.OfType<IncidenceControl>().Single(c => c.Port == "preview").Title);
             Assert.Equal(new[] { "sample", "reference" }, component.Controls.OfType<DropdownControl>().Single(c => c.Port == "body").Options);
             Assert.Single(component.Controls.OfType<ToggleControl>());
             Assert.False(component.PreviewsOutput(component.Params.Output[0]));
@@ -495,15 +527,9 @@ namespace CompasAcoustics.Grasshopper.Tests
         public void PolarPreview_OffersTheOctavesAndPreviewsOfItsResult_NotAll()
         {
             var component = new PolarPreviewComponent();
-            var octave = component.Controls.OfType<DropdownControl>().Single(c => c.Port == "octave");
-            Assert.Equal("1000", octave.Default);
+            // every stop until a result says which octaves it simulated
+            Assert.Null(component.OfferedOptionsOf("octave"));
             component.SetValueOptions("octave", new[] { 125, 250, 500 }, new[] { "125 Hz", "250 Hz", "500 Hz" });
-            component.SetValueOptions("preview", new[] { 0, 1 }, new[] { "\u03b8 0\u00b0, \u03c6 0\u00b0", "\u03b8 30\u00b0, \u03c6 0\u00b0" });
-            var (values, labels) = component.OptionsOf(octave);
-            Assert.Equal(new[] { "125", "250", "500" }, values);
-            Assert.Equal(new[] { "125 Hz", "250 Hz", "500 Hz" }, labels);
-            var preview = component.Controls.OfType<DropdownControl>().Single(c => c.Port == "preview");
-            Assert.Equal(new[] { "0", "1" }, component.OptionsOf(preview).values);
             // the named values of the integer ports, for the shown input's menu
             var port = (global::Grasshopper.Kernel.Parameters.Param_Integer)component.ControlPort("octave")!;
             Assert.True(port.HasNamedValues);

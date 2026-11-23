@@ -69,7 +69,7 @@ namespace CompasAcoustics.Grasshopper
                 Warn(warning);
             foreach (var note in notes)
                 Remark(note);
-            Status(LabRequests.SampleStatus(sample.Mode, sample.Diameter));
+            Status(LabRequests.SampleStatus(sample.Diameter));
             access.SetData(0, new ScatteringSampleGoo(sample));
         }
     }
@@ -81,9 +81,9 @@ namespace CompasAcoustics.Grasshopper
     public sealed class ScatteringLabComponent : ComponentBase
     {
         internal static readonly string[] Methods = { "geometric", "kirchhoff", "bem" };
-        // survey (13 source directions) first, the Lab's default: a quick look; standard and fine are more accurate (see the input's description)
-        internal static readonly string[] Presets = { "survey", "standard", "fine" };
-        internal static readonly string[] PresetLabels = { "survey (13)", "standard (97)", "fine (864)" };
+        // survey (13 source directions) first, the Lab's default: a quick look; standard (97) is more accurate (see the input's description)
+        internal static readonly string[] Presets = { "survey", "standard" };
+        internal static readonly string[] PresetLabels = { "survey (13)", "standard (97)" };
         internal static readonly string[] BandRanges = { "iso", "extended" };
         // the ranges of compas_acoustics.lab's ISO_BAND_RANGE and EXTENDED_BAND_RANGE, the one-third octave centres simulated
         internal static readonly string[] BandRangeLabels = { "ISO 100–5000 Hz", "100–8000 Hz" };
@@ -167,6 +167,15 @@ namespace CompasAcoustics.Grasshopper
         private static readonly string[] Octaves = { "125", "250", "500", "1000", "2000", "4000", "8000" };
         private Mesh? _drawn;
         private Line _source = Line.Unset;
+        private IReadOnlyList<Incidence> _incidences = Array.Empty<Incidence>();
+
+        private IReadOnlyCollection<string>? _octaves;
+
+        /// <summary>The octaves the last result simulated: the octave slider's stops, the others grey.</summary>
+        public override IReadOnlyCollection<string>? OfferedOptionsOf(string port) => port == "octave" ? _octaves : base.OfferedOptionsOf(port);
+
+        /// <summary>The directions of the last result, for the dials of its preview input.</summary>
+        public override IReadOnlyList<Incidence> IncidencesOf(string port) => port == "preview" ? _incidences : base.IncidencesOf(port);
 
         public PolarPreviewComponent() : base("CA_Polar_Preview") { }
         protected override string SpecKey => "CA_Polar_Preview";
@@ -176,8 +185,8 @@ namespace CompasAcoustics.Grasshopper
         public override IReadOnlyList<Control> Controls { get; } = new Control[]
         {
             PreviewSwitch,
-            new DropdownControl("preview", new[] { "0" }, "0", new[] { "0" }, "Preview"),
-            new DropdownControl("octave", Octaves, "1000", Octaves.Select(o => o + " Hz").ToArray(), "Octave"),
+            new IncidenceControl("preview", "Incidence sound"),
+            new StepSliderControl("octave", Octaves, "1000", new[] { "125", "250", "500", "1k", "2k", "4k", "8k" }, "Octave"),
             new DropdownControl("body", Bodies, Bodies[0]),
         };
 
@@ -205,10 +214,12 @@ namespace CompasAcoustics.Grasshopper
                 return;
             }
             var result = goo.Value;
+            _incidences = LabRequests.Incidences(result);
             var previews = LabRequests.PreviewLabels(result);
             SetValueOptions("preview", Enumerable.Range(0, previews.Length).ToList(), previews);
             SetValueOptions("octave", result.OctaveBands.ToList(), result.OctaveBands.Select(o => $"{o} Hz").ToList());
-            var (args, kwargs, problem) = LabRequests.Balloon(result, Value<int>(access, "preview") ?? 0, Value<int>(access, "octave") ?? 1000,
+            _octaves = result.OctaveBands.Select(o => o.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+            var (args, kwargs, problem) = LabRequests.Balloon(result, Value<int>(access, "preview") ?? 0, LabRequests.Octave(Value<int>(access, "octave") ?? 1000, result, ControlPort("octave")?.SourceCount > 0),
                 Text(access, "body") ?? Bodies[0], Value<double>(access, "radius") ?? 1.0, Value<double>(access, "floor_db") ?? -30.0);
             if (problem != null)
             {
@@ -216,7 +227,9 @@ namespace CompasAcoustics.Grasshopper
                 return;
             }
             var floor = (double)kwargs["floor_db"]!;
-            var (mesh, levels, direction, label) = LabResults.ReadBalloon((IDictionary<string, object?>)Worker.Call("polar_balloon", args, kwargs)!);
+            // the result by its guid: the worker holds the results it made, so a change of the direction or the octave sends no levels
+            var answer = LabRequests.NamingTheResult(args, a => Worker.Call("polar_balloon", a, kwargs));
+            var (mesh, levels, direction, _) = LabResults.ReadBalloon((IDictionary<string, object?>)answer!);
             var centre = Value<Point3d>(access, "centre") ?? Point3d.Origin;
             var move = centre - Point3d.Origin;
             var (corners, faces) = PreviewGeometry.MeshOf(mesh);
@@ -226,7 +239,6 @@ namespace CompasAcoustics.Grasshopper
             _drawn = EnergyMapColours.Coloured(vertices, faces, colours, offset: false);
             _source = new Line(centre, centre + new Vector3d(direction[0], direction[1], direction[2]));
             Box = BoxOf(vertices.Concat(new[] { _source.From, _source.To }));
-            Status(label);
             access.SetData("mesh", _drawn);
             access.SetDataList("levels", levels);
             access.SetData("source", _source);

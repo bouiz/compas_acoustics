@@ -34,7 +34,7 @@ from .grids import SourceGrid
 from .grids import receiver_spacing
 from .results import ScatteringResult
 
-__all__ = ["DEFAULT_PRESETS", "measure_scattering", "preview_sources"]
+__all__ = ["DEFAULT_PRESETS", "measure_scattering"]
 
 METHODS = ("geometric", "kirchhoff", "bem")
 DEFAULT_PRESETS = {"geometric": "standard", "kirchhoff": "standard", "bem": "standard"}
@@ -89,26 +89,6 @@ def _duration(seconds):
     if seconds < 3600:
         return "{:.0f} min".format(seconds / 60)
     return "{:.1f} h".format(seconds / 3600)
-
-
-def preview_sources(sources, symmetry="none"):
-    """The sources whose polar levels a result keeps: those nearest the ISO 17497-2 Table 1 directions (the ``"survey"`` preset).
-
-    Parameters
-    ----------
-    sources : :class:`compas_acoustics.lab.grids.SourceGrid`
-        The sources used.
-    symmetry : {"none", "rotational"}, optional
-        The sample's symmetry, which thins the survey directions as it thins the presets.
-
-    Returns
-    -------
-    list of int
-        Indices into ``sources``, ascending and without repeats: at most 13.
-    """
-    survey = SourceGrid.preset("survey", symmetry).directions
-    nearest = np.argmax(survey @ np.asarray(sources.directions, dtype=float).T, axis=1)
-    return sorted(set(int(i) for i in nearest))
 
 
 def _polar_levels(p_sample, p_reference, nominal):
@@ -175,7 +155,7 @@ def _unconverged(entries, exact, nominal):
 def _pressures(solver, sample, sources, receivers, frequencies, c):
     """``(indices, Pressures)`` source batch by source batch for a batchable solver, else one batch of all sources.
 
-    A batch holds at most ``_BATCH_BYTES`` of pressures, so a ``"fine"`` run never holds the pressures of all its sources.
+    A batch holds at most ``_BATCH_BYTES`` of pressures, so a large run never holds the pressures of all its sources.
     """
     if getattr(solver, "batchable", False):
         per_source = 2 * len(receivers.weights) * len(frequencies) * np.dtype(complex).itemsize
@@ -425,10 +405,9 @@ def measure_scattering(sample, method="geometric", preset=None, band_range=ISO_B
 
     A batchable solver (``solver.batchable``: Kirchhoff) runs source batch by source batch, each batch reduced to its correlation
     coefficients before the next, so the pressures of all sources are never held at once (a batch holds at most 512 MB of them). The
-    polar levels are kept only for the preview sources (:func:`preview_sources`: the sources nearest to the 13 directions of ISO 17497-2
-    Table 1), listed in ``result.polar_source_indices``. A Kirchhoff run estimated longer than 10 minutes is warned about before it
-    starts (:meth:`~compas_acoustics.lab.solvers.KirchhoffSolver.estimate_seconds`): the ``"fine"`` preset on a 0.8 m disc takes
-    about 50 minutes on 14 cores, the default ``"standard"`` about 5.
+    polar levels are kept for every source direction, listed in ``result.polar_source_indices``. A Kirchhoff run estimated longer
+    than 10 minutes is warned about before it starts (:meth:`~compas_acoustics.lab.solvers.KirchhoffSolver.estimate_seconds`): the
+    default ``"standard"`` preset on a 0.8 m disc takes about 5 minutes on 14 cores.
 
     Known limitations of the BEM (2026-10-24, Heimes & Vorländer's sine surface, d = 0.8 m): below about 700 Hz NumCalc's iterative solves
     do not converge and those bands are wrong; such steps are listed in ``generation["unconverged"]``, warned about in
@@ -441,7 +420,7 @@ def measure_scattering(sample, method="geometric", preset=None, band_range=ISO_B
     sample : :class:`compas_acoustics.lab.sample.ScatteringSample`
     method : {"geometric", "kirchhoff", "bem"}, optional
         The heuristic geometric preview (default, fast), physical optics, or the boundary element method.
-    preset : {"survey", "standard", "fine"}, optional
+    preset : {"survey", "standard"}, optional
         The source grid; by default ``DEFAULT_PRESETS[method]``: ``"standard"`` for every method.
         Comparisons between methods should pass the same preset.
     band_range : tuple of float, optional
@@ -482,7 +461,7 @@ def measure_scattering(sample, method="geometric", preset=None, band_range=ISO_B
 
     nominal, exact = third_octave_centres(band_range)
     sources = SourceGrid.preset(preset, sample.symmetry)
-    preview = preview_sources(sources, sample.symmetry)
+    preview = list(range(sources.n))  # the polar levels of every source direction: Polar Preview offers each of them
     if method == "geometric":
         measured = _geometric(sample, sources, preview, nominal, exact, c, solver_options)
     else:

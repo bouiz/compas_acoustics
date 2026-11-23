@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -73,8 +74,8 @@ namespace CompasAcoustics.Grasshopper
             _ => $"{method} does not use {string.Join(", ", names.Take(names.Count - 1).Select(n => $"'{n}'"))} or '{names[^1]}'.",
         };
 
-        /// <summary>The strip of a sample: its mode and diameter, as the lab measures it.</summary>
-        public static string SampleStatus(string mode, double diameter) => string.Create(CultureInfo.InvariantCulture, $"{mode}, d {diameter:0.00} m");
+        /// <summary>The strip of a sample: its diameter, as the lab measures it (the mode is on its dropdown).</summary>
+        public static string SampleStatus(double diameter) => string.Create(CultureInfo.InvariantCulture, $"d {diameter:0.00} m");
 
         /// <summary>Whether a method runs when its inputs change: only the geometric method (seconds); kirchhoff and bem (minutes to hours) wait for Run.</summary>
         public static bool StartsWithoutRun(string method) => method == "geometric";
@@ -125,6 +126,46 @@ namespace CompasAcoustics.Grasshopper
             }
             return AsyncRuns.Key("run_scattering_lab", keyed, kwargs);
         }
+
+        /// <summary>The start of the worker's error when a call names a result by a guid it does not hold (<c>compas_acoustics.worker.api.NOT_HELD</c>).</summary>
+        public const string NotHeld = "result not held:";
+
+        /// <summary>
+        /// A call whose first argument is a result, made with the result's guid in its place, so that the result (up to tens of MB of
+        /// polar levels) is not sent on every change; with the result itself only when the worker does not hold it (it restarted, or let
+        /// it go), which it then holds again.
+        /// </summary>
+        public static object? NamingTheResult(object?[] args, Func<object?[], object?> call)
+        {
+            if (args.Length == 0 || args[0] is not ScatteringResultData result || string.IsNullOrEmpty(result.Guid))
+                return call(args);
+            var named = (object?[])args.Clone();
+            named[0] = result.Guid;
+            try
+            {
+                return call(named);
+            }
+            catch (WorkerException e) when (e.Status == 400 && e.Message.StartsWith(NotHeld, StringComparison.Ordinal))
+            {
+                return call(args);
+            }
+        }
+
+        /// <summary>
+        /// The octave Polar Preview draws: <paramref name="octave"/>, or, when the result did not simulate it and no wire sets it (a
+        /// definition saved at 8000 Hz, a result to 5000 Hz), the nearest the result has, where its slider shows the knob. A wired
+        /// octave stays, and Balloon says which octaves there are.
+        /// </summary>
+        public static int Octave(int octave, ScatteringResultData result, bool wired)
+        {
+            if (wired || result.OctaveBands.Count == 0 || result.OctaveBands.Contains(octave))
+                return octave;
+            return result.OctaveBands.OrderBy(o => Math.Abs(Math.Log((double)o / octave))).First();
+        }
+
+        /// <summary>The directions of a result as Polar Preview's dials offer them: each preview's index, colatitude and azimuth.</summary>
+        public static Incidence[] Incidences(ScatteringResultData result) =>
+            result.PolarSourceIndices.Select((source, i) => new Incidence(i, result.SourceColatitude[source], result.SourceAzimuth[source])).ToArray();
 
         /// <summary>The preview sources of a result as its Polar Preview dropdown lists them: <c>θ 30°, φ 0°</c>, the colatitude and azimuth in degrees.</summary>
         public static string[] PreviewLabels(ScatteringResultData result) =>

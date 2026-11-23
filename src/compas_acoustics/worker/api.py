@@ -7,7 +7,9 @@ input raises ValueError or TypeError, which the service answers with its message
 import importlib.util
 import re
 import sys
+import threading
 import warnings
+from collections import OrderedDict
 
 __all__ = [
     "info",
@@ -733,7 +735,7 @@ def run_scattering_lab(sample, method="geometric", preset=None, band_range="iso"
     method : str
         ``'geometric'``, ``'kirchhoff'`` or ``'bem'``.
     preset : str, optional
-        ``'survey'``, ``'standard'`` or ``'fine'``; the method's own when None or empty.
+        ``'survey'`` or ``'standard'``; the method's own when None or empty.
     band_range : str
         ``'iso'`` (100 to 5000 Hz) or ``'extended'`` (to 8000 Hz).
     settings : dict, optional
@@ -777,7 +779,41 @@ def run_scattering_lab(sample, method="geometric", preset=None, band_range="iso"
     # the sample's own warnings are the Scattering Sample's; how long the run takes is news only before it
     messages = [m for m in _messages(caught) if m not in sample.warnings]
     messages, notes = _split_notes(messages, NOTE_TEMPLATES + (_SERIAL,), dropped=DURATION_TEMPLATES + (_SLOW_GRID, _BIG))
+    _hold(result)
     return {"result": result, "scattering_coefficients": result.scattering_coefficients, "octave_bands": list(result.octave_bands), "warnings": messages, "notes": notes}
+
+
+#: The start of the error of a call that names a result by its guid when the worker does not hold it (it restarted, or let it go to
+#: stay within _HELD_BYTES): the caller sends the result itself instead
+NOT_HELD = "result not held:"
+_HELD_BYTES = 1024 * 2**20  # the polar levels the held results may take in all; the newest result is held whatever its size
+_held = OrderedDict()  # guid -> ScatteringResult, the least recently used first
+_held_lock = threading.Lock()  # the service answers calls on threads
+
+
+def _polar_bytes(result):
+    return int(result.polar_sample_db.nbytes + result.polar_reference_db.nbytes)
+
+
+def _hold(result):
+    """Keep ``result`` by its guid, so that Polar Preview can name it instead of sending it again; let the least recently used go."""
+    with _held_lock:
+        _held[str(result.guid)] = result
+        _held.move_to_end(str(result.guid))
+        while len(_held) > 1 and sum(_polar_bytes(r) for r in _held.values()) > _HELD_BYTES:
+            _held.popitem(last=False)
+
+
+def _the_result(result):
+    """``result`` itself, or the held result its guid names; ``ValueError`` starting with :data:`NOT_HELD` when that is not held."""
+    if not isinstance(result, str):
+        _hold(result)
+        return result
+    with _held_lock:
+        if result not in _held:
+            raise ValueError(f"{NOT_HELD} {result}")
+        _held.move_to_end(result)
+        return _held[result]
 
 
 _BALLOON_MIN_RADIUS = 0.03  # the fraction of the radius at and below the floor: a balloon that collapses to a point is not a mesh
@@ -793,7 +829,9 @@ def polar_balloon(result, preview=0, octave=1000, body="sample", radius=1.0, flo
 
     Parameters
     ----------
-    result : :class:`compas_acoustics.lab.ScatteringResult`
+    result : :class:`compas_acoustics.lab.ScatteringResult` or str
+        The result, or the guid of one the worker holds: one :func:`run_scattering_lab` made or a call was given. A guid the worker
+        does not hold is a ``ValueError`` starting with :data:`NOT_HELD`, and the caller sends the result itself.
     preview : int
         The index into ``result.polar_source_indices``.
     octave : int
@@ -821,6 +859,7 @@ def polar_balloon(result, preview=0, octave=1000, body="sample", radius=1.0, flo
     from compas.datastructures import Mesh
     from scipy.spatial import ConvexHull
 
+    result = _the_result(result)
     previews = result.polar_source_indices
     if preview is None or not 0 <= int(preview) < len(previews):
         raise ValueError(f"preview is an index of the preview sources, 0 to {len(previews) - 1}, not {preview!r}")

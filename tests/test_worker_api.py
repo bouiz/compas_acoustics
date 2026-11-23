@@ -845,3 +845,29 @@ def test_a_relief_lying_on_the_wrong_plane_is_told_to_lie_on_xy():
         api.make_scattering_sample(wall_mesh)
     # given its plane it is a sample as any other
     assert api.make_scattering_sample(wall_mesh, frame=frame).diameter == pytest.approx(api.make_scattering_sample(_wavy_panel()).diameter)
+
+
+def test_polar_balloon_takes_a_held_result_by_its_guid():
+    result = _geometric_result()  # run_scattering_lab holds the result it made
+    by_guid = api.polar_balloon(str(result.guid), preview=1, octave=1000)
+    assert by_guid["label"] == api.polar_balloon(result, preview=1, octave=1000)["label"]
+    assert len(by_guid["levels"]) == len(result.receiver_directions)
+
+
+def test_a_guid_the_worker_does_not_hold_asks_for_the_result_itself():
+    # the plugin's LabRequests.NotHeld starts the same: it then sends the result
+    assert api.NOT_HELD == "result not held:"
+    with pytest.raises(ValueError, match="^result not held: 00000000-"):
+        api.polar_balloon("00000000-0000-4000-8000-000000000000")
+
+
+def test_the_worker_lets_the_least_recently_used_results_go_beyond_its_budget(monkeypatch):
+    first, second = _geometric_result(), _geometric_result()
+    monkeypatch.setattr(api, "_HELD_BYTES", api._polar_bytes(first) + api._polar_bytes(second) // 2)
+    api._hold(first)
+    api._hold(second)  # over the budget: the first goes
+    with pytest.raises(ValueError, match=api.NOT_HELD):
+        api.polar_balloon(str(first.guid))
+    assert api.polar_balloon(str(second.guid))["mesh"] is not None
+    api.polar_balloon(first)  # sent again, it is held again
+    assert api.polar_balloon(str(first.guid))["mesh"] is not None

@@ -52,13 +52,13 @@ class ScatteringResult(_PackageDtype, Data):
     receiver_directions : numpy.ndarray
         Unit vectors from the sample to the receivers, shape (n_receivers, 3).
     polar_sample_db, polar_reference_db : numpy.ndarray
-        The levels at the receivers per preview source and simulated octave, shape (n_preview, n_octaves, n_receivers), float32: the mean
+        The levels at the receivers per source direction and simulated octave, shape (n_preview, n_octaves, n_receivers), float32: the mean
         of |p|² over the simulation frequencies in the octave, in dB relative to the reference's maximum for the same source and octave
         (for ``"geometric"``: the cells' energy per steradian, the same at every octave). −300 dB where the level is 0.
         Stored rounded to 0.1 dB, the resolution ISO 17497-2 §8.5 presents polar responses at.
     polar_source_indices : list of int, optional
-        The preview sources, as indices into the source arrays (``source_colatitude`` ...): the sources nearest to the ISO 17497-2
-        Table 1 directions (:func:`compas_acoustics.lab.scattering.preview_sources`). By default the first n_preview sources.
+        The sources whose polar levels the result holds, as indices into the source arrays (``source_colatitude`` ...): every
+        source of a result of :func:`compas_acoustics.lab.measure_scattering`. By default the first n_preview sources.
     unconverged_octaves : list of int, optional
         The simulated octaves holding a frequency at which the solver did not converge (BEM; see ``generation["unconverged"]``):
         their values are unreliable.

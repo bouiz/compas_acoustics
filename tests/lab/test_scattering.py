@@ -17,11 +17,9 @@ from lab_shapes import v_groove_tile
 from compas_acoustics.lab import scattering
 from compas_acoustics.lab.bands import EXTENDED_BAND_RANGE
 from compas_acoustics.lab.bands import THIRD_OCTAVE_CENTRES
-from compas_acoustics.lab.grids import SourceGrid
 from compas_acoustics.lab.results import ScatteringResult
 from compas_acoustics.lab.sample import ScatteringSample
 from compas_acoustics.lab.scattering import measure_scattering
-from compas_acoustics.lab.scattering import preview_sources
 from compas_acoustics.lab.solvers import KirchhoffSolver
 from compas_acoustics.lab.solvers import Pressures
 from compas_acoustics.lab.solvers import ScatteringSolver
@@ -139,17 +137,13 @@ def test_unconverged_steps_reach_the_warnings_and_mark_their_octaves(monkeypatch
     json.loads(json_dumps(r), parse_constant=lambda name: pytest.fail("not strict JSON: " + name))
 
 
-def test_polar_levels_are_kept_for_the_preview_sources_only(monkeypatch):
+def test_polar_levels_are_kept_for_every_source_direction(monkeypatch):
     monkeypatch.setattr(scattering, "_solver", lambda method, **kw: FakeSolver())
     sample = ScatteringSample.disc(flat_tile(), diameter=0.4)
     r = measure_scattering(sample, method="kirchhoff", preset="standard", band_range=(1000, 1000))
-    assert r.s_angle.shape[0] == 97 and len(r.polar_source_indices) == 13 and r.polar_sample_db.shape == (13, 1, len(r.receiver_directions))
-    survey = SourceGrid.preset("survey")
-    used = np.column_stack([r.source_colatitude, r.source_azimuth])[r.polar_source_indices]
-    assert sorted(map(tuple, used)) == sorted(zip(survey.colatitude, survey.azimuth))  # "standard" holds the survey directions
+    assert r.s_angle.shape[0] == 97 and r.polar_source_indices == list(range(97)) and r.polar_sample_db.shape == (97, 1, len(r.receiver_directions))
     rotational = ScatteringSample.disc(flat_tile(), diameter=0.4, symmetry="rotational")
-    assert preview_sources(SourceGrid.preset("fine", "rotational"), "rotational") == [0, 11, 23]  # 1.26°, 28.98°, 59.22°: nearest 0°, 30°, 60°
-    assert measure_scattering(rotational, method="kirchhoff", preset="standard", band_range=(1000, 1000)).polar_source_indices == [0, 3, 6]
+    assert measure_scattering(rotational, method="kirchhoff", preset="standard", band_range=(1000, 1000)).polar_source_indices == list(range(9))
 
 
 def test_batched_kirchhoff_gives_the_unbatched_result(monkeypatch):
@@ -224,7 +218,7 @@ def test_geometric_flat_disc_scatters_nothing():
     assert not any("lost" in w for w in r.warnings) and r.generation["lost"] == 0.0
     assert r.generation["reference"] == "flat" and r.generation["n_rays"] == 2000 and r.generation["receivers"] == len(r.receiver_directions)
     # the specular cell holds everything: 0 dB there, -300 dB (empty) elsewhere, the same at every octave
-    assert r.polar_sample_db.shape == (13, len(r.octave_bands), len(r.receiver_directions))
+    assert r.polar_sample_db.shape == (97, len(r.octave_bands), len(r.receiver_directions))  # every source of the "standard" preset
     assert np.allclose(r.polar_sample_db.max(axis=2), 0.0) and np.array_equal(r.polar_sample_db, r.polar_reference_db)
     assert (r.polar_sample_db == -300.0).sum(axis=2).min() == len(r.receiver_directions) - 1
     assert np.array_equal(r.polar_sample_db[:, :1].repeat(len(r.octave_bands), axis=1), r.polar_sample_db)

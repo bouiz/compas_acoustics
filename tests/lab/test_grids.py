@@ -6,7 +6,7 @@ from compas_acoustics.lab.grids import SourceGrid
 from compas_acoustics.lab.grids import receiver_spacing
 
 
-@pytest.mark.parametrize("name, n_none, n_rot", [("survey", 13, 3), ("standard", 97, 9), ("fine", 864, 36)])
+@pytest.mark.parametrize("name, n_none, n_rot", [("survey", 13, 3), ("standard", 97, 9)])
 def test_preset_sizes(name, n_none, n_rot):
     assert SourceGrid.preset(name).n == n_none
     assert SourceGrid.preset(name, symmetry="rotational").n == n_rot
@@ -21,7 +21,7 @@ def test_paris_weights_sum_to_one_and_follow_sin2():
 
 
 def test_paris_weights_sum_to_one_for_all_presets():
-    for name in ("survey", "standard", "fine"):
+    for name in ("survey", "standard"):
         for sym in ("none", "rotational"):
             assert SourceGrid.preset(name, symmetry=sym).paris_weights.sum() == pytest.approx(1.0)
 
@@ -49,3 +49,8 @@ def test_receiver_spacing_matches_heimes_example():
     # Heimes sec. 3: d = 0.8 m, c = 346 m/s -> 5 degrees is valid up to 4.3 kHz
     assert receiver_spacing(0.8, 4300.0, 346.0) == pytest.approx(5.0, abs=0.05)
     assert receiver_spacing(0.8, 1000.0, 346.0) == 5.0  # never coarser than ISO 17497-2's 5 degrees
+
+
+def test_the_fine_preset_is_gone():
+    with pytest.raises(ValueError, match="'survey' and 'standard'"):
+        SourceGrid.preset("fine")

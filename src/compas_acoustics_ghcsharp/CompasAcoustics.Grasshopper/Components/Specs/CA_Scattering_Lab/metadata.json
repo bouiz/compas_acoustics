@@ -24,7 +24,7 @@
             },
             {
                 "name": "preset",
-                "description": "The source directions the sample is measured from: 'survey' (13, default), 'standard' (97) or 'fine' (864). survey is the quickest, a first look; its random-incidence s can be up to 0.29 off near the onset of grating lobes, so use standard or fine for the values a room model takes.",
+                "description": "The source directions the sample is measured from: 'survey' (13, default) or 'standard' (97). survey is the quickest, a first look; its random-incidence s can be up to 0.29 off near the onset of grating lobes, so use standard for the values a room model takes. Polar Preview shows the polar response of every direction measured.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "str",
