@@ -36,9 +36,10 @@ their rules for the angles of coplanar edges (EDed2geo), the scaled geometric co
     NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-betaoverml and _quadstep are written from the paper and the adaptive Simpson rule; they compute what EDbetaoverml and
-EDquadstep of the toolbox compute, with the same arguments and steps, except that betaoverml takes a term that is 0/0 on
-its zone boundary as 0.
+The first-order integrand (:func:`_btm_integrand`) is the published line integral: Calamia and Svensson (2007), "Fast
+time-domain edge-diffraction calculations for interactive acoustic simulations", EURASIP J. Adv. Signal Process. 2007,
+63560, Eqs. (2)-(4). It is integrated by the standard adaptive Simpson rule with Richardson extrapolation
+(:func:`_adaptive_simpson`).
 """
 
 from __future__ import annotations
@@ -46,35 +47,47 @@ from __future__ import annotations
 import numpy as np
 
 
-def betaoverml(z, rs, rr, zs, zr, nu, sin_nu_phi, cos_nu_phi):
-    """beta(z) / (m l): the four-term edge-source directivity over the two distances, Svensson et al. (1999); nu = pi /
-    theta_w, phi = pi +- theta_S +- theta_R."""
-    z = np.asarray(z, dtype=float)
-    m = np.sqrt((z - zs) ** 2 + rs**2)
-    l = np.sqrt((z - zr) ** 2 + rr**2)
-    y = (m * l + (z - zs) * (z - zr)) / (rs * rr)
-    cosh_nu_eta = np.cosh(nu * np.arccosh(np.maximum(y, 1.0)))
-    # a term on its zone boundary is 0/0 where the path reaches the apex (z = 0 for a
-    # segment starting there); the apex region drops it, so does the integrand
-    den = [cosh_nu_eta - cphi for cphi in cos_nu_phi]
-    beta = sum(np.where(d == 0, 0.0, s / np.where(d == 0, 1.0, d)) for s, d in zip(sin_nu_phi, den))
-    return beta / (m * l)
+def _btm_integrand(source: tuple[float, float], receiver: tuple[float, float], nu: float, phi: np.ndarray):
+    """The integrand of the first-order BTM line integral, sum_i beta_i / (m l), as a function of the edge coordinate z
+    (Calamia and Svensson 2007, Eqs. (2)-(4)).
+
+    ``source`` and ``receiver`` are (r, z) about the edge, ``nu = pi / theta_w`` and ``phi`` the four angles pi +-
+    theta_S +- theta_R. A term whose numerator and denominator both vanish (on its zone boundary, at the apex) is taken
+    as 0; the analytic apex term of :func:`wedge1st_ir` covers it (the package's choice).
+    """
+    (r_s, z_s), (r_r, z_r) = source, receiver
+    sin_nu_phi, cos_nu_phi = np.sin(nu * phi), np.cos(nu * phi)
+
+    def integrand(z):
+        z = np.asarray(z, dtype=float)
+        m = np.sqrt((z - z_s) ** 2 + r_s**2)
+        l = np.sqrt((z - z_r) ** 2 + r_r**2)
+        cosh_nu_eta = np.cosh(nu * np.arccosh(np.maximum((m * l + (z - z_s) * (z - z_r)) / (r_s * r_r), 1.0)))
+        beta = 0
+        for numerator, cos_term in zip(sin_nu_phi, cos_nu_phi):
+            denominator = cosh_nu_eta - cos_term
+            beta = beta + np.where(denominator == 0, 0.0, numerator / np.where(denominator == 0, 1.0, denominator))
+        return beta / (m * l)
+
+    return integrand
 
 
-def _quadstep(a, b, fa, fc, fb, tol, rs, rr, zs, zr, nu, sin_nu_phi, cos_nu_phi):
-    """Adaptive Simpson on [a, b] for every interval at once: three-point and five-point Simpson, one Richardson step,
-    intervals whose estimates differ by more than tol are halved."""
-    c = (a + b) / 2.0
-    fd, fe = (betaoverml(x, rs, rr, zs, zr, nu, sin_nu_phi, cos_nu_phi) for x in ((a + c) / 2.0, (c + b) / 2.0))
-    h = (b - a) / 6.0
-    q1 = h * (fa + 4.0 * fc + fb)
-    q2 = h / 2.0 * (fa + 4.0 * fd + 2.0 * fc + 4.0 * fe + fb)
-    q = q2 + (q2 - q1) / 15.0
-    open_ = np.flatnonzero(np.abs(q2 - q) > tol)
-    if open_.size:
-        q[open_] = _quadstep(a[open_], c[open_], fa[open_], fd[open_], fc[open_], tol, rs, rr, zs, zr, nu, sin_nu_phi, cos_nu_phi) + _quadstep(
-            c[open_], b[open_], fc[open_], fe[open_], fb[open_], tol, rs, rr, zs, zr, nu, sin_nu_phi, cos_nu_phi
-        )
+def _adaptive_simpson(f, a, b, tol, fa, fm, fb):
+    """The integral of ``f`` over each interval [a, b] of the arrays ``a``, ``b``, by the standard adaptive Simpson rule
+    with Richardson extrapolation; ``fa``, ``fm`` and ``fb`` are ``f`` at a, (a + b) / 2 and b.
+
+    Simpson's rule on the interval and on its two halves, the halves' sum corrected by its difference from the whole
+    over 15; where that correction exceeds ``tol`` the two halves are integrated the same way.
+    """
+    m = (a + b) / 2.0
+    f_left, f_right = f((a + m) / 2.0), f((m + b) / 2.0)
+    whole = (b - a) / 6.0 * (fa + 4.0 * fm + fb)
+    halves = (b - a) / 12.0 * (fa + 4.0 * f_left + 2.0 * fm + 4.0 * f_right + fb)
+    q = halves + (halves - whole) / 15.0
+    refine = np.flatnonzero(np.abs(q - halves) > tol)
+    if refine.size:
+        left = _adaptive_simpson(f, a[refine], m[refine], tol, fa[refine], f_left[refine], fm[refine])
+        q[refine] = left + _adaptive_simpson(f, m[refine], b[refine], tol, fm[refine], f_right[refine], fb[refine])
     return q
 
 
@@ -82,20 +95,12 @@ def _round_half_away(x):
     return (np.sign(x) * np.floor(np.abs(x) + 0.5)).astype(int)
 
 
-def _slot_integrals(zstarts, zends, tol, rs, rr, zs, zr, nu, s, c):
+def _slot_integrals(zstarts, zends, f, tol):
     # the toolbox's seven-point start (EDwedge1st_ir.m)
     h = 0.13579 * (zends - zstarts)
     x = np.stack([zstarts, zstarts + h, zstarts + 2 * h, (zstarts + zends) / 2, zends - 2 * h, zends - h, zends], axis=1)
-    y = betaoverml(x, rs, rr, zs, zr, nu, s, c)
-    args = (tol, rs, rr, zs, zr, nu, s, c)
-    q = np.stack(
-        [
-            _quadstep(x[:, 0], x[:, 2], y[:, 0], y[:, 1], y[:, 2], *args),
-            _quadstep(x[:, 2], x[:, 4], y[:, 2], y[:, 3], y[:, 4], *args),
-            _quadstep(x[:, 4], x[:, 6], y[:, 4], y[:, 5], y[:, 6], *args),
-        ],
-        axis=1,
-    )
+    y = f(x)
+    q = np.stack([_adaptive_simpson(f, x[:, k], x[:, k + 2], tol, y[:, k], y[:, k + 1], y[:, k + 2]) for k in (0, 2, 4)], axis=1)
     return q.sum(axis=1)
 
 
@@ -138,7 +143,7 @@ def wedge1st_ir(fs, c, closed_angle, rs, thetas, zs, rr, thetar, zr, zw, r_irsta
     absnyfivec = np.abs(ny * fivec)
     sinnyfivec = np.sin(ny * fivec)
     cosnyfivec = np.cos(ny * fivec)
-    integ = (rs, rr, zs, zr, ny, sinnyfivec, cosnyfivec)
+    integrand = _btm_integrand((rs, zs), (rr, zr), ny, fivec)
 
     perpcase = zs == zr
     symmcase = rs == rr
@@ -258,15 +263,15 @@ def wedge1st_ir(fs, c, closed_angle, rs, thetas, zs, rr, thetar, zr, zw, r_irsta
             ir[arrivalsampnumb] += approxintvalvec.real
 
             if splitinteg:
-                ir[arrivalsampnumb] += _slot_integrals(np.array([zrangespecial]), zrange_apex[:1], tol, *integ)[0]
+                ir[arrivalsampnumb] += _slot_integrals(np.array([zrangespecial]), zrange_apex[:1], integrand, tol)[0]
 
-            qsum = _slot_integrals(zrange_apex[:-1], zrange_apex[1:], tol, *integ)
+            qsum = _slot_integrals(zrange_apex[:-1], zrange_apex[1:], integrand, tol)
             # the toolbox's ir(arrivalsampnumb + [2:length(zrange_apex)]), 1-based
             ir[arrivalsampnumb + 1 : arrivalsampnumb + zrange_apex.size] += qsum
             ir = ir * (-ny / 2 / np.pi)
 
         if tailincluded:
-            qsum = _slot_integrals(zrange_tail[:-1], zrange_tail[1:], tol, *integ)
+            qsum = _slot_integrals(zrange_tail[:-1], zrange_tail[1:], integrand, tol)
             # the toolbox's ir(endsampnumb_apex + [1:length(zrange_tail)-1]), 1-based
             ir[endsampnumb_apex : endsampnumb_apex + zrange_tail.size - 1] += qsum * (-ny / 4 / np.pi)
 

@@ -34,8 +34,7 @@ Parts of the code are adapted from other projects, under their own licences.
 `_edge_z_of_path` and `_slot_integrals`), `wedge2nd_ir`, `_coordtrans1` and `element_grid` follow `EDwedge1st_ir`,
 `EDwedge2nd`, `EDcoordtrans1`, `EDcreindexmatrix` and `EDmakeHODirs` of the
 [Edge Diffraction Toolbox](https://github.com/upsvensson/Edge-diffraction-Matlab-toolbox) v0.504 by Peter Svensson;
-`betaoverml` and `_quadstep` compute what its `EDbetaoverml` and `EDquadstep` compute; `btms_paths` and
-`coplanar_thetas` take rules from its `EDed2geo`, `EDfindconvexGApaths`, `EDmakefirstorderirs` and `EDmakeHODirs`.
+`btms_paths` and `coplanar_thetas` take rules from its `EDed2geo`, `EDfindconvexGApaths`, `EDmakefirstorderirs` and `EDmakeHODirs`.
 The toolbox is under the BSD license:
 
 ```text
