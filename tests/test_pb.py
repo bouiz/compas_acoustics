@@ -357,6 +357,9 @@ def _makers():
 def test_the_interop_fixtures_decode_to_what_the_generator_makes(name, kind):
     import base64
 
+    if name == "scattering_result":
+        pytest.importorskip("embreex")  # the generator runs the geometric method
+
     committed = pb_load_bts(base64.b64decode((FIXTURES / f"{name}.b64").read_text()))
     made = _makers()[name]()
     assert isinstance(committed, kind)
