@@ -35,6 +35,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+* Fixed `Binaural` and `Ambisonics` to render a path a source radiates into the negative lobe of its pattern (behind a `'supercardioid'`, `'hypercardioid'` or `'bidirectional'` source) in antiphase, as `Mono` does; such paths were silent, in the direct sound, the reflections and the late field's drive, which left the late level of a `'bidirectional'` source about 3 dB low. Responses of `'omnidirectional'` and `'cardioid'` sources are bit-identical.
+* Fixed `ImpulseResponse.from_wav` to read the source's direction from the JSON metadata; the source faced `+x` whatever was written.
+* Fixed `RayField.from_scene` to raise for a source whose directivity is not one of the five patterns, as a simulation does; it traced the source as omnidirectional.
 * Fixed the hybrid's late envelope at sample rates between 22.6 and 31.7 kHz, where pyfar's filter bank has no 16 kHz band and the omnidirectional shaping summed a band that was never written; the band count follows the bank. 44.1 and 48 kHz are unchanged.
 * Fixed `EnergyMap` to bin on the ray tracer's grid (4 ms in whole samples, 3.991 ms at 44.1 kHz); `bin_size` said 4 ms, the image sources were binned on another grid than the rays, and the last ray bins were dropped. 48 kHz is unchanged.
 * Fixed `Binaural` and `Ambisonics` to check a reference's length against the longest predicted Eyring reverberation time, no longer held within 0.5 to 12 s, and only when there is a reference: an Eyring or Sabine tail no longer warns that ray tracing will be slow.

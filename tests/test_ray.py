@@ -218,6 +218,11 @@ def test_a_cardioid_sends_almost_nothing_straight_back_and_a_figure_of_eight_not
     assert sum(abs(c) < 0.2 for c in eight) / n < 0.01
 
 
+def test_an_unknown_directivity_raises_as_in_a_simulation():
+    with pytest.raises(ValueError, match="'Cardioid' is not supported"):
+        RayField.from_scene(_directive_scene("Cardioid"), n_rays=10, max_reflection_order=1)
+
+
 def test_each_source_radiates_along_its_own_facing():
     field = RayField.from_scene(_directive_scene("cardioid", (1, 0, 0), second=(0, -1, 0)), n_rays=400, max_reflection_order=1)
     assert sum(_cosines(field, (1, 0, 0), 0)) / 400 == pytest.approx(0.5, abs=0.01)

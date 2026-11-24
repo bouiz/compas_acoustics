@@ -88,6 +88,14 @@ def test_wav_and_json_round_trip(tmp_path):
     assert loaded.generation == ir.generation
 
 
+def test_from_wav_keeps_the_source_directivity_and_direction(tmp_path):
+    source = Source("s", 1, 2, 3, directivity="cardioid", direction=[0, 1, 0])
+    ir = ImpulseResponse("a", source, Receiver("r", 4, 5, 6), np.array([0.0, 0.5]), sampling_rate_default)
+    loaded = ImpulseResponse.from_wav(ir.to_wav(tmp_path / "a.wav")[0])
+    assert loaded.source.directivity == "cardioid"
+    assert list(loaded.source.direction) == [0.0, 1.0, 0.0]
+
+
 def test_from_wav_without_metadata_uses_the_wav_as_raw(tmp_path):
     import soundfile as sf
 
