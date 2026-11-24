@@ -250,7 +250,12 @@ class ImpulseResponse(_PackageDtype, Data):
 
         if source is None:
             source_data = metadata.get("source", {})
-            source = Source(source_data.get("name", "source"), *source_data.get("position", [0.0, 0.0, 0.0]), directivity=source_data.get("directivity"))
+            source = Source(
+                source_data.get("name", "source"),
+                *source_data.get("position", [0.0, 0.0, 0.0]),
+                directivity=source_data.get("directivity"),
+                direction=source_data.get("direction"),
+            )
         if receiver is None:
             receiver_data = metadata.get("receiver", {})
             receiver = Receiver(
