@@ -99,7 +99,7 @@
             },
             {
                 "name": "duration",
-                "description": "Length of the responses in seconds (default: 1.5 times the longest Eyring reverberation time, 0.5 to 12 s). Ray tracing only.",
+                "description": "Length of the responses in seconds. Default: 1.5 times the longest Eyring reverberation time (0.5 to 12 s), traced again longer while the responses end before 2/3 of their T30, up to 12 s. A given duration is kept and warns when it cuts the decay. Ray tracing only.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "float"

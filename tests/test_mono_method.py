@@ -294,6 +294,33 @@ def test_a_response_shorter_than_its_reverberation_time_warns():
         scene.simulate(Mono(n_rays=2000, seed=1))
 
 
+HARD = AcousticMaterial("hard", 0.02, 0.1)
+SOFT = AcousticMaterial("soft", 0.9, 0.1)
+# hard walls between an absorbing floor and ceiling: the horizontal decay outlasts Eyring's prediction
+OUTRUNS_EYRING = {"floor": SOFT, "ceiling": SOFT, "left_wall": HARD, "right_wall": HARD, "front_wall": HARD, "back_wall": HARD}
+IN_THE_CORNER = Receiver("rec", 6.0, 1.0, 1.5)
+
+
+def test_a_default_duration_lengthens_until_the_response_holds_its_decay():
+    from compas_acoustics.analyser import Analyser
+
+    scene = simulator(IN_THE_CORNER, OUTRUNS_EYRING)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
+        warnings.filterwarnings("ignore", category=DiffuseFieldWarning)
+        (ir,) = scene.simulate(Mono(n_rays=2000, seed=1)).values()
+    length = ir.ir.shape[0] / FS
+    assert length > default_duration(RoomGeometry.from_scene(scene), air_absorption=True)
+    assert length >= 2.0 / 3.0 * np.nanmax(np.asarray(Analyser(ir).reverberation_times()["T30"], dtype=float))
+
+
+def test_a_given_duration_is_kept_and_warns_when_it_cuts_the_decay():
+    scene = simulator(IN_THE_CORNER, OUTRUNS_EYRING)
+    with pytest.warns(UserWarning, match="less than 2/3 of their reverberation time"):
+        (ir,) = scene.simulate(Mono(n_rays=2000, seed=1, duration=0.5)).values()
+    assert ir.ir.shape[0] == round(0.5 * FS)
+
+
 def _decay_response(reverberation_time, seconds, seed=0, fs=48000):
     from compas_acoustics import ImpulseResponse
     from compas_acoustics import Receiver
@@ -308,9 +335,9 @@ def test_a_response_of_two_thirds_of_its_reverberation_time_is_long_enough():
     """T30's fit ends 35 dB down, at 0.58 of the reverberation time: 0.76 of it passes, 0.6 warns."""
     with warnings.catch_warnings():
         warnings.simplefilter("error", UserWarning)
-        Mono._warn_if_cut_short({"k": _decay_response(2.5, 1.9)}, 48000)
+        Mono._warn_if_cut_short(*Mono._length_and_rt({"k": _decay_response(2.5, 1.9)}, 48000), lengthened=False)
     with pytest.warns(UserWarning, match="less than 2/3 of their reverberation time"):
-        Mono._warn_if_cut_short({"k": _decay_response(2.5, 1.5)}, 48000)
+        Mono._warn_if_cut_short(*Mono._length_and_rt({"k": _decay_response(2.5, 1.5)}, 48000), lengthened=False)
 
 
 def test_the_image_source_backend_is_what_the_method_returns_without_ray_tracing():

@@ -14,6 +14,7 @@ from compas_acoustics.room.air import air_or_default
 from compas_acoustics.room.pra import points_to_array
 from compas_acoustics.room.pra import source_to_pra
 from compas_acoustics.room.raytracing import DURATION_RT_FACTOR
+from compas_acoustics.room.raytracing import MAX_DURATION
 from compas_acoustics.room.raytracing import RayTracedRun
 from compas_acoustics.room.raytracing import image_source_rirs
 from compas_acoustics.room.raytracing import ray_traced_run
@@ -46,9 +47,9 @@ class Mono(SimulationMethod):
         The product of its reflections in its least absorbed band at which a ray stops; the logged energy is that
         over the squared distance (Schroeder 2011, Eq. 5.54), so the tail has decayed much further.
     duration : float, optional
-        Of the ray-traced responses, in seconds; default
-        :func:`~compas_acoustics.room.raytracing.default_duration`. Without ray tracing the responses have their
-        natural length.
+        Of the ray-traced responses, in seconds. Default: :func:`~compas_acoustics.room.raytracing.default_duration`,
+        traced again longer while the responses end before 2/3 of their T30 (up to 12 s). A given duration is kept
+        and warns when it cuts the decay. Without ray tracing the responses have their natural length.
     receiver_radius : float, default=0.5
         In metres.
     seed : bool or int, default=True
@@ -141,8 +142,13 @@ class Mono(SimulationMethod):
     def compute(self, context: SimulationContext) -> dict:
         return self._run(context)[0]
 
-    def _run(self, context: SimulationContext, directions=None) -> tuple[dict, Optional[RayTracedRun]]:
-        """The responses and, with ray tracing, the run they came from; ``directions`` as :func:`ray_traced_run`'s."""
+    def _run(self, context: SimulationContext, directions=None, lengthen=None) -> tuple[dict, Optional[RayTracedRun]]:
+        """The responses and, with ray tracing, the run they came from; ``directions`` as :func:`ray_traced_run`'s.
+
+        With ``lengthen`` (default: when ``duration`` is None) the rays are traced again, at 1.5 times the longest T30
+        read, while the responses end before 2/3 of it, up to ``MAX_DURATION``: the default length comes from Eyring,
+        which a room with unevenly distributed absorption outlasts. The rule is the package's choice.
+        """
         if not context.sources or not context.receivers:
             return {}, None
         fs = context.sampling_rate
@@ -151,16 +157,22 @@ class Mono(SimulationMethod):
         mic_positions = points_to_array([receiver.position for receiver in context.receivers])
         from compas_acoustics.worker import jobs
 
-        jobs.progress("ray tracing" if self.ray_tracing else "image sources")
-        run = None
-        if self.ray_tracing:
+        if not self.ray_tracing:
+            jobs.progress("image sources")
+            responses = image_source_rirs(context.geometry, sources, mic_positions, fs, max_order=self.image_source_order, air_absorption=self.air_absorption, air=self.air)
+            return self._responses(context, responses, fs), None
+
+        lengthen = self.duration is None if lengthen is None else lengthen
+        duration = self.duration
+        while True:
+            jobs.progress("ray tracing")
             run = ray_traced_run(
                 context.geometry,
                 sources,
                 mic_positions,
                 fs,
                 max_order=self.image_source_order,
-                duration=self.duration,
+                duration=duration,
                 n_rays=self.n_rays,
                 receiver_radius=self.receiver_radius,
                 energy_threshold=self.energy_thres,
@@ -169,9 +181,18 @@ class Mono(SimulationMethod):
                 air=self.air,
                 directions=directions,
             )
-            responses = run.responses
-        else:
-            responses = image_source_rirs(context.geometry, sources, mic_positions, fs, max_order=self.image_source_order, air_absorption=self.air_absorption, air=self.air)
+            rirs = self._responses(context, run.responses, fs)
+            length, longest = self._length_and_rt(rirs, fs)
+            if not lengthen or length >= 2.0 / 3.0 * longest or (duration or 0.0) >= MAX_DURATION:
+                break
+            duration = min(DURATION_RT_FACTOR * longest, MAX_DURATION)
+        self._warn_if_cut_short(length, longest, lengthen)
+        return rirs, run
+
+    def _responses(self, context: SimulationContext, responses, fs: int) -> dict:
+        """The :class:`ImpulseResponse` of every pair from ``responses[mic][source]``, keyed by
+        :meth:`SimulationContext.key`."""
+        from compas_acoustics.worker import jobs
 
         generation = dict(self.generation, scene=getattr(context.scene, "name", None))
         rirs = {}
@@ -188,14 +209,11 @@ class Mono(SimulationMethod):
                     normalized=self.normalize,
                     generation=generation,
                 )
-        if self.ray_tracing and rirs:
-            self._warn_if_cut_short(rirs, fs)
-        return rirs, run
+        return rirs
 
     @staticmethod
-    def _warn_if_cut_short(rirs: dict, fs: int) -> None:
-        """Warn when the responses end before 2/3 of their longest T30, the package's margin over the 0.58 of it
-        that T30's fit range (to -35 dB) needs."""
+    def _length_and_rt(rirs: dict, fs: int) -> tuple[float, float]:
+        """The responses' length in seconds and their longest T30 (0 when none is finite)."""
         from compas_acoustics.analyser import Analyser
 
         # one run: every response has its length
@@ -207,11 +225,21 @@ class Mono(SimulationMethod):
                 t30 = np.asarray(Analyser(ir).reverberation_times()["T30"], dtype=float)
             if np.any(np.isfinite(t30)):
                 longest = max(longest, float(np.nanmax(t30)))
+        return length, longest
+
+    @staticmethod
+    def _warn_if_cut_short(length: float, longest: float, lengthened: bool) -> None:
+        """Warn when the responses end before 2/3 of their longest T30, the package's margin over the 0.58 of it
+        that T30's fit range (to -35 dB) needs; ``lengthened`` responses only end so at ``MAX_DURATION``."""
         if longest > 0.0 and length < 2.0 / 3.0 * longest:
+            advice = (
+                f"The default length stops at {MAX_DURATION:g} s; pass a longer duration to keep the whole decay."
+                if lengthened
+                else f"Rerun with a duration of at least {DURATION_RT_FACTOR * longest:.1f} s."
+            )
             warnings.warn(
                 f"The responses are {length:.1f} s long, less than 2/3 of their reverberation time ({longest:.1f} s): T30 reads "
-                f"short and the hybrid's decay fit would be cut. Rerun with a duration of at least "
-                f"{DURATION_RT_FACTOR * longest:.1f} s; the default buffer comes from Eyring, which this room's decay outruns.",
+                f"short and the hybrid's decay fit would be cut. {advice}",
                 UserWarning,
                 stacklevel=5,
             )

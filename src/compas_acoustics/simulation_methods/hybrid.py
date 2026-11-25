@@ -400,8 +400,9 @@ class _HybridMethod(SimulationMethod):
         ``run`` is the :class:`~compas_acoustics.room.raytracing.RayTracedRun` whose image source search the early
         field reuses: that of the reference the method traces itself, or of a given ray-tracing ``Mono`` at the
         method's image source order; else None. The method's own reference is ``Mono(ray_tracing=True)`` at its image
-        source order, seed and air, as long as the longer of ``duration`` and the mono default and, with a late
-        envelope, traced with the histogram's ray count. ``directions`` (per receiver, room coordinates) make that
+        source order, seed and air, at first as long as the longer of ``duration`` and the mono default and traced again
+        longer while it ends before 2/3 of its T30 (``Mono._run``), and, with a late envelope, traced with the
+        histogram's ray count. ``directions`` (per receiver, room coordinates) make that
         trace return the histograms.
         """
         if self.tail in ("eyring", "sabine"):
@@ -419,7 +420,7 @@ class _HybridMethod(SimulationMethod):
                 volume_room = geometry.to_pra(context.sampling_rate, 0, air=air_or_default(self.air))
                 n_rays = histogram_rays(volume_room.get_volume(), Mono._RAY_TRACING_DEFAULTS["receiver_radius"], float(volume_room.c), grid)
             method = Mono(self.image_source_order, ray_tracing=True, air_absorption=absorption, n_rays=n_rays, duration=duration, seed=self.seed, air=self.air)
-            references, run = method._run(context, directions)
+            references, run = method._run(context, directions, lengthen=True)
             description = method.generation
         elif isinstance(self.reference, str):
             references, description = context.scene.impulse_responses(self.reference), self.reference
@@ -493,7 +494,7 @@ _ENGINE_PARAMETERS = """
         Single-slope fit range from -5 dB: 30 is T30, 20 is T20.
     duration : float, optional
         In seconds; default 1.5 times the longest RT of each pair's target (the package's choice). The method's own
-        reference lasts at least the mono default; a directional histogram traced for a given reference lasts
+        reference lasts at least the mono default and is traced again longer while it ends before 2/3 of its T30; a directional histogram traced for a given reference lasts
         ``duration``, or the mono default. A reference shorter than 2/3 of its reverberation time warns.
     directional_absorption : bool, default=True
         Weight each delay line with the reflection of the boundary it faces.

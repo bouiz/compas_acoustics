@@ -488,6 +488,20 @@ def test_without_a_medium_the_hybrid_and_its_reference_share_the_default():
     assert ir.generation["air"] == AirConditions().to_dict()
 
 
+def test_the_hybrids_own_reference_lengthens_until_it_holds_its_decay():
+    from compas_acoustics.room.raytracing import default_duration
+
+    hard, soft = AcousticMaterial("hard", 0.02, 0.1), AcousticMaterial("soft", 0.9, 0.1)
+    scene = make(materials={"floor": soft, "ceiling": soft, "left_wall": hard, "right_wall": hard, "front_wall": hard, "back_wall": hard})
+    hybrid = Ambisonics(**FAST)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
+        warnings.filterwarnings("ignore", category=DiffuseFieldWarning)
+        scene.simulate(hybrid)
+    (reference,) = hybrid.reference_rirs.values()
+    assert reference.ir.shape[0] / FS > default_duration(SimulationContext.from_scene(scene).geometry, air_absorption=True)
+
+
 def test_the_hybrids_own_reference_has_the_methods_default_length_whatever_the_output_duration():
     """A ray-traced reference carries its full decay (1.5 x the longest Eyring RT) even when the output is cut short."""
     from compas_acoustics.room.raytracing import default_duration
