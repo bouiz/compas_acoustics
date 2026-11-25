@@ -612,7 +612,9 @@ def _source_directions(source, cone, angle: Optional[float], n_rays: int):
 
     from compas_acoustics.room.pra import CARDIOID_P
 
-    p = CARDIOID_P.get(source.directivity or "omnidirectional", 1.0)
+    if source.directivity not in CARDIOID_P:
+        raise ValueError(f"Directivity '{source.directivity}' is not supported.")
+    p = CARDIOID_P[source.directivity]
     if cone is None:
         if p == 1.0:
             directions = np.asarray(pra.fibonacci_spherical_sampling(n_rays)).T

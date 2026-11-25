@@ -192,7 +192,7 @@ def test_ray_tracing_settings_without_ray_tracing_raise():
         Mono(ray_tracing=False, n_rays=1000)
     with pytest.raises(ValueError, match="duration"):
         Mono(ray_tracing=False, duration=0.5)
-    Mono(ray_tracing=False, n_rays=20000)  # the default, given explicitly, is fine
+    Mono(ray_tracing=False, n_rays=None)  # the default, given explicitly, is fine
 
 
 def test_image_sources_need_no_scattering():
@@ -294,6 +294,51 @@ def test_a_response_shorter_than_its_reverberation_time_warns():
         scene.simulate(Mono(n_rays=2000, seed=1))
 
 
+HARD = AcousticMaterial("hard", 0.02, 0.1)
+SOFT = AcousticMaterial("soft", 0.9, 0.1)
+# hard walls between an absorbing floor and ceiling: the horizontal decay outlasts Eyring's prediction
+OUTRUNS_EYRING = {"floor": SOFT, "ceiling": SOFT, "left_wall": HARD, "right_wall": HARD, "front_wall": HARD, "back_wall": HARD}
+IN_THE_CORNER = Receiver("rec", 6.0, 1.0, 1.5)
+
+
+def test_the_default_ray_count_follows_the_room_volume():
+    """Vorlaender (2020, Eq. 11.20) on the hybrid's directions, at least MIN_RAYS: small rooms keep the floor."""
+    from compas_acoustics.room.raytracing import MIN_RAYS
+    from compas_acoustics.room.raytracing import _traced_room
+    from compas_acoustics.room.raytracing import default_rays
+
+    assert Mono().n_rays is None
+    counts = []
+    for size in ((7, 5, 3), (30, 20, 10)):
+        scene = Scene("rays")
+        scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(*size, materials=WALL))
+        g = RoomGeometry.from_scene(scene)
+        room, _, _ = _traced_room(g, [pra.SoundSource(SOURCE)], RECEIVER.reshape(3, 1), FS, None, 1, 0.5, None, 0.5, 1e-7, True, 1, None)
+        assert room.rt_args["n_rays"] == default_rays(room.get_volume(), 0.5, room.c)
+        counts.append(room.rt_args["n_rays"])
+    assert counts[0] == MIN_RAYS < counts[1]
+
+
+def test_a_default_duration_lengthens_until_the_response_holds_its_decay():
+    from compas_acoustics.analyser import Analyser
+
+    scene = simulator(IN_THE_CORNER, OUTRUNS_EYRING)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
+        warnings.filterwarnings("ignore", category=DiffuseFieldWarning)
+        (ir,) = scene.simulate(Mono(n_rays=2000, seed=1)).values()
+    length = ir.ir.shape[0] / FS
+    assert length > default_duration(RoomGeometry.from_scene(scene), air_absorption=True)
+    assert length >= 2.0 / 3.0 * np.nanmax(np.asarray(Analyser(ir).reverberation_times()["T30"], dtype=float))
+
+
+def test_a_given_duration_is_kept_and_warns_when_it_cuts_the_decay():
+    scene = simulator(IN_THE_CORNER, OUTRUNS_EYRING)
+    with pytest.warns(UserWarning, match="less than 2/3 of their reverberation time"):
+        (ir,) = scene.simulate(Mono(n_rays=2000, seed=1, duration=0.5)).values()
+    assert ir.ir.shape[0] == round(0.5 * FS)
+
+
 def _decay_response(reverberation_time, seconds, seed=0, fs=48000):
     from compas_acoustics import ImpulseResponse
     from compas_acoustics import Receiver
@@ -308,9 +353,9 @@ def test_a_response_of_two_thirds_of_its_reverberation_time_is_long_enough():
     """T30's fit ends 35 dB down, at 0.58 of the reverberation time: 0.76 of it passes, 0.6 warns."""
     with warnings.catch_warnings():
         warnings.simplefilter("error", UserWarning)
-        Mono._warn_if_cut_short({"k": _decay_response(2.5, 1.9)}, 48000)
+        Mono._warn_if_cut_short(*Mono._length_and_rt({"k": _decay_response(2.5, 1.9)}, 48000), lengthened=False)
     with pytest.warns(UserWarning, match="less than 2/3 of their reverberation time"):
-        Mono._warn_if_cut_short({"k": _decay_response(2.5, 1.5)}, 48000)
+        Mono._warn_if_cut_short(*Mono._length_and_rt({"k": _decay_response(2.5, 1.5)}, 48000), lengthened=False)
 
 
 def test_the_image_source_backend_is_what_the_method_returns_without_ray_tracing():

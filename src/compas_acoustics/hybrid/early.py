@@ -214,16 +214,17 @@ def _fft_grid(n_samples: int, fs: float) -> tuple[int, np.ndarray]:
 
 
 def _band_magnitude_fn(freq: np.ndarray, bands: np.ndarray, fs: float):
-    """Band gains to a magnitude on ``freq``, interpolated in log f and dB."""
+    """Band gains to a magnitude on ``freq``, interpolated in log f and dB; a negative gain, a path radiated in
+    antiphase, keeps its sign."""
     log_freq = np.log2(np.clip(freq, bands[0] / 2.0, None))
     nyquist = fs / 2.0
     log_bands = np.append(np.log2(bands), np.log2(nyquist))
     top_octaves = np.log2(nyquist / bands[-1])
 
     def magnitude(gain: np.ndarray) -> np.ndarray:
-        gain_db = 20.0 * np.log10(np.maximum(gain, 1e-300))
+        gain_db = 20.0 * np.log10(np.maximum(np.abs(gain), 1e-300))
         gain_db = np.append(gain_db, _extrapolated_top_db(gain_db, top_octaves))
-        return 10.0 ** (np.interp(log_freq, log_bands, gain_db) / 20.0)
+        return (-1.0 if np.any(gain < 0.0) else 1.0) * 10.0 ** (np.interp(log_freq, log_bands, gain_db) / 20.0)
 
     return magnitude
 

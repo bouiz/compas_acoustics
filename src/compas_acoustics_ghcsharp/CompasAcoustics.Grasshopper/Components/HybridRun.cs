@@ -27,6 +27,16 @@ namespace CompasAcoustics.Grasshopper
             _ => choice,
         };
 
+        /// <summary>
+        /// Whether the method traces rays itself, so that n_rays applies: the reference of a ray-tracing tail (auto
+        /// without a reference), or the directional histograms of a given reference.
+        /// </summary>
+        public static bool TracesRays(string? tail, string? lateEnvelope, bool referenced)
+        {
+            var resolved = string.IsNullOrEmpty(tail) || tail == "auto" ? (referenced ? "reference" : "ray_tracing") : tail;
+            return resolved == "ray_tracing" || (resolved == "reference" && Equals(LateEnvelope(lateEnvelope), "directional"));
+        }
+
         /// <summary>The responses of the last run, for the scene they were simulated for, and the run's description.</summary>
         public sealed record LastResult(string SceneGuid, IrGraphGoo Graph, IReadOnlyDictionary<string, object?> Generation);
 

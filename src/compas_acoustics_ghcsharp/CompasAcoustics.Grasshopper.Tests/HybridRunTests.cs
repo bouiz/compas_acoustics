@@ -86,6 +86,29 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal("The reference was simulated at 44100 Hz, the scene's sampling_rate is 48000 Hz: simulate both at the same rate.", error.Message);
         }
 
+        [Theory]
+        [InlineData(null, null, false, true)]
+        [InlineData("ray_tracing", "omni", false, true)]
+        [InlineData(null, "directional", true, true)]
+        [InlineData("reference", "directional", true, true)]
+        [InlineData(null, null, true, false)]
+        [InlineData("reference", "omni", true, false)]
+        [InlineData(null, "off", true, false)]
+        [InlineData("eyring", null, false, false)]
+        [InlineData("sabine", null, false, false)]
+        public void NRays_GoesToTheMethodOnlyWhenItTracesRaysItself(string? tail, string? lateEnvelope, bool referenced, bool used) =>
+            Assert.Equal(used, HybridRun.TracesRays(tail, lateEnvelope, referenced));
+
+        [Fact]
+        public void TheHybridComponents_TakeTheRaysTheyTrace()
+        {
+            foreach (var key in new[] { "CA_Simulate_Binaural", "CA_Simulate_Ambisonics" })
+            {
+                var names = ComponentSpec.Load(key).Inputs.Select(p => p.Name).ToList();
+                Assert.Equal(names.IndexOf("late_envelope") + 1, names.IndexOf("n_rays"));
+            }
+        }
+
         private static HybridRun.LastResult Last(string sceneGuid, int count = 1, string tail = "reference", long? shOrder = 1, long ismOrder = 3,
             object? diffraction = null)
         {

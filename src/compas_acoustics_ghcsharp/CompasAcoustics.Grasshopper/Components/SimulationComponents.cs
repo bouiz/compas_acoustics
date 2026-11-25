@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using GH_IO.Serialization;
 using Grasshopper;
 using Grasshopper.Kernel;
 using Grasshopper.Kernel.Data;
 using Grasshopper.Kernel.Parameters;
+using Grasshopper.Kernel.Types;
 using Rhino.Geometry;
 
 namespace CompasAcoustics.Grasshopper
@@ -27,6 +29,16 @@ namespace CompasAcoustics.Grasshopper
             new ToggleControl("ray_tracing", "Ray tracing", Inline: true), new ToggleControl("absorb_air", "Air", Inline: true),
             new ToggleControl("normalize", "Normalize", Inline: true),
         };
+
+        /// <summary>An n_rays input saved with 20000, the port's former default, reads empty: the count from the room's volume.</summary>
+        public override bool Read(GH_IReader reader)
+        {
+            var read = base.Read(reader);
+            if (Params.Input.Find(p => p.Name == "n_rays") is Param_Integer port && port.SourceCount == 0
+                && port.PersistentData.AllData(true).OfType<GH_Integer>().Select(g => g.Value).SequenceEqual(new[] { 20000 }))
+                port.PersistentData.Clear();
+            return read;
+        }
 
         protected override void Solve(IGH_DataAccess access)
         {

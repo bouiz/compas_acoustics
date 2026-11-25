@@ -8,6 +8,7 @@ from compas_acoustics import AcousticObjectsLibrary
 from compas_acoustics import Receiver
 from compas_acoustics import Scene
 from compas_acoustics import Source
+from compas_acoustics.hybrid.early import encode
 from compas_acoustics.hybrid.early import image_sources
 from compas_acoustics.hybrid.pair import Pair
 from compas_acoustics.room.diffuse import air_attenuation
@@ -100,6 +101,17 @@ def test_source_directivity_scales_each_image():
     k = direct(plain)
     np.testing.assert_allclose(shaped.gain[k], 0.5 * plain.gain[k])
     assert not np.allclose(shaped.gain, 0.5 * plain.gain)
+
+
+def test_an_image_in_the_rear_lobe_is_rendered_in_antiphase():
+    omni = Source("s", 1.5, 1.5, 1.6)
+    eight = Source("e", 1.5, 1.5, 1.6, directivity="bidirectional", direction=[-1, 0, 0])
+    receiver = Receiver("r", 5, 1.5, 1.6)
+    geometry, room = computed([omni], [receiver], order=0)
+    pair = make_pair(geometry, omni, receiver)
+    plain = encode(image_sources(room, 0, 0, pair), 0, 2048)
+    shaped = encode(image_sources(room, 0, 0, pair, directivity_to_pra(eight.directivity, eight.direction)), 0, 2048)
+    np.testing.assert_allclose(shaped, -plain, atol=1e-6 * np.abs(plain).max())
 
 
 def test_directions_of_arrival_are_in_the_receiver_frame():

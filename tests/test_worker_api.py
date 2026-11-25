@@ -280,6 +280,32 @@ def test_auralise_saves_with_the_components_naming(tmp_path):
     assert (tmp_path / "convolved_sound_mic_0.wav").exists()
 
 
+def test_save_impulse_responses_numbers_them_as_auralise_numbers_its_signals(tmp_path):
+    result = call("save_impulse_responses", [group(two_sources_one_receiver())], str(tmp_path), save_name="rir")
+    assert sorted(p.name for p in tmp_path.glob("*.wav")) == ["rir_mic_0_0.wav", "rir_mic_0_1.wav"]
+    assert sorted(p.name for p in tmp_path.glob("*.json")) == ["rir_mic_0_0.json", "rir_mic_0_1.json"]
+    assert sorted(result["files"]) == sorted(str(p) for p in tmp_path.glob("*.wav"))
+    call("save_impulse_responses", [group(two_sources_one_receiver())], str(tmp_path))
+    assert (tmp_path / "impulse_response_mic_0_1.wav").exists()
+
+
+@pytest.mark.parametrize("level, peaks", [("relative", [10 ** (-1 / 20), 0.25 * 10 ** (-1 / 20)]), ("individual", [10 ** (-1 / 20)] * 2), ("none", [1.0, 0.25])])
+def test_save_impulse_responses_follows_the_level(tmp_path, level, peaks):
+    import soundfile as sf
+
+    irs = two_sources_one_receiver()
+    call("save_impulse_responses", [group(irs)], str(tmp_path), level, "rir")
+    written = [sf.read(tmp_path / f"rir_mic_0_{j}.wav")[0] for j in range(2)]
+    assert [np.max(np.abs(w)) for w in written] == pytest.approx(peaks, rel=1e-6)
+    for j, ir in enumerate(irs):
+        np.testing.assert_allclose(ImpulseResponse.from_wav(tmp_path / f"rir_mic_0_{j}.wav").denormalized(), ir.denormalized(), atol=1e-6)
+
+
+def test_save_impulse_responses_refuses_an_unknown_level(tmp_path):
+    with pytest.raises(ValueError, match="relative"):
+        api.save_impulse_responses([group(two_sources_one_receiver())], str(tmp_path), "loud")
+
+
 def test_play_refuses_a_missing_file():
     with pytest.raises(ValueError, match="does not exist"):
         api.play("/nowhere/sound.wav")

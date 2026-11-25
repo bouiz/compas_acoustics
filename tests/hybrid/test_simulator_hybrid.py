@@ -23,6 +23,7 @@ from compas_acoustics.simulation_methods import SimulationContext
 from compas_acoustics.room.air import AirConditions
 from compas_acoustics.room.geometry import RoomGeometry
 from compas_acoustics.room.geometry import SurfaceMaterial
+from compas_acoustics.room.raytracing import MIN_RAYS
 
 FS = 48000
 WALL = AcousticMaterial("wall", 0.2, 0.1)
@@ -488,6 +489,20 @@ def test_without_a_medium_the_hybrid_and_its_reference_share_the_default():
     assert ir.generation["air"] == AirConditions().to_dict()
 
 
+def test_the_hybrids_own_reference_lengthens_until_it_holds_its_decay():
+    from compas_acoustics.room.raytracing import default_duration
+
+    hard, soft = AcousticMaterial("hard", 0.02, 0.1), AcousticMaterial("soft", 0.9, 0.1)
+    scene = make(materials={"floor": soft, "ceiling": soft, "left_wall": hard, "right_wall": hard, "front_wall": hard, "back_wall": hard})
+    hybrid = Ambisonics(**FAST)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
+        warnings.filterwarnings("ignore", category=DiffuseFieldWarning)
+        scene.simulate(hybrid)
+    (reference,) = hybrid.reference_rirs.values()
+    assert reference.ir.shape[0] / FS > default_duration(SimulationContext.from_scene(scene).geometry, air_absorption=True)
+
+
 def test_the_hybrids_own_reference_has_the_methods_default_length_whatever_the_output_duration():
     """A ray-traced reference carries its full decay (1.5 x the longest Eyring RT) even when the output is cut short."""
     from compas_acoustics.room.raytracing import default_duration
@@ -570,8 +585,8 @@ def test_a_receiver_without_a_visible_image_beside_a_visible_one_renders():
 
 @pytest.mark.parametrize("given", [False, True])
 def test_the_directional_histograms_trace_the_rays_of_a_1_db_share_error(monkeypatch, given):
-    """Vorlaender (2020, Eq. 11.20) per direction, also below the mono method's 20000: in the reference the method
-    traces itself, whose rays the histograms share, or in the histograms' own run with a given reference."""
+    """Vorlaender (2020, Eq. 11.20) per direction, at least MIN_RAYS: in the reference the method traces itself, whose
+    rays the histograms share, or in the histograms' own run with a given reference."""
     import compas_acoustics.room.raytracing as raytracing
     import compas_acoustics.simulation_methods.pra as mono
     from compas_acoustics.hybrid.envelope import histogram_rays
@@ -598,8 +613,8 @@ def test_the_directional_histograms_trace_the_rays_of_a_1_db_share_error(monkeyp
         with pytest.raises(Traced) as traced:
             scene.simulate(Ambisonics(Mono(n_rays=2000, duration=0.5) if given else None, sh_order=1, duration=0.5, late_envelope="directional"))
         wanted = histogram_rays(float(np.prod(size)), 0.5, speed, grid)
-        assert (wanted < 20_000) == below
-        assert traced.value.args[0] == wanted
+        assert (wanted < MIN_RAYS) == below
+        assert traced.value.args[0] == max(wanted, MIN_RAYS)
 
 
 def test_the_generation_record_holds_the_histogram_rays():
@@ -608,7 +623,7 @@ def test_the_generation_record_holds_the_histogram_rays():
 
     scene = make()
     (ir,) = scene.simulate(Ambisonics(references(scene), sh_order=1, duration=0.5, late_envelope="directional")).values()
-    assert ir.generation["histogram_rays"] == histogram_rays(320.0, 0.5, AirConditions().speed_of_sound, fdn_directions(96).cartesian)
+    assert ir.generation["histogram_rays"] == max(histogram_rays(320.0, 0.5, AirConditions().speed_of_sound, fdn_directions(96).cartesian), MIN_RAYS)
     for mode in ("omni", False):
         (ir,) = scene.simulate(Ambisonics(references(scene), sh_order=1, duration=0.5, late_envelope=mode)).values()
         assert ir.generation["histogram_rays"] is None
@@ -633,7 +648,7 @@ def test_a_traced_reference_shares_its_search_and_rays_with_the_early_field_and_
     scene = make(panel=True)
     shared = Ambisonics(sh_order=1, scattering=scattering, late_envelope="directional", **settings)
     rirs = scene.simulate(shared)
-    n_rays = histogram_rays(320.0, 0.5, AirConditions().speed_of_sound, fdn_directions(96).cartesian)
+    n_rays = max(histogram_rays(320.0, 0.5, AirConditions().speed_of_sound, fdn_directions(96).cartesian), MIN_RAYS)
     given = Ambisonics(Mono(n_rays=n_rays, **settings), sh_order=1, scattering=scattering, late_envelope="directional", **settings)
     again = make(panel=True).simulate(given)
     (ir,) = rirs.values()
@@ -725,6 +740,48 @@ def test_omni_keeps_the_early_field():
     assert not np.allclose(d.late, o.late)
 
 
+def test_the_default_ray_count_is_the_directions_rule_on_the_96_line_grid_at_least_min_rays():
+    """Written out for Mono, which runs without the grid's packages: the hybrid's rule on its default grid."""
+    from compas_acoustics.hybrid.envelope import histogram_rays
+    from compas_acoustics.hybrid.late import fdn_directions
+    from compas_acoustics.room.raytracing import default_rays
+
+    grid = fdn_directions(96).cartesian
+    grid = grid / np.linalg.norm(grid, axis=1, keepdims=True)
+    speed = AirConditions().speed_of_sound
+    for volume in (60.0, 320.0, 1000.0, 1100.0, 4800.0, 25000.0):
+        assert default_rays(volume, 0.5, speed) == max(histogram_rays(volume, 0.5, speed, grid), MIN_RAYS)
+
+
+def test_n_rays_sets_every_trace_the_method_makes_itself(monkeypatch):
+    import compas_acoustics.room.raytracing as raytracing
+    import compas_acoustics.simulation_methods.pra as mono
+
+    seen = []
+    run, histograms = mono.ray_traced_run, raytracing.directional_histograms
+
+    def spy_run(*args, **kwargs):
+        seen.append(kwargs["n_rays"])
+        return run(*args, **kwargs)
+
+    def spy_histograms(*args, **kwargs):
+        seen.append(kwargs["n_rays"])
+        return histograms(*args, **kwargs)
+
+    monkeypatch.setattr(mono, "ray_traced_run", spy_run)
+    monkeypatch.setattr(raytracing, "directional_histograms", spy_histograms)
+    make().simulate(Ambisonics(sh_order=1, n_rays=2500, **FAST))
+    scene = make()
+    scene.simulate(Ambisonics(Mono(n_rays=2000, duration=0.5, seed=1), sh_order=1, n_rays=2500, late_envelope="directional", **FAST))
+    assert seen == [2500, 2000, 2500]
+
+
+@pytest.mark.parametrize("settings", [dict(tail="eyring"), dict(reference={}, late_envelope="omni"), dict(reference={}, late_envelope=False)])
+def test_n_rays_without_a_trace_of_the_methods_own_is_refused(settings):
+    with pytest.raises(ValueError, match="n_rays"):
+        Ambisonics(n_rays=2500, **settings)
+
+
 def test_omni_traces_its_reference_with_the_rays_of_the_directions_rule(monkeypatch):
     """The reference of "omni" takes the ray count of the directions' rule, as that of "directional" does, and no
     directions to sort the rays by."""
@@ -745,7 +802,7 @@ def test_omni_traces_its_reference_with_the_rays_of_the_directions_rule(monkeypa
     scene.add_source(Source("src", 1.0, 2.0, 1.5))
     scene.add_receiver(Receiver("rec", 4.0, 2.0, 1.5))
     scene.simulate(Ambisonics(sh_order=1, duration=0.5, late_envelope="omni"))
-    assert seen["n_rays"] == histogram_rays(60.0, 0.5, AirConditions().speed_of_sound, fdn_directions(96).cartesian)
+    assert seen["n_rays"] == max(histogram_rays(60.0, 0.5, AirConditions().speed_of_sound, fdn_directions(96).cartesian), MIN_RAYS)
     assert seen["directions"] is None
 
 
