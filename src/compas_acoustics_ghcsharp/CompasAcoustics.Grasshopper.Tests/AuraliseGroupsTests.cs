@@ -90,12 +90,14 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal((folder.Replace('/', Path.DirectorySeparatorChar), name), AuraliseGroups.SaveTarget(path));
 
         [Fact]
-        public void Auralise_SavesWithAButton()
+        public void Auralise_SavesTheResponsesAndTheSignalsWithTwoButtons()
         {
             Assert.Equal(new[] { "irs", "anechoic_sounds", "mix_sources" }, ComponentSpec.Load("CA_Auralise").Inputs.Select(p => p.Name));
             var auralise = new AuraliseComponent();
-            Assert.Contains(auralise.Controls, c => c is ButtonControl { Port: "save", Label: "Save" });
-            Assert.True(auralise.HandlesButton("save"));
+            Assert.Equal(new[] { ("save_rir", "Save RIR"), ("save_auralisation", "Save auralisation") },
+                auralise.Controls.OfType<ButtonControl>().Select(b => (b.Port, b.Label)));
+            Assert.True(auralise.HandlesButton("save_rir"));
+            Assert.True(auralise.HandlesButton("save_auralisation"));
             Assert.False(auralise.HandlesButton("run"));
         }
     }
