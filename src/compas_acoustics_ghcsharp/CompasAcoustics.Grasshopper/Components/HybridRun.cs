@@ -46,7 +46,7 @@ namespace CompasAcoustics.Grasshopper
         /// one for every pair of the scene's <paramref name="sources"/> and <paramref name="receivers"/>.
         /// </summary>
         public static Dictionary<string, object?> Settings(string? tail, int? ismOrder, string? diffraction, string? lateEnvelope, int? seed,
-            bool? normalize, IReadOnlyList<ImpulseResponseGoo>? reference, int sceneSamplingRate, IReadOnlyList<SourceGoo> sources,
+            IReadOnlyList<ImpulseResponseGoo>? reference, int sceneSamplingRate, IReadOnlyList<SourceGoo> sources,
             IReadOnlyList<ReceiverGoo> receivers, out Dictionary<string, ImpulseResponseData>? references)
         {
             references = null;
@@ -76,7 +76,6 @@ namespace CompasAcoustics.Grasshopper
                 ["diffraction"] = string.IsNullOrEmpty(diffraction) || diffraction == "none" ? null : diffraction,
                 ["late_envelope"] = LateEnvelope(lateEnvelope),
                 ["seed"] = seed is int s ? (long)s : null,
-                ["normalize"] = normalize,
             };
             return given.Where(kv => kv.Value != null).ToDictionary(kv => kv.Key, kv => kv.Value);
         }

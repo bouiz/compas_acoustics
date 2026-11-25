@@ -23,7 +23,6 @@ namespace CompasAcoustics.Grasshopper
         public override IReadOnlyList<Control> Controls { get; } = new Control[]
         {
             IsmOrder,
-            new ToggleControl("normalize", "Normalize", Inline: true),
         };
 
         /// <summary>Whether the definition was saved with the former Air toggle off; air absorption is now always on. Cleared on save.</summary>
@@ -76,7 +75,7 @@ namespace CompasAcoustics.Grasshopper
             var rayTracing = Value<bool>(access, "ray_tracing") ?? true;
             var seed = Value<int>(access, "seed");
             var settings = SimulationSettings.Mono(Value<int>(access, "ism_order"), rayTracing, Value<int>(access, "n_rays"),
-                Value<double>(access, "duration"), seed, Value<bool>(access, "normalize"), out var ignored);
+                Value<double>(access, "duration"), seed, out var ignored);
             if (ignored.Length > 0)
                 Remark($"Ray tracing is off, so {string.Join(", ", ignored)} are not used.");
             if (SavedWithoutAir)

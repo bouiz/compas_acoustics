@@ -22,12 +22,27 @@ namespace CompasAcoustics.Grasshopper
 
         protected SimulateHybridComponent(string key) : base(key) { }
 
-        /// <summary>A late_envelope input that holds a boolean reads as a mode: true as directional, false as off.</summary>
+        /// <summary>
+        /// A late_envelope input that holds a boolean reads as a mode: true as directional, false as off. The former normalize
+        /// input, saved before hrtf (before run, without one), is read and dropped, so the inputs after it keep their values.
+        /// </summary>
         public override bool Read(GH_IReader reader)
         {
             // before base.Read: a boolean does not survive Grasshopper's read into a text input
             var toggle = SavedBoolean(reader, "late_envelope");
+            // Grasshopper reads the saved inputs by position: the removed input saved as a port needs its place while they are read
+            Param_Boolean? former = null;
+            if (SavedInput(reader, "normalize"))
+            {
+                former = new Param_Boolean { Name = "normalize", NickName = "normalize", Optional = true };
+                Params.RegisterInputParam(former, Params.Input.FindIndex(p => p.Name == (TakesHrtf ? "hrtf" : "run")));
+            }
             var read = base.Read(reader);
+            if (former != null)
+            {
+                Params.UnregisterInputParameter(former, true);
+                Params.OnParametersChanged();
+            }
             if (ControlPort("late_envelope") is Param_String port)
             {
                 var value = ControlState.PersistentAll(port).FirstOrDefault();
@@ -60,13 +75,12 @@ namespace CompasAcoustics.Grasshopper
 
         private IReadOnlyList<Control>? _controls;
 
-        /// <summary>ISM order, the method's own controls, Tail, Diffraction, the toggles, the method's own buttons, Run.</summary>
+        /// <summary>ISM order, the method's own controls, Tail, Diffraction, Late envelope, the method's own buttons, Run.</summary>
         public override IReadOnlyList<Control> Controls => _controls ??= new Control[] { SimulateMonoComponent.IsmOrder }
             .Concat(MethodControls)
             .Append(new DropdownControl("tail", HybridRun.Tails))
             .Append(new DropdownControl("diffraction", HybridRun.Diffraction))
             .Append(new DropdownControl("late_envelope", HybridRun.LateEnvelopes))
-            .Append(new ToggleControl("normalize", "Normalize", Inline: true))
             .Concat(MethodButtons)
             .Append(new ButtonControl("run", "Run"))
             .ToList();
@@ -116,8 +130,7 @@ namespace CompasAcoustics.Grasshopper
             Dictionary<string, ImpulseResponseData>? refs;
             try
             {
-                settings = HybridRun.Settings(tail, ismOrder, diffraction, Text(access, "late_envelope"), seed,
-                    Value<bool>(access, "normalize"), reference, scene.SamplingRate, scene.Sources, scene.Receivers, out refs);
+                settings = HybridRun.Settings(tail, ismOrder, diffraction, Text(access, "late_envelope"), seed, reference, scene.SamplingRate, scene.Sources, scene.Receivers, out refs);
             }
             catch (ArgumentException e)
             {

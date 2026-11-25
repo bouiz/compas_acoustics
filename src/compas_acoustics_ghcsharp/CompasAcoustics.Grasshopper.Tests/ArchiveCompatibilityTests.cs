@@ -80,7 +80,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             var mono = new SimulateMonoComponent();
             Assert.Equal(new System.Guid("afb77a6d-dd01-5224-9ee0-70972dcbdbcf"), mono.ComponentGuid);
             Assert.Equal(("Simulate Mono", "SimMono"), (mono.Name, mono.NickName));
-            Assert.Equal(new[] { "scene", "ism_order", "ray_tracing", "n_rays", "duration", "seed", "normalize" },
+            Assert.Equal(new[] { "scene", "ism_order", "ray_tracing", "n_rays", "duration", "seed" },
                 mono.Params.Input.Select(p => p.Name));
             Assert.Equal(new[] { "irs" }, mono.Params.Output.Select(p => p.Name));
             var (archive, read) = SaveThenRead(new SimulateMonoComponent(), new SimulateMonoComponent());
@@ -143,6 +143,98 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(threshold, fresh.SavedEnergyThreshold);
         }
 
+        /// <summary>A simulation as saved before Normalize was removed: a boolean input, off, in front of <paramref name="before"/> (at the end for null), and a seed of 7.</summary>
+        private static T WithNormalizeOff<T>(T old, string? before) where T : GH_Component
+        {
+            var port = new Param_Boolean { Name = "normalize", NickName = "normalize", Optional = true };
+            port.SetPersistentData(new GH_Boolean(false));
+            if (before == null)
+                old.Params.RegisterInputParam(port);
+            else
+                old.Params.RegisterInputParam(port, old.Params.Input.FindIndex(p => p.Name == before));
+            var seed = (Param_Integer)old.Params.Input.Single(p => p.Name == "seed");
+            seed.PersistentData.Clear();
+            seed.SetPersistentData(new GH_Integer(7));
+            return old;
+        }
+
+        [Fact]
+        public void ASimulateMonoSavedWithNormalizeOff_ReadsWithoutIt_AndKeepsTheSeed()
+        {
+            var fresh = new SimulateMonoComponent();
+            var (archive, read) = SaveThenRead(WithNormalizeOff(new SimulateMonoComponent(), null), fresh);
+            Assert.True(read);
+            Assert.Empty(Errors(archive));
+            Assert.DoesNotContain("normalize", fresh.Params.Input.Select(p => p.Name));
+            Assert.Equal(7, First(fresh, "seed"));
+            Assert.Empty(fresh.RuntimeMessages(GH_RuntimeMessageLevel.Remark));
+            Assert.False(fresh.SavedWithoutAir);
+            Assert.Null(fresh.SavedEnergyThreshold);
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void ASimulateBinauralSavedWithNormalizeOff_ReadsWithoutIt_AndKeepsTheInputsAfterIt(bool hidden)
+        {
+            var old = WithNormalizeOff(new SimulateBinauralComponent(), "hrtf");
+            ((Param_String)old.Params.Input.Single(p => p.Name == "hrtf")).SetPersistentData(new GH_String("/sets/my_head.sofa"));
+            if (hidden)
+                old.ShowControlPorts(false);
+            var fresh = new SimulateBinauralComponent();
+            var (archive, read) = SaveThenRead(old, fresh);
+            Assert.True(read);
+            Assert.Empty(Errors(archive));
+            Assert.DoesNotContain("normalize", fresh.Params.Input.Select(p => p.Name));
+            Assert.Equal(7, First(fresh, "seed"));
+            Assert.Equal("/sets/my_head.sofa", ControlState.Persistent(fresh.ControlPort("hrtf")!));
+            Assert.Empty(fresh.RuntimeMessages(GH_RuntimeMessageLevel.Remark));
+        }
+
+        [Fact]
+        public void ASimulateBinauralSavedWithNormalizeHidden_ReadsWithoutIt_AndKeepsTheHrtf()
+        {
+            var old = new SimulateBinauralComponent();
+            ControlState.Choose(old, old.ControlPort("hrtf")!, "/sets/my_head.sofa");
+            old.ShowControlPorts(false);
+            old.CreateAttributes();
+            foreach (var p in old.Params)
+                if (p.Attributes == null)
+                    p.CreateAttributes();
+            var archive = new GH_Archive();
+            var node = archive.CreateTopLevelNode("component");
+            Assert.True(old.Write(node));
+            node.RemoveItem("control_inputs_hidden");
+            node.SetString("control_inputs_hidden", string.Join("\n", old.ControlPorts).Replace("hrtf", "normalize\nhrtf"));
+            node.SetString("control_value_normalize", "False");
+            var back = new GH_Archive();
+            back.Deserialize_Binary(archive.Serialize_Binary());
+            var fresh = new SimulateBinauralComponent();
+            fresh.CreateAttributes();
+            Assert.True(fresh.Read(back.GetRootNode.FindChunk("component")));
+            Assert.Empty(Errors(back));
+            Assert.DoesNotContain("normalize", fresh.Params.Input.Select(p => p.Name));
+            Assert.Equal("/sets/my_head.sofa", ControlState.Persistent(fresh.ControlPort("hrtf")!));
+            Assert.Empty(fresh.RuntimeMessages(GH_RuntimeMessageLevel.Remark));
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void ASimulateAmbisonicsSavedWithNormalizeOff_ReadsWithoutIt_AndKeepsTheInputsBeforeIt(bool hidden)
+        {
+            var old = WithNormalizeOff(new SimulateAmbisonicsComponent(), "run");
+            if (hidden)
+                old.ShowControlPorts(false);
+            var fresh = new SimulateAmbisonicsComponent();
+            var (archive, read) = SaveThenRead(old, fresh);
+            Assert.True(read);
+            Assert.Empty(Errors(archive));
+            Assert.DoesNotContain("normalize", fresh.Params.Input.Select(p => p.Name));
+            Assert.Equal(7, First(fresh, "seed"));
+            Assert.Empty(fresh.RuntimeMessages(GH_RuntimeMessageLevel.Remark));
+        }
+
         [Fact]
         public void ASimulateMonoSavedWithItsTogglesHidden_ShowsRayTracingWithItsValue_AndSaysAirWasOff()
         {
@@ -172,7 +264,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Empty(Errors(back));
             Assert.Equal(new[] { "scene", "ray_tracing", "n_rays", "duration", "seed" }, fresh.Params.Input.Select(p => p.Name));
             Assert.Equal(false, ControlState.Persistent(fresh.Params.Input.Single(p => p.Name == "ray_tracing")));
-            Assert.Equal(new[] { "ism_order", "normalize" }, fresh.ControlPorts.Where(n => fresh.Params.Input.All(p => p.Name != n)));
+            Assert.Equal(new[] { "ism_order" }, fresh.ControlPorts.Where(n => fresh.Params.Input.All(p => p.Name != n)));
             Assert.True(fresh.SavedWithoutAir);
         }
 

@@ -111,13 +111,6 @@
                 "default": 42
             },
             {
-                "name": "normalize",
-                "description": "Whether the impulse responses are peak-normalised (default True). The raw level is always kept.",
-                "optional": true,
-                "scriptParamAccess": 0,
-                "typeHintID": "bool"
-            },
-            {
                 "name": "hrtf",
                 "description": "HRTF set of the binaural responses. Empty: Neumann KU 100 (default). Choose a .sofa file with the HRTF... button, or connect a File Path to one, which takes precedence; the component's message names the set in use.",
                 "optional": true,

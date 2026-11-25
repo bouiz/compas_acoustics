@@ -95,13 +95,6 @@
                 "scriptParamAccess": 0,
                 "typeHintID": "int",
                 "default": 42
-            },
-            {
-                "name": "normalize",
-                "description": "Whether the impulse responses are peak-normalised (default True). The raw level is always kept and used for auralisation.",
-                "optional": true,
-                "scriptParamAccess": 0,
-                "typeHintID": "bool"
             }
         ],
         "outputParameters": [

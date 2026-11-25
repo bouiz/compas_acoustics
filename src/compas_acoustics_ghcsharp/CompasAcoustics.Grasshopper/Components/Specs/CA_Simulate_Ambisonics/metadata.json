@@ -111,13 +111,6 @@
                 "default": 42
             },
             {
-                "name": "normalize",
-                "description": "Whether the impulse responses are peak-normalised (default True). The raw level is always kept.",
-                "optional": true,
-                "scriptParamAccess": 0,
-                "typeHintID": "bool"
-            },
-            {
                 "name": "run",
                 "description": "Simulate when true: the body's Run button, or a Button or Boolean Toggle wired here. The simulation takes seconds to minutes and Grasshopper recomputes on every change of the inputs, so it starts only on a press; otherwise the responses of the last run for this scene are passed on.",
                 "optional": true,

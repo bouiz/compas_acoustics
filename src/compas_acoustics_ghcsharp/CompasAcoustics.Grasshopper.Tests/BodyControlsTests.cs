@@ -33,9 +33,10 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(8, ControlState.Persistent(ism));
             ControlState.Choose(mono, ism, "");
             Assert.Null(ControlState.Persistent(ism));
-            var normalize = mono.ControlPort("normalize")!;
-            ControlState.Choose(mono, normalize, "False");
-            Assert.Equal(false, ControlState.Persistent(normalize));
+            var rays = new VisualiseRaysComponent();
+            var scattering = rays.ControlPort("scattering")!;
+            ControlState.Choose(rays, scattering, "True");
+            Assert.Equal(true, ControlState.Persistent(scattering));
         }
 
         [Fact]
@@ -59,15 +60,17 @@ namespace CompasAcoustics.Grasshopper.Tests
             var mono = new SimulateMonoComponent();
             mono.ShowControlPorts(false);
             ControlState.Choose(mono, mono.ControlPort("ism_order")!, "8");
+            var rays = new VisualiseRaysComponent();
+            rays.ShowControlPorts(false);
             // untouched: the method's own default, as an unconnected input
-            Assert.Null(mono.HiddenAs<bool>("normalize"));
-            ControlState.Choose(mono, mono.ControlPort("normalize")!, "False");
+            Assert.Null(rays.HiddenAs<bool>("scattering"));
+            ControlState.Choose(rays, rays.ControlPort("scattering")!, "True");
             Assert.Equal(8, mono.HiddenAs<int>("ism_order"));
-            Assert.False(mono.HiddenAs<bool>("normalize"));
+            Assert.True(rays.HiddenAs<bool>("scattering"));
             var back = (ComponentBase)RoundTrip(mono);
             Assert.Equal("8", back.HiddenValue("ism_order"));
             Assert.Equal(8, back.HiddenAs<int>("ism_order"));
-            Assert.False(back.HiddenAs<bool>("normalize"));
+            Assert.True(((ComponentBase)RoundTrip(rays)).HiddenAs<bool>("scattering"));
         }
 
         [Fact]
@@ -88,7 +91,7 @@ namespace CompasAcoustics.Grasshopper.Tests
                 new DropdownControl("ism_order", Orders, Title: "ISM order"),
                 new ToggleControl("ray_tracing", "Ray tracing", Inline: true),
                 new ToggleControl("absorb_air", "Air", Inline: true),
-                new ToggleControl("normalize", "Normalize", Inline: true),
+                new ToggleControl("mix_sources", "Mix sources", Inline: true),
                 new ButtonControl("run", "Run"),
             };
             var boxes = ControlLayout.Arrange(controls, new RectangleF(0, 0, 150, 0));
@@ -106,10 +109,11 @@ namespace CompasAcoustics.Grasshopper.Tests
         public void AToggleOnAnInput_ShowsItsDefaultUntilChosen()
         {
             var mono = new SimulateMonoComponent();
-            var normalize = mono.Controls.OfType<ToggleControl>().Single(t => t.Port == "normalize");
-            Assert.Equal((true, false), ControlState.Toggle(mono.ControlPort("normalize")!, normalize.Default));
-            ControlState.Choose(mono, mono.ControlPort("normalize")!, "False");
-            Assert.Equal((false, false), ControlState.Toggle(mono.ControlPort("normalize")!, normalize.Default));
+            var rays = new VisualiseRaysComponent();
+            var scattering = rays.Controls.OfType<ToggleControl>().Single(t => t.Port == "scattering");
+            Assert.Equal((false, false), ControlState.Toggle(rays.ControlPort("scattering")!, scattering.Default));
+            ControlState.Choose(rays, rays.ControlPort("scattering")!, "True");
+            Assert.Equal((true, false), ControlState.Toggle(rays.ControlPort("scattering")!, scattering.Default));
             var auralise = new AuraliseComponent();
             var mix = auralise.Controls.OfType<ToggleControl>().Single(t => t.Port == "mix_sources");
             Assert.Equal((false, false), ControlState.Toggle(auralise.ControlPort("mix_sources")!, mix.Default));
@@ -120,8 +124,6 @@ namespace CompasAcoustics.Grasshopper.Tests
         {
             var defaults = new (ComponentBase component, string port, bool on)[]
             {
-                (new SimulateMonoComponent(), "normalize", true),
-                (new SimulateBinauralComponent(), "normalize", true), (new SimulateAmbisonicsComponent(), "normalize", true),
                 (new AuraliseComponent(), "mix_sources", false), (new VisualiseRaysComponent(), "scattering", false),
             };
             foreach (var (component, port, on) in defaults)
@@ -134,7 +136,8 @@ namespace CompasAcoustics.Grasshopper.Tests
             var mono = new SimulateMonoComponent();
             Assert.Equal(("ism_order", "Highest image source (ISM) order. With ray tracing, the ray tracer takes over after it. (default 3)"), mono.ControlTooltip("ism_order"));
             // a description that names its default already keeps its words
-            Assert.Equal(ComponentSpec.Load("CA_Simulate_Mono").Inputs.Single(p => p.Name == "normalize").Description, mono.ControlTooltip("normalize").text);
+            Assert.Equal(ComponentSpec.Load("CA_Simulate_Binaural").Inputs.Single(p => p.Name == "diffraction").Description,
+                new SimulateBinauralComponent().ControlTooltip("diffraction").text);
             Assert.EndsWith("(default 48 kHz)", new RoomSceneComponent().ControlTooltip("sampling_rate").text);
             Assert.Equal(("level", "none, relative or individual (default relative)"), new AuraliseComponent().ControlTooltip("level"));
             Assert.EndsWith("(default on)", new VisualiseRaysComponent().ControlTooltip("show").text);
@@ -158,11 +161,21 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
+        public void TheSimulations_HaveNoNormalize_AsAControlOrAnInput()
+        {
+            foreach (var (simulation, key) in new (ComponentBase, string)[]
+                { (new SimulateMonoComponent(), "CA_Simulate_Mono"), (new SimulateBinauralComponent(), "CA_Simulate_Binaural"), (new SimulateAmbisonicsComponent(), "CA_Simulate_Ambisonics") })
+            {
+                Assert.DoesNotContain(simulation.Controls, c => c.Port == "normalize");
+                Assert.DoesNotContain("normalize", ComponentSpec.Load(key).Inputs.Select(p => p.Name));
+            }
+        }
+
+        [Fact]
         public void SimulateMono_HasTheHybridsBody_AndRayTracingAsAnInput()
         {
             var mono = new SimulateMonoComponent();
-            Assert.Equal(new Control[] { SimulateMonoComponent.IsmOrder, new ToggleControl("normalize", "Normalize", Inline: true) }, mono.Controls);
-            Assert.Contains(new ToggleControl("normalize", "Normalize", Inline: true), new SimulateBinauralComponent().Controls);
+            Assert.Equal(new Control[] { SimulateMonoComponent.IsmOrder }, mono.Controls);
             Assert.DoesNotContain("absorb_air", ComponentSpec.Load("CA_Simulate_Mono").Inputs.Select(p => p.Name));
             mono.ShowControlPorts(false);
             Assert.Contains("ray_tracing", mono.Params.Input.Select(p => p.Name));
@@ -171,9 +184,9 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void TheControlPorts_FollowTheBody()
         {
-            Assert.Equal(new[] { "ism_order", "normalize" }, new SimulateMonoComponent().ControlPorts);
-            Assert.Equal(new[] { "ism_order", "tail", "diffraction", "late_envelope", "normalize", "hrtf", "run" }, new SimulateBinauralComponent().ControlPorts);
-            Assert.Equal(new[] { "ism_order", "tail", "diffraction", "late_envelope", "normalize", "run" }, new SimulateAmbisonicsComponent().ControlPorts);
+            Assert.Equal(new[] { "ism_order" }, new SimulateMonoComponent().ControlPorts);
+            Assert.Equal(new[] { "ism_order", "tail", "diffraction", "late_envelope", "hrtf", "run" }, new SimulateBinauralComponent().ControlPorts);
+            Assert.Equal(new[] { "ism_order", "tail", "diffraction", "late_envelope", "run" }, new SimulateAmbisonicsComponent().ControlPorts);
             Assert.Empty(new RoomSceneComponent().ControlPorts);
             Assert.Equal(new[] { "mix_sources" }, new AuraliseComponent().ControlPorts);
             Assert.Equal(new[] { "source_idx", "scattering", "order" }, new VisualiseRaysComponent().ControlPorts);
@@ -248,9 +261,9 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void TheHybridBodies_StartWithTheOrders_ThenTheTail()
         {
-            Assert.Equal(new[] { "ism_order", "sh_order", "tail", "diffraction", "late_envelope", "normalize", "run" },
+            Assert.Equal(new[] { "ism_order", "sh_order", "tail", "diffraction", "late_envelope", "run" },
                 new SimulateAmbisonicsComponent().Controls.Select(c => c.Port));
-            Assert.Equal(new[] { "ism_order", "tail", "diffraction", "late_envelope", "normalize", "hrtf", "run" },
+            Assert.Equal(new[] { "ism_order", "tail", "diffraction", "late_envelope", "hrtf", "run" },
                 new SimulateBinauralComponent().Controls.Select(c => c.Port));
         }
 
@@ -263,8 +276,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             RectangleF Of(string port) => boxes.Single(b => b.Control.Port == port).Bounds;
             // Late envelope is a dropdown below Diffraction, as Diffraction is below Tail; then the toggle, HRTF..., Run
             Assert.Equal(Of("diffraction").Top - Of("tail").Bottom, Of("late_envelope").Top - Of("diffraction").Bottom, 3);
-            Assert.Equal(ControlLayout.ButtonGap, Of("normalize").Top - Of("late_envelope").Bottom, 3);
-            Assert.Equal(ControlLayout.ButtonGap, Of("hrtf").Top - Of("normalize").Bottom, 3);
+            Assert.Equal(ControlLayout.ButtonGap, Of("hrtf").Top - Of("late_envelope").Bottom, 3);
             Assert.Equal(ControlLayout.ButtonGap, Of("run").Top - Of("hrtf").Bottom, 3);
             // the gap a title leaves: the margin and the empty top of its row
             Assert.Equal(10f, ControlLayout.ButtonGap);
