@@ -36,7 +36,8 @@ namespace CompasAcoustics.Grasshopper
         public const string CallIdHeader = "X-Call-Id";
 
         /// <summary>Whether <paramref name="error"/> says that no worker answered.</summary>
-        internal static bool IsGone(Exception error) => error is HttpRequestException or OperationCanceledException or System.IO.IOException;
+        internal static bool IsGone(Exception error) =>
+            error is HttpRequestException or OperationCanceledException or System.IO.IOException or System.Net.Sockets.SocketException;
 
         public object? Call(string function, params object?[] args) => Call(function, args, new Dictionary<string, object?>());
 

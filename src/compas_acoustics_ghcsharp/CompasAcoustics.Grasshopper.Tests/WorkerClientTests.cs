@@ -92,6 +92,14 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Null(Client(handler).PingAnswer().status);
         }
 
+        // on macOS SocketsHttpHandler lets a reset connection's SocketException (EINVAL from getpeername) through unwrapped
+        [Fact]
+        public void Ping_IsFalseWhenTheSocketFails()
+        {
+            var handler = new FakeHandler((request, body) => throw new System.Net.Sockets.SocketException(22));
+            Assert.Null(Client(handler).PingAnswer().status);
+        }
+
         [Fact]
         public void Shutdown_PostsWithTheToken()
         {
