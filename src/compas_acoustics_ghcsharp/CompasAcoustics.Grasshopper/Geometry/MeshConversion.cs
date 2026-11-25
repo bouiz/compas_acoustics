@@ -37,6 +37,14 @@ namespace CompasAcoustics.Grasshopper
         }
 
         /// <summary>A point or vector as the <c>[x, y, z]</c> list the worker takes.</summary>
+        /// <summary>The frame of ``plane``: its origin and its X and Y axes.</summary>
+        public static FrameData ToFrameData(Plane plane) => new FrameData
+        {
+            Point = new PointData { X = plane.Origin.X, Y = plane.Origin.Y, Z = plane.Origin.Z },
+            Xaxis = new VectorData { X = plane.XAxis.X, Y = plane.XAxis.Y, Z = plane.XAxis.Z },
+            Yaxis = new VectorData { X = plane.YAxis.X, Y = plane.YAxis.Y, Z = plane.YAxis.Z },
+        };
+
         public static List<object?> Xyz(Point3d p) => new() { p.X, p.Y, p.Z };
 
         public static List<object?> Xyz(Vector3d v) => new() { v.X, v.Y, v.Z };

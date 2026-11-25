@@ -1,6 +1,9 @@
 """The worker API the Grasshopper plugin calls, in-process; every argument and result crosses compas_pb as on the
 wire."""
 
+import importlib.util
+import sys
+
 import numpy as np
 import pytest
 from compas.datastructures import Mesh
@@ -20,6 +23,12 @@ from compas_acoustics import Scene
 from compas_acoustics import Source
 from compas_acoustics.pb import plain
 from compas_acoustics.worker import api
+
+#: The geometric method casts its rays with trimesh and embreex, the lab extra (Python >= 3.11)
+needs_raycaster = pytest.mark.skipif(
+    importlib.util.find_spec("trimesh") is None or importlib.util.find_spec("embreex") is None,
+    reason="the geometric method needs trimesh and embreex (pip install compas_acoustics[lab])",
+)
 
 
 def wire(value):
@@ -535,3 +544,375 @@ def test_energy_map_fixes_its_rays_seed_and_image_source_order():
 def test_energy_map_rejects_a_source_index_out_of_range():
     with pytest.raises(ValueError, match=r"No source at index 5; the scene has 1 source\(s\), 0 to 0\."):
         api.energy_map(_map_scene(), [[4, 3, 1.2]], source_index=5)
+
+
+# ---------------------------------------------------------------------------
+# The coefficient lab (Grasshopper chain C, Task 3)
+# ---------------------------------------------------------------------------
+
+
+def _flat_quad(size=1.0):
+    return Mesh.from_vertices_and_faces([[0, 0, 0], [size, 0, 0], [size, size, 0], [0, size, 0]], [[0, 1, 2, 3]])
+
+
+def _lab_disc():
+    from lab_shapes import flat_tile
+
+    return call("make_scattering_sample", flat_tile(), mode="disc", diameter=0.4)
+
+
+def test_the_lab_functions_are_listed():
+    for name in ("make_scattering_sample", "run_scattering_lab", "polar_balloon"):
+        assert name in api.__all__
+
+
+def test_make_scattering_sample_as_drawn_and_disc():
+    from lab_shapes import sine_tile
+
+    from compas_acoustics.lab import ScatteringSample
+
+    drawn = call("make_scattering_sample", _flat_quad(), name="drawn")
+    assert isinstance(drawn, ScatteringSample) and drawn.mode == "as_drawn" and drawn.name == "drawn"
+    assert drawn.diameter == pytest.approx(2**0.5)
+    disc = call("make_scattering_sample", sine_tile(0.1, 0.01), mode="disc", diameter=0.4, period=[0.1, 0.05], baseplate=0.02, symmetry="rotational")
+    assert disc.mode == "disc" and disc.diameter == 0.4 and disc.period == (0.1, 0.05) and disc.baseplate == 0.02 and disc.symmetry == "rotational"
+    assert disc.sample.number_of_faces() > 0
+
+
+def test_a_disc_without_a_diameter_is_refused():
+    with pytest.raises(ValueError, match="disc mode needs a 'diameter'"):
+        api.make_scattering_sample(_flat_quad(), mode="disc")
+
+
+@pytest.mark.parametrize("diameter", [0, -1, float("nan")])
+def test_a_disc_with_a_diameter_that_is_not_positive_is_refused(diameter):
+    from lab_shapes import flat_tile
+
+    with pytest.raises(ValueError, match="'diameter' must be greater than 0, not"):
+        call("make_scattering_sample", flat_tile(), mode="disc", diameter=diameter)
+
+
+def test_an_unknown_sample_mode_is_refused():
+    with pytest.raises(ValueError, match="mode is 'as_drawn' or 'disc', not 'tiled'"):
+        api.make_scattering_sample(_flat_quad(), mode="tiled")
+
+
+@needs_raycaster
+def test_run_scattering_lab_returns_the_result_the_material_octaves_and_the_warnings():
+    from compas_acoustics.lab import ScatteringResult
+
+    out = call("run_scattering_lab", _lab_disc(), method="geometric", preset="survey", settings={"n_rays": 500})
+    assert isinstance(out["result"], ScatteringResult) and out["result"].method == "geometric"
+    assert len(out["scattering_coefficients"]) == 7
+    assert out["octave_bands"] == [125, 250, 500, 1000, 2000, 4000]
+    assert any("heuristic" in n for n in out["notes"])
+    assert not any("heuristic: s_max" in w for w in out["warnings"])
+
+
+@needs_raycaster
+def test_the_facts_of_a_run_are_notes_and_not_warnings():
+    from compas_acoustics.lab.scattering import _HEURISTIC
+
+    out = call("run_scattering_lab", _lab_disc(), method="geometric", preset="survey", settings={"n_rays": 500})
+    # the heuristic and the 8000 Hz octave an 'iso' run does not simulate state what the run is: no fault
+    assert _HEURISTIC in out["notes"] and any(n.startswith("8000 Hz is not simulated") for n in out["notes"])
+    assert not set(out["notes"]) & set(out["warnings"])
+    extended = call("run_scattering_lab", _lab_disc(), method="geometric", preset="survey", band_range="extended", settings={"n_rays": 500})
+    assert any("outside ISO 17497" in n for n in extended["notes"]) and not any("ISO" in w for w in extended["warnings"])
+
+
+@needs_raycaster
+def test_the_lab_leaves_out_the_samples_own_warnings():
+    from lab_shapes import sine_tile
+
+    deep = call("make_scattering_sample", sine_tile(0.1, 0.05), mode="disc", diameter=0.4)
+    assert deep.warnings  # deeper than d/16: the Scattering Sample shows it
+    out = call("run_scattering_lab", deep, method="geometric", preset="survey", settings={"n_rays": 500})
+    assert not set(deep.warnings) & set(out["warnings"] + out["notes"])
+
+
+def test_split_notes_sorts_by_the_templates_and_drops_what_is_news_only_before_a_run():
+    from compas_acoustics.lab.scattering import _FILLED_TOP
+    from compas_acoustics.lab.scattering import _LOST
+    from compas_acoustics.lab.scattering import _SLOW
+    from compas_acoustics.lab.scattering import DURATION_TEMPLATES
+    from compas_acoustics.lab.scattering import NOTE_TEMPLATES
+
+    filled, lost, slow = _FILLED_TOP.format(g=4000), _LOST.format(percent=3.2, bounces=20), _SLOW.format(method="kirchhoff", time="2.0 h")
+    assert api._split_notes([lost, filled, slow], NOTE_TEMPLATES, DURATION_TEMPLATES) == ([lost], [filled])
+    # a template matches its own messages only, not one that only starts like them
+    longer = filled + ", and more"
+    assert api._split_notes([longer], NOTE_TEMPLATES) == ([longer], [])
+
+
+@needs_raycaster
+def test_the_extended_band_range_simulates_8_kHz_too():
+    out = call("run_scattering_lab", _lab_disc(), preset="survey", band_range="extended", settings={"n_rays": 200})
+    assert out["octave_bands"][-1] == 8000
+
+
+def test_an_unknown_band_range_is_refused():
+    with pytest.raises(ValueError, match="'iso' or 'extended'"):
+        api.run_scattering_lab(_lab_disc(), band_range="narrow")
+
+
+def test_without_trimesh_the_lab_names_kirchhoff(monkeypatch):
+    monkeypatch.setitem(sys.modules, "trimesh", None)
+    # a ValueError, because the service answers that with its message and an ImportError with a traceback
+    with pytest.raises(ValueError, match="or use kirchhoff"):
+        api.run_scattering_lab(_lab_disc(), preset="survey", settings={"n_rays": 100})
+
+
+def _geometric_result():
+    return call("run_scattering_lab", _lab_disc(), preset="survey", settings={"n_rays": 4000})["result"]
+
+
+@needs_raycaster
+def test_polar_balloon_of_a_flat_disc_points_its_peak_to_the_specular_direction():
+    result = _geometric_result()
+    preview = 1 if len(result.polar_source_indices) > 1 else 0
+    index = result.polar_source_indices[preview]
+    colatitude, azimuth = np.radians(result.source_colatitude[index]), np.radians(result.source_azimuth[index])
+    source = np.array([np.sin(colatitude) * np.cos(azimuth), np.sin(colatitude) * np.sin(azimuth), np.cos(colatitude)])
+    mirror = np.array([-source[0], -source[1], source[2]])
+    balloon = call("polar_balloon", result, preview=preview, octave=1000, body="reference")
+    mesh = balloon["mesh"]
+    vertices = np.array(mesh.vertices_attributes("xyz"))
+    faces = [mesh.face_vertices(f) for f in mesh.faces()]
+    assert len(balloon["levels"]) == len(vertices) == len(result.receiver_directions)
+    assert all(0 <= i < len(vertices) for face in faces for i in face)
+    peak = vertices[np.argmax(np.linalg.norm(vertices, axis=1))]
+    angle = np.degrees(np.arccos(np.clip(peak @ mirror / np.linalg.norm(peak), -1, 1)))
+    assert angle <= 10.0
+    assert np.allclose(balloon["source"], source * 1.2)
+    assert balloon["label"] == "θ {:g}°, φ {:g}°, 1000 Hz, reference".format(result.source_colatitude[index], result.source_azimuth[index])
+    # the faces point outward, and none uses the pole point added to close the hull: seen on the unit directions the
+    # vertices move along: that check does not depend on the shape of the spike (the centroid of the vertices holds here
+    # too, but it is only meaningful for a roughly round balloon)
+    directions = vertices / np.linalg.norm(vertices, axis=1)[:, np.newaxis]
+    for face in faces:
+        a, b, c = directions[face[:3]]
+        assert np.cross(b - a, c - a) @ (a + b + c) > 0
+
+
+@needs_raycaster
+def test_polar_balloon_radius_follows_the_level_down_to_a_minimum_of_3_percent():
+    result = _geometric_result()
+    balloon = api.polar_balloon(result, radius=2.0, floor_db=-20.0)
+    vertices = np.array(balloon["mesh"].vertices_attributes("xyz"))
+    levels = np.array(balloon["levels"])
+    expected = 2.0 * (0.03 + 0.97 * np.clip(1 - levels / -20.0, 0.0, 1.0))
+    assert np.allclose(np.linalg.norm(vertices, axis=1), expected, atol=1e-9)
+    assert np.linalg.norm(vertices, axis=1).min() >= 0.03 * 2.0 - 1e-9
+
+
+def _balloon_geometry(balloon):
+    mesh = balloon["mesh"]
+    vertices = np.array(mesh.vertices_attributes("xyz"))
+    faces = np.array([mesh.face_vertices(f)[:3] for f in mesh.faces()])
+    return vertices, faces
+
+
+@needs_raycaster
+def test_a_sparse_balloon_is_a_valid_mesh():
+    from scipy.spatial import cKDTree
+
+    # a flat disc measured by the geometric method fills a few cells of the 10 degree histogram, the rest are at -300 dB
+    result = _geometric_result()
+    balloon = call("polar_balloon", result, preview=0, octave=1000, radius=1.5)
+    levels = np.array(balloon["levels"])
+    vertices, faces = _balloon_geometry(balloon)
+    assert np.mean(levels <= -299.9) > 0.5
+    # no two vertices coincide
+    distance, _ = cKDTree(vertices).query(vertices, k=2)
+    assert distance[:, 1].min() > 1e-6
+    # no face is degenerate
+    a, b, c = (vertices[faces[:, i]] for i in range(3))
+    assert (np.linalg.norm(np.cross(b - a, c - a), axis=1) / 2).min() > 1e-12
+    # the empty cells are at 3 % of the radius, the loudest cell at its level
+    radii = np.linalg.norm(vertices, axis=1)
+    assert radii.min() == pytest.approx(0.03 * 1.5, abs=1e-9)
+    expected_peak = 1.5 * (0.03 + 0.97 * min(1.0, max(0.0, 1 - levels.max() / -30.0)))
+    assert radii.max() == pytest.approx(expected_peak, abs=1e-9)
+
+
+@needs_raycaster
+def test_a_dense_balloon_is_a_valid_mesh_and_its_radius_is_linear_in_the_level_between_the_floor_and_0_dB():
+    import copy
+    from scipy.spatial import cKDTree
+
+    result = copy.deepcopy(_geometric_result())
+    directions = np.asarray(result.receiver_directions, dtype=float)
+    # from +3 dB at the pole to -60 dB at the horizon: cells above 0 dB, between the floor and 0 dB and below the floor
+    smooth = 3.0 - 63.0 * (1 - directions[:, 2]) ** 1.3 - 2.0 * directions[:, 0] ** 2
+    result.polar_sample_db[0, result.octave_bands.index(1000)] = smooth
+
+    for radius, floor_db in ((1.0, -30.0), (2.0, -40.0)):
+        balloon = call("polar_balloon", result, preview=0, octave=1000, radius=radius, floor_db=floor_db)
+        vertices, faces = _balloon_geometry(balloon)
+        levels = np.array(balloon["levels"])
+        assert np.allclose(levels, smooth, atol=0.051)  # the wire keeps a tenth of a dB
+        assert (levels > 0).any() and (levels < floor_db).any() and ((levels > floor_db) & (levels < 0)).sum() >= 10
+        radii = np.linalg.norm(vertices, axis=1)
+        # 3 % at and below the floor, linear between, the radius at 0 dB and above (the levels are the ones the tool
+        # returned)
+        expected = radius * (0.03 + 0.97 * np.clip(1 - levels / floor_db, 0.0, 1.0))
+        assert np.allclose(radii, expected, atol=2e-3 * radius)
+        assert radii.max() == pytest.approx(radius, abs=1e-9)
+        assert radii.min() == pytest.approx(0.03 * radius, abs=1e-9)
+        order = np.argsort(levels)
+        assert np.all(np.diff(radii[order]) >= -1e-12)
+        # the mesh is valid: distinct vertices, faces with an area
+        assert cKDTree(vertices).query(vertices, k=2)[0][:, 1].min() > 1e-6
+        a, b, c = (vertices[faces[:, i]] for i in range(3))
+        assert (np.linalg.norm(np.cross(b - a, c - a), axis=1) / 2).min() > 1e-12
+
+    # the faces of a smooth balloon (a mild level field) point away from its centre
+    result.polar_sample_db[0, result.octave_bands.index(1000)] = -25.0 * (1 - directions[:, 2]) - 3.0 * directions[:, 0] ** 2
+    vertices, faces = _balloon_geometry(call("polar_balloon", result, preview=0, octave=1000))
+    centre = vertices.mean(axis=0)
+    a, b, c = (vertices[faces[:, i]] for i in range(3))
+    assert np.all(np.einsum("ij,ij->i", np.cross(b - a, c - a), a + b + c - 3 * centre) > 0)
+
+
+@needs_raycaster
+def test_polar_balloon_refuses_an_octave_that_was_not_simulated():
+    result = _geometric_result()
+    with pytest.raises(ValueError, match="8000"):
+        api.polar_balloon(result, octave=8000)
+    with pytest.raises(ValueError, match="'sample' or 'reference'"):
+        api.polar_balloon(result, body="both")
+    with pytest.raises(ValueError, match="preview"):
+        api.polar_balloon(result, preview=len(result.polar_source_indices))
+
+
+@needs_raycaster
+@pytest.mark.parametrize("radius", [0, -1, float("nan")])
+def test_polar_balloon_refuses_a_radius_that_is_not_positive(radius):
+    with pytest.raises(ValueError, match="radius is a positive length, not"):
+        call("polar_balloon", _geometric_result(), radius=radius)
+
+
+@needs_raycaster
+@pytest.mark.parametrize("floor_db", [0, 5.0])
+def test_polar_balloon_refuses_a_floor_that_is_not_negative(floor_db):
+    with pytest.raises(ValueError, match="floor_db is a negative level in dB, not"):
+        call("polar_balloon", _geometric_result(), floor_db=floor_db)
+
+
+# ---------------------------------------------------------------------------
+# The coefficient lab: the orientation of the object (final review, I1)
+# ---------------------------------------------------------------------------
+
+
+def _closed_box(x=1.2, y=0.8, z=0.3):
+    from compas.geometry import Box
+
+    return Mesh.from_shape(Box(x, y, z, Frame([x / 2, y / 2, z / 2], [1, 0, 0], [0, 1, 0])))
+
+
+def _on_the_wall(mesh):
+    """``mesh`` turned 90 degrees about X and moved: what lay on the floor now stands on a wall at y = 4, facing -y, and
+    the frame of that wall."""
+    from compas.geometry import Rotation
+    from compas.geometry import Translation
+
+    turn = Rotation.from_axis_and_angle([1, 0, 0], np.pi / 2, point=[0, 0, 0]).concatenated(Translation.from_vector([2, 4, 1.0]))
+    return mesh.transformed(turn), Frame([2, 4, 1.0], [1, 0, 0], [0, 0, 1])
+
+
+def _wavy_panel(n=13):
+    """An open relief panel, 0.6 m square, z = 0.04 sin(2 pi x / 0.2)."""
+    xs = np.linspace(-0.3, 0.3, n)
+    vertices = [[xs[i], xs[j], 0.04 * np.sin(2 * np.pi * xs[i] / 0.2)] for j in range(n) for i in range(n)]
+    faces = [[j * n + i, j * n + i + 1, (j + 1) * n + i + 1, (j + 1) * n + i] for j in range(n - 1) for i in range(n - 1)]
+    return Mesh.from_vertices_and_faces(vertices, faces)
+
+
+def test_a_frame_crosses_the_wire_to_the_worker():
+    frame = Frame([2, 4, 1.0], [1, 0, 0], [0, 0, 1])
+    sample = call("make_scattering_sample", _on_the_wall(_closed_box())[0], frame=frame)
+    assert sample.diameter == pytest.approx(np.hypot(1.2, 0.8))
+
+
+@needs_raycaster
+def test_a_box_on_a_wall_is_the_box_on_the_floor_when_its_frame_is_given():
+    floor = call("make_scattering_sample", _closed_box())
+    wall_mesh, frame = _on_the_wall(_closed_box())
+    wall = call("make_scattering_sample", wall_mesh, frame=frame)
+    assert wall.diameter == pytest.approx(floor.diameter)
+    assert wall.structural_depth == pytest.approx(floor.structural_depth)
+    results = [api.run_scattering_lab(s, "geometric", preset="survey", settings={"n_rays": 2000}) for s in (floor, wall)]
+    assert results[1]["scattering_coefficients"] == pytest.approx(results[0]["scattering_coefficients"], abs=1e-3)
+
+
+def test_the_reference_is_turned_with_the_mesh():
+    from lab_shapes import bumped_box
+
+    from compas.geometry import Rotation
+    from compas.geometry import Translation
+
+    turn = Rotation.from_axis_and_angle([1, 0, 0], np.pi / 2, point=[0, 0, 0]).concatenated(Translation.from_vector([2, 4, 1.0]))
+    frame = Frame([2, 4, 1.0], [1, 0, 0], [0, 0, 1])
+    floor = api.make_scattering_sample(bumped_box(), reference=bumped_box(bump=0))
+    wall = api.make_scattering_sample(bumped_box().transformed(turn), reference=bumped_box(bump=0).transformed(turn), frame=frame)
+    assert wall.reference_kind == floor.reference_kind == "proxy"
+    assert wall.structural_depth == pytest.approx(floor.structural_depth)
+
+
+def test_a_disc_tile_is_turned_with_its_frame():
+    from lab_shapes import sine_tile
+
+    tile = sine_tile(0.1, 0.01)
+    wall_tile, frame = _on_the_wall(tile)
+    floor = api.make_scattering_sample(tile, mode="disc", diameter=0.4, period=[0.1, 0.05])
+    wall = api.make_scattering_sample(wall_tile, mode="disc", diameter=0.4, period=[0.1, 0.05], frame=frame)
+    assert wall.structural_depth == pytest.approx(floor.structural_depth)
+
+
+def test_the_world_xy_frame_changes_nothing():
+    plain_sample = api.make_scattering_sample(_closed_box())
+    framed = api.make_scattering_sample(_closed_box(), frame=Frame.worldXY())
+    assert framed.diameter == plain_sample.diameter and framed.structural_depth == plain_sample.structural_depth
+    assert framed.sample.number_of_faces() == plain_sample.sample.number_of_faces()
+
+
+def test_a_frame_that_is_not_a_frame_is_a_readable_error():
+    with pytest.raises(ValueError, match="frame"):
+        api.make_scattering_sample(_closed_box(), frame=[0, 0, 1])
+
+
+def test_a_relief_lying_on_the_wrong_plane_is_told_to_lie_on_xy():
+    wall_mesh, frame = _on_the_wall(_wavy_panel())
+    with pytest.raises(ValueError, match="the footprint has no area: lay the object on the XY plane"):
+        api.make_scattering_sample(wall_mesh)
+    # given its plane it is a sample as any other
+    assert api.make_scattering_sample(wall_mesh, frame=frame).diameter == pytest.approx(api.make_scattering_sample(_wavy_panel()).diameter)
+
+
+@needs_raycaster
+def test_polar_balloon_takes_a_held_result_by_its_guid():
+    result = _geometric_result()  # run_scattering_lab holds the result it made
+    by_guid = api.polar_balloon(str(result.guid), preview=1, octave=1000)
+    assert by_guid["label"] == api.polar_balloon(result, preview=1, octave=1000)["label"]
+    assert len(by_guid["levels"]) == len(result.receiver_directions)
+
+
+def test_a_guid_the_worker_does_not_hold_asks_for_the_result_itself():
+    # the plugin's LabRequests.NotHeld starts the same: it then sends the result
+    assert api.NOT_HELD == "result not held:"
+    with pytest.raises(ValueError, match="^result not held: 00000000-"):
+        api.polar_balloon("00000000-0000-4000-8000-000000000000")
+
+
+@needs_raycaster
+def test_the_worker_lets_the_least_recently_used_results_go_beyond_its_budget(monkeypatch):
+    first, second = _geometric_result(), _geometric_result()
+    monkeypatch.setattr(api, "_HELD_BYTES", api._polar_bytes(first) + api._polar_bytes(second) // 2)
+    api._hold(first)
+    api._hold(second)  # over the budget: the first goes
+    with pytest.raises(ValueError, match=api.NOT_HELD):
+        api.polar_balloon(str(first.guid))
+    assert api.polar_balloon(str(second.guid))["mesh"] is not None
+    api.polar_balloon(first)  # sent again, it is held again
+    assert api.polar_balloon(str(first.guid))["mesh"] is not None

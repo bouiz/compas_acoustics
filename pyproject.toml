@@ -60,7 +60,7 @@ zip-safe = false
 [tool.setuptools.dynamic]
 version = { attr = "compas_acoustics.__version__" }
 dependencies = { file = "requirements.txt" }
-optional-dependencies = { dev = { file = "requirements-dev.txt" }, docs = { file = "requirements-docs.txt" } }
+optional-dependencies = { dev = { file = "requirements-dev.txt" }, docs = { file = "requirements-docs.txt" }, lab = { file = "requirements-lab.txt" } }
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -81,6 +81,7 @@ compas_acoustics = [
 [tool.pytest.ini_options]
 minversion = "6.0"
 testpaths = ["tests", "src/compas_acoustics"]
+pythonpath = ["tests/lab"]
 python_files = ["test_*.py", "*_test.py", "test.py"]
 addopts = [
     "-ra",

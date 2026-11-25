@@ -30,6 +30,7 @@ ACCENTS = {
     "Display": (23, 160, 190),
     "Util": (110, 110, 110),
     "Optimization": (170, 150, 20),
+    "Lab": (140, 86, 75),
 }
 
 
@@ -232,6 +233,35 @@ def install(image, d, accent):
     _line(d, [(14, 66), (14, 84), (82, 84), (82, 66)], DARK)
 
 
+def sample(image, d, accent):
+    # a sawtooth relief over its baseplate
+    _line(d, [(8, 60), (24, 28), (24, 60), (40, 28), (40, 60), (56, 28), (56, 60), (72, 28), (72, 60), (88, 60)], accent)
+    d.rectangle((8, 66, 88, 78), fill=DARK)
+
+
+def lab(image, d, accent):
+    # a hemisphere of dots over a relief profile
+    for radius, count in ((36, 7), (22, 4)):
+        for i in range(count):
+            t = math.pi * (i + 0.5) / count
+            _dot(d, 48 - radius * math.cos(t), 52 - radius * math.sin(t), 5, accent)
+    _line(d, [(8, 66), (22, 56), (36, 66), (48, 56), (60, 66), (74, 56), (88, 66)], DARK, W - 1)
+    d.rectangle((8, 74, 88, 84), fill=DARK)
+
+
+def balloon(image, d, accent):
+    # a lobed closed polar curve (a main lobe up, two smaller ones either side) around a point
+    points = []
+    for i in range(96):
+        t = 2 * math.pi * i / 96
+        a = math.atan2(math.sin(t), math.cos(t))  # the angle from straight up, -pi to pi
+        r = 10 + 30 * math.exp(-((a / 0.4) ** 2)) + 14 * math.exp(-(((abs(a) - 1.1) / 0.3) ** 2))
+        points.append((48 + r * math.sin(t), 54 - r * math.cos(t)))
+    d.polygon(points, fill=accent[:3] + (110,))
+    _line(d, points + [points[0]], accent, W - 2)
+    _dot(d, 48, 54, 6, DARK)
+
+
 GLYPHS = {
     "CA_Acoustic_Object": wall,
     "CA_Analyse_IR": decay,
@@ -246,8 +276,11 @@ GLYPHS = {
     "CA_Material_Library": library,
     "CA_Model": room,
     "CA_Plot_2D": chart,
+    "CA_Polar_Preview": balloon,
     "CA_Receiver": receiver,
     "CA_Regularized_Fitness": target,
+    "CA_Scattering_Lab": lab,
+    "CA_Scattering_Sample": sample,
     "CA_Simulate_Ambisonics": ambisonics,
     "CA_Simulate_Binaural": binaural,
     "CA_Simulate_Mono": rays,

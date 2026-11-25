@@ -27,6 +27,21 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
+        public void ToFrameData_WritesTheOriginAndTheXAndYAxes()
+        {
+            // Plane's constructors call Rhino's native code, which tests do not have
+            var plane = Plane.WorldXY;
+            plane.Origin = new Point3d(1, 2, 3);
+            plane.XAxis = new Vector3d(0, 1, 0);
+            plane.YAxis = new Vector3d(-1, 0, 0);
+            plane.ZAxis = new Vector3d(0, 0, 1);
+            var frame = MeshConversion.ToFrameData(plane);
+            Assert.Equal(new[] { 1.0, 2.0, 3.0 }, new[] { frame.Point.X, frame.Point.Y, frame.Point.Z });
+            Assert.Equal(new[] { 0.0, 1.0, 0.0 }, new[] { frame.Xaxis.X, frame.Xaxis.Y, frame.Xaxis.Z });
+            Assert.Equal(new[] { -1.0, 0.0, 0.0 }, new[] { frame.Yaxis.X, frame.Yaxis.Y, frame.Yaxis.Z });
+        }
+
+        [Fact]
         public void Xyz_IsAListOfThreeNumbers()
         {
             Assert.Equal(new object?[] { 1.0, 2.0, 3.0 }, MeshConversion.Xyz(new Point3d(1, 2, 3)).ToArray());

@@ -86,18 +86,36 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
+        public void EveryDisplayComponentsPreviewSwitch_HidesIt_NeverAnInputOfTheSameName()
+        {
+            // Polar Preview has an input named preview (the source index): a switch on that name set the input, never Hidden
+            var displays = typeof(DisplayComponent).Assembly.GetTypes().Where(t => t.IsSubclassOf(typeof(DisplayComponent)) && !t.IsAbstract);
+            foreach (var type in displays)
+            {
+                var component = (DisplayComponent)System.Activator.CreateInstance(type)!;
+                var toggle = component.Controls.OfType<ToggleControl>().First();
+                Assert.DoesNotContain(component.Params.Input, p => p.Name == toggle.Port);
+                Assert.True(component.IsChoice(toggle.Port), type.Name);
+                component.SetChoice(toggle.Port, "off");
+                Assert.True(component.Hidden, type.Name);
+                Assert.Equal("off", component.Choice(toggle.Port));
+            }
+            Assert.Contains(displays, t => t == typeof(PolarPreviewComponent));
+        }
+
+        [Fact]
         public void TheBilliardAndTheRays_HaveOnePlayStopButtonAndRewind_AndAllThreeAPreviewToggle()
         {
             Assert.Equal(new[] { "play", "rewind" }, new VisualiseBilliardComponent().Controls.OfType<ButtonControl>().Select(b => b.Port));
             Assert.Equal(new[] { "play", "rewind" }, new VisualiseRaysComponent().Controls.OfType<ButtonControl>().Select(b => b.Port));
             var reflections = new VisualiseReflectionsComponent();
-            Assert.Contains(reflections.Controls, c => c is ToggleControl { Port: "preview" });
-            Assert.True(reflections.IsChoice("preview"));
-            reflections.SetChoice("preview", "off");
+            Assert.Contains(reflections.Controls, c => c is ToggleControl { Port: "show" });
+            Assert.True(reflections.IsChoice("show"));
+            reflections.SetChoice("show", "off");
             Assert.True(reflections.Hidden);
             reflections.Hidden = false;
-            Assert.Equal("on", reflections.Choice("preview"));
-            Assert.True(new VisualiseBilliardComponent().IsChoice("preview") && new VisualiseRaysComponent().IsChoice("preview"));
+            Assert.Equal("on", reflections.Choice("show"));
+            Assert.True(new VisualiseBilliardComponent().IsChoice("show") && new VisualiseRaysComponent().IsChoice("show"));
             // the drawing is the component's own: its curve outputs would draw every ray before Play
             var rays = new VisualiseRaysComponent();
             Assert.All(rays.Params.Output, p => Assert.False(rays.PreviewsOutput(p)));

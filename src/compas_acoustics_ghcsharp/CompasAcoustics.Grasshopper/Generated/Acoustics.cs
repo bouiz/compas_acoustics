@@ -100,7 +100,32 @@ namespace CompasAcoustics.Pb {
             "b3VyY2VzGAQgAygLMjkuY29tcGFzX2Fjb3VzdGljcy5wYi5TcGVjdWxhclJl",
             "ZmxlY3Rpb25zRGF0YS5Tb3VyY2VzRW50cnkaTwoMU291cmNlc0VudHJ5EgsK",
             "A2tleRgBIAEoBRIuCgV2YWx1ZRgCIAEoCzIfLmNvbXBhc19hY291c3RpY3Mu",
-            "cGIuU291cmNlRGF0YToCOAFCBwoFX25hbWViBnByb3RvMw=="));
+            "cGIuU291cmNlRGF0YToCOAFCBwoFX25hbWUiKgoJQXJyYXlEYXRhEg4KBnZh",
+            "bHVlcxgBIAMoARINCgVzaGFwZRgCIAMoAyLOAgoUU2NhdHRlcmluZ1NhbXBs",
+            "ZURhdGESDAoEZ3VpZBgBIAEoCRIMCgRuYW1lGAIgASgJEigKBnNhbXBsZRgD",
+            "IAEoCzIYLmNvbXBhc19wYi5kYXRhLk1lc2hEYXRhEisKCXJlZmVyZW5jZRgE",
+            "IAEoCzIYLmNvbXBhc19wYi5kYXRhLk1lc2hEYXRhEgwKBG1vZGUYBSABKAkS",
+            "EAoIZGlhbWV0ZXIYBiABKAESDgoGcGVyaW9kGAcgAygBEhgKEHN0cnVjdHVy",
+            "YWxfZGVwdGgYCCABKAESGQoMZmVhdHVyZV9zaXplGAkgASgBSACIAQESEAoI",
+            "c3ltbWV0cnkYCiABKAkSEQoJYmFzZXBsYXRlGAsgASgBEhAKCHdhcm5pbmdz",
+            "GAwgAygJEhYKDnJlZmVyZW5jZV9raW5kGA0gASgJQg8KDV9mZWF0dXJlX3Np",
+            "emUi5gUKFFNjYXR0ZXJpbmdSZXN1bHREYXRhEgwKBGd1aWQYASABKAkSDAoE",
+            "bmFtZRgCIAEoCRIOCgZtZXRob2QYAyABKAkSDQoFYmFuZHMYBCADKAUSDwoH",
+            "c19iYW5kcxgFIAMoARIUCgxvY3RhdmVfYmFuZHMYBiADKAUSEQoJc19vY3Rh",
+            "dmVzGAcgAygBEhYKDmZpbGxlZF9vY3RhdmVzGAggAygFEi8KB3NfYW5nbGUY",
+            "CSABKAsyHi5jb21wYXNfYWNvdXN0aWNzLnBiLkFycmF5RGF0YRIZChFzb3Vy",
+            "Y2VfY29sYXRpdHVkZRgKIAMoARIWCg5zb3VyY2VfYXppbXV0aBgLIAMoARIW",
+            "Cg5zb3VyY2Vfd2VpZ2h0cxgMIAMoARI7ChNyZWNlaXZlcl9kaXJlY3Rpb25z",
+            "GA0gASgLMh4uY29tcGFzX2Fjb3VzdGljcy5wYi5BcnJheURhdGESNwoPcG9s",
+            "YXJfc2FtcGxlX2RiGA4gASgLMh4uY29tcGFzX2Fjb3VzdGljcy5wYi5BcnJh",
+            "eURhdGESOgoScG9sYXJfcmVmZXJlbmNlX2RiGA8gASgLMh4uY29tcGFzX2Fj",
+            "b3VzdGljcy5wYi5BcnJheURhdGESHAoUcG9sYXJfc291cmNlX2luZGljZXMY",
+            "ECADKAUSGwoTdW5jb252ZXJnZWRfb2N0YXZlcxgRIAMoBRIQCgh3YXJuaW5n",
+            "cxgSIAMoCRIrCgpnZW5lcmF0aW9uGBMgASgLMhcuY29tcGFzX3BiLmRhdGEu",
+            "QW55RGF0YRIvCgdkX2FuZ2xlGBQgASgLMh4uY29tcGFzX2Fjb3VzdGljcy5w",
+            "Yi5BcnJheURhdGESLwoHZF9iYW5kcxgVIAEoCzIeLmNvbXBhc19hY291c3Rp",
+            "Y3MucGIuQXJyYXlEYXRhEjEKCWRfb2N0YXZlcxgWIAEoCzIeLmNvbXBhc19h",
+            "Y291c3RpY3MucGIuQXJyYXlEYXRhSgQIHhAoYgZwcm90bzM="));
       descriptor = pbr::FileDescriptor.FromGeneratedCode(descriptorData,
           new pbr::FileDescriptor[] { global::CompasPb.Data.DatastructuresReflection.Descriptor, global::CompasPb.Data.GeometryReflection.Descriptor, global::CompasPb.Data.MessageReflection.Descriptor, },
           new pbr::GeneratedClrTypeInfo(null, null, new pbr::GeneratedClrTypeInfo[] {
@@ -115,7 +140,10 @@ namespace CompasAcoustics.Pb {
             new pbr::GeneratedClrTypeInfo(typeof(global::CompasAcoustics.Pb.ScatteredRayData), global::CompasAcoustics.Pb.ScatteredRayData.Parser, new[]{ "Guid", "Name", "Points", "SourceIndex", "RayIndex", "Direction", "DistanceOffset", "ParentRayIndex", "Energy", "OriginReflectionOrder" }, new[]{ "Name", "SourceIndex", "RayIndex", "ParentRayIndex", "Energy" }, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::CompasAcoustics.Pb.SpecularPathData), global::CompasAcoustics.Pb.SpecularPathData.Parser, new[]{ "Guid", "Name", "Points", "SourceIndex", "RayIndex", "Direction", "DistanceOffset", "Order", "Walls", "Image", "ReceiverIndex" }, new[]{ "Name", "SourceIndex", "RayIndex" }, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::CompasAcoustics.Pb.RayFieldData), global::CompasAcoustics.Pb.RayFieldData.Parser, new[]{ "Guid", "Name", "Rays", "Sources" }, new[]{ "Name" }, null, null, new pbr::GeneratedClrTypeInfo[] { null, }),
-            new pbr::GeneratedClrTypeInfo(typeof(global::CompasAcoustics.Pb.SpecularReflectionsData), global::CompasAcoustics.Pb.SpecularReflectionsData.Parser, new[]{ "Guid", "Name", "Paths", "Sources" }, new[]{ "Name" }, null, null, new pbr::GeneratedClrTypeInfo[] { null, })
+            new pbr::GeneratedClrTypeInfo(typeof(global::CompasAcoustics.Pb.SpecularReflectionsData), global::CompasAcoustics.Pb.SpecularReflectionsData.Parser, new[]{ "Guid", "Name", "Paths", "Sources" }, new[]{ "Name" }, null, null, new pbr::GeneratedClrTypeInfo[] { null, }),
+            new pbr::GeneratedClrTypeInfo(typeof(global::CompasAcoustics.Pb.ArrayData), global::CompasAcoustics.Pb.ArrayData.Parser, new[]{ "Values", "Shape" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::CompasAcoustics.Pb.ScatteringSampleData), global::CompasAcoustics.Pb.ScatteringSampleData.Parser, new[]{ "Guid", "Name", "Sample", "Reference", "Mode", "Diameter", "Period", "StructuralDepth", "FeatureSize", "Symmetry", "Baseplate", "Warnings", "ReferenceKind" }, new[]{ "FeatureSize" }, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::CompasAcoustics.Pb.ScatteringResultData), global::CompasAcoustics.Pb.ScatteringResultData.Parser, new[]{ "Guid", "Name", "Method", "Bands", "SBands", "OctaveBands", "SOctaves", "FilledOctaves", "SAngle", "SourceColatitude", "SourceAzimuth", "SourceWeights", "ReceiverDirections", "PolarSampleDb", "PolarReferenceDb", "PolarSourceIndices", "UnconvergedOctaves", "Warnings", "Generation", "DAngle", "DBands", "DOctaves" }, null, null, null, null)
           }));
     }
     #endregion
@@ -5701,6 +5729,1841 @@ namespace CompasAcoustics.Pb {
           }
           case 34: {
             sources_.AddEntriesFrom(ref input, _map_sources_codec);
+            break;
+          }
+        }
+      }
+    }
+    #endif
+
+  }
+
+  /// <summary>
+  /// An n-dimensional array: values in C order, and its shape.
+  /// </summary>
+  [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
+  public sealed partial class ArrayData : pb::IMessage<ArrayData>
+  #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      , pb::IBufferMessage
+  #endif
+  {
+    private static readonly pb::MessageParser<ArrayData> _parser = new pb::MessageParser<ArrayData>(() => new ArrayData());
+    private pb::UnknownFieldSet _unknownFields;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public static pb::MessageParser<ArrayData> Parser { get { return _parser; } }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public static pbr::MessageDescriptor Descriptor {
+      get { return global::CompasAcoustics.Pb.AcousticsReflection.Descriptor.MessageTypes[12]; }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    pbr::MessageDescriptor pb::IMessage.Descriptor {
+      get { return Descriptor; }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public ArrayData() {
+      OnConstruction();
+    }
+
+    partial void OnConstruction();
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public ArrayData(ArrayData other) : this() {
+      values_ = other.values_.Clone();
+      shape_ = other.shape_.Clone();
+      _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public ArrayData Clone() {
+      return new ArrayData(this);
+    }
+
+    /// <summary>Field number for the "values" field.</summary>
+    public const int ValuesFieldNumber = 1;
+    private static readonly pb::FieldCodec<double> _repeated_values_codec
+        = pb::FieldCodec.ForDouble(10);
+    private readonly pbc::RepeatedField<double> values_ = new pbc::RepeatedField<double>();
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public pbc::RepeatedField<double> Values {
+      get { return values_; }
+    }
+
+    /// <summary>Field number for the "shape" field.</summary>
+    public const int ShapeFieldNumber = 2;
+    private static readonly pb::FieldCodec<long> _repeated_shape_codec
+        = pb::FieldCodec.ForInt64(18);
+    private readonly pbc::RepeatedField<long> shape_ = new pbc::RepeatedField<long>();
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public pbc::RepeatedField<long> Shape {
+      get { return shape_; }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override bool Equals(object other) {
+      return Equals(other as ArrayData);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public bool Equals(ArrayData other) {
+      if (ReferenceEquals(other, null)) {
+        return false;
+      }
+      if (ReferenceEquals(other, this)) {
+        return true;
+      }
+      if(!values_.Equals(other.values_)) return false;
+      if(!shape_.Equals(other.shape_)) return false;
+      return Equals(_unknownFields, other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override int GetHashCode() {
+      int hash = 1;
+      hash ^= values_.GetHashCode();
+      hash ^= shape_.GetHashCode();
+      if (_unknownFields != null) {
+        hash ^= _unknownFields.GetHashCode();
+      }
+      return hash;
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override string ToString() {
+      return pb::JsonFormatter.ToDiagnosticString(this);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void WriteTo(pb::CodedOutputStream output) {
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      output.WriteRawMessage(this);
+    #else
+      values_.WriteTo(output, _repeated_values_codec);
+      shape_.WriteTo(output, _repeated_shape_codec);
+      if (_unknownFields != null) {
+        _unknownFields.WriteTo(output);
+      }
+    #endif
+    }
+
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
+      values_.WriteTo(ref output, _repeated_values_codec);
+      shape_.WriteTo(ref output, _repeated_shape_codec);
+      if (_unknownFields != null) {
+        _unknownFields.WriteTo(ref output);
+      }
+    }
+    #endif
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public int CalculateSize() {
+      int size = 0;
+      size += values_.CalculateSize(_repeated_values_codec);
+      size += shape_.CalculateSize(_repeated_shape_codec);
+      if (_unknownFields != null) {
+        size += _unknownFields.CalculateSize();
+      }
+      return size;
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void MergeFrom(ArrayData other) {
+      if (other == null) {
+        return;
+      }
+      values_.Add(other.values_);
+      shape_.Add(other.shape_);
+      _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void MergeFrom(pb::CodedInputStream input) {
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      input.ReadRawMessage(this);
+    #else
+      uint tag;
+      while ((tag = input.ReadTag()) != 0) {
+      if ((tag & 7) == 4) {
+        // Abort on any end group tag.
+        return;
+      }
+      switch(tag) {
+          default:
+            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
+            break;
+          case 10:
+          case 9: {
+            values_.AddEntriesFrom(input, _repeated_values_codec);
+            break;
+          }
+          case 18:
+          case 16: {
+            shape_.AddEntriesFrom(input, _repeated_shape_codec);
+            break;
+          }
+        }
+      }
+    #endif
+    }
+
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
+      uint tag;
+      while ((tag = input.ReadTag()) != 0) {
+      if ((tag & 7) == 4) {
+        // Abort on any end group tag.
+        return;
+      }
+      switch(tag) {
+          default:
+            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
+            break;
+          case 10:
+          case 9: {
+            values_.AddEntriesFrom(ref input, _repeated_values_codec);
+            break;
+          }
+          case 18:
+          case 16: {
+            shape_.AddEntriesFrom(ref input, _repeated_shape_codec);
+            break;
+          }
+        }
+      }
+    }
+    #endif
+
+  }
+
+  /// <summary>
+  /// A scattering sample and its flat (or proxy) reference, as ScatteringSample.__data__ keeps them.
+  /// </summary>
+  [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
+  public sealed partial class ScatteringSampleData : pb::IMessage<ScatteringSampleData>
+  #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      , pb::IBufferMessage
+  #endif
+  {
+    private static readonly pb::MessageParser<ScatteringSampleData> _parser = new pb::MessageParser<ScatteringSampleData>(() => new ScatteringSampleData());
+    private pb::UnknownFieldSet _unknownFields;
+    private int _hasBits0;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public static pb::MessageParser<ScatteringSampleData> Parser { get { return _parser; } }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public static pbr::MessageDescriptor Descriptor {
+      get { return global::CompasAcoustics.Pb.AcousticsReflection.Descriptor.MessageTypes[13]; }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    pbr::MessageDescriptor pb::IMessage.Descriptor {
+      get { return Descriptor; }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public ScatteringSampleData() {
+      OnConstruction();
+    }
+
+    partial void OnConstruction();
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public ScatteringSampleData(ScatteringSampleData other) : this() {
+      _hasBits0 = other._hasBits0;
+      guid_ = other.guid_;
+      name_ = other.name_;
+      sample_ = other.sample_ != null ? other.sample_.Clone() : null;
+      reference_ = other.reference_ != null ? other.reference_.Clone() : null;
+      mode_ = other.mode_;
+      diameter_ = other.diameter_;
+      period_ = other.period_.Clone();
+      structuralDepth_ = other.structuralDepth_;
+      featureSize_ = other.featureSize_;
+      symmetry_ = other.symmetry_;
+      baseplate_ = other.baseplate_;
+      warnings_ = other.warnings_.Clone();
+      referenceKind_ = other.referenceKind_;
+      _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public ScatteringSampleData Clone() {
+      return new ScatteringSampleData(this);
+    }
+
+    /// <summary>Field number for the "guid" field.</summary>
+    public const int GuidFieldNumber = 1;
+    private string guid_ = "";
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public string Guid {
+      get { return guid_; }
+      set {
+        guid_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
+      }
+    }
+
+    /// <summary>Field number for the "name" field.</summary>
+    public const int NameFieldNumber = 2;
+    private string name_ = "";
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public string Name {
+      get { return name_; }
+      set {
+        name_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
+      }
+    }
+
+    /// <summary>Field number for the "sample" field.</summary>
+    public const int SampleFieldNumber = 3;
+    private global::CompasPb.Data.MeshData sample_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public global::CompasPb.Data.MeshData Sample {
+      get { return sample_; }
+      set {
+        sample_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "reference" field.</summary>
+    public const int ReferenceFieldNumber = 4;
+    private global::CompasPb.Data.MeshData reference_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public global::CompasPb.Data.MeshData Reference {
+      get { return reference_; }
+      set {
+        reference_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "mode" field.</summary>
+    public const int ModeFieldNumber = 5;
+    private string mode_ = "";
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public string Mode {
+      get { return mode_; }
+      set {
+        mode_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
+      }
+    }
+
+    /// <summary>Field number for the "diameter" field.</summary>
+    public const int DiameterFieldNumber = 6;
+    private double diameter_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public double Diameter {
+      get { return diameter_; }
+      set {
+        diameter_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "period" field.</summary>
+    public const int PeriodFieldNumber = 7;
+    private static readonly pb::FieldCodec<double> _repeated_period_codec
+        = pb::FieldCodec.ForDouble(58);
+    private readonly pbc::RepeatedField<double> period_ = new pbc::RepeatedField<double>();
+    /// <summary>
+    /// empty: no period (as_drawn)
+    /// </summary>
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public pbc::RepeatedField<double> Period {
+      get { return period_; }
+    }
+
+    /// <summary>Field number for the "structural_depth" field.</summary>
+    public const int StructuralDepthFieldNumber = 8;
+    private double structuralDepth_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public double StructuralDepth {
+      get { return structuralDepth_; }
+      set {
+        structuralDepth_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "feature_size" field.</summary>
+    public const int FeatureSizeFieldNumber = 9;
+    private readonly static double FeatureSizeDefaultValue = 0D;
+
+    private double featureSize_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public double FeatureSize {
+      get { if ((_hasBits0 & 1) != 0) { return featureSize_; } else { return FeatureSizeDefaultValue; } }
+      set {
+        _hasBits0 |= 1;
+        featureSize_ = value;
+      }
+    }
+    /// <summary>Gets whether the "feature_size" field is set</summary>
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public bool HasFeatureSize {
+      get { return (_hasBits0 & 1) != 0; }
+    }
+    /// <summary>Clears the value of the "feature_size" field</summary>
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void ClearFeatureSize() {
+      _hasBits0 &= ~1;
+    }
+
+    /// <summary>Field number for the "symmetry" field.</summary>
+    public const int SymmetryFieldNumber = 10;
+    private string symmetry_ = "";
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public string Symmetry {
+      get { return symmetry_; }
+      set {
+        symmetry_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
+      }
+    }
+
+    /// <summary>Field number for the "baseplate" field.</summary>
+    public const int BaseplateFieldNumber = 11;
+    private double baseplate_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public double Baseplate {
+      get { return baseplate_; }
+      set {
+        baseplate_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "warnings" field.</summary>
+    public const int WarningsFieldNumber = 12;
+    private static readonly pb::FieldCodec<string> _repeated_warnings_codec
+        = pb::FieldCodec.ForString(98);
+    private readonly pbc::RepeatedField<string> warnings_ = new pbc::RepeatedField<string>();
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public pbc::RepeatedField<string> Warnings {
+      get { return warnings_; }
+    }
+
+    /// <summary>Field number for the "reference_kind" field.</summary>
+    public const int ReferenceKindFieldNumber = 13;
+    private string referenceKind_ = "";
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public string ReferenceKind {
+      get { return referenceKind_; }
+      set {
+        referenceKind_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
+      }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override bool Equals(object other) {
+      return Equals(other as ScatteringSampleData);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public bool Equals(ScatteringSampleData other) {
+      if (ReferenceEquals(other, null)) {
+        return false;
+      }
+      if (ReferenceEquals(other, this)) {
+        return true;
+      }
+      if (Guid != other.Guid) return false;
+      if (Name != other.Name) return false;
+      if (!object.Equals(Sample, other.Sample)) return false;
+      if (!object.Equals(Reference, other.Reference)) return false;
+      if (Mode != other.Mode) return false;
+      if (!pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.Equals(Diameter, other.Diameter)) return false;
+      if(!period_.Equals(other.period_)) return false;
+      if (!pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.Equals(StructuralDepth, other.StructuralDepth)) return false;
+      if (!pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.Equals(FeatureSize, other.FeatureSize)) return false;
+      if (Symmetry != other.Symmetry) return false;
+      if (!pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.Equals(Baseplate, other.Baseplate)) return false;
+      if(!warnings_.Equals(other.warnings_)) return false;
+      if (ReferenceKind != other.ReferenceKind) return false;
+      return Equals(_unknownFields, other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override int GetHashCode() {
+      int hash = 1;
+      if (Guid.Length != 0) hash ^= Guid.GetHashCode();
+      if (Name.Length != 0) hash ^= Name.GetHashCode();
+      if (sample_ != null) hash ^= Sample.GetHashCode();
+      if (reference_ != null) hash ^= Reference.GetHashCode();
+      if (Mode.Length != 0) hash ^= Mode.GetHashCode();
+      if (Diameter != 0D) hash ^= pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.GetHashCode(Diameter);
+      hash ^= period_.GetHashCode();
+      if (StructuralDepth != 0D) hash ^= pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.GetHashCode(StructuralDepth);
+      if (HasFeatureSize) hash ^= pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.GetHashCode(FeatureSize);
+      if (Symmetry.Length != 0) hash ^= Symmetry.GetHashCode();
+      if (Baseplate != 0D) hash ^= pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.GetHashCode(Baseplate);
+      hash ^= warnings_.GetHashCode();
+      if (ReferenceKind.Length != 0) hash ^= ReferenceKind.GetHashCode();
+      if (_unknownFields != null) {
+        hash ^= _unknownFields.GetHashCode();
+      }
+      return hash;
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override string ToString() {
+      return pb::JsonFormatter.ToDiagnosticString(this);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void WriteTo(pb::CodedOutputStream output) {
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      output.WriteRawMessage(this);
+    #else
+      if (Guid.Length != 0) {
+        output.WriteRawTag(10);
+        output.WriteString(Guid);
+      }
+      if (Name.Length != 0) {
+        output.WriteRawTag(18);
+        output.WriteString(Name);
+      }
+      if (sample_ != null) {
+        output.WriteRawTag(26);
+        output.WriteMessage(Sample);
+      }
+      if (reference_ != null) {
+        output.WriteRawTag(34);
+        output.WriteMessage(Reference);
+      }
+      if (Mode.Length != 0) {
+        output.WriteRawTag(42);
+        output.WriteString(Mode);
+      }
+      if (Diameter != 0D) {
+        output.WriteRawTag(49);
+        output.WriteDouble(Diameter);
+      }
+      period_.WriteTo(output, _repeated_period_codec);
+      if (StructuralDepth != 0D) {
+        output.WriteRawTag(65);
+        output.WriteDouble(StructuralDepth);
+      }
+      if (HasFeatureSize) {
+        output.WriteRawTag(73);
+        output.WriteDouble(FeatureSize);
+      }
+      if (Symmetry.Length != 0) {
+        output.WriteRawTag(82);
+        output.WriteString(Symmetry);
+      }
+      if (Baseplate != 0D) {
+        output.WriteRawTag(89);
+        output.WriteDouble(Baseplate);
+      }
+      warnings_.WriteTo(output, _repeated_warnings_codec);
+      if (ReferenceKind.Length != 0) {
+        output.WriteRawTag(106);
+        output.WriteString(ReferenceKind);
+      }
+      if (_unknownFields != null) {
+        _unknownFields.WriteTo(output);
+      }
+    #endif
+    }
+
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
+      if (Guid.Length != 0) {
+        output.WriteRawTag(10);
+        output.WriteString(Guid);
+      }
+      if (Name.Length != 0) {
+        output.WriteRawTag(18);
+        output.WriteString(Name);
+      }
+      if (sample_ != null) {
+        output.WriteRawTag(26);
+        output.WriteMessage(Sample);
+      }
+      if (reference_ != null) {
+        output.WriteRawTag(34);
+        output.WriteMessage(Reference);
+      }
+      if (Mode.Length != 0) {
+        output.WriteRawTag(42);
+        output.WriteString(Mode);
+      }
+      if (Diameter != 0D) {
+        output.WriteRawTag(49);
+        output.WriteDouble(Diameter);
+      }
+      period_.WriteTo(ref output, _repeated_period_codec);
+      if (StructuralDepth != 0D) {
+        output.WriteRawTag(65);
+        output.WriteDouble(StructuralDepth);
+      }
+      if (HasFeatureSize) {
+        output.WriteRawTag(73);
+        output.WriteDouble(FeatureSize);
+      }
+      if (Symmetry.Length != 0) {
+        output.WriteRawTag(82);
+        output.WriteString(Symmetry);
+      }
+      if (Baseplate != 0D) {
+        output.WriteRawTag(89);
+        output.WriteDouble(Baseplate);
+      }
+      warnings_.WriteTo(ref output, _repeated_warnings_codec);
+      if (ReferenceKind.Length != 0) {
+        output.WriteRawTag(106);
+        output.WriteString(ReferenceKind);
+      }
+      if (_unknownFields != null) {
+        _unknownFields.WriteTo(ref output);
+      }
+    }
+    #endif
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public int CalculateSize() {
+      int size = 0;
+      if (Guid.Length != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeStringSize(Guid);
+      }
+      if (Name.Length != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeStringSize(Name);
+      }
+      if (sample_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Sample);
+      }
+      if (reference_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Reference);
+      }
+      if (Mode.Length != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeStringSize(Mode);
+      }
+      if (Diameter != 0D) {
+        size += 1 + 8;
+      }
+      size += period_.CalculateSize(_repeated_period_codec);
+      if (StructuralDepth != 0D) {
+        size += 1 + 8;
+      }
+      if (HasFeatureSize) {
+        size += 1 + 8;
+      }
+      if (Symmetry.Length != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeStringSize(Symmetry);
+      }
+      if (Baseplate != 0D) {
+        size += 1 + 8;
+      }
+      size += warnings_.CalculateSize(_repeated_warnings_codec);
+      if (ReferenceKind.Length != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeStringSize(ReferenceKind);
+      }
+      if (_unknownFields != null) {
+        size += _unknownFields.CalculateSize();
+      }
+      return size;
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void MergeFrom(ScatteringSampleData other) {
+      if (other == null) {
+        return;
+      }
+      if (other.Guid.Length != 0) {
+        Guid = other.Guid;
+      }
+      if (other.Name.Length != 0) {
+        Name = other.Name;
+      }
+      if (other.sample_ != null) {
+        if (sample_ == null) {
+          Sample = new global::CompasPb.Data.MeshData();
+        }
+        Sample.MergeFrom(other.Sample);
+      }
+      if (other.reference_ != null) {
+        if (reference_ == null) {
+          Reference = new global::CompasPb.Data.MeshData();
+        }
+        Reference.MergeFrom(other.Reference);
+      }
+      if (other.Mode.Length != 0) {
+        Mode = other.Mode;
+      }
+      if (other.Diameter != 0D) {
+        Diameter = other.Diameter;
+      }
+      period_.Add(other.period_);
+      if (other.StructuralDepth != 0D) {
+        StructuralDepth = other.StructuralDepth;
+      }
+      if (other.HasFeatureSize) {
+        FeatureSize = other.FeatureSize;
+      }
+      if (other.Symmetry.Length != 0) {
+        Symmetry = other.Symmetry;
+      }
+      if (other.Baseplate != 0D) {
+        Baseplate = other.Baseplate;
+      }
+      warnings_.Add(other.warnings_);
+      if (other.ReferenceKind.Length != 0) {
+        ReferenceKind = other.ReferenceKind;
+      }
+      _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void MergeFrom(pb::CodedInputStream input) {
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      input.ReadRawMessage(this);
+    #else
+      uint tag;
+      while ((tag = input.ReadTag()) != 0) {
+      if ((tag & 7) == 4) {
+        // Abort on any end group tag.
+        return;
+      }
+      switch(tag) {
+          default:
+            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
+            break;
+          case 10: {
+            Guid = input.ReadString();
+            break;
+          }
+          case 18: {
+            Name = input.ReadString();
+            break;
+          }
+          case 26: {
+            if (sample_ == null) {
+              Sample = new global::CompasPb.Data.MeshData();
+            }
+            input.ReadMessage(Sample);
+            break;
+          }
+          case 34: {
+            if (reference_ == null) {
+              Reference = new global::CompasPb.Data.MeshData();
+            }
+            input.ReadMessage(Reference);
+            break;
+          }
+          case 42: {
+            Mode = input.ReadString();
+            break;
+          }
+          case 49: {
+            Diameter = input.ReadDouble();
+            break;
+          }
+          case 58:
+          case 57: {
+            period_.AddEntriesFrom(input, _repeated_period_codec);
+            break;
+          }
+          case 65: {
+            StructuralDepth = input.ReadDouble();
+            break;
+          }
+          case 73: {
+            FeatureSize = input.ReadDouble();
+            break;
+          }
+          case 82: {
+            Symmetry = input.ReadString();
+            break;
+          }
+          case 89: {
+            Baseplate = input.ReadDouble();
+            break;
+          }
+          case 98: {
+            warnings_.AddEntriesFrom(input, _repeated_warnings_codec);
+            break;
+          }
+          case 106: {
+            ReferenceKind = input.ReadString();
+            break;
+          }
+        }
+      }
+    #endif
+    }
+
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
+      uint tag;
+      while ((tag = input.ReadTag()) != 0) {
+      if ((tag & 7) == 4) {
+        // Abort on any end group tag.
+        return;
+      }
+      switch(tag) {
+          default:
+            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
+            break;
+          case 10: {
+            Guid = input.ReadString();
+            break;
+          }
+          case 18: {
+            Name = input.ReadString();
+            break;
+          }
+          case 26: {
+            if (sample_ == null) {
+              Sample = new global::CompasPb.Data.MeshData();
+            }
+            input.ReadMessage(Sample);
+            break;
+          }
+          case 34: {
+            if (reference_ == null) {
+              Reference = new global::CompasPb.Data.MeshData();
+            }
+            input.ReadMessage(Reference);
+            break;
+          }
+          case 42: {
+            Mode = input.ReadString();
+            break;
+          }
+          case 49: {
+            Diameter = input.ReadDouble();
+            break;
+          }
+          case 58:
+          case 57: {
+            period_.AddEntriesFrom(ref input, _repeated_period_codec);
+            break;
+          }
+          case 65: {
+            StructuralDepth = input.ReadDouble();
+            break;
+          }
+          case 73: {
+            FeatureSize = input.ReadDouble();
+            break;
+          }
+          case 82: {
+            Symmetry = input.ReadString();
+            break;
+          }
+          case 89: {
+            Baseplate = input.ReadDouble();
+            break;
+          }
+          case 98: {
+            warnings_.AddEntriesFrom(ref input, _repeated_warnings_codec);
+            break;
+          }
+          case 106: {
+            ReferenceKind = input.ReadString();
+            break;
+          }
+        }
+      }
+    }
+    #endif
+
+  }
+
+  /// <summary>
+  /// A virtual scattering measurement, as ScatteringResult.__data__ keeps it.
+  /// </summary>
+  [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
+  public sealed partial class ScatteringResultData : pb::IMessage<ScatteringResultData>
+  #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      , pb::IBufferMessage
+  #endif
+  {
+    private static readonly pb::MessageParser<ScatteringResultData> _parser = new pb::MessageParser<ScatteringResultData>(() => new ScatteringResultData());
+    private pb::UnknownFieldSet _unknownFields;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public static pb::MessageParser<ScatteringResultData> Parser { get { return _parser; } }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public static pbr::MessageDescriptor Descriptor {
+      get { return global::CompasAcoustics.Pb.AcousticsReflection.Descriptor.MessageTypes[14]; }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    pbr::MessageDescriptor pb::IMessage.Descriptor {
+      get { return Descriptor; }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public ScatteringResultData() {
+      OnConstruction();
+    }
+
+    partial void OnConstruction();
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public ScatteringResultData(ScatteringResultData other) : this() {
+      guid_ = other.guid_;
+      name_ = other.name_;
+      method_ = other.method_;
+      bands_ = other.bands_.Clone();
+      sBands_ = other.sBands_.Clone();
+      octaveBands_ = other.octaveBands_.Clone();
+      sOctaves_ = other.sOctaves_.Clone();
+      filledOctaves_ = other.filledOctaves_.Clone();
+      sAngle_ = other.sAngle_ != null ? other.sAngle_.Clone() : null;
+      sourceColatitude_ = other.sourceColatitude_.Clone();
+      sourceAzimuth_ = other.sourceAzimuth_.Clone();
+      sourceWeights_ = other.sourceWeights_.Clone();
+      receiverDirections_ = other.receiverDirections_ != null ? other.receiverDirections_.Clone() : null;
+      polarSampleDb_ = other.polarSampleDb_ != null ? other.polarSampleDb_.Clone() : null;
+      polarReferenceDb_ = other.polarReferenceDb_ != null ? other.polarReferenceDb_.Clone() : null;
+      polarSourceIndices_ = other.polarSourceIndices_.Clone();
+      unconvergedOctaves_ = other.unconvergedOctaves_.Clone();
+      warnings_ = other.warnings_.Clone();
+      generation_ = other.generation_ != null ? other.generation_.Clone() : null;
+      dAngle_ = other.dAngle_ != null ? other.dAngle_.Clone() : null;
+      dBands_ = other.dBands_ != null ? other.dBands_.Clone() : null;
+      dOctaves_ = other.dOctaves_ != null ? other.dOctaves_.Clone() : null;
+      _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public ScatteringResultData Clone() {
+      return new ScatteringResultData(this);
+    }
+
+    /// <summary>Field number for the "guid" field.</summary>
+    public const int GuidFieldNumber = 1;
+    private string guid_ = "";
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public string Guid {
+      get { return guid_; }
+      set {
+        guid_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
+      }
+    }
+
+    /// <summary>Field number for the "name" field.</summary>
+    public const int NameFieldNumber = 2;
+    private string name_ = "";
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public string Name {
+      get { return name_; }
+      set {
+        name_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
+      }
+    }
+
+    /// <summary>Field number for the "method" field.</summary>
+    public const int MethodFieldNumber = 3;
+    private string method_ = "";
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public string Method {
+      get { return method_; }
+      set {
+        method_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
+      }
+    }
+
+    /// <summary>Field number for the "bands" field.</summary>
+    public const int BandsFieldNumber = 4;
+    private static readonly pb::FieldCodec<int> _repeated_bands_codec
+        = pb::FieldCodec.ForInt32(34);
+    private readonly pbc::RepeatedField<int> bands_ = new pbc::RepeatedField<int>();
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public pbc::RepeatedField<int> Bands {
+      get { return bands_; }
+    }
+
+    /// <summary>Field number for the "s_bands" field.</summary>
+    public const int SBandsFieldNumber = 5;
+    private static readonly pb::FieldCodec<double> _repeated_sBands_codec
+        = pb::FieldCodec.ForDouble(42);
+    private readonly pbc::RepeatedField<double> sBands_ = new pbc::RepeatedField<double>();
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public pbc::RepeatedField<double> SBands {
+      get { return sBands_; }
+    }
+
+    /// <summary>Field number for the "octave_bands" field.</summary>
+    public const int OctaveBandsFieldNumber = 6;
+    private static readonly pb::FieldCodec<int> _repeated_octaveBands_codec
+        = pb::FieldCodec.ForInt32(50);
+    private readonly pbc::RepeatedField<int> octaveBands_ = new pbc::RepeatedField<int>();
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public pbc::RepeatedField<int> OctaveBands {
+      get { return octaveBands_; }
+    }
+
+    /// <summary>Field number for the "s_octaves" field.</summary>
+    public const int SOctavesFieldNumber = 7;
+    private static readonly pb::FieldCodec<double> _repeated_sOctaves_codec
+        = pb::FieldCodec.ForDouble(58);
+    private readonly pbc::RepeatedField<double> sOctaves_ = new pbc::RepeatedField<double>();
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public pbc::RepeatedField<double> SOctaves {
+      get { return sOctaves_; }
+    }
+
+    /// <summary>Field number for the "filled_octaves" field.</summary>
+    public const int FilledOctavesFieldNumber = 8;
+    private static readonly pb::FieldCodec<int> _repeated_filledOctaves_codec
+        = pb::FieldCodec.ForInt32(66);
+    private readonly pbc::RepeatedField<int> filledOctaves_ = new pbc::RepeatedField<int>();
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public pbc::RepeatedField<int> FilledOctaves {
+      get { return filledOctaves_; }
+    }
+
+    /// <summary>Field number for the "s_angle" field.</summary>
+    public const int SAngleFieldNumber = 9;
+    private global::CompasAcoustics.Pb.ArrayData sAngle_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public global::CompasAcoustics.Pb.ArrayData SAngle {
+      get { return sAngle_; }
+      set {
+        sAngle_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "source_colatitude" field.</summary>
+    public const int SourceColatitudeFieldNumber = 10;
+    private static readonly pb::FieldCodec<double> _repeated_sourceColatitude_codec
+        = pb::FieldCodec.ForDouble(82);
+    private readonly pbc::RepeatedField<double> sourceColatitude_ = new pbc::RepeatedField<double>();
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public pbc::RepeatedField<double> SourceColatitude {
+      get { return sourceColatitude_; }
+    }
+
+    /// <summary>Field number for the "source_azimuth" field.</summary>
+    public const int SourceAzimuthFieldNumber = 11;
+    private static readonly pb::FieldCodec<double> _repeated_sourceAzimuth_codec
+        = pb::FieldCodec.ForDouble(90);
+    private readonly pbc::RepeatedField<double> sourceAzimuth_ = new pbc::RepeatedField<double>();
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public pbc::RepeatedField<double> SourceAzimuth {
+      get { return sourceAzimuth_; }
+    }
+
+    /// <summary>Field number for the "source_weights" field.</summary>
+    public const int SourceWeightsFieldNumber = 12;
+    private static readonly pb::FieldCodec<double> _repeated_sourceWeights_codec
+        = pb::FieldCodec.ForDouble(98);
+    private readonly pbc::RepeatedField<double> sourceWeights_ = new pbc::RepeatedField<double>();
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public pbc::RepeatedField<double> SourceWeights {
+      get { return sourceWeights_; }
+    }
+
+    /// <summary>Field number for the "receiver_directions" field.</summary>
+    public const int ReceiverDirectionsFieldNumber = 13;
+    private global::CompasAcoustics.Pb.ArrayData receiverDirections_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public global::CompasAcoustics.Pb.ArrayData ReceiverDirections {
+      get { return receiverDirections_; }
+      set {
+        receiverDirections_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "polar_sample_db" field.</summary>
+    public const int PolarSampleDbFieldNumber = 14;
+    private global::CompasAcoustics.Pb.ArrayData polarSampleDb_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public global::CompasAcoustics.Pb.ArrayData PolarSampleDb {
+      get { return polarSampleDb_; }
+      set {
+        polarSampleDb_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "polar_reference_db" field.</summary>
+    public const int PolarReferenceDbFieldNumber = 15;
+    private global::CompasAcoustics.Pb.ArrayData polarReferenceDb_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public global::CompasAcoustics.Pb.ArrayData PolarReferenceDb {
+      get { return polarReferenceDb_; }
+      set {
+        polarReferenceDb_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "polar_source_indices" field.</summary>
+    public const int PolarSourceIndicesFieldNumber = 16;
+    private static readonly pb::FieldCodec<int> _repeated_polarSourceIndices_codec
+        = pb::FieldCodec.ForInt32(130);
+    private readonly pbc::RepeatedField<int> polarSourceIndices_ = new pbc::RepeatedField<int>();
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public pbc::RepeatedField<int> PolarSourceIndices {
+      get { return polarSourceIndices_; }
+    }
+
+    /// <summary>Field number for the "unconverged_octaves" field.</summary>
+    public const int UnconvergedOctavesFieldNumber = 17;
+    private static readonly pb::FieldCodec<int> _repeated_unconvergedOctaves_codec
+        = pb::FieldCodec.ForInt32(138);
+    private readonly pbc::RepeatedField<int> unconvergedOctaves_ = new pbc::RepeatedField<int>();
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public pbc::RepeatedField<int> UnconvergedOctaves {
+      get { return unconvergedOctaves_; }
+    }
+
+    /// <summary>Field number for the "warnings" field.</summary>
+    public const int WarningsFieldNumber = 18;
+    private static readonly pb::FieldCodec<string> _repeated_warnings_codec
+        = pb::FieldCodec.ForString(146);
+    private readonly pbc::RepeatedField<string> warnings_ = new pbc::RepeatedField<string>();
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public pbc::RepeatedField<string> Warnings {
+      get { return warnings_; }
+    }
+
+    /// <summary>Field number for the "generation" field.</summary>
+    public const int GenerationFieldNumber = 19;
+    private global::CompasPb.Data.AnyData generation_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public global::CompasPb.Data.AnyData Generation {
+      get { return generation_; }
+      set {
+        generation_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "d_angle" field.</summary>
+    public const int DAngleFieldNumber = 20;
+    private global::CompasAcoustics.Pb.ArrayData dAngle_;
+    /// <summary>
+    /// unset: None (results made before d)
+    /// </summary>
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public global::CompasAcoustics.Pb.ArrayData DAngle {
+      get { return dAngle_; }
+      set {
+        dAngle_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "d_bands" field.</summary>
+    public const int DBandsFieldNumber = 21;
+    private global::CompasAcoustics.Pb.ArrayData dBands_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public global::CompasAcoustics.Pb.ArrayData DBands {
+      get { return dBands_; }
+      set {
+        dBands_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "d_octaves" field.</summary>
+    public const int DOctavesFieldNumber = 22;
+    private global::CompasAcoustics.Pb.ArrayData dOctaves_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public global::CompasAcoustics.Pb.ArrayData DOctaves {
+      get { return dOctaves_; }
+      set {
+        dOctaves_ = value;
+      }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override bool Equals(object other) {
+      return Equals(other as ScatteringResultData);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public bool Equals(ScatteringResultData other) {
+      if (ReferenceEquals(other, null)) {
+        return false;
+      }
+      if (ReferenceEquals(other, this)) {
+        return true;
+      }
+      if (Guid != other.Guid) return false;
+      if (Name != other.Name) return false;
+      if (Method != other.Method) return false;
+      if(!bands_.Equals(other.bands_)) return false;
+      if(!sBands_.Equals(other.sBands_)) return false;
+      if(!octaveBands_.Equals(other.octaveBands_)) return false;
+      if(!sOctaves_.Equals(other.sOctaves_)) return false;
+      if(!filledOctaves_.Equals(other.filledOctaves_)) return false;
+      if (!object.Equals(SAngle, other.SAngle)) return false;
+      if(!sourceColatitude_.Equals(other.sourceColatitude_)) return false;
+      if(!sourceAzimuth_.Equals(other.sourceAzimuth_)) return false;
+      if(!sourceWeights_.Equals(other.sourceWeights_)) return false;
+      if (!object.Equals(ReceiverDirections, other.ReceiverDirections)) return false;
+      if (!object.Equals(PolarSampleDb, other.PolarSampleDb)) return false;
+      if (!object.Equals(PolarReferenceDb, other.PolarReferenceDb)) return false;
+      if(!polarSourceIndices_.Equals(other.polarSourceIndices_)) return false;
+      if(!unconvergedOctaves_.Equals(other.unconvergedOctaves_)) return false;
+      if(!warnings_.Equals(other.warnings_)) return false;
+      if (!object.Equals(Generation, other.Generation)) return false;
+      if (!object.Equals(DAngle, other.DAngle)) return false;
+      if (!object.Equals(DBands, other.DBands)) return false;
+      if (!object.Equals(DOctaves, other.DOctaves)) return false;
+      return Equals(_unknownFields, other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override int GetHashCode() {
+      int hash = 1;
+      if (Guid.Length != 0) hash ^= Guid.GetHashCode();
+      if (Name.Length != 0) hash ^= Name.GetHashCode();
+      if (Method.Length != 0) hash ^= Method.GetHashCode();
+      hash ^= bands_.GetHashCode();
+      hash ^= sBands_.GetHashCode();
+      hash ^= octaveBands_.GetHashCode();
+      hash ^= sOctaves_.GetHashCode();
+      hash ^= filledOctaves_.GetHashCode();
+      if (sAngle_ != null) hash ^= SAngle.GetHashCode();
+      hash ^= sourceColatitude_.GetHashCode();
+      hash ^= sourceAzimuth_.GetHashCode();
+      hash ^= sourceWeights_.GetHashCode();
+      if (receiverDirections_ != null) hash ^= ReceiverDirections.GetHashCode();
+      if (polarSampleDb_ != null) hash ^= PolarSampleDb.GetHashCode();
+      if (polarReferenceDb_ != null) hash ^= PolarReferenceDb.GetHashCode();
+      hash ^= polarSourceIndices_.GetHashCode();
+      hash ^= unconvergedOctaves_.GetHashCode();
+      hash ^= warnings_.GetHashCode();
+      if (generation_ != null) hash ^= Generation.GetHashCode();
+      if (dAngle_ != null) hash ^= DAngle.GetHashCode();
+      if (dBands_ != null) hash ^= DBands.GetHashCode();
+      if (dOctaves_ != null) hash ^= DOctaves.GetHashCode();
+      if (_unknownFields != null) {
+        hash ^= _unknownFields.GetHashCode();
+      }
+      return hash;
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override string ToString() {
+      return pb::JsonFormatter.ToDiagnosticString(this);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void WriteTo(pb::CodedOutputStream output) {
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      output.WriteRawMessage(this);
+    #else
+      if (Guid.Length != 0) {
+        output.WriteRawTag(10);
+        output.WriteString(Guid);
+      }
+      if (Name.Length != 0) {
+        output.WriteRawTag(18);
+        output.WriteString(Name);
+      }
+      if (Method.Length != 0) {
+        output.WriteRawTag(26);
+        output.WriteString(Method);
+      }
+      bands_.WriteTo(output, _repeated_bands_codec);
+      sBands_.WriteTo(output, _repeated_sBands_codec);
+      octaveBands_.WriteTo(output, _repeated_octaveBands_codec);
+      sOctaves_.WriteTo(output, _repeated_sOctaves_codec);
+      filledOctaves_.WriteTo(output, _repeated_filledOctaves_codec);
+      if (sAngle_ != null) {
+        output.WriteRawTag(74);
+        output.WriteMessage(SAngle);
+      }
+      sourceColatitude_.WriteTo(output, _repeated_sourceColatitude_codec);
+      sourceAzimuth_.WriteTo(output, _repeated_sourceAzimuth_codec);
+      sourceWeights_.WriteTo(output, _repeated_sourceWeights_codec);
+      if (receiverDirections_ != null) {
+        output.WriteRawTag(106);
+        output.WriteMessage(ReceiverDirections);
+      }
+      if (polarSampleDb_ != null) {
+        output.WriteRawTag(114);
+        output.WriteMessage(PolarSampleDb);
+      }
+      if (polarReferenceDb_ != null) {
+        output.WriteRawTag(122);
+        output.WriteMessage(PolarReferenceDb);
+      }
+      polarSourceIndices_.WriteTo(output, _repeated_polarSourceIndices_codec);
+      unconvergedOctaves_.WriteTo(output, _repeated_unconvergedOctaves_codec);
+      warnings_.WriteTo(output, _repeated_warnings_codec);
+      if (generation_ != null) {
+        output.WriteRawTag(154, 1);
+        output.WriteMessage(Generation);
+      }
+      if (dAngle_ != null) {
+        output.WriteRawTag(162, 1);
+        output.WriteMessage(DAngle);
+      }
+      if (dBands_ != null) {
+        output.WriteRawTag(170, 1);
+        output.WriteMessage(DBands);
+      }
+      if (dOctaves_ != null) {
+        output.WriteRawTag(178, 1);
+        output.WriteMessage(DOctaves);
+      }
+      if (_unknownFields != null) {
+        _unknownFields.WriteTo(output);
+      }
+    #endif
+    }
+
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
+      if (Guid.Length != 0) {
+        output.WriteRawTag(10);
+        output.WriteString(Guid);
+      }
+      if (Name.Length != 0) {
+        output.WriteRawTag(18);
+        output.WriteString(Name);
+      }
+      if (Method.Length != 0) {
+        output.WriteRawTag(26);
+        output.WriteString(Method);
+      }
+      bands_.WriteTo(ref output, _repeated_bands_codec);
+      sBands_.WriteTo(ref output, _repeated_sBands_codec);
+      octaveBands_.WriteTo(ref output, _repeated_octaveBands_codec);
+      sOctaves_.WriteTo(ref output, _repeated_sOctaves_codec);
+      filledOctaves_.WriteTo(ref output, _repeated_filledOctaves_codec);
+      if (sAngle_ != null) {
+        output.WriteRawTag(74);
+        output.WriteMessage(SAngle);
+      }
+      sourceColatitude_.WriteTo(ref output, _repeated_sourceColatitude_codec);
+      sourceAzimuth_.WriteTo(ref output, _repeated_sourceAzimuth_codec);
+      sourceWeights_.WriteTo(ref output, _repeated_sourceWeights_codec);
+      if (receiverDirections_ != null) {
+        output.WriteRawTag(106);
+        output.WriteMessage(ReceiverDirections);
+      }
+      if (polarSampleDb_ != null) {
+        output.WriteRawTag(114);
+        output.WriteMessage(PolarSampleDb);
+      }
+      if (polarReferenceDb_ != null) {
+        output.WriteRawTag(122);
+        output.WriteMessage(PolarReferenceDb);
+      }
+      polarSourceIndices_.WriteTo(ref output, _repeated_polarSourceIndices_codec);
+      unconvergedOctaves_.WriteTo(ref output, _repeated_unconvergedOctaves_codec);
+      warnings_.WriteTo(ref output, _repeated_warnings_codec);
+      if (generation_ != null) {
+        output.WriteRawTag(154, 1);
+        output.WriteMessage(Generation);
+      }
+      if (dAngle_ != null) {
+        output.WriteRawTag(162, 1);
+        output.WriteMessage(DAngle);
+      }
+      if (dBands_ != null) {
+        output.WriteRawTag(170, 1);
+        output.WriteMessage(DBands);
+      }
+      if (dOctaves_ != null) {
+        output.WriteRawTag(178, 1);
+        output.WriteMessage(DOctaves);
+      }
+      if (_unknownFields != null) {
+        _unknownFields.WriteTo(ref output);
+      }
+    }
+    #endif
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public int CalculateSize() {
+      int size = 0;
+      if (Guid.Length != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeStringSize(Guid);
+      }
+      if (Name.Length != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeStringSize(Name);
+      }
+      if (Method.Length != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeStringSize(Method);
+      }
+      size += bands_.CalculateSize(_repeated_bands_codec);
+      size += sBands_.CalculateSize(_repeated_sBands_codec);
+      size += octaveBands_.CalculateSize(_repeated_octaveBands_codec);
+      size += sOctaves_.CalculateSize(_repeated_sOctaves_codec);
+      size += filledOctaves_.CalculateSize(_repeated_filledOctaves_codec);
+      if (sAngle_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(SAngle);
+      }
+      size += sourceColatitude_.CalculateSize(_repeated_sourceColatitude_codec);
+      size += sourceAzimuth_.CalculateSize(_repeated_sourceAzimuth_codec);
+      size += sourceWeights_.CalculateSize(_repeated_sourceWeights_codec);
+      if (receiverDirections_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(ReceiverDirections);
+      }
+      if (polarSampleDb_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(PolarSampleDb);
+      }
+      if (polarReferenceDb_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(PolarReferenceDb);
+      }
+      size += polarSourceIndices_.CalculateSize(_repeated_polarSourceIndices_codec);
+      size += unconvergedOctaves_.CalculateSize(_repeated_unconvergedOctaves_codec);
+      size += warnings_.CalculateSize(_repeated_warnings_codec);
+      if (generation_ != null) {
+        size += 2 + pb::CodedOutputStream.ComputeMessageSize(Generation);
+      }
+      if (dAngle_ != null) {
+        size += 2 + pb::CodedOutputStream.ComputeMessageSize(DAngle);
+      }
+      if (dBands_ != null) {
+        size += 2 + pb::CodedOutputStream.ComputeMessageSize(DBands);
+      }
+      if (dOctaves_ != null) {
+        size += 2 + pb::CodedOutputStream.ComputeMessageSize(DOctaves);
+      }
+      if (_unknownFields != null) {
+        size += _unknownFields.CalculateSize();
+      }
+      return size;
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void MergeFrom(ScatteringResultData other) {
+      if (other == null) {
+        return;
+      }
+      if (other.Guid.Length != 0) {
+        Guid = other.Guid;
+      }
+      if (other.Name.Length != 0) {
+        Name = other.Name;
+      }
+      if (other.Method.Length != 0) {
+        Method = other.Method;
+      }
+      bands_.Add(other.bands_);
+      sBands_.Add(other.sBands_);
+      octaveBands_.Add(other.octaveBands_);
+      sOctaves_.Add(other.sOctaves_);
+      filledOctaves_.Add(other.filledOctaves_);
+      if (other.sAngle_ != null) {
+        if (sAngle_ == null) {
+          SAngle = new global::CompasAcoustics.Pb.ArrayData();
+        }
+        SAngle.MergeFrom(other.SAngle);
+      }
+      sourceColatitude_.Add(other.sourceColatitude_);
+      sourceAzimuth_.Add(other.sourceAzimuth_);
+      sourceWeights_.Add(other.sourceWeights_);
+      if (other.receiverDirections_ != null) {
+        if (receiverDirections_ == null) {
+          ReceiverDirections = new global::CompasAcoustics.Pb.ArrayData();
+        }
+        ReceiverDirections.MergeFrom(other.ReceiverDirections);
+      }
+      if (other.polarSampleDb_ != null) {
+        if (polarSampleDb_ == null) {
+          PolarSampleDb = new global::CompasAcoustics.Pb.ArrayData();
+        }
+        PolarSampleDb.MergeFrom(other.PolarSampleDb);
+      }
+      if (other.polarReferenceDb_ != null) {
+        if (polarReferenceDb_ == null) {
+          PolarReferenceDb = new global::CompasAcoustics.Pb.ArrayData();
+        }
+        PolarReferenceDb.MergeFrom(other.PolarReferenceDb);
+      }
+      polarSourceIndices_.Add(other.polarSourceIndices_);
+      unconvergedOctaves_.Add(other.unconvergedOctaves_);
+      warnings_.Add(other.warnings_);
+      if (other.generation_ != null) {
+        if (generation_ == null) {
+          Generation = new global::CompasPb.Data.AnyData();
+        }
+        Generation.MergeFrom(other.Generation);
+      }
+      if (other.dAngle_ != null) {
+        if (dAngle_ == null) {
+          DAngle = new global::CompasAcoustics.Pb.ArrayData();
+        }
+        DAngle.MergeFrom(other.DAngle);
+      }
+      if (other.dBands_ != null) {
+        if (dBands_ == null) {
+          DBands = new global::CompasAcoustics.Pb.ArrayData();
+        }
+        DBands.MergeFrom(other.DBands);
+      }
+      if (other.dOctaves_ != null) {
+        if (dOctaves_ == null) {
+          DOctaves = new global::CompasAcoustics.Pb.ArrayData();
+        }
+        DOctaves.MergeFrom(other.DOctaves);
+      }
+      _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void MergeFrom(pb::CodedInputStream input) {
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      input.ReadRawMessage(this);
+    #else
+      uint tag;
+      while ((tag = input.ReadTag()) != 0) {
+      if ((tag & 7) == 4) {
+        // Abort on any end group tag.
+        return;
+      }
+      switch(tag) {
+          default:
+            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
+            break;
+          case 10: {
+            Guid = input.ReadString();
+            break;
+          }
+          case 18: {
+            Name = input.ReadString();
+            break;
+          }
+          case 26: {
+            Method = input.ReadString();
+            break;
+          }
+          case 34:
+          case 32: {
+            bands_.AddEntriesFrom(input, _repeated_bands_codec);
+            break;
+          }
+          case 42:
+          case 41: {
+            sBands_.AddEntriesFrom(input, _repeated_sBands_codec);
+            break;
+          }
+          case 50:
+          case 48: {
+            octaveBands_.AddEntriesFrom(input, _repeated_octaveBands_codec);
+            break;
+          }
+          case 58:
+          case 57: {
+            sOctaves_.AddEntriesFrom(input, _repeated_sOctaves_codec);
+            break;
+          }
+          case 66:
+          case 64: {
+            filledOctaves_.AddEntriesFrom(input, _repeated_filledOctaves_codec);
+            break;
+          }
+          case 74: {
+            if (sAngle_ == null) {
+              SAngle = new global::CompasAcoustics.Pb.ArrayData();
+            }
+            input.ReadMessage(SAngle);
+            break;
+          }
+          case 82:
+          case 81: {
+            sourceColatitude_.AddEntriesFrom(input, _repeated_sourceColatitude_codec);
+            break;
+          }
+          case 90:
+          case 89: {
+            sourceAzimuth_.AddEntriesFrom(input, _repeated_sourceAzimuth_codec);
+            break;
+          }
+          case 98:
+          case 97: {
+            sourceWeights_.AddEntriesFrom(input, _repeated_sourceWeights_codec);
+            break;
+          }
+          case 106: {
+            if (receiverDirections_ == null) {
+              ReceiverDirections = new global::CompasAcoustics.Pb.ArrayData();
+            }
+            input.ReadMessage(ReceiverDirections);
+            break;
+          }
+          case 114: {
+            if (polarSampleDb_ == null) {
+              PolarSampleDb = new global::CompasAcoustics.Pb.ArrayData();
+            }
+            input.ReadMessage(PolarSampleDb);
+            break;
+          }
+          case 122: {
+            if (polarReferenceDb_ == null) {
+              PolarReferenceDb = new global::CompasAcoustics.Pb.ArrayData();
+            }
+            input.ReadMessage(PolarReferenceDb);
+            break;
+          }
+          case 130:
+          case 128: {
+            polarSourceIndices_.AddEntriesFrom(input, _repeated_polarSourceIndices_codec);
+            break;
+          }
+          case 138:
+          case 136: {
+            unconvergedOctaves_.AddEntriesFrom(input, _repeated_unconvergedOctaves_codec);
+            break;
+          }
+          case 146: {
+            warnings_.AddEntriesFrom(input, _repeated_warnings_codec);
+            break;
+          }
+          case 154: {
+            if (generation_ == null) {
+              Generation = new global::CompasPb.Data.AnyData();
+            }
+            input.ReadMessage(Generation);
+            break;
+          }
+          case 162: {
+            if (dAngle_ == null) {
+              DAngle = new global::CompasAcoustics.Pb.ArrayData();
+            }
+            input.ReadMessage(DAngle);
+            break;
+          }
+          case 170: {
+            if (dBands_ == null) {
+              DBands = new global::CompasAcoustics.Pb.ArrayData();
+            }
+            input.ReadMessage(DBands);
+            break;
+          }
+          case 178: {
+            if (dOctaves_ == null) {
+              DOctaves = new global::CompasAcoustics.Pb.ArrayData();
+            }
+            input.ReadMessage(DOctaves);
+            break;
+          }
+        }
+      }
+    #endif
+    }
+
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
+      uint tag;
+      while ((tag = input.ReadTag()) != 0) {
+      if ((tag & 7) == 4) {
+        // Abort on any end group tag.
+        return;
+      }
+      switch(tag) {
+          default:
+            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
+            break;
+          case 10: {
+            Guid = input.ReadString();
+            break;
+          }
+          case 18: {
+            Name = input.ReadString();
+            break;
+          }
+          case 26: {
+            Method = input.ReadString();
+            break;
+          }
+          case 34:
+          case 32: {
+            bands_.AddEntriesFrom(ref input, _repeated_bands_codec);
+            break;
+          }
+          case 42:
+          case 41: {
+            sBands_.AddEntriesFrom(ref input, _repeated_sBands_codec);
+            break;
+          }
+          case 50:
+          case 48: {
+            octaveBands_.AddEntriesFrom(ref input, _repeated_octaveBands_codec);
+            break;
+          }
+          case 58:
+          case 57: {
+            sOctaves_.AddEntriesFrom(ref input, _repeated_sOctaves_codec);
+            break;
+          }
+          case 66:
+          case 64: {
+            filledOctaves_.AddEntriesFrom(ref input, _repeated_filledOctaves_codec);
+            break;
+          }
+          case 74: {
+            if (sAngle_ == null) {
+              SAngle = new global::CompasAcoustics.Pb.ArrayData();
+            }
+            input.ReadMessage(SAngle);
+            break;
+          }
+          case 82:
+          case 81: {
+            sourceColatitude_.AddEntriesFrom(ref input, _repeated_sourceColatitude_codec);
+            break;
+          }
+          case 90:
+          case 89: {
+            sourceAzimuth_.AddEntriesFrom(ref input, _repeated_sourceAzimuth_codec);
+            break;
+          }
+          case 98:
+          case 97: {
+            sourceWeights_.AddEntriesFrom(ref input, _repeated_sourceWeights_codec);
+            break;
+          }
+          case 106: {
+            if (receiverDirections_ == null) {
+              ReceiverDirections = new global::CompasAcoustics.Pb.ArrayData();
+            }
+            input.ReadMessage(ReceiverDirections);
+            break;
+          }
+          case 114: {
+            if (polarSampleDb_ == null) {
+              PolarSampleDb = new global::CompasAcoustics.Pb.ArrayData();
+            }
+            input.ReadMessage(PolarSampleDb);
+            break;
+          }
+          case 122: {
+            if (polarReferenceDb_ == null) {
+              PolarReferenceDb = new global::CompasAcoustics.Pb.ArrayData();
+            }
+            input.ReadMessage(PolarReferenceDb);
+            break;
+          }
+          case 130:
+          case 128: {
+            polarSourceIndices_.AddEntriesFrom(ref input, _repeated_polarSourceIndices_codec);
+            break;
+          }
+          case 138:
+          case 136: {
+            unconvergedOctaves_.AddEntriesFrom(ref input, _repeated_unconvergedOctaves_codec);
+            break;
+          }
+          case 146: {
+            warnings_.AddEntriesFrom(ref input, _repeated_warnings_codec);
+            break;
+          }
+          case 154: {
+            if (generation_ == null) {
+              Generation = new global::CompasPb.Data.AnyData();
+            }
+            input.ReadMessage(Generation);
+            break;
+          }
+          case 162: {
+            if (dAngle_ == null) {
+              DAngle = new global::CompasAcoustics.Pb.ArrayData();
+            }
+            input.ReadMessage(DAngle);
+            break;
+          }
+          case 170: {
+            if (dBands_ == null) {
+              DBands = new global::CompasAcoustics.Pb.ArrayData();
+            }
+            input.ReadMessage(DBands);
+            break;
+          }
+          case 178: {
+            if (dOctaves_ == null) {
+              DOctaves = new global::CompasAcoustics.Pb.ArrayData();
+            }
+            input.ReadMessage(DOctaves);
             break;
           }
         }

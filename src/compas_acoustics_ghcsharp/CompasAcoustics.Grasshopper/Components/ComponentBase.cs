@@ -20,7 +20,7 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>The ribbon's panels, left to right: the subcategories the specs name.</summary>
         public static readonly IReadOnlyList<string> Subcategories = new[]
         {
-            "Elements", "Params", "Model", "Simulation", "Analysis", "Auralisation", "Display", "Util", "Optimization",
+            "Elements", "Params", "Model", "Simulation", "Analysis", "Auralisation", "Display", "Util", "Optimization", "Lab",
         };
 
         /// <summary>
@@ -247,6 +247,13 @@ namespace CompasAcoustics.Grasshopper
             if (result.TryGetValue("warnings", out var warnings) && warnings is IEnumerable<object?> texts)
                 foreach (var text in texts.OfType<string>().Distinct())
                     Warn(text);
+        }
+
+        /// <summary>The notes a worker result lists, each as a Remark (a grey note, not a warning).</summary>
+        protected void ShowNotes(IDictionary<string, object?> result)
+        {
+            foreach (var text in LabResults.Notes(result))
+                Remark(text);
         }
 
         protected static Worker Worker => Worker.Instance;

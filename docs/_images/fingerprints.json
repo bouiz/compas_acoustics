@@ -139,6 +139,23 @@
       ],
       "outputs": []
     },
+    "CA_Polar_Preview": {
+      "hash": "d6ba38c1982f",
+      "inputs": [
+        "result",
+        "preview",
+        "octave",
+        "body",
+        "radius",
+        "floor_db",
+        "centre"
+      ],
+      "outputs": [
+        "mesh",
+        "levels",
+        "source"
+      ]
+    },
     "CA_Receiver": {
       "hash": "da7df14d5586",
       "inputs": [
@@ -159,6 +176,40 @@
       ],
       "outputs": [
         "fitness"
+      ]
+    },
+    "CA_Scattering_Lab": {
+      "hash": "933bd6680781",
+      "inputs": [
+        "sample",
+        "method",
+        "preset",
+        "band_range",
+        "n_rays",
+        "max_bounces",
+        "cache_dir",
+        "run"
+      ],
+      "outputs": [
+        "result",
+        "scattering",
+        "diffusion",
+        "octaves"
+      ]
+    },
+    "CA_Scattering_Sample": {
+      "hash": "9e5b9e7fa9a2",
+      "inputs": [
+        "geometry",
+        "mode",
+        "diameter",
+        "reference",
+        "baseplate",
+        "symmetry",
+        "plane"
+      ],
+      "outputs": [
+        "sample"
       ]
     },
     "CA_Simulate_Ambisonics": {

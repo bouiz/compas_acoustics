@@ -46,6 +46,19 @@ namespace CompasAcoustics.Grasshopper
     public sealed record SliderControl(string Port, double Min, double Max, string Unit, double Step = 0.1, bool Live = false, string? Title = null) : Control(Port);
 
     /// <summary>
+    /// The incidence direction of a result as two dials (<see cref="IncidenceDials"/>): ``Port`` is the integer input of the direction's
+    /// index; the component gives the directions (<see cref="ComponentBase.IncidencesOf"/>). ``Title`` replaces the input's name above it.
+    /// </summary>
+    public sealed record IncidenceControl(string Port, string? Title = null) : Control(Port);
+
+    /// <summary>
+    /// A horizontal slider of fixed stops (<see cref="StepSlider"/>), one per option, ``Labels`` under them: the input's value is the
+    /// option of the stop. The component may offer only some stops now (<see cref="ComponentBase.OfferedOptionsOf"/>); the others are
+    /// grey and the knob never stops there. ``Title`` replaces the input's name above it.
+    /// </summary>
+    public sealed record StepSliderControl(string Port, string[] Options, string? Default = null, string[]? Labels = null, string? Title = null) : Control(Port);
+
+    /// <summary>
     /// Where a control is drawn: its row, for a switch the box of each option, and <c>Title</c>, the row above a control that
     /// names its input (empty for a button or toggle).
     /// </summary>
@@ -64,7 +77,7 @@ namespace CompasAcoustics.Grasshopper
         public const float ButtonGap = 10;
 
         /// <summary>Whether a control has its title above it: switches, dropdowns and sliders; a button or toggle carries its label.</summary>
-        public static bool HasTitle(Control control) => control is SwitchControl or DropdownControl or MultiSwitchControl or SliderControl;
+        public static bool HasTitle(Control control) => control is SwitchControl or DropdownControl or MultiSwitchControl or SliderControl or IncidenceControl or StepSliderControl;
 
         /// <summary>The title of a control: a dropdown's or slider's own, else its input's name, capitalised, <c>time_scale</c> as <c>Time scale</c>.</summary>
         public static string Title(Control control)
@@ -75,12 +88,19 @@ namespace CompasAcoustics.Grasshopper
                     return title;
                 case SliderControl { Title: string title }:
                     return title;
+                case IncidenceControl { Title: string title }:
+                    return title;
+                case StepSliderControl { Title: string title }:
+                    return title;
             }
             var name = control.Port.Replace('_', ' ');
             return name.Length == 0 ? name : char.ToUpperInvariant(name[0]) + name.Substring(1);
         }
 
-        /// <summary>What an option of a switch or dropdown reads: its label, else the value itself.</summary>
+        /// <summary>
+        /// What an option of a switch or dropdown reads: its label, else the value with its underscores as spaces (``as_drawn`` reads
+        /// "as drawn"). Only the text shown: the value, which the worker gets and a definition saves, keeps them.
+        /// </summary>
         public static string Label(Control control, string value)
         {
             var (options, labels) = control switch
@@ -90,7 +110,7 @@ namespace CompasAcoustics.Grasshopper
                 _ => (Array.Empty<string>(), null),
             };
             var i = Array.IndexOf(options, value);
-            return labels != null && i >= 0 && i < labels.Length ? labels[i] : value;
+            return labels != null && i >= 0 && i < labels.Length ? labels[i] : value.Replace('_', ' ');
         }
 
         private static bool IsInline(Control? control) => control is ToggleControl { Inline: true } or ButtonControl { Inline: true };
@@ -108,6 +128,9 @@ namespace CompasAcoustics.Grasshopper
             "Rewind" => Glyph.Rewind,
             _ => Glyph.None,
         };
+
+        /// <summary>The narrowest body the controls fit in: the dials' width when there are dials, else 0 (the component's own).</summary>
+        public static float MinWidth(IReadOnlyList<Control> controls) => controls.Any(c => c is IncidenceControl) ? IncidenceDials.MinWidth : 0;
 
         public static float Height(IReadOnlyList<Control> controls) =>
             controls.Count == 0 ? 0 : Arrange(controls, new RectangleF(0, 0, 1, 0)).Max(b => b.Bounds.Bottom) + Margin;
@@ -144,7 +167,7 @@ namespace CompasAcoustics.Grasshopper
                     title = new RectangleF(body.Left + Margin, y, body.Width - 2 * Margin, TitleHeight);
                     y += TitleHeight + TitleGap;
                 }
-                var row = new RectangleF(body.Left + Margin, y, body.Width - 2 * Margin, RowHeight);
+                var row = new RectangleF(body.Left + Margin, y, body.Width - 2 * Margin, control switch { IncidenceControl => IncidenceDials.Height, StepSliderControl => StepSlider.Height, _ => RowHeight });
                 var segments = Array.Empty<RectangleF>();
                 var options = control switch { SwitchControl s => s.Options, MultiSwitchControl m => m.Options, _ => Array.Empty<string>() };
                 if (options.Length > 0)
@@ -154,7 +177,7 @@ namespace CompasAcoustics.Grasshopper
                         .Select(i => new RectangleF(row.Left + i * width, row.Top, width, row.Height)).ToArray();
                 }
                 boxes.Add(new ControlBox(control, row, segments, title));
-                y += RowHeight + Margin;
+                y += row.Height + Margin;
             }
             return boxes;
         }

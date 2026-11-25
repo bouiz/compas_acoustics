@@ -90,6 +90,12 @@ namespace CompasAcoustics.Grasshopper
         private readonly Dictionary<string, (string[] values, string[] labels)> _indexOptions = new();
 
         /// <summary>The values and labels a dropdown offers: those of the wired scene or graph for an index, else its own.</summary>
+        /// <summary>The options of a step slider it offers now (Polar Preview's: the octaves its result simulated); null for all of them.</summary>
+        public virtual IReadOnlyCollection<string>? OfferedOptionsOf(string port) => null;
+
+        /// <summary>The directions an incidence control offers (Polar Preview's: those of its result); none by default.</summary>
+        public virtual IReadOnlyList<Incidence> IncidencesOf(string port) => Array.Empty<Incidence>();
+
         public (string[] values, string[] labels) OptionsOf(DropdownControl dropdown)
         {
             if (_indexOptions.TryGetValue(dropdown.Port, out var given))
@@ -111,6 +117,21 @@ namespace CompasAcoustics.Grasshopper
                 integer.ClearNamedValues();
                 foreach (var (label, value) in named)
                     integer.AddNamedValue(label, value);
+            }
+        }
+
+        /// <summary>
+        /// Offer the integers ``values`` with their ``labels`` on the integer input ``port`` (a result's octaves, its preview
+        /// sources): its dropdown reads the labels, no "All", and the port, when shown, its named values.
+        /// </summary>
+        public void SetValueOptions(string port, IReadOnlyList<int> values, IReadOnlyList<string> labels)
+        {
+            _indexOptions[port] = (values.Select(v => v.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToArray(), labels.ToArray());
+            if (ControlPort(port) is global::Grasshopper.Kernel.Parameters.Param_Integer integer)
+            {
+                integer.ClearNamedValues();
+                for (var i = 0; i < values.Count; i++)
+                    integer.AddNamedValue(labels[i], values[i]);
             }
         }
 
