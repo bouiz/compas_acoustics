@@ -250,14 +250,12 @@
       ]
     },
     "CA_Simulate_Mono": {
-      "hash": "7742b75d7e12",
+      "hash": "9a59b5cea4a7",
       "inputs": [
         "scene",
         "ism_order",
         "ray_tracing",
         "n_rays",
-        "absorb_air",
-        "energy_thres",
         "duration",
         "seed",
         "normalize"
@@ -292,14 +290,15 @@
       ]
     },
     "CA_Visualise_Energy_Map": {
-      "hash": "ffa591d61b5c",
+      "hash": "ca8139cc30da",
       "inputs": [
         "scene",
         "mesh",
         "spacing",
         "source_idx",
         "frequency_bands",
-        "range"
+        "range",
+        "run"
       ],
       "outputs": [
         "mesh",

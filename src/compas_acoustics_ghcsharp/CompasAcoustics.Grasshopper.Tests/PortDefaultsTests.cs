@@ -14,6 +14,9 @@ namespace CompasAcoustics.Grasshopper.Tests
         [InlineData("CA_Simulate_Mono", "ism_order", 3)]
         [InlineData("CA_Simulate_Ambisonics", "ism_order", 3)]
         [InlineData("CA_Simulate_Binaural", "ism_order", 3)]
+        [InlineData("CA_Simulate_Mono", "seed", 42)]
+        [InlineData("CA_Simulate_Binaural", "seed", 42)]
+        [InlineData("CA_Simulate_Ambisonics", "seed", 42)]
         [InlineData("CA_Visualise_Rays", "n_rays", 500)]
         [InlineData("CA_Visualise_Rays", "max_order", 10)]
         public void Specs_DeclareTheIntegerDefaults(string component, string port, int value) => Assert.Equal(value, Port(component, port).Default);
@@ -21,9 +24,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void Specs_DeclareTheNumberDefaults()
         {
-            Assert.Equal(1e-7, Port("CA_Simulate_Mono", "energy_thres").Default);
             Assert.Equal(1.0, Port("CA_Regularized_Fitness", "k").Default);
-            Assert.Null(Port("CA_Simulate_Mono", "seed").Default);
             Assert.Null(Port("CA_Simulate_Mono", "duration").Default);
             Assert.Null(Port("CA_Simulate_Mono", "n_rays").Default);
             Assert.Null(Port("CA_Visualise_Billiard", "speed").Default);
@@ -46,10 +47,8 @@ namespace CompasAcoustics.Grasshopper.Tests
             var component = new SimulateMonoComponent();
             var ism = Assert.IsType<Param_Integer>(component.Params.Input.Single(p => p.Name == "ism_order"));
             Assert.Equal(3, ism.PersistentData.AllData(true).OfType<GH_Integer>().Single().Value);
-            var energy = Assert.IsType<Param_Number>(component.Params.Input.Single(p => p.Name == "energy_thres"));
-            Assert.Equal(1e-7, energy.PersistentData.AllData(true).OfType<GH_Number>().Single().Value);
             var seed = Assert.IsType<Param_Integer>(component.Params.Input.Single(p => p.Name == "seed"));
-            Assert.True(seed.PersistentData.IsEmpty);
+            Assert.Equal(42, seed.PersistentData.AllData(true).OfType<GH_Integer>().Single().Value);
         }
 
         [Fact]

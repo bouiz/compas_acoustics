@@ -104,10 +104,11 @@
             },
             {
                 "name": "seed",
-                "description": "Seed of the feedback matrices, the delay jitter and the rays the method traces; the same seed gives Simulate Binaural and Simulate Ambisonics up to SH order 3 the same late field. Empty (default): a new random seed each run, shown in the component's message. A number: the same scene gives the same responses.",
+                "description": "Seed of the feedback matrices, the delay jitter and the rays the method traces, 42 as in the method: the same seed gives the same responses, and Simulate Binaural and Simulate Ambisonics up to SH order 3 the same late field; another number gives another realisation.",
                 "optional": true,
                 "scriptParamAccess": 0,
-                "typeHintID": "int"
+                "typeHintID": "int",
+                "default": 42
             },
             {
                 "name": "normalize",
