@@ -86,9 +86,17 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void TheSimulateComponents_HaveOneOutputEach_NamedAfterTheirFormat()
         {
-            Assert.Equal(new[] { "mono_ir_graph" }, new SimulateMonoComponent().Params.Output.Select(p => p.Name));
-            Assert.Equal(new[] { "binaural_ir_graph" }, new SimulateBinauralComponent().Params.Output.Select(p => p.Name));
-            Assert.Equal(new[] { "ambisonic_ir_graph" }, new SimulateAmbisonicsComponent().Params.Output.Select(p => p.Name));
+            Assert.Equal(new[] { "irs" }, new SimulateMonoComponent().Params.Output.Select(p => p.Name));
+            Assert.Equal(new[] { "irs" }, new SimulateBinauralComponent().Params.Output.Select(p => p.Name));
+            Assert.Equal(new[] { "irs" }, new SimulateAmbisonicsComponent().Params.Output.Select(p => p.Name));
+            Assert.All(new ComponentBase[] { new SimulateMonoComponent(), new SimulateBinauralComponent(), new SimulateAmbisonicsComponent() },
+                c => Assert.IsType<Param_ImpulseResponse>(c.Params.Output.Single()));
+            foreach (var hybrid in new SimulateHybridComponent[] { new SimulateBinauralComponent(), new SimulateAmbisonicsComponent() })
+            {
+                var reference = hybrid.Params.Input.Single(p => p.Name == "reference");
+                Assert.IsType<Param_ImpulseResponse>(reference);
+                Assert.Equal(GH_ParamAccess.list, reference.Access);
+            }
             Assert.Contains("hrtf", new SimulateBinauralComponent().Params.Input.Select(p => p.Name));
             Assert.DoesNotContain("sh_order", new SimulateBinauralComponent().Params.Input.Select(p => p.Name));
             // the SH order is a dropdown of Simulate Ambisonics, not an input

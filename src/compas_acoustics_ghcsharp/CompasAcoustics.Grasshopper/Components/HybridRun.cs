@@ -38,27 +38,36 @@ namespace CompasAcoustics.Grasshopper
         }
 
         /// <summary>The responses of the last run, for the scene they were simulated for, and the run's description.</summary>
-        public sealed record LastResult(string SceneGuid, IrGraphGoo Graph, IReadOnlyDictionary<string, object?> Generation);
+        public sealed record LastResult(string SceneGuid, IReadOnlyList<ImpulseResponseGoo> Responses, IReadOnlyDictionary<string, object?> Generation);
 
         /// <summary>
         /// The settings both methods take: unset inputs are left out so that the method's own defaults apply, the seed's
-        /// included. <paramref name="references"/> are the mono responses of a reference graph by pair key.
+        /// included. <paramref name="references"/> are the mono responses of the reference by pair key; the reference must hold
+        /// one for every pair of the scene's <paramref name="sources"/> and <paramref name="receivers"/>.
         /// </summary>
         public static Dictionary<string, object?> Settings(string? tail, int? ismOrder, string? diffraction, string? lateEnvelope, int? seed,
-            bool? normalize, IrGraphGoo? reference, int sceneSamplingRate, out Dictionary<string, ImpulseResponseData>? references)
+            bool? normalize, IReadOnlyList<ImpulseResponseGoo>? reference, int sceneSamplingRate, IReadOnlyList<SourceGoo> sources,
+            IReadOnlyList<ReceiverGoo> receivers, out Dictionary<string, ImpulseResponseData>? references)
         {
             references = null;
-            if (reference?.Value != null)
+            if (reference != null)
             {
-                // the mono_ir_graph of Simulate Mono; the wire also orders and refreshes this component
-                references = new Dictionary<string, ImpulseResponseData>();
-                foreach (var ir in reference.Value.Responses.Where(ir => ir.Channels == 1))
-                    references.TryAdd($"{ir.ReceiverGuid}_{ir.SourceGuid}", ir.Value);
-                if (references.Count == 0)
-                    throw new ArgumentException("The connected ir_graph holds no mono responses; connect the mono_ir_graph output of Simulate Mono.");
-                var rate = references.Values.First().SamplingRate;
+                // the irs of Simulate Mono; the wire also orders and refreshes this component
+                var keyed = new Dictionary<string, ImpulseResponseData>();
+                foreach (var ir in reference.Where(ir => ir.Channels == 1))
+                    keyed.TryAdd($"{ir.ReceiverGuid}_{ir.SourceGuid}", ir.Value);
+                references = keyed;
+                if (keyed.Count == 0)
+                    throw new ArgumentException("The connected reference holds no mono responses; connect the irs output of Simulate Mono.");
+                var rate = keyed.Values.First().SamplingRate;
                 if (rate != sceneSamplingRate)
                     throw new ArgumentException($"The reference was simulated at {rate} Hz, the scene's sampling_rate is {sceneSamplingRate} Hz: simulate both at the same rate.");
+                var missing = (from receiver in receivers
+                               from source in sources
+                               where !keyed.ContainsKey($"{receiver.Guid}_{source.Guid}")
+                               select $"no reference for source '{source.Name}' and receiver '{receiver.Name}'").ToList();
+                if (missing.Count > 0)
+                    throw new ArgumentException($"The connected reference is incomplete: {string.Join(", ", missing)}; connect the irs of Simulate Mono simulated for this scene.");
             }
             var given = new Dictionary<string, object?>
             {
@@ -88,9 +97,9 @@ namespace CompasAcoustics.Grasshopper
         /// </summary>
         public static (string text, bool changed) Status(LastResult? last, string sceneGuid, string? tail, int? shOrder, int? ismOrder, string? diffraction)
         {
-            if (last == null || last.SceneGuid != sceneGuid || last.Graph.Value.Responses.Count == 0)
+            if (last == null || last.SceneGuid != sceneGuid || last.Responses.Count == 0)
                 return ("press Run", false);
-            var runs = last.Graph.Value.Responses.Count;
+            var runs = last.Responses.Count;
             object? Last(string key) => last.Generation.TryGetValue(key, out var value) ? value : null;
             var changed = (!string.IsNullOrEmpty(tail) && tail != "auto" && tail != Last("tail") as string)
                           || Differs(shOrder, Last("sh_order"))

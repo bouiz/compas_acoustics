@@ -86,21 +86,6 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void IrGraphGoo_FromSimulation_KeepsSceneOrderAndMapsGuids()
-        {
-            var scene = new SceneGoo(Fixture<SceneData>("scene"));
-            var ir = Fixture<ImpulseResponseData>("ir");
-            ir.Source = scene.Value.Sources[0].Clone();
-            ir.Receiver = scene.Value.Receivers[0].Clone();
-            var key = $"{ir.Receiver.Guid}_{ir.Source.Guid}";
-            var graph = IrGraphGoo.FromSimulation(scene, "binaural", new Dictionary<string, object?> { [key] = ir });
-            Assert.Equal("binaural", graph.Value.Method);
-            Assert.Same(ir, graph.Value.Responses.Single().Value);
-            Assert.Equal("src", graph.Value.Sources.Single().Value.Name);
-            Assert.Equal("binaural: 1 response", graph.ToString());
-        }
-
-        [Fact]
         public void ParameterGoo_ToString_MatchesThePythonPanelText()
         {
             var t30 = new ParameterGoo(new ParameterGoo.Content("T30", "Reverberation Time (T30)", "Frequency (Hz)", "Time (s)", "bands",

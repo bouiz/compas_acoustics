@@ -82,7 +82,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(("Simulate Mono", "SimMono"), (mono.Name, mono.NickName));
             Assert.Equal(new[] { "scene", "ism_order", "ray_tracing", "n_rays", "duration", "seed", "normalize" },
                 mono.Params.Input.Select(p => p.Name));
-            Assert.Equal(new[] { "mono_ir_graph" }, mono.Params.Output.Select(p => p.Name));
+            Assert.Equal(new[] { "irs" }, mono.Params.Output.Select(p => p.Name));
             var (archive, read) = SaveThenRead(new SimulateMonoComponent(), new SimulateMonoComponent());
             Assert.True(read);
             Assert.Empty(Errors(archive));

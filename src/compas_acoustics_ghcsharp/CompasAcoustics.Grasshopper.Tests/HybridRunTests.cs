@@ -15,23 +15,29 @@ namespace CompasAcoustics.Grasshopper.Tests
                 Shape = { 4, channels }, SamplingRate = rate, Samples = { new double[4 * channels] },
             });
 
-        private static IrGraphGoo Reference(params ImpulseResponseGoo[] responses) =>
-            new IrGraphGoo(new IrGraphGoo.Content("mono", new List<SourceGoo>(), new List<ReceiverGoo>(), responses));
+        private static List<ImpulseResponseGoo> Reference(params ImpulseResponseGoo[] responses) => responses.ToList();
+
+        private static SourceGoo Source(string guid, string? name = null) => new(new SourceData { Guid = guid, Name = name ?? guid });
+
+        private static ReceiverGoo Receiver(string guid, string? name = null) => new(new ReceiverData { Guid = guid, Name = name ?? guid });
+
+        private static readonly IReadOnlyList<SourceGoo> NoSources = new List<SourceGoo>();
+        private static readonly IReadOnlyList<ReceiverGoo> NoReceivers = new List<ReceiverGoo>();
 
         [Fact]
         public void Settings_LeavesUnsetInputsOut_TheSeedIncluded()
         {
-            var settings = HybridRun.Settings(null, null, null, null, null, null, null, 48000, out var references);
+            var settings = HybridRun.Settings(null, null, null, null, null, null, null, 48000, NoSources, NoReceivers, out var references);
             Assert.Empty(settings);
             Assert.Null(references);
-            settings = HybridRun.Settings("auto", null, "none", null, 3, null, null, 48000, out _);
+            settings = HybridRun.Settings("auto", null, "none", null, 3, null, null, 48000, NoSources, NoReceivers, out _);
             Assert.Equal(new Dictionary<string, object?> { ["seed"] = 3L }, settings);
         }
 
         [Fact]
         public void Settings_PassesTheEngineInputsUnderTheMethodsNames_AndNoFormatOfTheirOwn()
         {
-            var settings = HybridRun.Settings("eyring", 4, "udfa", "off", 7, false, null, 48000, out _);
+            var settings = HybridRun.Settings("eyring", 4, "udfa", "off", 7, false, null, 48000, NoSources, NoReceivers, out _);
             Assert.Equal(new Dictionary<string, object?>
             {
                 ["tail"] = "eyring", ["image_source_order"] = 4L, ["diffraction"] = "udfa", ["late_envelope"] = false, ["seed"] = 7L, ["normalize"] = false,
@@ -47,7 +53,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         [InlineData("False", false)]
         public void Settings_PassesTheLateEnvelopeMode_AndReadsABoolean(string choice, object expected)
         {
-            var settings = HybridRun.Settings(null, null, null, choice, 1, null, null, 48000, out _);
+            var settings = HybridRun.Settings(null, null, null, choice, 1, null, null, 48000, NoSources, NoReceivers, out _);
             Assert.Equal(expected, settings["late_envelope"]);
         }
 
@@ -57,7 +63,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         [InlineData("")]
         public void Settings_LeavesAnAutoLateEnvelopeToTheMethod(string? choice)
         {
-            var settings = HybridRun.Settings(null, null, null, choice, 1, null, null, 48000, out _);
+            var settings = HybridRun.Settings(null, null, null, choice, 1, null, null, 48000, NoSources, NoReceivers, out _);
             Assert.False(settings.ContainsKey("late_envelope"));
         }
 
@@ -65,23 +71,54 @@ namespace CompasAcoustics.Grasshopper.Tests
         public void Settings_TakesTheMonoResponsesOfTheReferenceByKey()
         {
             var reference = Reference(Response("s0", "r0"), Response("s1", "r0", channels: 4));
-            HybridRun.Settings("reference", null, null, null, 1, null, reference, 48000, out var references);
+            HybridRun.Settings("reference", null, null, null, 1, null, reference, 48000, NoSources, NoReceivers, out var references);
             Assert.Equal(new[] { "r0_s0" }, references!.Keys.ToArray());
         }
 
         [Fact]
-        public void Settings_RejectsAReferenceWithoutMonoResponses()
+        public void Settings_ReferenceIsAListOfMonoResponses()
+        {
+            var reference = Reference(Response("s0", "r0"), Response("s1", "r0"), Response("s2", "r0", channels: 2));
+            HybridRun.Settings("reference", null, null, null, 1, null, reference, 48000,
+                new[] { Source("s0"), Source("s1") }, new[] { Receiver("r0") }, out var references);
+            Assert.Equal(new[] { "r0_s0", "r0_s1" }, references!.Keys.OrderBy(k => k).ToArray());
+        }
+
+        [Fact]
+        public void Settings_ReferenceMissingAPair_Throws()
+        {
+            var reference = Reference(Response("a", "rec"));
+            var error = Assert.Throws<ArgumentException>(() => HybridRun.Settings("reference", null, null, null, 1, null, reference, 48000,
+                new[] { Source("a"), Source("b") }, new[] { Receiver("rec") }, out _));
+            Assert.Contains("no reference for source 'b' and receiver 'rec'", error.Message);
+            Assert.DoesNotContain("source 'a'", error.Message);
+            Assert.Contains("connect the irs of Simulate Mono", error.Message);
+        }
+
+        [Fact]
+        public void Settings_ReferenceMissingTwoPairs_NamesEach()
+        {
+            var error = Assert.Throws<ArgumentException>(() => HybridRun.Settings("reference", null, null, null, 1, null,
+                Reference(Response("a", "r1")), 48000,
+                new[] { Source("a"), Source("b") }, new[] { Receiver("r1"), Receiver("r2") }, out _));
+            Assert.Contains("source 'b' and receiver 'r1'", error.Message);
+            Assert.Contains("source 'a' and receiver 'r2'", error.Message);
+            Assert.Contains("source 'b' and receiver 'r2'", error.Message);
+        }
+
+        [Fact]
+        public void Settings_NoMonoResponse_Throws()
         {
             var error = Assert.Throws<ArgumentException>(() =>
-                HybridRun.Settings(null, null, null, null, 1, null, Reference(Response("s", "r", channels: 2)), 48000, out _));
-            Assert.Equal("The connected ir_graph holds no mono responses; connect the mono_ir_graph output of Simulate Mono.", error.Message);
+                HybridRun.Settings(null, null, null, null, 1, null, Reference(Response("s", "r", channels: 2)), 48000, NoSources, NoReceivers, out _));
+            Assert.Equal("The connected reference holds no mono responses; connect the irs output of Simulate Mono.", error.Message);
         }
 
         [Fact]
         public void Settings_RejectsAReferenceAtAnotherRate()
         {
             var error = Assert.Throws<ArgumentException>(() =>
-                HybridRun.Settings(null, null, null, null, 1, null, Reference(Response("s", "r", rate: 44100)), 48000, out _));
+                HybridRun.Settings(null, null, null, null, 1, null, Reference(Response("s", "r", rate: 44100)), 48000, NoSources, NoReceivers, out _));
             Assert.Equal("The reference was simulated at 44100 Hz, the scene's sampling_rate is 48000 Hz: simulate both at the same rate.", error.Message);
         }
 

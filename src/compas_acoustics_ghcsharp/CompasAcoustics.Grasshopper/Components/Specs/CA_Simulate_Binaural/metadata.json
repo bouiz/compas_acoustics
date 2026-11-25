@@ -22,9 +22,9 @@
             },
             {
                 "name": "reference",
-                "description": "Optional reference for the tail: connect the mono_ir_graph output of Simulate Mono (the wire also makes Grasshopper run the ray tracing first).",
+                "description": "Optional reference for the tail: connect the irs output of Simulate Mono, simulated for the same scene, one response per source and receiver (the wire also makes Grasshopper run the ray tracing first).",
                 "optional": true,
-                "scriptParamAccess": 0,
+                "scriptParamAccess": 1,
                 "typeHintID": "ghdoc"
             },
             {
@@ -134,8 +134,8 @@
         ],
         "outputParameters": [
             {
-                "name": "binaural_ir_graph",
-                "description": "IR graph of the binaural responses (under 'binaural'), for Deconstruct IR Graph and Auralise."
+                "name": "irs",
+                "description": "The binaural impulse responses, one per source and receiver in scene order (receiver by receiver, sources within each). Connect them to Analyse Impulse Response, Audio Player or Auralise."
             }
         ]
     }

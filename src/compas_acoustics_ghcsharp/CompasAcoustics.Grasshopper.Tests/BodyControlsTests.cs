@@ -180,7 +180,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(new[] { "source_idx", "receiver_idx", "order" }, new VisualiseReflectionsComponent().ControlPorts);
             Assert.Equal(new[] { "time", "speed", "play" }, new VisualiseBilliardComponent().ControlPorts);
             Assert.Equal(new[] { "frequency_bands", "source_idx", "run" }, new VisualiseEnergyMapComponent().ControlPorts);
-            Assert.Equal(new[] { "source_idx", "receiver_idx" }, new DeconstructIrGraphComponent().ControlPorts);
             Assert.Equal(new[] { "sound_file" }, new SourceComponent().ControlPorts);
             Assert.Equal(new[] { "category" }, new ConstructMaterialComponent().ControlPorts);
         }
@@ -292,8 +291,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             rays.SetIndexOptions("source_idx", new[] { "lectern", "piano" });
             Assert.Equal(new[] { "", "0", "1" }, rays.OptionsOf(dropdown).values);
             Assert.Equal(new[] { "All", "0: lectern", "1: piano" }, rays.OptionsOf(dropdown).labels);
-            var graph = new DeconstructIrGraphComponent();
-            Assert.Equal(new[] { "Source", "Receiver" }, graph.Controls.OfType<DropdownControl>().Select(ControlLayout.Title));
         }
 
         [Fact]

@@ -106,8 +106,8 @@
         ],
         "outputParameters": [
             {
-                "name": "mono_ir_graph",
-                "description": "IR graph of the mono responses (under 'mono'), for Deconstruct IR Graph or the reference of Simulate Binaural and Simulate Ambisonics."
+                "name": "irs",
+                "description": "The mono impulse responses, one per source and receiver in scene order (receiver by receiver, sources within each). Connect them to Analyse Impulse Response, Audio Player or Auralise, or to the reference of Simulate Binaural and Simulate Ambisonics."
             }
         ]
     }

@@ -8,7 +8,7 @@
         "inputParameters": [
             {
                 "name": "sound",
-                "description": "The sound: the path of an audio file, an impulse response (from Deconstruct IR Graph), a Source, or an audio signal such as the signals of Auralise.",
+                "description": "The sound: the path of an audio file, an impulse response (from a Simulate component), a Source, or an audio signal such as the signals of Auralise.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "ghdoc"
