@@ -57,13 +57,17 @@ __all__ = [
     "DirectionalHistogram",
     "RayTracedRun",
     "default_duration",
+    "default_rays",
     "directional_histograms",
     "image_source_rirs",
     "ray_traced_run",
 ]
 
-# Floor on pyroomacoustics' heuristic ray count, applied only with n_rays=None; the floor is the package's choice
-MIN_RAYS = 50_000
+# Floor on the default ray count (the package's choice)
+MIN_RAYS = 20_000
+# n / (dt pooled) of hybrid.envelope.histogram_rays on the hybrid's 96-line grid, in 1/s: written out because the grid
+# needs spharpy, which Python < 3.11 lacks; a test checks it against the grid
+_GRID_RAYS = 271.1566980495139
 # A response lasts this many times the longest Eyring RT, within 0.5 s and MAX_DURATION (the three numbers are the
 # package's choices). The margin over 1 keeps the T30 evaluation range inside the response where Eyring underestimates
 # the decay; a room whose decay outlasts it is caught by the methods' length warnings.
@@ -71,6 +75,18 @@ DURATION_RT_FACTOR = 1.5
 MAX_DURATION = 12.0
 # pyroomacoustics' default histogram bin
 _HIST_BIN = 0.004
+
+
+def default_rays(volume: float, receiver_radius: float, speed_of_sound: float) -> int:
+    """Rays per source by default: those at which a direction's energy over one slot of the hybrid's late envelope has
+    a standard deviation of 1 dB, on its 96-line grid (Vorlaender 2020, Sec. 11.3.7, Eq. 11.20;
+    :func:`compas_acoustics.hybrid.envelope.histogram_rays`), and at least ``MIN_RAYS``.
+
+    One count for every method, so that a ``Mono`` reference traces what ``Binaural`` and ``Ambisonics`` trace
+    themselves; the floor is the package's choice.
+    """
+    hits = (10.0 / np.log(10.0)) ** 2
+    return max(int(np.ceil(hits * volume * _GRID_RAYS / (np.pi * receiver_radius**2 * speed_of_sound))), MIN_RAYS)
 
 
 def default_duration(geometry: RoomGeometry, air_absorption: bool, air=None, factor: float = DURATION_RT_FACTOR) -> float:
@@ -191,7 +207,7 @@ def ray_traced_run(
     *,
     max_order: int = 6,
     duration: Optional[float] = None,
-    n_rays: Optional[int] = 20000,
+    n_rays: Optional[int] = None,
     receiver_radius: float = 0.5,
     energy_threshold: float = 1e-7,
     air_absorption: bool = True,
@@ -203,7 +219,7 @@ def ray_traced_run(
 
     ``sources`` are ``pra.SoundSource``; ``mic_positions`` is ``(3, M)``. ``max_order`` is the last image source
     order; the rays hold it too (module docstring). ``duration`` None: :func:`default_duration`. ``n_rays`` None:
-    pyroomacoustics' heuristic, at least ``MIN_RAYS``. ``seed`` None: unseeded. ``air`` sets the speed of sound and
+    :func:`default_rays`. ``seed`` None: unseeded. ``air`` sets the speed of sound and
     the air absorption. ``directions``, one ``(n, 3)`` array of unit vectors in room coordinates per microphone, also
     returns the detected rays' energy by the direction nearest their last leg (``histograms``); the responses are
     unchanged.
@@ -244,9 +260,7 @@ def _traced_room(geometry, sources, mic_positions, fs, directions, max_order, du
     for source in sources:
         room.add_soundsource(source)
     room.add_microphone_array(pra.MicrophoneArray(mic_positions, fs))
-    room.set_ray_tracing(n_rays=n_rays, **options)
-    if n_rays is None and room.rt_args["n_rays"] < MIN_RAYS:
-        room.set_ray_tracing(n_rays=MIN_RAYS, **options)
+    room.set_ray_tracing(n_rays=default_rays(room.get_volume(), receiver_radius, room.c) if n_rays is None else n_rays, **options)
     return room, duration, unit
 
 
@@ -366,7 +380,7 @@ def directional_histograms(
     *,
     max_order: int = 6,
     duration: Optional[float] = None,
-    n_rays: Optional[int] = 20000,
+    n_rays: Optional[int] = None,
     receiver_radius: float = 0.5,
     energy_threshold: float = 1e-7,
     air_absorption: bool = True,

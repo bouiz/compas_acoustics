@@ -12,7 +12,6 @@ namespace CompasAcoustics.Grasshopper.Tests
 
         [Theory]
         [InlineData("CA_Simulate_Mono", "ism_order", 3)]
-        [InlineData("CA_Simulate_Mono", "n_rays", 20000)]
         [InlineData("CA_Simulate_Ambisonics", "ism_order", 3)]
         [InlineData("CA_Simulate_Binaural", "ism_order", 3)]
         [InlineData("CA_Visualise_Rays", "n_rays", 500)]
@@ -26,6 +25,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(1.0, Port("CA_Regularized_Fitness", "k").Default);
             Assert.Null(Port("CA_Simulate_Mono", "seed").Default);
             Assert.Null(Port("CA_Simulate_Mono", "duration").Default);
+            Assert.Null(Port("CA_Simulate_Mono", "n_rays").Default);
             Assert.Null(Port("CA_Visualise_Billiard", "speed").Default);
         }
 

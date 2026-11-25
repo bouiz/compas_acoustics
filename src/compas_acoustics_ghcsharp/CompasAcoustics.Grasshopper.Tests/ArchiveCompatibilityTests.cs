@@ -88,6 +88,23 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Empty(Errors(archive));
         }
 
+        [Theory]
+        [InlineData(20000, new int[0])]
+        [InlineData(30000, new[] { 30000 })]
+        public void ASimulateMonoSavedWithTheFormerRayDefault_TakesTheCountFromTheRoom(int saved, int[] expected)
+        {
+            var old = new SimulateMonoComponent();
+            var port = (Param_Integer)old.Params.Input.Single(p => p.Name == "n_rays");
+            port.PersistentData.Clear();
+            port.SetPersistentData(new GH_Integer(saved));
+            var fresh = new SimulateMonoComponent();
+            var (archive, read) = SaveThenRead(old, fresh);
+            Assert.True(read);
+            Assert.Empty(Errors(archive));
+            var back = (Param_Integer)fresh.Params.Input.Single(p => p.Name == "n_rays");
+            Assert.Equal(expected, back.PersistentData.AllData(true).OfType<GH_Integer>().Select(g => g.Value));
+        }
+
         [Fact]
         public void AComponentSavedNow_ReadsWithoutErrors()
         {

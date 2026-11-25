@@ -41,8 +41,9 @@ class Mono(SimulationMethod):
         Materials without scattering coefficients scatter 0.05 in every band. Without it, the settings ``n_rays``
         to ``seed`` raise ``ValueError`` when changed.
     air_absorption : bool, default=True
-    n_rays : int or None, default=20000
-        Per source; None: pyroomacoustics' heuristic, at least 50000.
+    n_rays : int, optional
+        Per source; default :func:`~compas_acoustics.room.raytracing.default_rays`, from the room's volume (at least
+        20000).
     energy_thres : float, default=1e-7
         The product of its reflections in its least absorbed band at which a ray stops; the logged energy is that
         over the squared distance (Schroeder 2011, Eq. 5.54), so the tail has decayed much further.
@@ -85,7 +86,7 @@ class Mono(SimulationMethod):
     output = "mono"
 
     _RAY_TRACING_DEFAULTS = {
-        "n_rays": 20_000,
+        "n_rays": None,
         "energy_thres": 1e-7,
         "duration": None,
         "receiver_radius": 0.5,
@@ -97,7 +98,7 @@ class Mono(SimulationMethod):
         image_source_order: int = 3,
         ray_tracing: bool = True,
         air_absorption: bool = True,
-        n_rays: Optional[int] = 20_000,
+        n_rays: Optional[int] = None,
         energy_thres: float = 1e-7,
         duration: Optional[float] = None,
         receiver_radius: float = 0.5,

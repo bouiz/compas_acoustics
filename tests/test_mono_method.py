@@ -192,7 +192,7 @@ def test_ray_tracing_settings_without_ray_tracing_raise():
         Mono(ray_tracing=False, n_rays=1000)
     with pytest.raises(ValueError, match="duration"):
         Mono(ray_tracing=False, duration=0.5)
-    Mono(ray_tracing=False, n_rays=20000)  # the default, given explicitly, is fine
+    Mono(ray_tracing=False, n_rays=None)  # the default, given explicitly, is fine
 
 
 def test_image_sources_need_no_scattering():
@@ -299,6 +299,24 @@ SOFT = AcousticMaterial("soft", 0.9, 0.1)
 # hard walls between an absorbing floor and ceiling: the horizontal decay outlasts Eyring's prediction
 OUTRUNS_EYRING = {"floor": SOFT, "ceiling": SOFT, "left_wall": HARD, "right_wall": HARD, "front_wall": HARD, "back_wall": HARD}
 IN_THE_CORNER = Receiver("rec", 6.0, 1.0, 1.5)
+
+
+def test_the_default_ray_count_follows_the_room_volume():
+    """Vorlaender (2020, Eq. 11.20) on the hybrid's directions, at least MIN_RAYS: small rooms keep the floor."""
+    from compas_acoustics.room.raytracing import MIN_RAYS
+    from compas_acoustics.room.raytracing import _traced_room
+    from compas_acoustics.room.raytracing import default_rays
+
+    assert Mono().n_rays is None
+    counts = []
+    for size in ((7, 5, 3), (30, 20, 10)):
+        scene = Scene("rays")
+        scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(*size, materials=WALL))
+        g = RoomGeometry.from_scene(scene)
+        room, _, _ = _traced_room(g, [pra.SoundSource(SOURCE)], RECEIVER.reshape(3, 1), FS, None, 1, 0.5, None, 0.5, 1e-7, True, 1, None)
+        assert room.rt_args["n_rays"] == default_rays(room.get_volume(), 0.5, room.c)
+        counts.append(room.rt_args["n_rays"])
+    assert counts[0] == MIN_RAYS < counts[1]
 
 
 def test_a_default_duration_lengthens_until_the_response_holds_its_decay():

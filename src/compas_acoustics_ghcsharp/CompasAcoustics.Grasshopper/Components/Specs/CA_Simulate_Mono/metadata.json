@@ -76,11 +76,10 @@
             },
             {
                 "name": "n_rays",
-                "description": "Number of rays per source. Ray tracing only.",
+                "description": "Number of rays per source. Empty (default): Vorlaender's count for a direction's energy to 1 dB from the room's volume, at least 20000, the count Simulate Binaural and Simulate Ambisonics trace their own reference with. A larger number gives a smoother tail at a longer run. Ray tracing only.",
                 "optional": true,
                 "scriptParamAccess": 0,
-                "typeHintID": "int",
-                "default": 20000
+                "typeHintID": "int"
             },
             {
                 "name": "absorb_air",

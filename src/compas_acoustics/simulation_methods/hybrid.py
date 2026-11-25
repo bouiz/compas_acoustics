@@ -46,8 +46,10 @@ from compas_acoustics.room.pra import directivity_to_pra
 from compas_acoustics.room.pra import points_to_array
 from compas_acoustics.room.pra import source_to_pra
 from compas_acoustics.room.raytracing import DURATION_RT_FACTOR
+from compas_acoustics.room.raytracing import MIN_RAYS
 from compas_acoustics.room.raytracing import DirectionalHistogram
 from compas_acoustics.room.raytracing import default_duration
+from compas_acoustics.room.raytracing import default_rays
 from compas_acoustics.room.reflections import damping_as_searched
 from compas_acoustics.source import Source
 
@@ -105,6 +107,7 @@ class _HybridMethod(SimulationMethod):
         n_slopes=1,
         decay_db=30.0,
         duration=None,
+        n_rays=None,
         directional_absorption=True,
         late_envelope=None,
         diffraction=False,
@@ -147,6 +150,12 @@ class _HybridMethod(SimulationMethod):
         if late_envelope is None:
             late_envelope = False if self.tail in ("eyring", "sabine") else "omni"
         self.late_envelope = late_envelope
+        if n_rays is not None and (self.tail in ("eyring", "sabine") or (self.tail == "reference" and late_envelope != "directional")):
+            raise ValueError(
+                "n_rays sets the rays the method traces itself, the reference of a ray_tracing tail or the directional "
+                f"histograms of a given reference; with tail={self.tail!r} and late_envelope={late_envelope!r} it traces none"
+            )
+        self.n_rays = n_rays
         self.diffraction = model
         self.air_absorption = air_absorption
         self.seed = _seed(seed)
@@ -256,7 +265,7 @@ class _HybridMethod(SimulationMethod):
 
         jobs.progress("directional histograms")
         tracer = Mono._RAY_TRACING_DEFAULTS
-        n_rays = histogram_rays(room.get_volume(), tracer["receiver_radius"], float(room.c), grid)
+        n_rays = self._rays(room.get_volume(), float(room.c), grid)
         histograms = directional_histograms(
             geometry,
             [source_to_pra(source) for source in context.sources],
@@ -273,6 +282,17 @@ class _HybridMethod(SimulationMethod):
             air=air,
         )
         return histograms, n_rays
+
+    def _rays(self, volume, speed_of_sound, grid) -> int:
+        """The rays of a trace the method makes itself: ``n_rays``, else those at which a direction of ``grid`` has its
+        energy to 1 dB (:func:`~compas_acoustics.hybrid.envelope.histogram_rays`), at least ``MIN_RAYS``; without a
+        late envelope on the 96-line grid (:func:`~compas_acoustics.room.raytracing.default_rays`), as ``Mono``."""
+        if self.n_rays is not None:
+            return int(self.n_rays)
+        radius = Mono._RAY_TRACING_DEFAULTS["receiver_radius"]
+        if grid is None:
+            return default_rays(volume, radius, speed_of_sound)
+        return max(histogram_rays(volume, radius, speed_of_sound, grid), MIN_RAYS)
 
     def _pair_inputs(self, context, geometry, room, rotations, references, damping, scattered, histograms, air_absorption, air):
         """Every source-receiver pair's :class:`_PairInputs`, sources outer, receivers inner."""
@@ -415,10 +435,8 @@ class _HybridMethod(SimulationMethod):
             duration = default_duration(context.geometry, absorption, air=self.air)
             if self.duration is not None:
                 duration = max(duration, self.duration)
-            n_rays = Mono._RAY_TRACING_DEFAULTS["n_rays"]
-            if grid is not None:
-                volume_room = geometry.to_pra(context.sampling_rate, 0, air=air_or_default(self.air))
-                n_rays = histogram_rays(volume_room.get_volume(), Mono._RAY_TRACING_DEFAULTS["receiver_radius"], float(volume_room.c), grid)
+            volume_room = geometry.to_pra(context.sampling_rate, 0, air=air_or_default(self.air))
+            n_rays = self._rays(volume_room.get_volume(), float(volume_room.c), grid)
             method = Mono(self.image_source_order, ray_tracing=True, air_absorption=absorption, n_rays=n_rays, duration=duration, seed=self.seed, air=self.air)
             references, run = method._run(context, directions, lengthen=True)
             description = method.generation
@@ -494,8 +512,13 @@ _ENGINE_PARAMETERS = """
         Single-slope fit range from -5 dB: 30 is T30, 20 is T20.
     duration : float, optional
         In seconds; default 1.5 times the longest RT of each pair's target (the package's choice). The method's own
-        reference lasts at least the mono default and is traced again longer while it ends before 2/3 of its T30; a directional histogram traced for a given reference lasts
-        ``duration``, or the mono default. A reference shorter than 2/3 of its reverberation time warns.
+        reference lasts at least the mono default and is traced again longer while it ends before 2/3 of its T30; a
+        directional histogram traced for a given reference lasts ``duration``, or the mono default. A reference
+        shorter than 2/3 of its reverberation time warns.
+    n_rays : int, optional
+        The rays of every trace the method makes itself: the reference of a ray-tracing tail and the directional
+        histograms of a given reference. Default the directions' rule below, at least 20000, which a ``Mono``
+        reference also takes by default. Refused when the method traces nothing itself.
     directional_absorption : bool, default=True
         Weight each delay line with the reflection of the boundary it faces.
     late_envelope : {"omni", "directional", False}, optional
@@ -505,8 +528,8 @@ _ENGINE_PARAMETERS = """
         energy (directional histogram: Lentz et al. 2007, Sec. 2.4; Schroeder 2011). The rays are traced with
         ``Mono(ray_tracing=True)``'s settings at ``image_source_order``, also with a given reference; their number
         gives a direction's energy a standard deviation of 1 dB (Vorlaender 2020, Eq. 11.20; the 1 dB is the
-        package's choice). A ray-tracing tail traces its reference with that number in both modes, so both follow
-        one reference.
+        package's choice), at least 20000, or is ``n_rays``. A ray-tracing tail traces its reference with that number
+        in both modes, so both follow one reference.
         ``False``: the network's own decay to the target, no shaping.
         Default ``"omni"`` with a reference or a ray-tracing tail (the package's choice); with an Eyring or Sabine
         tail the default is ``False`` and the other two raise.
@@ -591,6 +614,7 @@ class Binaural(_HybridMethod):
         n_slopes=1,
         decay_db=30.0,
         duration=None,
+        n_rays=None,
         directional_absorption=True,
         late_envelope=None,
         diffraction=False,
@@ -610,6 +634,7 @@ class Binaural(_HybridMethod):
             n_slopes=n_slopes,
             decay_db=decay_db,
             duration=duration,
+            n_rays=n_rays,
             directional_absorption=directional_absorption,
             late_envelope=late_envelope,
             diffraction=diffraction,
@@ -680,6 +705,7 @@ class Ambisonics(_HybridMethod):
         n_slopes=1,
         decay_db=30.0,
         duration=None,
+        n_rays=None,
         directional_absorption=True,
         late_envelope=None,
         diffraction=False,
@@ -700,6 +726,7 @@ class Ambisonics(_HybridMethod):
             n_slopes=n_slopes,
             decay_db=decay_db,
             duration=duration,
+            n_rays=n_rays,
             directional_absorption=directional_absorption,
             late_envelope=late_envelope,
             diffraction=diffraction,

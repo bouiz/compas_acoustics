@@ -151,7 +151,14 @@ namespace CompasAcoustics.Grasshopper
                 settings["sh_order"] = (long)sh;
             if (hrtf != null)
                 settings["hrtf"] = hrtf;
-            var refs = references?.ToDictionary(kv => kv.Key, kv => (object?)kv.Value);
+            if (Value<int>(access, "n_rays") is int rays)
+            {
+                if (HybridRun.TracesRays(tail, Text(access, "late_envelope"), reference != null))
+                    settings["n_rays"] = (long)rays;
+                else
+                    Remark("n_rays is not used: the method traces no rays itself (an Eyring or Sabine tail, or a given reference without a directional late envelope). Set the reference's rays on Simulate Mono.");
+            }
+            var refs =references?.ToDictionary(kv => kv.Key, kv => (object?)kv.Value);
             var request = Simulation(scene, Method, settings, refs, seed != null, new Context(scene, settings["seed"], hrtf));
             var shown = false;
             void Deliver(Outcome outcome, bool fresh)
