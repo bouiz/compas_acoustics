@@ -96,6 +96,13 @@
                 "typeHintID": "str"
             },
             {
+                "name": "n_rays",
+                "description": "Number of rays per source of the rays the method traces itself: the reference of a ray_tracing tail, or the directional histograms of a given reference. Empty (default): Vorlaender's count for a direction's energy to 1 dB from the room's volume, at least 20000, as Simulate Mono takes by default. A larger number gives a smoother tail at a longer run. Not used, with a remark, when the method traces no rays (an Eyring or Sabine tail, or a given reference without a directional late envelope).",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "int"
+            },
+            {
                 "name": "seed",
                 "description": "Seed of the feedback matrices, the delay jitter and the rays the method traces; the same seed gives Simulate Binaural and Simulate Ambisonics up to SH order 3 the same late field. Empty (default): a new random seed each run, shown in the component's message. A number: the same scene gives the same responses.",
                 "optional": true,

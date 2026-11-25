@@ -79,7 +79,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             hybrid.ShowControlPorts(false);
             Assert.False(hybrid.ControlPortsShown);
             Assert.Equal(all.Where(n => !hybrid.ControlPorts.Contains(n)), Inputs(hybrid));
-            Assert.Equal(new[] { "scene", "reference", "seed" }, Inputs(hybrid));
+            Assert.Equal(new[] { "scene", "reference", "n_rays", "seed" }, Inputs(hybrid));
             Assert.NotNull(hybrid.ControlPort("run"));
             Assert.NotNull(hybrid.ControlPort("tail"));
             hybrid.ShowControlPorts(true);

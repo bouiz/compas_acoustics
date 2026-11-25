@@ -162,7 +162,7 @@
       ]
     },
     "CA_Simulate_Ambisonics": {
-      "hash": "c76bf02a3ce5",
+      "hash": "60ce17945fdb",
       "inputs": [
         "scene",
         "tail",
@@ -170,6 +170,7 @@
         "ism_order",
         "diffraction",
         "late_envelope",
+        "n_rays",
         "seed",
         "normalize",
         "run"
@@ -179,7 +180,7 @@
       ]
     },
     "CA_Simulate_Binaural": {
-      "hash": "bb96d54edded",
+      "hash": "fc890ff3d2f0",
       "inputs": [
         "scene",
         "tail",
@@ -187,6 +188,7 @@
         "ism_order",
         "diffraction",
         "late_envelope",
+        "n_rays",
         "seed",
         "normalize",
         "hrtf",
