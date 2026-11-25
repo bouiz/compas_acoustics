@@ -41,8 +41,8 @@ namespace CompasAcoustics.Grasshopper
         public sealed record LastResult(string SceneGuid, IrGraphGoo Graph, IReadOnlyDictionary<string, object?> Generation);
 
         /// <summary>
-        /// The settings both methods take: unset inputs are left out so that the method's own defaults apply, an empty seed
-        /// draws a new one. <paramref name="references"/> are the mono responses of a reference graph by pair key.
+        /// The settings both methods take: unset inputs are left out so that the method's own defaults apply, the seed's
+        /// included. <paramref name="references"/> are the mono responses of a reference graph by pair key.
         /// </summary>
         public static Dictionary<string, object?> Settings(string? tail, int? ismOrder, string? diffraction, string? lateEnvelope, int? seed,
             bool? normalize, IrGraphGoo? reference, int sceneSamplingRate, out Dictionary<string, ImpulseResponseData>? references)
@@ -66,8 +66,7 @@ namespace CompasAcoustics.Grasshopper
                 ["image_source_order"] = ismOrder is int ism ? (long)ism : null,
                 ["diffraction"] = string.IsNullOrEmpty(diffraction) || diffraction == "none" ? null : diffraction,
                 ["late_envelope"] = LateEnvelope(lateEnvelope),
-                // the method's own default is a fixed seed; an empty input draws a new one each run
-                ["seed"] = (long)(seed ?? Random.Shared.Next(int.MaxValue)),
+                ["seed"] = seed is int s ? (long)s : null,
                 ["normalize"] = normalize,
             };
             return given.Where(kv => kv.Value != null).ToDictionary(kv => kv.Key, kv => kv.Value);

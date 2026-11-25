@@ -84,20 +84,9 @@ namespace CompasAcoustics.Grasshopper
             return decision;
         }
 
-        /// <summary>
-        /// The worker's <c>simulate</c> of <paramref name="method"/>. A seed drawn for this solution is left out of the key:
-        /// it is not a change of the inputs.
-        /// </summary>
-        protected static Background Simulation(SceneGoo scene, string method, Dictionary<string, object?> settings, object? references,
-            bool seedGiven, object? context)
-        {
-            var keySettings = new Dictionary<string, object?>(settings);
-            if (!seedGiven)
-                keySettings.Remove("seed");
-            var none = new Dictionary<string, object?>();
-            return new Background("simulate", new object?[] { scene.Value, method, settings, references }, none, context,
-                BackgroundRuns.Key("simulate", new object?[] { scene.Value, method, keySettings, references }, none));
-        }
+        /// <summary>The worker's <c>simulate</c> of <paramref name="method"/>.</summary>
+        protected static Background Simulation(SceneGoo scene, string method, Dictionary<string, object?> settings, object? references, object? context) =>
+            new("simulate", new object?[] { scene.Value, method, settings, references }, new Dictionary<string, object?>(), context);
 
         /// <summary>The call itself; a component may check the worker first.</summary>
         protected virtual Task<object?> Call(Background request, string callId, CancellationToken cancel) =>

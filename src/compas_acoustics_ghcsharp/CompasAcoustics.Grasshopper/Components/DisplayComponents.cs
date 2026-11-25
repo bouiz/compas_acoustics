@@ -373,7 +373,15 @@ namespace CompasAcoustics.Grasshopper
             PreviewSwitch,
             new DropdownControl("frequency_bands", new[] { "", "0", "1", "2", "3", "4", "5", "6" }, "", new[] { "Full (A-weighted)" }.Concat(Bands).ToArray()),
             SceneIndices.SourceDropdown,
+            new ButtonControl("run", "Run"),
         };
+
+        /// <summary>
+        /// Why the map waits, while it does: it runs only on a press, since it takes seconds and shares the worker with the
+        /// components that run on every change of the scene. Changed inputs keep the last map drawn.
+        /// </summary>
+        public static (string text, bool changed)? Waiting(RunDecision decision) => decision.Kind != RunKind.Idle ? null
+            : decision.Result == null ? ("press Run", false) : ("inputs changed, press Run", true);
 
         protected override IGH_Param? CreateParam(PortSpec port, bool input) => (input, port.Name) switch
         {
@@ -422,7 +430,8 @@ namespace CompasAcoustics.Grasshopper
             var kwargs = new Dictionary<string, object?> { ["source_index"] = Value<int>(access, "source_idx") is int s ? (long)s : null };
             var points = centres.Select(c => (object?)MeshConversion.Xyz(c)).ToList();
             // the mesh travels with its result: while a changed mesh runs, the last map is drawn on the mesh it was made for
-            RunInBackground(access, new Background("energy_map", new object?[] { scene.Value, points }, kwargs, (mesh, corners, faceCorners)), (outcome, _) =>
+            var pressed = Value<bool>(access, "run") == true || Pressed("run");
+            var decision = RunInBackground(access, new Background("energy_map", new object?[] { scene.Value, points }, kwargs, (mesh, corners, faceCorners)), (outcome, _) =>
             {
                 var result = outcome.Result;
                 var (_, vertices, faces) = ((Mesh, Point3d[], int[][]))outcome.Context!;
@@ -441,7 +450,13 @@ namespace CompasAcoustics.Grasshopper
                 access.SetData("mesh", _drawn);
                 access.SetDataList("values", level);
                 access.SetDataList("colours", colours);
-            });
+            }, start: pressed);
+            if (Waiting(decision) is { } waiting)
+            {
+                Status(waiting.text);
+                if (waiting.changed)
+                    Warn("The inputs differ from the last map: press Run to update it.");
+            }
         }
 
         /// <summary>The analysis surface as a mesh: a mesh as it is, a surface or Brep meshed with faces no larger than <paramref name="spacing"/>.</summary>

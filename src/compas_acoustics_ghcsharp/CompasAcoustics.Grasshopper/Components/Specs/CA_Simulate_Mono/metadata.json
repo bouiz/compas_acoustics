@@ -2,7 +2,7 @@
     "name": "Simulate Mono",
     "nickname": "SimMono",
     "subcategory": "Simulation",
-    "description": "Simulate mono room impulse responses with pyroomacoustics: the image source method (ISM), plus ray tracing (RT) by default. The reference of Simulate Binaural and Simulate Ambisonics. Writes the responses to the impulse response graph under 'mono'.",
+    "description": "Simulate mono room impulse responses with pyroomacoustics: the image source method (ISM), plus ray tracing (RT) by default. Air absorption (ISO 9613-1) is always included, as in Simulate Binaural and Simulate Ambisonics. The reference of Simulate Binaural and Simulate Ambisonics. Writes the responses to the impulse response graph under 'mono'.",
     "exposure": 2,
     "ports": {
         "inputParameters": [
@@ -82,21 +82,6 @@
                 "typeHintID": "int"
             },
             {
-                "name": "absorb_air",
-                "description": "Whether to consider air absorption (default True).",
-                "optional": true,
-                "scriptParamAccess": 0,
-                "typeHintID": "bool"
-            },
-            {
-                "name": "energy_thres",
-                "description": "Energy at which a ray is stopped (pyroomacoustics' own default). Ray tracing only.",
-                "optional": true,
-                "scriptParamAccess": 0,
-                "typeHintID": "float",
-                "default": 1e-07
-            },
-            {
                 "name": "duration",
                 "description": "Length of the responses in seconds. Default: 1.5 times the longest Eyring reverberation time (0.5 to 12 s), traced again longer while the responses end before 2/3 of their T30, up to 12 s. A given duration is kept and warns when it cuts the decay. Ray tracing only.",
                 "optional": true,
@@ -105,10 +90,11 @@
             },
             {
                 "name": "seed",
-                "description": "Random seed of the ray tracing. Empty (default): a new random seed each run, shown in the component's message. A number: the same scene gives the same responses, another number another draw. Ray tracing only.",
+                "description": "Seed of the ray tracing, 42 as in the method: the same seed gives the same responses, another number another realisation of the rays. Ray tracing only.",
                 "optional": true,
                 "scriptParamAccess": 0,
-                "typeHintID": "int"
+                "typeHintID": "int",
+                "default": 42
             },
             {
                 "name": "normalize",

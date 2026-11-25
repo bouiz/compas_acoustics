@@ -19,11 +19,10 @@ namespace CompasAcoustics.Grasshopper.Tests
             new IrGraphGoo(new IrGraphGoo.Content("mono", new List<SourceGoo>(), new List<ReceiverGoo>(), responses));
 
         [Fact]
-        public void Settings_LeavesUnsetInputsOutAndDrawsASeed()
+        public void Settings_LeavesUnsetInputsOut_TheSeedIncluded()
         {
             var settings = HybridRun.Settings(null, null, null, null, null, null, null, 48000, out var references);
-            Assert.Equal(new[] { "seed" }, settings.Keys.ToArray());
-            Assert.IsType<long>(settings["seed"]);
+            Assert.Empty(settings);
             Assert.Null(references);
             settings = HybridRun.Settings("auto", null, "none", null, 3, null, null, 48000, out _);
             Assert.Equal(new Dictionary<string, object?> { ["seed"] = 3L }, settings);

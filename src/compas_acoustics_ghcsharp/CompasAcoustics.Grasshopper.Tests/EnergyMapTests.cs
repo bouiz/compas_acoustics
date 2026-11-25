@@ -103,11 +103,21 @@ namespace CompasAcoustics.Grasshopper.Tests
         {
             // the rays, the image source order and the seed are fixed: a map has no setting a user should tune but its grid
             var spec = ComponentSpec.Load("CA_Visualise_Energy_Map");
-            Assert.Equal(new[] { "scene", "mesh", "spacing", "source_idx", "frequency_bands", "range" }, spec.Inputs.Select(p => p.Name));
+            Assert.Equal(new[] { "scene", "mesh", "spacing", "source_idx", "frequency_bands", "range", "run" }, spec.Inputs.Select(p => p.Name));
             // a fine map: the rays keep their 1 m grid, the image sources and the interpolation take the points
             Assert.Equal(0.25, spec.Inputs.Single(p => p.Name == "spacing").Default);
             Assert.Equal(new[] { "mesh", "values", "colours" }, spec.Outputs.Select(p => p.Name));
             Assert.Equal("Display", spec.Subcategory);
+        }
+
+        [Fact]
+        public void TheMap_RunsOnlyOnAPress_AndSaysWhyItWaits()
+        {
+            // the map takes seconds and shares the worker with the components that run on every change of the scene
+            Assert.Equal(("press Run", false), VisualiseEnergyMapComponent.Waiting(new RunDecision(RunKind.Idle)));
+            Assert.Equal(("inputs changed, press Run", true), VisualiseEnergyMapComponent.Waiting(new RunDecision(RunKind.Idle, new object())));
+            Assert.Null(VisualiseEnergyMapComponent.Waiting(new RunDecision(RunKind.Deliver, new object())));
+            Assert.Null(VisualiseEnergyMapComponent.Waiting(new RunDecision(RunKind.Running)));
         }
     }
 }

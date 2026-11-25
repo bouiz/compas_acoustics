@@ -80,7 +80,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             var mono = new SimulateMonoComponent();
             Assert.Equal(new System.Guid("afb77a6d-dd01-5224-9ee0-70972dcbdbcf"), mono.ComponentGuid);
             Assert.Equal(("Simulate Mono", "SimMono"), (mono.Name, mono.NickName));
-            Assert.Equal(new[] { "scene", "ism_order", "ray_tracing", "n_rays", "absorb_air", "energy_thres", "duration", "seed", "normalize" },
+            Assert.Equal(new[] { "scene", "ism_order", "ray_tracing", "n_rays", "duration", "seed", "normalize" },
                 mono.Params.Input.Select(p => p.Name));
             Assert.Equal(new[] { "mono_ir_graph" }, mono.Params.Output.Select(p => p.Name));
             var (archive, read) = SaveThenRead(new SimulateMonoComponent(), new SimulateMonoComponent());
@@ -103,6 +103,97 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Empty(Errors(archive));
             var back = (Param_Integer)fresh.Params.Input.Single(p => p.Name == "n_rays");
             Assert.Equal(expected, back.PersistentData.AllData(true).OfType<GH_Integer>().Select(g => g.Value));
+        }
+
+        /// <summary>A Simulate Mono as saved before absorb_air and energy_thres were removed: both between n_rays and duration.</summary>
+        private static SimulateMonoComponent MonoWithAirAndEnergyInputs(bool air, double energy)
+        {
+            var old = new SimulateMonoComponent();
+            var port = new Param_Boolean { Name = "absorb_air", NickName = "absorb_air", Optional = true };
+            port.SetPersistentData(new GH_Boolean(air));
+            old.Params.RegisterInputParam(port, old.Params.Input.FindIndex(p => p.Name == "duration"));
+            var threshold = new Param_Number { Name = "energy_thres", NickName = "energy_thres", Optional = true };
+            threshold.SetPersistentData(new GH_Number(energy));
+            old.Params.RegisterInputParam(threshold, old.Params.Input.FindIndex(p => p.Name == "duration"));
+            ((Param_Number)old.Params.Input.Single(p => p.Name == "duration")).SetPersistentData(new GH_Number(2.5));
+            var seed = (Param_Integer)old.Params.Input.Single(p => p.Name == "seed");
+            seed.PersistentData.Clear();
+            seed.SetPersistentData(new GH_Integer(5));
+            return old;
+        }
+
+        private static object? First(GH_Component component, string name) => ControlState.Persistent(component.Params.Input.Single(p => p.Name == name));
+
+        [Theory]
+        [InlineData(false, 1e-7, true, null)]
+        [InlineData(true, 1e-7, false, null)]
+        [InlineData(true, 1e-6, false, 1e-6)]
+        public void ASimulateMonoSavedWithItsAirAndEnergyInputsShown_ReadsTheLaterInputsInPlace_AndSaysWhatTheyChanged(bool air, double energy,
+            bool withoutAir, double? threshold)
+        {
+            var fresh = new SimulateMonoComponent();
+            var (archive, read) = SaveThenRead(MonoWithAirAndEnergyInputs(air, energy), fresh);
+            Assert.True(read);
+            Assert.Empty(Errors(archive));
+            Assert.DoesNotContain("absorb_air", fresh.Params.Input.Select(p => p.Name));
+            Assert.DoesNotContain("energy_thres", fresh.Params.Input.Select(p => p.Name));
+            Assert.Equal(2.5, First(fresh, "duration"));
+            Assert.Equal(5, First(fresh, "seed"));
+            Assert.Equal(withoutAir, fresh.SavedWithoutAir);
+            Assert.Equal(threshold, fresh.SavedEnergyThreshold);
+        }
+
+        [Fact]
+        public void ASimulateMonoSavedWithItsTogglesHidden_ShowsRayTracingWithItsValue_AndSaysAirWasOff()
+        {
+            var saved = new SimulateMonoComponent();
+            saved.CreateAttributes();
+            foreach (var p in saved.Params)
+                if (p.Attributes == null)
+                    p.CreateAttributes();
+            saved.ShowControlPorts(false);
+            // as the former body saved it: ray_tracing and absorb_air hidden with the body's values, not saved as ports
+            saved.Params.UnregisterInputParameter(saved.Params.Input.Single(p => p.Name == "ray_tracing"), true);
+            var threshold = new Param_Number { Name = "energy_thres", NickName = "energy_thres", Optional = true };
+            threshold.SetPersistentData(new GH_Number(1e-7));
+            saved.Params.RegisterInputParam(threshold, saved.Params.Input.FindIndex(p => p.Name == "duration"));
+            var archive = new GH_Archive();
+            var node = archive.CreateTopLevelNode("component");
+            Assert.True(saved.Write(node));
+            node.RemoveItem("control_inputs_hidden");
+            node.SetString("control_inputs_hidden", "ism_order\nray_tracing\nabsorb_air\nnormalize");
+            node.SetString("control_value_ray_tracing", "False");
+            node.SetString("control_value_absorb_air", "False");
+            var back = new GH_Archive();
+            back.Deserialize_Binary(archive.Serialize_Binary());
+            var fresh = new SimulateMonoComponent();
+            fresh.CreateAttributes();
+            Assert.True(fresh.Read(back.GetRootNode.FindChunk("component")));
+            Assert.Empty(Errors(back));
+            Assert.Equal(new[] { "scene", "ray_tracing", "n_rays", "duration", "seed" }, fresh.Params.Input.Select(p => p.Name));
+            Assert.Equal(false, ControlState.Persistent(fresh.Params.Input.Single(p => p.Name == "ray_tracing")));
+            Assert.Equal(new[] { "ism_order", "normalize" }, fresh.ControlPorts.Where(n => fresh.Params.Input.All(p => p.Name != n)));
+            Assert.True(fresh.SavedWithoutAir);
+        }
+
+        [Fact]
+        public void AComponentSavedByAnEarlierRelease_TakesTheCurrentDescriptions()
+        {
+            var old = new SimulateMonoComponent();
+            old.ShowControlPorts(false);
+            old.Description = "old component text";
+            foreach (var p in old.Params.Input.Concat(old.Params.Output))
+                p.Description = "old port text";
+            var fresh = new SimulateMonoComponent();
+            var (archive, read) = SaveThenRead(old, fresh);
+            Assert.True(read);
+            Assert.Empty(Errors(archive));
+            var spec = ComponentSpec.Load("CA_Simulate_Mono");
+            Assert.Equal(spec.Description, fresh.Description);
+            foreach (var p in fresh.Params.Input.Concat(fresh.Params.Output))
+                Assert.Equal(spec.Inputs.Concat(spec.Outputs).Single(s => s.Name == p.Name).Description, p.Description);
+            fresh.ShowControlPorts(true);
+            Assert.Equal(spec.Inputs.Single(s => s.Name == "ism_order").Description, fresh.Params.Input.Single(p => p.Name == "ism_order").Description);
         }
 
         [Fact]

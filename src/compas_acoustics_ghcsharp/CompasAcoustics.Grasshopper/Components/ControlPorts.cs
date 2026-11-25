@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using GH_IO.Serialization;
+using GH_IO.Types;
 using Grasshopper.Kernel;
 
 namespace CompasAcoustics.Grasshopper
@@ -69,7 +70,8 @@ namespace CompasAcoustics.Grasshopper
         {
             foreach (var (name, port) in _hidden.OrderBy(h => SpecIndex(h.Key)).ToList())
             {
-                var index = Params.Input.Count(p => SpecIndex(p.Name) < SpecIndex(name));
+                // ports outside the spec (a removed input read from an old file) take no place in the count
+                var index = Params.Input.Count(p => SpecIndex(p.Name) >= 0 && SpecIndex(p.Name) < SpecIndex(name));
                 Params.RegisterInputParam(port, index);
                 _hidden.Remove(name);
             }
@@ -116,6 +118,13 @@ namespace CompasAcoustics.Grasshopper
         {
             _layoutRead = true;
             ReadChoices(reader);
+            var read = ReadPorts(reader);
+            TakeTheSpecsDescriptions();
+            return read;
+        }
+
+        private bool ReadPorts(GH_IReader reader)
+        {
             if (ControlPorts.Count == 0 || !reader.ItemExists(ShownKey))
                 return base.Read(reader);
             var hidden = reader.GetString(HiddenKey).Split('\n', StringSplitOptions.RemoveEmptyEntries);
@@ -125,7 +134,60 @@ namespace CompasAcoustics.Grasshopper
             foreach (var name in hidden)
                 if (reader.ItemExists(ValueKey + name) && _hidden.TryGetValue(name, out var port))
                     ControlState.Assign(port, reader.GetString(ValueKey + name).Split('\n'));
+            // an input saved hidden behind a control the body no longer has shows again, with its value
+            if (_hidden.Keys.Any(n => !ControlPorts.Contains(n)))
+                SetControlPorts(ControlPortsShown, _hidden.Keys.Where(ControlPorts.Contains).ToList());
             return read;
+        }
+
+        /// <summary>
+        /// The descriptions of the installed plugin, not those a file saved with an earlier release: Grasshopper restores a
+        /// component's and its ports' descriptions from the file.
+        /// </summary>
+        private void TakeTheSpecsDescriptions()
+        {
+            Description = Spec.Description;
+            foreach (var port in Params.Input.Concat(_hidden.Values))
+                if (Spec.Inputs.FirstOrDefault(p => p.Name == port.Name) is { } spec)
+                    port.Description = spec.Description;
+            foreach (var port in Params.Output)
+                if (Spec.Outputs.FirstOrDefault(p => p.Name == port.Name) is { } spec)
+                    port.Description = spec.Description;
+        }
+
+        /// <summary>The boolean in the saved persistent data of the input <paramref name="name"/>, if it held one.</summary>
+        protected static bool? SavedBoolean(GH_IReader reader, string name)
+        {
+            for (var i = 0; reader.ChunkExists("param_input", i); i++)
+            {
+                var chunk = reader.FindChunk("param_input", i);
+                if (chunk.ItemExists("Name") && chunk.GetString("Name") == name)
+                    return chunk.FindChunk("PersistentData") is { } data ? FirstBoolean(data) : null;
+            }
+            return null;
+        }
+
+        private static bool? FirstBoolean(GH_IReader chunk)
+        {
+            foreach (var item in chunk.Items)
+                if (item.Type == GH_Types.gh_bool)
+                    return item._bool;
+            foreach (var child in chunk.Chunks)
+                if (child is GH_IReader inner && FirstBoolean(inner) is bool value)
+                    return value;
+            return null;
+        }
+
+        /// <summary>Whether the definition saved the input <paramref name="name"/> as a port.</summary>
+        protected static bool SavedInput(GH_IReader reader, string name)
+        {
+            for (var i = 0; reader.ChunkExists("param_input", i); i++)
+            {
+                var chunk = reader.FindChunk("param_input", i);
+                if (chunk.ItemExists("Name") && chunk.GetString("Name") == name)
+                    return true;
+            }
+            return false;
         }
     }
 }

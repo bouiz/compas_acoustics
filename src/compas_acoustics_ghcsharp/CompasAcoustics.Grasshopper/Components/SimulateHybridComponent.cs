@@ -6,7 +6,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using CompasAcoustics.Pb;
 using GH_IO.Serialization;
-using GH_IO.Types;
 using Grasshopper.Kernel;
 using Grasshopper.Kernel.Parameters;
 using Grasshopper.Kernel.Types;
@@ -27,7 +26,7 @@ namespace CompasAcoustics.Grasshopper
         public override bool Read(GH_IReader reader)
         {
             // before base.Read: a boolean does not survive Grasshopper's read into a text input
-            var toggle = SavedToggle(reader, "late_envelope");
+            var toggle = SavedBoolean(reader, "late_envelope");
             var read = base.Read(reader);
             if (ControlPort("late_envelope") is Param_String port)
             {
@@ -43,29 +42,6 @@ namespace CompasAcoustics.Grasshopper
                 }
             }
             return read;
-        }
-
-        /// <summary>The boolean in the saved persistent data of the input <paramref name="name"/>, if it held one.</summary>
-        private static bool? SavedToggle(GH_IReader reader, string name)
-        {
-            for (var i = 0; reader.ChunkExists("param_input", i); i++)
-            {
-                var chunk = reader.FindChunk("param_input", i);
-                if (chunk.ItemExists("Name") && chunk.GetString("Name") == name)
-                    return chunk.FindChunk("PersistentData") is { } data ? FirstBoolean(data) : null;
-            }
-            return null;
-        }
-
-        private static bool? FirstBoolean(GH_IReader chunk)
-        {
-            foreach (var item in chunk.Items)
-                if (item.Type == GH_Types.gh_bool)
-                    return item._bool;
-            foreach (var child in chunk.Chunks)
-                if (child is GH_IReader inner && FirstBoolean(inner) is bool value)
-                    return value;
-            return null;
         }
 
         /// <summary>The worker's method name, which is also the graph attribute of its responses.</summary>
@@ -159,7 +135,7 @@ namespace CompasAcoustics.Grasshopper
                     Remark("n_rays is not used: the method traces no rays itself (an Eyring or Sabine tail, or a given reference without a directional late envelope). Set the reference's rays on Simulate Mono.");
             }
             var refs =references?.ToDictionary(kv => kv.Key, kv => (object?)kv.Value);
-            var request = Simulation(scene, Method, settings, refs, seed != null, new Context(scene, settings["seed"], hrtf));
+            var request = Simulation(scene, Method, settings, refs, new Context(scene, hrtf));
             var shown = false;
             void Deliver(Outcome outcome, bool fresh)
             {
@@ -195,7 +171,7 @@ namespace CompasAcoustics.Grasshopper
                 Warn("The settings differ from the last run: press Run to update the responses.");
         }
 
-        private sealed record Context(SceneGoo Scene, object? Seed, string? Hrtf);
+        private sealed record Context(SceneGoo Scene, string? Hrtf);
 
         protected override bool RunsInBackground => true;
 
@@ -219,9 +195,11 @@ namespace CompasAcoustics.Grasshopper
         {
             var generation = _last?.Generation ?? new Dictionary<string, object?>();
             generation.TryGetValue("tail", out var tail);
+            // the seed the run used, the method's own when none was given
+            generation.TryGetValue("seed", out var seed);
             var order = generation.TryGetValue("sh_order", out var sh) ? $", SH order {MessageText.Show(sh)}" : "";
             var set = TakesHrtf ? $", hrtf {HrtfLabel(context.Hrtf)}" : "";
-            return $"{MessageText.Rate(context.Scene.SamplingRate)}, {Method}, tail {tail ?? "auto"}{order}, seed {MessageText.Show(context.Seed)}{set}";
+            return $"{MessageText.Rate(context.Scene.SamplingRate)}, {Method}, tail {tail ?? "auto"}{order}, seed {MessageText.Show(seed)}{set}";
         }
     }
 
