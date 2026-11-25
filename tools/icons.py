@@ -142,14 +142,6 @@ def ambisonics(image, d, accent):
                 image.putpixel((x, y), fill)
 
 
-def graph(image, d, accent):
-    for y in (24, 72):
-        _line(d, [(22, y), (74, 48)], accent)
-    _dot(d, 22, 24, 11, DARK)
-    _dot(d, 22, 72, 11, DARK)
-    _dot(d, 74, 48, 13, accent)
-
-
 def decay(image, d, accent):
     _line(d, [(14, 10), (14, 84), (88, 84)], DARK)
     points = [(16 + 70 * t, 16 + 64 * (1 - math.exp(-4 * t))) for t in [i / 40 for i in range(41)]]
@@ -270,7 +262,6 @@ GLYPHS = {
     "CA_Channel": channel,
     "CA_Construct_Material": material,
     "CA_Deconstruct_IR": bars,
-    "CA_Deconstruct_IR_Graph": graph,
     "CA_Deconstruct_Material": deconstruct_material,
     "CA_Install_Worker": install,
     "CA_Material_Library": library,
