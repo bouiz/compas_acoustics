@@ -92,32 +92,39 @@ namespace CompasAcoustics.Grasshopper
         public override IReadOnlyList<Control> Controls { get; } = new Control[]
         {
             new SwitchControl("level", Levels, Default: "relative"), new ToggleControl("mix_sources", "Mix sources", Default: false),
-            new ButtonControl("save", "Save"),
+            new ButtonControl("save_rir", "Save RIR"), new ButtonControl("save_auralisation", "Save auralisation"),
         };
 
-        // the last solution's request, which Save renders again into the chosen files
+        // the last solution's request, which the Save buttons write into the chosen files
         private List<object?>? _groups;
         private Dictionary<string, object?>? _settings;
         private string? _saved;
 
-        public override bool HandlesButton(string port) => port == "save";
+        public override bool HandlesButton(string port) => port is "save_rir" or "save_auralisation";
 
         public override void OnButton(string port)
         {
-            if (port != "save")
+            if (!HandlesButton(port))
                 return;
             if (_groups == null || _settings == null)
             {
                 Rhino.UI.Dialogs.ShowMessage("Connect impulse responses to Auralise first.", CategoryName);
                 return;
             }
-            var dialog = new Eto.Forms.SaveFileDialog { Title = "Save signals", FileName = "convolved_sound.wav" };
+            var rir = port == "save_rir";
+            var dialog = new Eto.Forms.SaveFileDialog
+            {
+                Title = rir ? "Save impulse responses" : "Save signals",
+                FileName = rir ? "impulse_response.wav" : "convolved_sound.wav",
+            };
             dialog.Filters.Add(new Eto.Forms.FileFilter("WAV audio", ".wav"));
             if (dialog.ShowDialog(Rhino.UI.RhinoEtoApp.MainWindow) != Eto.Forms.DialogResult.Ok || string.IsNullOrEmpty(dialog.FileName))
                 return;
             var (folder, name) = AuraliseGroups.SaveTarget(dialog.FileName);
-            var kwargs = new Dictionary<string, object?>(_settings) { ["save_folder"] = folder, ["save_name"] = name };
             var groups = _groups;
+            var (function, args, kwargs) = rir
+                ? ("save_impulse_responses", new object?[] { groups, folder }, new Dictionary<string, object?> { ["level"] = _settings["level"], ["save_name"] = name })
+                : ("auralise", new object?[] { groups }, new Dictionary<string, object?>(_settings) { ["save_folder"] = folder, ["save_name"] = name });
             Status("saving...");
             global::Grasshopper.Instances.RedrawCanvas();
             System.Threading.Tasks.Task.Run(() =>
@@ -125,9 +132,11 @@ namespace CompasAcoustics.Grasshopper
                 string note;
                 try
                 {
-                    var result = (IDictionary<string, object?>)Worker.Call("auralise", new object?[] { groups }, kwargs)!;
-                    var count = ((IEnumerable<object?>)result["signals"]!).Count();
-                    note = $"Saved {count} signal(s) to {folder} as {name}_mic_*.wav.";
+                    var result = (IDictionary<string, object?>)Worker.Call(function, args, kwargs)!;
+                    var count = ((IEnumerable<object?>)result[rir ? "files" : "signals"]!).Count();
+                    note = rir
+                        ? $"Saved {count} impulse response(s) to {folder} as {name}_mic_*.wav, each with its JSON metadata."
+                        : $"Saved {count} signal(s) to {folder} as {name}_mic_*.wav.";
                 }
                 catch (Exception e) when (e is WorkerException or System.Net.Http.HttpRequestException)
                 {

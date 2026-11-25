@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+* Added the Save RIR button to Auralise and the worker function `save_impulse_responses`: the impulse responses at its inputs as WAV files, named and numbered as Save auralisation names its signals (`<name>_mic_<r>_<j>.wav`), at the level the body chooses, each with its JSON metadata. `ImpulseResponse.to_wav` takes a `gain` on the raw response and records its inverse as the factor `from_wav` reads back. Auralise's Save button is now Save auralisation.
 * Added the worker function `room_measures(scene)`: the volume of a closed room (else None) and the area exposed to the air, as the simulation methods take them, for the Acoustic Scene message.
 
 ### Changed
@@ -35,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+* Fixed Rhino closing on macOS when the worker reset a progress request of a running simulation: .NET there throws the connection's `SocketException` unwrapped, which the plugin's once-a-second progress timer did not catch.
 * Fixed `Binaural` and `Ambisonics` to render a path a source radiates into the negative lobe of its pattern (behind a `'supercardioid'`, `'hypercardioid'` or `'bidirectional'` source) in antiphase, as `Mono` does; such paths were silent, in the direct sound, the reflections and the late field's drive, which left the late level of a `'bidirectional'` source about 3 dB low. Responses of `'omnidirectional'` and `'cardioid'` sources are bit-identical.
 * Fixed `ImpulseResponse.from_wav` to read the source's direction from the JSON metadata; the source faced `+x` whatever was written.
 * Fixed `RayField.from_scene` to raise for a source whose directivity is not one of the five patterns, as a simulation does; it traced the source as omnidirectional.

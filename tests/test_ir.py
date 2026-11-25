@@ -88,6 +88,19 @@ def test_wav_and_json_round_trip(tmp_path):
     assert loaded.generation == ir.generation
 
 
+def test_to_wav_with_a_gain_writes_the_scaled_raw_response_and_reads_back_raw(tmp_path):
+    import soundfile as sf
+
+    raw = np.array([0.0, 0.4, -0.2])
+    ir = make_ir(raw)
+    wav_path, json_path = ir.to_wav(tmp_path / "a.wav", gain=2.0)
+
+    written, _ = sf.read(wav_path)
+    np.testing.assert_allclose(written, 2.0 * raw, atol=1e-7)
+    assert json.loads(json_path.read_text())["normalization"]["factor"] == pytest.approx(0.5)
+    np.testing.assert_allclose(ImpulseResponse.from_wav(wav_path).denormalized(), raw, atol=1e-7)
+
+
 def test_from_wav_keeps_the_source_directivity_and_direction(tmp_path):
     source = Source("s", 1, 2, 3, directivity="cardioid", direction=[0, 1, 0])
     ir = ImpulseResponse("a", source, Receiver("r", 4, 5, 6), np.array([0.0, 0.5]), sampling_rate_default)

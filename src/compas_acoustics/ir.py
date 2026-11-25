@@ -204,9 +204,16 @@ class ImpulseResponse(_PackageDtype, Data):
             },
         }
 
-    def to_wav(self, filepath):
-        """Write the peak-normalized response as a 32-bit float WAV, and :attr:`metadata` with the normalization factor
-        as JSON beside it.
+    def to_wav(self, filepath, gain=None):
+        """Write the response as a 32-bit float WAV, and :attr:`metadata` with the factor back to the raw level as JSON
+        beside it.
+
+        Parameters
+        ----------
+        filepath : str
+        gain : float, optional
+            Applied to the raw response, e.g. from :meth:`Auraliser.render_gains` for a group of responses. Default:
+            peak-normalized.
 
         Returns
         -------
@@ -217,8 +224,11 @@ class ImpulseResponse(_PackageDtype, Data):
 
         wav_path = Path(filepath)
         json_path = wav_path.with_suffix(".json")
-        sf.write(str(wav_path), self._raw_ir / self.normalization_factor, int(self.sampling_rate), subtype="FLOAT")
-        json_path.write_text(json.dumps(self.metadata, indent=4))
+        metadata = self.metadata
+        if gain is not None:
+            metadata["normalization"].update(method="gain", factor=1.0 / gain)
+        sf.write(str(wav_path), self._raw_ir / metadata["normalization"]["factor"], int(self.sampling_rate), subtype="FLOAT")
+        json_path.write_text(json.dumps(metadata, indent=4))
         return wav_path, json_path
 
     @classmethod
