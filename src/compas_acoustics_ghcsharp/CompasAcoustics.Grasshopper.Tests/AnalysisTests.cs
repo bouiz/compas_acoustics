@@ -150,8 +150,21 @@ namespace CompasAcoustics.Grasshopper.Tests
         {
             var analyse = new AnalyseIrComponent();
             Assert.Null(analyse.Numbered(new[] { Ir("rec", "a"), Ir("rec", "a") }));
-            Assert.Single(analyse.RuntimeMessages(GH_RuntimeMessageLevel.Error));
+            Assert.Equal(new[] { "Two responses for source 'a' and receiver 'rec': connect the irs of one Simulate component." },
+                analyse.RuntimeMessages(GH_RuntimeMessageLevel.Error).ToArray());
             Assert.Empty(analyse.RuntimeMessages(GH_RuntimeMessageLevel.Warning));
+        }
+
+        [Fact]
+        public void TheCallKey_ChangesWithTheBranchesTheResultsGoTo()
+        {
+            var a = Ir("rec", "a");
+            var b = Ir("rec", "b");
+            var args = new object?[] { new List<object?> { b.Value }, "db" };
+            var viaB = AnalyseIrComponent.Branches(new[] { PairChoice.Number(new[] { a, b })[1] });
+            var alone = AnalyseIrComponent.Branches(PairChoice.Number(new[] { b }));
+            Assert.NotEqual(AnalyseIrComponent.CallKey(args, viaB), AnalyseIrComponent.CallKey(args, alone));
+            Assert.Equal(AnalyseIrComponent.CallKey(args, alone), AnalyseIrComponent.CallKey(args, alone));
         }
 
         [Fact]

@@ -307,6 +307,40 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
+        public void AnAnalyseSavedWithItsControlPortsHidden_KeepsTheChosenIndicesAndTheLayout()
+        {
+            var saved = new AnalyseIrComponent();
+            saved.ShowControlPorts(false);
+            ControlState.Choose(saved, saved.ControlPort("source_idx")!, "1");
+            ControlState.Choose(saved, saved.ControlPort("receiver_idx")!, "2");
+            var fresh = new AnalyseIrComponent();
+            var (archive, read) = SaveThenRead(saved, fresh);
+            Assert.True(read);
+            Assert.Empty(Errors(archive));
+            Assert.False(fresh.ControlPortsShown);
+            Assert.Equal(new[] { "irs" }, fresh.Params.Input.Select(p => p.Name).ToArray());
+            Assert.Equal("1", fresh.HiddenValue("source_idx"));
+            Assert.Equal("2", fresh.HiddenValue("receiver_idx"));
+        }
+
+        [Fact]
+        public void AnAnalyseSavedWithOneControlPortWired_KeepsTheHiddenOnesValueAndTheWiredPort()
+        {
+            var saved = new AnalyseIrComponent();
+            saved.Params.Input.Single(p => p.Name == "receiver_idx").AddSource(new Param_Integer());
+            saved.ShowControlPorts(false);
+            ControlState.Choose(saved, saved.ControlPort("source_idx")!, "1");
+            Assert.Equal(new[] { "irs", "receiver_idx" }, saved.Params.Input.Select(p => p.Name).ToArray());
+            var fresh = new AnalyseIrComponent();
+            var (archive, read) = SaveThenRead(saved, fresh);
+            Assert.True(read);
+            Assert.Empty(Errors(archive));
+            Assert.Equal(new[] { "irs", "receiver_idx" }, fresh.Params.Input.Select(p => p.Name).ToArray());
+            Assert.Equal("1", fresh.HiddenValue("source_idx"));
+            Assert.Null(fresh.HiddenValue("receiver_idx"));
+        }
+
+        [Fact]
         public void AComponentSavedNow_ReadsWithoutErrors()
         {
             var (archive, read) = SaveThenRead(new SimulateBinauralComponent(), new SimulateBinauralComponent());

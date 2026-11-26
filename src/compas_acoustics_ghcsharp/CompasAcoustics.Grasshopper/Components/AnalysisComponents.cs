@@ -67,17 +67,17 @@ namespace CompasAcoustics.Grasshopper
         public override IReadOnlyList<Control> Controls { get; } = new Control[] { SceneIndices.SourceDropdown, SceneIndices.ReceiverDropdown };
 
         /// <summary>
-        /// A definition saved with the single ir input, now irs: it keeps its place and takes the name and tree access of irs,
-        /// and the inputs it did not save are set aside while Grasshopper reads the saved ones by position, so that none is
-        /// reported missing, and come back after it, empty.
+        /// A definition saved with the single ir input, now irs (it had no controls): it keeps its place and takes the name and
+        /// tree access of irs, and the inputs it did not save are set aside while Grasshopper reads the saved ones by
+        /// position, so that none is reported missing, and come back after it, empty.
         /// </summary>
         public override bool Read(GH_IReader reader)
         {
+            if (!SavedInput(reader, "ir"))
+                return base.Read(reader);
             var saved = 0;
             while (reader.ChunkExists("param_input", saved))
                 saved++;
-            if (saved == 0)
-                return base.Read(reader);
             var absent = Params.Input.Skip(saved).ToList();
             var positions = absent.Select(p => Params.Input.IndexOf(p)).ToList();
             foreach (var port in absent)
@@ -102,6 +102,10 @@ namespace CompasAcoustics.Grasshopper
 
         /// <summary>The parameter with <paramref name="suffix"/> after its title; its name stays what Plot 2D and Deconstruct Parameter select by.</summary>
         public static ParameterGoo Titled(ParameterGoo parameter, string suffix) => new(parameter.Value with { Title = parameter.Value.Title + suffix });
+
+        /// <summary>The key of a call: the worker's arguments and the branches the results go to, which a kept result must not take from an earlier call.</summary>
+        public static string CallKey(object?[] args, IReadOnlyList<(GH_Path Path, string TitleSuffix)> branches) =>
+            BackgroundRuns.Key("analysis", args, new Dictionary<string, object?>()) + string.Concat(branches.Select(b => $"|{b.Path}{b.TitleSuffix}"));
 
         /// <summary>The responses numbered as pairs; null after a warning when there are none, or an error when two are of one pair.</summary>
         public List<Pair>? Numbered(IEnumerable<ImpulseResponseGoo?> irs)
@@ -137,10 +141,11 @@ namespace CompasAcoustics.Grasshopper
                 return;
             var timeScale = Choice(Param_TimeParameter.Choice);
             var branches = Branches(chosen);
-            RunInBackground(access, new Background("analysis", new object?[] { chosen.Select(p => (object?)p.Response.Value).ToList(), timeScale }, new Dictionary<string, object?>(), branches), (outcome, _) =>
+            var args = new object?[] { chosen.Select(p => (object?)p.Response.Value).ToList(), timeScale };
+            RunInBackground(access, new Background("analysis", args, new Dictionary<string, object?>(), branches, CallKey(args, branches)), (outcome, _) =>
             {
                 var result = outcome.Result;
-                var paths = ((List<(GH_Path Path, string TitleSuffix)>)outcome.Context!);
+                var paths = (List<(GH_Path Path, string TitleSuffix)>)outcome.Context!;
                 Status(timeScale == "db" ? "time in dB" : "time linear");
                 var parameters = new DataTree<ParameterGoo>();
                 var time = new DataTree<ParameterGoo>();
