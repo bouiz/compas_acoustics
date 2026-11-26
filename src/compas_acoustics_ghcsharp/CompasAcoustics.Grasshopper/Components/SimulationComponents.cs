@@ -25,6 +25,11 @@ namespace CompasAcoustics.Grasshopper
             IsmOrder,
         };
 
+        /// <summary>The body width of the three Simulate components, so they line up on the canvas.</summary>
+        public const float BodyWidth = 170;
+
+        public override float MinBodyWidth => BodyWidth;
+
         /// <summary>Whether the definition was saved with the former Air toggle off; air absorption is now always on. Cleared on save.</summary>
         internal bool SavedWithoutAir { get; private set; }
 

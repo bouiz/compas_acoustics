@@ -48,6 +48,18 @@ namespace CompasAcoustics.Grasshopper.Tests
 
         [Theory]
         [MemberData(nameof(Components))]
+        public void TheSimulateComponents_AreDrawnOneWidth_TheOthersAtTheirOwn(string typeName)
+        {
+            var component = Make(typeName);
+            var simulate = typeName is nameof(SimulateMonoComponent) or nameof(SimulateBinauralComponent) or nameof(SimulateAmbisonicsComponent);
+            Assert.Equal(simulate ? SimulateMonoComponent.BodyWidth : 0, component.MinBodyWidth);
+            Assert.Equal(Math.Max(component.MinBodyWidth, ControlLayout.MinWidth(component.BodyControls)), ComponentUi.MinBodyWidthOf(component));
+            if (simulate)
+                Assert.Equal(170f, ComponentUi.MinBodyWidthOf(component));
+        }
+
+        [Theory]
+        [MemberData(nameof(Components))]
         public void AComponent_HasTypedOutputs_SoNothingDrawsThroughAGenericOne(string typeName)
         {
             // a generic output draws whatever previewable data passes through it

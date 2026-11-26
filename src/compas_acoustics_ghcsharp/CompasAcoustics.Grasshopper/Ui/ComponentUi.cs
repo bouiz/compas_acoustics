@@ -40,12 +40,12 @@ namespace CompasAcoustics.Grasshopper
             base.Layout();
             var controls = Component.BodyControls;
             var height = ControlLayout.Height(controls);
-            var wider = Math.Max(ControlLayout.MinWidth(controls) - Bounds.Width, 0);
+            var wider = Math.Max(MinBodyWidthOf(Component) - Bounds.Width, 0);
             var column = ControlColumn(new RectangleF(Bounds.X, Bounds.Y, Bounds.Width + wider, Bounds.Height));
             var taller = column > 0 ? Math.Max(height - Bounds.Height, 0) : 0;
             if (wider > 0 || taller > 0)
             {
-                // controls that need room (the incidence dials, a column taller than the ports): the component's box grown by the difference, its ports on its edges
+                // a minimum width, or controls that need room (the incidence dials, a column taller than the ports): the component's box grown by the difference, its ports on its edges
                 var inner = LayoutComponentBox(Owner);
                 inner.Inflate(wider / 2, taller / 2);
                 LayoutInputParams(Owner, inner);
@@ -59,6 +59,9 @@ namespace CompasAcoustics.Grasshopper
             _boxes = ControlLayout.Arrange(controls, ControlArea);
             Bounds = new RectangleF(box.X, box.Y, box.Width, box.Height + ExtraHeight);
         }
+
+        /// <summary>The narrowest the component's box is drawn: its own minimum, or the width its controls need (the incidence dials).</summary>
+        internal static float MinBodyWidthOf(ComponentBase component) => Math.Max(component.MinBodyWidth, ControlLayout.MinWidth(component.BodyControls));
 
         /// <summary>Whether a press on <paramref name="control"/> acts: not when a wire sets its input (buttons aside), nor while the component rests it.</summary>
         internal static bool Pressable(ComponentBase component, Control control, IGH_Param? port) =>

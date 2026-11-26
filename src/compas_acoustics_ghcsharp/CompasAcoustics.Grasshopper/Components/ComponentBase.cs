@@ -72,6 +72,9 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>The controls drawn on the body, below the ports; each sets its input unless a wire does.</summary>
         public virtual IReadOnlyList<Control> Controls => Array.Empty<Control>();
 
+        /// <summary>The narrowest the component is drawn, in canvas units; 0 for Grasshopper's own width.</summary>
+        public virtual float MinBodyWidth => 0;
+
         /// <summary>Whether the control of <paramref name="port"/> can be used now; one at rest is drawn dimmed and keeps its value.</summary>
         public virtual bool ControlEnabled(string port) => true;
 

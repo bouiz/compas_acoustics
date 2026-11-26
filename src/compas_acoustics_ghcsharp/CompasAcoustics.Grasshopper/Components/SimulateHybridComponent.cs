@@ -75,6 +75,8 @@ namespace CompasAcoustics.Grasshopper
 
         private IReadOnlyList<Control>? _controls;
 
+        public override float MinBodyWidth => SimulateMonoComponent.BodyWidth;
+
         /// <summary>ISM order, the method's own controls, Tail, Diffraction, Late envelope, the method's own buttons, Run.</summary>
         public override IReadOnlyList<Control> Controls => _controls ??= new Control[] { SimulateMonoComponent.IsmOrder }
             .Concat(MethodControls)
