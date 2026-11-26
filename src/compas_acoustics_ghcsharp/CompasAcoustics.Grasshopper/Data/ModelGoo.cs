@@ -69,7 +69,6 @@ namespace CompasAcoustics.Grasshopper
         public override string Name => Value?.Name ?? "";
         public string Guid => Value?.Guid ?? "";
         public Point3d Position => Points.Of(Value?.Point);
-        public string? SoundFile => Value != null && Value.HasSoundFile ? Value.SoundFile : null;
         protected override MessageGoo<SourceData> Create(SourceData? value) => value == null ? new SourceGoo() : new SourceGoo(value);
     }
 

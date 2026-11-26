@@ -17,12 +17,11 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void SourceGoo_ReadsNamePositionAndSoundFile()
+        public void SourceGoo_ReadsNameAndPosition()
         {
             var source = new SourceGoo(Fixture<SourceData>("source"));
             Assert.True(source.IsValid);
             Assert.Equal(new Point3d(1, 2, 3), source.Position);
-            Assert.Null(source.SoundFile);
             Assert.Equal("Source 'src'", source.ToString());
             Assert.Equal(InteropTests.Guid(1), source.Guid);
         }
