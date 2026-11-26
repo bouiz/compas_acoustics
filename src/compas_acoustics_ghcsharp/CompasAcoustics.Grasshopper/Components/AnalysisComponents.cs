@@ -30,7 +30,7 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>
         /// A definition saved with the single ir input, now irs (it had no controls): it keeps its place and takes the name and
         /// tree access of irs, and the inputs it did not save are set aside while Grasshopper reads the saved ones by
-        /// position, so that none is reported missing, and come back after it, empty.
+        /// position, so that none is reported missing, and come back after it, empty and hidden, as on a new Analyse.
         /// </summary>
         public override bool Read(GH_IReader reader)
         {
@@ -54,6 +54,7 @@ namespace CompasAcoustics.Grasshopper
             }
             for (var i = 0; i < absent.Count; i++)
                 Params.RegisterInputParam(absent[i], positions[i]);
+            HideControlPortsAsNew();
             return read;
         }
 

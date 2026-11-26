@@ -93,8 +93,12 @@ namespace CompasAcoustics.Grasshopper
         protected void HideControlPortsAsRead()
         {
             if (!ControlPortsShown)
-                SetControlPorts(false, ControlPorts.Where(n => Params.Input.Find(p => p.Name == n)?.SourceCount == 0).ToList());
+                HideControlPortsAsNew();
         }
+
+        /// <summary>After a read of a layout saved before the component had controls: hide those the body sets, unwired, as on a new component.</summary>
+        protected void HideControlPortsAsNew() =>
+            SetControlPorts(false, ControlPorts.Where(n => Params.Input.Find(p => p.Name == n)?.SourceCount == 0).ToList());
 
         public override void AddedToDocument(GH_Document document)
         {

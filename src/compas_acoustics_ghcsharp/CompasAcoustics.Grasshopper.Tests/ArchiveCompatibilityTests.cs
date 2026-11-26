@@ -338,7 +338,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void AnAnalyseSavedWithTheSingleIrInput_ReadsItAsIrs_AndTheNewInputsFollow()
+        public void AnAnalyseSavedWithTheSingleIrInput_ReadsItAsIrs_AndTheNewInputsFollowHidden()
         {
             var old = new AnalyseIrComponent();
             foreach (var p in old.Params.Input.Skip(1).ToList())
@@ -346,11 +346,30 @@ namespace CompasAcoustics.Grasshopper.Tests
             old.Params.Input[0].Name = "ir";
             old.Params.Input[0].NickName = "ir";
             old.Params.Input[0].Access = GH_ParamAccess.item;
+            old.CreateAttributes();
+            foreach (var p in old.Params)
+                if (p.Attributes == null)
+                    p.CreateAttributes();
+            var archive = new GH_Archive();
+            var node = archive.CreateTopLevelNode("component");
+            Assert.True(old.Write(node));
+            // the former Analyse had no controls: it saved no control inputs
+            node.RemoveItem("control_inputs_shown");
+            node.RemoveItem("control_inputs_hidden");
+            var back = new GH_Archive();
+            back.Deserialize_Binary(archive.Serialize_Binary());
             var fresh = new AnalyseIrComponent();
-            var (archive, read) = SaveThenRead(old, fresh);
-            Assert.True(read);
-            Assert.Empty(Errors(archive));
-            Assert.Equal(new[] { "irs", "source_idx", "receiver_idx" }, fresh.Params.Input.Select(p => p.Name).ToArray());
+            fresh.CreateAttributes();
+            Assert.True(fresh.Read(back.GetRootNode.FindChunk("component")));
+            Assert.Empty(Errors(back));
+            Assert.Equal(new[] { "irs" }, fresh.Params.Input.Select(p => p.Name).ToArray());
+            Assert.False(fresh.ControlPortsShown);
+            foreach (var name in new[] { "source_idx", "receiver_idx" })
+            {
+                var port = fresh.ControlPort(name)!;
+                Assert.True(fresh.IsHidden(port));
+                Assert.Empty(ControlState.PersistentAll(port));
+            }
             Assert.Equal(GH_ParamAccess.tree, fresh.Params.Input[0].Access);
             Assert.Empty(fresh.RuntimeMessages(GH_RuntimeMessageLevel.Remark));
         }
