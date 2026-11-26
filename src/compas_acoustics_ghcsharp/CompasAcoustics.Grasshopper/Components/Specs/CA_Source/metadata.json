@@ -2,7 +2,7 @@
     "name": "Source",
     "nickname": "Source",
     "subcategory": "Elements",
-    "description": "Acoustic Source object (speaker, human, etc.). Choose its directivity on the body: omnidirectional (default), cardioid, supercardioid, hypercardioid or bidirectional.",
+    "description": "Acoustic Source object (speaker, human, etc.). Choose its directivity on the body: omnidirectional (default), cardioid, supercardioid, hypercardioid or bidirectional; and, optionally, its anechoic sound on the Anechoic sound dropdown, which Auralise then uses for this source in place of its own.",
     "exposure": 2,
     "ports": {
         "inputParameters": [
@@ -33,6 +33,13 @@
                 "optional": true,
                 "scriptParamAccess": 1,
                 "typeHintID": "float"
+            },
+            {
+                "name": "sound",
+                "description": "Anechoic sound of the source: Auralise convolves the responses of this source with it, in place of the sound chosen on Auralise. On the Anechoic sound dropdown: one of the bundled anechoic recordings, or Load... to choose a sound file (.wav, .flac, .aiff, .ogg, .mp3), which the dropdown then lists by its name; nothing is chosen by default, and the dropdown reads '...': Auralise's sound is then used. A File Path connected here takes precedence.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "str"
             }
         ],
         "outputParameters": [

@@ -172,8 +172,8 @@ from compas_acoustics.pb.types import Audio  # noqa: E402
 VIOLA = str(Path(compas_acoustics.__file__).parent / "anechoic_soundfiles_library" / "viola.wav")
 
 
-def decay(channels=1, seconds=0.6, rt=0.5, rate=48000, seed=0, level=1.0, source=None, receiver=None):
-    """An exponentially decaying noise response with a direct sound."""
+def decay(channels=1, seconds=0.6, rt=0.5, rate=48000, seed=0, level=1.0, source=None, receiver=None, sound_file=None):
+    """An exponentially decaying noise response with a direct sound, its source's sound ``sound_file``."""
     rng = np.random.default_rng(seed)
     n = int(seconds * rate)
     envelope = np.exp(-6.9 * np.arange(n) / rate / rt)
@@ -181,7 +181,7 @@ def decay(channels=1, seconds=0.6, rt=0.5, rate=48000, seed=0, level=1.0, source
     raw[100] = 1.0
     raw *= level
     source = source or Source("src", 1, 1, 1.5)
-    source._sound_file = VIOLA
+    source._sound_file = sound_file
     return ImpulseResponse("ir", source, receiver or Receiver("rec", 4, 3, 1.5), raw if channels > 1 else raw[:, 0], rate, generation={"method": "test"})
 
 
@@ -301,6 +301,38 @@ def test_auralise_refuses_a_missing_sound_file(tmp_path):
 def test_auralise_refuses_an_unknown_level(sound):
     with pytest.raises(ValueError, match="relative"):
         api.auralise(two_sources_one_receiver(), sound, [0], ["0_0"], "loud")
+
+
+def test_auralise_takes_the_sound_of_a_source_that_has_one(sound):
+    irs = two_sources_one_receiver()
+    irs[1] = decay(source=Source("b", 2, 1, 1.5), receiver=irs[1].receiver, level=0.25, seed=1, sound_file=VIOLA)
+    result = call("auralise", irs, sound, [0, 1], ["0_0", "0_1"], "none")
+    np.testing.assert_array_equal(result["signals"][0]["audio"].samples, Auraliser([irs[0]], anechoic_sounds=[sound]).convolve())
+    np.testing.assert_array_equal(result["signals"][1]["audio"].samples, Auraliser([irs[1]], anechoic_sounds=[VIOLA]).convolve())
+
+
+def test_auralise_needs_no_sound_when_every_chosen_source_has_one():
+    irs = two_sources_one_receiver()
+    irs[1] = decay(source=Source("b", 2, 1, 1.5), receiver=irs[1].receiver, level=0.25, seed=1, sound_file=VIOLA)
+    result = call("auralise", irs, None, [1], ["0_1"], "individual")
+    assert [s["label"] for s in result["signals"]] == ["0_1"]
+    # the relative gain leaves out a connected response with no sound at all
+    relative = call("auralise", irs, None, [1], ["0_1"])
+    assert relative["peak_dbfs"] == pytest.approx(-1.0, abs=0.05)
+
+
+def test_auralise_relative_gain_convolves_each_connected_response_with_its_own_sound(sound):
+    irs = two_sources_one_receiver()
+    irs[0] = decay(source=Source("a", 1, 1, 1.5), receiver=irs[0].receiver, level=1.0, sound_file=VIOLA)
+    alone = call("auralise", irs, sound, [1], ["0_1"], "none")["signals"][0]["audio"].samples
+    relative = call("auralise", irs, sound, [1], ["0_1"])["signals"][0]["audio"].samples
+    loudest = max(np.max(np.abs(Auraliser([irs[0]], anechoic_sounds=[VIOLA]).convolve())), np.max(np.abs(alone)))
+    np.testing.assert_allclose(relative, alone * 10 ** (-1 / 20) / loudest, rtol=1e-6)
+
+
+def test_auralise_without_a_sound_names_the_response_that_has_none():
+    with pytest.raises(ValueError, match="^No sound to auralise 0_1: its source 'b' has no sound and Auralise has none.$"):
+        api.auralise(two_sources_one_receiver(), None, [1], ["0_1"])
 
 
 def test_auralise_saves_the_chosen_under_their_labels(sound, tmp_path):
@@ -508,6 +540,20 @@ def test_the_worker_leaves_lf_out_for_a_mono_response():
     assert "LF" not in names and "LFC" not in names
     assert list(api.PARAMETERS)[-2:] == ["LF", "LFC"]
     assert api.PARAMETERS["LF"] == ("Lateral Energy Fraction (LF)", "Frequency (Hz)", "Fraction (0-1)")
+
+
+@pytest.mark.parametrize("name", ["female_speech", "male_speech", "viola", "guitar", "castanets"])
+def test_make_source_takes_a_bundled_sound_by_its_name(name):
+    source = call("make_source", "s", [0, 0, 0], sound_file=name)
+    assert source.sound_file == str(Path(VIOLA).with_name(name + ".wav"))
+
+
+def test_make_source_takes_a_sound_file_and_refuses_a_missing_one(tmp_path):
+    assert call("make_source", "s", [0, 0, 0], None, None, VIOLA).sound_file == VIOLA
+    assert call("make_source", "s", [0, 0, 0]).sound_file is None
+    assert call("make_source", "s", [0, 0, 0], sound_file="").sound_file is None
+    with pytest.raises(ValueError, match="does not exist"):
+        api.make_source("s", [0, 0, 0], sound_file=str(tmp_path / "nowhere.wav"))
 
 
 def test_make_source_takes_the_level_at_1_m():

@@ -608,7 +608,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             if (hidden)
                 saved.ShowControlPorts(false);
             var file = System.IO.Path.Combine("takes", "bsn_tele_44.wav");
-            saved.OpenSound = _ => file;
+            saved.Sound.Open = _ => file;
             saved.OnDropdownOption("sound", "Load...");
             if (!loadedChosen)
                 ControlState.Choose(saved, saved.ControlPort("sound")!, "viola");
@@ -618,8 +618,8 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Empty(Errors(archive));
             Assert.Equal(!hidden, fresh.ControlPortsShown);
             Assert.Equal(loadedChosen ? file : "viola", ControlState.Persistent(fresh.ControlPort("sound")!));
-            Assert.Equal(file, fresh.Loaded);
-            Assert.Equal(new[] { "female_speech", "male_speech", "viola", "guitar", "castanets", file, "Load..." }, fresh.OptionsOf(AuraliseComponent.SoundDropdown).values);
+            Assert.Equal(file, fresh.Sound.Loaded);
+            Assert.Equal(new[] { "female_speech", "male_speech", "viola", "guitar", "castanets", file, "Load..." }, fresh.OptionsOf(AnechoicSound.Dropdown).values);
         }
 
         [Theory]
@@ -665,15 +665,15 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Empty(Errors(back));
             Assert.Equal(!hidden, fresh.ControlPortsShown);
             Assert.Equal(file, ControlState.Persistent(fresh.ControlPort("sound")!));
-            Assert.Equal(file, fresh.Loaded);
-            Assert.Equal(new[] { "Female speech", "Male speech", "Viola", "Guitar", "Castanets", "bsn_tele_44.wav", "Load..." }, fresh.OptionsOf(AuraliseComponent.SoundDropdown).labels);
+            Assert.Equal(file, fresh.Sound.Loaded);
+            Assert.Equal(new[] { "Female speech", "Male speech", "Viola", "Guitar", "Castanets", "bsn_tele_44.wav", "Load..." }, fresh.OptionsOf(AnechoicSound.Dropdown).labels);
         }
 
         /// <summary>A Source as saved with a sound_file input between direction and spl (shown with its path, or hidden behind its button) and spl 90.</summary>
         private static GH_Archive OldSource(bool soundHidden)
         {
             var old = new SourceComponent();
-            foreach (var port in old.Params.Input.Where(p => p.Name == "sound_file").ToList())
+            foreach (var port in old.Params.Input.Where(p => p.Name == "sound").ToList())
                 old.Params.UnregisterInputParameter(port);
             var spl = old.Params.Input.Single(p => p.Name == "spl");
             ControlState.Assign(spl, new[] { "90" });
@@ -717,6 +717,55 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(new[] { "position", "name", "direction", "spl" }, fresh.Params.Input.Select(p => p.Name).ToArray());
             Assert.Equal(new[] { "90" }, ControlState.PersistentAll(fresh.Params.Input.Single(p => p.Name == "spl")));
             Assert.Equal("cardioid", fresh.Choice("directivity"));
+            // the sound input it did not have: empty and hidden, as on a new Source
+            Assert.True(fresh.IsHidden(fresh.ControlPort("sound")!));
+            Assert.Null(ControlState.Persistent(fresh.ControlPort("sound")!));
+        }
+
+        [Fact]
+        public void ASourceSavedBeforeItHadASound_ReadsItsInputs_TheSoundEmptyAndHidden()
+        {
+            var old = new SourceComponent();
+            old.Params.UnregisterInputParameter(old.Params.Input.Single(p => p.Name == "sound"));
+            ControlState.Assign(old.Params.Input.Single(p => p.Name == "spl"), new[] { "70" });
+            old.CreateAttributes();
+            foreach (var p in old.Params)
+                if (p.Attributes == null)
+                    p.CreateAttributes();
+            var archive = new GH_Archive();
+            var node = archive.CreateTopLevelNode("component");
+            Assert.True(old.Write(node));
+            node.RemoveItem("control_inputs_shown");
+            node.RemoveItem("control_inputs_hidden");
+            var back = new GH_Archive();
+            back.Deserialize_Binary(archive.Serialize_Binary());
+            var fresh = new SourceComponent();
+            fresh.CreateAttributes();
+            Assert.True(fresh.Read(back.GetRootNode.FindChunk("component")));
+            Assert.Empty(Errors(back));
+            Assert.Equal(new[] { "position", "name", "direction", "spl" }, fresh.Params.Input.Select(p => p.Name).ToArray());
+            Assert.Equal(new[] { "70" }, ControlState.PersistentAll(fresh.Params.Input.Single(p => p.Name == "spl")));
+            Assert.True(fresh.IsHidden(fresh.ControlPort("sound")!));
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void ASourceSavedWithItsSound_KeepsIt(bool hidden)
+        {
+            var saved = new SourceComponent();
+            if (hidden)
+                saved.ShowControlPorts(false);
+            var file = System.IO.Path.Combine("takes", "talker.wav");
+            saved.Sound.Open = _ => file;
+            saved.OnDropdownOption("sound", "Load...");
+            var fresh = new SourceComponent();
+            var (archive, read) = SaveThenRead(saved, fresh);
+            Assert.True(read);
+            Assert.Empty(Errors(archive));
+            Assert.Equal(!hidden, fresh.ControlPortsShown);
+            Assert.Equal(file, ControlState.Persistent(fresh.ControlPort("sound")!));
+            Assert.Equal(file, fresh.Sound.Loaded);
         }
 
         [Fact]
@@ -729,7 +778,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             var (archive, read) = SaveThenRead(saved, fresh);
             Assert.True(read);
             Assert.Empty(Errors(archive));
-            Assert.Equal(new[] { "position", "name", "direction", "spl" }, fresh.Params.Input.Select(p => p.Name).ToArray());
+            Assert.Equal(new[] { "position", "name", "direction", "spl", "sound" }, fresh.Params.Input.Select(p => p.Name).ToArray());
             Assert.Equal("hypercardioid", fresh.Choice("directivity"));
             Assert.Equal(new[] { "70" }, ControlState.PersistentAll(fresh.Params.Input.Single(p => p.Name == "spl")));
         }

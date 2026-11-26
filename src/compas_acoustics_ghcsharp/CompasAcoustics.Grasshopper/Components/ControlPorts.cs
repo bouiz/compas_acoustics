@@ -210,6 +210,10 @@ namespace CompasAcoustics.Grasshopper
             return null;
         }
 
+        /// <summary>Whether the definition saved the control input <paramref name="name"/>, shown or hidden.</summary>
+        protected static bool SavedControlPort(GH_IReader reader, string name) =>
+            SavedInput(reader, name) || (reader.ItemExists(HiddenKey) && reader.GetString(HiddenKey).Split('\n').Contains(name));
+
         /// <summary>Whether the definition saved the input <paramref name="name"/> as a port.</summary>
         protected static bool SavedInput(GH_IReader reader, string name)
         {

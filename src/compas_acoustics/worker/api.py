@@ -172,10 +172,12 @@ def make_material(name, absorption, scattering=None, category=None):
     return AcousticMaterial(name=name, absorption_coefficients=list(absorption), scattering_coefficients=list(scattering) if scattering else None, category=category or None)
 
 
-def make_source(name, position, direction=None, directivity=None, spl=None):
+def make_source(name, position, direction=None, directivity=None, sound_file=None, spl=None):
     """A :class:`Source` with the defaults of the Source component: ``my_source``, facing +x, omnidirectional.
 
-    ``spl``: one value for all bands or one per band; None or empty keeps the default.
+    ``sound_file``: the anechoic sound its auralisations take, a bundled recording by its name (as :func:`auralise`
+    takes it) or a file's path; None or empty for none. ``spl``: one value for all bands or one per band; None or empty
+    keeps the default.
     """
     directivity = directivity or "omnidirectional"
     if directivity not in CARDIOID_P:
@@ -185,6 +187,7 @@ def make_source(name, position, direction=None, directivity=None, spl=None):
         *(position if position is not None else [0, 0, 0]),
         directivity=directivity,
         direction=list(direction) if direction is not None else [1, 0, 0],
+        sound_file=_sound_path(sound_file) if sound_file else None,
     )
     if spl is not None and len(list(spl)) > 0:
         source.spl = spl
@@ -325,38 +328,53 @@ def _checked_level(level):
     return level
 
 
-# the bundled anechoic recordings auralise takes by name, the files of the package's anechoic sound library
+# the bundled anechoic recordings auralise and make_source take by name, the files of the package's anechoic library
 _ANECHOIC_SOUNDS = ("female_speech", "male_speech", "viola", "guitar", "castanets")
 
 
-def auralise(irs, sound, chosen, labels, level="relative", save_folder=None, save_name=None):
-    """``{"signals": [{"label", "audio": Audio}], "peak_dbfs": float, "warnings": [str]}``: the chosen impulse
-    responses convolved with the anechoic ``sound``, one signal per chosen response in the order of ``chosen``.
-
-    ``sound`` is the name of a bundled recording (``'female_speech'``, ``'male_speech'``, ``'viola'``, ``'guitar'`` or
-    ``'castanets'``) or the path of a sound file.
-
-    ``irs`` holds every connected response, ``chosen`` the indices of those to render and ``labels`` one label per
-    chosen response. ``level``: ``'relative'`` (one gain from the sound convolved with every response of ``irs``, the
-    loudest at -1 dBFS, so a chosen response renders as in a run of all of them), ``'individual'`` or ``'none'``
-    (only the chosen responses are convolved). With a ``save_folder`` each signal is also written there as
-    ``<save_name or 'convolved_sound'>_mic_<label>.wav``.
-    """
-    level = _checked_level(level)
+def _sound_path(sound):
+    """The file of ``sound``, a bundled recording's name or a path; ``ValueError`` when there is none."""
     if sound in _ANECHOIC_SOUNDS:
         sound = os.path.join(Defaults.ANECHOIC_SOUNDFILES_LIBRARY_PATH, sound + ".wav")
     if not os.path.exists(sound):
         raise ValueError(f"The sound file {sound} does not exist. Bundled sounds: {', '.join(_ANECHOIC_SOUNDS)}.")
+    return sound
+
+
+def auralise(irs, sound, chosen, labels, level="relative", save_folder=None, save_name=None):
+    """``{"signals": [{"label", "audio": Audio}], "peak_dbfs": float, "warnings": [str]}``: the chosen impulse
+    responses convolved with their anechoic sounds, one signal per chosen response in the order of ``chosen``.
+
+    A response takes the ``sound_file`` of its source when that has one, else ``sound``: the name of a bundled recording
+    (``'female_speech'``, ``'male_speech'``, ``'viola'``, ``'guitar'`` or ``'castanets'``) or the path of a sound file,
+    None when every chosen response's source has a sound.
+
+    ``irs`` holds every connected response, ``chosen`` the indices of those to render and ``labels`` one label per
+    chosen response. ``level``: ``'relative'`` (one gain from every response of ``irs`` convolved with its sound, the
+    loudest at -1 dBFS, so a chosen response renders as in a run of all of them; a response with no sound is left out),
+    ``'individual'`` or ``'none'`` (only the chosen responses are convolved). With a ``save_folder`` each signal is also
+    written there as ``<save_name or 'convolved_sound'>_mic_<label>.wav``.
+    """
+    level = _checked_level(level)
+    sound = _sound_path(sound) if sound else None
     irs = list(irs)
+
+    def sound_of(index):
+        return getattr(irs[index].source, "sound_file", None) or sound
+
+    for index, label in zip(chosen, labels):
+        if sound_of(index) is None:
+            raise ValueError(f"No sound to auralise {label}: its source '{irs[index].source.name}' has no sound and Auralise has none.")
     relative = level == "relative"
     with _user_warnings() as messages:
         kept = set(chosen)
         auralisers = {}
         signals = {}
         peaks = []
-        for k, index in enumerate(range(len(irs)) if relative else chosen):
+        convolved = [i for i in range(len(irs)) if sound_of(i) is not None] if relative else chosen
+        for k, index in enumerate(convolved):
             jobs.progress("rendering", k)
-            auraliser = Auraliser([irs[index]], anechoic_sounds=[sound])
+            auraliser = Auraliser([irs[index]], anechoic_sounds=[sound_of(index)])
             signal = auraliser.convolve()
             if index in kept:
                 auralisers[index], signals[index] = auraliser, signal

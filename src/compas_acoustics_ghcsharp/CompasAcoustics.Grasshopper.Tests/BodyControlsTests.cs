@@ -193,7 +193,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(new[] { "source_idx", "receiver_idx", "order" }, new VisualiseReflectionsComponent().ControlPorts);
             Assert.Equal(new[] { "time", "speed", "play" }, new VisualiseBilliardComponent().ControlPorts);
             Assert.Equal(new[] { "frequency_bands", "source_idx", "run" }, new VisualiseEnergyMapComponent().ControlPorts);
-            Assert.Empty(new SourceComponent().ControlPorts);
+            Assert.Equal(new[] { "sound" }, new SourceComponent().ControlPorts);
             Assert.Equal(new[] { "category" }, new ConstructMaterialComponent().ControlPorts);
         }
 
