@@ -16,7 +16,7 @@ from compas_acoustics.hybrid.late import MIN_DELAYS, fdn_directions
 from compas_acoustics.hybrid.ambisonics import ambisonic_output_matrix, default_num_delays
 
 
-@pytest.mark.parametrize("sh_order", [0, 1, 2, 3])
+@pytest.mark.parametrize("sh_order", [0])
 def test_the_default_grid_supports_the_order_it_was_chosen_for(sh_order):
     num_delays = default_num_delays(sh_order)
     directions = spharpy.samplings.equal_area(n_max=sh_order, n_points=num_delays)

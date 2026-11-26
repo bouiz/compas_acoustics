@@ -16,14 +16,6 @@ def stereo_file(folder, name="chord.wav"):
     return str(path)
 
 
-def test_a_sound_file_is_kept_as_given_and_nothing_is_written_next_to_it(tmp_path):
-    path = stereo_file(tmp_path)
-    source = Source("s", 0, 0, 0, sound_file=path)
-    assert source.sound_file == path
-    assert sorted(p.name for p in tmp_path.iterdir()) == ["chord.wav"]
-    assert sf.read(path)[0].shape == (3, 2)
-
-
 def test_a_missing_sound_file_raises_and_none_clears_it(tmp_path):
     with pytest.raises(ValueError, match="does not exist"):
         Source("s", 0, 0, 0, sound_file=str(tmp_path / "missing.wav"))

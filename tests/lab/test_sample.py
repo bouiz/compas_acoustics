@@ -12,11 +12,9 @@ from lab_shapes import footprint_area
 from lab_shapes import open_l_shaped_relief
 from lab_shapes import overhanging_strip
 from lab_shapes import sine_tile
-from lab_shapes import sawtooth_tile
 from lab_shapes import step_tile
 from lab_shapes import tile_with_hole
 from lab_shapes import two_separate_patches
-from lab_shapes import v_groove_tile
 
 from compas_acoustics.lab.sample import ScatteringSample
 
@@ -34,11 +32,6 @@ def test_relief_minimum_and_reference_top_are_at_z0():
     assert zs[zs > -1e-9].min() == pytest.approx(0.0, abs=1e-9)
     assert s.structural_depth == pytest.approx(0.0204, rel=1e-2)
     assert max(s.reference.vertex_coordinates(v)[2] for v in s.reference.vertices()) == pytest.approx(0.0)
-
-
-def test_reference_has_the_sample_footprint():
-    s = ScatteringSample.disc(sine_tile(period=0.0708, depth=0.0204), diameter=0.8)
-    assert footprint_area(s.sample) == pytest.approx(footprint_area(s.reference), rel=1e-9)
 
 
 def test_disc_from_unwelded_quad_tile_is_closed():
@@ -158,18 +151,6 @@ def test_reference_kind_round_trips():
     data = ScatteringSample.as_drawn(bumped_box()).__data__
     del data["reference_kind"]
     assert ScatteringSample.__from_data__(data).reference_kind == "flat"
-
-
-def test_v_groove_tile_tiles_into_a_closed_sample():
-    s = ScatteringSample.disc(v_groove_tile(), 0.4)
-    assert s.sample.is_closed() and s.reference.is_closed()
-    assert s.structural_depth == pytest.approx(0.02)
-
-
-def test_sawtooth_tile_tiles_into_a_closed_sample():
-    s = ScatteringSample.disc(sawtooth_tile(), 0.4)
-    assert s.sample.is_closed() and s.reference.is_closed()
-    assert s.structural_depth == pytest.approx(0.05 * np.tan(np.radians(20.0)))
 
 
 def _polar_disc_patch(radius=0.5, n=64, rings=8, z=0.0, wobble=0.0):

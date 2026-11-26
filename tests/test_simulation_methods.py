@@ -106,13 +106,6 @@ def test_a_receiver_outside_the_room_warns_and_is_left_out():
     assert len(rirs) == 2
 
 
-def test_simulate_stores_responses_under_the_method_name_and_data():
-    s = scene()
-    rirs = s.simulate(Delta())
-    assert s.impulse_responses("delta") == rirs
-    assert s.impulse_responses("data") == rirs
-
-
 def test_simulate_leaves_data_alone_for_an_ambisonic_method():
     s = scene()
     mono = s.simulate(Delta())
@@ -127,12 +120,6 @@ def test_simulating_twice_replaces_the_responses():
     second = s.simulate(Delta())
     assert s.impulse_responses("delta") == second
     assert len(s.impulse_responses("delta")) == len(second) == 2
-
-
-def test_a_scene_simulates_at_48000_hz_unless_told_otherwise():
-    assert scene().sampling_rate == 48000
-    (first, *_) = scene().simulate(Delta()).values()
-    assert first.sampling_rate == 48000
 
 
 def test_the_scenes_sampling_rate_reaches_the_method():

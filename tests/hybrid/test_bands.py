@@ -18,10 +18,6 @@ def test_lowest_band_is_62_point_5_not_63():
     assert BANDS[-1] == 8000.0
 
 
-def test_check_bands_accepts_the_package_grid():
-    check_bands(BANDS.copy())
-
-
 def test_check_bands_rejects_a_different_grid():
     with pytest.raises(ValueError, match="band grid"):
         check_bands(np.array([63.0, 125.0, 250.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0]))

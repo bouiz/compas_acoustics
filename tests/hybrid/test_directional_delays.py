@@ -39,10 +39,3 @@ def test_a_turned_receiver_reads_the_room_along_its_own_axes():
     ahead = pf.Coordinates(1.0, 0.0, 0.0)
     assert directional_delays(pair((1, 0, 0)), ahead)[0] == pytest.approx(7.0 / 343.0 * FS * jitter(1)[0], rel=0.031)
     assert directional_delays(pair((0, 1, 0)), ahead)[0] == pytest.approx(5.0 / 343.0 * FS * jitter(1)[0], rel=0.031)
-
-
-def test_the_mean_free_path_is_cauchys():
-    directions = fdn_directions()
-    delays = directional_delays(pair(), directions) / jitter(directions.cshape[0])
-    mean_free_path = 4.0 * DIMS.prod() / (2.0 * (DIMS[0] * DIMS[1] + DIMS[0] * DIMS[2] + DIMS[1] * DIMS[2]))
-    assert np.mean(delays) == pytest.approx(mean_free_path / 343.0 * FS, rel=0.1)

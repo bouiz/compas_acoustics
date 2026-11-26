@@ -66,6 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Changed `Analyser` to start every parameter's windows, LF and LFC included, at one onset: `pyfar.dsp.find_impulse_response_start` on channel 0 (the 20 dB criterion of ISO 3382-1). It replaces the package's own start search and, for LF and LFC, the geometric direct-sound sample; where the direct sound is weak or blocked the parameters move (on the test rooms C50 up to 0.7 dB, D50 up to 2.3 %, DRR up to 11 dB at 125 Hz, Ts up to 3 ms, LF up to 0.06).
 * Changed `Analyser.clarity_definition` to give C50, C80 and D50 as NaN when the early or late part has no energy, as DRR does, without the `1e-12` offset; `print_table` and `export_csv` show the stored values, not values rounded to 2 decimals.
 * Changed the BTMS first-order integrand and its quadrature to be written from the published line integral (Calamia and Svensson 2007, Eqs. (2)-(4)) and the standard adaptive Simpson rule with Richardson extrapolation; the responses are bit-identical.
+* Changed the test suite to drop 160 tests whose assertions other tests already make, and to merge tests that ran the same simulation into one; `tests/lab/test_validation_heimes.py`, which needs the Zenodo 15673498 results, moved to `validation/`. CI runs the tests marked `slow` once, in a `slow` job on Python 3.12, in place of every 3.11 and 3.12 job of the matrix; the `hybrid-simulation-test` job, which repeated tests the matrix runs, is removed; a new push to a pull request cancels its running checks.
 
 ### Fixed
 

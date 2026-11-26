@@ -23,12 +23,12 @@ Commands (the BEM cost per frequency is in docs/superpowers/plans/2026-10-23-coe
 
 - per angle and the Kirchhoff gap (two single-source BEM runs, about 3 h on a 14-core M-series Mac)::
 
-    HEIMES_RESULTS=<folder> HEIMES_BEM_CACHE=<cache> python -m pytest tests/lab/test_validation_heimes.py -v -s -k
+    HEIMES_RESULTS=<folder> HEIMES_BEM_CACHE=<cache> python -m pytest validation/test_validation_heimes.py -v -s -k
     "per_angle or gap"
 
 - random incidence (97 sources x 60 frequencies x 2 bodies, overnight and longer)::
 
-    HEIMES_RESULTS=<folder> HEIMES_BEM_CACHE=<cache> python -m pytest tests/lab/test_validation_heimes.py -v -s -k
+    HEIMES_RESULTS=<folder> HEIMES_BEM_CACHE=<cache> python -m pytest validation/test_validation_heimes.py -v -s -k
     random_incidence
 """
 

@@ -78,23 +78,6 @@ def test_a_right_angle_groove_retroreflects_with_enough_bounces():
     assert response.lost_sample[0] > 0.8
 
 
-def test_a_sample_equal_to_its_proxy_scatters_nothing():
-    pytest.importorskip("embreex")
-    # a closed disc body, drawn as is, with itself as the proxy (a single bare tile would lose every ray that meets its
-    # free-standing side walls)
-    body = ScatteringSample.disc(sawtooth_tile(), 0.4).sample
-    sample = ScatteringSample.as_drawn(body, reference=body)
-    assert sample.reference_kind == "proxy"
-    # max_bounces=1: the rays that need a second reflection (the riser, the baffle beyond the rim) are lost, identically
-    # in both
-    response = geometric_response(sample, SourceGrid.preset("survey"), n_rays=2000, max_bounces=1)
-    # the lost fraction is one more bin of the histograms (Task 5 does the same)
-    with_lost = (np.column_stack([response.sample, response.lost_sample]), np.column_stack([response.reference, response.lost_reference]))
-    assert response.lost_sample.max() > 0.01
-    assert np.allclose(scattering_share(*with_lost), 0.0, atol=1e-9)
-    assert response.depth == pytest.approx(0.0, abs=1e-9)
-
-
 def test_the_same_seed_gives_the_same_response_and_another_seed_a_close_one():
     pytest.importorskip("embreex")
     sample = ScatteringSample.disc(sawtooth_tile(), 0.4)
@@ -105,15 +88,6 @@ def test_the_same_seed_gives_the_same_response_and_another_seed_a_close_one():
     assert np.array_equal(a.sample, b.sample) and np.array_equal(a.reference, b.reference)
     assert np.array_equal(a.lost_sample, b.lost_sample)
     assert np.allclose(scattering_share(a.sample, a.reference), scattering_share(c.sample, c.reference), atol=0.05)
-
-
-def test_depth_is_twice_the_standard_deviation_of_the_height():
-    pytest.importorskip("embreex")
-    period, slope = 0.05, 20.0
-    sample = ScatteringSample.disc(sawtooth_tile(period=period, slope_deg=slope), 0.4)
-    response = geometric_response(sample, SourceGrid.preset("survey"), n_rays=20000)
-    height = period * np.tan(np.radians(slope))
-    assert response.depth == pytest.approx(2 * height / np.sqrt(12), rel=0.1)
 
 
 def test_the_depth_curve():
@@ -148,6 +122,7 @@ def test_cells_alone_may_count_common_losses_as_scattering_and_the_lost_bin_remo
     pytest.importorskip("embreex")
     body = _closed_disc().sample
     sample = ScatteringSample.as_drawn(body, reference=body)
+    assert sample.reference_kind == "proxy"
     response = geometric_response(sample, SourceGrid.preset("standard"), n_rays=2000, max_bounces=1)
     # a body against itself: whatever is lost is lost in both (one bounce allowed, so that some are)
     assert response.lost_sample.max() > 0.01
@@ -155,6 +130,7 @@ def test_cells_alone_may_count_common_losses_as_scattering_and_the_lost_bin_remo
     with_lost = scattering_share(np.column_stack([response.sample, response.lost_sample]), np.column_stack([response.reference, response.lost_reference]))
     np.testing.assert_allclose(with_lost, 0.0, atol=1e-12)
     np.testing.assert_allclose(cells, response.lost_sample, atol=1e-12)
+    assert response.depth == pytest.approx(0.0, abs=1e-9)
 
 
 def test_a_flat_disc_at_80_degrees_is_the_same_as_its_reference_and_loses_nothing():
@@ -292,15 +268,6 @@ def test_a_sloped_face_in_the_baseplate_band_inside_the_footprint_reflects_as_dr
     assert energy[np.abs(colatitude - 22.6) < 6.0].sum() > 0.99
     assert energy[colatitude < 5.0].sum() == 0.0
     assert response.lost_sample[0] == 0.0
-
-
-def test_a_mounted_box_has_its_height_as_depth():
-    pytest.importorskip("embreex")
-    # uniform height over the footprint: 2 sigma of the height difference is 0, its mean is the height (0.5 m box, its
-    # bottom 0.01 m below z = 0)
-    sample = ScatteringSample.as_drawn(bumped_box(size=1.0, thickness=0.5, bump=0.0))
-    response = geometric_response(sample, SourceGrid.preset("survey"), n_rays=2000)
-    assert response.depth == pytest.approx(0.49, abs=1e-9)
 
 
 @pytest.mark.parametrize(

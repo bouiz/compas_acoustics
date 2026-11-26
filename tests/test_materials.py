@@ -76,5 +76,6 @@ def test_library_groups_materials_by_category_in_enum_order(library):
 
 def test_bundled_library_materials_all_have_a_category():
     library = MaterialsLibrary()
+    assert len(library.material_names) == 95
     assert "concrete" in library.material_names
     assert sum(len(names) for names in library.materials_by_category.values()) == len(library.material_names)

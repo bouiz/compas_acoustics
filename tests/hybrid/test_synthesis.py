@@ -66,28 +66,12 @@ def test_an_unknown_normalization_raises():
         render_ambisonics(prepare(pair, iss, TARGET, max_order=MAX_ORDER, duration_s=0.5), normalization="FuMa")
 
 
-def test_diffraction_changes_only_the_early_field():
-    pair, iss = setup(panel=True)
-    plain = render_ambisonics(prepare(pair, iss, TARGET, max_order=MAX_ORDER, duration_s=0.5))
-    bent = render_ambisonics(prepare(pair, iss, TARGET, max_order=MAX_ORDER, duration_s=0.5, diffraction="udfa"))
-    np.testing.assert_allclose(bent.late, plain.late)
-    assert not np.allclose(bent.early, plain.early)
-
-
 def test_diffraction_in_a_rectangular_room_without_obstacles_changes_nothing():
     pair, iss = setup()
     plain = render_ambisonics(prepare(pair, iss, TARGET, max_order=MAX_ORDER, duration_s=0.5))
     bent = render_ambisonics(prepare(pair, iss, TARGET, max_order=MAX_ORDER, duration_s=0.5, diffraction="udfa"))
     np.testing.assert_allclose(bent.early, plain.early)
     np.testing.assert_allclose(bent.late, plain.late)
-
-
-def test_btms_changes_only_the_early_field():
-    pair, iss = setup(panel=True)
-    plain = render_ambisonics(prepare(pair, iss, TARGET, max_order=0, duration_s=0.2))
-    bent = render_ambisonics(prepare(pair, iss, TARGET, max_order=0, duration_s=0.2, diffraction="btms"))
-    np.testing.assert_allclose(bent.late, plain.late)
-    assert not np.allclose(bent.early, plain.early)
 
 
 def test_prepare_is_format_neutral():

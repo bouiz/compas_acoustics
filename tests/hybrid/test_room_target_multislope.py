@@ -71,13 +71,6 @@ def test_slopes_are_ordered_fastest_first():
 
 
 @needs_multislope
-def test_inactive_slopes_are_dropped_not_carried_as_zeros():
-    """DecayFitNet reports three columns; zero decay time means inactive."""
-    target = RoomTarget.from_rir(decaying_noise([0.8], [0.0]), FS, n_slopes=0)
-    assert np.all(target.rt > 0.0)
-
-
-@needs_multislope
 def test_geq_bands_selects_a_slope():
     target = RoomTarget.from_rir(decaying_noise([0.4, 1.8], [0.0, 30.0]), FS, n_slopes=0)
     fast = target.geq_bands(slope=0)
@@ -91,23 +84,6 @@ def test_geq_bands_rejects_a_slope_that_does_not_exist():
     target = RoomTarget.from_rir(decaying_noise([0.8], [0.0]), FS)
     with pytest.raises(IndexError):
         target.geq_bands(slope=1)
-
-
-def test_from_room_is_single_slope():
-    """Geometry gives one decay per band; there is no second slope to predict."""
-    from _rooms import box_room
-    from _rooms import pair as make_pair
-
-    from compas_acoustics.room.geometry import SurfaceMaterial
-
-    pair = make_pair(
-        geometry=box_room((8.0, 6.0, 3.0), SurfaceMaterial("wall", np.full(N_BANDS, 0.2))),
-        source=np.array([2.0, 2.0, 1.5]),
-        receiver=np.array([5.0, 4.0, 1.5]),
-    )
-    target = RoomTarget.from_room(pair)
-    assert target.n_slopes == 1
-    assert target.rt.shape == (N_BANDS, 1)
 
 
 @needs_multislope

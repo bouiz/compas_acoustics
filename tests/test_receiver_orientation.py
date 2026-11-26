@@ -14,12 +14,6 @@ def test_rotation_is_proper():
     assert np.linalg.det(rot) == pytest.approx(1.0)
 
 
-def test_facing_plus_y_maps_world_y_ahead_and_world_minus_x_left():
-    rot = Receiver("r", 0, 0, 0, direction=[0, 1, 0]).rotation
-    np.testing.assert_allclose(rot.T @ [0, 1, 0], [1, 0, 0], atol=1e-12)
-    np.testing.assert_allclose(rot.T @ [-1, 0, 0], [0, 1, 0], atol=1e-12)
-
-
 def test_up_is_made_orthogonal_to_the_facing_direction():
     rot = Receiver("r", 0, 0, 0, direction=[1, 0, 0], up=[1, 0, 1]).rotation
     np.testing.assert_allclose(rot[:, 2], [0, 0, 1], atol=1e-12)

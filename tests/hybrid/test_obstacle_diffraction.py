@@ -50,27 +50,9 @@ def test_a_shelf_on_the_floor_has_four_top_and_four_vertical_edges():
     assert sorted(round(e.length, 6) for e in tops) == [0.6, 0.6, 4.0, 4.0]
 
 
-def test_an_occluded_pair_diffracts_over_all_four_panel_edges():
-    pair = Pair(room(panel()), SOURCE, RECEIVER, np.eye(3), 48000.0, 343.0, False)
-    paths = [p for p in diffraction_paths(pair, max_order=0) if p.order == 0]
-    assert len(paths) == 4
-    assert all(p.zone == "shadow" for p in paths)
-    apex = np.array([5.0, 4.0, TOP])
-    (top,) = [p for p in paths if np.allclose(p.doa, apex - RECEIVER)]
-    assert top.distance == pytest.approx(np.linalg.norm(SOURCE - apex) + np.linalg.norm(apex - RECEIVER))
-
-
 def test_first_order_paths_reflect_off_the_enclosure():
     pair = Pair(room(panel()), SOURCE, RECEIVER, np.eye(3), 48000.0, 343.0, False)
     assert any(p.order == 1 for p in diffraction_paths(pair, max_order=1))
-
-
-def test_the_doa_is_in_the_receiver_frame():
-    g = room(panel())
-    turned = np.array([[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]])  # facing +y
-    plain = diffraction_paths(Pair(g, SOURCE, RECEIVER, np.eye(3), 48000.0, 343.0, False), max_order=0)
-    rotated = diffraction_paths(Pair(g, SOURCE, RECEIVER, turned, 48000.0, 343.0, False), max_order=0)
-    np.testing.assert_allclose([turned.T @ p.doa for p in plain], [p.doa for p in rotated], atol=1e-12)
 
 
 def test_a_rectangular_room_without_obstacles_has_no_diffraction_paths():

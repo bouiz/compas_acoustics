@@ -45,12 +45,6 @@ def test_every_spec_has_a_generated_icon():
     assert len(set(drawn.values())) == len(drawn)
 
 
-def test_icons_are_reproducible():
-    icons = _icons()
-    for name in _names():
-        assert icons.draw(name).tobytes() == icons.draw(name).tobytes()
-
-
 def test_the_docs_have_each_icon_at_four_times_the_size():
     from PIL import Image
 

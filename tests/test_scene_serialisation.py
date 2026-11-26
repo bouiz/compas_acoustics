@@ -141,12 +141,3 @@ def test_every_class_is_stored_under_the_package_whatever_its_module():
     assert '"compas_acoustics.' not in text
     back = compas.json_loads(text)
     assert isinstance(back, ca.Scene) and isinstance(back.acoustic_objects[0].material, ca.AcousticMaterial)
-
-
-def test_every_library_material_loads():
-    import compas_acoustics as ca
-
-    library = ca.MaterialsLibrary()
-    names = library.material_names
-    assert len(names) == 95
-    assert all(isinstance(library.material_from_name(name), ca.AcousticMaterial) for name in names)

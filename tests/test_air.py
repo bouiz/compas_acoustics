@@ -6,7 +6,6 @@ import numpy as np
 import pytest
 
 from compas_acoustics import AirConditions
-from compas_acoustics.room.air import air_or_default
 
 try:
     import pyfar.constants  # noqa: F401
@@ -68,12 +67,6 @@ def test_dry_air_follows_the_ideal_gas_law_over_cramers_range():
         assert AirConditions(temperature=t, humidity=0.0).speed_of_sound == pytest.approx(expected, rel=5e-4)
 
 
-def test_humid_air_is_faster_and_absorbs_differently():
-    dry, humid = AirConditions(humidity=10.0), AirConditions(humidity=90.0)
-    assert humid.speed_of_sound > dry.speed_of_sound
-    assert humid.air_attenuation([8000.0])[0] < dry.air_attenuation([8000.0])[0]
-
-
 @pytest.mark.parametrize("conditions", [dict(humidity=0.0), dict(temperature=0.0), dict(temperature=30.0), dict(pressure=75e3), dict(pressure=102e3), dict(humidity=100.0)])
 def test_the_edges_of_the_valid_range_are_finite(conditions):
     air = AirConditions(**conditions)
@@ -92,10 +85,6 @@ def test_round_trip_through_a_dict():
     air = AirConditions(temperature=12.5, humidity=40.0, pressure=95000.0)
     assert AirConditions.from_dict(air.to_dict()) == air
     assert AirConditions.from_dict(None) is None
-
-
-def test_without_a_medium_the_speed_of_sound_is_the_default_mediums():
-    assert air_or_default(None).speed_of_sound == AirConditions().speed_of_sound == pytest.approx(343.98, abs=0.01)
 
 
 def test_predicted_rt_follows_the_medium():
@@ -164,7 +153,7 @@ def test_a_default_simulation_runs_without_pyfar_constants(monkeypatch):
 
 
 @pytest.mark.skipif(not HAS_PYFAR_CONSTANTS, reason="pyfar < 0.8")
-@pytest.mark.parametrize("t, h, p", [(0.0, 0.0, 75e3), (19.5, 41.7, 101325.0), (30.0, 100.0, 102e3)])
+@pytest.mark.parametrize("t, h, p", [(0.0, 0.0, 75e3), (30.0, 100.0, 102e3)])
 def test_air_matches_pyfar_constants(t, h, p):
     from pyfar import constants
 
