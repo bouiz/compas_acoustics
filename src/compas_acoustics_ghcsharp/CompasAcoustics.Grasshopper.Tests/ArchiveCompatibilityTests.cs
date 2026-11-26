@@ -289,6 +289,24 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
+        public void AnAnalyseSavedWithTheSingleIrInput_ReadsItAsIrs_AndTheNewInputsFollow()
+        {
+            var old = new AnalyseIrComponent();
+            foreach (var p in old.Params.Input.Skip(1).ToList())
+                old.Params.UnregisterInputParameter(p);
+            old.Params.Input[0].Name = "ir";
+            old.Params.Input[0].NickName = "ir";
+            old.Params.Input[0].Access = GH_ParamAccess.item;
+            var fresh = new AnalyseIrComponent();
+            var (archive, read) = SaveThenRead(old, fresh);
+            Assert.True(read);
+            Assert.Empty(Errors(archive));
+            Assert.Equal(new[] { "irs", "source_idx", "receiver_idx" }, fresh.Params.Input.Select(p => p.Name).ToArray());
+            Assert.Equal(GH_ParamAccess.tree, fresh.Params.Input[0].Access);
+            Assert.Empty(fresh.RuntimeMessages(GH_RuntimeMessageLevel.Remark));
+        }
+
+        [Fact]
         public void AComponentSavedNow_ReadsWithoutErrors()
         {
             var (archive, read) = SaveThenRead(new SimulateBinauralComponent(), new SimulateBinauralComponent());

@@ -184,43 +184,53 @@ def decay(channels=1, seconds=0.6, rt=0.5, rate=48000, seed=0, level=1.0, source
 
 
 def test_analysis_gives_every_parameter_with_its_units_and_the_two_curves():
-    result = call("analysis", decay())
-    names = [p["name"] for p in result["parameters"]]
+    result = call("analysis", [decay()])
+    assert len(result["analyses"]) == 1
+    analysis = result["analyses"][0]
+    names = [p["name"] for p in analysis["parameters"]]
     # STI and G are left out where they cannot be computed (pyrato < 1.0; G needs the simulation's level), LF and LFC
     # for a response that is not ambisonic
     optional = ("STI", "G", "SPL", "LF", "LFC")
     assert [n for n in api.PARAMETERS if n not in optional] == [n for n in names if n not in optional]
-    t30 = next(p for p in result["parameters"] if p["name"] == "T30")
+    t30 = next(p for p in analysis["parameters"] if p["name"] == "T30")
     assert t30["title"] == "Reverberation Time (T30)" and t30["x_unit"] == "Frequency (Hz)" and t30["y_unit"] == "Time (s)"
     assert t30["x_scale"] == "bands" and len(t30["values"]) == 1 and len(t30["values"][0]) == len(t30["frequencies"])
     assert isinstance(t30["overall"], float)
-    time, frequency = result["time"], result["frequency"]
+    time, frequency = analysis["time"], analysis["frequency"]
     assert time["x_scale"] == "linear" and time["y_unit"] == "Level (dB)" and time["channels"] == []
     assert frequency["x_scale"] == "log" and frequency["frequencies"][0] >= 20 and frequency["frequencies"][-1] <= 20000
     assert len(time["values"][0]) == len(time["frequencies"])
     assert isinstance(result["warnings"], list)
 
 
+def test_analysis_of_several_responses_gives_one_analysis_each_in_order():
+    first, second = decay(rt=0.3), decay(rt=0.9, seed=1)
+    result = call("analysis", [first, second])
+    t30 = [next(p for p in a["parameters"] if p["name"] == "T30")["overall"] for a in result["analyses"]]
+    assert len(t30) == 2 and t30[0] < t30[1]
+    assert call("analysis", [second, first])["analyses"][0]["parameters"] == result["analyses"][1]["parameters"]
+
+
 def test_analysis_of_a_binaural_response_plots_both_ears():
-    result = call("analysis", decay(channels=2))
-    assert result["time"]["channels"] == ["left", "right"] and len(result["time"]["values"]) == 2
-    assert result["time"]["title"] == "Impulse Response (left, right)"
+    time = call("analysis", [decay(channels=2)])["analyses"][0]["time"]
+    assert time["channels"] == ["left", "right"] and len(time["values"]) == 2
+    assert time["title"] == "Impulse Response (left, right)"
 
 
 def test_analysis_of_an_ambisonic_response_plots_w():
-    result = call("analysis", decay(channels=4))
-    assert result["frequency"]["channels"] == ["W"] and len(result["frequency"]["values"]) == 1
+    frequency = call("analysis", [decay(channels=4)])["analyses"][0]["frequency"]
+    assert frequency["channels"] == ["W"] and len(frequency["values"]) == 1
 
 
 def test_analysis_linear_time_scale_ends_60_db_down():
-    db = call("analysis", decay(seconds=2.0), "db")["time"]
-    linear = call("analysis", decay(seconds=2.0), time_scale="linear")["time"]
+    db = call("analysis", [decay(seconds=2.0)], "db")["analyses"][0]["time"]
+    linear = call("analysis", [decay(seconds=2.0)], time_scale="linear")["analyses"][0]["time"]
     assert linear["y_unit"] == "Amplitude" and len(linear["frequencies"]) < len(db["frequencies"])
 
 
 def test_analysis_rejects_an_unknown_time_scale():
     with pytest.raises(ValueError, match="db.*linear"):
-        api.analysis(decay(), "log")
+        api.analysis([decay()], "log")
 
 
 def group(irs, branch="{0}", sounds=None):
@@ -489,7 +499,7 @@ def test_sound_samples_reads_a_file_as_audio(tmp_path):
 
 
 def test_the_worker_leaves_lf_out_for_a_mono_response():
-    names = [p["name"] for p in call("analysis", decay())["parameters"]]
+    names = [p["name"] for p in call("analysis", [decay()])["analyses"][0]["parameters"]]
     assert "LF" not in names and "LFC" not in names
     assert list(api.PARAMETERS)[-2:] == ["LF", "LFC"]
     assert api.PARAMETERS["LF"] == ("Lateral Energy Fraction (LF)", "Frequency (Hz)", "Fraction (0-1)")

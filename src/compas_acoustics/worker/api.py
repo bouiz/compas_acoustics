@@ -274,36 +274,40 @@ def _curve_title(title, channels):
     return "{} ({})".format(title, ", ".join(channels)) if channels else title
 
 
-def analysis(ir, time_scale="db"):
-    """``{"parameters": [parameter], "time": parameter, "frequency": parameter, "warnings": [str]}`` of ``ir``, as
-    Analyse IR shows them.
+def analysis(irs, time_scale="db"):
+    """``{"analyses": [analysis], "warnings": [str]}``, one analysis per response of ``irs`` in order, as Analyse IR
+    shows them.
 
-    A parameter is ``{"name", "title", "x_unit", "y_unit", "x_scale" ('bands', 'linear' or 'log'), "frequencies",
-    "values" (one list per channel), "overall", "channels"}``; STI, G, SPL, LF and LFC are left out where all their
-    values are NaN. ``time_scale`` ``'db'`` gives the time response in dB re its peak, ``'linear'`` its amplitude to
-    60 dB down its decay.
+    An analysis is ``{"parameters": [parameter], "time": parameter, "frequency": parameter}``; a parameter is
+    ``{"name", "title", "x_unit", "y_unit", "x_scale" ('bands', 'linear' or 'log'), "frequencies", "values" (one list
+    per channel), "overall", "channels"}``; STI, G, SPL, LF and LFC are left out where all their values are NaN.
+    ``time_scale`` ``'db'`` gives the time response in dB re its peak, ``'linear'`` its amplitude to 60 dB down its
+    decay.
     """
     time_scale = time_scale or TIME_SCALES[0]
     if time_scale not in TIME_SCALES:
         raise ValueError(f"Input parameter 'time_scale' must be one of {TIME_SCALES}.")
+    analyses = []
     with _user_warnings() as messages:
-        analyser = Analyser(ir)
-        analyser.analyse()
-        data = analyser.analysis_data
-        bands = analyser.frequency_bands
-        parameters = []
-        for name, (title, x_unit, y_unit) in PARAMETERS.items():
-            values = [float(v) for v in data[name]]
-            if name in ("STI", "G", "SPL", "LF", "LFC") and all(math.isnan(v) for v in values):
-                continue
-            parameters.append(_parameter(name, title, x_unit, y_unit, "bands", bands, [values], data[f"{name}_overall"]))
-        samples, channels = _plotted_channels(ir)
-        db = time_scale == "db"
-        times, levels = time_response(samples, ir.sampling_rate, db=db, trim_db=None if db else 60.0)
-        time = _parameter("IR", _curve_title("Impulse Response", channels), "Time (s)", "Level (dB)" if db else "Amplitude", "linear", times, levels, channels=channels)
-        frequencies, magnitudes = frequency_response(samples, ir.sampling_rate, num_fractions=3, frequency_range=(20.0, 20000.0))
-        frequency = _parameter("FR", _curve_title("Frequency Response, 1/3 octave", channels), "Frequency (Hz)", "Level (dB)", "log", frequencies, magnitudes, channels=channels)
-    return {"parameters": parameters, "time": time, "frequency": frequency, "warnings": messages}
+        for ir in irs:
+            analyser = Analyser(ir)
+            analyser.analyse()
+            data = analyser.analysis_data
+            bands = analyser.frequency_bands
+            parameters = []
+            for name, (title, x_unit, y_unit) in PARAMETERS.items():
+                values = [float(v) for v in data[name]]
+                if name in ("STI", "G", "SPL", "LF", "LFC") and all(math.isnan(v) for v in values):
+                    continue
+                parameters.append(_parameter(name, title, x_unit, y_unit, "bands", bands, [values], data[f"{name}_overall"]))
+            samples, channels = _plotted_channels(ir)
+            db = time_scale == "db"
+            times, levels = time_response(samples, ir.sampling_rate, db=db, trim_db=None if db else 60.0)
+            time = _parameter("IR", _curve_title("Impulse Response", channels), "Time (s)", "Level (dB)" if db else "Amplitude", "linear", times, levels, channels=channels)
+            frequencies, magnitudes = frequency_response(samples, ir.sampling_rate, num_fractions=3, frequency_range=(20.0, 20000.0))
+            frequency = _parameter("FR", _curve_title("Frequency Response, 1/3 octave", channels), "Frequency (Hz)", "Level (dB)", "log", frequencies, magnitudes, channels=channels)
+            analyses.append({"parameters": parameters, "time": time, "frequency": frequency})
+    return {"analyses": analyses, "warnings": messages}
 
 
 # =============================================================================
