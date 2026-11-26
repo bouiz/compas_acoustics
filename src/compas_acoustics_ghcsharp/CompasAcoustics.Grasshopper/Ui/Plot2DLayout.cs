@@ -23,7 +23,8 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>Where the description of the chosen parameter goes in the column's area <paramref name="area"/>: right of <see cref="SelectArea"/>, the rest of the column; empty when the column has no room beyond the dropdown.</summary>
         public static RectangleF DescriptionArea(RectangleF area)
         {
-            var left = area.X + Math.Min(area.Width, SelectWidth);
+            // 3 beyond the column's start plus the dropdown's own 3 margin: the gap between an input's name and the icon
+            var left = Math.Min(area.Right, area.X + Math.Min(area.Width, SelectWidth) + 3);
             return new RectangleF(left, area.Y + 3, Math.Max(area.Right - left - 3, 0), Math.Max(area.Height - 6, 0));
         }
 
