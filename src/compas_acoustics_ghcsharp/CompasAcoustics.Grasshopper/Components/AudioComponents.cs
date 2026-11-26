@@ -194,9 +194,15 @@ namespace CompasAcoustics.Grasshopper
             });
         }
 
-        protected override void Solve(IGH_DataAccess access)
+        // here, not in Solve: a solution without irs solves no instance, and the Save buttons must not write the request before it
+        protected override void BeforeSolveInstance()
         {
             _last = null;
+            base.BeforeSolveInstance();
+        }
+
+        protected override void Solve(IGH_DataAccess access)
+        {
             if (ChosenPairs(access) is not { } pairs)
                 return;
             var level = Choice("level");

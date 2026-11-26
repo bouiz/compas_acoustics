@@ -200,6 +200,22 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
+        public void Auralise_ASolutionWithoutIrs_ForgetsTheLastRequest()
+        {
+            var irs = new GH_Structure<ImpulseResponseGoo>();
+            irs.Append(AuraliseGroupsTests.Ir("rec", "a"), new GH_Path(0));
+            var access = new FakeAccess();
+            access.Trees["irs"] = irs;
+            var auralise = new AuraliseComponent();
+            var last = typeof(AuraliseComponent).GetField("_last", BindingFlags.Instance | BindingFlags.NonPublic)!;
+            Solve(auralise, access);
+            Assert.NotNull(last.GetValue(auralise));
+            // irs disconnected: the required input has no data, so Grasshopper solves no instance
+            typeof(GH_Component).GetMethod("BeforeSolveInstance", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(auralise, null);
+            Assert.Null(last.GetValue(auralise));
+        }
+
+        [Fact]
         public void LibraryFolder_IsTheWorkersAnechoicLibrary_OrNullWhenTheWorkerFails()
         {
             Assert.Equal("/site-packages/compas_acoustics/anechoic_soundfiles_library", AuraliseGroups.LibraryFolder());
