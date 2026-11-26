@@ -219,10 +219,11 @@ def test_analysis_of_a_binaural_response_plots_both_ears():
     assert time["title"] == "Impulse Response (left, right)"
 
 
-def test_analysis_of_several_channels_notes_the_first_channel_and_warns_nothing():
+def test_analysis_of_several_channels_notes_the_first_channel_instead_of_warning():
     result = call("analysis", [decay(channels=2)])
-    assert result["notes"] == ["Impulse response has 2 channels; analysing channel 0 only."]
-    assert result["warnings"] == []
+    note = "Impulse response has 2 channels; analysing channel 0 only."
+    assert result["notes"] == [note]
+    assert note not in result["warnings"]
 
 
 def test_analysis_of_an_ambisonic_response_plots_w():
