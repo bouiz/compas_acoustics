@@ -513,6 +513,19 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
+        public void AnAuraliseSavedWithItsSamplingRateOutput_ReadsWithOnlyTheSignals()
+        {
+            var saved = new AuraliseComponent();
+            saved.Params.RegisterOutputParam(new Param_Integer { Name = "sampling_rate", NickName = "sampling_rate" });
+            var fresh = new AuraliseComponent();
+            var (archive, read) = SaveThenRead(saved, fresh);
+            Assert.True(read);
+            Assert.Empty(Errors(archive));
+            Assert.Equal(new[] { "signals" }, fresh.Params.Output.Select(p => p.Name).ToArray());
+            Assert.Equal(new[] { "signals" }, ComponentSpec.Load("CA_Auralise").Outputs.Select(p => p.Name).ToArray());
+        }
+
+        [Fact]
         public void AnAuraliseSavedWithItsControlPortsHidden_KeepsTheChosenPairsAndSound()
         {
             var saved = new AuraliseComponent();

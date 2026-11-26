@@ -43,11 +43,10 @@ namespace CompasAcoustics.Grasshopper.Tests
             var chosen = FourPairs().Where(p => p.Source == 1).ToList();
             IDictionary<string, object?> Signal(string label, int rate) =>
                 new Dictionary<string, object?> { ["label"] = label, ["audio"] = new AudioData { SamplingRate = rate, Format = "mono", Shape = { 1 }, Samples = { 0.5 } } };
-            var (signals, rates, formats) = AuraliseGroups.Trees(new[] { Signal("1_1", 44100), Signal("0_1", 48000) }, chosen);
+            var (signals, formats) = AuraliseGroups.Trees(new[] { Signal("1_1", 44100), Signal("0_1", 48000) }, chosen);
             Assert.Equal(new[] { "{0;1}", "{1;1}" }, signals.Paths.Select(p => p.ToString()).OrderBy(p => p));
-            Assert.Equal(48000, rates.Branch(new GH_Path(0, 1)).Single());
-            Assert.Equal(44100, rates.Branch(new GH_Path(1, 1)).Single());
             Assert.Equal(48000, signals.Branch(new GH_Path(0, 1)).Single().SamplingRate);
+            Assert.Equal(44100, signals.Branch(new GH_Path(1, 1)).Single().SamplingRate);
             Assert.Equal(new[] { "mono", "mono" }, formats);
         }
 

@@ -39,11 +39,6 @@
             {
                 "name": "signals",
                 "description": "One branch per chosen source-receiver pair, path {receiver;source}: the auralised signal in the format of its impulse response, shaped (samples, channels). The Audio Player plays mono (on both channels) and binaural; ambisonic signals are for saving."
-            },
-            {
-                "name": "sampling_rate",
-                "typeHintID": "int",
-                "description": "One branch per chosen source-receiver pair, path {receiver;source}: the sampling rate of its signal, in Hz."
             }
         ]
     }

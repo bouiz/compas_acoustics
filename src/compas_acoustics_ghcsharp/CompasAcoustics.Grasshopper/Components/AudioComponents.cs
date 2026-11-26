@@ -36,22 +36,20 @@ namespace CompasAcoustics.Grasshopper
             return (all.Select(p => (object?)p.Response.Value).ToList(), chosen.Select(p => index[(p.Receiver, p.Source)]).ToList(), chosen.Select(PairChoice.LabelOf).ToList());
         }
 
-        /// <summary>The worker's signals in the branches of their pairs, {receiver;source}, found by label; their sampling rates alike, and their formats.</summary>
-        public static (DataTree<AudioGoo> Signals, DataTree<int> Rates, List<string> Formats) Trees(IEnumerable<IDictionary<string, object?>> signals, IReadOnlyList<Pair> chosen)
+        /// <summary>The worker's signals in the branches of their pairs, {receiver;source}, found by label, and their formats.</summary>
+        public static (DataTree<AudioGoo> Signals, List<string> Formats) Trees(IEnumerable<IDictionary<string, object?>> signals, IReadOnlyList<Pair> chosen)
         {
             var paths = chosen.ToDictionary(PairChoice.LabelOf, PairChoice.PathOf);
             var audio = new DataTree<AudioGoo>();
-            var rates = new DataTree<int>();
             var formats = new List<string>();
             foreach (var signal in signals)
             {
                 var goo = new AudioGoo((AudioData)signal["audio"]!);
                 var path = paths[(string)signal["label"]!];
                 audio.Add(goo, path);
-                rates.Add(goo.SamplingRate, path);
                 formats.Add(goo.Format);
             }
-            return (audio, rates, formats);
+            return (audio, formats);
         }
 
         /// <summary>The folder of the anechoic sounds the worker's compas_acoustics bundles, where the Anechoic sound dialog opens; null when the worker cannot tell.</summary>
@@ -226,7 +224,7 @@ namespace CompasAcoustics.Grasshopper
             {
                 var result = outcome.Result;
                 var (paired, rendered) = ((List<Pair>, string))outcome.Context!;
-                var (signals, rates, formats) = AuraliseGroups.Trees(((IEnumerable<object?>)result["signals"]!).Cast<IDictionary<string, object?>>(), paired);
+                var (signals, formats) = AuraliseGroups.Trees(((IEnumerable<object?>)result["signals"]!).Cast<IDictionary<string, object?>>(), paired);
                 var peak = Convert.ToDouble(result["peak_dbfs"], CultureInfo.InvariantCulture);
                 Status(AuraliseGroups.Message(formats, rendered, peak));
                 if (peak > 0)
@@ -234,7 +232,6 @@ namespace CompasAcoustics.Grasshopper
                 if (formats.Contains("ambisonic"))
                     Remark("Ambisonic signals (ACN/SN3D) cannot be played by the Audio Player. Save them " + AuraliseGroups.AmbisonicAdvice);
                 access.SetDataTree(0, signals);
-                access.SetDataTree(1, rates);
             });
         }
 
