@@ -63,7 +63,7 @@ namespace CompasAcoustics.Grasshopper
 
     public sealed class AuraliseComponent : ComponentBase
     {
-        private static readonly string[] Levels = { "relative", "individual", "none" };
+        private static readonly string[] Levels = { "none", "relative", "individual" };
 
         /// <summary>The entry of the Anechoic sound dropdown that opens a file dialog.</summary>
         public const string LoadOption = "Load...";
@@ -89,7 +89,7 @@ namespace CompasAcoustics.Grasshopper
 
         public override IReadOnlyList<Control> Controls { get; } = new Control[]
         {
-            new DropdownControl("level", Levels, "relative"), SceneIndices.SourceDropdown, SceneIndices.ReceiverDropdown, SoundDropdown,
+            new DropdownControl("level", Levels, "none"), SceneIndices.SourceDropdown, SceneIndices.ReceiverDropdown, SoundDropdown,
             new ButtonControl("save_rir", "Save RIR"), new ButtonControl("save_auralisation", "Save auralisation"),
         };
 

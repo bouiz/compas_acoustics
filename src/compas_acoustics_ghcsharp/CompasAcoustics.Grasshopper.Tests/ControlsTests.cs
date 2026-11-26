@@ -172,7 +172,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal("diffraction", title);
             Assert.Equal(ComponentSpec.Load("CA_Simulate_Binaural").Inputs.Single(p => p.Name == "diffraction").Description, text);
             // a choice without an input: its options, and its default
-            Assert.Equal(("level", "relative, individual or none (default relative)"), new AuraliseComponent().ControlTooltip("level"));
+            Assert.Equal(("level", "none, relative or individual (default none)"), new AuraliseComponent().ControlTooltip("level"));
         }
 
         [Fact]

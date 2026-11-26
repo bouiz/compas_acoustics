@@ -76,7 +76,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             var auralise = new AuraliseComponent();
             Assert.Equal(new Control[]
             {
-                new DropdownControl("level", new[] { "relative", "individual", "none" }, "relative"),
+                new DropdownControl("level", new[] { "none", "relative", "individual" }, "none"),
                 SceneIndices.SourceDropdown, SceneIndices.ReceiverDropdown, AuraliseComponent.SoundDropdown,
                 new ButtonControl("save_rir", "Save RIR"), new ButtonControl("save_auralisation", "Save auralisation"),
             }.Select(c => c.ToString()), auralise.Controls.Select(c => c.ToString()));

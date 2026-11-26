@@ -494,11 +494,13 @@ namespace CompasAcoustics.Grasshopper.Tests
                 Assert.Empty(ControlState.PersistentAll(port));
                 Assert.Equal(ComponentSpec.Load("CA_Auralise").Inputs.Single(p => p.Name == name).Description, port.Description);
             }
-            Assert.Equal("relative", fresh.Choice("level"));
+            // no level saved: the default, none
+            Assert.Equal("none", fresh.Choice("level"));
             Assert.Empty(fresh.RuntimeMessages(GH_RuntimeMessageLevel.Remark));
         }
 
         [Theory]
+        [InlineData("relative")]
         [InlineData("individual")]
         [InlineData("none")]
         public void AnAuraliseSavedWithItsLevelSwitch_ReadsTheLevelIntoTheDropdown(string level)
