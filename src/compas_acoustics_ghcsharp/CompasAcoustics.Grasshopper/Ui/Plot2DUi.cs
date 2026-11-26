@@ -170,6 +170,8 @@ namespace CompasAcoustics.Grasshopper
             return Plot2DLayout.SelectColumn(box, Plot.ChartSize);
         }
 
+        protected override RectangleF ArrangedIn(RectangleF area) => Plot2DLayout.SelectArea(area);
+
         private RectangleF Body => new(Bounds.X, Bounds.Bottom - ExtraHeight, Bounds.Width, ExtraHeight);
 
         private RectangleF Slot(int i) => Plot2DLayout.Slot(Body, i, Plot.ChartSize);

@@ -308,6 +308,24 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(Plot2DLayout.SelectWidth, Plot2DLayout.SelectColumn(box, new SizeF(160, 90)));
         }
 
+        [Theory]
+        [InlineData(160f)]
+        [InlineData(400f)]
+        [InlineData(900f)]
+        public void Plot2D_TheParameterDropdownKeepsItsWidth_AtTheStartOfTheColumn(float chartWidth)
+        {
+            var plot = new Plot2DComponent();
+            var box = new RectangleF(0, 0, 70, 28);
+            var chart = new SizeF(Math.Max(chartWidth, Plot2DLayout.MinChartWidth(box)), 90);
+            var (area, ports) = ControlLayout.Place(box, ControlLayout.Height(plot.Controls), Plot2DLayout.SelectColumn(box, chart));
+            var dropdown = Assert.Single(ControlLayout.Arrange(plot.Controls, Plot2DLayout.SelectArea(area)));
+            Assert.Equal(Plot2DLayout.SelectWidth - 2 * ControlLayout.Margin, dropdown.Bounds.Width, 3);
+            Assert.Equal(dropdown.Bounds.Width, dropdown.Title.Width, 3);
+            Assert.Equal(area.Left + ControlLayout.Margin, dropdown.Bounds.Left, 3);
+            // the column stays as wide as the charts, the rest of it empty
+            Assert.Equal(chart.Width, ports.Width, 3);
+        }
+
         private sealed class Close : System.Collections.Generic.IEqualityComparer<double>
         {
             private readonly double _tolerance;

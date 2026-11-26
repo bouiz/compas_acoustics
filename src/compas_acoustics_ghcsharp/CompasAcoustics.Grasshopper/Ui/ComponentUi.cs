@@ -35,6 +35,9 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>The width of a column right of Grasshopper's box <paramref name="box"/> that holds the controls; 0 for rows below it.</summary>
         protected virtual float ControlColumn(RectangleF box) => 0;
 
+        /// <summary>The part of the controls' area <paramref name="area"/> they are arranged in: all of it, unless they are narrower.</summary>
+        protected virtual RectangleF ArrangedIn(RectangleF area) => area;
+
         protected override void Layout()
         {
             base.Layout();
@@ -56,7 +59,7 @@ namespace CompasAcoustics.Grasshopper
             var (area, box) = ControlLayout.Place(Bounds, height, column);
             ControlArea = area;
             ExtraArea = new RectangleF(box.X, box.Bottom, box.Width, ExtraHeight);
-            _boxes = ControlLayout.Arrange(controls, ControlArea);
+            _boxes = ControlLayout.Arrange(controls, ArrangedIn(ControlArea));
             Bounds = new RectangleF(box.X, box.Y, box.Width, box.Height + ExtraHeight);
         }
 

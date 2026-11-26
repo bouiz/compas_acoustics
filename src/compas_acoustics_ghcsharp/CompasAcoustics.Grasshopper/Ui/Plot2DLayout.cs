@@ -6,7 +6,7 @@ using System.Text.RegularExpressions;
 
 namespace CompasAcoustics.Grasshopper
 {
-    /// <summary>Plot 2D's body: the parameter's dropdown right of the data input; below, its charts stacked, then a row with the Save button.</summary>
+    /// <summary>Plot 2D's body: the parameter's dropdown right of the data input, at the start of a column as wide as the charts; below, its charts stacked, then a row with the Save button.</summary>
     public static class Plot2DLayout
     {
         public const float SaveRow = 22;
@@ -16,6 +16,9 @@ namespace CompasAcoustics.Grasshopper
 
         /// <summary>The width of the dropdown's column right of Grasshopper's box <paramref name="box"/>: to the charts' right edge, at least <see cref="SelectWidth"/>.</summary>
         public static float SelectColumn(RectangleF box, SizeF chart) => Math.Max(SelectWidth, chart.Width - box.Width);
+
+        /// <summary>Where the dropdown and its title go in the column's area <paramref name="area"/>: <see cref="SelectWidth"/> wide at its start, the rest empty.</summary>
+        public static RectangleF SelectArea(RectangleF area) => new(area.X, area.Y, Math.Min(area.Width, SelectWidth), area.Height);
 
         /// <summary>The narrowest the charts are drawn: wide enough for Grasshopper's box <paramref name="box"/> and the dropdown's column right of it, and not below <see cref="MinWidth"/>.</summary>
         public static float MinChartWidth(RectangleF box) => Math.Max(MinWidth, box.Width + SelectWidth);
