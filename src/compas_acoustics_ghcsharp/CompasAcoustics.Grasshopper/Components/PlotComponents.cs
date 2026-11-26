@@ -33,8 +33,17 @@ namespace CompasAcoustics.Grasshopper
                 return data;
             var chosen = data.Where(p => IsCurve(p) || p.Name == select).ToList();
             if (data.Any(p => !IsCurve(p)) && chosen.All(IsCurve))
-                warn($"The parameters connected do not include '{select}'.");
+                warn(select == "LF"
+                    ? "LF is not in the connected data: it needs an ambisonic response (Simulate Ambisonics)."
+                    : $"{select} is not in the connected data.");
             return chosen;
+        }
+
+        /// <summary>"All" and the band parameters among <paramref name="present"/>, in <see cref="Names"/> order.</summary>
+        public static (string[] values, string[] labels) OptionsFor(IReadOnlyCollection<string> present)
+        {
+            var names = Names.Where(present.Contains).ToArray();
+            return (new[] { "all" }.Concat(names).ToArray(), new[] { "All" }.Concat(names).ToArray());
         }
     }
 
@@ -57,6 +66,13 @@ namespace CompasAcoustics.Grasshopper
         public IReadOnlyList<ParameterGoo.Content> Charts => _charts;
 
         private bool _hasParameter;
+        private readonly HashSet<string> _connected = new();
+
+        /// <summary>"All" and the parameters of the connected data; every parameter while the data hold none.</summary>
+        public override (string[] values, string[] labels) OptionsOf(DropdownControl dropdown) =>
+            dropdown.Port == "select" && _hasParameter ? PlotSelection.OptionsFor(_connected) : base.OptionsOf(dropdown);
+
+        protected override bool IsOption(string name, string value) => name == "select" ? value.Length > 0 : base.IsOption(name, value);
 
         /// <summary>The parameter's dropdown rests while the data hold no parameter: only curves, which are charted whichever is chosen.</summary>
         public override bool ControlEnabled(string port) => port != "select" || _hasParameter;
@@ -68,6 +84,7 @@ namespace CompasAcoustics.Grasshopper
         {
             _charts.Clear();
             _hasParameter = false;
+            _connected.Clear();
             base.BeforeSolveInstance();
         }
 
@@ -81,6 +98,7 @@ namespace CompasAcoustics.Grasshopper
                 return;
             }
             _hasParameter = !data.All(PlotSelection.IsCurve);
+            _connected.UnionWith(data.Where(p => !PlotSelection.IsCurve(p)).Select(p => p.Name));
             _charts.AddRange(PlotSelection.Select(data, Text(access, "select"), Warn));
         }
 

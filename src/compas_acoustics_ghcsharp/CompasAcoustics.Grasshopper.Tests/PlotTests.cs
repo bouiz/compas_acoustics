@@ -283,7 +283,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal("T30", select.Default);
             Assert.Equal(new[] { "All" }.Concat(PlotSelection.Names), select.Labels);
             Assert.Equal(PlotSelection.MenuLabels, ControlLayout.MenuLabels(select, select.Options, select.Labels!));
-            Assert.Equal(select.Labels, ControlLayout.MenuLabels(select, new[] { "all" }, select.Labels!));
+            Assert.Equal(new[] { "All", "T30 (Reverberation Time)" }, ControlLayout.MenuLabels(select, new[] { "all", "T30" }, new[] { "All", "T30" }));
             Assert.Equal("All", ControlLayout.Label(select, "all"));
             Assert.Equal("T30", ControlLayout.Label(select, "T30"));
             Assert.Equal(new[] { "data" }, component.Params.Input.Select(p => p.Name));
@@ -376,7 +376,15 @@ namespace CompasAcoustics.Grasshopper.Tests
             var warnings = new System.Collections.Generic.List<string>();
             var chosen = PlotSelection.Select(new[] { P("C80"), Curve("IR", "linear") }, "T30", warnings.Add);
             Assert.Equal(new[] { "IR" }, chosen.Select(p => p.Name).ToArray());
-            Assert.Equal(new[] { "The parameters connected do not include 'T30'." }, warnings);
+            Assert.Equal(new[] { "T30 is not in the connected data." }, warnings);
+        }
+
+        [Fact]
+        public void Plot_SelectLF_WithoutIt_WarnsThatItNeedsAnAmbisonicResponse()
+        {
+            var warnings = new System.Collections.Generic.List<string>();
+            PlotSelection.Select(new[] { P("T30"), Curve("IR", "linear") }, "LF", warnings.Add);
+            Assert.Equal(new[] { "LF is not in the connected data: it needs an ambisonic response (Simulate Ambisonics)." }, warnings);
         }
 
         [Fact]
@@ -433,6 +441,66 @@ namespace CompasAcoustics.Grasshopper.Tests
             // nothing connected: Grasshopper solves no instance of the required input
             Call(plot, "BeforeSolveInstance");
             Assert.False(plot.ControlEnabled("select"));
+        }
+
+        private static (string[] values, string[] labels, string[] menu) Offered(Plot2DComponent plot)
+        {
+            var dropdown = (DropdownControl)plot.Controls.Single();
+            var (values, labels) = plot.OptionsOf(dropdown);
+            return (values, labels, ControlLayout.MenuLabels(dropdown, values, labels));
+        }
+
+        [Fact]
+        public void TheParameterDropdown_OffersAllAndTheBandParametersConnected_WithoutLFForAMonoResponse()
+        {
+            var plot = new Plot2DComponent();
+            Solve(plot, P("G"), P("T30"), P("EDT"), Curve("IR", "linear"), Curve("FR", "log"));
+            var (values, labels, menu) = Offered(plot);
+            Assert.Equal(new[] { "all", "EDT", "T30", "G" }, values);
+            Assert.Equal(new[] { "All", "EDT", "T30", "G" }, labels);
+            Assert.Equal(new[] { "All", "EDT (Early Decay Time)", "T30 (Reverberation Time)", "G (Sound Strength)" }, menu);
+        }
+
+        [Fact]
+        public void TheParameterDropdown_OffersLF_ForAnAmbisonicResponse()
+        {
+            var plot = new Plot2DComponent();
+            Solve(plot, P("EDT"), P("T30"), P("LF"), Curve("IR", "linear"));
+            var (values, _, menu) = Offered(plot);
+            Assert.Equal(new[] { "all", "EDT", "T30", "LF" }, values);
+            Assert.Equal("LF (Lateral Energy Fraction)", menu[^1]);
+        }
+
+        [Fact]
+        public void TheParameterDropdown_OffersEveryParameter_WithNothingOrOnlyCurvesConnected()
+        {
+            var plot = new Plot2DComponent();
+            Assert.Equal(PlotSelection.Options, Offered(plot).values);
+            Solve(plot, Curve("IR", "linear"));
+            Assert.Equal(PlotSelection.Options, Offered(plot).values);
+        }
+
+        [Fact]
+        public void ASavedLF_WithMonoData_IsKept_AndWarnsThatItNeedsAnAmbisonicResponse()
+        {
+            var plot = new Plot2DComponent();
+            plot.SetChoice("select", "LF");
+            Solve(plot, P("EDT"), P("T30"), Curve("IR", "linear"));
+            Assert.Equal("LF", plot.Choice("select"));
+            Assert.Equal(new[] { "IR" }, plot.Charts.Select(p => p.Name).ToArray());
+            Assert.Equal(new[] { "LF is not in the connected data: it needs an ambisonic response (Simulate Ambisonics)." },
+                plot.RuntimeMessages(GH_RuntimeMessageLevel.Warning).ToArray());
+            Assert.Equal("LF", ComponentUi.DropdownText(plot, (DropdownControl)plot.Controls.Single(), plot.Choice("select")));
+        }
+
+        [Fact]
+        public void ASavedParameterNotInTheData_StaysShown_AndWarnsGenerically()
+        {
+            var plot = new Plot2DComponent();
+            plot.SetChoice("select", "G");
+            Solve(plot, P("EDT"), P("T30"), Curve("IR", "linear"));
+            Assert.Equal("G", plot.Choice("select"));
+            Assert.Equal(new[] { "G is not in the connected data." }, plot.RuntimeMessages(GH_RuntimeMessageLevel.Warning).ToArray());
         }
 
         [Fact]

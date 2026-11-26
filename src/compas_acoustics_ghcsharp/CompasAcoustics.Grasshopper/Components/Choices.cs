@@ -155,7 +155,7 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>Choose <paramref name="value"/> for <paramref name="name"/> (an option of it), as an undoable change, and solve again.</summary>
         public virtual void SetChoice(string name, string value)
         {
-            if (!Choices.TryGetValue(name, out var options) || !options.Contains(value) || Choice(name) == value)
+            if (!Choices.ContainsKey(name) || !IsOption(name, value) || Choice(name) == value)
                 return;
             var document = OnPingDocument();
             if (document != null)
@@ -165,6 +165,9 @@ namespace CompasAcoustics.Grasshopper
                 ExpireSolution(true);
         }
 
+        /// <summary>Whether <paramref name="value"/> may be chosen or read back for the choice <paramref name="name"/>: by default one of its options.</summary>
+        protected virtual bool IsOption(string name, string value) => Choices.TryGetValue(name, out var options) && options.Contains(value);
+
         private void WriteChoices(GH_IWriter writer)
         {
             foreach (var (name, value) in _choices)
@@ -173,8 +176,8 @@ namespace CompasAcoustics.Grasshopper
 
         private void ReadChoices(GH_IReader reader)
         {
-            foreach (var (name, options) in Choices)
-                if (reader.ItemExists(ChoiceKey + name) && options.Contains(reader.GetString(ChoiceKey + name)))
+            foreach (var name in Choices.Keys)
+                if (reader.ItemExists(ChoiceKey + name) && IsOption(name, reader.GetString(ChoiceKey + name)))
                     _choices[name] = reader.GetString(ChoiceKey + name);
         }
     }

@@ -439,6 +439,22 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
+        public void APlot2DSavedWithLFC_ReadsIt_AndWarnsThatTheDataDoNotHaveIt()
+        {
+            var saved = new Plot2DComponent();
+            typeof(ComponentBase).GetField("_choices", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+                .SetValue(saved, new System.Collections.Generic.Dictionary<string, string> { ["select"] = "LFC" });
+            var fresh = new Plot2DComponent();
+            var (archive, read) = SaveThenRead(saved, fresh);
+            Assert.True(read);
+            Assert.Empty(Errors(archive));
+            Assert.Equal("LFC", fresh.Choice("select"));
+            var warnings = new System.Collections.Generic.List<string>();
+            PlotSelection.Select(new[] { new ParameterGoo.Content("T30", "T30", "Frequency (Hz)", "Time (s)", "bands", new[] { 125.0 }, new[] { new[] { 1.0 } }, 1.0, System.Array.Empty<string>()) }, fresh.Choice("select"), warnings.Add);
+            Assert.Equal(new[] { "LFC is not in the connected data." }, warnings);
+        }
+
+        [Fact]
         public void APlot2DSavedWithAParameterChosen_ReadsTheChoice()
         {
             var saved = new Plot2DComponent();

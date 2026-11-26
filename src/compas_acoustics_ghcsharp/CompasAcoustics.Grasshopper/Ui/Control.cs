@@ -115,7 +115,7 @@ namespace CompasAcoustics.Grasshopper
 
         /// <summary>What the opened menu of <paramref name="dropdown"/> reads for the options it offers: its menu labels when it offers its own options.</summary>
         public static string[] MenuLabels(DropdownControl dropdown, string[] values, string[] labels) =>
-            dropdown.MenuLabels is { } menu && ReferenceEquals(values, dropdown.Options) && menu.Length == values.Length ? menu : labels;
+            dropdown.MenuLabels is not { } menu ? labels : values.Select((v, i) => Array.IndexOf(dropdown.Options, v) is var j && j >= 0 && j < menu.Length ? menu[j] : labels[i]).ToArray();
 
         private static bool IsInline(Control? control) => control is ToggleControl { Inline: true } or ButtonControl { Inline: true };
 
