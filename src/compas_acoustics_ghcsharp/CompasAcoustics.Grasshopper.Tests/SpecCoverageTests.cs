@@ -18,7 +18,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             ["CA_Analyse_IR"] = "AnalyseIrComponent",
             ["CA_Audio_Player"] = "AudioPlayerComponent",
             ["CA_Auralise"] = "AuraliseComponent",
-            ["CA_Channel"] = "CheckChannelComponent",
             ["CA_Construct_Material"] = "ConstructMaterialComponent",
             ["CA_Deconstruct_Material"] = "DeconstructMaterialComponent",
             ["CA_Install_Worker"] = "InstallWorkerComponent",

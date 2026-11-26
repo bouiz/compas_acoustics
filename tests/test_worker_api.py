@@ -434,28 +434,6 @@ def test_regularized_fitness_matches_the_function():
 
 
 # ---------------------------------------------------------------------------
-# What the Check Channel component asks about a file
-# ---------------------------------------------------------------------------
-
-
-def test_sound_info_reads_the_channels_of_any_soundfile_format(tmp_path):
-    import soundfile as sf
-
-    path = tmp_path / "s.flac"
-    sf.write(str(path), np.zeros((100, 3)), 22050)
-    assert call("sound_info", str(path)) == {"channels": 3}
-    assert call("sound_info", VIOLA)["channels"] >= 1
-
-
-def test_sound_info_of_a_missing_or_unreadable_file_is_a_value_error(tmp_path):
-    with pytest.raises(ValueError, match="does not exist"):
-        api.sound_info(str(tmp_path / "none.wav"))
-    (tmp_path / "text.wav").write_text("not audio")
-    with pytest.raises(ValueError, match="Cannot read"):
-        api.sound_info(str(tmp_path / "text.wav"))
-
-
-# ---------------------------------------------------------------------------
 # Playback control
 # ---------------------------------------------------------------------------
 

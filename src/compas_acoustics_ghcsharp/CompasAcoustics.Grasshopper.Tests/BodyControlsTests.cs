@@ -190,7 +190,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(new[] { "source_idx", "receiver_idx", "order" }, new VisualiseReflectionsComponent().ControlPorts);
             Assert.Equal(new[] { "time", "speed", "play" }, new VisualiseBilliardComponent().ControlPorts);
             Assert.Equal(new[] { "frequency_bands", "source_idx", "run" }, new VisualiseEnergyMapComponent().ControlPorts);
-            Assert.Equal(new[] { "sound_file" }, new SourceComponent().ControlPorts);
+            Assert.Empty(new SourceComponent().ControlPorts);
             Assert.Equal(new[] { "category" }, new ConstructMaterialComponent().ControlPorts);
         }
 
@@ -277,16 +277,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(ControlLayout.ButtonGap, Of("run").Top - Of("hrtf").Bottom, 3);
             // the gap a title leaves: the margin and the empty top of its row
             Assert.Equal(10f, ControlLayout.ButtonGap);
-        }
-
-        [Fact]
-        public void TheSourcesSoundFile_IsAFileButtonNamingTheFile()
-        {
-            var source = new SourceComponent();
-            Assert.True(source.HandlesButton("sound_file"));
-            Assert.Equal("Sound file...", source.ButtonLabel("sound_file"));
-            ControlState.Choose(source, source.ControlPort("sound_file")!, "/sounds/viola.wav");
-            Assert.Equal("Sound: viola.wav", source.ButtonLabel("sound_file"));
         }
 
         [Fact]

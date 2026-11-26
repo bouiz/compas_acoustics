@@ -9,22 +9,6 @@ using Grasshopper.Kernel.Types;
 
 namespace CompasAcoustics.Grasshopper
 {
-    /// <summary>The number of channels of a sound, as Check Channel counts it.</summary>
-    public static class SoundChannels
-    {
-        /// <param name="fileChannels">The channels of an audio file, by path (the worker reads it).</param>
-        public static int Of(object sound, Func<string, int> fileChannels) => sound switch
-        {
-            ImpulseResponseGoo ir => ir.Channels,
-            AudioGoo audio => audio.Channels,
-            SourceGoo source => source.SoundFile is string file && file.Length > 0 ? fileChannels(file) : throw new ArgumentException("The source has no sound file."),
-            GH_String path => fileChannels(path.Value),
-            string path => fileChannels(path),
-            IGH_Goo goo => throw new ArgumentException($"Cannot read the channels of a {goo.TypeName}."),
-            _ => throw new ArgumentException($"Cannot read the channels of a {sound.GetType().Name}."),
-        };
-    }
-
     public sealed class AnalyseIrComponent : ComponentBase
     {
         public AnalyseIrComponent() : base("CA_Analyse_IR") { }
@@ -114,36 +98,5 @@ namespace CompasAcoustics.Grasshopper
         }
 
         protected override bool RunsInBackground => true;
-    }
-
-    public sealed class CheckChannelComponent : ComponentBase
-    {
-        public CheckChannelComponent() : base("CA_Channel") { }
-        protected override string SpecKey => "CA_Channel";
-        public override Guid ComponentGuid => new Guid("23803429-885f-5cdd-9480-09282cd8a303");
-
-        protected override void Solve(IGH_DataAccess access)
-        {
-            var sound = Item<IGH_Goo>(access, "sound");
-            if (sound == null || (sound is GH_String text && string.IsNullOrEmpty(text.Value)))
-            {
-                WarnMissing("sound");
-                Message = null;
-                return;
-            }
-            int channels;
-            try
-            {
-                channels = SoundChannels.Of(sound, path => Convert.ToInt32(((IDictionary<string, object?>)Worker.Call("sound_info", path)!)["channels"]));
-            }
-            catch (ArgumentException e)
-            {
-                Error(e.Message);
-                Message = null;
-                return;
-            }
-            Status($"channels: {channels}");
-            access.SetData(0, channels);
-        }
     }
 }

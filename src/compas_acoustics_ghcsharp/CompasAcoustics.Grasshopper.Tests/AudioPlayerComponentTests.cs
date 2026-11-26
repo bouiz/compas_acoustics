@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using CompasAcoustics.Pb;
+using Grasshopper.Kernel;
 using Xunit;
 
 namespace CompasAcoustics.Grasshopper.Tests
@@ -57,6 +58,19 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         private IDictionary<string, object?> Kwargs(int i) => (IDictionary<string, object?>)_calls[i].payload!["kwargs"]!;
+
+        [Fact]
+        public void AudioPlayer_ASource_IsNotValid()
+        {
+            var access = new FakeAccess();
+            access.Items["audio"] = new SourceGoo(new SourceData { SoundFile = "/sounds/viola.wav" });
+            var player = new AudioPlayerComponent();
+            typeof(GH_Component).GetMethod("SolveInstance", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+                .Invoke(player, new object?[] { access });
+            Assert.Equal(new[] { "Input parameter 'audio' is not valid." }, player.RuntimeMessages(GH_RuntimeMessageLevel.Error).ToArray());
+            Assert.Empty(_calls);
+            Assert.Null(player.Signal);
+        }
 
         [Fact]
         public void ADoubleClickOnTheVolume_SetsItBackTo0dB_AndAPlayingSignalGoesOnAtThatLevel()

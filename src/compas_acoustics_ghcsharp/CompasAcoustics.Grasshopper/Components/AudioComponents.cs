@@ -258,7 +258,7 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>The signal shown and played; a file's samples as read by the worker.</summary>
         public AudioData? Signal { get; private set; }
 
-        /// <summary>The file played when the input is a path or a source, which plays whole: no pause or seek.</summary>
+        /// <summary>The file played when the input is a path, which plays whole: no pause or seek.</summary>
         public string? File { get; private set; }
 
         public double GainDb { get; private set; }
@@ -299,9 +299,6 @@ namespace CompasAcoustics.Grasshopper
                     break;
                 case ImpulseResponseGoo ir when ir.Value != null:
                     signal = SignalOf(ir);
-                    break;
-                case SourceGoo source when !string.IsNullOrEmpty(source.SoundFile):
-                    file = source.SoundFile;
                     break;
                 case GH_String path when !string.IsNullOrEmpty(path.Value):
                     file = path.Value;

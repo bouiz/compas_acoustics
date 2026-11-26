@@ -42,17 +42,17 @@ namespace CompasAcoustics.Grasshopper.Tests
             var dropdown = source.Controls.OfType<DropdownControl>().Single();
             Assert.Equal("directivity", dropdown.Port);
             Assert.Equal(new[] { "omnidirectional", "cardioid", "supercardioid", "hypercardioid", "bidirectional" }, dropdown.Options);
-            // no input: a choice of the component; the sound file's button sets an input
-            Assert.Equal(new[] { "sound_file" }, source.ControlPorts);
+            // no input: a choice of the component
+            Assert.Empty(source.ControlPorts);
             Assert.True(source.IsChoice("directivity"));
             Assert.DoesNotContain("directivity", ComponentSpec.Load("CA_Source").Inputs.Select(p => p.Name));
         }
 
         [Fact]
-        public void TheSource_TakesItsLevelAsAnOptionalListAfterTheSoundFile()
+        public void TheSource_TakesItsLevelAsAnOptionalListAfterTheDirection()
         {
             var inputs = ComponentSpec.Load("CA_Source").Inputs;
-            Assert.Equal(new[] { "position", "name", "direction", "sound_file", "spl" }, inputs.Select(p => p.Name));
+            Assert.Equal(new[] { "position", "name", "direction", "spl" }, inputs.Select(p => p.Name));
             var spl = inputs.Last();
             Assert.True(spl.Optional);
             Assert.Equal(global::Grasshopper.Kernel.GH_ParamAccess.list, spl.Access);

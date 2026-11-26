@@ -84,6 +84,13 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
+        public void CheckChannel_IsGone()
+        {
+            Assert.DoesNotContain("CA_Channel", EmbeddedSpecs.Names());
+            Assert.DoesNotContain("CheckChannelComponent", Components().Select(c => (string)c[0]));
+        }
+
+        [Fact]
         public void Components_HaveDistinctGuids()
         {
             var guids = Components().Select(c => Make((string)c[0]).ComponentGuid).ToList();

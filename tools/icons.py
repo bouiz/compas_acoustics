@@ -164,12 +164,6 @@ def play(image, d, accent):
     d.polygon([(36, 26), (36, 70), (72, 48)], fill=accent)
 
 
-def channel(image, d, accent):
-    for y in (22, 58):
-        d.rectangle((14, y, 82, y + 16), fill=accent)
-    _line(d, [(8, 10), (8, 86)], DARK)
-
-
 def target(image, d, accent):
     _ring(d, 48, 48, 38, DARK, W - 2)
     _ring(d, 48, 48, 24, accent)
@@ -253,7 +247,6 @@ GLYPHS = {
     "CA_Analyse_IR": decay,
     "CA_Audio_Player": play,
     "CA_Auralise": auralise,
-    "CA_Channel": channel,
     "CA_Construct_Material": material,
     "CA_Deconstruct_Material": deconstruct_material,
     "CA_Install_Worker": install,

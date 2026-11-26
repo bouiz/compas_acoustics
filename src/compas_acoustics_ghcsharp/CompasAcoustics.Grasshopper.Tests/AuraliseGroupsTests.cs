@@ -97,6 +97,7 @@ namespace CompasAcoustics.Grasshopper.Tests
     internal sealed class FakeAccess : IGH_DataAccess
     {
         public Dictionary<string, object> Trees { get; } = new();
+        public Dictionary<string, object> Items { get; } = new();
 
         public bool GetDataTree<T>(string name, out GH_Structure<T> tree) where T : IGH_Goo
         {
@@ -111,7 +112,13 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         public bool GetData<T>(int index, ref T destination) => false;
-        public bool GetData<T>(string name, ref T destination) => false;
+        public bool GetData<T>(string name, ref T destination)
+        {
+            if (!Items.TryGetValue(name, out var given) || given is not T value)
+                return false;
+            destination = value;
+            return true;
+        }
         public bool GetDataList<T>(int index, List<T> list) => false;
         public bool GetDataList<T>(string name, List<T> list) => false;
         public int Iteration => 0;

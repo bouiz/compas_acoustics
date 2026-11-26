@@ -9,41 +9,6 @@ using Xunit;
 
 namespace CompasAcoustics.Grasshopper.Tests
 {
-    public class SoundChannelsTests
-    {
-        private static int NoFile(string path) => throw new InvalidOperationException("no file expected");
-
-        [Fact]
-        public void Channels_OfAResponseAndOfAudioAreTheirShapes()
-        {
-            var ir = new ImpulseResponseGoo(new ImpulseResponseData { Shape = { 10, 4 } });
-            Assert.Equal(4, SoundChannels.Of(ir, NoFile));
-            Assert.Equal(1, SoundChannels.Of(new ImpulseResponseGoo(new ImpulseResponseData { Shape = { 10 } }), NoFile));
-            Assert.Equal(2, SoundChannels.Of(new AudioGoo(new AudioData { Shape = { 3, 2 } }), NoFile));
-        }
-
-        [Fact]
-        public void Channels_OfAPathOrASourceReadTheFile()
-        {
-            Assert.Equal(3, SoundChannels.Of(new GH_String("/a.flac"), path => path == "/a.flac" ? 3 : 0));
-            Assert.Equal(1, SoundChannels.Of(new SourceGoo(new SourceData { SoundFile = "/v.wav" }), path => path == "/v.wav" ? 1 : 0));
-        }
-
-        [Fact]
-        public void Channels_OfASourceWithoutASoundFileIsAnError()
-        {
-            var error = Assert.Throws<ArgumentException>(() => SoundChannels.Of(new SourceGoo(new SourceData()), NoFile));
-            Assert.Equal("The source has no sound file.", error.Message);
-        }
-
-        [Fact]
-        public void Channels_OfSomethingElseIsAnError()
-        {
-            var error = Assert.Throws<ArgumentException>(() => SoundChannels.Of(new GH_Integer(3), NoFile));
-            Assert.Equal("Cannot read the channels of a Integer.", error.Message);
-        }
-    }
-
     public class AnalyseIrTests
     {
         private static ImpulseResponseGoo Ir(string receiver, string source) => new(new ImpulseResponseData

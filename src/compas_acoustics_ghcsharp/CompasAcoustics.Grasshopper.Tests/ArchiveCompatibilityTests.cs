@@ -467,6 +467,71 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal("/sounds/viola.wav", fresh.HiddenValue("sound"));
         }
 
+        /// <summary>A Source as saved with a sound_file input between direction and spl (shown with its path, or hidden behind its button) and spl 90.</summary>
+        private static GH_Archive OldSource(bool soundHidden)
+        {
+            var old = new SourceComponent();
+            foreach (var port in old.Params.Input.Where(p => p.Name == "sound_file").ToList())
+                old.Params.UnregisterInputParameter(port);
+            var spl = old.Params.Input.Single(p => p.Name == "spl");
+            ControlState.Assign(spl, new[] { "90" });
+            if (!soundHidden)
+            {
+                var sound = new Param_String { Name = "sound_file", NickName = "sound_file", Optional = true };
+                sound.SetPersistentData(new GH_String("/a.wav"));
+                old.Params.UnregisterInputParameter(spl, false);
+                old.Params.RegisterInputParam(sound);
+                old.Params.RegisterInputParam(spl);
+            }
+            old.SetChoice("directivity", "cardioid");
+            old.CreateAttributes();
+            foreach (var p in old.Params)
+                if (p.Attributes == null)
+                    p.CreateAttributes();
+            var archive = new GH_Archive();
+            var node = archive.CreateTopLevelNode("component");
+            Assert.True(old.Write(node));
+            node.RemoveItem("control_inputs_shown");
+            node.RemoveItem("control_inputs_hidden");
+            node.SetBoolean("control_inputs_shown", !soundHidden);
+            node.SetString("control_inputs_hidden", soundHidden ? "sound_file" : "");
+            if (soundHidden)
+                node.SetString("control_value_sound_file", "/a.wav");
+            var back = new GH_Archive();
+            back.Deserialize_Binary(archive.Serialize_Binary());
+            return back;
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Source_SavedWithASoundFile_ReadsWithoutIt(bool soundHidden)
+        {
+            var back = OldSource(soundHidden);
+            var fresh = new SourceComponent();
+            fresh.CreateAttributes();
+            Assert.True(fresh.Read(back.GetRootNode.FindChunk("component")));
+            Assert.Empty(Errors(back));
+            Assert.Equal(new[] { "position", "name", "direction", "spl" }, fresh.Params.Input.Select(p => p.Name).ToArray());
+            Assert.Equal(new[] { "90" }, ControlState.PersistentAll(fresh.Params.Input.Single(p => p.Name == "spl")));
+            Assert.Equal("cardioid", fresh.Choice("directivity"));
+        }
+
+        [Fact]
+        public void ASourceSavedNow_KeepsItsDirectivityAndLevel()
+        {
+            var saved = new SourceComponent();
+            saved.SetChoice("directivity", "hypercardioid");
+            ControlState.Assign(saved.Params.Input.Single(p => p.Name == "spl"), new[] { "70" });
+            var fresh = new SourceComponent();
+            var (archive, read) = SaveThenRead(saved, fresh);
+            Assert.True(read);
+            Assert.Empty(Errors(archive));
+            Assert.Equal(new[] { "position", "name", "direction", "spl" }, fresh.Params.Input.Select(p => p.Name).ToArray());
+            Assert.Equal("hypercardioid", fresh.Choice("directivity"));
+            Assert.Equal(new[] { "70" }, ControlState.PersistentAll(fresh.Params.Input.Single(p => p.Name == "spl")));
+        }
+
         [Fact]
         public void AComponentSavedNow_ReadsWithoutErrors()
         {

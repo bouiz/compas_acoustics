@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using CompasAcoustics.Pb;
 using Google.Protobuf;
+using GH_IO.Serialization;
 using Grasshopper.Kernel;
+using Grasshopper.Kernel.Parameters;
 using Grasshopper.Kernel.Types;
 using Rhino.Geometry;
 
@@ -20,22 +22,26 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>The source's directivity patterns, the first the default.</summary>
         internal static readonly string[] Directivities = { "omnidirectional", "cardioid", "supercardioid", "hypercardioid", "bidirectional" };
 
-        public override IReadOnlyList<Control> Controls { get; } = new Control[]
-        {
-            new DropdownControl("directivity", Directivities), new ButtonControl("sound_file", "Sound file..."),
-        };
+        public override IReadOnlyList<Control> Controls { get; } = new Control[] { new DropdownControl("directivity", Directivities) };
 
-        public override bool HandlesButton(string port) => port == "sound_file";
-
-        public override void OnButton(string port)
+        /// <summary>
+        /// A definition saved when the source had a sound_file input before spl: Grasshopper reads the saved inputs by
+        /// position, so spl is set aside while the removed input holds its place, and comes back without it.
+        /// </summary>
+        public override bool Read(GH_IReader reader)
         {
-            if (port == "sound_file")
-                FileButtons.Choose(this, port, "Sound file of the source", "Audio", ".wav", ".flac", ".aiff", ".aif", ".ogg", ".mp3");
+            if (!SavedInput(reader, "sound_file"))
+                return base.Read(reader);
+            var spl = Params.Input.Single(p => p.Name == "spl");
+            Params.UnregisterInputParameter(spl, false);
+            var removed = new Param_String { Name = "sound_file", NickName = "sound_file", Optional = true };
+            Params.RegisterInputParam(removed);
+            Params.RegisterInputParam(spl);
+            var read = base.Read(reader);
+            Params.UnregisterInputParameter(removed, true);
+            Params.OnParametersChanged();
+            return read;
         }
-
-        public override string? ButtonLabel(string port) => port == "sound_file" ? FileButtons.Label(this, port, "Sound: ", "Sound file...") : null;
-
-        protected override void AppendMenu(System.Windows.Forms.ToolStripDropDown menu) => FileButtons.AppendClear(this, menu, "sound_file", "Clear sound file");
 
         protected override void Solve(IGH_DataAccess access)
         {
@@ -43,7 +49,7 @@ namespace CompasAcoustics.Grasshopper
             var direction = Value<Vector3d>(access, "direction") ?? Vector3d.XAxis;
             var spl = Items<double>(access, "spl");
             var source = (SourceData)Worker.Call("make_source", Text(access, "name"), MeshConversion.Xyz(position), MeshConversion.Xyz(direction),
-                Text(access, "directivity"), Text(access, "sound_file"), spl.Count == 0 ? null : spl.Cast<object?>().ToList())!;
+                Text(access, "directivity"), spl.Count == 0 ? null : spl.Cast<object?>().ToList())!;
             access.SetData(0, new SourceGoo(source));
         }
     }

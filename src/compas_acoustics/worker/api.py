@@ -72,7 +72,6 @@ __all__ = [
     "resume",
     "playback_status",
     "sound_samples",
-    "sound_info",
     "anechoic_library_folder",
     "make_scattering_sample",
     "run_scattering_lab",
@@ -174,7 +173,7 @@ def make_material(name, absorption, scattering=None, category=None):
     return AcousticMaterial(name=name, absorption_coefficients=list(absorption), scattering_coefficients=list(scattering) if scattering else None, category=category or None)
 
 
-def make_source(name, position, direction=None, directivity=None, sound_file=None, spl=None):
+def make_source(name, position, direction=None, directivity=None, spl=None):
     """A :class:`Source` with the defaults of the Source component: ``my_source``, facing +x, omnidirectional.
 
     ``spl``: one value for all bands or one per band; None or empty keeps the default.
@@ -187,7 +186,6 @@ def make_source(name, position, direction=None, directivity=None, sound_file=Non
         *(position if position is not None else [0, 0, 0]),
         directivity=directivity,
         direction=list(direction) if direction is not None else [1, 0, 0],
-        sound_file=sound_file or None,
     )
     if spl is not None and len(list(spl)) > 0:
         source.spl = spl
@@ -443,17 +441,6 @@ def sound_samples(path):
         raise ValueError(f"Cannot read {path}: {e}")
     channels = samples.shape[1]
     return Audio(samples[:, 0] if channels == 1 else samples, rate, "mono" if channels == 1 else "binaural" if channels == 2 else "ambisonic")
-
-
-def sound_info(path):
-    """The channels of an audio file, in any format soundfile reads: ``{"channels"}``."""
-    if not os.path.exists(path):
-        raise ValueError(f"The file {path} does not exist.")
-    try:
-        header = sf.info(path)
-    except Exception as e:
-        raise ValueError(f"Cannot read the channels of {path}: {e}")
-    return {"channels": int(header.channels)}
 
 
 def anechoic_library_folder():

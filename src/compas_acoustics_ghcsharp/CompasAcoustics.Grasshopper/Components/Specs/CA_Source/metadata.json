@@ -28,13 +28,6 @@
                 "typeHintID": "vector"
             },
             {
-                "name": "sound_file",
-                "description": "Sound file associated with the source.",
-                "optional": true,
-                "scriptParamAccess": 0,
-                "typeHintID": "str"
-            },
-            {
                 "name": "spl",
                 "description": "The source's level: the sound pressure level on its axis at 1 m in free field, in dB, per octave band 125 Hz to 8 kHz (7 values) or one value for every band. Empty: 120 dB. The SPL of Analyse Impulse Response reads from it.",
                 "optional": true,
