@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -46,6 +47,40 @@ namespace CompasAcoustics.Grasshopper.Tests
             Answer(HttpStatusCode.OK, new Dictionary<string, object?> { ["result"] = result });
 
         public static HttpResponseMessage Pong() => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("pong") };
+    }
+
+    /// <summary>The calls a fake worker received, recorded under one lock so a test on another thread sees a call with its payload.</summary>
+    internal sealed class WorkerCalls : IEnumerable<string>
+    {
+        private readonly List<(string path, IDictionary<string, object?>? payload)> _list = new();
+
+        public void Add(string path, byte[] body)
+        {
+            var payload = body.Length > 0 ? FakeHandler.Serializer.Unpack(body) as IDictionary<string, object?> : null;
+            lock (_list)
+            {
+                _list.Add((path, payload));
+                Monitor.PulseAll(_list);
+            }
+        }
+
+        public (string path, IDictionary<string, object?>? payload) AwaitSingle()
+        {
+            var deadline = DateTime.UtcNow.AddSeconds(5);
+            lock (_list)
+            {
+                while (_list.Count == 0 && Monitor.Wait(_list, TimeSpan.FromSeconds(Math.Max(0, (deadline - DateTime.UtcNow).TotalSeconds)))) { }
+                return _list.Single();
+            }
+        }
+
+        public IEnumerator<string> GetEnumerator()
+        {
+            lock (_list)
+                return _list.Select(c => c.path).ToList().GetEnumerator();
+        }
+
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 
     internal sealed class FakeProcess : IWorkerProcess

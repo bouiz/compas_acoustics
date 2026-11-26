@@ -17,8 +17,7 @@ namespace CompasAcoustics.Grasshopper.Tests
     {
         private const string Needs = "A reference is connected: set Tail to Reference, or disconnect it.";
 
-        private readonly List<string> _calls = new();
-        private readonly List<IDictionary<string, object?>?> _payloads = new();
+        private readonly WorkerCalls _calls = new();
         private readonly string _home = Directory.CreateTempSubdirectory("compas_acoustics_home_").FullName;
 
         public HybridTailTests()
@@ -42,8 +41,7 @@ namespace CompasAcoustics.Grasshopper.Tests
                 return FakeHandler.Pong();
             if (path == "/api/info")
                 return FakeHandler.Result(new Dictionary<string, object?> { ["compas_acoustics"] = Versions.Library, ["schema"] = Schema.Hash, ["hybrid"] = true });
-            _calls.Add(path);
-            _payloads.Add(body.Length > 0 ? FakeHandler.Serializer.Unpack(body) as IDictionary<string, object?> : null);
+            _calls.Add(path, body);
             return FakeHandler.Result(null);
         }
 
@@ -77,11 +75,9 @@ namespace CompasAcoustics.Grasshopper.Tests
 
         private IDictionary<string, object?> Settings()
         {
-            var deadline = DateTime.UtcNow.AddSeconds(5);
-            while (_calls.Count == 0 && DateTime.UtcNow < deadline)
-                System.Threading.Thread.Sleep(10);
-            Assert.Equal("/api/simulate", _calls.Single());
-            return (IDictionary<string, object?>)((IList<object?>)_payloads.Single()!["args"]!)[2]!;
+            var call = _calls.AwaitSingle();
+            Assert.Equal("/api/simulate", call.path);
+            return (IDictionary<string, object?>)((IList<object?>)call.payload!["args"]!)[2]!;
         }
 
         private static GH_Component RoundTrip(GH_Component component)

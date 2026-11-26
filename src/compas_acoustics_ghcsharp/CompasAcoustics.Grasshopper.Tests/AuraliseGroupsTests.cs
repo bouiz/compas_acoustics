@@ -312,8 +312,7 @@ namespace CompasAcoustics.Grasshopper.Tests
     [Collection("worker override")]
     public class AuraliseComponentTests : IDisposable
     {
-        private readonly List<string> _calls = new();
-        private readonly List<IDictionary<string, object?>?> _payloads = new();
+        private readonly WorkerCalls _calls = new();
         private readonly string _home = Directory.CreateTempSubdirectory("compas_acoustics_home_").FullName;
 
         public AuraliseComponentTests()
@@ -337,8 +336,7 @@ namespace CompasAcoustics.Grasshopper.Tests
                 return FakeHandler.Pong();
             if (path == "/api/info")
                 return FakeHandler.Result(new Dictionary<string, object?> { ["compas_acoustics"] = Versions.Library, ["schema"] = Schema.Hash, ["hybrid"] = true });
-            _calls.Add(path);
-            _payloads.Add(body.Length > 0 ? FakeHandler.Serializer.Unpack(body) as IDictionary<string, object?> : null);
+            _calls.Add(path, body);
             return FakeHandler.Result(null);
         }
 
@@ -372,11 +370,9 @@ namespace CompasAcoustics.Grasshopper.Tests
 
         private IList<object?> AwaitCall(string path)
         {
-            var deadline = DateTime.UtcNow.AddSeconds(5);
-            while (_calls.Count == 0 && DateTime.UtcNow < deadline)
-                System.Threading.Thread.Sleep(10);
-            Assert.Equal(path, _calls.Single());
-            return (IList<object?>)_payloads.Single()!["args"]!;
+            var call = _calls.AwaitSingle();
+            Assert.Equal(path, call.path);
+            return (IList<object?>)call.payload!["args"]!;
         }
 
         [Fact]
@@ -438,11 +434,9 @@ namespace CompasAcoustics.Grasshopper.Tests
             ControlState.Choose(auralise, port, "viola");
             port.AddSource(new Param_String());
             Solve(auralise, access);
-            var deadline = DateTime.UtcNow.AddSeconds(5);
-            while (_calls.Count == 0 && DateTime.UtcNow < deadline)
-                System.Threading.Thread.Sleep(10);
-            Assert.Equal("/api/auralise", _calls.Single());
-            Assert.Equal(wired, ((IList<object?>)_payloads.Single()!["args"]!)[1]);
+            var call = _calls.AwaitSingle();
+            Assert.Equal("/api/auralise", call.path);
+            Assert.Equal(wired, ((IList<object?>)call.payload!["args"]!)[1]);
             Assert.Empty(auralise.RuntimeMessages(GH_RuntimeMessageLevel.Warning));
         }
 
