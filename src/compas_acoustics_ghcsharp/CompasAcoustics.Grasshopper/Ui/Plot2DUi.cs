@@ -152,9 +152,9 @@ namespace CompasAcoustics.Grasshopper
     /// <summary>Plot 2D's body: one chart per parameter, stacked, resized by the corner grip, values in the tooltip.</summary>
     public sealed class Plot2DUi : ComponentUi
     {
-        private const float MinWidth = 160;
         private readonly Dictionary<(ParameterGoo.Content, RectangleF), Chart> _cache = new();
         private bool _resizing;
+        private RectangleF _box;
 
         public Plot2DUi(Plot2DComponent owner) : base(owner) { }
 
@@ -164,7 +164,11 @@ namespace CompasAcoustics.Grasshopper
 
         protected override float ExtraHeight => Plot2DLayout.BodyHeight(Plot.Charts.Count, Plot.ChartSize);
 
-        protected override float ControlColumn(RectangleF box) => Plot2DLayout.SelectColumn(box, Plot.ChartSize);
+        protected override float ControlColumn(RectangleF box)
+        {
+            _box = box;
+            return Plot2DLayout.SelectColumn(box, Plot.ChartSize);
+        }
 
         private RectangleF Body => new(Bounds.X, Bounds.Bottom - ExtraHeight, Bounds.Width, ExtraHeight);
 
@@ -221,7 +225,7 @@ namespace CompasAcoustics.Grasshopper
             if (!_resizing)
                 return base.RespondToMouseMove(sender, e);
             // the width follows the mouse, the height keeps the chart's aspect ratio: a resize does not distort the charts
-            Plot.ChartSize = Plot2DLayout.Resize(Plot.ChartSize, e.CanvasLocation.X - Bounds.X, MinWidth);
+            Plot.ChartSize = Plot2DLayout.Resize(Plot.ChartSize, e.CanvasLocation.X - Bounds.X, Plot2DLayout.MinChartWidth(_box));
             ExpireLayout();
             sender.Invalidate();
             return GH_ObjectResponse.Handled;

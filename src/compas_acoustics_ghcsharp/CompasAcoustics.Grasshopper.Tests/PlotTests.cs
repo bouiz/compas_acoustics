@@ -138,6 +138,16 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
+        public void Resizing_NeverGoesBelowTheBoxAndTheParameterColumn()
+        {
+            var box = new RectangleF(0, 0, 70, 28);
+            var smallest = Plot2DLayout.Resize(new SizeF(360, 200), 50, Plot2DLayout.MinChartWidth(box));
+            Assert.Equal(box.Width + Plot2DLayout.SelectWidth, smallest.Width);
+            Assert.Equal(smallest.Width, box.Width + Plot2DLayout.SelectColumn(box, smallest));
+            Assert.Equal(540f, Plot2DLayout.Resize(new SizeF(360, 200), 540, Plot2DLayout.MinChartWidth(box)).Width);
+        }
+
+        [Fact]
         public void STI_RunsFromZeroToOne()
         {
             var sti = new ParameterGoo.Content("STI", "Speech Transmission Index (STI)", "Frequency (Hz)", "STI", "bands", Octaves,
