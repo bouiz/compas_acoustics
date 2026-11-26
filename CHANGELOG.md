@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+* Changed Plot 2D to show a one-sentence description of the chosen parameter right of the Select parameter dropdown (dimmed while the dropdown rests): what the parameter is and its standard, from one table beside `PlotSelection.Names`.
 * Changed Visualise Energy Map to compute the map when its Run button is pressed (or its new `run` input is true), not on every change of its inputs: the map takes seconds, and on the one worker it slowed the components that run on every change of the scene, Simulate Mono among them. Until a press the last map stays drawn; changing the band or the range redraws it without a run.
 * Removed the `energy_thres` input of Simulate Mono: it runs with the method's 1e-7, pyroomacoustics' own (`Mono(energy_thres=)` stays in Python). A definition saved with another value reads with its inputs in place and remarks that the responses now use 1e-7 until it is saved again.
 * Changed the Grasshopper components to take the descriptions of the installed plugin when a definition is opened: Grasshopper restored those the file was saved with, so a definition from an earlier release showed its tooltips.

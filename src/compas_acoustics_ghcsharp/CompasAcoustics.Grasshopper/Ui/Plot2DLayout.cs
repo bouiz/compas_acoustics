@@ -20,6 +20,13 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>Where the dropdown and its title go in the column's area <paramref name="area"/>: <see cref="SelectWidth"/> wide at its start, the rest empty.</summary>
         public static RectangleF SelectArea(RectangleF area) => new(area.X, area.Y, Math.Min(area.Width, SelectWidth), area.Height);
 
+        /// <summary>Where the description of the chosen parameter goes in the column's area <paramref name="area"/>: right of <see cref="SelectArea"/>, the rest of the column; empty when the column has no room beyond the dropdown.</summary>
+        public static RectangleF DescriptionArea(RectangleF area)
+        {
+            var left = area.X + Math.Min(area.Width, SelectWidth);
+            return new RectangleF(left, area.Y + 3, Math.Max(area.Right - left - 3, 0), Math.Max(area.Height - 6, 0));
+        }
+
         /// <summary>The narrowest the charts are drawn: wide enough for Grasshopper's box <paramref name="box"/> and the dropdown's column right of it, and not below <see cref="MinWidth"/>.</summary>
         public static float MinChartWidth(RectangleF box) => Math.Max(MinWidth, box.Width + SelectWidth);
 

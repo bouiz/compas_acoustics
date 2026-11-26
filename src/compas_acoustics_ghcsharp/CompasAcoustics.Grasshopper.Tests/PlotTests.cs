@@ -331,6 +331,27 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(chart.Width, ports.Width, 3);
         }
 
+        [Theory]
+        [InlineData(160f)]
+        [InlineData(360f)]
+        [InlineData(900f)]
+        public void Plot2D_TheDescriptionLiesRightOfTheDropdown_InsideTheColumn(float chartWidth)
+        {
+            var plot = new Plot2DComponent();
+            var box = new RectangleF(0, 0, 70, 28);
+            var chart = new SizeF(Math.Max(chartWidth, Plot2DLayout.MinChartWidth(box)), 90);
+            var (area, _) = ControlLayout.Place(box, ControlLayout.Height(plot.Controls), Plot2DLayout.SelectColumn(box, chart));
+            var dropdown = Assert.Single(ControlLayout.Arrange(plot.Controls, Plot2DLayout.SelectArea(area)));
+            var text = Plot2DLayout.DescriptionArea(area);
+            var column = new RectangleF(area.X, area.Y, area.Width, area.Height);
+            Assert.True(text.Left >= dropdown.Bounds.Right);
+            Assert.True(text.Left >= Plot2DLayout.SelectArea(area).Right);
+            Assert.True(text.Right <= column.Right && text.Top >= column.Top && text.Bottom <= column.Bottom);
+            Assert.False(text.IntersectsWith(dropdown.Bounds) || text.IntersectsWith(dropdown.Title));
+            if (chart.Width - box.Width > Plot2DLayout.SelectWidth + 40)
+                Assert.True(text.Width > 30 && text.Height >= 3 * 12);
+        }
+
         private sealed class Close : System.Collections.Generic.IEqualityComparer<double>
         {
             private readonly double _tolerance;
@@ -512,6 +533,17 @@ namespace CompasAcoustics.Grasshopper.Tests
                 "D50 (Definition)", "DRR (Direct-to-Reverberant Ratio)", "Ts (Center Time)", "STI (Speech Transmission Index)", "G (Sound Strength)",
                 "SPL (Sound Pressure Level)", "LF (Lateral Energy Fraction)",
             }, PlotSelection.MenuLabels);
+        }
+
+        [Fact]
+        public void EveryParameterName_AndAll_HasADescription()
+        {
+            foreach (var name in PlotSelection.Names.Append("all"))
+                Assert.False(string.IsNullOrWhiteSpace(PlotSelection.Description(name)), name);
+            Assert.Equal("Every parameter the connected responses have.", PlotSelection.Description("all"));
+            Assert.Equal("Direct-to-reverberant ratio: the energy of the direct sound over the energy of the reflected sound, in dB.", PlotSelection.Description("DRR"));
+            Assert.All(PlotSelection.Descriptions.Values, d => Assert.True(d.All(c => c < 128)));
+            Assert.Equal("", PlotSelection.Description("nothing"));
         }
 
         [Fact]

@@ -19,6 +19,26 @@ namespace CompasAcoustics.Grasshopper
             "Center Time", "Speech Transmission Index", "Sound Strength", "Sound Pressure Level", "Lateral Energy Fraction",
         };
 
+        /// <summary>The sentence under the dropdown for each choice ("all" for All); edit the wording here.</summary>
+        public static readonly IReadOnlyDictionary<string, string> Descriptions = new Dictionary<string, string>
+        {
+            ["all"] = "Every parameter the connected responses have.",
+            ["EDT"] = "Early decay time: the time for a 60 dB decay, from the 0 to -10 dB slope of the Schroeder decay curve (ISO 3382-1).",
+            ["T20"] = "Reverberation time: the time for a 60 dB decay, extrapolated from the -5 to -25 dB range of the decay curve (ISO 3382-1).",
+            ["T30"] = "Reverberation time: the time for a 60 dB decay, extrapolated from the -5 to -35 dB range of the decay curve (ISO 3382-1).",
+            ["C50"] = "Clarity for speech: the energy of the first 50 ms over the later energy, in dB (ISO 3382-1).",
+            ["C80"] = "Clarity for music: the energy of the first 80 ms over the later energy, in dB (ISO 3382-1).",
+            ["D50"] = "Definition: the share of the energy arriving in the first 50 ms, in percent (ISO 3382-1).",
+            ["Ts"] = "Centre time: the centre of gravity of the squared impulse response, in seconds after the direct sound (ISO 3382-1).",
+            ["DRR"] = "Direct-to-reverberant ratio: the energy of the direct sound over the energy of the reflected sound, in dB.",
+            ["STI"] = "Speech transmission index: how intelligible speech is at the receiver, from 0 (unintelligible) to 1 (perfect) (IEC 60268-16).",
+            ["G"] = "Strength: the level relative to the same source's free-field level at 10 m, in dB (ISO 3382-1).",
+            ["SPL"] = "Sound pressure level: from the source's level and G; the single number is the A-weighted total.",
+            ["LF"] = "Early lateral energy fraction: the share of the early sound that arrives from the sides; higher values give a wider apparent source (ISO 3382-1). Needs an ambisonic response.",
+        };
+
+        public static string Description(string choice) => Descriptions.TryGetValue(choice, out var text) ? text : "";
+
         public static readonly string[] Options = new[] { "all" }.Concat(Names).ToArray();
 
         public static readonly string[] Labels = new[] { "All" }.Concat(Names).ToArray();

@@ -199,11 +199,23 @@ namespace CompasAcoustics.Grasshopper
                 g.FillRectangle(Brushes.White, Slot(0));
                 g.DrawString("connect a parameter, or the time or frequency output of Analyse Impulse Response", font, Brushes.Gray, Slot(0));
             }
+            DrawDescription(g);
             for (var i = 0; i < Plot.Charts.Count; i++)
                 ChartPainter.Draw(g, ChartOf(i), Slot(i));
             Painter.Capsule(g, Plot2DLayout.SaveButton(Body), Plot.Charts.Count == 0 ? GH_Palette.Hidden : _saving ? GH_Palette.Grey : GH_Palette.Black,
                 "Save", Selected, Owner.Locked);
             Painter.DrawGrip(g, Body);
+        }
+
+        private void DrawDescription(Graphics g)
+        {
+            var area = Plot2DLayout.DescriptionArea(ControlArea);
+            var text = PlotSelection.Description(Plot.Choice("select"));
+            if (area.Width < 20 || text.Length == 0)
+                return;
+            using var format = new StringFormat { Trimming = StringTrimming.EllipsisWord, FormatFlags = StringFormatFlags.LineLimit };
+            using var brush = new SolidBrush(Plot.ControlEnabled("select") ? Color.DimGray : Color.Silver);
+            g.DrawString(text, ChartPainter.Small, brush, area, format);
         }
 
         protected override GH_ObjectResponse? RespondToExtraMouseDown(GH_Canvas sender, GH_CanvasMouseEvent e)
