@@ -86,6 +86,16 @@ namespace CompasAcoustics.Grasshopper
             Attributes?.ExpireLayout();
         }
 
+        /// <summary>
+        /// After a read of an old layout that set inputs aside and put them back shown: hide those the body sets, unwired, when
+        /// the definition saved its control inputs hidden.
+        /// </summary>
+        protected void HideControlPortsAsRead()
+        {
+            if (!ControlPortsShown)
+                SetControlPorts(false, ControlPorts.Where(n => Params.Input.Find(p => p.Name == n)?.SourceCount == 0).ToList());
+        }
+
         public override void AddedToDocument(GH_Document document)
         {
             // a new component, placed from the toolbar: one read from a file or pasted has its own layout and preview

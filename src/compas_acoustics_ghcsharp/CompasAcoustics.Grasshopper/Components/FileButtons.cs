@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using Grasshopper.Kernel;
 
@@ -15,14 +16,19 @@ namespace CompasAcoustics.Grasshopper
             Chosen(component, port) is string path ? prefix + Path.GetFileName(path) : empty;
 
         /// <summary>Open a file dialog and make the file chosen <paramref name="port"/>'s value; a wired input is left as it is.</summary>
-        public static void Choose(ComponentBase component, string port, string title, string filterName, params string[] extensions)
+        public static void Choose(ComponentBase component, string port, string title, string filterName, params string[] extensions) =>
+            Choose(component, port, title, () => null, filterName, extensions);
+
+        /// <param name="startFolder">The folder the dialog opens in when no file is chosen; asked only then, and null leaves it to the system.</param>
+        public static void Choose(ComponentBase component, string port, string title, Func<string?> startFolder, string filterName, params string[] extensions)
         {
             if (component.ControlPort(port) is not { } input || input.SourceCount > 0)
                 return;
             var dialog = new Eto.Forms.OpenFileDialog { Title = title };
             dialog.Filters.Add(new Eto.Forms.FileFilter(filterName, extensions));
-            if (Chosen(component, port) is string current && Directory.Exists(Path.GetDirectoryName(current)))
-                dialog.Directory = new System.Uri(Path.GetDirectoryName(current)!);
+            var folder = Chosen(component, port) is string current ? Path.GetDirectoryName(current) : startFolder();
+            if (Directory.Exists(folder))
+                dialog.Directory = new Uri(folder);
             if (dialog.ShowDialog(Rhino.UI.RhinoEtoApp.MainWindow) == Eto.Forms.DialogResult.Ok && !string.IsNullOrEmpty(dialog.FileName))
                 ControlState.Choose(component, input, dialog.FileName);
         }

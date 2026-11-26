@@ -368,6 +368,105 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal("T30", fresh.Choice("select"));
         }
 
+        /// <summary>An Auralise as saved before it chose pairs: irs, anechoic_sounds wired to a path, mix_sources true (shown, or hidden behind its toggle).</summary>
+        private static GH_Archive OldAuralise(bool mixHidden)
+        {
+            var old = new AuraliseComponent();
+            foreach (var p in old.Params.Input.Skip(1).ToList())
+                old.Params.UnregisterInputParameter(p);
+            var sounds = new Param_GenericObject { Name = "anechoic_sounds", NickName = "anechoic_sounds", Optional = true, Access = GH_ParamAccess.tree };
+            var path = new Param_String();
+            path.SetPersistentData(new GH_String("/sounds/viola.wav"));
+            sounds.AddSource(path);
+            old.Params.RegisterInputParam(sounds);
+            if (!mixHidden)
+            {
+                var mix = new Param_Boolean { Name = "mix_sources", NickName = "mix_sources", Optional = true };
+                mix.SetPersistentData(new GH_Boolean(true));
+                old.Params.RegisterInputParam(mix);
+            }
+            old.CreateAttributes();
+            foreach (var p in old.Params)
+                if (p.Attributes == null)
+                    p.CreateAttributes();
+            var archive = new GH_Archive();
+            var node = archive.CreateTopLevelNode("component");
+            Assert.True(old.Write(node));
+            node.RemoveItem("control_inputs_shown");
+            node.RemoveItem("control_inputs_hidden");
+            node.SetBoolean("control_inputs_shown", !mixHidden);
+            node.SetString("control_inputs_hidden", mixHidden ? "mix_sources" : "");
+            if (mixHidden)
+                node.SetString("control_value_mix_sources", "True");
+            var back = new GH_Archive();
+            back.Deserialize_Binary(archive.Serialize_Binary());
+            return back;
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Auralise_SavedWithAnechoicSoundsAndMixSources_ReadsWithoutThem(bool mixHidden)
+        {
+            var back = OldAuralise(mixHidden);
+            var fresh = new AuraliseComponent();
+            fresh.CreateAttributes();
+            Assert.True(fresh.Read(back.GetRootNode.FindChunk("component")));
+            Assert.Empty(Errors(back));
+            Assert.Equal(!mixHidden, fresh.ControlPortsShown);
+            Assert.Equal(mixHidden ? new[] { "irs" } : new[] { "irs", "source_idx", "receiver_idx", "sound" }, fresh.Params.Input.Select(p => p.Name).ToArray());
+            Assert.Equal(GH_ParamAccess.tree, fresh.Params.Input[0].Access);
+            foreach (var name in new[] { "source_idx", "receiver_idx", "sound" })
+            {
+                var port = fresh.ControlPort(name)!;
+                Assert.Equal(0, port.SourceCount);
+                Assert.Empty(ControlState.PersistentAll(port));
+                Assert.Equal(ComponentSpec.Load("CA_Auralise").Inputs.Single(p => p.Name == name).Description, port.Description);
+            }
+            Assert.Equal("relative", fresh.Choice("level"));
+            Assert.Empty(fresh.RuntimeMessages(GH_RuntimeMessageLevel.Remark));
+        }
+
+        [Fact]
+        public void AnAuraliseSavedWithItsControlPortsHidden_KeepsTheChosenPairsAndSound()
+        {
+            var saved = new AuraliseComponent();
+            saved.ShowControlPorts(false);
+            ControlState.Choose(saved, saved.ControlPort("source_idx")!, "1");
+            ControlState.Choose(saved, saved.ControlPort("receiver_idx")!, "0");
+            ControlState.Choose(saved, saved.ControlPort("sound")!, "/sounds/viola.wav");
+            saved.SetChoice("level", "individual");
+            var fresh = new AuraliseComponent();
+            var (archive, read) = SaveThenRead(saved, fresh);
+            Assert.True(read);
+            Assert.Empty(Errors(archive));
+            Assert.False(fresh.ControlPortsShown);
+            Assert.Equal(new[] { "irs" }, fresh.Params.Input.Select(p => p.Name).ToArray());
+            Assert.Equal("1", fresh.HiddenValue("source_idx"));
+            Assert.Equal("0", fresh.HiddenValue("receiver_idx"));
+            Assert.Equal("/sounds/viola.wav", fresh.HiddenValue("sound"));
+            Assert.Equal("individual", fresh.Choice("level"));
+        }
+
+        [Fact]
+        public void AnAuraliseSavedWithOneControlPortWired_KeepsTheHiddenOnesValuesAndTheWiredPort()
+        {
+            var saved = new AuraliseComponent();
+            saved.Params.Input.Single(p => p.Name == "source_idx").AddSource(new Param_Integer());
+            saved.ShowControlPorts(false);
+            ControlState.Choose(saved, saved.ControlPort("receiver_idx")!, "1");
+            ControlState.Choose(saved, saved.ControlPort("sound")!, "/sounds/viola.wav");
+            Assert.Equal(new[] { "irs", "source_idx" }, saved.Params.Input.Select(p => p.Name).ToArray());
+            var fresh = new AuraliseComponent();
+            var (archive, read) = SaveThenRead(saved, fresh);
+            Assert.True(read);
+            Assert.Empty(Errors(archive));
+            Assert.Equal(new[] { "irs", "source_idx" }, fresh.Params.Input.Select(p => p.Name).ToArray());
+            Assert.Null(fresh.HiddenValue("source_idx"));
+            Assert.Equal("1", fresh.HiddenValue("receiver_idx"));
+            Assert.Equal("/sounds/viola.wav", fresh.HiddenValue("sound"));
+        }
+
         [Fact]
         public void AComponentSavedNow_ReadsWithoutErrors()
         {

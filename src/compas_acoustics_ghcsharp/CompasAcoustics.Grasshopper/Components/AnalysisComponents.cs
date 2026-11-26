@@ -84,37 +84,9 @@ namespace CompasAcoustics.Grasshopper
         public static string CallKey(object?[] args, IReadOnlyList<(GH_Path Path, string TitleSuffix)> branches) =>
             BackgroundRuns.Key("analysis", args, new Dictionary<string, object?>()) + string.Concat(branches.Select(b => $"|{b.Path}{b.TitleSuffix}"));
 
-        /// <summary>The responses numbered as pairs; null after a warning when there are none, or an error when two are of one pair.</summary>
-        public List<Pair>? Numbered(IEnumerable<ImpulseResponseGoo?> irs)
-        {
-            List<Pair> pairs;
-            try
-            {
-                pairs = PairChoice.Number(irs.Where(ir => ir != null).Select(ir => ir!));
-            }
-            catch (ArgumentException e)
-            {
-                Error(e.Message);
-                return null;
-            }
-            if (pairs.Count == 0)
-            {
-                WarnMissing("irs");
-                return null;
-            }
-            return pairs;
-        }
-
         protected override void Solve(IGH_DataAccess access)
         {
-            access.GetDataTree("irs", out GH_Structure<ImpulseResponseGoo> irs);
-            if (Numbered(irs?.FlattenData() ?? new List<ImpulseResponseGoo>()) is not { } pairs)
-                return;
-            var (sources, receivers) = PairChoice.Names(pairs);
-            SetIndexOptions("source_idx", sources);
-            SetIndexOptions("receiver_idx", receivers);
-            var chosen = PairChoice.Choose(pairs, Items<int>(access, "source_idx"), Items<int>(access, "receiver_idx"), Warn);
-            if (chosen.Count == 0)
+            if (ChosenPairs(access) is not { Chosen: var chosen })
                 return;
             var timeScale = Choice(Param_TimeParameter.Choice);
             var branches = Branches(chosen);

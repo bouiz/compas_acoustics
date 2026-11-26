@@ -114,9 +114,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal((false, false), ControlState.Toggle(rays.ControlPort("scattering")!, scattering.Default));
             ControlState.Choose(rays, rays.ControlPort("scattering")!, "True");
             Assert.Equal((true, false), ControlState.Toggle(rays.ControlPort("scattering")!, scattering.Default));
-            var auralise = new AuraliseComponent();
-            var mix = auralise.Controls.OfType<ToggleControl>().Single(t => t.Port == "mix_sources");
-            Assert.Equal((false, false), ControlState.Toggle(auralise.ControlPort("mix_sources")!, mix.Default));
         }
 
         [Fact]
@@ -124,7 +121,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         {
             var defaults = new (ComponentBase component, string port, bool on)[]
             {
-                (new AuraliseComponent(), "mix_sources", false), (new VisualiseRaysComponent(), "scattering", false),
+                (new VisualiseRaysComponent(), "scattering", false),
             };
             foreach (var (component, port, on) in defaults)
                 Assert.Equal(on, component.Controls.OfType<ToggleControl>().Single(t => t.Port == port).Default);
@@ -188,7 +185,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(new[] { "ism_order", "tail", "diffraction", "late_envelope", "hrtf", "run" }, new SimulateBinauralComponent().ControlPorts);
             Assert.Equal(new[] { "ism_order", "tail", "diffraction", "late_envelope", "run" }, new SimulateAmbisonicsComponent().ControlPorts);
             Assert.Empty(new RoomSceneComponent().ControlPorts);
-            Assert.Equal(new[] { "mix_sources" }, new AuraliseComponent().ControlPorts);
+            Assert.Equal(new[] { "source_idx", "receiver_idx", "sound" }, new AuraliseComponent().ControlPorts);
             Assert.Equal(new[] { "source_idx", "scattering", "order" }, new VisualiseRaysComponent().ControlPorts);
             Assert.Equal(new[] { "source_idx", "receiver_idx", "order" }, new VisualiseReflectionsComponent().ControlPorts);
             Assert.Equal(new[] { "time", "speed", "play" }, new VisualiseBilliardComponent().ControlPorts);

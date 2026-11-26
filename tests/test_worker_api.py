@@ -325,6 +325,12 @@ def test_save_impulse_responses_refuses_an_unknown_level(tmp_path):
         api.save_impulse_responses(two_sources_one_receiver(), [0], ["0_0"], str(tmp_path), "loud")
 
 
+def test_anechoic_library_folder_holds_the_bundled_sounds():
+    folder = Path(call("anechoic_library_folder"))
+    assert "anechoic_library_folder" in api.__all__
+    assert folder.name == "anechoic_soundfiles_library" and (folder / "viola.wav").is_file()
+
+
 def test_play_refuses_a_missing_file():
     with pytest.raises(ValueError, match="does not exist"):
         api.play("/nowhere/sound.wav")

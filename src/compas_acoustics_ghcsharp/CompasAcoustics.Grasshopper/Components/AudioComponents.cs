@@ -4,14 +4,15 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using CompasAcoustics.Pb;
+using GH_IO.Serialization;
 using Grasshopper;
 using Grasshopper.Kernel;
-using Grasshopper.Kernel.Data;
+using Grasshopper.Kernel.Parameters;
 using Grasshopper.Kernel.Types;
 
 namespace CompasAcoustics.Grasshopper
 {
-    /// <summary>The impulse responses and sounds of Auralise as the worker's <c>auralise</c> takes them, one group per branch.</summary>
+    /// <summary>The chosen pairs of Auralise as the worker's <c>auralise</c> and <c>save_impulse_responses</c> take them, and its signals back in their branches.</summary>
     public static class AuraliseGroups
     {
         /// <summary>Where an ambisonic signal goes instead of the Audio Player.</summary>
@@ -25,44 +26,46 @@ namespace CompasAcoustics.Grasshopper
             return (Path.GetDirectoryName(path) ?? "", name);
         }
 
-        private static string? SoundPath(IGH_Goo? goo) => goo switch
+        /// <summary>
+        /// Every connected response, the index of each chosen pair among them and its label: the relative level takes its gain
+        /// from all of them, and renders only the chosen.
+        /// </summary>
+        public static (List<object?> Irs, List<long> Chosen, List<string> Labels) Request(IReadOnlyList<Pair> all, IReadOnlyList<Pair> chosen)
         {
-            null => null,
-            GH_String s => string.IsNullOrEmpty(s.Value) ? null : s.Value,
-            SourceGoo source => source.SoundFile,
-            _ => goo.ToString(),
-        };
+            var index = all.Select((p, i) => (p, i)).ToDictionary(t => (t.p.Receiver, t.p.Source), t => (long)t.i);
+            return (all.Select(p => (object?)p.Response.Value).ToList(), chosen.Select(p => index[(p.Receiver, p.Source)]).ToList(), chosen.Select(PairChoice.LabelOf).ToList());
+        }
 
-        /// <param name="paths">The branch paths by their text, to put each signal back in its branch.</param>
-        public static List<Dictionary<string, object?>> FromTrees(GH_Structure<ImpulseResponseGoo> irs, GH_Structure<IGH_Goo>? sounds,
-            out Dictionary<string, GH_Path> paths)
+        /// <summary>The worker's signals in the branches of their pairs, {receiver;source}, found by label; their sampling rates alike, and their formats.</summary>
+        public static (DataTree<AudioGoo> Signals, DataTree<int> Rates, List<string> Formats) Trees(IEnumerable<IDictionary<string, object?>> signals, IReadOnlyList<Pair> chosen)
         {
-            var hasSounds = sounds != null && sounds.DataCount > 0;
-            if (hasSounds)
+            var paths = chosen.ToDictionary(PairChoice.LabelOf, PairChoice.PathOf);
+            var audio = new DataTree<AudioGoo>();
+            var rates = new DataTree<int>();
+            var formats = new List<string>();
+            foreach (var signal in signals)
             {
-                if (irs.PathCount != sounds!.PathCount)
-                    throw new ArgumentException("DataTree branch count mismatch.");
-                for (var i = 0; i < irs.PathCount; i++)
-                    if (irs.Branches[i].Count != sounds.Branches[i].Count)
-                        throw new ArgumentException("DataTree branch length mismatch.");
+                var goo = new AudioGoo((AudioData)signal["audio"]!);
+                var path = paths[(string)signal["label"]!];
+                audio.Add(goo, path);
+                rates.Add(goo.SamplingRate, path);
+                formats.Add(goo.Format);
             }
-            paths = new Dictionary<string, GH_Path>();
-            var groups = new List<Dictionary<string, object?>>();
-            for (var i = 0; i < irs.PathCount; i++)
+            return (audio, rates, formats);
+        }
+
+        /// <summary>The folder of the anechoic sounds the worker's compas_acoustics bundles, where the Sound... dialog opens; null when the worker cannot tell.</summary>
+        public static string? LibraryFolder()
+        {
+            try
             {
-                var path = irs.Paths[i];
-                var branch = irs.Branches[i].Where(ir => ir?.Value != null).ToList();
-                if (branch.Count == 0)
-                    continue;
-                paths[path.ToString()] = path;
-                groups.Add(new Dictionary<string, object?>
-                {
-                    ["branch"] = path.ToString(),
-                    ["irs"] = branch.Select(ir => (object?)ir.Value).ToList(),
-                    ["sounds"] = Enumerable.Range(0, branch.Count).Select(j => (object?)(hasSounds ? SoundPath(sounds!.Branches[i][j]) : null)).ToList(),
-                });
+                return Worker.Instance.Call("anechoic_library_folder") as string;
             }
-            return groups;
+            catch (Exception)
+            {
+                // whatever keeps the worker from answering, the dialog opens where the system puts it
+                return null;
+            }
         }
 
         public static string Message(IEnumerable<string> formats, string level, double peakDbfs) =>
@@ -91,27 +94,70 @@ namespace CompasAcoustics.Grasshopper
 
         public override IReadOnlyList<Control> Controls { get; } = new Control[]
         {
-            new SwitchControl("level", Levels, Default: "relative"), new ToggleControl("mix_sources", "Mix sources", Default: false),
-            new ButtonControl("save_rir", "Save RIR"), new ButtonControl("save_auralisation", "Save auralisation"),
+            new SwitchControl("level", Levels, Default: "relative"), SceneIndices.SourceDropdown, SceneIndices.ReceiverDropdown,
+            new ButtonControl("sound", "Sound..."), new ButtonControl("save_rir", "Save RIR"), new ButtonControl("save_auralisation", "Save auralisation"),
         };
 
+        /// <summary>
+        /// A definition saved before Auralise chose pairs, with anechoic_sounds and mix_sources: Grasshopper reads the saved
+        /// inputs by position, so the removed ones hold their places while the new ones are set aside, then the removed ones go
+        /// with their wires and the new ones come back empty, hidden when the definition hid its control inputs.
+        /// </summary>
+        public override bool Read(GH_IReader reader)
+        {
+            if (!SavedInput(reader, "anechoic_sounds"))
+                return base.Read(reader);
+            var added = Params.Input.Skip(1).ToList();
+            foreach (var port in added)
+                Params.UnregisterInputParameter(port, false);
+            var removed = new List<IGH_Param> { new Param_GenericObject { Name = "anechoic_sounds", NickName = "anechoic_sounds", Optional = true, Access = GH_ParamAccess.tree } };
+            if (SavedInput(reader, "mix_sources"))
+                removed.Add(new Param_Boolean { Name = "mix_sources", NickName = "mix_sources", Optional = true });
+            foreach (var port in removed)
+                Params.RegisterInputParam(port);
+            var read = base.Read(reader);
+            foreach (var port in removed)
+                Params.UnregisterInputParameter(port, true);
+            foreach (var port in added)
+                Params.RegisterInputParam(port);
+            Params.OnParametersChanged();
+            HideControlPortsAsRead();
+            return read;
+        }
+
+        private sealed record LastRequest(List<object?> Irs, List<object?> Chosen, List<object?> Labels, string? Sound, string Level);
+
         // the last solution's request, which the Save buttons write into the chosen files
-        private List<object?>? _groups;
-        private Dictionary<string, object?>? _settings;
+        private LastRequest? _last;
         private string? _saved;
 
-        public override bool HandlesButton(string port) => port is "save_rir" or "save_auralisation";
+        public override bool HandlesButton(string port) => port is "sound" or "save_rir" or "save_auralisation";
+
+        public override string? ButtonLabel(string port) => port == "sound" ? FileButtons.Label(this, port, "Sound: ", "Sound...") : null;
+
+        protected override void AppendMenu(System.Windows.Forms.ToolStripDropDown menu) => FileButtons.AppendClear(this, menu, "sound", "Clear sound");
 
         public override void OnButton(string port)
         {
+            if (port == "sound")
+            {
+                FileButtons.Choose(this, port, "Anechoic sound to auralise", AuraliseGroups.LibraryFolder, "Audio", ".wav", ".flac", ".aiff", ".aif", ".ogg", ".mp3");
+                return;
+            }
             if (!HandlesButton(port))
                 return;
-            if (_groups == null || _settings == null)
+            var last = _last;
+            if (last == null)
             {
                 Rhino.UI.Dialogs.ShowMessage("Connect impulse responses to Auralise first.", CategoryName);
                 return;
             }
             var rir = port == "save_rir";
+            if (!rir && last.Sound == null)
+            {
+                Rhino.UI.Dialogs.ShowMessage("Choose a sound with the Sound... button, or connect a File Path to 'sound', first.", CategoryName);
+                return;
+            }
             var dialog = new Eto.Forms.SaveFileDialog
             {
                 Title = rir ? "Save impulse responses" : "Save signals",
@@ -121,10 +167,11 @@ namespace CompasAcoustics.Grasshopper
             if (dialog.ShowDialog(Rhino.UI.RhinoEtoApp.MainWindow) != Eto.Forms.DialogResult.Ok || string.IsNullOrEmpty(dialog.FileName))
                 return;
             var (folder, name) = AuraliseGroups.SaveTarget(dialog.FileName);
-            var groups = _groups;
             var (function, args, kwargs) = rir
-                ? ("save_impulse_responses", new object?[] { groups, folder }, new Dictionary<string, object?> { ["level"] = _settings["level"], ["save_name"] = name })
-                : ("auralise", new object?[] { groups }, new Dictionary<string, object?>(_settings) { ["save_folder"] = folder, ["save_name"] = name });
+                ? ("save_impulse_responses", new object?[] { last.Irs, last.Chosen, last.Labels, folder },
+                    new Dictionary<string, object?> { ["level"] = last.Level, ["save_name"] = name })
+                : ("auralise", new object?[] { last.Irs, last.Sound, last.Chosen, last.Labels },
+                    new Dictionary<string, object?> { ["level"] = last.Level, ["save_folder"] = folder, ["save_name"] = name });
             Status("saving...");
             global::Grasshopper.Instances.RedrawCanvas();
             System.Threading.Tasks.Task.Run(() =>
@@ -135,8 +182,8 @@ namespace CompasAcoustics.Grasshopper
                     var result = (IDictionary<string, object?>)Worker.Call(function, args, kwargs)!;
                     var count = ((IEnumerable<object?>)result[rir ? "files" : "signals"]!).Count();
                     note = rir
-                        ? $"Saved {count} impulse response(s) to {folder} as {name}_mic_*.wav, each with its JSON metadata."
-                        : $"Saved {count} signal(s) to {folder} as {name}_mic_*.wav.";
+                        ? $"Saved {count} impulse response(s) to {folder} as {name}_mic_<receiver>_<source>.wav, each with its JSON metadata."
+                        : $"Saved {count} signal(s) to {folder} as {name}_mic_<receiver>_<source>.wav.";
                 }
                 catch (Exception e) when (e is WorkerException or System.Net.Http.HttpRequestException)
                 {
@@ -149,52 +196,31 @@ namespace CompasAcoustics.Grasshopper
 
         protected override void Solve(IGH_DataAccess access)
         {
-            access.GetDataTree("irs", out GH_Structure<ImpulseResponseGoo> irs);
-            if (irs == null || irs.DataCount == 0)
-            {
-                WarnMissing("irs");
+            _last = null;
+            if (ChosenPairs(access) is not { } pairs)
                 return;
-            }
             var level = Choice("level");
-            access.GetDataTree("anechoic_sounds", out GH_Structure<IGH_Goo> sounds);
-            List<Dictionary<string, object?>> groups;
-            Dictionary<string, GH_Path> paths;
-            try
-            {
-                groups = AuraliseGroups.FromTrees(irs, sounds, out paths);
-            }
-            catch (ArgumentException e)
-            {
-                Error(e.Message);
-                return;
-            }
-            var kwargs = new Dictionary<string, object?>
-            {
-                ["level"] = level,
-                ["mix_sources"] = Value<bool>(access, "mix_sources") ?? false,
-            };
-            (_groups, _settings) = (groups.Cast<object?>().ToList(), kwargs);
+            var sound = Text(access, "sound");
+            var (irs, indices, names) = AuraliseGroups.Request(pairs.All, pairs.Chosen);
+            var (chosen, labels) = (indices.Cast<object?>().ToList(), names.Cast<object?>().ToList());
+            _last = new LastRequest(irs, chosen, labels, sound, level);
             // what the last Save did, shown once
             if (_saved != null)
             {
                 Remark(_saved);
                 _saved = null;
             }
-            RunInBackground(access, new Background("auralise", new object?[] { groups.Cast<object?>().ToList() }, kwargs, (paths, level)), (outcome, _) =>
+            if (sound == null)
+            {
+                Warn("No sound to auralise: choose an anechoic sound file with the Sound... button, or connect a File Path to 'sound'.");
+                return;
+            }
+            var args = new object?[] { irs, sound, chosen, labels };
+            RunInBackground(access, new Background("auralise", args, new Dictionary<string, object?> { ["level"] = level }, (pairs.Chosen, level)), (outcome, _) =>
             {
                 var result = outcome.Result;
-                var (branches, rendered) = ((Dictionary<string, GH_Path>, string))outcome.Context!;
-                var signals = new DataTree<AudioGoo>();
-                var rates = new DataTree<int>();
-                var formats = new List<string>();
-                foreach (var signal in ((IEnumerable<object?>)result["signals"]!).Cast<IDictionary<string, object?>>())
-                {
-                    var audio = new AudioGoo((AudioData)signal["audio"]!);
-                    var path = branches[(string)signal["branch"]!];
-                    signals.Add(audio, path);
-                    rates.Add(audio.SamplingRate, path);
-                    formats.Add(audio.Format);
-                }
+                var (paired, rendered) = ((List<Pair>, string))outcome.Context!;
+                var (signals, rates, formats) = AuraliseGroups.Trees(((IEnumerable<object?>)result["signals"]!).Cast<IDictionary<string, object?>>(), paired);
                 var peak = Convert.ToDouble(result["peak_dbfs"], CultureInfo.InvariantCulture);
                 Status(AuraliseGroups.Message(formats, rendered, peak));
                 if (peak > 0)

@@ -73,6 +73,7 @@ __all__ = [
     "playback_status",
     "sound_samples",
     "sound_info",
+    "anechoic_library_folder",
     "make_scattering_sample",
     "run_scattering_lab",
     "polar_balloon",
@@ -453,6 +454,11 @@ def sound_info(path):
     except Exception as e:
         raise ValueError(f"Cannot read the channels of {path}: {e}")
     return {"channels": int(header.channels)}
+
+
+def anechoic_library_folder():
+    """The folder of the bundled anechoic sound files, where the Grasshopper plugin's Sound... dialog opens."""
+    return Defaults.ANECHOIC_SOUNDFILES_LIBRARY_PATH
 
 
 # =============================================================================

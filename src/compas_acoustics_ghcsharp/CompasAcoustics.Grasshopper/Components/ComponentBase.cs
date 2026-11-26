@@ -4,6 +4,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using Grasshopper.Kernel;
+using Grasshopper.Kernel.Data;
 using Grasshopper.Kernel.Parameters;
 using Grasshopper.Kernel.Types;
 
@@ -307,6 +308,43 @@ namespace CompasAcoustics.Grasshopper
             var values = new List<T>();
             access.GetDataList(name, values);
             return values;
+        }
+
+        /// <summary>The responses numbered as pairs; null after a warning when there are none, or an error when two are of one pair.</summary>
+        public List<Pair>? Numbered(IEnumerable<ImpulseResponseGoo?> irs)
+        {
+            List<Pair> pairs;
+            try
+            {
+                pairs = PairChoice.Number(irs.Where(ir => ir != null).Select(ir => ir!));
+            }
+            catch (ArgumentException e)
+            {
+                Error(e.Message);
+                return null;
+            }
+            if (pairs.Count == 0)
+            {
+                WarnMissing("irs");
+                return null;
+            }
+            return pairs;
+        }
+
+        /// <summary>
+        /// The responses on <c>irs</c>, flattened and numbered as pairs, and the pairs <c>source_idx</c> and <c>receiver_idx</c>
+        /// choose, once their dropdowns offer the pairs' names; null when none is chosen, after the message that says why.
+        /// </summary>
+        protected (List<Pair> All, List<Pair> Chosen)? ChosenPairs(IGH_DataAccess access)
+        {
+            access.GetDataTree("irs", out GH_Structure<ImpulseResponseGoo> irs);
+            if (Numbered(irs?.FlattenData() ?? new List<ImpulseResponseGoo>()) is not { } pairs)
+                return null;
+            var (sources, receivers) = PairChoice.Names(pairs);
+            SetIndexOptions("source_idx", sources);
+            SetIndexOptions("receiver_idx", receivers);
+            var chosen = PairChoice.Choose(pairs, Items<int>(access, "source_idx"), Items<int>(access, "receiver_idx"), Warn);
+            return chosen.Count == 0 ? null : (pairs, chosen);
         }
     }
 }
