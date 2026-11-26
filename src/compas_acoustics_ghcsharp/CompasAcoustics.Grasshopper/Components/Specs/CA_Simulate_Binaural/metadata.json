@@ -104,7 +104,7 @@
             },
             {
                 "name": "seed",
-                "description": "Seed of the feedback matrices, the delay jitter and the rays the method traces, 42 as in the method: the same seed gives the same responses, and Simulate Binaural and Simulate Ambisonics up to SH order 3 the same late field; another number gives another realisation.",
+                "description": "Seed of the feedback matrices, the delay jitter and the rays the method traces, 42 as in the method: the same seed gives the same responses, and Simulate Binaural and Simulate Ambisonics up to Ambisonic order 3 the same late field; another number gives another realisation.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "int",

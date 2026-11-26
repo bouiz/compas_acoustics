@@ -7,7 +7,7 @@ using GH_IO.Serialization;
 namespace CompasAcoustics.Grasshopper
 {
     /// <summary>
-    /// Choices the component holds itself, without an input: a switch, dropdown or toggle on the body whose port is not an
+    /// Choices the component holds itself, without an input: a switch, dropdown, step slider or toggle on the body whose port is not an
     /// input, or a menu entry. Saved with the document.
     /// </summary>
     public abstract partial class ComponentBase
@@ -34,6 +34,9 @@ namespace CompasAcoustics.Grasshopper
                             break;
                         case DropdownControl d:
                             choices[d.Port] = d.Options;
+                            break;
+                        case StepSliderControl step:
+                            choices[step.Port] = step.Options;
                             break;
                         case ToggleControl t:
                             choices[t.Port] = new[] { "on", "off" };

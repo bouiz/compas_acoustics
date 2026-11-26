@@ -53,7 +53,7 @@ namespace CompasAcoustics.Grasshopper
 
     /// <summary>
     /// A horizontal slider of fixed stops (<see cref="StepSlider"/>), one per option, ``Labels`` under them: the input's value is the
-    /// option of the stop. The component may offer only some stops now (<see cref="ComponentBase.OfferedOptionsOf"/>); the others are
+    /// option of the stop, or the component's choice when ``Port`` is no input. The component may offer only some stops now (<see cref="ComponentBase.OfferedOptionsOf"/>); the others are
     /// grey and the knob never stops there. ``Title`` replaces the input's name above it.
     /// </summary>
     public sealed record StepSliderControl(string Port, string[] Options, string? Default = null, string[]? Labels = null, string? Title = null) : Control(Port);

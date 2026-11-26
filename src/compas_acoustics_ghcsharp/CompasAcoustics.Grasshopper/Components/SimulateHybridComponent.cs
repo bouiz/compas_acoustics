@@ -250,10 +250,12 @@ namespace CompasAcoustics.Grasshopper
         protected override string Method => "ambisonics";
         protected override string Output => "irs";
 
+        private static readonly string[] AmbisonicOrders = { "1", "2", "3", "4", "5", "6", "7" };
+
         // the component's own choice, not an input: 1 (the method's default) to 7
         protected override IEnumerable<Control> MethodControls => new Control[]
         {
-            new DropdownControl("sh_order", new[] { "1", "2", "3", "4", "5", "6", "7" }, "1", Title: "SH order"),
+            new StepSliderControl("sh_order", AmbisonicOrders, "1", AmbisonicOrders, "Ambisonic order"),
         };
 
         protected override int? ShOrder => int.Parse(Choice("sh_order"), System.Globalization.CultureInfo.InvariantCulture);

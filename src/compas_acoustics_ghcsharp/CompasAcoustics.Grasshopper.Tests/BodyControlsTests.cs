@@ -152,7 +152,7 @@ namespace CompasAcoustics.Grasshopper.Tests
                 Assert.DoesNotContain(simulation.Controls, c => c is SliderControl { Port: "ism_order" } or DropdownControl { Port: "ism_order" });
                 // it shows the input's own value, 3 until moved
                 Assert.Equal(3, ControlState.Persistent(simulation.ControlPort("ism_order")!));
-                Assert.Equal(("3", false), ControlState.Of(simulation.ControlPort("ism_order")!, ism.Options, ism.Default));
+                Assert.Equal(("3", false), ComponentUi.StepValue(simulation, ism));
                 var row = new RectangleF(0, 0, 120, StepSlider.Height);
                 Assert.Equal("7", StepSlider.Nearest(row, StepSlider.StopX(row, 7, 11) + 2, ism.Options, simulation.OfferedOptionsOf("ism_order")));
                 Assert.Equal(3, ComponentSpec.Load(simulation is SimulateMonoComponent ? "CA_Simulate_Mono" : simulation is SimulateBinauralComponent ? "CA_Simulate_Binaural" : "CA_Simulate_Ambisonics")
@@ -214,16 +214,25 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void Ambisonics_HasTheShOrderDropdown_AndBinauralTheHrtfButton()
+        public void Ambisonics_HasTheAmbisonicOrderSlider_AndBinauralTheHrtfButton()
         {
             var ambisonics = new SimulateAmbisonicsComponent();
-            var sh = ambisonics.Controls.OfType<DropdownControl>().Single(c => c.Port == "sh_order");
-            Assert.Equal(("sh_order", "1", "SH order"), (sh.Port, sh.Default, ControlLayout.Title(sh)));
+            var sh = ambisonics.Controls.OfType<StepSliderControl>().Single(c => c.Port == "sh_order");
+            Assert.Equal(("sh_order", "1", "Ambisonic order"), (sh.Port, sh.Default, ControlLayout.Title(sh)));
             Assert.Equal(new[] { "1", "2", "3", "4", "5", "6", "7" }, sh.Options);
+            Assert.Equal(sh.Options, sh.Labels);
+            Assert.DoesNotContain(ambisonics.Controls, c => c is DropdownControl { Port: "sh_order" });
             // the component's own choice, not a hidden input
             Assert.DoesNotContain("sh_order", ComponentSpec.Load("CA_Simulate_Ambisonics").Inputs.Select(p => p.Name));
+            Assert.Null(ambisonics.ControlPort("sh_order"));
             Assert.True(ambisonics.IsChoice("sh_order"));
             Assert.Equal("1", ambisonics.Choice("sh_order"));
+            Assert.Equal(("1", false), ComponentUi.StepValue(ambisonics, sh));
+            Assert.True(ComponentUi.Pressable(ambisonics, sh, null));
+            Assert.Equal(("sh_order", "1, 2, 3, 4, 5, 6 or 7 (default 1)"), ambisonics.ControlTooltip("sh_order"));
+            // a stop let go on sets the choice, saved with the definition
+            ComponentUi.ChooseStop(ambisonics, sh, "4");
+            Assert.Equal(("4", false), ComponentUi.StepValue(ambisonics, sh));
             ambisonics.SetChoice("sh_order", "5");
             Assert.Equal("5", ((SimulateHybridComponent)RoundTrip(ambisonics)).Choice("sh_order"));
             Assert.Empty(ambisonics.Controls.OfType<SwitchControl>());

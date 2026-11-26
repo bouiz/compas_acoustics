@@ -102,9 +102,22 @@ namespace CompasAcoustics.Grasshopper
         private (string? value, bool wired, IReadOnlyCollection<string>? offered) StepState(StepSliderControl step, ControlBox box)
         {
             var offered = Component.OfferedOptionsOf(step.Port);
-            var port = Component.ControlPort(step.Port);
-            var (value, wired) = port == null ? (step.Default ?? step.Options[0], false) : ControlState.Of(port, step.Options, step.Default);
+            var (value, wired) = StepValue(Component, step);
             return (wired ? value : StepSlider.Shown(box.Bounds, value, step.Options, offered), wired, offered);
+        }
+
+        /// <summary>A step slider's option and whether a wire sets it: its input's, or the component's choice when it has no input.</summary>
+        internal static (string value, bool wired) StepValue(ComponentBase component, StepSliderControl step) => component.ControlPort(step.Port) is { } port
+            ? ControlState.Of(port, step.Options, step.Default)
+            : (component.IsChoice(step.Port) ? component.Choice(step.Port) : step.Default ?? step.Options[0], false);
+
+        /// <summary>Set the stop a step slider was let go on: on its input, or as the component's choice when it has no input.</summary>
+        internal static void ChooseStop(ComponentBase component, StepSliderControl step, string stop)
+        {
+            if (component.ControlPort(step.Port) is { } port)
+                ControlState.Choose(component, port, stop);
+            else
+                component.SetChoice(step.Port, stop);
         }
 
         /// <summary>An incidence control's directions, the one its input holds (the first until it holds one), and whether a wire sets it.</summary>
@@ -186,7 +199,7 @@ namespace CompasAcoustics.Grasshopper
                 return GH_ObjectResponse.Handled;
             switch (box.Control)
             {
-                case StepSliderControl step when port != null:
+                case StepSliderControl step when port != null || Component.IsChoice(step.Port):
                     _down = box;
                     _stepped = StepSlider.Nearest(box.Bounds, e.CanvasLocation.X, step.Options, Component.OfferedOptionsOf(step.Port));
                     sender.Invalidate();
@@ -296,11 +309,11 @@ namespace CompasAcoustics.Grasshopper
                 else
                     ControlState.Press(Component, button.Port);
             }
-            else if (box.Control is StepSliderControl && _stepped is string stop && Component.ControlPort(box.Control.Port) is { } stepPort)
+            else if (box.Control is StepSliderControl step && _stepped is string stop)
             {
-                var (shown, _, _) = StepState((StepSliderControl)box.Control, box);
+                var (shown, _, _) = StepState(step, box);
                 if (stop != shown)
-                    ControlState.Choose(Component, stepPort, stop);
+                    ChooseStop(Component, step, stop);
             }
             else if (box.Control is SliderControl { Live: true })
             {
