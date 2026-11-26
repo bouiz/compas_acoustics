@@ -304,7 +304,8 @@ def analysis(irs, time_scale="db"):
             times, levels = time_response(samples, ir.sampling_rate, db=db, trim_db=None if db else 60.0)
             time = _parameter("IR", _curve_title("Impulse Response", channels), "Time (s)", "Level (dB)" if db else "Amplitude", "linear", times, levels, channels=channels)
             frequencies, magnitudes = frequency_response(samples, ir.sampling_rate, num_fractions=3, frequency_range=(20.0, 20000.0))
-            frequency = _parameter("FR", _curve_title("Frequency Response, 1/3 octave", channels), "Frequency (Hz)", "Level (dB)", "log", frequencies, magnitudes, channels=channels)
+            title = _curve_title("Frequency Response, 1/3 octave", channels)
+            frequency = _parameter("FR", title, "Frequency (Hz)", "Level (dB)", "log", frequencies, magnitudes, channels=channels)
             analyses.append({"parameters": parameters, "time": time, "frequency": frequency})
     return {"analyses": analyses, "warnings": messages}
 

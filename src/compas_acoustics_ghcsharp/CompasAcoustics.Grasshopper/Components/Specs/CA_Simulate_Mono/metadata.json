@@ -2,7 +2,7 @@
     "name": "Simulate Mono",
     "nickname": "SimMono",
     "subcategory": "Simulation",
-    "description": "Simulate mono room impulse responses with pyroomacoustics: the image source method (ISM), plus ray tracing (RT) by default. Air absorption (ISO 9613-1) is always included, as in Simulate Binaural and Simulate Ambisonics. The reference of Simulate Binaural and Simulate Ambisonics. Writes the responses to the impulse response graph under 'mono'.",
+    "description": "Simulate mono room impulse responses with pyroomacoustics: the image source method (ISM), plus ray tracing (RT) by default. Air absorption (ISO 9613-1) is always included, as in Simulate Binaural and Simulate Ambisonics. The reference of Simulate Binaural and Simulate Ambisonics.",
     "exposure": 2,
     "ports": {
         "inputParameters": [

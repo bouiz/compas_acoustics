@@ -41,15 +41,6 @@
         "sampling_rate"
       ]
     },
-    "CA_Channel": {
-      "hash": "e7725a50648b",
-      "inputs": [
-        "sound"
-      ],
-      "outputs": [
-        "channels"
-      ]
-    },
     "CA_Construct_Material": {
       "hash": "78e8f9a249b6",
       "inputs": [
@@ -60,33 +51,6 @@
       ],
       "outputs": [
         "material"
-      ]
-    },
-    "CA_Deconstruct_IR": {
-      "hash": "03b0f0502ec4",
-      "inputs": [
-        "parameters"
-      ],
-      "outputs": [
-        "parameter",
-        "name",
-        "values",
-        "overall",
-        "frequencies"
-      ]
-    },
-    "CA_Deconstruct_IR_Graph": {
-      "hash": "386243f5aa54",
-      "inputs": [
-        "ir_graph",
-        "source_idx",
-        "receiver_idx"
-      ],
-      "outputs": [
-        "ir",
-        "sources",
-        "receivers",
-        "edges"
       ]
     },
     "CA_Deconstruct_Material": {
