@@ -541,7 +541,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             foreach (var name in PlotSelection.Names.Append("all"))
                 Assert.False(string.IsNullOrWhiteSpace(PlotSelection.Description(name)), name);
             Assert.Equal("Every parameter the connected responses have.", PlotSelection.Description("all"));
-            Assert.Equal("Direct-to-reverberant ratio: the energy of the direct sound over that of the reflected sound, in dB; it falls with distance and is a main cue for how far away a source sounds.", PlotSelection.Description("DRR"));
+            Assert.Equal("Direct-to-reverberant ratio: the energy of the direct sound over that of the reflected sound, in dB; a main cue for how far away a source sounds.", PlotSelection.Description("DRR"));
             Assert.All(PlotSelection.Descriptions.Values, d => Assert.True(d.All(c => c < 128)));
             Assert.Equal("", PlotSelection.Description("nothing"));
         }
