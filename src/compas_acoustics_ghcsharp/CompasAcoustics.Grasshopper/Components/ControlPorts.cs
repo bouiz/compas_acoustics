@@ -129,8 +129,26 @@ namespace CompasAcoustics.Grasshopper
             _layoutRead = true;
             ReadChoices(reader);
             var read = ReadPorts(reader);
+            TakeTheSpecsOutputNames();
             TakeTheSpecsDescriptions();
             return read;
+        }
+
+        /// <summary>
+        /// The outputs' names of the installed plugin, by position: Grasshopper restores a port's names from the file, and an
+        /// output a file saved under its former name would never be found by name. A name chosen on the canvas stays.
+        /// </summary>
+        private void TakeTheSpecsOutputNames()
+        {
+            if (Params.Output.Count != Spec.Outputs.Count)
+                return;
+            for (var i = 0; i < Params.Output.Count; i++)
+            {
+                var (port, name) = (Params.Output[i], Spec.Outputs[i].Name);
+                if (port.NickName == port.Name)
+                    port.NickName = name;
+                port.Name = name;
+            }
         }
 
         private bool ReadPorts(GH_IReader reader)

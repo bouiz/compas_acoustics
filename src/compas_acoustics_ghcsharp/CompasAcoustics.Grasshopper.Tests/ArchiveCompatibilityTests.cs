@@ -288,6 +288,55 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(spec.Inputs.Single(s => s.Name == "ism_order").Description, fresh.Params.Input.Single(p => p.Name == "ism_order").Description);
         }
 
+        /// <summary>A simulation as saved before it output its responses: its one output named <paramref name="output"/>, with an old description.</summary>
+        private static T WithTheIrGraphOutput<T>(T old, string output) where T : GH_Component
+        {
+            var port = old.Params.Output.Single();
+            port.Name = output;
+            port.NickName = output;
+            port.Description = "old port text";
+            return old;
+        }
+
+        public static TheoryData<string, string> IrGraphOutputs => new()
+        {
+            { "CA_Simulate_Mono", "mono_ir_graph" },
+            { "CA_Simulate_Binaural", "binaural_ir_graph" },
+            { "CA_Simulate_Ambisonics", "ambisonic_ir_graph" },
+        };
+
+        private static GH_Component Simulation(string key) => key switch
+        {
+            "CA_Simulate_Mono" => new SimulateMonoComponent(),
+            "CA_Simulate_Binaural" => new SimulateBinauralComponent(),
+            _ => new SimulateAmbisonicsComponent(),
+        };
+
+        [Theory]
+        [MemberData(nameof(IrGraphOutputs))]
+        public void ASimulationSavedWithItsIrGraphOutput_ReadsItAsIrs(string key, string output)
+        {
+            var fresh = Simulation(key);
+            var (archive, read) = SaveThenRead(WithTheIrGraphOutput(Simulation(key), output), fresh);
+            Assert.True(read);
+            Assert.Empty(Errors(archive));
+            var port = Assert.Single(fresh.Params.Output);
+            Assert.Equal(("irs", "irs"), (port.Name, port.NickName));
+            Assert.Equal(ComponentSpec.Load(key).Outputs.Single().Description, port.Description);
+            Assert.Equal(0, fresh.Params.IndexOfOutputParam("irs"));
+        }
+
+        [Fact]
+        public void ASimulationSavedWithItsOutputRenamedOnTheCanvas_KeepsTheCanvasName()
+        {
+            var old = WithTheIrGraphOutput(new SimulateBinauralComponent(), "binaural_ir_graph");
+            old.Params.Output[0].NickName = "left ears";
+            var fresh = new SimulateBinauralComponent();
+            var (_, read) = SaveThenRead(old, fresh);
+            Assert.True(read);
+            Assert.Equal(("irs", "left ears"), (fresh.Params.Output[0].Name, fresh.Params.Output[0].NickName));
+        }
+
         [Fact]
         public void AnAnalyseSavedWithTheSingleIrInput_ReadsItAsIrs_AndTheNewInputsFollow()
         {
