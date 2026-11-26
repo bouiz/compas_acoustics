@@ -80,7 +80,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             var mono = new SimulateMonoComponent();
             Assert.Equal(new System.Guid("afb77a6d-dd01-5224-9ee0-70972dcbdbcf"), mono.ComponentGuid);
             Assert.Equal(("Simulate Mono", "SimMono"), (mono.Name, mono.NickName));
-            Assert.Equal(new[] { "scene", "ism_order", "ray_tracing", "n_rays", "duration", "seed" },
+            Assert.Equal(new[] { "scene", "ism_order", "ray_tracing", "n_rays", "duration", "seed", "run" },
                 mono.Params.Input.Select(p => p.Name));
             Assert.Equal(new[] { "irs" }, mono.Params.Output.Select(p => p.Name));
             var (archive, read) = SaveThenRead(new SimulateMonoComponent(), new SimulateMonoComponent());
@@ -253,7 +253,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             var node = archive.CreateTopLevelNode("component");
             Assert.True(saved.Write(node));
             node.RemoveItem("control_inputs_hidden");
-            node.SetString("control_inputs_hidden", "ism_order\nray_tracing\nabsorb_air\nnormalize");
+            node.SetString("control_inputs_hidden", "ism_order\nray_tracing\nabsorb_air\nnormalize\nrun");
             node.SetString("control_value_ray_tracing", "False");
             node.SetString("control_value_absorb_air", "False");
             var back = new GH_Archive();
@@ -264,7 +264,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Empty(Errors(back));
             Assert.Equal(new[] { "scene", "ray_tracing", "n_rays", "duration", "seed" }, fresh.Params.Input.Select(p => p.Name));
             Assert.Equal(false, ControlState.Persistent(fresh.Params.Input.Single(p => p.Name == "ray_tracing")));
-            Assert.Equal(new[] { "ism_order" }, fresh.ControlPorts.Where(n => fresh.Params.Input.All(p => p.Name != n)));
+            Assert.Equal(new[] { "ism_order", "run" }, fresh.ControlPorts.Where(n => fresh.Params.Input.All(p => p.Name != n)));
             Assert.True(fresh.SavedWithoutAir);
         }
 

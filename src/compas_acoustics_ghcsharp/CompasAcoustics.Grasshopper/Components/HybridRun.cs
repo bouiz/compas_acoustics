@@ -6,7 +6,7 @@ using CompasAcoustics.Pb;
 
 namespace CompasAcoustics.Grasshopper
 {
-    /// <summary>What Simulate Binaural and Simulate Ambisonics pass to their method, and what they say while they do not run.</summary>
+    /// <summary>What Simulate Binaural and Simulate Ambisonics pass to their method, and whether it differs from their last run.</summary>
     public static class HybridRun
     {
         // first item is the default
@@ -50,13 +50,6 @@ namespace CompasAcoustics.Grasshopper
         /// </summary>
         public static bool TracesRays(string tail, string? lateEnvelope) =>
             tail == "ray_tracing" || (tail == "reference" && Equals(LateEnvelope(lateEnvelope), "directional"));
-
-        /// <summary>The responses of the last run, the scene they were simulated for, and the run's description.</summary>
-        public sealed record LastResult(SceneGoo Scene, IReadOnlyList<ImpulseResponseGoo> Responses, IReadOnlyDictionary<string, object?> Generation);
-
-        /// <summary>The responses of the last run when they hold for <paramref name="scene"/>, with its sources' current sounds; else none.</summary>
-        public static IReadOnlyList<ImpulseResponseGoo> Passed(LastResult? last, SceneGoo scene) =>
-            last != null && SimulatedScene.Same(last.Scene, scene) ? SimulatedScene.Current(last.Responses, last.Scene, scene) : Array.Empty<ImpulseResponseGoo>();
 
         /// <summary>
         /// The settings both methods take: unset inputs are left out so that the method's own defaults apply, the seed's
@@ -109,21 +102,14 @@ namespace CompasAcoustics.Grasshopper
 
         private static bool Differs(int? given, object? last) => given is int g && !(last is IConvertible c && Convert.ToInt64(c, CultureInfo.InvariantCulture) == g);
 
-        /// <summary>
-        /// What the component says while it is not running: the last result for this scene, or that there is none; and
-        /// whether the settings differ from that result's.
-        /// </summary>
-        public static (string text, bool changed) Status(LastResult? last, SceneGoo scene, string? tail, int? shOrder, int? ismOrder, string? diffraction)
+        /// <summary>Whether the settings differ from the description of the last run.</summary>
+        public static bool Changed(SimulateComponent.LastResult last, string? tail, int? shOrder, int? ismOrder, string? diffraction)
         {
-            if (last == null || !SimulatedScene.Same(last.Scene, scene) || last.Responses.Count == 0)
-                return ("press Run", false);
             object? Last(string key) => last.Generation.TryGetValue(key, out var value) ? value : null;
-            var changed = (!string.IsNullOrEmpty(tail) && tail != Last("tail") as string)
-                          || Differs(shOrder, Last("sh_order"))
-                          || Differs(ismOrder, Last("image_source_order"))
-                          || (diffraction != null && !Equals(Model(diffraction), Model(Last("diffraction"))));
-            var summary = MessageText.Run(last.Responses[0].SamplingRate, last.Responses.Count);
-            return (changed ? $"settings changed, press Run ({summary})" : $"done, {summary} (Run to redo)", changed);
+            return (!string.IsNullOrEmpty(tail) && tail != Last("tail") as string)
+                   || Differs(shOrder, Last("sh_order"))
+                   || Differs(ismOrder, Last("image_source_order"))
+                   || (diffraction != null && !Equals(Model(diffraction), Model(Last("diffraction"))));
         }
     }
 }

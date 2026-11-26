@@ -8,11 +8,13 @@ using Grasshopper.Kernel.Types;
 
 namespace CompasAcoustics.Grasshopper
 {
-    public sealed class SimulateMonoComponent : ComponentBase
+    public sealed class SimulateMonoComponent : SimulateComponent
     {
         public SimulateMonoComponent() : base("CA_Simulate_Mono") { }
         protected override string SpecKey => "CA_Simulate_Mono";
         public override Guid ComponentGuid => new Guid("afb77a6d-dd01-5224-9ee0-70972dcbdbcf");
+        protected override string Method => "mono";
+        protected override string Output => "irs";
 
         protected override IGH_Param? CreateParam(PortSpec port, bool input) =>
             input && port.Name == "scene" ? new Param_Scene() : !input ? new Param_ImpulseResponse() : null;
@@ -25,6 +27,7 @@ namespace CompasAcoustics.Grasshopper
         public override IReadOnlyList<Control> Controls { get; } = new Control[]
         {
             IsmOrder,
+            new ButtonControl("run", "Run"),
         };
 
         public override float MinBodyWidth => SharedBodyWidth;
@@ -86,16 +89,8 @@ namespace CompasAcoustics.Grasshopper
                 Remark("This definition was saved with Air off. Simulate Mono now always includes air absorption, as Simulate Binaural and Simulate Ambisonics do, so its responses differ from those saved. Save the definition to clear this remark.");
             if (SavedEnergyThreshold is double threshold)
                 Remark($"This definition was saved with energy_thres {threshold:g}. Simulate Mono now always uses the method's 1e-7, so its responses differ from those saved. Save the definition to clear this remark.");
-            RunInBackground(access, Simulation(scene, "mono", settings, null, scene), (outcome, _) =>
-            {
-                var ran = (SceneGoo)outcome.Context!;
-                var responses = (IDictionary<string, object?>)((IDictionary<string, object?>)outcome.Result["responses"]!)["mono"]!;
-                var irs = SimulatedScene.Current(PairChoice.InSceneOrder(ran, responses), ran, scene);
-                Status(MessageText.Run(ran.SamplingRate, irs.Count));
-                access.SetDataList(0, irs);
-            });
+            var request = Request(scene, settings, null);
+            Simulate(access, scene, request, last => last.Key != request.Key);
         }
-
-        protected override bool RunsInBackground => true;
     }
 }

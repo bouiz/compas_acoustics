@@ -20,7 +20,7 @@ for wall.
 5. **Scene and simulation.** [Acoustic Scene](../components/CA_Model.md) collects the walls, sources and receivers and reports
    the room's volume (60 m³) and area (94 m²). [Simulate Mono](../components/CA_Simulate_Mono.md) traces 10000 rays with
    image sources up to order 3 and air absorption; the seed 42 makes the run repeatable. It runs in the background,
-   in the worker.
+   in the worker, when its Run button is pressed.
 6. **Analysis.** [Analyse Impulse Response](../components/CA_Analyse_IR.md) takes the responses straight from Simulate
    and derives the room acoustic parameters of the pair its Source and Receiver dropdowns choose: source_2 to
    receiver_2. [Plot 2D](../components/CA_Plot_2D.md), with its dropdown on T30, draws it.

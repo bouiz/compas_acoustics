@@ -175,7 +175,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         public void SimulateMono_HasTheHybridsBody_AndRayTracingAsAnInput()
         {
             var mono = new SimulateMonoComponent();
-            Assert.Equal(new Control[] { SimulateMonoComponent.IsmOrder }, mono.Controls);
+            Assert.Equal(new Control[] { SimulateMonoComponent.IsmOrder, new ButtonControl("run", "Run") }, mono.Controls);
             Assert.DoesNotContain("absorb_air", ComponentSpec.Load("CA_Simulate_Mono").Inputs.Select(p => p.Name));
             mono.ShowControlPorts(false);
             Assert.Contains("ray_tracing", mono.Params.Input.Select(p => p.Name));
@@ -184,7 +184,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void TheControlPorts_FollowTheBody()
         {
-            Assert.Equal(new[] { "ism_order" }, new SimulateMonoComponent().ControlPorts);
+            Assert.Equal(new[] { "ism_order", "run" }, new SimulateMonoComponent().ControlPorts);
             Assert.Equal(new[] { "ism_order", "tail", "diffraction", "late_envelope", "hrtf", "run" }, new SimulateBinauralComponent().ControlPorts);
             Assert.Equal(new[] { "ism_order", "tail", "diffraction", "late_envelope", "run" }, new SimulateAmbisonicsComponent().ControlPorts);
             Assert.Empty(new RoomSceneComponent().ControlPorts);

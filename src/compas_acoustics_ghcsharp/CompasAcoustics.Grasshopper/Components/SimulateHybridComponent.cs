@@ -16,10 +16,8 @@ namespace CompasAcoustics.Grasshopper
     /// Simulate Binaural and Simulate Ambisonics: the hybrid method in the worker, started by Run. A subclass names its method
     /// and its output, and gives the settings only it has.
     /// </summary>
-    public abstract class SimulateHybridComponent : ComponentBase
+    public abstract class SimulateHybridComponent : SimulateComponent
     {
-        private HybridRun.LastResult? _last;
-
         protected SimulateHybridComponent(string key) : base(key) { }
 
         /// <summary>
@@ -58,12 +56,6 @@ namespace CompasAcoustics.Grasshopper
             }
             return read;
         }
-
-        /// <summary>The worker's method name, which is also the key of its responses in the worker's result.</summary>
-        protected abstract string Method { get; }
-
-        /// <summary>The one output, the method's responses.</summary>
-        protected abstract string Output { get; }
 
         protected override IGH_Param? CreateParam(PortSpec port, bool input) => (input, port.Name) switch
         {
@@ -104,8 +96,6 @@ namespace CompasAcoustics.Grasshopper
 
         /// <summary>The HRTF set chosen for the method, whether its input is shown or hidden; null for the default or a method without one.</summary>
         internal string? Hrtf(IGH_DataAccess access) => TakesHrtf ? Text(access, "hrtf") : null;
-
-        private void SetResponses(IGH_DataAccess access, SceneGoo scene) => access.SetDataList(Output, HybridRun.Passed(_last, scene));
 
         protected override void Solve(IGH_DataAccess access)
         {
@@ -158,45 +148,8 @@ namespace CompasAcoustics.Grasshopper
                 else
                     Remark("n_rays is not used: the method traces no rays itself (an Eyring or Sabine tail, or a given reference without a directional late envelope). Set the reference's rays on Simulate Mono.");
             }
-            var request = Simulation(scene, Method, settings, refs, new Context(scene));
-            var shown = false;
-            void Deliver(Outcome outcome, bool fresh)
-            {
-                if (fresh)
-                    Keep((Context)outcome.Context!, outcome.Result);
-                ShowStatus(fresh ? (MessageText.Run(((Context)outcome.Context!).Scene.SamplingRate, _last!.Responses.Count), false) : HybridRun.Status(_last, scene, tail, shOrder, ismOrder, diffraction));
-                SetResponses(access, scene);
-                shown = true;
-            }
-            // the simulation can take minutes and Grasshopper recomputes on every change of the inputs, so it starts only
-            // when 'run' is true (a button pulse); otherwise the responses of the last run for this scene are passed on
-            var pressed = Value<bool>(access, "run") == true || Pressed("run");
-            var decision = RunInBackground(access, request, Deliver, start: pressed, restart: pressed);
-            if (decision.Kind == RunKind.Idle)
-            {
-                if (!shown)
-                {
-                    ShowStatus(HybridRun.Status(_last, scene, tail, shOrder, ismOrder, diffraction));
-                    SetResponses(access, scene);
-                }
-                if (decision.Interrupted)
-                    ShowStatus(("settings changed, press Run", true));
-            }
-            else if (!shown && decision.Kind != RunKind.Failed)
-                SetResponses(access, scene);
+            Simulate(access, scene, Request(scene, settings, refs), last => HybridRun.Changed(last, tail, shOrder, ismOrder, diffraction));
         }
-
-        /// <summary>The message; while the settings differ from the last result, a warning colours the body.</summary>
-        private void ShowStatus((string text, bool changed) status)
-        {
-            Status(status.text);
-            if (status.changed)
-                Warn("The settings differ from the last run: press Run to update the responses.");
-        }
-
-        private sealed record Context(SceneGoo Scene);
-
-        protected override bool RunsInBackground => true;
 
         protected override async Task<object?> Call(Background request, string callId, CancellationToken cancel)
         {
@@ -204,14 +157,6 @@ namespace CompasAcoustics.Grasshopper
             if (!Worker.Hybrid)
                 throw new WorkerException($"{Name} needs a worker with pyFDN: use Install Worker.");
             return await base.Call(request, callId, cancel).ConfigureAwait(false);
-        }
-
-        private void Keep(Context context, IDictionary<string, object?> result)
-        {
-            var responses = (IDictionary<string, object?>)((IDictionary<string, object?>)result["responses"]!)[Method]!;
-            var irs = PairChoice.InSceneOrder(context.Scene, responses);
-            var first = irs.FirstOrDefault()?.Generation ?? new Dictionary<string, object?>();
-            _last = new HybridRun.LastResult(context.Scene, irs, new Dictionary<string, object?>(first));
         }
     }
 
