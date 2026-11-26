@@ -31,7 +31,8 @@ def one(responses):
 
 
 def run(**kwargs):
-    method = ca.Ambisonics(**dict(FAST, **kwargs))
+    """The FDN's late field, whose lines these tests read."""
+    method = ca.Ambisonics(**dict(FAST, late_field="fdn", **kwargs))
     room_scene().simulate(method)
     return one(method.results)
 
@@ -69,7 +70,7 @@ def test_both_methods_keep_each_other_and_data_on_the_graph():
 
 
 def test_every_method_has_kirschs_96_delay_lines():
-    for method in (ca.Binaural(**FAST), ca.Ambisonics(**FAST), ca.Ambisonics(sh_order=3, **FAST)):
+    for method in (ca.Binaural(**FAST), ca.Ambisonics(late_field="fdn", **FAST), ca.Ambisonics(sh_order=3, late_field="fdn", **FAST)):
         ir = one(room_scene().simulate(method))
         assert method.num_delays == 96 and ir.generation["num_delays"] == 96
         assert one(method.results).late_lines.shape[1] == 96
@@ -77,7 +78,7 @@ def test_every_method_has_kirschs_96_delay_lines():
 
 
 def test_both_methods_share_one_late_field():
-    ears, channels = ca.Binaural(seed=3, **FAST), ca.Ambisonics(seed=3, **FAST)
+    ears, channels = ca.Binaural(seed=3, **FAST), ca.Ambisonics(seed=3, late_field="fdn", **FAST)
     room_scene().simulate(ears)
     room_scene().simulate(channels)
     np.testing.assert_allclose(one(ears.results).late_lines, one(channels.results).late_lines, atol=1e-12)
@@ -173,4 +174,24 @@ def test_settings_changed_after_construction_are_the_ones_rendered_and_recorded(
     room_scene().simulate(channels)
     channels.sh_order = 4
     ir = one(room_scene().simulate(channels))
+    assert ir.n_channels == 25 and ir.generation["sh_order"] == 4 and ir.generation["late_field"] == "moments"
+    channels.late_field = "fdn"
+    ir = one(room_scene().simulate(channels))
     assert ir.n_channels == 25 and ir.generation["num_delays"] == channels.num_delays == ca.Ambisonics(sh_order=4).num_delays > 96
+
+
+def test_the_moments_late_field_has_no_lines_and_records_where_its_energy_came_from():
+    method = ca.Ambisonics(sh_order=2, **FAST)
+    ir = one(room_scene().simulate(method))
+    result = one(method.results)
+    assert ir.generation["late_field"] == "moments" and ir.generation["num_delays"] is None
+    assert ir.generation["late_energy"] == "network"  # an Eyring tail has no rays
+    assert result.late_lines is None and result.core.lines is None and result.core.builds == []
+    assert result.late.shape == result.early.shape == (result.core.n_samples, 9)
+    with pytest.raises(ValueError, match="no delay lines"):
+        render_binaural(result.core, deltas([[1.0, 0.0, 0.0]]))
+
+
+def test_the_late_field_argument_is_checked():
+    with pytest.raises(ValueError, match="late_field"):
+        ca.Ambisonics(late_field="noise")

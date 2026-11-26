@@ -9,7 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+* Added `compas_acoustics.hybrid.moments`: the ambisonic late field as Gaussian noise whose channel covariance follows, per octave band and 4 ms bin, the spherical harmonic energy moments of the traced rays up to twice the output order, `C_ij = sum_k G_ijk M_k` with the real Gaunt coefficients (`gaunt`, `covariance`, `moments_from_hits`, `histogram_moments`, `ray_late_field`, `network_energy`, `synthesize`, `LateField`). The rays are sorted on a 480-direction grid (`moment_grid`), which moves the covariance by under 0.5 % up to third order. `examples/benchmarks/sh_moment_late_field.py` compares it with the FDN on three rooms, `examples/benchmarks/regression_against_mono.py` two regression recordings with their mono runs, and `room.raytracing.omni_histograms` gives a run's own omnidirectional bins in the form of `directional_histograms`.
+
 ### Changed
+
+* Changed `Ambisonics`' late field to `late_field="moments"` (`hybrid.moments`), which replaces the 96-line FDN: each channel's decay and the correlation between channels follow the rays, so the late field's diffuseness, anisotropy and direction are those an order-N signal can carry of them, and preparing and rendering a pair's late field takes 4 to 15 times less time (`examples/benchmarks/sh_moment_late_field.py`). With a reference the method traces itself, or a `Mono` at its `image_source_order`, the late energy per band is the rays' own (`generation["late_energy"] == "rays"`); otherwise it is the energy the FDN would radiate, brought to the reference per band by the late envelope, which may raise it by up to 12 dB where it only attenuated the FDN (`hybrid.envelope.MOMENTS_MAX_GAIN`, `shape_late(max_gain=...)`; `"network"`). A `Mono` reference therefore no longer gives what its responses given as a dict give. `late_field="fdn"` keeps the FDN; `generation["num_delays"]` is None with the moments. `Binaural` keeps the FDN.
 
 ### Removed
 

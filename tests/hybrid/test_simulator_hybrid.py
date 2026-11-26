@@ -591,10 +591,29 @@ def test_the_directional_histograms_trace_the_rays_of_a_1_db_share_error(monkeyp
         scene.add_source(Source("src", 2.0, 4.0, 1.5))
         scene.add_receiver(Receiver("rec", 8.0, 4.0, 1.5))
         with pytest.raises(Traced) as traced:
-            scene.simulate(Ambisonics(Mono(n_rays=2000, duration=0.5) if given else None, sh_order=1, duration=0.5, late_envelope="directional"))
+            scene.simulate(Ambisonics(Mono(n_rays=2000, duration=0.5) if given else None, sh_order=1, duration=0.5, late_envelope="directional", late_field="fdn"))
         wanted = histogram_rays(float(np.prod(size)), 0.5, speed, grid)
         assert (wanted < MIN_RAYS) == below
         assert traced.value.args[0] == max(wanted, MIN_RAYS)
+
+
+def test_the_moments_take_the_rays_of_a_given_mono_at_the_methods_order(monkeypatch):
+    """A Mono reference at the method's order traces its own rays sorted on the moments' grid, with its own count."""
+    import compas_acoustics.simulation_methods.pra as mono
+    from compas_acoustics.hybrid.moments import moment_grid
+
+    seen = {}
+    run = mono.ray_traced_run
+
+    def spy(*args, **kwargs):
+        seen.update(n_rays=kwargs["n_rays"], directions=kwargs.get("directions"))
+        return run(*args, **kwargs)
+
+    monkeypatch.setattr(mono, "ray_traced_run", spy)
+    scene = make()
+    (ir,) = scene.simulate(Ambisonics(Mono(n_rays=2000, duration=0.5), sh_order=1, duration=0.5, late_envelope="directional")).values()
+    assert seen["n_rays"] == 2000 and len(seen["directions"]) == 1 and seen["directions"][0].shape == moment_grid().shape
+    assert ir.generation["late_energy"] == "rays"
 
 
 def test_the_generation_record_holds_the_histogram_rays():
@@ -643,13 +662,19 @@ def test_a_traced_reference_shares_its_search_and_rays_with_the_early_field_and_
 
 @pytest.mark.parametrize("scattering", [False, True])
 def test_a_given_mono_reference_at_the_methods_order_lends_its_search_to_the_early_field(scattering):
-    """Bit for bit what its responses given as a dict give, with which the early field searches its own room."""
+    """Bit for bit what its responses given as a dict give, with which the early field searches its own room; the
+    FDN's late field too. The moments' late field takes the Mono's rays, which the dict does not have."""
     settings = dict(sh_order=1, image_source_order=3, scattering=scattering, duration=0.5, seed=0)
     scene = make(panel=True)
-    by_dict = scene.simulate(Ambisonics(references(scene), **settings))
-    by_method = scene.simulate(Ambisonics(Mono(**FAST_RT), **settings))
+    by_dict = scene.simulate(Ambisonics(references(scene), late_field="fdn", **settings))
+    by_method = scene.simulate(Ambisonics(Mono(**FAST_RT), late_field="fdn", **settings))
     for key, ir in by_dict.items():
         assert np.array_equal(by_method[key].ir, ir.ir)
+    dict_method, mono_method = Ambisonics(references(scene), **settings), Ambisonics(Mono(**FAST_RT), **settings)
+    by_dict, by_method = scene.simulate(dict_method), scene.simulate(mono_method)
+    for key, ir in by_dict.items():
+        assert ir.generation["late_energy"] == "network" and by_method[key].generation["late_energy"] == "rays"
+        np.testing.assert_array_equal(dict_method.results[key].early, mono_method.results[key].early)
 
 
 @pytest.mark.parametrize("method", [Ambisonics, Binaural])
@@ -697,12 +722,15 @@ def test_omni_traces_no_histogram(monkeypatch):
     scene = make()
     refs = references(scene)
     monkeypatch.setattr(raytracing, "directional_histograms", refuse)
-    for method in (Ambisonics(refs, late_envelope="omni", **FAST), Ambisonics(tail="ray_tracing", late_envelope="omni", **FAST)):
-        (ir,) = scene.simulate(method).values()
-        (result,) = method.results.values()
-        assert result.core.directional_envelope is None
-        assert result.core.late_envelope is not None
-        assert ir.generation["histogram_rays"] is None
+    for late_field in ("fdn", "moments"):
+        for method in (Ambisonics(refs, late_envelope="omni", late_field=late_field, **FAST), Ambisonics(tail="ray_tracing", late_envelope="omni", late_field=late_field, **FAST)):
+            (ir,) = scene.simulate(method).values()
+            (result,) = method.results.values()
+            assert result.core.directional_envelope is None
+            assert result.core.late_envelope is not None
+            # the moments take the energy of their own reference's bins
+            sorted_rays = late_field == "moments" and method.tail == "ray_tracing"
+            assert (ir.generation["histogram_rays"] is None) != sorted_rays
 
 
 def test_omni_keeps_the_early_field():
@@ -781,9 +809,13 @@ def test_omni_traces_its_reference_with_the_rays_of_the_directions_rule(monkeypa
     scene.add_acoustic_objects(AcousticObjectsLibrary.shoebox_room(5, 4, 3, materials=WALL))
     scene.add_source(Source("src", 1.0, 2.0, 1.5))
     scene.add_receiver(Receiver("rec", 4.0, 2.0, 1.5))
-    scene.simulate(Ambisonics(sh_order=1, duration=0.5, late_envelope="omni"))
+    scene.simulate(Ambisonics(sh_order=1, duration=0.5, late_envelope="omni", late_field="fdn"))
     assert seen["n_rays"] == max(histogram_rays(60.0, 0.5, AirConditions().speed_of_sound, fdn_directions(96).cartesian), MIN_RAYS)
     assert seen["directions"] is None
+    # the moments take the energy of the same rays from the reference's own bins, unsorted
+    (ir,) = scene.simulate(Ambisonics(sh_order=1, duration=0.5, late_envelope="omni")).values()
+    assert seen["n_rays"] == max(histogram_rays(60.0, 0.5, AirConditions().speed_of_sound, fdn_directions(96).cartesian), MIN_RAYS)
+    assert seen["directions"] is None and ir.generation["late_energy"] == "rays"
 
 
 def test_omni_and_directional_share_their_reference():
