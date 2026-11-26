@@ -98,14 +98,13 @@ namespace CompasAcoustics.Grasshopper
         {
             if (last == null || last.SceneGuid != sceneGuid || last.Responses.Count == 0)
                 return ("press Run", false);
-            var runs = last.Responses.Count;
             object? Last(string key) => last.Generation.TryGetValue(key, out var value) ? value : null;
             var changed = (!string.IsNullOrEmpty(tail) && tail != "auto" && tail != Last("tail") as string)
                           || Differs(shOrder, Last("sh_order"))
                           || Differs(ismOrder, Last("image_source_order"))
                           || (diffraction != null && !Equals(Model(diffraction), Model(Last("diffraction"))));
-            var summary = $"tail {MessageText.Show(Last("tail"))}" + (Last("sh_order") is { } order ? $", SH order {MessageText.Show(order)}" : "");
-            return (changed ? $"settings changed, press Run ({summary})" : $"done, {runs} IR{(runs == 1 ? "" : "s")}, {summary} (Run to redo)", changed);
+            var summary = MessageText.Run(last.Responses[0].SamplingRate, last.Responses.Count);
+            return (changed ? $"settings changed, press Run ({summary})" : $"done, {summary} (Run to redo)", changed);
         }
     }
 }

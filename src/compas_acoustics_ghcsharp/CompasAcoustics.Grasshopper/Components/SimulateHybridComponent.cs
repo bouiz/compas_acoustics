@@ -102,9 +102,6 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>The HRTF set chosen for the method, whether its input is shown or hidden; null for the default or a method without one.</summary>
         internal string? Hrtf(IGH_DataAccess access) => TakesHrtf ? Text(access, "hrtf") : null;
 
-        /// <summary>The HRTF set as the message names it: the file's name, or ku100 for the default.</summary>
-        internal static string HrtfLabel(string? hrtf) => string.IsNullOrEmpty(hrtf) ? "ku100" : Path.GetFileName(hrtf);
-
         private void SetResponses(IGH_DataAccess access, string sceneGuid) =>
             access.SetDataList(Output, _last != null && _last.SceneGuid == sceneGuid ? _last.Responses : Array.Empty<ImpulseResponseGoo>());
 
@@ -151,13 +148,13 @@ namespace CompasAcoustics.Grasshopper
                     Remark("n_rays is not used: the method traces no rays itself (an Eyring or Sabine tail, or a given reference without a directional late envelope). Set the reference's rays on Simulate Mono.");
             }
             var given = refs?.ToDictionary(kv => kv.Key, kv => (object?)kv.Value);
-            var request = Simulation(scene, Method, settings, given, new Context(scene, hrtf));
+            var request = Simulation(scene, Method, settings, given, new Context(scene));
             var shown = false;
             void Deliver(Outcome outcome, bool fresh)
             {
                 if (fresh)
                     Keep((Context)outcome.Context!, outcome.Result);
-                ShowStatus(fresh ? (RunMessage((Context)outcome.Context!), false) : HybridRun.Status(_last, scene.Value.Guid, tail, shOrder, ismOrder, diffraction));
+                ShowStatus(fresh ? (MessageText.Run(((Context)outcome.Context!).Scene.SamplingRate, _last!.Responses.Count), false) : HybridRun.Status(_last, scene.Value.Guid, tail, shOrder, ismOrder, diffraction));
                 SetResponses(access, scene.Value.Guid);
                 shown = true;
             }
@@ -187,7 +184,7 @@ namespace CompasAcoustics.Grasshopper
                 Warn("The settings differ from the last run: press Run to update the responses.");
         }
 
-        private sealed record Context(SceneGoo Scene, string? Hrtf);
+        private sealed record Context(SceneGoo Scene);
 
         protected override bool RunsInBackground => true;
 
@@ -205,17 +202,6 @@ namespace CompasAcoustics.Grasshopper
             var irs = PairChoice.InSceneOrder(context.Scene, responses);
             var first = irs.FirstOrDefault()?.Generation ?? new Dictionary<string, object?>();
             _last = new HybridRun.LastResult(context.Scene.Value.Guid, irs, new Dictionary<string, object?>(first));
-        }
-
-        private string RunMessage(Context context)
-        {
-            var generation = _last?.Generation ?? new Dictionary<string, object?>();
-            generation.TryGetValue("tail", out var tail);
-            // the seed the run used, the method's own when none was given
-            generation.TryGetValue("seed", out var seed);
-            var order = generation.TryGetValue("sh_order", out var sh) ? $", SH order {MessageText.Show(sh)}" : "";
-            var set = TakesHrtf ? $", hrtf {HrtfLabel(context.Hrtf)}" : "";
-            return $"{MessageText.Rate(context.Scene.SamplingRate)}, {Method}, tail {tail ?? "auto"}{order}, seed {MessageText.Show(seed)}{set}";
         }
     }
 

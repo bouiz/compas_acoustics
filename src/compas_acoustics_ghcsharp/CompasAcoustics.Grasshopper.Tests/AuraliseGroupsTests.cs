@@ -52,9 +52,9 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void Message_NamesFormatsLevelAndPeak()
+        public void Message_NamesFormatsAndPeak()
         {
-            Assert.Equal("binaural + mono, relative, peak -1.0 dBFS", AuraliseGroups.Message(new[] { "mono", "binaural", "mono" }, "relative", -1.0));
+            Assert.Equal("binaural + mono, peak -1.0 dBFS", AuraliseGroups.Message(new[] { "mono", "binaural", "mono" }, -1.0));
             Assert.Equal("Output peaks at +2.5 dBFS and will clip on playback. Use level 'relative' or 'individual'.", AuraliseGroups.ClipWarning(2.5));
         }
 

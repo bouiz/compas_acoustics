@@ -47,14 +47,5 @@ namespace CompasAcoustics.Grasshopper.Tests
         {
             Assert.False(SimulationSettings.Mono(null, true, null, null, null, out _).ContainsKey("seed"));
         }
-
-        [Fact]
-        public void Mono_Message_ShowsRateMethodOrderRaysAndSeed()
-        {
-            var settings = SimulationSettings.Mono(null, true, null, null, 5, out _);
-            Assert.Equal("48 kHz, ISM + ray tracing, ISM order default, rays default, seed 5", SimulationSettings.MonoMessage(48000, settings));
-            settings = SimulationSettings.Mono(2, false, null, null, null, out _);
-            Assert.Equal("44.1 kHz, ISM, ISM order 2", SimulationSettings.MonoMessage(44100, settings));
-        }
     }
 }

@@ -231,8 +231,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal("HRTF: KU100", binaural.ButtonLabel("hrtf"));
             ControlState.Choose(binaural, binaural.ControlPort("hrtf")!, "/sets/my_head.sofa");
             Assert.Equal("HRTF: my_head.sofa", binaural.ButtonLabel("hrtf"));
-            Assert.Equal("my_head.sofa", SimulateHybridComponent.HrtfLabel("/sets/my_head.sofa"));
-            Assert.Equal("ku100", SimulateHybridComponent.HrtfLabel(null));
             // Run last, set apart from the controls above it
             Assert.Equal("run", binaural.Controls[^1].Port);
             Assert.Equal("run", ambisonics.Controls[^1].Port);

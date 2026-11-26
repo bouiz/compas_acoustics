@@ -52,9 +52,8 @@ namespace CompasAcoustics.Grasshopper
             return (audio, formats);
         }
 
-        public static string Message(IEnumerable<string> formats, string level, double peakDbfs) =>
-            string.Format(CultureInfo.InvariantCulture, "{0}, {1}, peak {2:0.0} dBFS", string.Join(" + ", formats.Distinct().OrderBy(f => f, StringComparer.Ordinal)),
-                level, peakDbfs);
+        public static string Message(IEnumerable<string> formats, double peakDbfs) =>
+            string.Format(CultureInfo.InvariantCulture, "{0}, peak {1:0.0} dBFS", string.Join(" + ", formats.Distinct().OrderBy(f => f, StringComparer.Ordinal)), peakDbfs);
 
         public static string ClipWarning(double peakDbfs) =>
             string.Format(CultureInfo.InvariantCulture, "Output peaks at {0}{1:0.0} dBFS and will clip on playback. Use level 'relative' or 'individual'.",
@@ -261,13 +260,13 @@ namespace CompasAcoustics.Grasshopper
                 return;
             }
             var args = new object?[] { irs, sound, chosen, labels };
-            RunInBackground(access, new Background("auralise", args, new Dictionary<string, object?> { ["level"] = level }, (pairs.Chosen, level)), (outcome, _) =>
+            RunInBackground(access, new Background("auralise", args, new Dictionary<string, object?> { ["level"] = level }, pairs.Chosen), (outcome, _) =>
             {
                 var result = outcome.Result;
-                var (paired, rendered) = ((List<Pair>, string))outcome.Context!;
+                var paired = (List<Pair>)outcome.Context!;
                 var (signals, formats) = AuraliseGroups.Trees(((IEnumerable<object?>)result["signals"]!).Cast<IDictionary<string, object?>>(), paired);
                 var peak = Convert.ToDouble(result["peak_dbfs"], CultureInfo.InvariantCulture);
-                Status(AuraliseGroups.Message(formats, rendered, peak));
+                Status(AuraliseGroups.Message(formats, peak));
                 if (peak > 0)
                     Warn(AuraliseGroups.ClipWarning(peak));
                 if (formats.Contains("ambisonic"))

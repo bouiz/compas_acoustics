@@ -174,23 +174,22 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void Status_SaysDoneWithTheCountAndSummary_TheOrderOnlyWhereThereIsOne()
+        public void Status_SaysDoneWithTheRateAndCount()
         {
-            Assert.Equal(("done, 2 IRs, tail reference, SH order 1 (Run to redo)", false), HybridRun.Status(Last("scene", count: 2), "scene", null, null, null, null));
-            Assert.Equal(("done, 1 IR, tail reference, SH order 1 (Run to redo)", false), HybridRun.Status(Last("scene"), "scene", "auto", 1, 3, "none"));
-            Assert.Equal(("done, 1 IR, tail reference (Run to redo)", false), HybridRun.Status(Last("scene", shOrder: null), "scene", null, null, null, null));
+            Assert.Equal(("done, 48 kHz, 2 responses (Run to redo)", false), HybridRun.Status(Last("scene", count: 2), "scene", null, null, null, null));
+            Assert.Equal(("done, 48 kHz, 1 response (Run to redo)", false), HybridRun.Status(Last("scene"), "scene", "auto", 1, 3, "none"));
         }
 
         [Fact]
         public void Status_SaysSettingsChanged()
         {
             var last = Last("scene");
-            var changed = ("settings changed, press Run (tail reference, SH order 1)", true);
+            var changed = ("settings changed, press Run (48 kHz, 1 response)", true);
             Assert.Equal(changed, HybridRun.Status(last, "scene", null, null, 4, null));
             Assert.Equal(changed, HybridRun.Status(last, "scene", "eyring", null, null, null));
             Assert.Equal(changed, HybridRun.Status(last, "scene", null, 2, null, null));
             Assert.Equal(changed, HybridRun.Status(last, "scene", null, null, null, "udfa"));
-            Assert.Equal(("done, 1 IR, tail reference, SH order 1 (Run to redo)", false), HybridRun.Status(Last("scene", diffraction: "udfa"), "scene", null, null, null, "udfa"));
+            Assert.Equal(("done, 48 kHz, 1 response (Run to redo)", false), HybridRun.Status(Last("scene", diffraction: "udfa"), "scene", null, null, null, "udfa"));
         }
     }
 }

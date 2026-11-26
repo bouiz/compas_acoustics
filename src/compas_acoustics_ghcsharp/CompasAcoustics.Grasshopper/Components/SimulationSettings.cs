@@ -35,14 +35,5 @@ namespace CompasAcoustics.Grasshopper
             settings["ray_tracing"] = rayTracing;
             return settings;
         }
-
-        /// <summary>The message of a run: the rate, the method, the image source order, and with ray tracing the rays and seed.</summary>
-        public static string MonoMessage(int samplingRate, IReadOnlyDictionary<string, object?> settings)
-        {
-            var rayTracing = settings.TryGetValue("ray_tracing", out var rt) && rt is true;
-            string Get(string key) => settings.TryGetValue(key, out var v) && v != null ? MessageText.Show(v) : "default";
-            var rays = rayTracing ? $", rays {Get("n_rays")}, seed {Get("seed")}" : "";
-            return $"{MessageText.Rate(samplingRate)}, {(rayTracing ? "ISM + ray tracing" : "ISM")}, ISM order {Get("image_source_order")}{rays}";
-        }
     }
 }

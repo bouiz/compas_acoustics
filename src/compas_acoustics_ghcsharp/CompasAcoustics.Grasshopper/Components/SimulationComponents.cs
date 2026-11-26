@@ -84,16 +84,12 @@ namespace CompasAcoustics.Grasshopper
                 Remark("This definition was saved with Air off. Simulate Mono now always includes air absorption, as Simulate Binaural and Simulate Ambisonics do, so its responses differ from those saved. Save the definition to clear this remark.");
             if (SavedEnergyThreshold is double threshold)
                 Remark($"This definition was saved with energy_thres {threshold:g}. Simulate Mono now always uses the method's 1e-7, so its responses differ from those saved. Save the definition to clear this remark.");
-            RunInBackground(access, Simulation(scene, "mono", settings, null, (scene, settings)), (outcome, _) =>
+            RunInBackground(access, Simulation(scene, "mono", settings, null, scene), (outcome, _) =>
             {
-                var (ran, used) = ((SceneGoo, Dictionary<string, object?>))outcome.Context!;
+                var ran = (SceneGoo)outcome.Context!;
                 var responses = (IDictionary<string, object?>)((IDictionary<string, object?>)outcome.Result["responses"]!)["mono"]!;
                 var irs = PairChoice.InSceneOrder(ran, responses);
-                // the seed the run used, the method's own when none was given
-                var shown = new Dictionary<string, object?>(used);
-                if (irs.FirstOrDefault()?.Generation is { } generation && generation.TryGetValue("seed", out var ranSeed) && ranSeed != null)
-                    shown["seed"] = ranSeed;
-                Status(SimulationSettings.MonoMessage(ran.SamplingRate, shown));
+                Status(MessageText.Run(ran.SamplingRate, irs.Count));
                 access.SetDataList(0, irs);
             });
         }
