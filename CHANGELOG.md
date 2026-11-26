@@ -77,6 +77,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Changed Analyse Impulse Response and Plot 2D in Grasshopper to no longer show LFC (the worker's `analysis` does not return it); `Analyser` still computes it.
 * Changed the Plot 2D Select parameter dropdown to list All and the parameters connected, in place of every parameter (no LF for a response that is not ambisonic); with nothing connected it lists every parameter. A parameter chosen or saved that is not in the connected data stays shown and gives a warning, which for LF says it needs an ambisonic response (Simulate Ambisonics).
 * Changed the worker functions of the plugin's interface: `analysis(irs, ...)`, `auralise(irs, sound, chosen, labels, ...)` and `save_impulse_responses(irs, chosen, labels, ...)` take the responses and the chosen pairs; `auralise` takes a bundled recording by its name (`female_speech`, `male_speech`, `viola`, `guitar`, `castanets`) or a file's path; `make_source` takes no `sound_file`. A plugin and a worker of different builds do not work together: use Install Worker again after updating.
+* Changed Grasshopper's Simulate Binaural and Simulate Ambisonics to default Tail to Ray tracing and to drop the Auto option: they always send an explicit `tail` to the worker, and a connected `reference` needs Tail Reference (any other tail is an error before the worker is called). A definition saved with Auto reads as Reference when a reference is connected and as Ray tracing otherwise. The Python API is unchanged.
 
 ### Fixed
 

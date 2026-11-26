@@ -15,14 +15,14 @@
             },
             {
                 "name": "tail",
-                "description": "Decay target of the tail: auto (reference if given, else ray_tracing), reference, ray_tracing (its own ray-traced reference), eyring or sabine (predicted, no simulation).",
+                "description": "Decay target of the tail: ray_tracing (default; its own ray-traced reference), reference (the connected reference), eyring or sabine (predicted, no simulation). A connected reference needs Tail Reference, and Tail Reference needs a reference.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "str"
             },
             {
                 "name": "reference",
-                "description": "Optional reference for the tail: connect the irs output of Simulate Mono, simulated for the same scene, one response per source and receiver (the wire also makes Grasshopper run the ray tracing first).",
+                "description": "Optional reference for the tail: connect the irs output of Simulate Mono, simulated for the same scene, one response per source and receiver (the wire also makes Grasshopper run the ray tracing first). Set Tail to Reference with it; any other tail is an error.",
                 "optional": true,
                 "scriptParamAccess": 1,
                 "typeHintID": "ghdoc"

@@ -25,14 +25,44 @@ namespace CompasAcoustics.Grasshopper.Tests
         private static readonly IReadOnlyList<ReceiverGoo> NoReceivers = new List<ReceiverGoo>();
 
         [Fact]
-        public void Settings_LeavesUnsetInputsOut_TheSeedIncluded()
+        public void Settings_LeavesUnsetInputsOut_TheSeedIncluded_AndAlwaysSendsATail()
         {
             var settings = HybridRun.Settings(null, null, null, null, null, null, 48000, NoSources, NoReceivers, out var references);
-            Assert.Empty(settings);
+            Assert.Equal(new Dictionary<string, object?> { ["tail"] = "ray_tracing" }, settings);
             Assert.Null(references);
-            settings = HybridRun.Settings("auto", null, "none", null, 3, null, 48000, NoSources, NoReceivers, out _);
-            Assert.Equal(new Dictionary<string, object?> { ["seed"] = 3L }, settings);
+            settings = HybridRun.Settings("ray_tracing", null, "none", null, 3, null, 48000, NoSources, NoReceivers, out _);
+            Assert.Equal(new Dictionary<string, object?> { ["tail"] = "ray_tracing", ["seed"] = 3L }, settings);
         }
+
+        [Theory]
+        [InlineData(null, false, "ray_tracing")]
+        [InlineData("", true, "ray_tracing")]
+        [InlineData("auto", true, "reference")]
+        [InlineData("auto", false, "ray_tracing")]
+        [InlineData("reference", false, "reference")]
+        [InlineData("reference", true, "reference")]
+        [InlineData("ray_tracing", true, "ray_tracing")]
+        [InlineData("eyring", true, "eyring")]
+        [InlineData("sabine", false, "sabine")]
+        public void Tail_ReadsAnOldAutoByTheReference_AndKeepsAnyOtherTail(string? saved, bool referenced, string expected) =>
+            Assert.Equal(expected, HybridRun.Tail(saved, referenced));
+
+        [Fact]
+        public void Tails_AreRayTracingFirst_AndHaveNoAuto()
+        {
+            Assert.Equal(new[] { "ray_tracing", "reference", "eyring", "sabine" }, HybridRun.Tails);
+            Assert.Equal(new[] { "ray_tracing", "reference", "eyring", "sabine" }, new SimulateBinauralComponent().Controls.OfType<DropdownControl>().Single(c => c.Port == "tail").Options);
+        }
+
+        [Theory]
+        [InlineData("ray_tracing", true, true)]
+        [InlineData("eyring", true, true)]
+        [InlineData("sabine", true, true)]
+        [InlineData("reference", true, false)]
+        [InlineData("reference", false, true)]
+        [InlineData("ray_tracing", false, false)]
+        public void TailProblem_IsAnErrorForAReferenceWithAnotherTail_AndAWarningForTailReferenceWithoutOne(string tail, bool referenced, bool problem) =>
+            Assert.Equal(problem, HybridRun.TailProblem(tail, referenced) != null);
 
         [Fact]
         public void Settings_PassesTheEngineInputsUnderTheMethodsNames_AndNoFormatOfTheirOwn()
@@ -130,17 +160,18 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Theory]
-        [InlineData(null, null, false, true)]
-        [InlineData("ray_tracing", "omni", false, true)]
-        [InlineData(null, "directional", true, true)]
-        [InlineData("reference", "directional", true, true)]
-        [InlineData(null, null, true, false)]
-        [InlineData("reference", "omni", true, false)]
-        [InlineData(null, "off", true, false)]
-        [InlineData("eyring", null, false, false)]
-        [InlineData("sabine", null, false, false)]
-        public void NRays_GoesToTheMethodOnlyWhenItTracesRaysItself(string? tail, string? lateEnvelope, bool referenced, bool used) =>
-            Assert.Equal(used, HybridRun.TracesRays(tail, lateEnvelope, referenced));
+        [InlineData("ray_tracing", null, true)]
+        [InlineData("ray_tracing", "omni", true)]
+        [InlineData("ray_tracing", "off", true)]
+        [InlineData("reference", "directional", true)]
+        [InlineData("reference", null, false)]
+        [InlineData("reference", "omni", false)]
+        [InlineData("reference", "off", false)]
+        [InlineData("eyring", null, false)]
+        [InlineData("eyring", "directional", false)]
+        [InlineData("sabine", null, false)]
+        public void NRays_GoesToTheMethodOnlyWhenItTracesRaysItself(string tail, string? lateEnvelope, bool used) =>
+            Assert.Equal(used, HybridRun.TracesRays(tail, lateEnvelope));
 
         [Fact]
         public void TheHybridComponents_TakeTheRaysTheyTrace()
@@ -177,7 +208,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         public void Status_SaysDoneWithTheRateAndCount()
         {
             Assert.Equal(("done, 48 kHz, 2 responses (Run to redo)", false), HybridRun.Status(Last("scene", count: 2), "scene", null, null, null, null));
-            Assert.Equal(("done, 48 kHz, 1 response (Run to redo)", false), HybridRun.Status(Last("scene"), "scene", "auto", 1, 3, "none"));
+            Assert.Equal(("done, 48 kHz, 1 response (Run to redo)", false), HybridRun.Status(Last("scene"), "scene", "reference", 1, 3, "none"));
         }
 
         [Fact]

@@ -109,9 +109,9 @@ namespace CompasAcoustics.Grasshopper.Tests
             var tail = new DropdownControl("tail", HybridRun.Tails);
             var diffraction = new DropdownControl("diffraction", HybridRun.Diffraction);
             Assert.Equal("Ray tracing", ControlLayout.Label(tail, "ray_tracing"));
-            Assert.Equal(new[] { "Auto", "Reference", "Ray tracing", "Eyring", "Sabine" }, HybridRun.Tails.Select(o => ControlLayout.Label(tail, o)));
+            Assert.Equal(new[] { "Ray tracing", "Reference", "Eyring", "Sabine" }, HybridRun.Tails.Select(o => ControlLayout.Label(tail, o)));
             Assert.Equal(new[] { "None", "UDFA", "BTMS" }, HybridRun.Diffraction.Select(o => ControlLayout.Label(diffraction, o)));
-            Assert.Equal("ray_tracing", HybridRun.Tails[2]);
+            Assert.Equal("ray_tracing", HybridRun.Tails[0]);
             Assert.Equal(new[] { "none", "rotational" }, component.Controls.OfType<DropdownControl>().Single(c => c.Port == "symmetry").Options);
             Assert.Equal(new System.Guid("ff1614f6-bb68-5861-aed6-d8d222af8471"), component.ComponentGuid);
             Assert.IsType<Param_ScatteringSample>(component.Params.Output.Single());

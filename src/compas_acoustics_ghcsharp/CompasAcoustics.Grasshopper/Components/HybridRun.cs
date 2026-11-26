@@ -10,7 +10,7 @@ namespace CompasAcoustics.Grasshopper
     public static class HybridRun
     {
         // first item is the default
-        public static readonly string[] Tails = { "auto", "reference", "ray_tracing", "eyring", "sabine" };
+        public static readonly string[] Tails = { "ray_tracing", "reference", "eyring", "sabine" };
         public static readonly string[] Diffraction = { "none", "udfa", "btms" };
         public static readonly string[] LateEnvelopes = { "auto", "omni", "directional", "off" };
 
@@ -28,21 +28,34 @@ namespace CompasAcoustics.Grasshopper
         };
 
         /// <summary>
-        /// Whether the method traces rays itself, so that n_rays applies: the reference of a ray-tracing tail (auto
-        /// without a reference), or the directional histograms of a given reference.
+        /// The tail to send: the chosen one, ray tracing when none is set, and, for a definition saved with the former Auto
+        /// (resolved here, where the wires are known), the reference when one is connected, else ray tracing.
         /// </summary>
-        public static bool TracesRays(string? tail, string? lateEnvelope, bool referenced)
-        {
-            var resolved = string.IsNullOrEmpty(tail) || tail == "auto" ? (referenced ? "reference" : "ray_tracing") : tail;
-            return resolved == "ray_tracing" || (resolved == "reference" && Equals(LateEnvelope(lateEnvelope), "directional"));
-        }
+        public static string Tail(string? choice, bool referenced) => string.IsNullOrEmpty(choice) ? "ray_tracing"
+            : choice == "auto" ? (referenced ? "reference" : "ray_tracing")
+            : choice;
+
+        public const string ReferenceNeedsItsTail = "A reference is connected: set Tail to Reference, or disconnect it.";
+
+        public const string TailNeedsAReference = "Tail Reference needs a reference: connect the irs of Simulate Mono to 'reference', or choose another tail.";
+
+        /// <summary>What is wrong with <paramref name="tail"/> and the reference's wire: an error text for a reference with another tail, a warning text for Tail Reference without one; null when they agree.</summary>
+        public static string? TailProblem(string tail, bool referenced) =>
+            referenced && tail != "reference" ? ReferenceNeedsItsTail : !referenced && tail == "reference" ? TailNeedsAReference : null;
+
+        /// <summary>
+        /// Whether the method traces rays itself, so that n_rays applies: the reference of a ray-tracing tail, or the
+        /// directional histograms of a given reference.
+        /// </summary>
+        public static bool TracesRays(string tail, string? lateEnvelope) =>
+            tail == "ray_tracing" || (tail == "reference" && Equals(LateEnvelope(lateEnvelope), "directional"));
 
         /// <summary>The responses of the last run, for the scene they were simulated for, and the run's description.</summary>
         public sealed record LastResult(string SceneGuid, IReadOnlyList<ImpulseResponseGoo> Responses, IReadOnlyDictionary<string, object?> Generation);
 
         /// <summary>
         /// The settings both methods take: unset inputs are left out so that the method's own defaults apply, the seed's
-        /// included. <paramref name="references"/> are the mono responses of the reference by pair key; the reference must hold
+        /// included, but the tail is always sent. <paramref name="references"/> are the mono responses of the reference by pair key; the reference must hold
         /// one for every pair of the scene's <paramref name="sources"/> and <paramref name="receivers"/>.
         /// </summary>
         public static Dictionary<string, object?> Settings(string? tail, int? ismOrder, string? diffraction, string? lateEnvelope, int? seed,
@@ -71,7 +84,7 @@ namespace CompasAcoustics.Grasshopper
             }
             var given = new Dictionary<string, object?>
             {
-                ["tail"] = string.IsNullOrEmpty(tail) || tail == "auto" ? null : tail,
+                ["tail"] = Tail(tail, reference != null),
                 ["image_source_order"] = ismOrder is int ism ? (long)ism : null,
                 ["diffraction"] = string.IsNullOrEmpty(diffraction) || diffraction == "none" ? null : diffraction,
                 ["late_envelope"] = LateEnvelope(lateEnvelope),
@@ -99,7 +112,7 @@ namespace CompasAcoustics.Grasshopper
             if (last == null || last.SceneGuid != sceneGuid || last.Responses.Count == 0)
                 return ("press Run", false);
             object? Last(string key) => last.Generation.TryGetValue(key, out var value) ? value : null;
-            var changed = (!string.IsNullOrEmpty(tail) && tail != "auto" && tail != Last("tail") as string)
+            var changed = (!string.IsNullOrEmpty(tail) && tail != Last("tail") as string)
                           || Differs(shOrder, Last("sh_order"))
                           || Differs(ismOrder, Last("image_source_order"))
                           || (diffraction != null && !Equals(Model(diffraction), Model(Last("diffraction"))));

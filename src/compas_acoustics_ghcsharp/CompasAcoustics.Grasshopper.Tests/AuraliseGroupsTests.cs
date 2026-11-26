@@ -223,6 +223,7 @@ namespace CompasAcoustics.Grasshopper.Tests
     {
         public Dictionary<string, object> Trees { get; } = new();
         public Dictionary<string, object> Items { get; } = new();
+        public Dictionary<string, System.Collections.IEnumerable> Lists { get; } = new();
 
         public bool GetDataTree<T>(string name, out GH_Structure<T> tree) where T : IGH_Goo
         {
@@ -245,7 +246,13 @@ namespace CompasAcoustics.Grasshopper.Tests
             return true;
         }
         public bool GetDataList<T>(int index, List<T> list) => false;
-        public bool GetDataList<T>(string name, List<T> list) => false;
+        public bool GetDataList<T>(string name, List<T> list)
+        {
+            if (!Lists.TryGetValue(name, out var given))
+                return false;
+            list.AddRange(given.Cast<T>());
+            return true;
+        }
         public int Iteration => 0;
         public void AbortComponentSolution() { }
         public bool BlitData<Q>(int paramIndex, GH_Structure<Q> tree, bool overwrite) where Q : IGH_Goo => false;

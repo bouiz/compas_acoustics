@@ -109,15 +109,20 @@ namespace CompasAcoustics.Grasshopper
         {
             if (Required<SceneGoo>(access, "scene") is not { } scene)
                 return;
-            var tail = Text(access, "tail");
             var references = Items<ImpulseResponseGoo>(access, "reference").Where(ir => ir != null).ToList();
             var reference = references.Count == 0 ? null : references;
+            var tail = HybridRun.Tail(Text(access, "tail"), reference != null);
             // checked before 'run' so that it shows as soon as the tail is chosen, not only after pressing Run
-            if (tail == "reference" && reference == null)
+            if (HybridRun.TailProblem(tail, reference != null) is { } problem)
             {
-                Warn("tail 'reference' needs a reference: connect the irs of Simulate Mono to 'reference', or choose another tail.");
-                Status("connect a reference");
-                SetResponses(access, scene.Value.Guid);
+                if (reference != null)
+                    Error(problem);
+                else
+                {
+                    Warn(problem);
+                    Status("connect a reference");
+                    SetResponses(access, scene.Value.Guid);
+                }
                 return;
             }
             var shOrder = ShOrder;
@@ -142,7 +147,7 @@ namespace CompasAcoustics.Grasshopper
                 settings["hrtf"] = hrtf;
             if (Value<int>(access, "n_rays") is int rays)
             {
-                if (HybridRun.TracesRays(tail, Text(access, "late_envelope"), reference != null))
+                if (HybridRun.TracesRays(tail, Text(access, "late_envelope")))
                     settings["n_rays"] = (long)rays;
                 else
                     Remark("n_rays is not used: the method traces no rays itself (an Eyring or Sabine tail, or a given reference without a directional late envelope). Set the reference's rays on Simulate Mono.");
