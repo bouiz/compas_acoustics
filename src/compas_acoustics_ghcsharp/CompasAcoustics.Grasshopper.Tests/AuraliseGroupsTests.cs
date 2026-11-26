@@ -113,6 +113,18 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
+        public void TheAnechoicSound_ReadsThePlaceholder_WhenAWireHoldsNothing()
+        {
+            var auralise = new AuraliseComponent();
+            var dropdown = AuraliseComponent.SoundDropdown;
+            Assert.Equal("...", ComponentUi.DropdownText(auralise, dropdown, ""));
+            Assert.Equal("...", ComponentUi.DropdownText(auralise, dropdown, "..."));
+            Assert.Equal("Viola", ComponentUi.DropdownText(auralise, dropdown, "viola"));
+            var all = SceneIndices.SourceDropdown;
+            Assert.Equal("All", ComponentUi.DropdownText(auralise, all, ""));
+        }
+
+        [Fact]
         public void Load_ChoosesTheFile_ThenOffersItBeforeLoad()
         {
             var auralise = new AuraliseComponent();
@@ -261,6 +273,7 @@ namespace CompasAcoustics.Grasshopper.Tests
     public class AuraliseComponentTests : IDisposable
     {
         private readonly List<string> _calls = new();
+        private readonly List<IDictionary<string, object?>?> _payloads = new();
         private readonly string _home = Directory.CreateTempSubdirectory("compas_acoustics_home_").FullName;
 
         public AuraliseComponentTests()
@@ -285,6 +298,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             if (path == "/api/info")
                 return FakeHandler.Result(new Dictionary<string, object?> { ["compas_acoustics"] = Versions.Library, ["schema"] = Schema.Hash, ["hybrid"] = true });
             _calls.Add(path);
+            _payloads.Add(body.Length > 0 ? FakeHandler.Serializer.Unpack(body) as IDictionary<string, object?> : null);
             return FakeHandler.Result(null);
         }
 
@@ -314,6 +328,28 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Empty(_calls);
             // the pairs are numbered all the same: the dropdowns offer them before a sound is chosen
             Assert.Equal(new[] { "All", "0: a", "1: b" }, auralise.OptionsOf(SceneIndices.SourceDropdown).labels);
+        }
+
+        [Fact]
+        public void Auralise_AWiredSoundPath_WinsOverTheChoiceAndReachesTheWorker()
+        {
+            var irs = new GH_Structure<ImpulseResponseGoo>();
+            irs.Append(AuraliseGroupsTests.Ir("rec", "a"), new GH_Path(0));
+            var access = new FakeAccess();
+            access.Trees["irs"] = irs;
+            var wired = Path.Combine("sounds", "wired.wav");
+            access.Items["sound"] = wired;
+            var auralise = new AuraliseComponent();
+            var port = auralise.ControlPort("sound")!;
+            ControlState.Choose(auralise, port, "viola");
+            port.AddSource(new Param_String());
+            Solve(auralise, access);
+            var deadline = DateTime.UtcNow.AddSeconds(5);
+            while (_calls.Count == 0 && DateTime.UtcNow < deadline)
+                System.Threading.Thread.Sleep(10);
+            Assert.Equal("/api/auralise", _calls.Single());
+            Assert.Equal(wired, ((IList<object?>)_payloads.Single()!["args"]!)[1]);
+            Assert.Empty(auralise.RuntimeMessages(GH_RuntimeMessageLevel.Warning));
         }
 
         [Fact]

@@ -131,11 +131,11 @@ namespace CompasAcoustics.Grasshopper
                 case DropdownControl d when port != null:
                 {
                     var (value, wired) = ControlState.Of(port, Component.OptionsOf(d).values, ComponentBase.DefaultOf(d));
-                    return (DropdownText(d, value), wired);
+                    return (DropdownText(Component, d, value), wired);
                 }
                 case SwitchControl or DropdownControl when Component.IsChoice(box.Control.Port):
                     var choice = Component.Choice(box.Control.Port);
-                    return (box.Control is DropdownControl dd ? DropdownText(dd, choice) : choice, false);
+                    return (box.Control is DropdownControl dd ? DropdownText(Component, dd, choice) : choice, false);
                 case MultiSwitchControl m when port != null:
                     return (string.Join("\n", ControlState.Members(port, m.Default)), port.SourceCount > 0);
                 case SliderControl slider when port != null:
@@ -158,12 +158,19 @@ namespace CompasAcoustics.Grasshopper
             }
         }
 
-        /// <summary>What a dropdown reads for <paramref name="value"/>: its label among the options offered now, else the first's ("All").</summary>
-        private string DropdownText(DropdownControl dropdown, string value)
+        /// <summary>
+        /// What a dropdown reads for <paramref name="value"/>: its label among the options offered now, else the first's ("All"),
+        /// or its placeholder when it has one ("..."): an empty value there means nothing is chosen.
+        /// </summary>
+        internal static string DropdownText(ComponentBase component, DropdownControl dropdown, string value)
         {
-            var (values, labels) = Component.OptionsOf(dropdown);
+            var (values, labels) = component.OptionsOf(dropdown);
             var i = Array.IndexOf(values, value);
-            return i >= 0 ? labels[i] : value.Length == 0 && labels.Length > 0 ? labels[0] : ControlLayout.Label(dropdown, value);
+            if (i >= 0)
+                return labels[i];
+            if (value.Length > 0 || labels.Length == 0)
+                return ControlLayout.Label(dropdown, value);
+            return dropdown.Default is { Length: > 0 } placeholder && Array.IndexOf(values, placeholder) < 0 ? placeholder : labels[0];
         }
 
         public override GH_ObjectResponse RespondToMouseDown(GH_Canvas sender, GH_CanvasMouseEvent e)
