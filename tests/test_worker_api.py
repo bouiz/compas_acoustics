@@ -6,6 +6,7 @@ import sys
 
 import numpy as np
 import pytest
+import soundfile as sf
 from compas.datastructures import Mesh
 from compas.geometry import Frame
 from compas.geometry import Polyline
@@ -21,6 +22,7 @@ from compas_acoustics import MaterialsLibrary
 from compas_acoustics import Receiver
 from compas_acoustics import Scene
 from compas_acoustics import Source
+from compas_acoustics.auraliser import Auraliser
 from compas_acoustics.pb import plain
 from compas_acoustics.worker import api
 
@@ -233,78 +235,85 @@ def test_analysis_rejects_an_unknown_time_scale():
         api.analysis([decay()], "log")
 
 
-def group(irs, branch="{0}", sounds=None):
-    return {"branch": branch, "irs": irs, "sounds": sounds if sounds is not None else [None] * len(irs)}
-
-
 def two_sources_one_receiver(**kwargs):
     receiver = Receiver("rec", 4, 3, 1.5)
     return [decay(source=Source("a", 1, 1, 1.5), receiver=receiver, level=1.0, **kwargs), decay(source=Source("b", 2, 1, 1.5), receiver=receiver, level=0.25, seed=1, **kwargs)]
 
 
-def test_auralise_renders_one_signal_per_source_and_receiver():
-    result = call("auralise", [group(two_sources_one_receiver(), "{0;1}")])
-    signals = result["signals"]
-    assert len(signals) == 2
-    assert all(s["branch"] == "{0;1}" for s in signals)
-    assert all(isinstance(s["audio"], Audio) and s["audio"].format == "mono" for s in signals)
-    assert signals[0]["audio"].sampling_rate == 48000
+@pytest.fixture
+def sound(tmp_path):
+    path = tmp_path / "noise.wav"
+    sf.write(path, np.random.default_rng(3).normal(size=int(0.2 * 48000)) * 0.1, 48000)
+    return str(path)
 
 
-def test_auralise_mixes_the_sources_of_a_receiver():
-    result = call("auralise", [group(two_sources_one_receiver())], mix_sources=True)
+def test_auralise_renders_the_chosen_pairs_only(sound):
+    result = call("auralise", two_sources_one_receiver(), sound, [1], ["0_1"])
     assert len(result["signals"]) == 1
+    signal = result["signals"][0]
+    assert signal["label"] == "0_1"
+    assert isinstance(signal["audio"], Audio) and signal["audio"].format == "mono" and signal["audio"].sampling_rate == 48000
 
 
-def test_auralise_relative_level_applies_one_gain_to_all():
-    result = call("auralise", [group(two_sources_one_receiver())], "relative")
-    assert result["peak_dbfs"] == pytest.approx(-1.0, abs=0.05)
-    loud, quiet = (np.max(np.abs(s["audio"].samples)) for s in result["signals"])
-    individual = call("auralise", [group(two_sources_one_receiver())], "individual")
-    assert [np.max(np.abs(s["audio"].samples)) for s in individual["signals"]] == pytest.approx([10 ** (-1 / 20)] * 2, rel=1e-3)
-    assert quiet < loud
-
-
-def test_auralise_takes_the_given_sounds():
+def test_auralise_relative_gain_comes_from_every_connected_pair(sound):
     irs = two_sources_one_receiver()
-    result = call("auralise", [group(irs, sounds=[VIOLA, VIOLA])])
-    assert len(result["signals"]) == 2
+    one = call("auralise", irs, sound, [1], ["0_1"])
+    both = call("auralise", irs, sound, [0, 1], ["0_0", "0_1"])
+    np.testing.assert_array_equal(one["signals"][0]["audio"].samples, both["signals"][1]["audio"].samples)
+    assert one["peak_dbfs"] < -1.5
+    assert both["peak_dbfs"] == pytest.approx(-1.0, abs=0.05)
 
 
-def test_auralise_refuses_mixed_formats_at_one_receiver():
-    receiver = Receiver("rec", 4, 3, 1.5)
-    irs = [decay(receiver=receiver), decay(channels=2, receiver=receiver, source=Source("b", 2, 1, 1.5))]
-    with pytest.raises(ValueError, match="mix responses of one format"):
-        api.auralise([group(irs)], mix_sources=True)
+def test_auralise_individual_peaks_each_chosen_at_minus_one(sound):
+    result = call("auralise", two_sources_one_receiver(), sound, [1], ["0_1"], "individual")
+    assert np.max(np.abs(result["signals"][0]["audio"].samples)) == pytest.approx(10 ** (-1 / 20), rel=1e-3)
 
 
-def test_auralise_refuses_an_unknown_level():
+def test_auralise_none_leaves_the_convolution_as_it_is(sound):
+    irs = two_sources_one_receiver()
+    result = call("auralise", irs, sound, [1], ["0_1"], "none")
+    np.testing.assert_array_equal(result["signals"][0]["audio"].samples, Auraliser([irs[1]], anechoic_sounds=[sound]).convolve())
+
+
+def test_auralise_refuses_a_missing_sound_file(tmp_path):
+    with pytest.raises(ValueError, match="does not exist"):
+        api.auralise(two_sources_one_receiver(), str(tmp_path / "nowhere.wav"), [0], ["0_0"])
+
+
+def test_auralise_refuses_an_unknown_level(sound):
     with pytest.raises(ValueError, match="relative"):
-        api.auralise([group(two_sources_one_receiver())], "loud")
+        api.auralise(two_sources_one_receiver(), sound, [0], ["0_0"], "loud")
 
 
-def test_auralise_saves_with_the_components_naming(tmp_path):
-    call("auralise", [group(two_sources_one_receiver())], save_folder=str(tmp_path), save_name="take")
-    assert sorted(p.name for p in tmp_path.glob("*.wav")) == ["take_mic_0_0.wav", "take_mic_0_1.wav"]
-    call("auralise", [group(two_sources_one_receiver())], mix_sources=True, save_folder=str(tmp_path))
-    assert (tmp_path / "convolved_sound_mic_0.wav").exists()
+def test_auralise_saves_the_chosen_under_their_labels(sound, tmp_path):
+    folder = tmp_path / "out"
+    folder.mkdir()
+    call("auralise", two_sources_one_receiver(), sound, [1], ["0_1"], save_folder=str(folder), save_name="take")
+    assert [p.name for p in folder.glob("*.wav")] == ["take_mic_0_1.wav"]
+    call("auralise", two_sources_one_receiver(), sound, [0], ["0_0"], save_folder=str(folder))
+    assert (folder / "convolved_sound_mic_0_0.wav").exists()
 
 
-def test_save_impulse_responses_numbers_them_as_auralise_numbers_its_signals(tmp_path):
-    result = call("save_impulse_responses", [group(two_sources_one_receiver())], str(tmp_path), save_name="rir")
+def test_save_impulse_responses_saves_the_chosen_under_their_labels(tmp_path):
+    result = call("save_impulse_responses", two_sources_one_receiver(), [0, 1], ["0_0", "0_1"], str(tmp_path), save_name="rir")
     assert sorted(p.name for p in tmp_path.glob("*.wav")) == ["rir_mic_0_0.wav", "rir_mic_0_1.wav"]
     assert sorted(p.name for p in tmp_path.glob("*.json")) == ["rir_mic_0_0.json", "rir_mic_0_1.json"]
     assert sorted(result["files"]) == sorted(str(p) for p in tmp_path.glob("*.wav"))
-    call("save_impulse_responses", [group(two_sources_one_receiver())], str(tmp_path))
+    call("save_impulse_responses", two_sources_one_receiver(), [1], ["0_1"], str(tmp_path))
     assert (tmp_path / "impulse_response_mic_0_1.wav").exists()
+
+
+def test_save_impulse_responses_relative_gain_from_every_connected_response(tmp_path):
+    call("save_impulse_responses", two_sources_one_receiver(), [1], ["0_1"], str(tmp_path), save_name="rir")
+    written = sf.read(tmp_path / "rir_mic_0_1.wav")[0]
+    assert np.max(np.abs(written)) == pytest.approx(0.25 * 10 ** (-1 / 20), rel=1e-6)
+    assert (tmp_path / "rir_mic_0_1.json").exists()
 
 
 @pytest.mark.parametrize("level, peaks", [("relative", [10 ** (-1 / 20), 0.25 * 10 ** (-1 / 20)]), ("individual", [10 ** (-1 / 20)] * 2), ("none", [1.0, 0.25])])
 def test_save_impulse_responses_follows_the_level(tmp_path, level, peaks):
-    import soundfile as sf
-
     irs = two_sources_one_receiver()
-    call("save_impulse_responses", [group(irs)], str(tmp_path), level, "rir")
+    call("save_impulse_responses", irs, [0, 1], ["0_0", "0_1"], str(tmp_path), level, "rir")
     written = [sf.read(tmp_path / f"rir_mic_0_{j}.wav")[0] for j in range(2)]
     assert [np.max(np.abs(w)) for w in written] == pytest.approx(peaks, rel=1e-6)
     for j, ir in enumerate(irs):
@@ -313,7 +322,7 @@ def test_save_impulse_responses_follows_the_level(tmp_path, level, peaks):
 
 def test_save_impulse_responses_refuses_an_unknown_level(tmp_path):
     with pytest.raises(ValueError, match="relative"):
-        api.save_impulse_responses([group(two_sources_one_receiver())], str(tmp_path), "loud")
+        api.save_impulse_responses(two_sources_one_receiver(), [0], ["0_0"], str(tmp_path), "loud")
 
 
 def test_play_refuses_a_missing_file():

@@ -324,65 +324,60 @@ def _checked_level(level):
     return level
 
 
-def _receivers(group):
-    """The ``(ir, sound)`` pairs of one ``{"branch", "irs", "sounds"}`` group per receiver, in order of appearance; a
-    None sound is the sound file of the response's source."""
-    irs = list(group["irs"])
-    sounds = list(group.get("sounds") or [None] * len(irs))
-    if len(sounds) != len(irs):
-        raise ValueError("DataTree branch length mismatch.")
-    receivers = {}
-    for ir, sound in zip(irs, sounds):
-        receivers.setdefault(str(ir.receiver.guid), []).append((ir, sound or ir.source.sound_file))
-    return list(receivers.values())
+def auralise(irs, sound, chosen, labels, level="relative", save_folder=None, save_name=None):
+    """``{"signals": [{"label", "audio": Audio}], "peak_dbfs": float, "warnings": [str]}``: the chosen impulse
+    responses convolved with the anechoic ``sound`` file, one signal per chosen response in the order of ``chosen``.
 
-
-def auralise(groups, level="relative", mix_sources=False, save_folder=None, save_name=None):
-    """``{"signals": [{"branch", "audio": Audio}], "peak_dbfs": float, "warnings": [str]}``: the impulse responses
-    convolved with anechoic sounds per receiver, as Auralise does.
-
-    ``groups`` holds one ``{"branch", "irs", "sounds"}`` per Grasshopper branch; a None sound is the sound file of the
-    response's source. One signal per source and receiver, or per receiver with ``mix_sources``. ``level``:
-    ``'relative'`` (one gain for the call, the loudest at -1 dBFS), ``'individual'`` or ``'none'``. With a
-    ``save_folder`` each signal is also written there as ``<save_name or 'convolved_sound'>_mic_<suffix>.wav``.
+    ``irs`` holds every connected response, ``chosen`` the indices of those to render and ``labels`` one label per
+    chosen response. ``level``: ``'relative'`` (one gain from the sound convolved with every response of ``irs``, the
+    loudest at -1 dBFS, so a chosen response renders as in a run of all of them), ``'individual'`` or ``'none'``
+    (only the chosen responses are convolved). With a ``save_folder`` each signal is also written there as
+    ``<save_name or 'convolved_sound'>_mic_<label>.wav``.
     """
     level = _checked_level(level)
-    renders = []
+    if not os.path.exists(sound):
+        raise ValueError(f"The sound file {sound} does not exist.")
+    irs = list(irs)
+    relative = level == "relative"
     with _user_warnings() as messages:
-        for group in groups:
-            for r, pairs in enumerate(_receivers(group)):
-                tasks = [(pairs, f"{r}")] if mix_sources else [([pair], f"{r}_{j}") for j, pair in enumerate(pairs)]
-                for task, suffix in tasks:
-                    jobs.progress("rendering", len(renders))
-                    task_formats = sorted({ir.format for ir, _ in task})
-                    if len(task_formats) > 1:
-                        raise ValueError(
-                            "The impulse responses at receiver {} are {}: mix responses of one format, or turn mix_sources off.".format(r, " and ".join(task_formats))
-                        )
-                    auraliser = Auraliser([ir for ir, _ in task], anechoic_sounds=[sound for _, sound in task])
-                    renders.append((group["branch"], auraliser, auraliser.convolve(), suffix, task_formats[0]))
-        gains = Auraliser.render_gains([render[2] for render in renders], level, -1.0)
-        signals = []
+        auralisers = {}
+        signals = {}
+        for k, index in enumerate(range(len(irs)) if relative else chosen):
+            jobs.progress("rendering", k)
+            auralisers[index] = Auraliser([irs[index]], anechoic_sounds=[sound])
+            signals[index] = auralisers[index].convolve()
+        if relative:
+            shared = Auraliser.render_gains(list(signals.values()), level, -1.0)[0]
+            gains = {index: shared for index in chosen}
+        else:
+            gains = dict(zip(chosen, Auraliser.render_gains([signals[index] for index in chosen], level, -1.0)))
+        rendered = []
         peak = -np.inf
-        for (branch, auraliser, signal, suffix, ir_format), gain in zip(renders, gains):
-            leveled = signal * gain
+        for index, label in zip(chosen, labels):
+            leveled = signals[index] * gains[index]
             peak = max(peak, Auraliser.peak_dbfs(leveled))
-            signals.append({"branch": branch, "audio": Audio(leveled, auraliser.sampling_rate, ir_format)})
+            rendered.append({"label": label, "audio": Audio(leveled, auralisers[index].sampling_rate, irs[index].format)})
             if save_folder:
-                auraliser.export_convolved_sound(os.path.join(save_folder, f"{save_name or 'convolved_sound'}_mic_{suffix}.wav"), signal, gain=gain)
-    return {"signals": signals, "peak_dbfs": float(peak), "warnings": messages}
+                auralisers[index].export_convolved_sound(os.path.join(save_folder, f"{save_name or 'convolved_sound'}_mic_{label}.wav"), signals[index], gain=gains[index])
+    return {"signals": rendered, "peak_dbfs": float(peak), "warnings": messages}
 
 
-def save_impulse_responses(groups, save_folder, level="relative", save_name=None):
-    """``{"files": [str], "warnings": [str]}``: the impulse responses of ``groups``, as :func:`auralise` takes them,
-    written to ``save_folder`` as ``<save_name or 'impulse_response'>_mic_<r>_<j>.wav`` with their JSON metadata,
-    numbered as :func:`auralise` numbers its signals per source and receiver. ``level`` as in :func:`auralise`, on the
-    raw responses."""
+def save_impulse_responses(irs, chosen, labels, save_folder, level="relative", save_name=None):
+    """``{"files": [str], "warnings": [str]}``: the chosen impulse responses of ``irs``, as :func:`auralise` takes
+    them, written to ``save_folder`` as ``<save_name or 'impulse_response'>_mic_<label>.wav`` with their JSON
+    metadata. ``level`` as in :func:`auralise`, on the raw responses: ``'relative'`` takes one gain from every
+    response of ``irs``."""
     level = _checked_level(level)
-    named = [(f"{r}_{j}", ir) for group in groups for r, pairs in enumerate(_receivers(group)) for j, (ir, _) in enumerate(pairs)]
-    gains = Auraliser.render_gains([ir.denormalized() for _, ir in named], level, -1.0)
+    irs = list(irs)
+    raw = [ir.denormalized() for ir in irs] if level == "relative" else [irs[index].denormalized() for index in chosen]
+    gains = Auraliser.render_gains(raw, level, -1.0)
+    if level == "relative":
+        gains = [gains[index] for index in chosen]
     with _user_warnings() as messages:
-        files = [str(ir.to_wav(os.path.join(save_folder, f"{save_name or 'impulse_response'}_mic_{suffix}.wav"), gain=gain)[0]) for (suffix, ir), gain in zip(named, gains)]
+        files = [
+            str(irs[index].to_wav(os.path.join(save_folder, f"{save_name or 'impulse_response'}_mic_{label}.wav"), gain=gain)[0])
+            for index, label, gain in zip(chosen, labels, gains)
+        ]
     return {"files": files, "warnings": messages}
 
 
