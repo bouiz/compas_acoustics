@@ -2280,11 +2280,13 @@ ceiling</item>
               </items>
               <chunks count="1">
                 <chunk name="Container">
-                  <items count="4">
-                    <item name="Description" type_name="gh_string" type_code="10">Acoustic Source object (speaker, human, etc.). Choose its directivity on the body: omnidirectional (default), cardioid, supercardioid, hypercardioid or bidirectional.</item>
+                  <items count="6">
+                    <item name="Description" type_name="gh_string" type_code="10">Acoustic Source object (speaker, human, etc.). Choose its directivity on the body: omnidirectional (default), cardioid, supercardioid, hypercardioid or bidirectional; and, optionally, its anechoic sound on the Anechoic sound dropdown, which Auralise then uses for this source in place of its own.</item>
                     <item name="InstanceGuid" type_name="gh_guid" type_code="9">484fe9fb-bf58-4a18-b90d-1ea33e796857</item>
                     <item name="Name" type_name="gh_string" type_code="10">Source</item>
                     <item name="NickName" type_name="gh_string" type_code="10">Source</item>
+                    <item name="control_inputs_hidden" type_name="gh_string" type_code="10">sound</item>
+                    <item name="control_inputs_shown" type_name="gh_bool" type_code="1">false</item>
                   </items>
                   <chunks count="6">
                     <chunk name="Attributes">
@@ -2293,7 +2295,7 @@ ceiling</item>
                           <X>989</X>
                           <Y>278</Y>
                           <W>135</W>
-                          <H>128</H>
+                          <H>169</H>
                         </item>
                         <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
                           <X>1060</X>
@@ -2460,7 +2462,7 @@ ceiling</item>
                       <items count="4">
                         <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
                           <X>900</X>
-                          <Y>430</Y>
+                          <Y>500</Y>
                           <W>70</W>
                           <H>36</H>
                         </item>
@@ -2508,7 +2510,7 @@ ceiling</item>
                       <items count="4">
                         <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
                           <X>900</X>
-                          <Y>460</Y>
+                          <Y>530</Y>
                           <W>70</W>
                           <H>36</H>
                         </item>
@@ -2542,24 +2544,26 @@ ceiling</item>
               </items>
               <chunks count="1">
                 <chunk name="Container">
-                  <items count="4">
-                    <item name="Description" type_name="gh_string" type_code="10">Acoustic Source object (speaker, human, etc.). Choose its directivity on the body: omnidirectional (default), cardioid, supercardioid, hypercardioid or bidirectional.</item>
+                  <items count="6">
+                    <item name="Description" type_name="gh_string" type_code="10">Acoustic Source object (speaker, human, etc.). Choose its directivity on the body: omnidirectional (default), cardioid, supercardioid, hypercardioid or bidirectional; and, optionally, its anechoic sound on the Anechoic sound dropdown, which Auralise then uses for this source in place of its own.</item>
                     <item name="InstanceGuid" type_name="gh_guid" type_code="9">4a01f742-188c-45ec-953d-04ebf5a57611</item>
                     <item name="Name" type_name="gh_string" type_code="10">Source</item>
                     <item name="NickName" type_name="gh_string" type_code="10">Source</item>
+                    <item name="control_inputs_hidden" type_name="gh_string" type_code="10">sound</item>
+                    <item name="control_inputs_shown" type_name="gh_bool" type_code="1">false</item>
                   </items>
                   <chunks count="6">
                     <chunk name="Attributes">
                       <items count="2">
                         <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
                           <X>989</X>
-                          <Y>408</Y>
+                          <Y>478</Y>
                           <W>135</W>
-                          <H>128</H>
+                          <H>169</H>
                         </item>
                         <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
                           <X>1060</X>
-                          <Y>450</Y>
+                          <Y>520</Y>
                         </item>
                       </items>
                     </chunk>
@@ -2578,13 +2582,13 @@ ceiling</item>
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
                               <X>991</X>
-                              <Y>410</Y>
+                              <Y>480</Y>
                               <W>45</W>
                               <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
                               <X>1015</X>
-                              <Y>420</Y>
+                              <Y>490</Y>
                             </item>
                           </items>
                         </chunk>
@@ -2605,13 +2609,13 @@ ceiling</item>
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
                               <X>991</X>
-                              <Y>430</Y>
+                              <Y>500</Y>
                               <W>45</W>
                               <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
                               <X>1015</X>
-                              <Y>440</Y>
+                              <Y>510</Y>
                             </item>
                           </items>
                         </chunk>
@@ -2631,13 +2635,13 @@ ceiling</item>
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
                               <X>991</X>
-                              <Y>450</Y>
+                              <Y>520</Y>
                               <W>45</W>
                               <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
                               <X>1015</X>
-                              <Y>460</Y>
+                              <Y>530</Y>
                             </item>
                           </items>
                         </chunk>
@@ -2658,13 +2662,13 @@ ceiling</item>
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
                               <X>991</X>
-                              <Y>470</Y>
+                              <Y>540</Y>
                               <W>45</W>
                               <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
                               <X>1015</X>
-                              <Y>480</Y>
+                              <Y>550</Y>
                             </item>
                           </items>
                         </chunk>
@@ -2684,13 +2688,13 @@ ceiling</item>
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
                               <X>1084</X>
-                              <Y>410</Y>
+                              <Y>480</Y>
                               <W>38</W>
                               <H>80</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
                               <X>1103</X>
-                              <Y>450</Y>
+                              <Y>520</Y>
                             </item>
                           </items>
                         </chunk>
@@ -2722,7 +2726,7 @@ ceiling</item>
                       <items count="4">
                         <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
                           <X>900</X>
-                          <Y>600</Y>
+                          <Y>720</Y>
                           <W>70</W>
                           <H>36</H>
                         </item>
@@ -2770,7 +2774,7 @@ ceiling</item>
                       <items count="4">
                         <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
                           <X>900</X>
-                          <Y>630</Y>
+                          <Y>750</Y>
                           <W>70</W>
                           <H>36</H>
                         </item>
@@ -2815,13 +2819,13 @@ ceiling</item>
                       <items count="2">
                         <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
                           <X>998</X>
-                          <Y>588</Y>
+                          <Y>708</Y>
                           <W>123</W>
                           <H>64</H>
                         </item>
                         <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
                           <X>1060</X>
-                          <Y>620</Y>
+                          <Y>740</Y>
                         </item>
                       </items>
                     </chunk>
@@ -2840,13 +2844,13 @@ ceiling</item>
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
                               <X>1000</X>
-                              <Y>590</Y>
+                              <Y>710</Y>
                               <W>45</W>
                               <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
                               <X>1024</X>
-                              <Y>600</Y>
+                              <Y>720</Y>
                             </item>
                           </items>
                         </chunk>
@@ -2867,13 +2871,13 @@ ceiling</item>
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
                               <X>1000</X>
-                              <Y>610</Y>
+                              <Y>730</Y>
                               <W>45</W>
                               <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
                               <X>1024</X>
-                              <Y>620</Y>
+                              <Y>740</Y>
                             </item>
                           </items>
                         </chunk>
@@ -2893,13 +2897,13 @@ ceiling</item>
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
                               <X>1000</X>
-                              <Y>630</Y>
+                              <Y>750</Y>
                               <W>45</W>
                               <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
                               <X>1024</X>
-                              <Y>640</Y>
+                              <Y>760</Y>
                             </item>
                           </items>
                         </chunk>
@@ -2919,13 +2923,13 @@ ceiling</item>
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
                               <X>1075</X>
-                              <Y>590</Y>
+                              <Y>710</Y>
                               <W>44</W>
                               <H>60</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
                               <X>1097</X>
-                              <Y>620</Y>
+                              <Y>740</Y>
                             </item>
                           </items>
                         </chunk>
@@ -2957,7 +2961,7 @@ ceiling</item>
                       <items count="4">
                         <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
                           <X>900</X>
-                          <Y>700</Y>
+                          <Y>820</Y>
                           <W>70</W>
                           <H>36</H>
                         </item>
@@ -3005,7 +3009,7 @@ ceiling</item>
                       <items count="4">
                         <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
                           <X>900</X>
-                          <Y>730</Y>
+                          <Y>850</Y>
                           <W>70</W>
                           <H>36</H>
                         </item>
@@ -3050,13 +3054,13 @@ ceiling</item>
                       <items count="2">
                         <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
                           <X>998</X>
-                          <Y>688</Y>
+                          <Y>808</Y>
                           <W>123</W>
                           <H>64</H>
                         </item>
                         <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
                           <X>1060</X>
-                          <Y>720</Y>
+                          <Y>840</Y>
                         </item>
                       </items>
                     </chunk>
@@ -3075,13 +3079,13 @@ ceiling</item>
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
                               <X>1000</X>
-                              <Y>690</Y>
+                              <Y>810</Y>
                               <W>45</W>
                               <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
                               <X>1024</X>
-                              <Y>700</Y>
+                              <Y>820</Y>
                             </item>
                           </items>
                         </chunk>
@@ -3102,13 +3106,13 @@ ceiling</item>
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
                               <X>1000</X>
-                              <Y>710</Y>
+                              <Y>830</Y>
                               <W>45</W>
                               <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
                               <X>1024</X>
-                              <Y>720</Y>
+                              <Y>840</Y>
                             </item>
                           </items>
                         </chunk>
@@ -3128,13 +3132,13 @@ ceiling</item>
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
                               <X>1000</X>
-                              <Y>730</Y>
+                              <Y>850</Y>
                               <W>45</W>
                               <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
                               <X>1024</X>
-                              <Y>740</Y>
+                              <Y>860</Y>
                             </item>
                           </items>
                         </chunk>
@@ -3154,13 +3158,13 @@ ceiling</item>
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
                               <X>1075</X>
-                              <Y>690</Y>
+                              <Y>810</Y>
                               <W>44</W>
                               <H>60</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
                               <X>1097</X>
-                              <Y>720</Y>
+                              <Y>840</Y>
                             </item>
                           </items>
                         </chunk>
@@ -3514,7 +3518,7 @@ ceiling</item>
                           <X>1493</X>
                           <Y>408</Y>
                           <W>135</W>
-                          <H>148</H>
+                          <H>158</H>
                         </item>
                         <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
                           <X>1580</X>
@@ -4497,7 +4501,7 @@ receiver_idx</item>
               <chunks count="1">
                 <chunk name="Container">
                   <items count="10">
-                    <item name="Description" type_name="gh_string" type_code="10">Auralise the chosen source-receiver pairs: one anechoic sound, chosen on the Anechoic sound dropdown (a bundled recording, or a file loaded with Load...) or a File Path wired to 'sound', convolved with the impulse response of each pair. The signals keep the format of their impulse responses: mono (Simulate Mono), binaural (Simulate Binaural) or ambisonic (Simulate Ambisonics). Choose the level on the body: 'none' (default) keeps the raw level and may clip; 'relative' takes one gain from the sound convolved with every connected pair, not only the chosen ones, so the loudest connected pair would peak at -1 dBFS and a chosen pair keeps its level difference to it; 'individual' brings each signal to -1 dBFS. Save auralisation writes the signals of the chosen pairs as WAV files: choose a folder and a name (take.wav saves take_mic_&lt;r&gt;_&lt;s&gt;.wav, with r and s the receiver and source indices, as take_mic_0_0.wav, take_mic_0_1.wav, ...). Save RIR writes the impulse responses of the chosen pairs the same way, at the chosen level ('relative' from every connected response) and each with a JSON file of its metadata, including the factor back to its raw level.</item>
+                    <item name="Description" type_name="gh_string" type_code="10">Auralise the chosen source-receiver pairs: the impulse response of each pair convolved with an anechoic sound, the sound of its Source when the Source has one, else the one chosen here on the Anechoic sound dropdown (a bundled recording, or a file loaded with Load...) or a File Path wired to 'sound'. The signals keep the format of their impulse responses: mono (Simulate Mono), binaural (Simulate Binaural) or ambisonic (Simulate Ambisonics). Choose the level on the body: 'none' (default) keeps the raw level and may clip; 'relative' takes one gain from every connected pair convolved with its sound, not only the chosen ones, so the loudest connected pair would peak at -1 dBFS and a chosen pair keeps its level difference to it; 'individual' brings each signal to -1 dBFS. Save auralisation writes the signals of the chosen pairs as WAV files: choose a folder and a name (take.wav saves take_mic_&lt;r&gt;_&lt;s&gt;.wav, with r and s the receiver and source indices, as take_mic_0_0.wav, take_mic_0_1.wav, ...). Save RIR writes the impulse responses of the chosen pairs the same way, at the chosen level ('relative' from every connected response) and each with a JSON file of its metadata, including the factor back to its raw level.</item>
                     <item name="InstanceGuid" type_name="gh_guid" type_code="9">ec6b5e8c-fdff-405b-82a4-986245d2c8e3</item>
                     <item name="Name" type_name="gh_string" type_code="10">Auralise</item>
                     <item name="NickName" type_name="gh_string" type_code="10">Auralise</item>
