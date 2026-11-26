@@ -81,7 +81,7 @@ namespace CompasAcoustics.Grasshopper
         protected override string SpecKey => "CA_Auralise";
         public override Guid ComponentGuid => new Guid("4d9abc0d-a247-5525-8835-b5907a4ae2a8");
 
-        public override float MinBodyWidth => SceneBodyWidth;
+        public override float MinBodyWidth => SharedBodyWidth;
 
         protected override IGH_Param? CreateParam(PortSpec port, bool input) => (input, port.Name) switch
         {

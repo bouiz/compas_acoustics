@@ -48,15 +48,17 @@ namespace CompasAcoustics.Grasshopper.Tests
 
         [Theory]
         [MemberData(nameof(Components))]
-        public void TheSimulateAnalyseAndAuraliseComponents_AreDrawnOneWidth_TheOthersAtTheirOwn(string typeName)
+        public void TheSceneSourceReceiverSimulateAnalyseAuraliseAndVisualiseComponents_AreDrawnOneWidth_TheOthersAtTheirOwn(string typeName)
         {
             var component = Make(typeName);
-            var simulate = typeName is nameof(SimulateMonoComponent) or nameof(SimulateBinauralComponent) or nameof(SimulateAmbisonicsComponent)
-                or nameof(AnalyseIrComponent) or nameof(AuraliseComponent);
-            Assert.Equal(simulate ? ComponentBase.SceneBodyWidth : 0, component.MinBodyWidth);
+            var shared = typeName is nameof(RoomSceneComponent) or nameof(SourceComponent) or nameof(ReceiverComponent)
+                or nameof(SimulateMonoComponent) or nameof(SimulateBinauralComponent) or nameof(SimulateAmbisonicsComponent)
+                or nameof(AnalyseIrComponent) or nameof(AuraliseComponent)
+                or nameof(VisualiseEnergyMapComponent) or nameof(VisualiseRaysComponent) or nameof(VisualiseBilliardComponent) or nameof(VisualiseReflectionsComponent);
+            Assert.Equal(shared ? ComponentBase.SharedBodyWidth : 0, component.MinBodyWidth);
             Assert.Equal(Math.Max(component.MinBodyWidth, ControlLayout.MinWidth(component.BodyControls)), ComponentUi.MinBodyWidthOf(component));
-            if (simulate)
-                Assert.Equal(131f, ComponentUi.MinBodyWidthOf(component));
+            if (shared)
+                Assert.Equal(135f, ComponentUi.MinBodyWidthOf(component));
         }
 
         [Theory]

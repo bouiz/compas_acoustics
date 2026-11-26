@@ -111,6 +111,7 @@ namespace CompasAcoustics.Grasshopper
 
         public VisualiseReflectionsComponent() : base("CA_Visualise_Reflections") { }
         protected override string SpecKey => "CA_Visualise_Reflections";
+        public override float MinBodyWidth => SharedBodyWidth;
         public override Guid ComponentGuid => new Guid("11077914-3d8f-5a76-a0f9-07250add684e");
 
         protected override IGH_Param? CreateParam(PortSpec port, bool input) => (input, port.Name) switch
@@ -190,6 +191,7 @@ namespace CompasAcoustics.Grasshopper
         public static double DrawnDistance(bool active, double timeMs, double speedOfSound) => active ? timeMs / 1000.0 * speedOfSound : 0.0;
 
         protected override string SpecKey => "CA_Visualise_Rays";
+        public override float MinBodyWidth => SharedBodyWidth;
         public override Guid ComponentGuid => new Guid("e693b3da-9ac2-56bb-a810-2910e8e4af8e");
 
         protected override IGH_Param? CreateParam(PortSpec port, bool input) => (input, port.Name) switch
@@ -285,6 +287,7 @@ namespace CompasAcoustics.Grasshopper
         public override double? SliderShown(SliderControl slider) => slider.Port == "time" ? _shownMs : null;
 
         protected override string SpecKey => "CA_Visualise_Billiard";
+        public override float MinBodyWidth => SharedBodyWidth;
         public override Guid ComponentGuid => new Guid("1dd7e727-b816-578f-8eaa-253a9a153829");
 
         protected override IGH_Param? CreateParam(PortSpec port, bool input) => input && port.Name == "ray_field" ? new Param_RayField() : null;
@@ -365,6 +368,7 @@ namespace CompasAcoustics.Grasshopper
 
         public VisualiseEnergyMapComponent() : base("CA_Visualise_Energy_Map") { }
         protected override string SpecKey => "CA_Visualise_Energy_Map";
+        public override float MinBodyWidth => SharedBodyWidth;
         public override Guid ComponentGuid => new Guid("a0fc70ee-6c93-5bb3-b30d-315b8e4530cf");
 
         // a static map of the levels: no playback controls

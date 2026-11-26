@@ -17,6 +17,8 @@ namespace CompasAcoustics.Grasshopper
         protected override string SpecKey => "CA_Source";
         public override Guid ComponentGuid => new Guid("c2b3794e-54b9-5ba2-8d99-2e10bef8be08");
 
+        public override float MinBodyWidth => SharedBodyWidth;
+
         protected override IGH_Param? CreateParam(PortSpec port, bool input) => input ? null : new Param_Source();
 
         /// <summary>The source's directivity patterns, the first the default.</summary>
@@ -59,6 +61,8 @@ namespace CompasAcoustics.Grasshopper
         public ReceiverComponent() : base("CA_Receiver") { }
         protected override string SpecKey => "CA_Receiver";
         public override Guid ComponentGuid => new Guid("3a875c99-7e37-5257-a83d-1265489c24df");
+
+        public override float MinBodyWidth => SharedBodyWidth;
 
         protected override IGH_Param? CreateParam(PortSpec port, bool input) => input ? null : new Param_Receiver();
 
@@ -163,6 +167,8 @@ namespace CompasAcoustics.Grasshopper
         public RoomSceneComponent() : base("CA_Model") { }
         protected override string SpecKey => "CA_Model";
         public override Guid ComponentGuid => new Guid("63ac4b6f-5c00-50a5-973f-6337bd1f2b11");
+
+        public override float MinBodyWidth => SharedBodyWidth;
 
         public override bool PreviewOffByDefault => true;
 

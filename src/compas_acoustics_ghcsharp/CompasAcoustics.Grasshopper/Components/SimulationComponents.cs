@@ -25,7 +25,7 @@ namespace CompasAcoustics.Grasshopper
             IsmOrder,
         };
 
-        public override float MinBodyWidth => SceneBodyWidth;
+        public override float MinBodyWidth => SharedBodyWidth;
 
         /// <summary>Whether the definition was saved with the former Air toggle off; air absorption is now always on. Cleared on save.</summary>
         internal bool SavedWithoutAir { get; private set; }
