@@ -83,7 +83,7 @@ namespace CompasAcoustics.Grasshopper
         internal static readonly string[] Methods = { "geometric", "kirchhoff", "bem" };
         // survey (13 source directions) first, the Lab's default: a quick look; standard (97) is more accurate (see the input's description)
         internal static readonly string[] Presets = { "survey", "standard" };
-        internal static readonly string[] PresetLabels = { "survey (13)", "standard (97)" };
+        internal static readonly string[] PresetLabels = { "Survey (13)", "Standard (97)" };
         internal static readonly string[] BandRanges = { "iso", "extended" };
         // the ranges of compas_acoustics.lab's ISO_BAND_RANGE and EXTENDED_BAND_RANGE, the one-third octave centres simulated
         internal static readonly string[] BandRangeLabels = { "ISO 100–5000 Hz", "100–8000 Hz" };

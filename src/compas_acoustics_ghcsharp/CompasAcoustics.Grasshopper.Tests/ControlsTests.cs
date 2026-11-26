@@ -172,7 +172,27 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal("diffraction", title);
             Assert.Equal(ComponentSpec.Load("CA_Simulate_Binaural").Inputs.Single(p => p.Name == "diffraction").Description, text);
             // a choice without an input: its options, and its default
-            Assert.Equal(("level", "none, relative or individual (default none)"), new AuraliseComponent().ControlTooltip("level"));
+            Assert.Equal(("level", "none, relative or individual (default None)"), new AuraliseComponent().ControlTooltip("level"));
+        }
+
+        [Fact]
+        public void AMenu_IsAsWideAsItsLongestText_AndNeverNarrowerThanItsDropdown()
+        {
+            Assert.Equal(160, ControlLayout.MenuWidth(new[] { 40, 100, 70 }, 90, 60));
+            Assert.Equal(90, ControlLayout.MenuWidth(new[] { 10, 20 }, 90, 60));
+            Assert.Equal(90, ControlLayout.MenuWidth(System.Array.Empty<int>(), 90, 60));
+        }
+
+        [Fact]
+        public void ADropdownsLabels_StartWithACapital_AndItsValuesKeepTheirForm()
+        {
+            var tail = new DropdownControl("tail", new[] { "auto", "ray_tracing" });
+            var diffraction = new DropdownControl("diffraction", new[] { "none", "udfa", "btms" });
+            Assert.Equal("Ray tracing", ControlLayout.Label(tail, "ray_tracing"));
+            Assert.Equal(new[] { "None", "UDFA", "BTMS" }, diffraction.Options.Select(o => ControlLayout.Label(diffraction, o)));
+            Assert.Equal(new[] { "none", "udfa", "btms" }, diffraction.Options);
+            Assert.Equal("c:/x.wav", ControlLayout.Label(tail, "c:/x.wav"));
+            Assert.Equal(("level", "Boundary"), ("level", ControlLayout.Label(new SwitchControl("role", new[] { "boundary", "obstacle" }), "boundary")));
         }
 
         [Fact]

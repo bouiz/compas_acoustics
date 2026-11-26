@@ -104,9 +104,14 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(new[] { "mode", "symmetry" }, component.Controls.OfType<DropdownControl>().Select(c => c.Port));
             var mode = component.Controls.OfType<DropdownControl>().Single(c => c.Port == "mode");
             Assert.Equal(new[] { "as_drawn", "disc" }, mode.Options);
-            // an option reads without its underscore; its value, which the worker gets, keeps it
-            Assert.Equal(new[] { "as drawn", "disc" }, component.OptionsOf(mode).labels);
-            Assert.Equal("ray tracing", ControlLayout.Label(new DropdownControl("tail", HybridRun.Tails), "ray_tracing"));
+            // an option reads without its underscore and with a capital; its value, which the worker gets, keeps its form
+            Assert.Equal(new[] { "As drawn", "Disc" }, component.OptionsOf(mode).labels);
+            var tail = new DropdownControl("tail", HybridRun.Tails);
+            var diffraction = new DropdownControl("diffraction", HybridRun.Diffraction);
+            Assert.Equal("Ray tracing", ControlLayout.Label(tail, "ray_tracing"));
+            Assert.Equal(new[] { "Auto", "Reference", "Ray tracing", "Eyring", "Sabine" }, HybridRun.Tails.Select(o => ControlLayout.Label(tail, o)));
+            Assert.Equal(new[] { "None", "UDFA", "BTMS" }, HybridRun.Diffraction.Select(o => ControlLayout.Label(diffraction, o)));
+            Assert.Equal("ray_tracing", HybridRun.Tails[2]);
             Assert.Equal(new[] { "none", "rotational" }, component.Controls.OfType<DropdownControl>().Single(c => c.Port == "symmetry").Options);
             Assert.Equal(new System.Guid("ff1614f6-bb68-5861-aed6-d8d222af8471"), component.ComponentGuid);
             Assert.IsType<Param_ScatteringSample>(component.Params.Output.Single());

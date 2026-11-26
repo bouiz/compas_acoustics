@@ -98,8 +98,9 @@ namespace CompasAcoustics.Grasshopper
         }
 
         /// <summary>
-        /// What an option of a switch or dropdown reads: its label, else the value with its underscores as spaces (``as_drawn`` reads
-        /// "as drawn"). Only the text shown: the value, which the worker gets and a definition saves, keeps them.
+        /// What an option of a switch or dropdown reads: its label, else the value with its underscores as spaces and a capital
+        /// first letter (``as_drawn`` reads "As drawn", ``udfa`` "UDFA"). A value that is no option reads as it is, spaced. Only the
+        /// text shown: the value, which the worker gets and a definition saves, keeps its form.
         /// </summary>
         public static string Label(Control control, string value)
         {
@@ -110,12 +111,23 @@ namespace CompasAcoustics.Grasshopper
                 _ => (Array.Empty<string>(), null),
             };
             var i = Array.IndexOf(options, value);
-            return labels != null && i >= 0 && i < labels.Length ? labels[i] : value.Replace('_', ' ');
+            if (labels != null && i >= 0 && i < labels.Length)
+                return labels[i];
+            var spaced = value.Replace('_', ' ');
+            if (i < 0 || spaced.Length == 0)
+                return spaced;
+            return Acronyms.Contains(value) ? spaced.ToUpperInvariant() : char.ToUpperInvariant(spaced[0]) + spaced.Substring(1);
         }
+
+        private static readonly HashSet<string> Acronyms = new() { "udfa", "btms", "bem" };
 
         /// <summary>What the opened menu of <paramref name="dropdown"/> reads for the options it offers: its menu labels when it offers its own options.</summary>
         public static string[] MenuLabels(DropdownControl dropdown, string[] values, string[] labels) =>
             dropdown.MenuLabels is not { } menu ? labels : values.Select((v, i) => Array.IndexOf(dropdown.Options, v) is var j && j >= 0 && j < menu.Length ? menu[j] : labels[i]).ToArray();
+
+        /// <summary>The width of the menu of a dropdown: that of its longest text with <paramref name="chrome"/> around it, but at least that of the dropdown.</summary>
+        public static int MenuWidth(IEnumerable<int> textWidths, int dropdownWidth, int chrome) =>
+            Math.Max(dropdownWidth, textWidths.DefaultIfEmpty(0).Max() + chrome);
 
         private static bool IsInline(Control? control) => control is ToggleControl { Inline: true } or ButtonControl { Inline: true };
 

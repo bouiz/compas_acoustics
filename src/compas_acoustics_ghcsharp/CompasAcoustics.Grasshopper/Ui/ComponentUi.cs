@@ -213,7 +213,7 @@ namespace CompasAcoustics.Grasshopper
                     Component.SetChoice(s.Port, s.Options[segment]);
                     return GH_ObjectResponse.Handled;
                 case DropdownControl d when port != null || Component.IsChoice(d.Port):
-                    OpenMenu(sender, e, d, port);
+                    OpenMenu(sender, e, d, port, box.Bounds.Width * sender.Viewport.Zoom);
                     return GH_ObjectResponse.Handled;
                 case MultiSwitchControl m when segment >= 0 && port != null:
                     ControlState.ToggleMember(Component, port, m.Options[segment], m.Default);
@@ -339,7 +339,7 @@ namespace CompasAcoustics.Grasshopper
             return Math.Clamp(Math.Round(Math.Round((value - min) / step) * step + min, 6), min, Math.Max(min, max));
         }
 
-        private void OpenMenu(GH_Canvas sender, GH_CanvasMouseEvent e, DropdownControl dropdown, IGH_Param? port)
+        private void OpenMenu(GH_Canvas sender, GH_CanvasMouseEvent e, DropdownControl dropdown, IGH_Param? port, float dropdownWidth)
         {
             var (values, labels) = Component.OptionsOf(dropdown);
             var current = port != null ? ControlState.Of(port, values, ComponentBase.DefaultOf(dropdown)).value : Component.Choice(dropdown.Port);
@@ -363,8 +363,17 @@ namespace CompasAcoustics.Grasshopper
                 };
                 menu.Items.Add(item);
             }
+            var texts = menu.Items.OfType<ToolStripMenuItem>().Select(i => TextRenderer.MeasureText(i.Text, menu.Font).Width);
+            var width = ControlLayout.MenuWidth(texts, (int)Math.Ceiling(dropdownWidth), menu.Padding.Horizontal + MenuItemChrome);
+            foreach (var item in menu.Items.OfType<ToolStripItem>())
+                item.AutoSize = false;
+            foreach (var item in menu.Items.OfType<ToolStripItem>())
+                item.Size = new Size(width, item.Height);
             menu.Show(sender, e.ControlLocation);
         }
+
+        // the check-mark margin, the item padding and the arrow column of a menu item, beside its text
+        private const int MenuItemChrome = 60;
     }
 
     /// <summary>How the controls look: Grasshopper's capsules, so they match the canvas.</summary>
