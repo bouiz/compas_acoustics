@@ -54,7 +54,7 @@ namespace CompasAcoustics.Grasshopper
             return (audio, rates, formats);
         }
 
-        /// <summary>The folder of the anechoic sounds the worker's compas_acoustics bundles, where the Sound... dialog opens; null when the worker cannot tell.</summary>
+        /// <summary>The folder of the anechoic sounds the worker's compas_acoustics bundles, where the Anechoic sound dialog opens; null when the worker cannot tell.</summary>
         public static string? LibraryFolder()
         {
             try
@@ -95,7 +95,7 @@ namespace CompasAcoustics.Grasshopper
         public override IReadOnlyList<Control> Controls { get; } = new Control[]
         {
             new DropdownControl("level", Levels, "relative"), SceneIndices.SourceDropdown, SceneIndices.ReceiverDropdown,
-            new ButtonControl("sound", "Sound..."), new ButtonControl("save_rir", "Save RIR"), new ButtonControl("save_auralisation", "Save auralisation"),
+            new ButtonControl("sound", "Anechoic sound"), new ButtonControl("save_rir", "Save RIR"), new ButtonControl("save_auralisation", "Save auralisation"),
         };
 
         /// <summary>
@@ -133,7 +133,7 @@ namespace CompasAcoustics.Grasshopper
 
         public override bool HandlesButton(string port) => port is "sound" or "save_rir" or "save_auralisation";
 
-        public override string? ButtonLabel(string port) => port == "sound" ? FileButtons.Label(this, port, "Sound: ", "Sound...") : null;
+        public override string? ButtonLabel(string port) => port == "sound" ? FileButtons.Label(this, port, "Anechoic sound: ", "Anechoic sound") : null;
 
         protected override void AppendMenu(System.Windows.Forms.ToolStripDropDown menu) => FileButtons.AppendClear(this, menu, "sound", "Clear sound");
 
@@ -155,7 +155,7 @@ namespace CompasAcoustics.Grasshopper
             var rir = port == "save_rir";
             if (!rir && last.Sound == null)
             {
-                Rhino.UI.Dialogs.ShowMessage("Choose a sound with the Sound... button, or connect a File Path to 'sound', first.", CategoryName);
+                Rhino.UI.Dialogs.ShowMessage("Choose a sound with the Anechoic sound button, or connect a File Path to 'sound', first.", CategoryName);
                 return;
             }
             var dialog = new Eto.Forms.SaveFileDialog
@@ -218,7 +218,7 @@ namespace CompasAcoustics.Grasshopper
             }
             if (sound == null)
             {
-                Warn("No sound to auralise: choose an anechoic sound file with the Sound... button, or connect a File Path to 'sound'.");
+                Warn("No sound to auralise: choose an anechoic sound file with the Anechoic sound button, or connect a File Path to 'sound'.");
                 return;
             }
             var args = new object?[] { irs, sound, chosen, labels };

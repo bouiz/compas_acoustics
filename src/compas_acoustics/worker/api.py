@@ -452,7 +452,7 @@ def sound_samples(path):
 
 
 def anechoic_library_folder():
-    """The folder of the bundled anechoic sound files, where the Grasshopper plugin's Sound... dialog opens."""
+    """The folder of the bundled anechoic sound files, where the Grasshopper plugin's Anechoic sound dialog opens."""
     return Defaults.ANECHOIC_SOUNDFILES_LIBRARY_PATH
 
 

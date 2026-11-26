@@ -78,7 +78,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             {
                 new DropdownControl("level", new[] { "relative", "individual", "none" }, "relative"),
                 SceneIndices.SourceDropdown, SceneIndices.ReceiverDropdown,
-                new ButtonControl("sound", "Sound..."), new ButtonControl("save_rir", "Save RIR"), new ButtonControl("save_auralisation", "Save auralisation"),
+                new ButtonControl("sound", "Anechoic sound"), new ButtonControl("save_rir", "Save RIR"), new ButtonControl("save_auralisation", "Save auralisation"),
             }.Select(c => c.ToString()), auralise.Controls.Select(c => c.ToString()));
             Assert.DoesNotContain(auralise.Controls, c => c.Port == "mix_sources");
             Assert.Equal(new[] { "source_idx", "receiver_idx", "sound" }, auralise.ControlPorts);
@@ -86,9 +86,9 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.True(auralise.HandlesButton("save_rir"));
             Assert.True(auralise.HandlesButton("save_auralisation"));
             Assert.False(auralise.HandlesButton("run"));
-            Assert.Equal("Sound...", auralise.ButtonLabel("sound"));
+            Assert.Equal("Anechoic sound", auralise.ButtonLabel("sound"));
             ControlState.Choose(auralise, auralise.ControlPort("sound")!, "/sounds/viola.wav");
-            Assert.Equal("Sound: viola.wav", auralise.ButtonLabel("sound"));
+            Assert.Equal("Anechoic sound: viola.wav", auralise.ButtonLabel("sound"));
             Assert.Null(auralise.ButtonLabel("save_rir"));
         }
     }

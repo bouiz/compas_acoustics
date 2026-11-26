@@ -25,7 +25,7 @@ for wall.
    and derives the room acoustic parameters of the pair its Source and Receiver dropdowns choose: source_2 to
    receiver_2. [Plot 2D](../components/CA_Plot_2D.md), with its dropdown on T30, draws it.
 7. **Auralisation.** [Auralise](../components/CA_Auralise.md) takes the same responses, the same two dropdowns and
-   a sound chosen with its Sound... button from the bundled anechoic library; the
+   a sound chosen with its Anechoic sound button from the bundled anechoic library; the
    [Audio Player](../components/CA_Audio_Player.md) plays the result.
 
 The values differ slightly from the Python version's. Ray tracing is random, and the order in which each wall lists

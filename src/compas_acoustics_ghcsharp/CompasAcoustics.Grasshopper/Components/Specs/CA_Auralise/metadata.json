@@ -2,7 +2,7 @@
     "name": "Auralise",
     "nickname": "Auralise",
     "subcategory": "Auralisation",
-    "description": "Auralise the chosen source-receiver pairs: one anechoic sound file, chosen with the Sound... button or a File Path wired to 'sound', convolved with the impulse response of each pair. The signals keep the format of their impulse responses: mono (Simulate Mono), binaural (Simulate Binaural) or ambisonic (Simulate Ambisonics). Choose the level on the body: 'relative' (default) takes one gain from the sound convolved with every connected pair, not only the chosen ones, so the loudest connected pair would peak at -1 dBFS and a chosen pair keeps its level difference to it; 'individual' brings each signal to -1 dBFS; 'none' keeps the raw level and may clip. Save auralisation writes the signals of the chosen pairs as WAV files: choose a folder and a name (take.wav saves take_mic_<r>_<s>.wav, with r and s the receiver and source indices, as take_mic_0_0.wav, take_mic_0_1.wav, ...). Save RIR writes the impulse responses of the chosen pairs the same way, at the chosen level ('relative' from every connected response) and each with a JSON file of its metadata, including the factor back to its raw level.",
+    "description": "Auralise the chosen source-receiver pairs: one anechoic sound file, chosen with the Anechoic sound button or a File Path wired to 'sound', convolved with the impulse response of each pair. The signals keep the format of their impulse responses: mono (Simulate Mono), binaural (Simulate Binaural) or ambisonic (Simulate Ambisonics). Choose the level on the body: 'relative' (default) takes one gain from the sound convolved with every connected pair, not only the chosen ones, so the loudest connected pair would peak at -1 dBFS and a chosen pair keeps its level difference to it; 'individual' brings each signal to -1 dBFS; 'none' keeps the raw level and may clip. Save auralisation writes the signals of the chosen pairs as WAV files: choose a folder and a name (take.wav saves take_mic_<r>_<s>.wav, with r and s the receiver and source indices, as take_mic_0_0.wav, take_mic_0_1.wav, ...). Save RIR writes the impulse responses of the chosen pairs the same way, at the chosen level ('relative' from every connected response) and each with a JSON file of its metadata, including the factor back to its raw level.",
     "exposure": 2,
     "ports": {
         "inputParameters": [
@@ -29,7 +29,7 @@
             },
             {
                 "name": "sound",
-                "description": "Anechoic sound file to convolve with the responses (.wav, .flac, .aiff, .ogg, .mp3). Choose it with the Sound... button, which opens in the bundled anechoic sound library, or connect a File Path, which takes precedence; right-click the component to clear the chosen file. Without a sound, Auralise warns and renders nothing.",
+                "description": "Anechoic sound file to convolve with the responses (.wav, .flac, .aiff, .ogg, .mp3). Choose it with the Anechoic sound button, which opens in the bundled anechoic sound library, or connect a File Path, which takes precedence; right-click the component to clear the chosen file. Without a sound, Auralise warns and renders nothing.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "str"
