@@ -344,7 +344,7 @@ def auralise(irs, sound, chosen, labels, level="relative", save_folder=None, sav
     if sound in _ANECHOIC_SOUNDS:
         sound = os.path.join(Defaults.ANECHOIC_SOUNDFILES_LIBRARY_PATH, sound + ".wav")
     if not os.path.exists(sound):
-        raise ValueError(f"The sound file {sound} does not exist.")
+        raise ValueError(f"The sound file {sound} does not exist. Bundled sounds: {', '.join(_ANECHOIC_SOUNDS)}.")
     irs = list(irs)
     relative = level == "relative"
     with _user_warnings() as messages:

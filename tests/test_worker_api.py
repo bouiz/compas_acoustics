@@ -287,6 +287,8 @@ def test_auralise_takes_a_bundled_sound_by_its_name(name):
 def test_auralise_refuses_a_missing_sound_file(tmp_path):
     with pytest.raises(ValueError, match="does not exist"):
         api.auralise(two_sources_one_receiver(), str(tmp_path / "nowhere.wav"), [0], ["0_0"])
+    with pytest.raises(ValueError, match="^The sound file Viola does not exist. Bundled sounds: female_speech, male_speech, viola, guitar, castanets.$"):
+        api.auralise(two_sources_one_receiver(), "Viola", [0], ["0_0"])
 
 
 def test_auralise_refuses_an_unknown_level(sound):

@@ -97,8 +97,9 @@ namespace CompasAcoustics.Grasshopper
         private string? _loaded;
 
         /// <summary>The file the dropdown offers after the bundled recordings: the one chosen, else the one Load... chose last; null for none.</summary>
-        public string? Loaded =>
-            ControlPort("sound") is { } port && ControlState.Persistent(port) is string own && own.Length > 0 && !SoundDropdown.Options.Contains(own) ? own : _loaded;
+        public string? Loaded => ControlPort("sound") is { } port && ControlState.Persistent(port) is string own && IsFile(own) ? own : _loaded;
+
+        private static bool IsFile(string? value) => value is { Length: > 0 } && value != LoadOption && !SoundDropdown.Options.Contains(value);
 
         /// <summary>The open-file dialog of Load..., given the folder it starts in; the file chosen, null when cancelled.</summary>
         internal Func<string?, string?> OpenSound { get; set; } = folder =>
@@ -114,7 +115,7 @@ namespace CompasAcoustics.Grasshopper
                 return base.OptionsOf(dropdown);
             var port = ControlPort("sound");
             var wired = port is { SourceCount: > 0 } ? ControlState.Of(port, SoundDropdown.Options).value : null;
-            var file = wired is { Length: > 0 } && !SoundDropdown.Options.Contains(wired) ? wired : port is { SourceCount: > 0 } ? null : Loaded;
+            var file = IsFile(wired) ? wired : port is { SourceCount: > 0 } ? null : Loaded;
             var files = file == null ? Array.Empty<string>() : new[] { file };
             return (SoundDropdown.Options.Concat(files).Append(LoadOption).ToArray(),
                 SoundDropdown.Labels!.Concat(files.Select(f => Path.GetFileName(f))).Append(LoadOption).ToArray());
@@ -126,8 +127,9 @@ namespace CompasAcoustics.Grasshopper
                 return false;
             if (ControlPort(port) is not { } input || OpenSound(Loaded is string last ? Path.GetDirectoryName(last) : null) is not string file)
                 return true;
-            _loaded = file;
+            // the undo step Choose records holds the file loaded before
             ControlState.Choose(this, input, file);
+            _loaded = file;
             return true;
         }
 

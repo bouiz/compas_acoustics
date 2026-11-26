@@ -128,6 +128,38 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
+        public void Load_RecordsItsUndoStepBeforeItRemembersTheNewFile()
+        {
+            var auralise = new AuraliseComponent();
+            var (first, second) = (Path.Combine("a", "first.wav"), Path.Combine("b", "second.wav"));
+            auralise.OpenSound = _ => first;
+            auralise.OnDropdownOption("sound", "Load...");
+            ControlState.Choose(auralise, auralise.ControlPort("sound")!, "viola");
+            // ControlState.Choose records the undo step (a snapshot written by Write) before it expires the component
+            var loaded = typeof(AuraliseComponent).GetField("_loaded", BindingFlags.Instance | BindingFlags.NonPublic)!;
+            var during = new List<object?>();
+            auralise.SolutionExpired += (_, _) => during.Add(loaded.GetValue(auralise));
+            auralise.OpenSound = _ => second;
+            auralise.OnDropdownOption("sound", "Load...");
+            Assert.NotEmpty(during);
+            Assert.All(during, value => Assert.Equal(first, value));
+            Assert.Equal(second, auralise.Loaded);
+        }
+
+        [Fact]
+        public void ALiteralLoadValue_IsNoLoadedFile()
+        {
+            var auralise = new AuraliseComponent();
+            ControlState.Choose(auralise, auralise.ControlPort("sound")!, "Load...");
+            Assert.Null(auralise.Loaded);
+            Assert.Single(auralise.OptionsOf(AuraliseComponent.SoundDropdown).values, v => v == "Load...");
+            var port = auralise.ControlPort("sound")!;
+            port.AddSource(new Param_String());
+            port.AddVolatileData(new GH_Path(0), 0, new GH_String("Load..."));
+            Assert.Single(auralise.OptionsOf(AuraliseComponent.SoundDropdown).values, v => v == "Load...");
+        }
+
+        [Fact]
         public void Load_Cancelled_KeepsTheSelection()
         {
             var auralise = new AuraliseComponent();
