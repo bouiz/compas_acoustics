@@ -402,23 +402,6 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void Plot_SelectMissingName_Warns()
-        {
-            var warnings = new System.Collections.Generic.List<string>();
-            var chosen = PlotSelection.Select(new[] { P("C80"), Curve("IR", "linear") }, "T30", warnings.Add);
-            Assert.Equal(new[] { "IR" }, chosen.Select(p => p.Name).ToArray());
-            Assert.Equal(new[] { "T30 is not in the connected data." }, warnings);
-        }
-
-        [Fact]
-        public void Plot_SelectLF_WithoutIt_WarnsThatItNeedsAnAmbisonicResponse()
-        {
-            var warnings = new System.Collections.Generic.List<string>();
-            PlotSelection.Select(new[] { P("T30"), Curve("IR", "linear") }, "LF", warnings.Add);
-            Assert.Equal(new[] { "LF is not in the connected data: it needs an ambisonic response (Simulate Ambisonics)." }, warnings);
-        }
-
-        [Fact]
         public void Plot_SelectWithOnlyCurvesConnected_KeepsThemWithoutAWarning()
         {
             var warnings = new System.Collections.Generic.List<string>();

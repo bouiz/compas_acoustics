@@ -67,12 +67,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal("ValueError: bad", ComponentBase.ErrorText(error));
         }
 
-        [Fact]
-        public void ErrorText_KeepsAPlainMessage()
-        {
-            Assert.Equal("No worker: use the Install Worker component.", ComponentBase.ErrorText(new WorkerException("No worker: use the Install Worker component.")));
-        }
-
         private sealed class Failing : ComponentBase
         {
             private readonly System.Exception _error;

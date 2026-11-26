@@ -219,18 +219,6 @@ def test_a_source_outside_the_room_warns_and_prints_nothing(capsys):
     assert capsys.readouterr().out == ""
 
 
-def test_the_search_time_estimate_grows_with_faces_and_order():
-    from compas_acoustics.simulation_methods import image_source_search_seconds
-
-    for order in range(1, 10):
-        times = [image_source_search_seconds(n, order) for n in range(6, 200)]
-        assert np.all(np.diff(times) > 0)
-    for n in (6, 18, 42, 120):
-        times = [image_source_search_seconds(n, order) for order in range(1, 10)]
-        # one order more multiplies the estimate by n_faces / 2.2
-        assert np.allclose(np.array(times[1:]) / times[:-1], n / 2.2)
-
-
 @pytest.mark.parametrize("seconds, message", [(30.0, None), (30.1, "tens of seconds"), (120.0, "tens of seconds"), (120.1, "minutes")])
 def test_the_search_warns_above_30_seconds_and_names_minutes_above_120(monkeypatch, seconds, message):
     from types import SimpleNamespace

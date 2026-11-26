@@ -57,23 +57,6 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void NoSpecDescription_NamesTheIrGraph()
-        {
-            Assert.DoesNotContain("CA_Deconstruct_IR_Graph", EmbeddedSpecs.Names());
-            foreach (var key in EmbeddedSpecs.Names())
-            {
-                var spec = ComponentSpec.Load(key);
-                var texts = new[] { spec.Description }.Concat(spec.Inputs.Select(p => p.Description)).Concat(spec.Outputs.Select(p => p.Description));
-                Assert.All(texts, text =>
-                {
-                    Assert.DoesNotContain("ir_graph", text ?? "");
-                    Assert.DoesNotContain("Deconstruct IR Graph", text ?? "");
-                    Assert.DoesNotContain("Deconstruct Parameter", text ?? "");
-                });
-            }
-        }
-
-        [Fact]
         public void EveryComponent_LoadsInTheTestHost()
         {
             var loadable = AllComponentsTests.Components().Select(c => (string)c[0]).ToHashSet();

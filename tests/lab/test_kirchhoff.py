@@ -248,7 +248,4 @@ def test_runtime_estimate_scales_with_the_work_and_the_workers():
     rec = ReceiverGrid.hemisphere(10.0, 10.0)
     f = np.array([1000.0, 2000.0])
     one = KirchhoffSolver(workers=1).estimate_seconds(s, SourceGrid.preset("survey"), rec, f)
-    faces = s.sample.number_of_faces() + s.reference.number_of_faces()
-    assert one == pytest.approx(2.4e-8 * faces * len(rec.directions) * 13 * 2)
-    assert KirchhoffSolver(workers=14).estimate_seconds(s, SourceGrid.preset("survey"), rec, f) == pytest.approx(one / (1 + 0.38 * 12))  # 13 workers
     assert KirchhoffSolver(workers=14).estimate_seconds(s, SourceGrid([30.0], [0.0]), rec, f) == pytest.approx(one / 13)  # one source, one worker

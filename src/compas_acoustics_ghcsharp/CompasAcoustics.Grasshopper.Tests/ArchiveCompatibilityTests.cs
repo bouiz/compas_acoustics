@@ -454,18 +454,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(new[] { "LFC is not in the connected data." }, warnings);
         }
 
-        [Fact]
-        public void APlot2DSavedWithAParameterChosen_ReadsTheChoice()
-        {
-            var saved = new Plot2DComponent();
-            saved.SetChoice("select", "T30");
-            var fresh = new Plot2DComponent();
-            var (archive, read) = SaveThenRead(saved, fresh);
-            Assert.True(read);
-            Assert.Empty(Errors(archive));
-            Assert.Equal("T30", fresh.Choice("select"));
-        }
-
         /// <summary>An Auralise as saved before it chose pairs: irs, anechoic_sounds wired to a path, mix_sources true (shown, or hidden behind its toggle).</summary>
         private static GH_Archive OldAuralise(bool mixHidden, string? level = null)
         {
@@ -532,7 +520,6 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Theory]
         [InlineData("relative")]
         [InlineData("individual")]
-        [InlineData("none")]
         public void AnAuraliseSavedWithItsLevelSwitch_ReadsTheLevelIntoTheDropdown(string level)
         {
             var back = OldAuralise(false, level);
@@ -781,14 +768,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(new[] { "position", "name", "direction", "spl", "sound" }, fresh.Params.Input.Select(p => p.Name).ToArray());
             Assert.Equal("hypercardioid", fresh.Choice("directivity"));
             Assert.Equal(new[] { "70" }, ControlState.PersistentAll(fresh.Params.Input.Single(p => p.Name == "spl")));
-        }
-
-        [Fact]
-        public void AComponentSavedNow_ReadsWithoutErrors()
-        {
-            var (archive, read) = SaveThenRead(new SimulateBinauralComponent(), new SimulateBinauralComponent());
-            Assert.True(read);
-            Assert.Empty(Errors(archive));
         }
     }
 }

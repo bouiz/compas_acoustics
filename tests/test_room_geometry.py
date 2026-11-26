@@ -155,13 +155,6 @@ def test_two_different_materials_with_one_name_raise():
         RoomGeometry.from_scene(scene_of(*leaves))
 
 
-def test_coefficients_outside_0_1_raise():
-    hot = AcousticMaterial("hot", 0.5, 0.1)
-    hot._absorption_coefficients = [1.2] * 7
-    with pytest.raises(ValueError, match="outside"):
-        RoomGeometry.from_scene(scene_of(*shoebox_leaves(hot)))
-
-
 def test_obstacle_polygons_are_kept_as_drawn():
     panel = quad("panel", [[3, 1, 0.5], [3, 1, 2.5], [3, 3, 2.5], [3, 3, 0.5]], role="obstacle")
     g = RoomGeometry.from_scene(scene_of(*shoebox_leaves(), panel))

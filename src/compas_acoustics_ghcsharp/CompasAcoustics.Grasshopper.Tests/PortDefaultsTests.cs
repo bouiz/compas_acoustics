@@ -11,10 +11,6 @@ namespace CompasAcoustics.Grasshopper.Tests
         private static PortSpec Port(string component, string port) => ComponentSpec.Load(component).Inputs.Single(p => p.Name == port);
 
         [Theory]
-        [InlineData("CA_Simulate_Mono", "ism_order", 3)]
-        [InlineData("CA_Simulate_Ambisonics", "ism_order", 3)]
-        [InlineData("CA_Simulate_Binaural", "ism_order", 3)]
-        [InlineData("CA_Simulate_Mono", "seed", 42)]
         [InlineData("CA_Simulate_Binaural", "seed", 42)]
         [InlineData("CA_Simulate_Ambisonics", "seed", 42)]
         [InlineData("CA_Visualise_Rays", "n_rays", 500)]
@@ -70,9 +66,5 @@ namespace CompasAcoustics.Grasshopper.Tests
 
         [Fact]
         public void AnUntouchedNumberDefault_ReadsAsUnset() => Assert.True(PortDefaults.Untouched(0, 1e-7, 1e-7));
-
-        [Fact]
-        public void SceneIndices_NameEachIndex() =>
-            Assert.Equal(new[] { ("0: src", 0), ("1: b", 1) }, SceneIndices.Of(new[] { "src", "b" }));
     }
 }

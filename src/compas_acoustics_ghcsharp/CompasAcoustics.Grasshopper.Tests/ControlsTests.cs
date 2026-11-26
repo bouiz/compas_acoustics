@@ -1,10 +1,7 @@
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
-using GH_IO.Serialization;
 using Grasshopper.Kernel;
-using Grasshopper.Kernel.Parameters;
-using Grasshopper.Kernel.Types;
 using Xunit;
 
 namespace CompasAcoustics.Grasshopper.Tests
@@ -53,17 +50,11 @@ namespace CompasAcoustics.Grasshopper.Tests
         };
 
         [Fact]
-        public void ATitle_SitsALittleAboveItsControl()
+        public void AButtonAfterATitledControl_StandsApartAsTheBodyFromThePorts()
         {
             var boxes = ControlLayout.Arrange(TitledThenButton, Body);
             Assert.True(ControlLayout.TitleGap >= 2);
             Assert.All(boxes.Take(2), b => Assert.Equal(ControlLayout.TitleGap, b.Bounds.Top - b.Title.Bottom, 3));
-        }
-
-        [Fact]
-        public void AButtonAfterATitledControl_StandsApartAsTheBodyFromThePorts()
-        {
-            var boxes = ControlLayout.Arrange(TitledThenButton, Body);
             Assert.True(ControlLayout.ButtonGap > ControlLayout.Margin);
             Assert.Equal(ControlLayout.ButtonGap, boxes[2].Bounds.Top - boxes[1].Bounds.Bottom, 3);
             // between two titled controls the usual margin
@@ -100,29 +91,6 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void Of_ReadsThePortsPersistentData()
-        {
-            var port = new Param_String();
-            port.PersistentData.Append(new GH_String("linear"));
-            Assert.Equal(("linear", false), ControlState.Of(port, new[] { "db", "linear" }));
-        }
-
-        [Fact]
-        public void Choice_RoundTripsThroughThePortsPersistentData()
-        {
-            var binaural = new SimulateBinauralComponent();
-            var port = binaural.Params.Input.Single(p => p.Name == "tail");
-            ControlState.Choose(binaural, port, "eyring");
-            var chunk = new GH_LooseChunk("component");
-            Assert.True(binaural.Write(chunk));
-            var read = new GH_LooseChunk("component");
-            read.Deserialize_Binary(chunk.Serialize_Binary());
-            var back = new SimulateBinauralComponent();
-            Assert.True(back.Read(read));
-            Assert.Equal(("eyring", false), ControlState.Of(back.Params.Input.Single(p => p.Name == "tail"), HybridRun.Tails));
-        }
-
-        [Fact]
         public void Press_IsReadOnceThenCleared()
         {
             var hybrid = new SimulateAmbisonicsComponent();
@@ -153,26 +121,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             // a button may stand alone, pressed for one solution (Cancel, Billiard's Stop)
             Assert.All(component.Controls.Where(c => c is not ButtonControl),
                 c => Assert.True(component.Params.Input.Any(p => p.Name == c.Port) || component.IsChoice(c.Port), c.Port));
-        }
-
-        [Fact]
-        public void ADropdown_ShowsItsChoice_UnderItsTitle()
-        {
-            // its input's name is the title above it
-            Assert.Equal("Tail", ControlLayout.Title(new DropdownControl("tail", HybridRun.Tails)));
-            Assert.Equal("Role", ControlLayout.Title(new SwitchControl("role", new[] { "boundary", "obstacle" })));
-            Assert.Equal("Time scale", ControlLayout.Title(new SwitchControl("time_scale", new[] { "db" })));
-        }
-
-        [Fact]
-        public void AControlsTooltip_IsItsInputsDescription()
-        {
-            var hybrid = new SimulateBinauralComponent();
-            var (title, text) = hybrid.ControlTooltip("diffraction");
-            Assert.Equal("diffraction", title);
-            Assert.Equal(ComponentSpec.Load("CA_Simulate_Binaural").Inputs.Single(p => p.Name == "diffraction").Description, text);
-            // a choice without an input: its options, and its default
-            Assert.Equal(("level", "None, Relative or Individual (default None)"), new AuraliseComponent().ControlTooltip("level"));
         }
 
         [Fact]

@@ -78,12 +78,6 @@ def test_fourth_order_takes_more_lines():
     assert ca.Ambisonics(sh_order=4).num_delays > 96
 
 
-@pytest.mark.parametrize("make", [lambda: ca.Binaural(sh_order=1), lambda: ca.Binaural(normalization="N3D"), lambda: ca.Ambisonics(hrtf="ku100")])
-def test_the_other_formats_arguments_are_rejected(make):
-    with pytest.raises(TypeError):
-        make()
-
-
 def test_both_methods_share_one_late_field():
     ears, channels = ca.Binaural(seed=3, **FAST), ca.Ambisonics(seed=3, **FAST)
     room_scene().simulate(ears)

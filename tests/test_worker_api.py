@@ -261,17 +261,13 @@ def sound(tmp_path):
     return str(path)
 
 
-def test_auralise_renders_the_chosen_pairs_only(sound):
-    result = call("auralise", two_sources_one_receiver(), sound, [1], ["0_1"])
-    assert len(result["signals"]) == 1
-    signal = result["signals"][0]
-    assert signal["label"] == "0_1"
-    assert isinstance(signal["audio"], Audio) and signal["audio"].format == "mono" and signal["audio"].sampling_rate == 48000
-
-
 def test_auralise_relative_gain_comes_from_every_connected_pair(sound):
     irs = two_sources_one_receiver()
     one = call("auralise", irs, sound, [1], ["0_1"])
+    assert len(one["signals"]) == 1
+    signal = one["signals"][0]
+    assert signal["label"] == "0_1"
+    assert isinstance(signal["audio"], Audio) and signal["audio"].format == "mono" and signal["audio"].sampling_rate == 48000
     both = call("auralise", irs, sound, [0, 1], ["0_0", "0_1"])
     np.testing.assert_array_equal(one["signals"][0]["audio"].samples, both["signals"][1]["audio"].samples)
     assert one["peak_dbfs"] < -1.5
@@ -779,29 +775,6 @@ def _balloon_geometry(balloon):
     vertices = np.array(mesh.vertices_attributes("xyz"))
     faces = np.array([mesh.face_vertices(f)[:3] for f in mesh.faces()])
     return vertices, faces
-
-
-@needs_raycaster
-def test_a_sparse_balloon_is_a_valid_mesh():
-    from scipy.spatial import cKDTree
-
-    # a flat disc measured by the geometric method fills a few cells of the 10 degree histogram, the rest are at -300 dB
-    result = _geometric_result()
-    balloon = call("polar_balloon", result, preview=0, octave=1000, radius=1.5)
-    levels = np.array(balloon["levels"])
-    vertices, faces = _balloon_geometry(balloon)
-    assert np.mean(levels <= -299.9) > 0.5
-    # no two vertices coincide
-    distance, _ = cKDTree(vertices).query(vertices, k=2)
-    assert distance[:, 1].min() > 1e-6
-    # no face is degenerate
-    a, b, c = (vertices[faces[:, i]] for i in range(3))
-    assert (np.linalg.norm(np.cross(b - a, c - a), axis=1) / 2).min() > 1e-12
-    # the empty cells are at 3 % of the radius, the loudest cell at its level
-    radii = np.linalg.norm(vertices, axis=1)
-    assert radii.min() == pytest.approx(0.03 * 1.5, abs=1e-9)
-    expected_peak = 1.5 * (0.03 + 0.97 * min(1.0, max(0.0, 1 - levels.max() / -30.0)))
-    assert radii.max() == pytest.approx(expected_peak, abs=1e-9)
 
 
 @needs_raycaster

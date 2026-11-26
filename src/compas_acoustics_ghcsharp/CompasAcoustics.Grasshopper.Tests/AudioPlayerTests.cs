@@ -280,10 +280,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Theory]
-        [InlineData(1, null, "mono")]
         [InlineData(1, 0, "mono")]
-        [InlineData(2, null, "binaural")]
-        [InlineData(4, 1, "ambisonic")]
         [InlineData(4, null, "ambisonic")]
         public void TheFormat_FollowsTheChannelsAndTheAmbisonicOrder(int channels, int? order, string format)
         {

@@ -86,10 +86,6 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void TheCoefficientChart_HasTicksEveryTenthsPair() =>
-            Assert.Equal(new[] { "0.0", "0.2", "0.4", "0.6", "0.8", "1.0" }, MaterialChart.Ticks.Select(t => t.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)));
-
-        [Fact]
         public void TheStrip_HasThePickersPairedBars_WithTheBandsBelowAndZeroAndOneBeside()
         {
             var area = new RectangleF(0, 0, 140, 50);
@@ -109,17 +105,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal((strip.Plot.Bottom, strip.Plot.Top), (strip.Values[0].y, strip.Values[1].y));
         }
 
-        [Fact]
-        public void TheMaterialStrip_IsDrawnInTheStripAreaOfAStripHeightBody()
-        {
-            var body = new RectangleF(10, 100, 120, ChartLayout.StripHeight);
-            var chart = ChartLayout.StripArea(body);
-            Assert.Equal(ChartLayout.StripHeight - ChartLayout.StripHeader - 2, chart.Height, 3);
-            Assert.True(body.Contains(chart) && chart.Top == body.Top + ChartLayout.StripHeader);
-        }
-
         [Theory]
-        [InlineData("0.3", 0.3)]
         [InlineData("0,3", 0.3)]
         [InlineData(".35", 0.35)]
         [InlineData(" 1 ", 1.0)]

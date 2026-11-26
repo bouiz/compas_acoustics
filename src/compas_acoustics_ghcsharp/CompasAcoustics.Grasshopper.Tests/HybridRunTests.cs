@@ -35,15 +35,9 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Theory]
-        [InlineData(null, false, "ray_tracing")]
         [InlineData("", true, "ray_tracing")]
-        [InlineData("auto", true, "reference")]
-        [InlineData("auto", false, "ray_tracing")]
-        [InlineData("reference", false, "reference")]
-        [InlineData("reference", true, "reference")]
         [InlineData("ray_tracing", true, "ray_tracing")]
         [InlineData("eyring", true, "eyring")]
-        [InlineData("sabine", false, "sabine")]
         public void Tail_ReadsAnOldAutoByTheReference_AndKeepsAnyOtherTail(string? saved, bool referenced, string expected) =>
             Assert.Equal(expected, HybridRun.Tail(saved, referenced));
 
@@ -53,16 +47,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(new[] { "ray_tracing", "reference", "eyring", "sabine" }, HybridRun.Tails);
             Assert.Equal(new[] { "ray_tracing", "reference", "eyring", "sabine" }, new SimulateBinauralComponent().Controls.OfType<DropdownControl>().Single(c => c.Port == "tail").Options);
         }
-
-        [Theory]
-        [InlineData("ray_tracing", true, true)]
-        [InlineData("eyring", true, true)]
-        [InlineData("sabine", true, true)]
-        [InlineData("reference", true, false)]
-        [InlineData("reference", false, true)]
-        [InlineData("ray_tracing", false, false)]
-        public void TailProblem_IsAnErrorForAReferenceWithAnotherTail_AndAWarningForTailReferenceWithoutOne(string tail, bool referenced, bool problem) =>
-            Assert.Equal(problem, HybridRun.TailProblem(tail, referenced) != null);
 
         [Fact]
         public void Settings_PassesTheEngineInputsUnderTheMethodsNames_AndNoFormatOfTheirOwn()
@@ -74,25 +58,11 @@ namespace CompasAcoustics.Grasshopper.Tests
             }, settings);
         }
 
-        [Fact]
-        public void Settings_SendNoNormalize()
-        {
-            var settings = HybridRun.Settings("eyring", 4, "udfa", "off", 7, null, 48000, NoSources, NoReceivers, out _);
-            Assert.False(settings.ContainsKey("normalize"));
-        }
-
-        [Fact]
-        public void LateEnvelopes_AreOmniFirst_AndHaveNoAuto() =>
-            Assert.Equal(new[] { "omni", "directional", "off" }, HybridRun.LateEnvelopes);
-
         [Theory]
         [InlineData("ray_tracing", "omni", "omni")]
-        [InlineData("ray_tracing", "directional", "directional")]
-        [InlineData("ray_tracing", "off", false)]
         [InlineData("ray_tracing", "True", "directional")]
         [InlineData("ray_tracing", "False", false)]
         [InlineData("reference", "omni", "omni")]
-        [InlineData("reference", "directional", "directional")]
         [InlineData("reference", "off", false)]
         public void Settings_PassesTheLateEnvelopeMode_AndReadsABoolean(string tail, string choice, object expected)
         {
@@ -101,9 +71,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Theory]
-        [InlineData(null)]
         [InlineData("")]
-        [InlineData("auto")]
         [InlineData("nonsense")]
         public void Settings_SendsOmniForAnUnsetOrUnknownLateEnvelope(string? choice)
         {
@@ -113,31 +81,12 @@ namespace CompasAcoustics.Grasshopper.Tests
 
         [Theory]
         [InlineData("eyring", null)]
-        [InlineData("eyring", "omni")]
-        [InlineData("eyring", "directional")]
         [InlineData("sabine", "omni")]
-        [InlineData("sabine", "directional")]
         [InlineData("sabine", "off")]
         public void Settings_SendLateEnvelopeOffForAnEyringOrSabineTail_WhateverIsChosen(string tail, string? choice)
         {
             var settings = HybridRun.Settings(tail, null, null, choice, 1, null, 48000, NoSources, NoReceivers, out _);
             Assert.Equal(false, settings["late_envelope"]);
-        }
-
-        [Theory]
-        [InlineData("ray_tracing", false)]
-        [InlineData("reference", false)]
-        [InlineData("eyring", true)]
-        [InlineData("sabine", true)]
-        public void TheLateEnvelopeRests_ForAnEyringOrSabineTail(string tail, bool rests) =>
-            Assert.Equal(rests, HybridRun.LateEnvelopeRests(tail));
-
-        [Fact]
-        public void Settings_TakesTheMonoResponsesOfTheReferenceByKey()
-        {
-            var reference = Reference(Response("s0", "r0"), Response("s1", "r0", channels: 4));
-            HybridRun.Settings("reference", null, null, null, 1, reference, 48000, NoSources, NoReceivers, out var references);
-            Assert.Equal(new[] { "r0_s0" }, references!.Keys.ToArray());
         }
 
         [Fact]

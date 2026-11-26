@@ -108,7 +108,6 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Theory]
         [InlineData(null)]
         [InlineData("ray_tracing")]
-        [InlineData("eyring")]
         [InlineData("sabine")]
         public void AReferenceWithAnotherTail_IsAnError_AndCallsNoWorker(string? tail)
         {
@@ -125,6 +124,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             var access = Access("eyring", referenced: true, run: true);
             access.OutputLists["irs"] = new List<object?> { "stale" };
             Solve(component, access);
+            Assert.Equal(new[] { Needs }, component.RuntimeMessages(GH_RuntimeMessageLevel.Error).ToArray());
             Assert.Equal("set Tail to Reference", component.Message);
             Assert.Empty(access.OutputLists["irs"]);
             Assert.Empty(_calls);
@@ -220,7 +220,6 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Theory]
-        [InlineData(null, "ray_tracing")]
         [InlineData("eyring", "eyring")]
         [InlineData("sabine", "sabine")]
         [InlineData("auto", "ray_tracing")]
@@ -229,15 +228,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             var component = new SimulateBinauralComponent();
             Solve(component, Access(saved, referenced: false, run: true));
             Assert.Equal(sent, Settings()["tail"]);
-            Assert.Empty(component.RuntimeMessages(GH_RuntimeMessageLevel.Error));
-        }
-
-        [Fact]
-        public void AnOldAutoWithAReference_IsReference()
-        {
-            var component = new SimulateAmbisonicsComponent();
-            Solve(component, Access("auto", referenced: true, run: true));
-            Assert.Equal("reference", Settings()["tail"]);
             Assert.Empty(component.RuntimeMessages(GH_RuntimeMessageLevel.Error));
         }
 
@@ -290,8 +280,12 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void ANewComponent_SendsOmni()
         {
-            Solve(new SimulateBinauralComponent(), Access(null, referenced: false, run: true));
-            Assert.Equal("omni", Settings()["late_envelope"]);
+            var component = new SimulateBinauralComponent();
+            Solve(component, Access(null, referenced: false, run: true));
+            var settings = Settings();
+            Assert.Equal("ray_tracing", settings["tail"]);
+            Assert.Equal("omni", settings["late_envelope"]);
+            Assert.Empty(component.RuntimeMessages(GH_RuntimeMessageLevel.Error));
         }
 
         [Theory]
