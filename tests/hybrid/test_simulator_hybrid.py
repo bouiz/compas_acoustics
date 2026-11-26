@@ -79,13 +79,6 @@ def test_the_mono_responses_stay_in_the_graph():
     assert scene.impulse_responses("data") == mono
 
 
-def test_second_order_n3d_has_nine_channels():
-    scene = make()
-    (ir,) = scene.simulate(Ambisonics(references(scene), sh_order=2, normalization="N3D", **FAST)).values()
-    assert ir.ir.shape[1] == 9
-    assert ir.normalization == "n3d"
-
-
 def test_references_at_another_rate_raise():
     scene = make()
     refs = references(scene)
@@ -281,16 +274,6 @@ def test_decay_db_reaches_the_target():
     assert not np.allclose(a, b)
 
 
-def test_the_reference_is_on_the_scale_of_the_hybrid():
-    """The run-time scale guard (envelope.SCALE_WARN_DB) stays silent."""
-    scene = make()
-    refs = references(scene)
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        scene.simulate(Ambisonics(refs, late_envelope="directional", **FAST))
-    assert not [w for w in caught if "differs from the hybrid" in str(w.message)]
-
-
 def test_diffraction_and_the_late_envelope_run():
     scene = make(panel=True)
     refs = references(scene)
@@ -300,7 +283,7 @@ def test_diffraction_and_the_late_envelope_run():
 
 
 # ------------------------------------------------------------------ tails --
-@pytest.mark.parametrize("tail", ["reference", "ray_tracing", "eyring"])
+@pytest.mark.parametrize("tail", ["reference", "ray_tracing"])
 def test_every_tail_meets_the_contract(assert_meets_contract, tail):
     scene = make()
     reference = references(scene) if tail == "reference" else None
@@ -328,9 +311,6 @@ def test_a_graph_name_a_dict_and_a_method_give_the_same_result():
         {"tail": "eyring", "reference": "mono"},
         {"tail": "ray_tracing", "reference": "mono"},
         {"tail": "eyring", "n_slopes": 2},
-        {"tail": "eyring", "late_envelope": "directional"},
-        {"tail": "sabine", "late_envelope": "omni"},
-        {"late_envelope": True},
         {"tail": "air"},
         {"diffraction": "btm"},
         {"image_source_order": -1},

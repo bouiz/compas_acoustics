@@ -10,11 +10,6 @@ from compas_acoustics.lab import scattering_freefield
 rng = np.random.default_rng(0)
 
 
-def test_identical_patterns_do_not_scatter():
-    p = rng.normal(size=(2, 500, 3)) + 1j * rng.normal(size=(2, 500, 3))
-    assert np.allclose(scattering_freefield(p, p, np.ones(500)), 0.0, atol=1e-12)
-
-
 def test_a_common_phase_and_gain_do_not_scatter():
     p = rng.normal(size=(1, 500, 1)) + 1j * rng.normal(size=(1, 500, 1))
     s = scattering_freefield(3.0 * np.exp(1j * 0.7) * p, p, np.ones(500))

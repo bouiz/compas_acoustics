@@ -408,9 +408,9 @@ class KirchhoffSolver(ScatteringSolver):
 
     So for Λ/λ ≳ 0.4 expect Kirchhoff's s to be off by up to about 0.25 per octave (0.33 per one-third octave), mostly
     too low, and use BEM where that matters. Reproduce with the Zenodo 15673498 results (see
-    ``tests/lab/test_validation_heimes.py``)::
+    ``validation/test_validation_heimes.py``)::
 
-        HEIMES_RESULTS=<folder> HEIMES_BEM_CACHE=<cache> python -m pytest tests/lab/test_validation_heimes.py -v -s -k
+        HEIMES_RESULTS=<folder> HEIMES_BEM_CACHE=<cache> python -m pytest validation/test_validation_heimes.py -v -s -k
         gap
     """
 

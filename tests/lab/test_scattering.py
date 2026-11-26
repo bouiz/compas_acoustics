@@ -92,12 +92,6 @@ def test_non_finite_pressures_raise_naming_the_method(monkeypatch):
         measure_scattering(ScatteringSample.disc(flat_tile(), diameter=0.4), method="kirchhoff", preset="survey", band_range=(1000, 1000))
 
 
-def test_kirchhoff_end_to_end_sine_beats_flat():
-    flat = measure_scattering(ScatteringSample.disc(flat_tile(), diameter=0.4), method="kirchhoff", preset="survey", band_range=(4000, 4000))
-    sine = measure_scattering(ScatteringSample.disc(sine_tile(0.0708, 0.0204), diameter=0.4), method="kirchhoff", preset="survey", band_range=(4000, 4000))
-    assert max(flat.s_bands) < 0.05 and sine.s_bands[-1] > 0.3
-
-
 def test_result_has_no_nan_with_degenerate_faces():
     tile = flat_tile_with_zero_area_face()
     r = measure_scattering(ScatteringSample.disc(tile, diameter=0.4), method="kirchhoff", preset="survey", band_range=(500, 1000))
@@ -193,6 +187,8 @@ def test_the_correlation_methods_return_d(monkeypatch):
     # measured 2026-10-24: d_octaves 0.0093 (2 kHz), 0.0175 (4 kHz); d_n may be negative in general (a sample less
     # uniform than its reference)
     assert all(0.0 <= d <= 1.0 for d in sine.d_octaves) and max(sine.d_octaves) > 0.0
+    flat = measure_scattering(ScatteringSample.disc(flat_tile(), diameter=0.4), method="kirchhoff", preset="survey", band_range=(4000, 4000))
+    assert max(flat.s_bands) < 0.05 and sine.s_bands[-1] > 0.3
 
 
 def test_geometric_is_the_default_method():
@@ -228,19 +224,20 @@ def test_geometric_flat_disc_scatters_nothing():
 
 def test_geometric_sawtooth_rises_with_frequency():
     pytest.importorskip("embreex")
-    r = measure_scattering(ScatteringSample.disc(sawtooth_tile(), 0.4), method="geometric", n_rays=5000)
+    start = time.perf_counter()
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        r = measure_scattering(ScatteringSample.disc(sawtooth_tile(), 0.4), method="geometric", n_rays=5000)
+    assert time.perf_counter() - start < 20.0
     assert np.all(np.diff(r.s_octaves) >= 0) and r.s_octaves[0] < 0.01 and r.s_octaves[-1] > 0.3
     assert len(r.scattering_coefficients) == 7 and r.s_angle.shape == (97, 18) and r.d_angle.shape == (97, 18)
     assert np.allclose(r.d_angle, r.d_angle[:, :1])  # d is the same at every band
     assert r.generation["depth"] == pytest.approx(0.0105, abs=0.001)
     assert not any("too shallow" in w for w in r.warnings)  # the depth curve is 0.61 at 5 kHz
-
-
-def test_geometric_runs_in_seconds():
-    pytest.importorskip("embreex")
-    start = time.perf_counter()
-    measure_scattering(ScatteringSample.disc(sawtooth_tile(), 0.4), method="geometric", preset="standard", n_rays=5000)
-    assert time.perf_counter() - start < 20.0
+    # measured 2026-10-24 at 5000 rays: at most 0.0002 of a source's rays lost (0.011 before horizontal exits were
+    # binned)
+    assert r.generation["lost"] < 0.002
+    assert not any("lost" in w for w in r.warnings) and not any("lost" in str(w.message) for w in caught)
 
 
 def test_geometric_deep_cavity_warns_about_lost_rays():
@@ -276,17 +273,6 @@ def test_geometric_with_a_proxy_marks_the_result(monkeypatch):
     # whatever s_max is)
     assert np.abs(seen["s_max"]).max() < 1e-12
     assert np.allclose(r.s_octaves, 0.0, atol=1e-9)
-
-
-def test_geometric_sawtooth_warns_about_no_lost_rays():
-    pytest.importorskip("embreex")
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        r = measure_scattering(ScatteringSample.disc(sawtooth_tile(), 0.4), method="geometric", preset="standard", n_rays=5000)
-    # measured 2026-10-24 at 5000 rays: at most 0.0002 of a source's rays lost (0.011 before horizontal exits were
-    # binned)
-    assert r.generation["lost"] < 0.002
-    assert not any("lost" in w for w in r.warnings) and not any("lost" in str(w.message) for w in caught)
 
 
 def test_geometric_without_trimesh_names_the_way_out(monkeypatch):

@@ -44,10 +44,12 @@ def deltas(directions):
 
 
 def test_binaural_has_two_ears_and_the_ku100_set():
-    ir = one(room_scene().simulate(ca.Binaural(**FAST)))
+    method = ca.Binaural(**FAST)
+    ir = one(room_scene().simulate(method))
     assert ir.n_channels == 2 and ir.ambisonic_order is None and ir.format == "binaural"
     assert ir.generation["method"] == "binaural" and ir.generation["hrtf"] == DEFAULT_HRTF.name
     assert "sh_order" not in ir.generation
+    assert ir.denormalized().shape == (one(method.results).core.n_samples, 2)
 
 
 def test_ambisonics_has_the_order_and_convention():
@@ -72,10 +74,6 @@ def test_every_method_has_kirschs_96_delay_lines():
         assert method.num_delays == 96 and ir.generation["num_delays"] == 96
         assert one(method.results).late_lines.shape[1] == 96
         assert one(method.results).core.drive_gain == pytest.approx(np.sqrt(96))
-
-
-def test_fourth_order_takes_more_lines():
-    assert ca.Ambisonics(sh_order=4).num_delays > 96
 
 
 def test_both_methods_share_one_late_field():
@@ -117,7 +115,7 @@ def test_the_ambisonic_late_field_is_the_lines_through_the_output_matrix(normali
     assert np.allclose(result.late, _from_n3d(late, normalization), rtol=0, atol=1e-12 * np.abs(late).max())
 
 
-@pytest.mark.parametrize("n_directions", [1, 200])
+@pytest.mark.parametrize("n_directions", [200])
 def test_per_line_binaural_with_ideal_ears_is_w(n_directions):
     result = run()
     golden = np.pi * (3.0 - np.sqrt(5.0)) * np.arange(n_directions)

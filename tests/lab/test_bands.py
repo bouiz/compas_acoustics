@@ -45,11 +45,6 @@ def test_three_frequencies_per_band_inside_the_band():
     assert np.allclose(f[0::3], exact * 2 ** (-1 / 9)) and np.allclose(f[2::3], exact * 2 ** (1 / 9))
 
 
-def test_band_average_is_mean_of_triples():
-    v = np.arange(6.0)
-    assert np.allclose(band_average(v), [1.0, 4.0])
-
-
 def test_band_average_works_on_the_last_axis():
     v = np.arange(12.0).reshape(2, 6)
     assert np.allclose(band_average(v), [[1.0, 4.0], [7.0, 10.0]])

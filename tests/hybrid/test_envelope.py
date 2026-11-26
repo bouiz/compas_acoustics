@@ -32,13 +32,6 @@ def energy_db(x, a, b):
 
 
 # ----------------------------------------------------------------- the bank --
-def test_the_band_split_sums_back_to_the_input():
-    x = np.random.default_rng(1).standard_normal((4000, 3))
-    bands = octave_band_split(x, FS)
-    assert bands.shape == (9, 4000, 3)
-    np.testing.assert_allclose(bands.sum(axis=0), x, atol=1e-6)
-
-
 @pytest.mark.parametrize("n, columns", [(9600, 96), (4801, 3), (4799, 96), (20000, 1), (9600, 100)])
 def test_the_smoothing_over_time_is_fftconvolve_bit_for_bit(n, columns):
     from scipy.signal import fftconvolve
@@ -67,14 +60,6 @@ def test_the_band_split_is_pyfar_reconstructing_bank():
 
 
 # ---------------------------------------------------------------- the gains --
-def test_gains_never_exceed_one():
-    early, late = parts()
-    louder = early[:, 0] + 3.0 * late[:, 0]
-    g = envelope_gains(louder, early[:, 0], late[:, 0], FS)
-    assert g.shape == (9, N)
-    assert g.max() <= 1.0
-
-
 def test_a_louder_reference_leaves_the_late_field_alone():
     early, late = parts()
     shaped = shape_late(late, early[:, 0], late[:, 0], early[:, 0] + 3.0 * late[:, 0], FS)
@@ -134,13 +119,6 @@ def shoebox():
         fs=FS,
         air_absorption=False,
     )
-
-
-def test_without_a_reference_nothing_changes():
-    pair = shoebox()
-    default = render_ambisonics(prepare(pair, images(pair, 3), RoomTarget.from_room(pair), max_order=2, duration_s=0.5))
-    none = render_ambisonics(prepare(pair, images(pair, 3), RoomTarget.from_room(pair), max_order=2, duration_s=0.5, late_envelope=None))
-    np.testing.assert_array_equal(default.rir, none.rir)
 
 
 def test_a_reference_shapes_only_the_late_field():

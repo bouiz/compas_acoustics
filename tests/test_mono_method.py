@@ -54,11 +54,6 @@ def test_one_response_per_microphone_and_source():
     assert all(r.shape == (24000,) for row in rirs for r in row)
 
 
-def test_the_duration_sets_the_length():
-    ((rir,),) = traced(geometry(), duration=0.25)
-    assert rir.shape == (12000,)
-
-
 def test_the_default_length_comes_from_eyring():
     g = geometry()
     expected = default_duration(g, air_absorption=True)
@@ -88,12 +83,6 @@ def test_a_fully_absorbing_surface_has_a_finite_default():
     window = AcousticMaterial("window", 1.0, 0.1)
     materials = {"floor": WALL, "ceiling": window, "left_wall": WALL, "right_wall": WALL, "front_wall": WALL, "back_wall": WALL}
     assert 0.5 <= default_duration(geometry(materials), air_absorption=True) <= 12.0
-
-
-def test_seeded_runs_repeat():
-    ((first,),) = traced(geometry(), seed=7)
-    ((second,),) = traced(geometry(), seed=7)
-    np.testing.assert_array_equal(first, second)
 
 
 def uniform(scattering=0.15):

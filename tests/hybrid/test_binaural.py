@@ -35,16 +35,6 @@ def run(method, **kwargs):
     return result
 
 
-def test_the_core_keeps_the_early_images():
-    core = run(Binaural(**FAST)).core
-    assert core.images.order.max() == core.max_order
-    assert core.diffraction_paths == () and core.btms_contributions == ()
-
-
-def test_the_core_keeps_the_diffracted_paths():
-    assert len(run(Binaural(diffraction=True, **FAST), panel=True).core.diffraction_paths) > 0
-
-
 def test_the_nearest_measured_direction_is_picked():
     from compas_acoustics.hybrid.binaural import DEFAULT_HRTF
     from compas_acoustics.hybrid.binaural import HrtfSet
@@ -80,6 +70,9 @@ def test_with_a_transparent_hrtf_both_ears_hear_the_omnidirectional_early_part(d
     from compas_acoustics.hybrid.ambisonics import render_ambisonics
 
     core = run(Binaural(diffraction=diffraction, **FAST), panel=bool(diffraction)).core
+    assert core.images.order.max() == core.max_order
+    assert diffraction is not False or (core.diffraction_paths == () and core.btms_contributions == ())
+    assert diffraction is not True or len(core.diffraction_paths) > 0
     assert diffraction != "btms" or len(core.btms_contributions) > 0
     ears = render_binaural(core, identity()).early
     w = render_ambisonics(core).early[:, 0]
@@ -109,12 +102,3 @@ def test_the_hrtf_must_be_at_the_simulations_rate():
     core = run(Binaural(**FAST)).core
     with pytest.raises(ValueError, match="sample rate"):
         render_binaural(core, HrtfSet.from_sofa(DEFAULT_HRTF, 44100))
-
-
-def test_binaural_returns_two_channel_responses_of_the_cores_length():
-    method = Binaural(**FAST)
-    (ir,) = scene().simulate(method).values()
-    assert ir.n_channels == 2 and ir.ambisonic_order is None and ir.format == "binaural"
-    assert ir.generation["hrtf"] == "KU100_HRIR_L2702.sofa" and ir.generation["method"] == "binaural"
-    (result,) = method.results.values()
-    assert ir.denormalized().shape == (result.core.n_samples, 2)

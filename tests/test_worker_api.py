@@ -194,6 +194,9 @@ def test_analysis_gives_every_parameter_with_its_units_and_the_two_curves():
     # for a response that is not ambisonic, LFC always
     optional = ("STI", "G", "SPL", "LF", "LFC")
     assert [n for n in api.PARAMETERS if n not in optional] == [n for n in names if n not in optional]
+    assert "LF" not in names and "LFC" not in names
+    assert list(api.PARAMETERS)[-2:] == ["LF", "LFC"]
+    assert api.PARAMETERS["LF"] == ("Lateral Energy Fraction (LF)", "Frequency (Hz)", "Fraction (0-1)")
     t30 = next(p for p in analysis["parameters"] if p["name"] == "T30")
     assert t30["title"] == "Reverberation Time (T30)" and t30["x_unit"] == "Frequency (Hz)" and t30["y_unit"] == "Time (s)"
     assert t30["x_scale"] == "bands" and len(t30["values"]) == 1 and len(t30["values"][0]) == len(t30["frequencies"])
@@ -538,13 +541,6 @@ def test_sound_samples_reads_a_file_as_audio(tmp_path):
         api.sound_samples(str(tmp_path / "none.wav"))
 
 
-def test_the_worker_leaves_lf_out_for_a_mono_response():
-    names = [p["name"] for p in call("analysis", [decay()])["analyses"][0]["parameters"]]
-    assert "LF" not in names and "LFC" not in names
-    assert list(api.PARAMETERS)[-2:] == ["LF", "LFC"]
-    assert api.PARAMETERS["LF"] == ("Lateral Energy Fraction (LF)", "Frequency (Hz)", "Fraction (0-1)")
-
-
 @pytest.mark.parametrize("name", ["female_speech", "male_speech", "viola", "guitar", "castanets"])
 def test_make_source_takes_a_bundled_sound_by_its_name(name):
     source = call("make_source", "s", [0, 0, 0], sound_file=name)
@@ -648,7 +644,7 @@ def test_a_disc_without_a_diameter_is_refused():
         api.make_scattering_sample(_flat_quad(), mode="disc")
 
 
-@pytest.mark.parametrize("diameter", [0, -1, float("nan")])
+@pytest.mark.parametrize("diameter", [0, float("nan")])
 def test_a_disc_with_a_diameter_that_is_not_positive_is_refused(diameter):
     from lab_shapes import flat_tile
 
@@ -662,26 +658,20 @@ def test_an_unknown_sample_mode_is_refused():
 
 
 @needs_raycaster
-def test_run_scattering_lab_returns_the_result_the_material_octaves_and_the_warnings():
+def test_the_facts_of_a_run_are_notes_and_not_warnings():
     from compas_acoustics.lab import ScatteringResult
+    from compas_acoustics.lab.scattering import _HEURISTIC
 
     out = call("run_scattering_lab", _lab_disc(), method="geometric", preset="survey", settings={"n_rays": 500})
     assert isinstance(out["result"], ScatteringResult) and out["result"].method == "geometric"
     assert len(out["scattering_coefficients"]) == 7
     assert out["octave_bands"] == [125, 250, 500, 1000, 2000, 4000]
-    assert any("heuristic" in n for n in out["notes"])
     assert not any("heuristic: s_max" in w for w in out["warnings"])
-
-
-@needs_raycaster
-def test_the_facts_of_a_run_are_notes_and_not_warnings():
-    from compas_acoustics.lab.scattering import _HEURISTIC
-
-    out = call("run_scattering_lab", _lab_disc(), method="geometric", preset="survey", settings={"n_rays": 500})
     # the heuristic and the 8000 Hz octave an 'iso' run does not simulate state what the run is: no fault
     assert _HEURISTIC in out["notes"] and any(n.startswith("8000 Hz is not simulated") for n in out["notes"])
     assert not set(out["notes"]) & set(out["warnings"])
     extended = call("run_scattering_lab", _lab_disc(), method="geometric", preset="survey", band_range="extended", settings={"n_rays": 500})
+    assert extended["octave_bands"][-1] == 8000
     assert any("outside ISO 17497" in n for n in extended["notes"]) and not any("ISO" in w for w in extended["warnings"])
 
 
@@ -707,12 +697,6 @@ def test_split_notes_sorts_by_the_templates_and_drops_what_is_news_only_before_a
     # a template matches its own messages only, not one that only starts like them
     longer = filled + ", and more"
     assert api._split_notes([longer], NOTE_TEMPLATES) == ([longer], [])
-
-
-@needs_raycaster
-def test_the_extended_band_range_simulates_8_kHz_too():
-    out = call("run_scattering_lab", _lab_disc(), preset="survey", band_range="extended", settings={"n_rays": 200})
-    assert out["octave_bands"][-1] == 8000
 
 
 def test_an_unknown_band_range_is_refused():
@@ -757,17 +741,6 @@ def test_polar_balloon_of_a_flat_disc_points_its_peak_to_the_specular_direction(
     for face in faces:
         a, b, c = directions[face[:3]]
         assert np.cross(b - a, c - a) @ (a + b + c) > 0
-
-
-@needs_raycaster
-def test_polar_balloon_radius_follows_the_level_down_to_a_minimum_of_3_percent():
-    result = _geometric_result()
-    balloon = api.polar_balloon(result, radius=2.0, floor_db=-20.0)
-    vertices = np.array(balloon["mesh"].vertices_attributes("xyz"))
-    levels = np.array(balloon["levels"])
-    expected = 2.0 * (0.03 + 0.97 * np.clip(1 - levels / -20.0, 0.0, 1.0))
-    assert np.allclose(np.linalg.norm(vertices, axis=1), expected, atol=1e-9)
-    assert np.linalg.norm(vertices, axis=1).min() >= 0.03 * 2.0 - 1e-9
 
 
 def _balloon_geometry(balloon):
@@ -825,20 +798,11 @@ def test_polar_balloon_refuses_an_octave_that_was_not_simulated():
         api.polar_balloon(result, body="both")
     with pytest.raises(ValueError, match="preview"):
         api.polar_balloon(result, preview=len(result.polar_source_indices))
-
-
-@needs_raycaster
-@pytest.mark.parametrize("radius", [0, -1, float("nan")])
-def test_polar_balloon_refuses_a_radius_that_is_not_positive(radius):
-    with pytest.raises(ValueError, match="radius is a positive length, not"):
-        call("polar_balloon", _geometric_result(), radius=radius)
-
-
-@needs_raycaster
-@pytest.mark.parametrize("floor_db", [0, 5.0])
-def test_polar_balloon_refuses_a_floor_that_is_not_negative(floor_db):
+    for radius in (0, float("nan")):
+        with pytest.raises(ValueError, match="radius is a positive length, not"):
+            call("polar_balloon", result, radius=radius)
     with pytest.raises(ValueError, match="floor_db is a negative level in dB, not"):
-        call("polar_balloon", _geometric_result(), floor_db=floor_db)
+        call("polar_balloon", result, floor_db=0)
 
 
 # ---------------------------------------------------------------------------

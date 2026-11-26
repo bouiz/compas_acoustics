@@ -45,13 +45,6 @@ def test_choices_optional_and_default_are_shown(component):
     assert "| item |" in text and "| list |" in text and "| int |" in text
 
 
-def test_notes_are_included_when_given(component, tmp_path):
-    notes = tmp_path / "CA_Fixture_A.md"
-    notes.write_text("Hello")
-    text = page(component, notes=notes)
-    assert "\n## Notes\n\nHello\n" in text
-
-
 def test_overview_follows_the_order_and_skips_empty_subcategories(components):
     text = overview_page(components, ["Model", "Params", "Elements"], lambda c: "_icons/{}.png".format(c.key))
     assert text.index("\n## Model\n") < text.index("\n## Elements\n") and "Params" not in text

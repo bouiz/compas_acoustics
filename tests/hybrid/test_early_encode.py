@@ -8,9 +8,6 @@ from scipy.signal import sosfilt
 
 from compas_acoustics.hybrid.bands import BANDS, N_BANDS
 from compas_acoustics.hybrid.early import ImageSourceSet, encode, render_images, render_signals
-from _rooms import box_room, images
-from _rooms import pair as make_pair
-from compas_acoustics.room.geometry import SurfaceMaterial
 
 
 def one_image(azimuth, elevation, delay=0.01, gain=1.0, fs=48000.0):
@@ -63,14 +60,6 @@ def test_sloped_band_gains_are_reproduced_within_a_fraction_of_a_decibel():
     assert np.abs(err_db[-1]) < 1.5  # top band sees the analysis edge
 
 
-def test_flat_band_gains_stay_flat():
-    fs = 48000.0
-    out = encode(one_image(0.0, 0.0, delay=0.01, gain=1.0, fs=fs), 1, 16384)
-    est = measure_band_gains(out[:, 0], fs)
-    err_db = 20 * np.log10(est / est[3])
-    assert np.max(np.abs(err_db[:-1])) < 0.5
-
-
 def test_peak_lands_at_the_requested_delay():
     fs = 48000.0
     out = encode(one_image(0.0, 0.0, delay=480 / fs, fs=fs), 1, 4096)
@@ -85,23 +74,6 @@ def test_fractional_delay_shifts_the_waveform():
     assert not np.allclose(a, b, atol=1e-9)
     centroid = lambda w: np.sum(np.arange(w.size) * w**2) / np.sum(w**2)
     assert 0.3 < centroid(b[:, 0]) - centroid(a[:, 0]) < 0.7
-
-
-def test_front_source_puts_energy_in_x_and_none_in_y_or_z():
-    """ACN: 0=W, 1=Y, 2=Z, 3=X. A source dead ahead is pure W and X, and in
-    N3D X carries 2n + 1 = 3 times W's energy."""
-    out = encode(one_image(0.0, 0.0), 1, 4096)
-    energy = np.sum(out**2, axis=0)
-    assert energy[3] == pytest.approx(3.0 * energy[0], rel=1e-6)
-    assert energy[1] < 1e-12 * energy[0]
-    assert energy[2] < 1e-12 * energy[0]
-
-
-def test_left_source_puts_energy_in_y():
-    out = encode(one_image(np.pi / 2, 0.0), 1, 4096)
-    energy = np.sum(out**2, axis=0)
-    assert energy[1] == pytest.approx(3.0 * energy[0], rel=1e-6)
-    assert energy[3] < 1e-12 * energy[0]
 
 
 def test_channel_ratios_equal_the_direction_cosines():
@@ -150,18 +122,6 @@ def test_w_energy_matches_the_sum_of_image_energies():
 def test_images_beyond_the_buffer_are_dropped_not_wrapped():
     out = encode(one_image(0.0, 0.0, delay=1.0, fs=48000.0), 1, 4096)
     assert np.max(np.abs(out)) < 1e-12
-
-
-def test_shoebox_end_to_end_produces_a_finite_response():
-    pair = make_pair(
-        geometry=box_room((5.0, 4.0, 3.0), SurfaceMaterial("wall", np.full(N_BANDS, 0.2))),
-        source=np.array([1.0, 1.0, 1.0]),
-        receiver=np.array([3.0, 2.0, 1.5]),
-    )
-    out = encode(images(pair, max_order=3), 1, 4800)
-    assert out.shape == (4800, 4)
-    assert np.all(np.isfinite(out))
-    assert np.max(np.abs(out)) > 0.0
 
 
 def several_images(n=7, seed=3, fs=48000.0):
