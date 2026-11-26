@@ -154,7 +154,7 @@ namespace CompasAcoustics.Grasshopper.Tests
                 Assert.Equal(3, ControlState.Persistent(simulation.ControlPort("ism_order")!));
                 Assert.Equal(("3", false), ComponentUi.StepValue(simulation, ism));
                 var row = new RectangleF(0, 0, 120, StepSlider.Height);
-                Assert.Equal("7", StepSlider.Nearest(row, StepSlider.StopX(row, 7, 11) + 2, ism.Options, simulation.OfferedOptionsOf("ism_order")));
+                Assert.Equal("7", StepSlider.Nearest(row, StepSlider.StopX(row, 7, ism) + 2, ism, simulation.OfferedOptionsOf("ism_order")));
                 Assert.Equal(3, ComponentSpec.Load(simulation is SimulateMonoComponent ? "CA_Simulate_Mono" : simulation is SimulateBinauralComponent ? "CA_Simulate_Binaural" : "CA_Simulate_Ambisonics")
                     .Inputs.Single(p => p.Name == "ism_order").Default);
             }
@@ -394,13 +394,27 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
+        public void AStepSlidersTrack_SpansTheRow_LeavingRoomForTheEndLabelsAndTheKnob()
+        {
+            var ism = SimulateMonoComponent.IsmOrder;
+            var row = new RectangleF(0, 0, 120, StepSlider.Height);
+            var room = StepSlider.CharWidth * 2 / 2 + StepSlider.DotRadius + 3;
+            Assert.InRange(StepSlider.StopX(row, 0, ism), room - 0.01f, room);
+            Assert.InRange(row.Right - StepSlider.StopX(row, 10, ism), room - 0.01f, room);
+            Assert.True(StepSlider.StopX(row, 0, ism) < StepSlider.StopX(row, 1, ism));
+            var rays = VisualiseRaysComponent.OrderStops(4);
+            Assert.InRange(StepSlider.StopX(row, 0, rays), 0, StepSlider.CharWidth * 3 / 2 + StepSlider.DotRadius + 3);
+            Assert.Equal("", StepSlider.Nearest(row, row.Right, rays, null));
+        }
+
+        [Fact]
         public void AnOrderBeyondTheTracedOnes_ShowsTheLastOrder()
         {
             var row = new RectangleF(0, 0, 120, StepSlider.Height);
             var stops = VisualiseRaysComponent.OrderStops(4);
-            Assert.Equal("4", StepSlider.Shown(row, "7", stops.Options, null));
-            Assert.Equal("", StepSlider.Shown(row, "", stops.Options, null));
-            Assert.Equal("3", StepSlider.Shown(row, "3", stops.Options, null));
+            Assert.Equal("4", StepSlider.Shown(row, "7", stops, null));
+            Assert.Equal("", StepSlider.Shown(row, "", stops, null));
+            Assert.Equal("3", StepSlider.Shown(row, "3", stops, null));
         }
 
         [Fact]

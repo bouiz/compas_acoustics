@@ -104,7 +104,7 @@ namespace CompasAcoustics.Grasshopper
         {
             var offered = Component.OfferedOptionsOf(step.Port);
             var (value, wired) = StepValue(Component, step);
-            return (wired ? value : StepSlider.Shown(box.Bounds, value, step.Options, offered), wired, offered);
+            return (wired ? value : StepSlider.Shown(box.Bounds, value, step, offered), wired, offered);
         }
 
         /// <summary>A step slider's option and whether a wire sets it: its input's, or the component's choice when it has no input.</summary>
@@ -203,7 +203,7 @@ namespace CompasAcoustics.Grasshopper
                 case StepSliderControl declared when port != null || Component.IsChoice(declared.Port):
                     var step = Component.StepStopsOf(declared);
                     _down = box;
-                    _stepped = StepSlider.Nearest(box.Bounds, e.CanvasLocation.X, step.Options, Component.OfferedOptionsOf(step.Port));
+                    _stepped = StepSlider.Nearest(box.Bounds, e.CanvasLocation.X, step, Component.OfferedOptionsOf(step.Port));
                     sender.Invalidate();
                     return GH_ObjectResponse.Capture;
                 case IncidenceControl incidence when port != null:
@@ -283,7 +283,7 @@ namespace CompasAcoustics.Grasshopper
             {
                 var step = Component.StepStopsOf(declared);
                 // the knob snaps from offered stop to offered stop; the input is set when it is let go
-                _stepped = StepSlider.Nearest(_down.Bounds, e.CanvasLocation.X, step.Options, Component.OfferedOptionsOf(step.Port)) ?? _stepped;
+                _stepped = StepSlider.Nearest(_down.Bounds, e.CanvasLocation.X, step, Component.OfferedOptionsOf(step.Port)) ?? _stepped;
                 sender.Invalidate();
                 return GH_ObjectResponse.Handled;
             }
