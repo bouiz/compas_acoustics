@@ -177,11 +177,24 @@ namespace CompasAcoustics.Grasshopper
         public override IReadOnlyList<Control> Controls { get; } = new Control[]
         {
             PreviewSwitch, SceneIndices.SourceDropdown, new ToggleControl("scattering", "Scattering", Default: false),
-            new SliderControl("order", 1, 10, "", Step: 1), new ButtonControl("play", "Play", Inline: true, Icon: true), new ButtonControl("rewind", "Rewind", Inline: true, Icon: true),
+            OrderStops(10), new ButtonControl("play", "Play", Inline: true, Icon: true), new ButtonControl("rewind", "Rewind", Inline: true, Icon: true),
         };
 
-        /// <summary>The drawn order runs from 1 to the traced one: at its end, every traced order is drawn.</summary>
-        public override (double min, double max) SliderRange(SliderControl slider) => slider.Port == "order" ? (1, Math.Max(_maxOrder, 1)) : base.SliderRange(slider);
+        /// <summary>
+        /// The drawn order's stops: 1 to <paramref name="maxOrder"/>, and All (the empty input, every traced order) last and the default.
+        /// Beyond 12 orders only every k-th stop is labelled, from the first, so the labels stay apart.
+        /// </summary>
+        internal static StepSliderControl OrderStops(int maxOrder)
+        {
+            var count = Math.Max(maxOrder, 1);
+            var every = (count + 11) / 12;
+            var orders = Enumerable.Range(1, count).Select(n => n.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+            var labels = orders.Select((o, i) => every == 1 || ((i % every == 0) && i + 1 < count) ? o : "").Append("All").ToArray();
+            return new StepSliderControl("order", orders.Append("").ToArray(), "", labels, "Order");
+        }
+
+        /// <summary>The order slider's stops follow the traced order.</summary>
+        public override StepSliderControl StepStopsOf(StepSliderControl step) => step.Port == "order" ? OrderStops(_maxOrder) : base.StepStopsOf(step);
 
         public VisualiseRaysComponent() : base("CA_Visualise_Rays") { }
 

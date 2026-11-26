@@ -98,6 +98,9 @@ namespace CompasAcoustics.Grasshopper
         private readonly Dictionary<string, (string[] values, string[] labels)> _indexOptions = new();
 
         /// <summary>The values and labels a dropdown offers: those of the wired scene or graph for an index, else its own.</summary>
+        /// <summary>The stops of a step slider now: its own, unless the component sets them from its data (Visualise Rays': the orders it traced).</summary>
+        public virtual StepSliderControl StepStopsOf(StepSliderControl step) => step;
+
         /// <summary>The options of a step slider it offers now (Polar Preview's: the octaves its result simulated); null for all of them.</summary>
         public virtual IReadOnlyCollection<string>? OfferedOptionsOf(string port) => null;
 

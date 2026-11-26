@@ -54,7 +54,16 @@ namespace CompasAcoustics.Grasshopper
             var i = options.ToList().IndexOf(value);
             if (i >= 0 && (offered == null || offered.Contains(value)))
                 return value;
-            return i >= 0 ? Nearest(row, StopX(row, i, options.Count), options, offered) : Nearest(row, row.Left, options, offered);
+            if (i >= 0)
+                return Nearest(row, StopX(row, i, options.Count), options, offered);
+            if (double.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var number))
+            {
+                var near = options.Select((o, k) => (o, k, v: double.TryParse(o, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : double.NaN))
+                    .Where(x => !double.IsNaN(x.v) && (offered == null || offered.Contains(x.o))).OrderBy(x => Math.Abs(x.v - number)).FirstOrDefault();
+                if (near.o != null)
+                    return near.o;
+            }
+            return Nearest(row, row.Left, options, offered);
         }
 
         /// <summary>Draw the slider: the track, a stop per option (grey when not offered), the labels, and the knob at <paramref name="value"/>.</summary>

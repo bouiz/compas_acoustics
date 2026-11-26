@@ -79,8 +79,9 @@ namespace CompasAcoustics.Grasshopper
             {
                 if (!box.Title.IsEmpty)
                     Painter.DrawTitle(graphics, box);
-                if (box.Control is StepSliderControl step)
+                if (box.Control is StepSliderControl declared)
                 {
+                    var step = Component.StepStopsOf(declared);
                     var (value, wired, offered) = StepState(step, box);
                     StepSlider.Draw(graphics, box.Bounds, step, ReferenceEquals(box, _down) ? _stepped ?? value : value, offered, wired);
                     continue;
@@ -199,7 +200,8 @@ namespace CompasAcoustics.Grasshopper
                 return GH_ObjectResponse.Handled;
             switch (box.Control)
             {
-                case StepSliderControl step when port != null || Component.IsChoice(step.Port):
+                case StepSliderControl declared when port != null || Component.IsChoice(declared.Port):
+                    var step = Component.StepStopsOf(declared);
                     _down = box;
                     _stepped = StepSlider.Nearest(box.Bounds, e.CanvasLocation.X, step.Options, Component.OfferedOptionsOf(step.Port));
                     sender.Invalidate();
@@ -277,8 +279,9 @@ namespace CompasAcoustics.Grasshopper
 
         public override GH_ObjectResponse RespondToMouseMove(GH_Canvas sender, GH_CanvasMouseEvent e)
         {
-            if (_down?.Control is StepSliderControl step)
+            if (_down?.Control is StepSliderControl declared)
             {
+                var step = Component.StepStopsOf(declared);
                 // the knob snaps from offered stop to offered stop; the input is set when it is let go
                 _stepped = StepSlider.Nearest(_down.Bounds, e.CanvasLocation.X, step.Options, Component.OfferedOptionsOf(step.Port)) ?? _stepped;
                 sender.Invalidate();
@@ -309,8 +312,9 @@ namespace CompasAcoustics.Grasshopper
                 else
                     ControlState.Press(Component, button.Port);
             }
-            else if (box.Control is StepSliderControl step && _stepped is string stop)
+            else if (box.Control is StepSliderControl declared && _stepped is string stop)
             {
+                var step = Component.StepStopsOf(declared);
                 var (shown, _, _) = StepState(step, box);
                 if (stop != shown)
                     ChooseStop(Component, step, stop);

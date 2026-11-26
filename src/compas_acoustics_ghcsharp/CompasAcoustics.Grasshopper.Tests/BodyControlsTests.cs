@@ -335,13 +335,72 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void TheRaysDrawnOrder_IsASliderOfWholeOrders_UpToTheTracedOrder()
+        public void TheRaysDrawnOrder_IsAStepSliderOfTheOrders_1ToTheTracedOne_AndAll()
         {
             var rays = new VisualiseRaysComponent();
-            var slider = rays.Controls.OfType<SliderControl>().Single();
-            Assert.Equal(("order", 1.0), (slider.Port, slider.Step));
-            Assert.Equal((1.0, 10.0), rays.SliderRange(slider));
-            Assert.Equal(4.0, ComponentUi.SliderValue(slider, 1, 10, new RectangleF(0, 0, 90, 20), 32));
+            var declared = rays.Controls.OfType<StepSliderControl>().Single();
+            Assert.DoesNotContain(rays.Controls, c => c is SliderControl);
+            Assert.Equal(("order", "", "Order"), (declared.Port, declared.Default, ControlLayout.Title(declared)));
+            var stops = rays.StepStopsOf(declared);
+            Assert.Equal(new[] { "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "" }, stops.Options);
+            var four = VisualiseRaysComponent.OrderStops(4);
+            Assert.Equal(new[] { "1", "2", "3", "4", "" }, four.Options);
+            Assert.Equal(new[] { "1", "2", "3", "4", "All" }, four.Labels);
+            Assert.Equal(("order", ""), (four.Port, four.Default));
+            Assert.Equal(("", false), ControlState.Of(rays.ControlPort("order")!, four.Options, four.Default));
+            Assert.Equal(("order", "1, 2, 3 or 4 (default All)"), (rays.ControlTooltip("order").title, "1, 2, 3 or 4 (default All)"));
+        }
+
+        [Theory]
+        [InlineData(1)]
+        [InlineData(12)]
+        public void TheRaysOrderStops_LabelEveryStop_UpTo12Orders(int maxOrder)
+        {
+            var stops = VisualiseRaysComponent.OrderStops(maxOrder);
+            Assert.Equal(maxOrder + 1, stops.Options.Length);
+            Assert.Equal(Enumerable.Range(1, maxOrder).Select(i => i.ToString()).Append("All"), stops.Labels);
+        }
+
+        [Theory]
+        [InlineData(13, 2)]
+        [InlineData(24, 2)]
+        [InlineData(30, 3)]
+        public void TheRaysOrderStops_ThinTheLabels_BeyondTwelveOrders_KeepingFirstAndAll(int maxOrder, int every)
+        {
+            var stops = VisualiseRaysComponent.OrderStops(maxOrder);
+            Assert.Equal(Enumerable.Range(1, maxOrder).Select(i => i.ToString()).Append(""), stops.Options);
+            var labelled = stops.Labels!.Select((l, i) => (l, n: i + 1)).Where(x => x.l.Length > 0 && x.l != "All").Select(x => x.n).ToList();
+            Assert.Equal(1, labelled[0]);
+            Assert.All(labelled, n => Assert.Equal(0, (n - 1) % every));
+            Assert.True(labelled.Count <= 12);
+            Assert.True(maxOrder - labelled[^1] >= 1);
+            Assert.Equal("All", stops.Labels![^1]);
+            Assert.All(stops.Labels.Select((l, i) => (l, i)).Where(x => x.l.Length > 0 && x.l != "All"), x => Assert.Equal((x.i + 1).ToString(), x.l));
+        }
+
+        [Fact]
+        public void ChoosingAnOrderStop_SetsTheOrderInput_AndAllClearsIt()
+        {
+            var rays = new VisualiseRaysComponent();
+            rays.ShowControlPorts(false);
+            var stops = VisualiseRaysComponent.OrderStops(4);
+            Assert.Null(rays.HiddenAs<int>("order"));
+            ComponentUi.ChooseStop(rays, stops, "2");
+            Assert.Equal(("2", false), ComponentUi.StepValue(rays, stops));
+            Assert.Equal(2, rays.HiddenAs<int>("order"));
+            ComponentUi.ChooseStop(rays, stops, "");
+            Assert.Null(rays.HiddenAs<int>("order"));
+            Assert.Equal(("", false), ComponentUi.StepValue(rays, stops));
+        }
+
+        [Fact]
+        public void AnOrderBeyondTheTracedOnes_ShowsTheLastOrder()
+        {
+            var row = new RectangleF(0, 0, 120, StepSlider.Height);
+            var stops = VisualiseRaysComponent.OrderStops(4);
+            Assert.Equal("4", StepSlider.Shown(row, "7", stops.Options, null));
+            Assert.Equal("", StepSlider.Shown(row, "", stops.Options, null));
+            Assert.Equal("3", StepSlider.Shown(row, "3", stops.Options, null));
         }
 
         [Fact]
@@ -395,7 +454,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             var billiard = new VisualiseBilliardComponent();
             var time = billiard.Controls.OfType<SliderControl>().Single();
             Assert.True(time.Live);
-            Assert.False(new VisualiseRaysComponent().Controls.OfType<SliderControl>().Single().Live);
             // each step of the drag sets the input and lets go of what it collected, without an undo step of its own
             var port = billiard.ControlPort("time")!;
             ControlState.Scrub(billiard, port, "12.5");
