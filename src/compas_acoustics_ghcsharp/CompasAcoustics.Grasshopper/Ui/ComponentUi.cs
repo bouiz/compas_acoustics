@@ -213,7 +213,7 @@ namespace CompasAcoustics.Grasshopper
                     Component.SetChoice(s.Port, s.Options[segment]);
                     return GH_ObjectResponse.Handled;
                 case DropdownControl d when port != null || Component.IsChoice(d.Port):
-                    OpenMenu(sender, e, d, port, box.Bounds.Width * sender.Viewport.Zoom);
+                    OpenMenu(d, port);
                     return GH_ObjectResponse.Handled;
                 case MultiSwitchControl m when segment >= 0 && port != null:
                     ControlState.ToggleMember(Component, port, m.Options[segment], m.Default);
@@ -339,19 +339,19 @@ namespace CompasAcoustics.Grasshopper
             return Math.Clamp(Math.Round(Math.Round((value - min) / step) * step + min, 6), min, Math.Max(min, max));
         }
 
-        private void OpenMenu(GH_Canvas sender, GH_CanvasMouseEvent e, DropdownControl dropdown, IGH_Param? port, float dropdownWidth)
+        private void OpenMenu(DropdownControl dropdown, IGH_Param? port)
         {
             var (values, labels) = Component.OptionsOf(dropdown);
             var current = port != null ? ControlState.Of(port, values, ComponentBase.DefaultOf(dropdown)).value : Component.Choice(dropdown.Port);
             labels = ControlLayout.MenuLabels(dropdown, values, labels);
-            var menu = new ContextMenuStrip();
-            // the input's name heads its options
-            menu.Items.Add(new ToolStripMenuItem(dropdown.Port) { Enabled = false });
-            menu.Items.Add(new ToolStripSeparator());
+            // Eto's menu is the platform's own and sizes to its longest option; the WinForms menu cut "Ray tracing" on macOS
+            var menu = new Eto.Forms.ContextMenu();
+            menu.Items.Add(new Eto.Forms.ButtonMenuItem { Text = ControlLayout.Title(dropdown), Enabled = false });
+            menu.Items.Add(new Eto.Forms.SeparatorMenuItem());
             for (var i = 0; i < values.Length; i++)
             {
                 var option = values[i];
-                var item = new ToolStripMenuItem(labels[i]) { Checked = option == current };
+                var item = new Eto.Forms.CheckMenuItem { Text = labels[i], Checked = option == current };
                 item.Click += (s, a) =>
                 {
                     if (Component.OnDropdownOption(dropdown.Port, option))
@@ -363,9 +363,7 @@ namespace CompasAcoustics.Grasshopper
                 };
                 menu.Items.Add(item);
             }
-            // the menu sizes its items to the longest option itself (fixed item widths cut text on macOS); at least the dropdown's width
-            menu.MinimumSize = new Size((int)Math.Ceiling(dropdownWidth), 0);
-            menu.Show(sender, e.ControlLocation);
+            menu.Show();
         }
     }
 
