@@ -38,7 +38,7 @@
             <item name="Date" type_name="gh_date" type_code="8">639291621117606990</item>
             <item name="Description" type_name="gh_string" type_code="10"></item>
             <item name="KeepOpen" type_name="gh_bool" type_code="1">false</item>
-            <item name="Name" type_name="gh_string" type_code="10"></item>
+            <item name="Name" type_name="gh_string" type_code="10">simple_simulation_shoebox.ghx</item>
           </items>
           <chunks count="3">
             <chunk name="Revisions">
@@ -77,7 +77,7 @@
                 <item name="Author" type_name="gh_string" type_code="10">Robert McNeel &amp; Associates</item>
                 <item name="Id" type_name="gh_guid" type_code="9">00000000-0000-0000-0000-000000000000</item>
                 <item name="Name" type_name="gh_string" type_code="10">Grasshopper</item>
-                <item name="Version" type_name="gh_string" type_code="10">8.36.26296.17002</item>
+                <item name="Version" type_name="gh_string" type_code="10">8.37.26307.15002</item>
               </items>
             </chunk>
             <chunk name="Library" index="1">
@@ -85,7 +85,7 @@
                 <item name="Author" type_name="gh_string" type_code="10">Robert McNeel &amp; Associates</item>
                 <item name="Id" type_name="gh_guid" type_code="9">00000000-0000-0000-0000-000000000000</item>
                 <item name="Name" type_name="gh_string" type_code="10">Grasshopper</item>
-                <item name="Version" type_name="gh_string" type_code="10">8.36.26296.17002</item>
+                <item name="Version" type_name="gh_string" type_code="10">8.37.26307.15002</item>
               </items>
             </chunk>
             <chunk name="Library" index="2">
@@ -93,7 +93,7 @@
                 <item name="Author" type_name="gh_string" type_code="10">Robert McNeel &amp; Associates</item>
                 <item name="Id" type_name="gh_guid" type_code="9">00000000-0000-0000-0000-000000000000</item>
                 <item name="Name" type_name="gh_string" type_code="10">Grasshopper</item>
-                <item name="Version" type_name="gh_string" type_code="10">8.36.26296.17002</item>
+                <item name="Version" type_name="gh_string" type_code="10">8.37.26307.15002</item>
               </items>
             </chunk>
             <chunk name="Library" index="3">
@@ -110,9 +110,9 @@
         </chunk>
         <chunk name="DefinitionObjects">
           <items count="1">
-            <item name="ObjectCount" type_name="gh_int32" type_code="3">53</item>
+            <item name="ObjectCount" type_name="gh_int32" type_code="3">54</item>
           </items>
-          <chunks count="53">
+          <chunks count="54">
             <chunk name="Object" index="0">
               <items count="2">
                 <item name="GUID" type_name="gh_guid" type_code="9">59e0b89a-e487-49f8-bab8-b5bab16be14c</item>
@@ -681,14 +681,13 @@
               </items>
               <chunks count="1">
                 <chunk name="Container">
-                  <items count="7">
+                  <items count="6">
                     <item name="Description" type_name="gh_string" type_code="10">Create an AcousticMaterial for AcousticObject(s).</item>
                     <item name="InstanceGuid" type_name="gh_guid" type_code="9">a9561cec-c124-44f5-936f-96cccfae5d3c</item>
                     <item name="Name" type_name="gh_string" type_code="10">Construct Material</item>
                     <item name="NickName" type_name="gh_string" type_code="10">concrete</item>
                     <item name="control_inputs_hidden" type_name="gh_string" type_code="10">category</item>
                     <item name="control_inputs_shown" type_name="gh_bool" type_code="1">false</item>
-                    <item name="preview_default_v2" type_name="gh_bool" type_code="1">true</item>
                   </items>
                   <chunks count="5">
                     <chunk name="Attributes">
@@ -708,7 +707,7 @@
                     <chunk name="param_input" index="0">
                       <items count="8">
                         <item name="Access" type_name="gh_int32" type_code="3">1</item>
-                        <item name="Description" type_name="gh_string" type_code="10">List of absorption coefficients for each frequency band, or one value for every band.</item>
+                        <item name="Description" type_name="gh_string" type_code="10">Absorption coefficients, one per octave band from 125 Hz to 8 kHz (7 values), or one value for every band.</item>
                         <item name="InstanceGuid" type_name="gh_guid" type_code="9">0ee01ca3-d91e-4a1e-ade5-fe665ae377e2</item>
                         <item name="Name" type_name="gh_string" type_code="10">absorption</item>
                         <item name="NickName" type_name="gh_string" type_code="10">absorption</item>
@@ -736,7 +735,7 @@
                     <chunk name="param_input" index="1">
                       <items count="8">
                         <item name="Access" type_name="gh_int32" type_code="3">1</item>
-                        <item name="Description" type_name="gh_string" type_code="10">Optional. List of scattering coefficients for each frequency band, or one value for every band.</item>
+                        <item name="Description" type_name="gh_string" type_code="10">Optional. Scattering coefficients, one per octave band from 125 Hz to 8 kHz (7 values), or one value for every band.</item>
                         <item name="InstanceGuid" type_name="gh_guid" type_code="9">328b0075-e270-4a38-9f90-2fdb8f8b509b</item>
                         <item name="Name" type_name="gh_string" type_code="10">scattering</item>
                         <item name="NickName" type_name="gh_string" type_code="10">scattering</item>
@@ -982,14 +981,13 @@
               </items>
               <chunks count="1">
                 <chunk name="Container">
-                  <items count="7">
+                  <items count="6">
                     <item name="Description" type_name="gh_string" type_code="10">Create an AcousticMaterial for AcousticObject(s).</item>
                     <item name="InstanceGuid" type_name="gh_guid" type_code="9">b24ef73e-fc8d-4f31-b679-906511e68ffe</item>
                     <item name="Name" type_name="gh_string" type_code="10">Construct Material</item>
                     <item name="NickName" type_name="gh_string" type_code="10">brickwall</item>
                     <item name="control_inputs_hidden" type_name="gh_string" type_code="10">category</item>
                     <item name="control_inputs_shown" type_name="gh_bool" type_code="1">false</item>
-                    <item name="preview_default_v2" type_name="gh_bool" type_code="1">true</item>
                   </items>
                   <chunks count="5">
                     <chunk name="Attributes">
@@ -1009,7 +1007,7 @@
                     <chunk name="param_input" index="0">
                       <items count="8">
                         <item name="Access" type_name="gh_int32" type_code="3">1</item>
-                        <item name="Description" type_name="gh_string" type_code="10">List of absorption coefficients for each frequency band, or one value for every band.</item>
+                        <item name="Description" type_name="gh_string" type_code="10">Absorption coefficients, one per octave band from 125 Hz to 8 kHz (7 values), or one value for every band.</item>
                         <item name="InstanceGuid" type_name="gh_guid" type_code="9">e9566b23-89ac-4ea7-bb73-77275273a542</item>
                         <item name="Name" type_name="gh_string" type_code="10">absorption</item>
                         <item name="NickName" type_name="gh_string" type_code="10">absorption</item>
@@ -1037,7 +1035,7 @@
                     <chunk name="param_input" index="1">
                       <items count="8">
                         <item name="Access" type_name="gh_int32" type_code="3">1</item>
-                        <item name="Description" type_name="gh_string" type_code="10">Optional. List of scattering coefficients for each frequency band, or one value for every band.</item>
+                        <item name="Description" type_name="gh_string" type_code="10">Optional. Scattering coefficients, one per octave band from 125 Hz to 8 kHz (7 values), or one value for every band.</item>
                         <item name="InstanceGuid" type_name="gh_guid" type_code="9">31448055-8f4b-4ee6-8444-9e1269cab070</item>
                         <item name="Name" type_name="gh_string" type_code="10">scattering</item>
                         <item name="NickName" type_name="gh_string" type_code="10">scattering</item>
@@ -1277,14 +1275,13 @@
               </items>
               <chunks count="1">
                 <chunk name="Container">
-                  <items count="7">
+                  <items count="6">
                     <item name="Description" type_name="gh_string" type_code="10">Create an AcousticMaterial for AcousticObject(s).</item>
                     <item name="InstanceGuid" type_name="gh_guid" type_code="9">4b92dcaf-4dd8-4aa3-8e38-6eac943ace1f</item>
                     <item name="Name" type_name="gh_string" type_code="10">Construct Material</item>
                     <item name="NickName" type_name="gh_string" type_code="10">carpet</item>
                     <item name="control_inputs_hidden" type_name="gh_string" type_code="10">category</item>
                     <item name="control_inputs_shown" type_name="gh_bool" type_code="1">false</item>
-                    <item name="preview_default_v2" type_name="gh_bool" type_code="1">true</item>
                   </items>
                   <chunks count="5">
                     <chunk name="Attributes">
@@ -1304,7 +1301,7 @@
                     <chunk name="param_input" index="0">
                       <items count="8">
                         <item name="Access" type_name="gh_int32" type_code="3">1</item>
-                        <item name="Description" type_name="gh_string" type_code="10">List of absorption coefficients for each frequency band, or one value for every band.</item>
+                        <item name="Description" type_name="gh_string" type_code="10">Absorption coefficients, one per octave band from 125 Hz to 8 kHz (7 values), or one value for every band.</item>
                         <item name="InstanceGuid" type_name="gh_guid" type_code="9">b6c56c78-ef51-4eae-82b4-b3e0ef8850d6</item>
                         <item name="Name" type_name="gh_string" type_code="10">absorption</item>
                         <item name="NickName" type_name="gh_string" type_code="10">absorption</item>
@@ -1332,7 +1329,7 @@
                     <chunk name="param_input" index="1">
                       <items count="8">
                         <item name="Access" type_name="gh_int32" type_code="3">1</item>
-                        <item name="Description" type_name="gh_string" type_code="10">Optional. List of scattering coefficients for each frequency band, or one value for every band.</item>
+                        <item name="Description" type_name="gh_string" type_code="10">Optional. Scattering coefficients, one per octave band from 125 Hz to 8 kHz (7 values), or one value for every band.</item>
                         <item name="InstanceGuid" type_name="gh_guid" type_code="9">acc7e470-f375-487b-af4d-c071cb42805e</item>
                         <item name="Name" type_name="gh_string" type_code="10">scattering</item>
                         <item name="NickName" type_name="gh_string" type_code="10">scattering</item>
@@ -1572,23 +1569,22 @@
               </items>
               <chunks count="1">
                 <chunk name="Container">
-                  <items count="7">
+                  <items count="6">
                     <item name="Description" type_name="gh_string" type_code="10">Create an AcousticMaterial for AcousticObject(s).</item>
                     <item name="InstanceGuid" type_name="gh_guid" type_code="9">bb60fe88-88c5-4c9f-960c-21901ad7bb51</item>
                     <item name="Name" type_name="gh_string" type_code="10">Construct Material</item>
                     <item name="NickName" type_name="gh_string" type_code="10">acoustic_plaster</item>
                     <item name="control_inputs_hidden" type_name="gh_string" type_code="10">category</item>
                     <item name="control_inputs_shown" type_name="gh_bool" type_code="1">false</item>
-                    <item name="preview_default_v2" type_name="gh_bool" type_code="1">true</item>
                   </items>
                   <chunks count="5">
                     <chunk name="Attributes">
                       <items count="2">
                         <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
                           <X>189</X>
-                          <Y>954</Y>
+                          <Y>978</Y>
                           <W>132</W>
-                          <H>215</H>
+                          <H>168</H>
                         </item>
                         <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
                           <X>260</X>
@@ -1599,7 +1595,7 @@
                     <chunk name="param_input" index="0">
                       <items count="8">
                         <item name="Access" type_name="gh_int32" type_code="3">1</item>
-                        <item name="Description" type_name="gh_string" type_code="10">List of absorption coefficients for each frequency band, or one value for every band.</item>
+                        <item name="Description" type_name="gh_string" type_code="10">Absorption coefficients, one per octave band from 125 Hz to 8 kHz (7 values), or one value for every band.</item>
                         <item name="InstanceGuid" type_name="gh_guid" type_code="9">f5ee71af-1138-4ea0-80fe-2cce768c04fb</item>
                         <item name="Name" type_name="gh_string" type_code="10">absorption</item>
                         <item name="NickName" type_name="gh_string" type_code="10">absorption</item>
@@ -1612,13 +1608,13 @@
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
                               <X>191</X>
-                              <Y>956</Y>
+                              <Y>980</Y>
                               <W>54</W>
-                              <H>35</H>
+                              <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
                               <X>219.5</X>
-                              <Y>973.8333</Y>
+                              <Y>990</Y>
                             </item>
                           </items>
                         </chunk>
@@ -1627,7 +1623,7 @@
                     <chunk name="param_input" index="1">
                       <items count="8">
                         <item name="Access" type_name="gh_int32" type_code="3">1</item>
-                        <item name="Description" type_name="gh_string" type_code="10">Optional. List of scattering coefficients for each frequency band, or one value for every band.</item>
+                        <item name="Description" type_name="gh_string" type_code="10">Optional. Scattering coefficients, one per octave band from 125 Hz to 8 kHz (7 values), or one value for every band.</item>
                         <item name="InstanceGuid" type_name="gh_guid" type_code="9">adbc5659-6543-4c8e-a444-9b0cad27c61b</item>
                         <item name="Name" type_name="gh_string" type_code="10">scattering</item>
                         <item name="NickName" type_name="gh_string" type_code="10">scattering</item>
@@ -1640,13 +1636,13 @@
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
                               <X>191</X>
-                              <Y>991</Y>
+                              <Y>1000</Y>
                               <W>54</W>
-                              <H>36</H>
+                              <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
                               <X>219.5</X>
-                              <Y>1009.5</Y>
+                              <Y>1010</Y>
                             </item>
                           </items>
                         </chunk>
@@ -1667,13 +1663,13 @@
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
                               <X>191</X>
-                              <Y>1027</Y>
+                              <Y>1020</Y>
                               <W>54</W>
-                              <H>36</H>
+                              <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
                               <X>219.5</X>
-                              <Y>1045.1667</Y>
+                              <Y>1030</Y>
                             </item>
                           </items>
                         </chunk>
@@ -1693,13 +1689,13 @@
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
                               <X>275</X>
-                              <Y>956</Y>
+                              <Y>980</Y>
                               <W>44</W>
-                              <H>107</H>
+                              <H>60</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
                               <X>297</X>
-                              <Y>1009.5</Y>
+                              <Y>1010</Y>
                             </item>
                           </items>
                         </chunk>
@@ -2047,13 +2043,12 @@ ceiling</item>
               </items>
               <chunks count="1">
                 <chunk name="Container">
-                  <items count="6">
-                    <item name="Description" type_name="gh_string" type_code="10">Create an AcousticObject with the specified geometry, material and role. A boundary is part of the closed room; an obstacle (furniture, a screen) stands free inside it and reflects from both sides. Choose its role on the body: boundary (a surface of the room, the default) or obstacle (an object inside it).</item>
+                  <items count="5">
+                    <item name="Description" type_name="gh_string" type_code="10">Create an AcousticObject with the specified geometry, material and role. A boundary is part of the closed room; an obstacle (furniture, a screen) stands free inside it and reflects from both sides. Choose its role on the body: boundary (the default) or obstacle.</item>
                     <item name="Hidden" type_name="gh_bool" type_code="1">true</item>
                     <item name="InstanceGuid" type_name="gh_guid" type_code="9">a21be938-156d-421b-9c48-dd04324b4047</item>
                     <item name="Name" type_name="gh_string" type_code="10">Acoustic Object</item>
                     <item name="NickName" type_name="gh_string" type_code="10">Obj</item>
-                    <item name="preview_default_v2" type_name="gh_bool" type_code="1">true</item>
                   </items>
                   <chunks count="5">
                     <chunk name="Attributes">
@@ -2285,23 +2280,20 @@ ceiling</item>
               </items>
               <chunks count="1">
                 <chunk name="Container">
-                  <items count="7">
+                  <items count="4">
                     <item name="Description" type_name="gh_string" type_code="10">Acoustic Source object (speaker, human, etc.). Choose its directivity on the body: omnidirectional (default), cardioid, supercardioid, hypercardioid or bidirectional.</item>
                     <item name="InstanceGuid" type_name="gh_guid" type_code="9">484fe9fb-bf58-4a18-b90d-1ea33e796857</item>
                     <item name="Name" type_name="gh_string" type_code="10">Source</item>
                     <item name="NickName" type_name="gh_string" type_code="10">Source</item>
-                    <item name="control_inputs_hidden" type_name="gh_string" type_code="10">sound_file</item>
-                    <item name="control_inputs_shown" type_name="gh_bool" type_code="1">false</item>
-                    <item name="preview_default_v2" type_name="gh_bool" type_code="1">true</item>
                   </items>
                   <chunks count="6">
                     <chunk name="Attributes">
                       <items count="2">
                         <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                          <X>998</X>
+                          <X>989</X>
                           <Y>278</Y>
-                          <W>117</W>
-                          <H>158</H>
+                          <W>135</W>
+                          <H>128</H>
                         </item>
                         <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
                           <X>1060</X>
@@ -2323,13 +2315,13 @@ ceiling</item>
                         <chunk name="Attributes">
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                              <X>1000</X>
+                              <X>991</X>
                               <Y>280</Y>
                               <W>45</W>
                               <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                              <X>1024</X>
+                              <X>1015</X>
                               <Y>290</Y>
                             </item>
                           </items>
@@ -2350,13 +2342,13 @@ ceiling</item>
                         <chunk name="Attributes">
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                              <X>1000</X>
+                              <X>991</X>
                               <Y>300</Y>
                               <W>45</W>
                               <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                              <X>1024</X>
+                              <X>1015</X>
                               <Y>310</Y>
                             </item>
                           </items>
@@ -2376,13 +2368,13 @@ ceiling</item>
                         <chunk name="Attributes">
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                              <X>1000</X>
+                              <X>991</X>
                               <Y>320</Y>
                               <W>45</W>
                               <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                              <X>1024</X>
+                              <X>1015</X>
                               <Y>330</Y>
                             </item>
                           </items>
@@ -2392,7 +2384,7 @@ ceiling</item>
                     <chunk name="param_input" index="3">
                       <items count="7">
                         <item name="Access" type_name="gh_int32" type_code="3">1</item>
-                        <item name="Description" type_name="gh_string" type_code="10">The source's level: the sound pressure level on its axis at 1 m in free field, in dB, per octave band 125 Hz to 8 kHz (7 values) or one value for every band. Empty: 120 dB. Analyse IR's SPL reads from it.</item>
+                        <item name="Description" type_name="gh_string" type_code="10">The source's level: the sound pressure level on its axis at 1 m in free field, in dB, per octave band 125 Hz to 8 kHz (7 values) or one value for every band. Empty: 120 dB. The SPL of Analyse Impulse Response reads from it.</item>
                         <item name="InstanceGuid" type_name="gh_guid" type_code="9">272d5357-c244-49dd-b34e-abce22f3f61f</item>
                         <item name="Name" type_name="gh_string" type_code="10">spl</item>
                         <item name="NickName" type_name="gh_string" type_code="10">spl</item>
@@ -2403,13 +2395,13 @@ ceiling</item>
                         <chunk name="Attributes">
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                              <X>1000</X>
+                              <X>991</X>
                               <Y>340</Y>
                               <W>45</W>
                               <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                              <X>1024</X>
+                              <X>1015</X>
                               <Y>350</Y>
                             </item>
                           </items>
@@ -2429,13 +2421,13 @@ ceiling</item>
                         <chunk name="Attributes">
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                              <X>1075</X>
+                              <X>1084</X>
                               <Y>280</Y>
                               <W>38</W>
                               <H>80</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                              <X>1094</X>
+                              <X>1103</X>
                               <Y>320</Y>
                             </item>
                           </items>
@@ -2550,23 +2542,20 @@ ceiling</item>
               </items>
               <chunks count="1">
                 <chunk name="Container">
-                  <items count="7">
+                  <items count="4">
                     <item name="Description" type_name="gh_string" type_code="10">Acoustic Source object (speaker, human, etc.). Choose its directivity on the body: omnidirectional (default), cardioid, supercardioid, hypercardioid or bidirectional.</item>
                     <item name="InstanceGuid" type_name="gh_guid" type_code="9">4a01f742-188c-45ec-953d-04ebf5a57611</item>
                     <item name="Name" type_name="gh_string" type_code="10">Source</item>
                     <item name="NickName" type_name="gh_string" type_code="10">Source</item>
-                    <item name="control_inputs_hidden" type_name="gh_string" type_code="10">sound_file</item>
-                    <item name="control_inputs_shown" type_name="gh_bool" type_code="1">false</item>
-                    <item name="preview_default_v2" type_name="gh_bool" type_code="1">true</item>
                   </items>
                   <chunks count="6">
                     <chunk name="Attributes">
                       <items count="2">
                         <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                          <X>998</X>
+                          <X>989</X>
                           <Y>408</Y>
-                          <W>117</W>
-                          <H>158</H>
+                          <W>135</W>
+                          <H>128</H>
                         </item>
                         <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
                           <X>1060</X>
@@ -2588,13 +2577,13 @@ ceiling</item>
                         <chunk name="Attributes">
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                              <X>1000</X>
+                              <X>991</X>
                               <Y>410</Y>
                               <W>45</W>
                               <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                              <X>1024</X>
+                              <X>1015</X>
                               <Y>420</Y>
                             </item>
                           </items>
@@ -2615,13 +2604,13 @@ ceiling</item>
                         <chunk name="Attributes">
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                              <X>1000</X>
+                              <X>991</X>
                               <Y>430</Y>
                               <W>45</W>
                               <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                              <X>1024</X>
+                              <X>1015</X>
                               <Y>440</Y>
                             </item>
                           </items>
@@ -2641,13 +2630,13 @@ ceiling</item>
                         <chunk name="Attributes">
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                              <X>1000</X>
+                              <X>991</X>
                               <Y>450</Y>
                               <W>45</W>
                               <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                              <X>1024</X>
+                              <X>1015</X>
                               <Y>460</Y>
                             </item>
                           </items>
@@ -2657,7 +2646,7 @@ ceiling</item>
                     <chunk name="param_input" index="3">
                       <items count="7">
                         <item name="Access" type_name="gh_int32" type_code="3">1</item>
-                        <item name="Description" type_name="gh_string" type_code="10">The source's level: the sound pressure level on its axis at 1 m in free field, in dB, per octave band 125 Hz to 8 kHz (7 values) or one value for every band. Empty: 120 dB. Analyse IR's SPL reads from it.</item>
+                        <item name="Description" type_name="gh_string" type_code="10">The source's level: the sound pressure level on its axis at 1 m in free field, in dB, per octave band 125 Hz to 8 kHz (7 values) or one value for every band. Empty: 120 dB. The SPL of Analyse Impulse Response reads from it.</item>
                         <item name="InstanceGuid" type_name="gh_guid" type_code="9">e053ddf2-dff1-4e77-ba4e-f2f0ee34f976</item>
                         <item name="Name" type_name="gh_string" type_code="10">spl</item>
                         <item name="NickName" type_name="gh_string" type_code="10">spl</item>
@@ -2668,13 +2657,13 @@ ceiling</item>
                         <chunk name="Attributes">
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                              <X>1000</X>
+                              <X>991</X>
                               <Y>470</Y>
                               <W>45</W>
                               <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                              <X>1024</X>
+                              <X>1015</X>
                               <Y>480</Y>
                             </item>
                           </items>
@@ -2694,13 +2683,13 @@ ceiling</item>
                         <chunk name="Attributes">
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                              <X>1075</X>
+                              <X>1084</X>
                               <Y>410</Y>
                               <W>38</W>
                               <H>80</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                              <X>1094</X>
+                              <X>1103</X>
                               <Y>450</Y>
                             </item>
                           </items>
@@ -2815,12 +2804,11 @@ ceiling</item>
               </items>
               <chunks count="1">
                 <chunk name="Container">
-                  <items count="5">
+                  <items count="4">
                     <item name="Description" type_name="gh_string" type_code="10">Acoustic Receiver object (microphone, human ear, etc.) with an orientation: the direction it faces, upright (+z up), which sets the frame of ambisonic responses (x facing, y left, z up).</item>
                     <item name="InstanceGuid" type_name="gh_guid" type_code="9">baebd9f8-c8e1-4d6a-8e1f-4ac62d950540</item>
                     <item name="Name" type_name="gh_string" type_code="10">Receiver</item>
                     <item name="NickName" type_name="gh_string" type_code="10">Receiver</item>
-                    <item name="preview_default_v2" type_name="gh_bool" type_code="1">true</item>
                   </items>
                   <chunks count="5">
                     <chunk name="Attributes">
@@ -3051,12 +3039,11 @@ ceiling</item>
               </items>
               <chunks count="1">
                 <chunk name="Container">
-                  <items count="5">
+                  <items count="4">
                     <item name="Description" type_name="gh_string" type_code="10">Acoustic Receiver object (microphone, human ear, etc.) with an orientation: the direction it faces, upright (+z up), which sets the frame of ambisonic responses (x facing, y left, z up).</item>
                     <item name="InstanceGuid" type_name="gh_guid" type_code="9">f11169a1-5e59-4449-a1ae-e0a087b9f7fb</item>
                     <item name="Name" type_name="gh_string" type_code="10">Receiver</item>
                     <item name="NickName" type_name="gh_string" type_code="10">Receiver</item>
-                    <item name="preview_default_v2" type_name="gh_bool" type_code="1">true</item>
                   </items>
                   <chunks count="5">
                     <chunk name="Attributes">
@@ -3191,21 +3178,20 @@ ceiling</item>
               </items>
               <chunks count="1">
                 <chunk name="Container">
-                  <items count="6">
-                    <item name="Description" type_name="gh_string" type_code="10">Create an acoustic scene with the specified objects, sources, and receivers.</item>
+                  <items count="5">
+                    <item name="Description" type_name="gh_string" type_code="10">Create an acoustic scene with the specified objects, sources and receivers. Choose its sampling rate on the body: 44.1, 48 (default) or 96 kHz.</item>
                     <item name="Hidden" type_name="gh_bool" type_code="1">true</item>
                     <item name="InstanceGuid" type_name="gh_guid" type_code="9">1611cebc-630d-45e5-97a8-9d04987d1d82</item>
                     <item name="Name" type_name="gh_string" type_code="10">Acoustic Scene</item>
                     <item name="NickName" type_name="gh_string" type_code="10">Scene</item>
-                    <item name="preview_default_v2" type_name="gh_bool" type_code="1">true</item>
                   </items>
                   <chunks count="6">
                     <chunk name="Attributes">
                       <items count="2">
                         <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                          <X>1200</X>
+                          <X>1198</X>
                           <Y>418</Y>
-                          <W>131</W>
+                          <W>135</W>
                           <H>128</H>
                         </item>
                         <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
@@ -3217,7 +3203,7 @@ ceiling</item>
                     <chunk name="param_input" index="0">
                       <items count="9">
                         <item name="Access" type_name="gh_int32" type_code="3">1</item>
-                        <item name="Description" type_name="gh_string" type_code="10">List of AcousticObject</item>
+                        <item name="Description" type_name="gh_string" type_code="10">List of AcousticObject objects.</item>
                         <item name="InstanceGuid" type_name="gh_guid" type_code="9">dd3f1c17-9389-4263-a5bf-0ad9e2c73ca2</item>
                         <item name="Mapping" type_name="gh_int32" type_code="3">1</item>
                         <item name="Name" type_name="gh_string" type_code="10">objects</item>
@@ -3230,13 +3216,13 @@ ceiling</item>
                         <chunk name="Attributes">
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                              <X>1202</X>
+                              <X>1200</X>
                               <Y>420</Y>
                               <W>63</W>
                               <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                              <X>1243</X>
+                              <X>1241</X>
                               <Y>430</Y>
                             </item>
                           </items>
@@ -3260,13 +3246,13 @@ ceiling</item>
                         <chunk name="Attributes">
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                              <X>1202</X>
+                              <X>1200</X>
                               <Y>440</Y>
                               <W>63</W>
                               <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                              <X>1243</X>
+                              <X>1241</X>
                               <Y>450</Y>
                             </item>
                           </items>
@@ -3290,13 +3276,13 @@ ceiling</item>
                         <chunk name="Attributes">
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                              <X>1202</X>
+                              <X>1200</X>
                               <Y>460</Y>
                               <W>63</W>
                               <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                              <X>1243</X>
+                              <X>1241</X>
                               <Y>470</Y>
                             </item>
                           </items>
@@ -3305,7 +3291,7 @@ ceiling</item>
                     </chunk>
                     <chunk name="param_input" index="3">
                       <items count="7">
-                        <item name="Description" type_name="gh_string" type_code="10">Name of the room scene.</item>
+                        <item name="Description" type_name="gh_string" type_code="10">Name of the acoustic scene.</item>
                         <item name="InstanceGuid" type_name="gh_guid" type_code="9">f315b570-99d6-4528-9a8f-e57e613e4e3d</item>
                         <item name="Name" type_name="gh_string" type_code="10">name</item>
                         <item name="NickName" type_name="gh_string" type_code="10">name</item>
@@ -3317,13 +3303,13 @@ ceiling</item>
                         <chunk name="Attributes">
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                              <X>1202</X>
+                              <X>1200</X>
                               <Y>480</Y>
                               <W>63</W>
                               <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                              <X>1243</X>
+                              <X>1241</X>
                               <Y>490</Y>
                             </item>
                           </items>
@@ -3332,7 +3318,7 @@ ceiling</item>
                     </chunk>
                     <chunk name="param_output" index="0">
                       <items count="6">
-                        <item name="Description" type_name="gh_string" type_code="10">Room scene object.</item>
+                        <item name="Description" type_name="gh_string" type_code="10">Acoustic scene object.</item>
                         <item name="InstanceGuid" type_name="gh_guid" type_code="9">9c3ee358-2fa1-4d09-98e7-6c31668bbb7d</item>
                         <item name="Name" type_name="gh_string" type_code="10">scene</item>
                         <item name="NickName" type_name="gh_string" type_code="10">scene</item>
@@ -3343,13 +3329,13 @@ ceiling</item>
                         <chunk name="Attributes">
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                              <X>1295</X>
+                              <X>1297</X>
                               <Y>420</Y>
                               <W>34</W>
                               <H>80</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                              <X>1312</X>
+                              <X>1314</X>
                               <Y>460</Y>
                             </item>
                           </items>
@@ -3512,27 +3498,23 @@ ceiling</item>
               </items>
               <chunks count="1">
                 <chunk name="Container">
-                  <items count="8">
-                    <item name="Description" type_name="gh_string" type_code="10">Simulate mono room impulse responses with pyroomacoustics: the image source method (ISM), plus ray tracing (RT) by default. The reference of Simulate Binaural and Simulate Ambisonics. Writes the responses to the impulse response graph under 'mono' and 'data'.</item>
+                  <items count="7">
+                    <item name="Description" type_name="gh_string" type_code="10">Simulate mono room impulse responses with pyroomacoustics: the image source method (ISM), plus ray tracing (RT) by default. Air absorption (ISO 9613-1) is always included, as in Simulate Binaural and Simulate Ambisonics. The reference of Simulate Binaural and Simulate Ambisonics.</item>
                     <item name="InstanceGuid" type_name="gh_guid" type_code="9">f6980ff4-7096-4fa7-a4ea-0f87aa83a10d</item>
                     <item name="Name" type_name="gh_string" type_code="10">Simulate Mono</item>
                     <item name="NickName" type_name="gh_string" type_code="10">SimMono</item>
-                    <item name="control_inputs_hidden" type_name="gh_string" type_code="10">ism_order
-ray_tracing
-absorb_air
-normalize</item>
+                    <item name="control_inputs_hidden" type_name="gh_string" type_code="10">ism_order</item>
                     <item name="control_inputs_shown" type_name="gh_bool" type_code="1">false</item>
                     <item name="control_value_ism_order" type_name="gh_string" type_code="10">3</item>
-                    <item name="preview_default_v2" type_name="gh_bool" type_code="1">true</item>
                   </items>
                   <chunks count="7">
                     <chunk name="Attributes">
                       <items count="2">
                         <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                          <X>1497</X>
+                          <X>1493</X>
                           <Y>408</Y>
-                          <W>178</W>
-                          <H>178</H>
+                          <W>135</W>
+                          <H>148</H>
                         </item>
                         <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
                           <X>1580</X>
@@ -3542,7 +3524,7 @@ normalize</item>
                     </chunk>
                     <chunk name="param_input" index="0">
                       <items count="7">
-                        <item name="Description" type_name="gh_string" type_code="10">Room scene object.</item>
+                        <item name="Description" type_name="gh_string" type_code="10">Acoustic scene object.</item>
                         <item name="InstanceGuid" type_name="gh_guid" type_code="9">72c3b8bd-d089-47aa-9cb9-ad5eafe4d5e3</item>
                         <item name="Name" type_name="gh_string" type_code="10">scene</item>
                         <item name="NickName" type_name="gh_string" type_code="10">scene</item>
@@ -3554,13 +3536,13 @@ normalize</item>
                         <chunk name="Attributes">
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                              <X>1499</X>
+                              <X>1495</X>
                               <Y>410</Y>
-                              <W>66</W>
+                              <W>56</W>
                               <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                              <X>1533.5</X>
+                              <X>1524.5</X>
                               <Y>420</Y>
                             </item>
                           </items>
@@ -3568,8 +3550,34 @@ normalize</item>
                       </chunks>
                     </chunk>
                     <chunk name="param_input" index="1">
+                      <items count="6">
+                        <item name="Description" type_name="gh_string" type_code="10">Add ray tracing after the image sources (default True). Off: image sources only. Materials without scattering coefficients scatter 0.05.</item>
+                        <item name="InstanceGuid" type_name="gh_guid" type_code="9">21b5bf1d-8da0-4c46-aa83-9f30b6422bc4</item>
+                        <item name="Name" type_name="gh_string" type_code="10">ray_tracing</item>
+                        <item name="NickName" type_name="gh_string" type_code="10">ray_tracing</item>
+                        <item name="Optional" type_name="gh_bool" type_code="1">true</item>
+                        <item name="SourceCount" type_name="gh_int32" type_code="3">0</item>
+                      </items>
+                      <chunks count="1">
+                        <chunk name="Attributes">
+                          <items count="2">
+                            <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
+                              <X>1495</X>
+                              <Y>430</Y>
+                              <W>56</W>
+                              <H>20</H>
+                            </item>
+                            <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
+                              <X>1524.5</X>
+                              <Y>440</Y>
+                            </item>
+                          </items>
+                        </chunk>
+                      </chunks>
+                    </chunk>
+                    <chunk name="param_input" index="2">
                       <items count="7">
-                        <item name="Description" type_name="gh_string" type_code="10">Number of rays per source. Ray tracing only.</item>
+                        <item name="Description" type_name="gh_string" type_code="10">Number of rays per source. Empty (default): Vorlaender's count for a direction's energy to 1 dB from the room's volume, at least 20000, the count Simulate Binaural and Simulate Ambisonics trace their own reference with. A larger number gives a smoother tail at a longer run. Ray tracing only.</item>
                         <item name="InstanceGuid" type_name="gh_guid" type_code="9">4653ae4d-8748-402d-9c00-18954226b185</item>
                         <item name="Name" type_name="gh_string" type_code="10">n_rays</item>
                         <item name="NickName" type_name="gh_string" type_code="10">n_rays</item>
@@ -3581,14 +3589,14 @@ normalize</item>
                         <chunk name="Attributes">
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                              <X>1499</X>
-                              <Y>430</Y>
-                              <W>66</W>
+                              <X>1495</X>
+                              <Y>450</Y>
+                              <W>56</W>
                               <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                              <X>1533.5</X>
-                              <Y>440</Y>
+                              <X>1524.5</X>
+                              <Y>460</Y>
                             </item>
                           </items>
                         </chunk>
@@ -3614,55 +3622,9 @@ normalize</item>
                         </chunk>
                       </chunks>
                     </chunk>
-                    <chunk name="param_input" index="2">
-                      <items count="6">
-                        <item name="Description" type_name="gh_string" type_code="10">Energy at which a ray is stopped (pyroomacoustics' own default). Ray tracing only.</item>
-                        <item name="InstanceGuid" type_name="gh_guid" type_code="9">d56c5b2b-2c43-43dd-ad7c-3ce9c463e3bc</item>
-                        <item name="Name" type_name="gh_string" type_code="10">energy_thres</item>
-                        <item name="NickName" type_name="gh_string" type_code="10">energy_thres</item>
-                        <item name="Optional" type_name="gh_bool" type_code="1">true</item>
-                        <item name="SourceCount" type_name="gh_int32" type_code="3">0</item>
-                      </items>
-                      <chunks count="2">
-                        <chunk name="Attributes">
-                          <items count="2">
-                            <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                              <X>1499</X>
-                              <Y>450</Y>
-                              <W>66</W>
-                              <H>20</H>
-                            </item>
-                            <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                              <X>1533.5</X>
-                              <Y>460</Y>
-                            </item>
-                          </items>
-                        </chunk>
-                        <chunk name="PersistentData">
-                          <items count="1">
-                            <item name="Count" type_name="gh_int32" type_code="3">1</item>
-                          </items>
-                          <chunks count="1">
-                            <chunk name="Branch" index="0">
-                              <items count="2">
-                                <item name="Count" type_name="gh_int32" type_code="3">1</item>
-                                <item name="Path" type_name="gh_string" type_code="10">{0}</item>
-                              </items>
-                              <chunks count="1">
-                                <chunk name="Item" index="0">
-                                  <items count="1">
-                                    <item name="number" type_name="gh_double" type_code="6">1E-07</item>
-                                  </items>
-                                </chunk>
-                              </chunks>
-                            </chunk>
-                          </chunks>
-                        </chunk>
-                      </chunks>
-                    </chunk>
                     <chunk name="param_input" index="3">
                       <items count="6">
-                        <item name="Description" type_name="gh_string" type_code="10">Length of the responses in seconds (default: 1.5 times the longest Eyring reverberation time, 0.5 to 12 s). Ray tracing only.</item>
+                        <item name="Description" type_name="gh_string" type_code="10">Length of the responses in seconds. Default: 1.5 times the longest Eyring reverberation time (0.5 to 12 s), traced again longer while the responses end before 2/3 of their T30, up to 12 s. A given duration is kept and warns when it cuts the decay. Ray tracing only.</item>
                         <item name="InstanceGuid" type_name="gh_guid" type_code="9">94e72f1c-9952-4558-9b43-bac118cc5cfa</item>
                         <item name="Name" type_name="gh_string" type_code="10">duration</item>
                         <item name="NickName" type_name="gh_string" type_code="10">duration</item>
@@ -3673,13 +3635,13 @@ normalize</item>
                         <chunk name="Attributes">
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                              <X>1499</X>
+                              <X>1495</X>
                               <Y>470</Y>
-                              <W>66</W>
+                              <W>56</W>
                               <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                              <X>1533.5</X>
+                              <X>1524.5</X>
                               <Y>480</Y>
                             </item>
                           </items>
@@ -3688,7 +3650,7 @@ normalize</item>
                     </chunk>
                     <chunk name="param_input" index="4">
                       <items count="7">
-                        <item name="Description" type_name="gh_string" type_code="10">Random seed of the ray tracing. Empty (default): a new random seed each run, shown in the component's message. A number: the same scene gives the same responses, another number another draw. Ray tracing only.</item>
+                        <item name="Description" type_name="gh_string" type_code="10">Seed of the ray tracing, 42 as in the method: the same seed gives the same responses, another number another realisation of the rays. Ray tracing only.</item>
                         <item name="InstanceGuid" type_name="gh_guid" type_code="9">77b3e1ca-ad4a-40cc-980d-ca24ac2d994b</item>
                         <item name="Name" type_name="gh_string" type_code="10">seed</item>
                         <item name="NickName" type_name="gh_string" type_code="10">seed</item>
@@ -3700,13 +3662,13 @@ normalize</item>
                         <chunk name="Attributes">
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                              <X>1499</X>
+                              <X>1495</X>
                               <Y>490</Y>
-                              <W>66</W>
+                              <W>56</W>
                               <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                              <X>1533.5</X>
+                              <X>1524.5</X>
                               <Y>500</Y>
                             </item>
                           </items>
@@ -3715,10 +3677,10 @@ normalize</item>
                     </chunk>
                     <chunk name="param_output" index="0">
                       <items count="6">
-                        <item name="Description" type_name="gh_string" type_code="10">IR graph of the mono responses (under 'mono'), for Deconstruct IR Graph or the reference of Simulate Binaural and Simulate Ambisonics.</item>
+                        <item name="Description" type_name="gh_string" type_code="10">The mono impulse responses, one per source and receiver in scene order (receiver by receiver, sources within each). Connect them to Analyse Impulse Response, Audio Player or Auralise, or to the reference of Simulate Binaural and Simulate Ambisonics.</item>
                         <item name="InstanceGuid" type_name="gh_guid" type_code="9">92d81bc3-53fc-4be2-9099-edf1ced16192</item>
-                        <item name="Name" type_name="gh_string" type_code="10">mono_ir_graph</item>
-                        <item name="NickName" type_name="gh_string" type_code="10">mono_ir_graph</item>
+                        <item name="Name" type_name="gh_string" type_code="10">irs</item>
+                        <item name="NickName" type_name="gh_string" type_code="10">irs</item>
                         <item name="Optional" type_name="gh_bool" type_code="1">false</item>
                         <item name="SourceCount" type_name="gh_int32" type_code="3">0</item>
                       </items>
@@ -3726,13 +3688,13 @@ normalize</item>
                         <chunk name="Attributes">
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                              <X>1595</X>
+                              <X>1609</X>
                               <Y>410</Y>
-                              <W>78</W>
+                              <W>17</W>
                               <H>100</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                              <X>1634</X>
+                              <X>1617.5</X>
                               <Y>460</Y>
                             </item>
                           </items>
@@ -3745,45 +3707,45 @@ normalize</item>
             </chunk>
             <chunk name="Object" index="40">
               <items count="3">
-                <item name="GUID" type_name="gh_guid" type_code="9">c7f804dd-316a-5c87-8ee1-5b392d3ce202</item>
+                <item name="GUID" type_name="gh_guid" type_code="9">410e7b44-f239-5e1e-ba74-5884e208b73e</item>
                 <item name="Lib" type_name="gh_guid" type_code="9">7f0b6a3e-2f4d-4a51-9a1c-3c8e2d5b9e41</item>
-                <item name="Name" type_name="gh_string" type_code="10">Deconstruct IR Graph</item>
+                <item name="Name" type_name="gh_string" type_code="10">Analyse Impulse Response</item>
               </items>
               <chunks count="1">
                 <chunk name="Container">
-                  <items count="9">
-                    <item name="Description" type_name="gh_string" type_code="10">Deconstruct impulse response graph structure into ImpulseResponse(s). It reads the responses of the simulation method whose component the graph came from: Simulate Mono gives the mono responses, Simulate Binaural the binaural ones, Simulate Ambisonics the ambisonic ones.</item>
-                    <item name="InstanceGuid" type_name="gh_guid" type_code="9">704cc891-6c65-4772-855e-db58120a1bf5</item>
-                    <item name="Name" type_name="gh_string" type_code="10">Deconstruct IR Graph</item>
-                    <item name="NickName" type_name="gh_string" type_code="10">DeIRGraph</item>
+                  <items count="8">
+                    <item name="Description" type_name="gh_string" type_code="10">Analyse impulse responses (IRs): acoustic parameters such as EDT, T20 and C50, and the time and frequency responses for Plot 2D, of each source-receiver pair chosen. Computed in the compas_acoustics worker.</item>
+                    <item name="InstanceGuid" type_name="gh_guid" type_code="9">509a8463-9826-4b30-ae7b-926e0f698d16</item>
+                    <item name="Name" type_name="gh_string" type_code="10">Analyse Impulse Response</item>
+                    <item name="NickName" type_name="gh_string" type_code="10">AnalyseIR</item>
                     <item name="control_inputs_hidden" type_name="gh_string" type_code="10">source_idx
 receiver_idx</item>
                     <item name="control_inputs_shown" type_name="gh_bool" type_code="1">false</item>
                     <item name="control_value_receiver_idx" type_name="gh_string" type_code="10">1</item>
                     <item name="control_value_source_idx" type_name="gh_string" type_code="10">1</item>
-                    <item name="preview_default_v2" type_name="gh_bool" type_code="1">true</item>
                   </items>
-                  <chunks count="6">
+                  <chunks count="5">
                     <chunk name="Attributes">
                       <items count="2">
                         <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                          <X>1791</X>
-                          <Y>418</Y>
-                          <W>126</W>
-                          <H>169</H>
+                          <X>2035</X>
+                          <Y>428</Y>
+                          <W>135</W>
+                          <H>149</H>
                         </item>
                         <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                          <X>1850</X>
+                          <X>1820</X>
                           <Y>460</Y>
                         </item>
                       </items>
                     </chunk>
                     <chunk name="param_input" index="0">
-                      <items count="7">
-                        <item name="Description" type_name="gh_string" type_code="10">Impulse response graph structure.</item>
-                        <item name="InstanceGuid" type_name="gh_guid" type_code="9">98c0f804-5cef-4706-9988-2a9771a1a08b</item>
-                        <item name="Name" type_name="gh_string" type_code="10">ir_graph</item>
-                        <item name="NickName" type_name="gh_string" type_code="10">ir_graph</item>
+                      <items count="8">
+                        <item name="Access" type_name="gh_int32" type_code="3">2</item>
+                        <item name="Description" type_name="gh_string" type_code="10">ImpulseResponse (IR) object.</item>
+                        <item name="InstanceGuid" type_name="gh_guid" type_code="9">2e9fb98f-fcc3-41be-97ca-cb28e9f3f0d8</item>
+                        <item name="Name" type_name="gh_string" type_code="10">irs</item>
+                        <item name="NickName" type_name="gh_string" type_code="10">irs</item>
                         <item name="Optional" type_name="gh_bool" type_code="1">false</item>
                         <item name="Source" index="0" type_name="gh_guid" type_code="9">92d81bc3-53fc-4be2-9099-edf1ced16192</item>
                         <item name="SourceCount" type_name="gh_int32" type_code="3">1</item>
@@ -3792,13 +3754,13 @@ receiver_idx</item>
                         <chunk name="Attributes">
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                              <X>1793</X>
-                              <Y>420</Y>
-                              <W>42</W>
-                              <H>80</H>
+                              <X>2037</X>
+                              <Y>430</Y>
+                              <W>14</W>
+                              <H>60</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                              <X>1815.5</X>
+                              <X>2046</X>
                               <Y>460</Y>
                             </item>
                           </items>
@@ -3807,10 +3769,10 @@ receiver_idx</item>
                     </chunk>
                     <chunk name="param_output" index="0">
                       <items count="6">
-                        <item name="Description" type_name="gh_string" type_code="10">ImpulseResponse object(s).</item>
-                        <item name="InstanceGuid" type_name="gh_guid" type_code="9">20d4605c-5979-4c6b-a86f-9194cf78a232</item>
-                        <item name="Name" type_name="gh_string" type_code="10">ir</item>
-                        <item name="NickName" type_name="gh_string" type_code="10">ir</item>
+                        <item name="Description" type_name="gh_string" type_code="10">One branch per source-receiver pair, path {receiver;source}: the list of acoustic parameters: 'EDT', 'T20', 'T30', 'C50', 'C80', 'D50', 'DRR', 'Ts', 'STI' (with its modulation transfer index per band), 'G', 'SPL' and 'LF'. G and SPL (the sound pressure level from the source's level at 1 m, overall A-weighted) only for a simulated response; LF, the early lateral energy fraction, only for an ambisonic one. Each title ends with ' - source to receiver'.</item>
+                        <item name="InstanceGuid" type_name="gh_guid" type_code="9">b10dcb05-752a-47ba-a376-426b6adddeb4</item>
+                        <item name="Name" type_name="gh_string" type_code="10">parameters</item>
+                        <item name="NickName" type_name="gh_string" type_code="10">parameters</item>
                         <item name="Optional" type_name="gh_bool" type_code="1">false</item>
                         <item name="SourceCount" type_name="gh_int32" type_code="3">0</item>
                       </items>
@@ -3818,14 +3780,14 @@ receiver_idx</item>
                         <chunk name="Attributes">
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                              <X>1865</X>
-                              <Y>420</Y>
-                              <W>50</W>
+                              <X>2108</X>
+                              <Y>430</Y>
+                              <W>60</W>
                               <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                              <X>1890</X>
-                              <Y>430</Y>
+                              <X>2138.5</X>
+                              <Y>440</Y>
                             </item>
                           </items>
                         </chunk>
@@ -3833,10 +3795,10 @@ receiver_idx</item>
                     </chunk>
                     <chunk name="param_output" index="1">
                       <items count="6">
-                        <item name="Description" type_name="gh_string" type_code="10">Source object(s).</item>
-                        <item name="InstanceGuid" type_name="gh_guid" type_code="9">22b38d52-bb15-4502-925c-bf136b6e01c6</item>
-                        <item name="Name" type_name="gh_string" type_code="10">sources</item>
-                        <item name="NickName" type_name="gh_string" type_code="10">sources</item>
+                        <item name="Description" type_name="gh_string" type_code="10">One branch per source-receiver pair, path {receiver;source}: the impulse response against time, for Plot 2D or a panel: the W channel of an ambisonic response, both ears (left, right) of a binaural one. Right-click the output to choose the scale: dB (default), the level re the peak, floored 100 dB below it, over the whole response; or linear, the amplitude, ending 5 % after the Schroeder curve has fallen 60 dB, below which the amplitude is not visible. The parameters and the frequency output use the whole response.</item>
+                        <item name="InstanceGuid" type_name="gh_guid" type_code="9">9c3e8d7e-45f3-4723-94cb-fbad51f2f72b</item>
+                        <item name="Name" type_name="gh_string" type_code="10">time</item>
+                        <item name="NickName" type_name="gh_string" type_code="10">time</item>
                         <item name="Optional" type_name="gh_bool" type_code="1">false</item>
                         <item name="SourceCount" type_name="gh_int32" type_code="3">0</item>
                       </items>
@@ -3844,14 +3806,14 @@ receiver_idx</item>
                         <chunk name="Attributes">
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                              <X>1865</X>
-                              <Y>440</Y>
-                              <W>50</W>
+                              <X>2108</X>
+                              <Y>450</Y>
+                              <W>60</W>
                               <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                              <X>1890</X>
-                              <Y>450</Y>
+                              <X>2138.5</X>
+                              <Y>460</Y>
                             </item>
                           </items>
                         </chunk>
@@ -3859,10 +3821,10 @@ receiver_idx</item>
                     </chunk>
                     <chunk name="param_output" index="2">
                       <items count="6">
-                        <item name="Description" type_name="gh_string" type_code="10">Receiver object(s).</item>
-                        <item name="InstanceGuid" type_name="gh_guid" type_code="9">cbb5f227-5a17-4f8b-8c07-ff35a2839dbe</item>
-                        <item name="Name" type_name="gh_string" type_code="10">receivers</item>
-                        <item name="NickName" type_name="gh_string" type_code="10">receivers</item>
+                        <item name="Description" type_name="gh_string" type_code="10">One branch per source-receiver pair, path {receiver;source}: the frequency response, 1/3-octave smoothed, 20 Hz to 20 kHz in dB re the peak, for Plot 2D or a panel: the W channel of an ambisonic response, both ears (left, right) of a binaural one.</item>
+                        <item name="InstanceGuid" type_name="gh_guid" type_code="9">c997fa92-d345-4683-87f1-9d538f66f105</item>
+                        <item name="Name" type_name="gh_string" type_code="10">frequency</item>
+                        <item name="NickName" type_name="gh_string" type_code="10">frequency</item>
                         <item name="Optional" type_name="gh_bool" type_code="1">false</item>
                         <item name="SourceCount" type_name="gh_int32" type_code="3">0</item>
                       </items>
@@ -3870,40 +3832,14 @@ receiver_idx</item>
                         <chunk name="Attributes">
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                              <X>1865</X>
-                              <Y>460</Y>
-                              <W>50</W>
-                              <H>20</H>
-                            </item>
-                            <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                              <X>1890</X>
+                              <X>2108</X>
                               <Y>470</Y>
-                            </item>
-                          </items>
-                        </chunk>
-                      </chunks>
-                    </chunk>
-                    <chunk name="param_output" index="3">
-                      <items count="6">
-                        <item name="Description" type_name="gh_string" type_code="10">Relationships between sources and receivers as Line(s).</item>
-                        <item name="InstanceGuid" type_name="gh_guid" type_code="9">1c794326-95ce-473c-8944-70dc8fb2f1c8</item>
-                        <item name="Name" type_name="gh_string" type_code="10">edges</item>
-                        <item name="NickName" type_name="gh_string" type_code="10">edges</item>
-                        <item name="Optional" type_name="gh_bool" type_code="1">false</item>
-                        <item name="SourceCount" type_name="gh_int32" type_code="3">0</item>
-                      </items>
-                      <chunks count="1">
-                        <chunk name="Attributes">
-                          <items count="2">
-                            <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                              <X>1865</X>
-                              <Y>480</Y>
-                              <W>50</W>
+                              <W>60</W>
                               <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                              <X>1890</X>
-                              <Y>490</Y>
+                              <X>2138.5</X>
+                              <Y>480</Y>
                             </item>
                           </items>
                         </chunk>
@@ -3915,181 +3851,42 @@ receiver_idx</item>
             </chunk>
             <chunk name="Object" index="41">
               <items count="3">
-                <item name="GUID" type_name="gh_guid" type_code="9">410e7b44-f239-5e1e-ba74-5884e208b73e</item>
+                <item name="GUID" type_name="gh_guid" type_code="9">ddca21b5-bcc8-5806-85f8-fc0a45ced2e5</item>
                 <item name="Lib" type_name="gh_guid" type_code="9">7f0b6a3e-2f4d-4a51-9a1c-3c8e2d5b9e41</item>
-                <item name="Name" type_name="gh_string" type_code="10">Analyse Impulse Response</item>
-              </items>
-              <chunks count="1">
-                <chunk name="Container">
-                  <items count="5">
-                    <item name="Description" type_name="gh_string" type_code="10">Analyse impulse response (IR) and return acoustic parameters such as EDT, T20, C50, etc., and its time and frequency responses for Plot 2D. Computed in the compas_acoustics worker.</item>
-                    <item name="InstanceGuid" type_name="gh_guid" type_code="9">509a8463-9826-4b30-ae7b-926e0f698d16</item>
-                    <item name="Name" type_name="gh_string" type_code="10">Analyse Impulse Response</item>
-                    <item name="NickName" type_name="gh_string" type_code="10">AnalyseIR</item>
-                    <item name="preview_default_v2" type_name="gh_bool" type_code="1">true</item>
-                  </items>
-                  <chunks count="5">
-                    <chunk name="Attributes">
-                      <items count="2">
-                        <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                          <X>2054</X>
-                          <Y>425</Y>
-                          <W>103</W>
-                          <H>70</H>
-                        </item>
-                        <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                          <X>2080</X>
-                          <Y>460</Y>
-                        </item>
-                      </items>
-                    </chunk>
-                    <chunk name="param_input" index="0">
-                      <items count="7">
-                        <item name="Description" type_name="gh_string" type_code="10">ImpulseResponse (IR) object.</item>
-                        <item name="InstanceGuid" type_name="gh_guid" type_code="9">2e9fb98f-fcc3-41be-97ca-cb28e9f3f0d8</item>
-                        <item name="Name" type_name="gh_string" type_code="10">ir</item>
-                        <item name="NickName" type_name="gh_string" type_code="10">ir</item>
-                        <item name="Optional" type_name="gh_bool" type_code="1">false</item>
-                        <item name="Source" index="0" type_name="gh_guid" type_code="9">20d4605c-5979-4c6b-a86f-9194cf78a232</item>
-                        <item name="SourceCount" type_name="gh_int32" type_code="3">1</item>
-                      </items>
-                      <chunks count="1">
-                        <chunk name="Attributes">
-                          <items count="2">
-                            <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                              <X>2056</X>
-                              <Y>427</Y>
-                              <W>9</W>
-                              <H>66</H>
-                            </item>
-                            <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                              <X>2062</X>
-                              <Y>460</Y>
-                            </item>
-                          </items>
-                        </chunk>
-                      </chunks>
-                    </chunk>
-                    <chunk name="param_output" index="0">
-                      <items count="6">
-                        <item name="Description" type_name="gh_string" type_code="10">List of acoustic parameters ('EDT', 'T20', 'T30', 'C50', 'C80', 'D50', 'DRR', 'Ts', 'STI', with its modulation transfer index per band, 'G', 'SPL', 'LF' and 'LFC'; G and SPL (the sound pressure level from the source's level at 1 m, overall A-weighted) only for a simulated response, LF and LFC, the early lateral energy fractions, only for an ambisonic one).</item>
-                        <item name="InstanceGuid" type_name="gh_guid" type_code="9">b10dcb05-752a-47ba-a376-426b6adddeb4</item>
-                        <item name="Name" type_name="gh_string" type_code="10">parameters</item>
-                        <item name="NickName" type_name="gh_string" type_code="10">parameters</item>
-                        <item name="Optional" type_name="gh_bool" type_code="1">false</item>
-                        <item name="SourceCount" type_name="gh_int32" type_code="3">0</item>
-                      </items>
-                      <chunks count="1">
-                        <chunk name="Attributes">
-                          <items count="2">
-                            <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                              <X>2095</X>
-                              <Y>427</Y>
-                              <W>60</W>
-                              <H>22</H>
-                            </item>
-                            <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                              <X>2125</X>
-                              <Y>438</Y>
-                            </item>
-                          </items>
-                        </chunk>
-                      </chunks>
-                    </chunk>
-                    <chunk name="param_output" index="1">
-                      <items count="6">
-                        <item name="Description" type_name="gh_string" type_code="10">The impulse response against time, for Plot 2D or a panel: the W channel of an ambisonic response, both ears (left, right) of a binaural one. Right-click it to choose the scale: dB (default), the level re the peak floored 100 dB below it, the whole response; or linear, the amplitude: it ends 5 % after the Schroeder curve falls 60 dB, below which the amplitude is invisible. The parameters and the frequency output use the whole response.</item>
-                        <item name="InstanceGuid" type_name="gh_guid" type_code="9">9c3e8d7e-45f3-4723-94cb-fbad51f2f72b</item>
-                        <item name="Name" type_name="gh_string" type_code="10">time</item>
-                        <item name="NickName" type_name="gh_string" type_code="10">time</item>
-                        <item name="Optional" type_name="gh_bool" type_code="1">false</item>
-                        <item name="SourceCount" type_name="gh_int32" type_code="3">0</item>
-                      </items>
-                      <chunks count="1">
-                        <chunk name="Attributes">
-                          <items count="2">
-                            <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                              <X>2095</X>
-                              <Y>449</Y>
-                              <W>60</W>
-                              <H>22</H>
-                            </item>
-                            <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                              <X>2125</X>
-                              <Y>460</Y>
-                            </item>
-                          </items>
-                        </chunk>
-                      </chunks>
-                    </chunk>
-                    <chunk name="param_output" index="2">
-                      <items count="6">
-                        <item name="Description" type_name="gh_string" type_code="10">The frequency response, 1/3-octave smoothed, 20 Hz to 20 kHz in dB re the peak, for Plot 2D or a panel: the W channel of an ambisonic response, both ears (left, right) of a binaural one.</item>
-                        <item name="InstanceGuid" type_name="gh_guid" type_code="9">c997fa92-d345-4683-87f1-9d538f66f105</item>
-                        <item name="Name" type_name="gh_string" type_code="10">frequency</item>
-                        <item name="NickName" type_name="gh_string" type_code="10">frequency</item>
-                        <item name="Optional" type_name="gh_bool" type_code="1">false</item>
-                        <item name="SourceCount" type_name="gh_int32" type_code="3">0</item>
-                      </items>
-                      <chunks count="1">
-                        <chunk name="Attributes">
-                          <items count="2">
-                            <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                              <X>2095</X>
-                              <Y>471</Y>
-                              <W>60</W>
-                              <H>22</H>
-                            </item>
-                            <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                              <X>2125</X>
-                              <Y>482</Y>
-                            </item>
-                          </items>
-                        </chunk>
-                      </chunks>
-                    </chunk>
-                  </chunks>
-                </chunk>
-              </chunks>
-            </chunk>
-            <chunk name="Object" index="42">
-              <items count="3">
-                <item name="GUID" type_name="gh_guid" type_code="9">a6756aac-cd13-55a6-9f3e-068a5bd97765</item>
-                <item name="Lib" type_name="gh_guid" type_code="9">7f0b6a3e-2f4d-4a51-9a1c-3c8e2d5b9e41</item>
-                <item name="Name" type_name="gh_string" type_code="10">Deconstruct Parameter</item>
+                <item name="Name" type_name="gh_string" type_code="10">Plot 2D</item>
               </items>
               <chunks count="1">
                 <chunk name="Container">
                   <items count="6">
-                    <item name="Description" type_name="gh_string" type_code="10">Deconstruct acoustic parameters. Connect the parameters of Analyse Impulse Response and choose on the body which to take: all of them (a branch each), or one by name (EDT, T20, T30, C50, C80, D50, DRR, Ts, STI, G, SPL, LF, LFC), which gives it as a parameter for Plot 2D or a panel, and its name, values, frequencies and overall value as plain lists.</item>
-                    <item name="InstanceGuid" type_name="gh_guid" type_code="9">5d60e9be-05d6-452b-a8ee-6a0bfccb2e5f</item>
-                    <item name="Name" type_name="gh_string" type_code="10">Deconstruct Parameter</item>
-                    <item name="NickName" type_name="gh_string" type_code="10">DeParam</item>
-                    <item name="choice_select" type_name="gh_string" type_code="10">T30</item>
-                    <item name="preview_default_v2" type_name="gh_bool" type_code="1">true</item>
+                    <item name="Description" type_name="gh_string" type_code="10">Chart an acoustic parameter (a dot per band, joined by a line), or the time or frequency response of Analyse Impulse Response (a line per channel), on the canvas: one chart per parameter connected, stacked, for every source-receiver pair of Analyse Impulse Response. Choose which parameter to chart with the Select parameter dropdown beside the data input: T30 until you choose, All, or one by name (EDT, T20, T30, C50, C80, D50, DRR, Ts, STI, G, SPL, LF; the opened menu gives each its title, as T30 (Reverberation Time)), and a sentence right of it says what the chosen parameter is; it lists only the parameters connected, so no LF for a response that is not ambisonic; the time and frequency responses are charted whichever is chosen, and with only them connected the dropdown rests. Drag the corner to resize; hover a chart to read its values; Save writes the charts as a PNG image.</item>
+                    <item name="InstanceGuid" type_name="gh_guid" type_code="9">0d9476f3-4aa1-4459-9200-2961673b8522</item>
+                    <item name="Name" type_name="gh_string" type_code="10">Plot 2D</item>
+                    <item name="NickName" type_name="gh_string" type_code="10">Plot2D</item>
+                    <item name="chart_height" type_name="gh_double" type_code="6">220</item>
+                    <item name="chart_width" type_name="gh_double" type_code="6">396</item>
                   </items>
-                  <chunks count="7">
+                  <chunks count="2">
                     <chunk name="Attributes">
                       <items count="2">
                         <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                          <X>2226</X>
-                          <Y>408</Y>
-                          <W>153</W>
-                          <H>208</H>
+                          <X>2519</X>
+                          <Y>418</Y>
+                          <W>360</W>
+                          <H>266</H>
                         </item>
                         <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                          <X>2300</X>
-                          <Y>460</Y>
+                          <X>2040</X>
+                          <Y>440</Y>
                         </item>
                       </items>
                     </chunk>
                     <chunk name="param_input" index="0">
                       <items count="8">
-                        <item name="Access" type_name="gh_int32" type_code="3">1</item>
-                        <item name="Description" type_name="gh_string" type_code="10">AcousticParameter (AP) objects, e.g. the parameters of Analyse Impulse Response.</item>
-                        <item name="InstanceGuid" type_name="gh_guid" type_code="9">ef1f62e4-7d91-4d8f-8cda-3cc6eb2f981c</item>
-                        <item name="Name" type_name="gh_string" type_code="10">parameters</item>
-                        <item name="NickName" type_name="gh_string" type_code="10">parameters</item>
+                        <item name="Access" type_name="gh_int32" type_code="3">2</item>
+                        <item name="Description" type_name="gh_string" type_code="10">Data to chart: acoustic parameters (a dot per band, joined by a line), or the time or frequency output of Analyse Impulse Response (a line per channel). One chart each, over every branch.</item>
+                        <item name="InstanceGuid" type_name="gh_guid" type_code="9">94dbdbe6-0a92-4dbc-82a5-3f8363c41ed0</item>
+                        <item name="Name" type_name="gh_string" type_code="10">data</item>
+                        <item name="NickName" type_name="gh_string" type_code="10">data</item>
                         <item name="Optional" type_name="gh_bool" type_code="1">false</item>
                         <item name="Source" index="0" type_name="gh_guid" type_code="9">b10dcb05-752a-47ba-a376-426b6adddeb4</item>
                         <item name="SourceCount" type_name="gh_int32" type_code="3">1</item>
@@ -4098,204 +3895,10 @@ receiver_idx</item>
                         <chunk name="Attributes">
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                              <X>2228</X>
-                              <Y>410</Y>
-                              <W>57</W>
-                              <H>100</H>
-                            </item>
-                            <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                              <X>2258</X>
-                              <Y>460</Y>
-                            </item>
-                          </items>
-                        </chunk>
-                      </chunks>
-                    </chunk>
-                    <chunk name="param_output" index="0">
-                      <items count="6">
-                        <item name="Description" type_name="gh_string" type_code="10">The selected AcousticParameter (AP) object(s): connect Plot 2D to plot it, or a panel to print its values per band and overall value.</item>
-                        <item name="InstanceGuid" type_name="gh_guid" type_code="9">28ea954e-44cf-40ac-bfb0-2bf02bf4bfa0</item>
-                        <item name="Name" type_name="gh_string" type_code="10">parameter</item>
-                        <item name="NickName" type_name="gh_string" type_code="10">parameter</item>
-                        <item name="Optional" type_name="gh_bool" type_code="1">false</item>
-                        <item name="SourceCount" type_name="gh_int32" type_code="3">0</item>
-                      </items>
-                      <chunks count="1">
-                        <chunk name="Attributes">
-                          <items count="2">
-                            <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                              <X>2315</X>
-                              <Y>410</Y>
-                              <W>62</W>
-                              <H>20</H>
-                            </item>
-                            <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                              <X>2346</X>
-                              <Y>420</Y>
-                            </item>
-                          </items>
-                        </chunk>
-                      </chunks>
-                    </chunk>
-                    <chunk name="param_output" index="1">
-                      <items count="6">
-                        <item name="Description" type_name="gh_string" type_code="10">Name of the acoustic parameter (one per parameter when select is all).</item>
-                        <item name="InstanceGuid" type_name="gh_guid" type_code="9">72d4e7ae-a701-4a0c-ba2d-e194f0fa1048</item>
-                        <item name="Name" type_name="gh_string" type_code="10">name</item>
-                        <item name="NickName" type_name="gh_string" type_code="10">name</item>
-                        <item name="Optional" type_name="gh_bool" type_code="1">false</item>
-                        <item name="SourceCount" type_name="gh_int32" type_code="3">0</item>
-                      </items>
-                      <chunks count="1">
-                        <chunk name="Attributes">
-                          <items count="2">
-                            <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                              <X>2315</X>
-                              <Y>430</Y>
-                              <W>62</W>
-                              <H>20</H>
-                            </item>
-                            <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                              <X>2346</X>
-                              <Y>440</Y>
-                            </item>
-                          </items>
-                        </chunk>
-                      </chunks>
-                    </chunk>
-                    <chunk name="param_output" index="2">
-                      <items count="6">
-                        <item name="Description" type_name="gh_string" type_code="10">Values of the acoustic parameter, one per frequency band (one branch per parameter when select is all).</item>
-                        <item name="InstanceGuid" type_name="gh_guid" type_code="9">748cd4dc-9e39-4331-a40f-5c2d8f39fa6f</item>
-                        <item name="Name" type_name="gh_string" type_code="10">values</item>
-                        <item name="NickName" type_name="gh_string" type_code="10">values</item>
-                        <item name="Optional" type_name="gh_bool" type_code="1">false</item>
-                        <item name="SourceCount" type_name="gh_int32" type_code="3">0</item>
-                      </items>
-                      <chunks count="1">
-                        <chunk name="Attributes">
-                          <items count="2">
-                            <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                              <X>2315</X>
-                              <Y>450</Y>
-                              <W>62</W>
-                              <H>20</H>
-                            </item>
-                            <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                              <X>2346</X>
-                              <Y>460</Y>
-                            </item>
-                          </items>
-                        </chunk>
-                      </chunks>
-                    </chunk>
-                    <chunk name="param_output" index="3">
-                      <items count="6">
-                        <item name="Description" type_name="gh_string" type_code="10">Overall value of the acoustic parameter (one per parameter when select is all).</item>
-                        <item name="InstanceGuid" type_name="gh_guid" type_code="9">2926c98f-64d4-4cde-9384-8a1dbb4a548d</item>
-                        <item name="Name" type_name="gh_string" type_code="10">overall</item>
-                        <item name="NickName" type_name="gh_string" type_code="10">overall</item>
-                        <item name="Optional" type_name="gh_bool" type_code="1">false</item>
-                        <item name="SourceCount" type_name="gh_int32" type_code="3">0</item>
-                      </items>
-                      <chunks count="1">
-                        <chunk name="Attributes">
-                          <items count="2">
-                            <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                              <X>2315</X>
-                              <Y>470</Y>
-                              <W>62</W>
-                              <H>20</H>
-                            </item>
-                            <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                              <X>2346</X>
-                              <Y>480</Y>
-                            </item>
-                          </items>
-                        </chunk>
-                      </chunks>
-                    </chunk>
-                    <chunk name="param_output" index="4">
-                      <items count="6">
-                        <item name="Description" type_name="gh_string" type_code="10">Frequencies of the acoustic parameter.</item>
-                        <item name="InstanceGuid" type_name="gh_guid" type_code="9">0c7a8b3f-ede5-442a-b8e4-cd08bfd6cd18</item>
-                        <item name="Name" type_name="gh_string" type_code="10">frequencies</item>
-                        <item name="NickName" type_name="gh_string" type_code="10">frequencies</item>
-                        <item name="Optional" type_name="gh_bool" type_code="1">false</item>
-                        <item name="SourceCount" type_name="gh_int32" type_code="3">0</item>
-                      </items>
-                      <chunks count="1">
-                        <chunk name="Attributes">
-                          <items count="2">
-                            <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                              <X>2315</X>
-                              <Y>490</Y>
-                              <W>62</W>
-                              <H>20</H>
-                            </item>
-                            <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                              <X>2346</X>
-                              <Y>500</Y>
-                            </item>
-                          </items>
-                        </chunk>
-                      </chunks>
-                    </chunk>
-                  </chunks>
-                </chunk>
-              </chunks>
-            </chunk>
-            <chunk name="Object" index="43">
-              <items count="3">
-                <item name="GUID" type_name="gh_guid" type_code="9">ddca21b5-bcc8-5806-85f8-fc0a45ced2e5</item>
-                <item name="Lib" type_name="gh_guid" type_code="9">7f0b6a3e-2f4d-4a51-9a1c-3c8e2d5b9e41</item>
-                <item name="Name" type_name="gh_string" type_code="10">Plot 2D</item>
-              </items>
-              <chunks count="1">
-                <chunk name="Container">
-                  <items count="7">
-                    <item name="Description" type_name="gh_string" type_code="10">Chart an acoustic parameter (a dot per band, joined by a line), or the time or frequency response of Analyse Impulse Response (a line per channel), on the canvas: one chart per parameter connected, stacked. Drag the corner to resize; hover a chart to read its values; Save writes the charts as a PNG image.</item>
-                    <item name="InstanceGuid" type_name="gh_guid" type_code="9">0d9476f3-4aa1-4459-9200-2961673b8522</item>
-                    <item name="Name" type_name="gh_string" type_code="10">Plot 2D</item>
-                    <item name="NickName" type_name="gh_string" type_code="10">Plot2D</item>
-                    <item name="chart_height" type_name="gh_double" type_code="6">200</item>
-                    <item name="chart_width" type_name="gh_double" type_code="6">360</item>
-                    <item name="preview_default_v2" type_name="gh_bool" type_code="1">true</item>
-                  </items>
-                  <chunks count="2">
-                    <chunk name="Attributes">
-                      <items count="2">
-                        <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
-                          <X>2519</X>
-                          <Y>415</Y>
-                          <W>360</W>
-                          <H>272</H>
-                        </item>
-                        <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
-                          <X>2560</X>
-                          <Y>440</Y>
-                        </item>
-                      </items>
-                    </chunk>
-                    <chunk name="param_input" index="0">
-                      <items count="8">
-                        <item name="Access" type_name="gh_int32" type_code="3">1</item>
-                        <item name="Description" type_name="gh_string" type_code="10">Data to chart: acoustic parameters (a dot per band, joined by a line), or the time or frequency output of Analyse Impulse Response (a line per channel). One chart each.</item>
-                        <item name="InstanceGuid" type_name="gh_guid" type_code="9">94dbdbe6-0a92-4dbc-82a5-3f8363c41ed0</item>
-                        <item name="Name" type_name="gh_string" type_code="10">data</item>
-                        <item name="NickName" type_name="gh_string" type_code="10">data</item>
-                        <item name="Optional" type_name="gh_bool" type_code="1">false</item>
-                        <item name="Source" index="0" type_name="gh_guid" type_code="9">28ea954e-44cf-40ac-bfb0-2bf02bf4bfa0</item>
-                        <item name="SourceCount" type_name="gh_int32" type_code="3">1</item>
-                      </items>
-                      <chunks count="1">
-                        <chunk name="Attributes">
-                          <items count="2">
-                            <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
                               <X>2521</X>
-                              <Y>417</Y>
+                              <Y>420</Y>
                               <W>24</W>
-                              <H>46</H>
+                              <H>40</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
                               <X>2534.5</X>
@@ -4309,7 +3912,7 @@ receiver_idx</item>
                 </chunk>
               </chunks>
             </chunk>
-            <chunk name="Object" index="44">
+            <chunk name="Object" index="42">
               <items count="2">
                 <item name="GUID" type_name="gh_guid" type_code="9">60e7defa-8b21-4ee1-99aa-a9223d6134ff</item>
                 <item name="Name" type_name="gh_string" type_code="10">Mesh Brep</item>
@@ -4450,7 +4053,7 @@ receiver_idx</item>
                 </chunk>
               </chunks>
             </chunk>
-            <chunk name="Object" index="45">
+            <chunk name="Object" index="43">
               <items count="2">
                 <item name="GUID" type_name="gh_guid" type_code="9">59e0b89a-e487-49f8-bab8-b5bab16be14c</item>
                 <item name="Name" type_name="gh_string" type_code="10">Panel</item>
@@ -4503,7 +4106,7 @@ receiver_idx</item>
                 </chunk>
               </chunks>
             </chunk>
-            <chunk name="Object" index="46">
+            <chunk name="Object" index="44">
               <items count="2">
                 <item name="GUID" type_name="gh_guid" type_code="9">59daf374-bc21-4a5e-8282-5504fb7ae9ae</item>
                 <item name="Name" type_name="gh_string" type_code="10">List Item</item>
@@ -4696,7 +4299,7 @@ receiver_idx</item>
                 </chunk>
               </chunks>
             </chunk>
-            <chunk name="Object" index="47">
+            <chunk name="Object" index="45">
               <items count="2">
                 <item name="GUID" type_name="gh_guid" type_code="9">c552a431-af5b-46a9-a8a4-0fcbc27ef596</item>
                 <item name="Name" type_name="gh_string" type_code="10">Group</item>
@@ -4727,7 +4330,7 @@ receiver_idx</item>
                 </chunk>
               </chunks>
             </chunk>
-            <chunk name="Object" index="48">
+            <chunk name="Object" index="46">
               <items count="2">
                 <item name="GUID" type_name="gh_guid" type_code="9">c552a431-af5b-46a9-a8a4-0fcbc27ef596</item>
                 <item name="Name" type_name="gh_string" type_code="10">Group</item>
@@ -4768,7 +4371,7 @@ receiver_idx</item>
                 </chunk>
               </chunks>
             </chunk>
-            <chunk name="Object" index="49">
+            <chunk name="Object" index="47">
               <items count="2">
                 <item name="GUID" type_name="gh_guid" type_code="9">c552a431-af5b-46a9-a8a4-0fcbc27ef596</item>
                 <item name="Name" type_name="gh_string" type_code="10">Group</item>
@@ -4794,7 +4397,7 @@ receiver_idx</item>
                 </chunk>
               </chunks>
             </chunk>
-            <chunk name="Object" index="50">
+            <chunk name="Object" index="48">
               <items count="2">
                 <item name="GUID" type_name="gh_guid" type_code="9">c552a431-af5b-46a9-a8a4-0fcbc27ef596</item>
                 <item name="Name" type_name="gh_string" type_code="10">Group</item>
@@ -4830,7 +4433,7 @@ receiver_idx</item>
                 </chunk>
               </chunks>
             </chunk>
-            <chunk name="Object" index="51">
+            <chunk name="Object" index="49">
               <items count="2">
                 <item name="GUID" type_name="gh_guid" type_code="9">c552a431-af5b-46a9-a8a4-0fcbc27ef596</item>
                 <item name="Name" type_name="gh_string" type_code="10">Group</item>
@@ -4859,27 +4462,198 @@ receiver_idx</item>
                 </chunk>
               </chunks>
             </chunk>
-            <chunk name="Object" index="52">
+            <chunk name="Object" index="50">
               <items count="2">
                 <item name="GUID" type_name="gh_guid" type_code="9">c552a431-af5b-46a9-a8a4-0fcbc27ef596</item>
                 <item name="Name" type_name="gh_string" type_code="10">Group</item>
               </items>
               <chunks count="1">
                 <chunk name="Container">
-                  <items count="11">
+                  <items count="9">
                     <item name="Border" type_name="gh_int32" type_code="3">1</item>
                     <item name="Colour" type_name="gh_drawing_color" type_code="36">
                       <ARGB>60;170;200;230</ARGB>
                     </item>
                     <item name="Description" type_name="gh_string" type_code="10">A group of Grasshopper objects</item>
-                    <item name="ID" index="0" type_name="gh_guid" type_code="9">704cc891-6c65-4772-855e-db58120a1bf5</item>
-                    <item name="ID" index="1" type_name="gh_guid" type_code="9">509a8463-9826-4b30-ae7b-926e0f698d16</item>
-                    <item name="ID" index="2" type_name="gh_guid" type_code="9">5d60e9be-05d6-452b-a8ee-6a0bfccb2e5f</item>
-                    <item name="ID" index="3" type_name="gh_guid" type_code="9">0d9476f3-4aa1-4459-9200-2961673b8522</item>
-                    <item name="ID_Count" type_name="gh_int32" type_code="3">4</item>
+                    <item name="ID" index="0" type_name="gh_guid" type_code="9">509a8463-9826-4b30-ae7b-926e0f698d16</item>
+                    <item name="ID" index="1" type_name="gh_guid" type_code="9">0d9476f3-4aa1-4459-9200-2961673b8522</item>
+                    <item name="ID_Count" type_name="gh_int32" type_code="3">2</item>
                     <item name="InstanceGuid" type_name="gh_guid" type_code="9">7320d94f-54ea-4642-8bad-89f778b90f35</item>
                     <item name="Name" type_name="gh_string" type_code="10">Group</item>
                     <item name="NickName" type_name="gh_string" type_code="10">6 Analysis: source_2 to receiver_2, T30</item>
+                  </items>
+                  <chunks count="1">
+                    <chunk name="Attributes" />
+                  </chunks>
+                </chunk>
+              </chunks>
+            </chunk>
+            <chunk name="Object" index="51">
+              <items count="3">
+                <item name="GUID" type_name="gh_guid" type_code="9">4d9abc0d-a247-5525-8835-b5907a4ae2a8</item>
+                <item name="Lib" type_name="gh_guid" type_code="9">7f0b6a3e-2f4d-4a51-9a1c-3c8e2d5b9e41</item>
+                <item name="Name" type_name="gh_string" type_code="10">Auralise</item>
+              </items>
+              <chunks count="1">
+                <chunk name="Container">
+                  <items count="10">
+                    <item name="Description" type_name="gh_string" type_code="10">Auralise the chosen source-receiver pairs: one anechoic sound, chosen on the Anechoic sound dropdown (a bundled recording, or a file loaded with Load...) or a File Path wired to 'sound', convolved with the impulse response of each pair. The signals keep the format of their impulse responses: mono (Simulate Mono), binaural (Simulate Binaural) or ambisonic (Simulate Ambisonics). Choose the level on the body: 'none' (default) keeps the raw level and may clip; 'relative' takes one gain from the sound convolved with every connected pair, not only the chosen ones, so the loudest connected pair would peak at -1 dBFS and a chosen pair keeps its level difference to it; 'individual' brings each signal to -1 dBFS. Save auralisation writes the signals of the chosen pairs as WAV files: choose a folder and a name (take.wav saves take_mic_&lt;r&gt;_&lt;s&gt;.wav, with r and s the receiver and source indices, as take_mic_0_0.wav, take_mic_0_1.wav, ...). Save RIR writes the impulse responses of the chosen pairs the same way, at the chosen level ('relative' from every connected response) and each with a JSON file of its metadata, including the factor back to its raw level.</item>
+                    <item name="InstanceGuid" type_name="gh_guid" type_code="9">ec6b5e8c-fdff-405b-82a4-986245d2c8e3</item>
+                    <item name="Name" type_name="gh_string" type_code="10">Auralise</item>
+                    <item name="NickName" type_name="gh_string" type_code="10">Auralise</item>
+                    <item name="choice_level" type_name="gh_string" type_code="10">relative</item>
+                    <item name="control_inputs_hidden" type_name="gh_string" type_code="10">source_idx
+receiver_idx
+sound</item>
+                    <item name="control_inputs_shown" type_name="gh_bool" type_code="1">false</item>
+                    <item name="control_value_receiver_idx" type_name="gh_string" type_code="10">1</item>
+                    <item name="control_value_sound" type_name="gh_string" type_code="10">female_speech</item>
+                    <item name="control_value_source_idx" type_name="gh_string" type_code="10">1</item>
+                  </items>
+                  <chunks count="3">
+                    <chunk name="Attributes">
+                      <items count="2">
+                        <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
+                          <X>0</X>
+                          <Y>0</Y>
+                          <W>150</W>
+                          <H>20</H>
+                        </item>
+                        <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
+                          <X>1820</X>
+                          <Y>760</Y>
+                        </item>
+                      </items>
+                    </chunk>
+                    <chunk name="param_input" index="0">
+                      <items count="8">
+                        <item name="Access" type_name="gh_int32" type_code="3">2</item>
+                        <item name="Description" type_name="gh_string" type_code="10">ImpulseResponse object(s), as Simulate gives them, one per source-receiver pair. Sources and receivers are numbered over the responses as connected, in the order they come: the n-th distinct source (receiver) is source (receiver) n, so a filtered or reordered list renumbers the pairs. The 'relative' level takes its gain from every pair connected here.</item>
+                        <item name="InstanceGuid" type_name="gh_guid" type_code="9">598e1e23-4af0-4052-aebf-11a099974c88</item>
+                        <item name="Name" type_name="gh_string" type_code="10">irs</item>
+                        <item name="NickName" type_name="gh_string" type_code="10">irs</item>
+                        <item name="Optional" type_name="gh_bool" type_code="1">false</item>
+                        <item name="Source" index="0" type_name="gh_guid" type_code="9">92d81bc3-53fc-4be2-9099-edf1ced16192</item>
+                        <item name="SourceCount" type_name="gh_int32" type_code="3">1</item>
+                      </items>
+                      <chunks count="1">
+                        <chunk name="Attributes">
+                          <items count="1">
+                            <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
+                              <X>0</X>
+                              <Y>0</Y>
+                              <W>150</W>
+                              <H>20</H>
+                            </item>
+                          </items>
+                        </chunk>
+                      </chunks>
+                    </chunk>
+                    <chunk name="param_output" index="0">
+                      <items count="6">
+                        <item name="Description" type_name="gh_string" type_code="10">One branch per chosen source-receiver pair, path {receiver;source}: the auralised signal in the format of its impulse response, shaped (samples, channels). The Audio Player plays mono (on both channels) and binaural; ambisonic signals are for saving.</item>
+                        <item name="InstanceGuid" type_name="gh_guid" type_code="9">c830eccc-1360-425c-bc8a-49359f7cc8ca</item>
+                        <item name="Name" type_name="gh_string" type_code="10">signals</item>
+                        <item name="NickName" type_name="gh_string" type_code="10">signals</item>
+                        <item name="Optional" type_name="gh_bool" type_code="1">false</item>
+                        <item name="SourceCount" type_name="gh_int32" type_code="3">0</item>
+                      </items>
+                      <chunks count="1">
+                        <chunk name="Attributes">
+                          <items count="1">
+                            <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
+                              <X>0</X>
+                              <Y>0</Y>
+                              <W>150</W>
+                              <H>20</H>
+                            </item>
+                          </items>
+                        </chunk>
+                      </chunks>
+                    </chunk>
+                  </chunks>
+                </chunk>
+              </chunks>
+            </chunk>
+            <chunk name="Object" index="52">
+              <items count="3">
+                <item name="GUID" type_name="gh_guid" type_code="9">ebf0dfa8-2bf3-5fd2-b59e-5ac8fb327480</item>
+                <item name="Lib" type_name="gh_guid" type_code="9">7f0b6a3e-2f4d-4a51-9a1c-3c8e2d5b9e41</item>
+                <item name="Name" type_name="gh_string" type_code="10">Audio Player</item>
+              </items>
+              <chunks count="1">
+                <chunk name="Container">
+                  <items count="8">
+                    <item name="Description" type_name="gh_string" type_code="10">Show and play a signal from Auralise, an impulse response (e.g. one of the irs of a Simulate component), or an audio file: a lane per channel (the body grows with the channels), with a Play/Pause button, Stop, Normalize (scale the signal to full level; off by default, so auralisations play at their rendered level), a click in the waveform to seek, and a volume slider. Drag the corner to set the width and the lanes' height. A file plays whole, without pause or seek. A signal of more than two channels (ambisonic) is shown but not played.</item>
+                    <item name="InstanceGuid" type_name="gh_guid" type_code="9">17906dbc-1b53-47a6-8514-54a5e206e020</item>
+                    <item name="Name" type_name="gh_string" type_code="10">Audio Player</item>
+                    <item name="NickName" type_name="gh_string" type_code="10">Player</item>
+                    <item name="gain_db" type_name="gh_double" type_code="6">0</item>
+                    <item name="lane_height" type_name="gh_double" type_code="6">50</item>
+                    <item name="normalize" type_name="gh_bool" type_code="1">false</item>
+                    <item name="width" type_name="gh_double" type_code="6">240</item>
+                  </items>
+                  <chunks count="2">
+                    <chunk name="Attributes">
+                      <items count="2">
+                        <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
+                          <X>0</X>
+                          <Y>0</Y>
+                          <W>150</W>
+                          <H>20</H>
+                        </item>
+                        <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
+                          <X>2060</X>
+                          <Y>720</Y>
+                        </item>
+                      </items>
+                    </chunk>
+                    <chunk name="param_input" index="0">
+                      <items count="7">
+                        <item name="Description" type_name="gh_string" type_code="10">Audio signal (from Auralise), impulse response (from a Simulate component; turn Normalize on to hear a quiet one at full level), or audio file path.</item>
+                        <item name="InstanceGuid" type_name="gh_guid" type_code="9">8a44d43d-6d69-4ff0-9b71-21d54d4c7eec</item>
+                        <item name="Name" type_name="gh_string" type_code="10">audio</item>
+                        <item name="NickName" type_name="gh_string" type_code="10">audio</item>
+                        <item name="Optional" type_name="gh_bool" type_code="1">true</item>
+                        <item name="Source" index="0" type_name="gh_guid" type_code="9">c830eccc-1360-425c-bc8a-49359f7cc8ca</item>
+                        <item name="SourceCount" type_name="gh_int32" type_code="3">1</item>
+                      </items>
+                      <chunks count="1">
+                        <chunk name="Attributes">
+                          <items count="1">
+                            <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
+                              <X>0</X>
+                              <Y>0</Y>
+                              <W>150</W>
+                              <H>20</H>
+                            </item>
+                          </items>
+                        </chunk>
+                      </chunks>
+                    </chunk>
+                  </chunks>
+                </chunk>
+              </chunks>
+            </chunk>
+            <chunk name="Object" index="53">
+              <items count="2">
+                <item name="GUID" type_name="gh_guid" type_code="9">c552a431-af5b-46a9-a8a4-0fcbc27ef596</item>
+                <item name="Name" type_name="gh_string" type_code="10">Group</item>
+              </items>
+              <chunks count="1">
+                <chunk name="Container">
+                  <items count="9">
+                    <item name="Border" type_name="gh_int32" type_code="3">1</item>
+                    <item name="Colour" type_name="gh_drawing_color" type_code="36">
+                      <ARGB>60;170;200;230</ARGB>
+                    </item>
+                    <item name="Description" type_name="gh_string" type_code="10">A group of Grasshopper objects</item>
+                    <item name="ID" index="0" type_name="gh_guid" type_code="9">ec6b5e8c-fdff-405b-82a4-986245d2c8e3</item>
+                    <item name="ID" index="1" type_name="gh_guid" type_code="9">17906dbc-1b53-47a6-8514-54a5e206e020</item>
+                    <item name="ID_Count" type_name="gh_int32" type_code="3">2</item>
+                    <item name="InstanceGuid" type_name="gh_guid" type_code="9">340de629-1666-4ea1-a135-6e3ed48f5297</item>
+                    <item name="Name" type_name="gh_string" type_code="10">Group</item>
+                    <item name="NickName" type_name="gh_string" type_code="10">7 Auralisation: source_2 to receiver_2, Female speech</item>
                   </items>
                   <chunks count="1">
                     <chunk name="Attributes" />
