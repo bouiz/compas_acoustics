@@ -285,8 +285,25 @@ namespace CompasAcoustics.Grasshopper
 
         public override void CreateAttributes() => m_attributes = new AudioPlayerUi(this);
 
+        // a list on the item input solves the player once per item, and the last one stays
+        private int _solves;
+
+        protected override void BeforeSolveInstance()
+        {
+            _solves = 0;
+            base.BeforeSolveInstance();
+        }
+
+        protected override void AfterSolveInstance()
+        {
+            if (_solves > 1)
+                Remark($"{_solves} items connected to 'audio'; playing the last: pick one with List Item.");
+            base.AfterSolveInstance();
+        }
+
         protected override void Solve(IGH_DataAccess access)
         {
+            _solves++;
             var audio = Item<IGH_Goo>(access, "audio");
             AudioData? signal = null;
             string? file = null;
@@ -302,6 +319,9 @@ namespace CompasAcoustics.Grasshopper
                     break;
                 case GH_String path when !string.IsNullOrEmpty(path.Value):
                     file = path.Value;
+                    break;
+                case SourceGoo:
+                    Error("The Audio Player no longer plays a Source's sound file: wire a File Path, or Auralise's signals.");
                     break;
                 default:
                     Error("Input parameter 'audio' is not valid.");

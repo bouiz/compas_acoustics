@@ -59,17 +59,52 @@ namespace CompasAcoustics.Grasshopper.Tests
 
         private IDictionary<string, object?> Kwargs(int i) => (IDictionary<string, object?>)_calls[i].payload!["kwargs"]!;
 
-        [Fact]
-        public void AudioPlayer_ASource_IsNotValid()
+        private static void Call(GH_Component component, string method, params object?[] args) =>
+            typeof(GH_Component).GetMethod(method, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(component, args);
+
+        private static void Solve(GH_Component component, object audio)
         {
             var access = new FakeAccess();
-            access.Items["audio"] = new SourceGoo(new SourceData { SoundFile = "/sounds/viola.wav" });
+            access.Items["audio"] = audio;
+            Call(component, "SolveInstance", access);
+        }
+
+        [Fact]
+        public void AudioPlayer_ASource_SaysItNoLongerPlaysItsSoundFile()
+        {
             var player = new AudioPlayerComponent();
-            typeof(GH_Component).GetMethod("SolveInstance", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
-                .Invoke(player, new object?[] { access });
-            Assert.Equal(new[] { "Input parameter 'audio' is not valid." }, player.RuntimeMessages(GH_RuntimeMessageLevel.Error).ToArray());
+            Solve(player, new SourceGoo(new SourceData { Name = "src" }));
+            Assert.Equal(new[] { "The Audio Player no longer plays a Source's sound file: wire a File Path, or Auralise's signals." },
+                player.RuntimeMessages(GH_RuntimeMessageLevel.Error).ToArray());
             Assert.Empty(_calls);
             Assert.Null(player.Signal);
+        }
+
+        [Fact]
+        public void AudioPlayer_AnythingElse_IsNotValid()
+        {
+            var player = new AudioPlayerComponent();
+            Solve(player, new global::Grasshopper.Kernel.Types.GH_Number(1));
+            Assert.Equal(new[] { "Input parameter 'audio' is not valid." }, player.RuntimeMessages(GH_RuntimeMessageLevel.Error).ToArray());
+        }
+
+        [Fact]
+        public void AudioPlayer_SolvedForSeveralItemsInOneSolution_SaysItPlaysTheLast()
+        {
+            var player = new AudioPlayerComponent();
+            var last = Stereo(1.0);
+            Call(player, "BeforeSolveInstance");
+            foreach (var signal in new[] { Stereo(), Stereo(), last })
+                Solve(player, new AudioGoo(signal));
+            Call(player, "AfterSolveInstance");
+            Assert.Equal(new[] { "3 items connected to 'audio'; playing the last: pick one with List Item." },
+                player.RuntimeMessages(GH_RuntimeMessageLevel.Remark).ToArray());
+            Assert.Same(last, player.Signal);
+            player.ClearRuntimeMessages();
+            Call(player, "BeforeSolveInstance");
+            Solve(player, new AudioGoo(last));
+            Call(player, "AfterSolveInstance");
+            Assert.Empty(player.RuntimeMessages(GH_RuntimeMessageLevel.Remark));
         }
 
         [Fact]
