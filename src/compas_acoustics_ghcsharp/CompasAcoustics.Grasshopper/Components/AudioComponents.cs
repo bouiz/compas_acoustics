@@ -70,9 +70,12 @@ namespace CompasAcoustics.Grasshopper
 
         private const string LoadedKey = "anechoic_sound_loaded";
 
-        /// <summary>The bundled recordings, by the names the worker's <c>auralise</c> takes, female speech the default.</summary>
+        /// <summary>
+        /// The bundled recordings, by the names the worker's <c>auralise</c> takes. None is chosen on a new component: its
+        /// <c>Default</c> is only what the dropdown reads then, "...", and the input stays empty.
+        /// </summary>
         public static readonly DropdownControl SoundDropdown = new("sound", new[] { "female_speech", "male_speech", "viola", "guitar", "castanets" },
-            "female_speech", new[] { "Female speech", "Male speech", "Viola", "Guitar", "Castanets" }, "Anechoic sound");
+            "...", new[] { "Female speech", "Male speech", "Viola", "Guitar", "Castanets" }, "Anechoic sound");
 
         public AuraliseComponent() : base("CA_Auralise") { }
         protected override string SpecKey => "CA_Auralise";
@@ -99,7 +102,7 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>The file the dropdown offers after the bundled recordings: the one chosen, else the one Load... chose last; null for none.</summary>
         public string? Loaded => ControlPort("sound") is { } port && ControlState.Persistent(port) is string own && IsFile(own) ? own : _loaded;
 
-        private static bool IsFile(string? value) => value is { Length: > 0 } && value != LoadOption && !SoundDropdown.Options.Contains(value);
+        private static bool IsFile(string? value) => value is { Length: > 0 } && value != LoadOption && value != SoundDropdown.Default && !SoundDropdown.Options.Contains(value);
 
         /// <summary>The open-file dialog of Load..., given the folder it starts in; the file chosen, null when cancelled.</summary>
         internal Func<string?, string?> OpenSound { get; set; } = folder =>
@@ -132,10 +135,6 @@ namespace CompasAcoustics.Grasshopper
             _loaded = file;
             return true;
         }
-
-        /// <summary>The sound to auralise: a wired value (null when it is empty), else the dropdown's choice.</summary>
-        internal string? SoundOf(IGH_DataAccess access) =>
-            Text(access, "sound") ?? (ControlPort("sound") is { SourceCount: > 0 } ? null : SoundDropdown.Default);
 
         public override bool Write(GH_IWriter writer)
         {
@@ -172,7 +171,7 @@ namespace CompasAcoustics.Grasshopper
             return read;
         }
 
-        private const string EmptySound = "No sound to auralise: the value wired to 'sound' is empty. Wire a sound file, or disconnect it to choose one on the Anechoic sound dropdown.";
+        private const string EmptySound = "No sound to auralise: choose one on the Anechoic sound dropdown, or wire a sound file to 'sound'.";
 
         private sealed record LastRequest(List<object?> Irs, List<object?> Chosen, List<object?> Labels, string? Sound, string Level);
 
@@ -246,7 +245,7 @@ namespace CompasAcoustics.Grasshopper
             if (ChosenPairs(access) is not { } pairs)
                 return;
             var level = Choice("level");
-            var sound = SoundOf(access);
+            var sound = Text(access, "sound");
             var (irs, indices, names) = AuraliseGroups.Request(pairs.All, pairs.Chosen);
             var (chosen, labels) = (indices.Cast<object?>().ToList(), names.Cast<object?>().ToList());
             _last = new LastRequest(irs, chosen, labels, sound, level);

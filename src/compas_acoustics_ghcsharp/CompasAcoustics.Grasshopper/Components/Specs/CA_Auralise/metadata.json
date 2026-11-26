@@ -29,7 +29,7 @@
             },
             {
                 "name": "sound",
-                "description": "Anechoic sound to convolve with the responses. On the Anechoic sound dropdown: one of the bundled anechoic recordings, Female speech by default, or Load... to choose a sound file (.wav, .flac, .aiff, .ogg, .mp3), which the dropdown then lists by its name. A File Path connected here takes precedence; an empty one makes Auralise warn and render nothing.",
+                "description": "Anechoic sound to convolve with the responses. On the Anechoic sound dropdown: one of the bundled anechoic recordings, or Load... to choose a sound file (.wav, .flac, .aiff, .ogg, .mp3), which the dropdown then lists by its name; nothing is chosen by default, and the dropdown reads '...'. A File Path connected here takes precedence. Without a sound, Auralise warns and renders nothing.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "str"

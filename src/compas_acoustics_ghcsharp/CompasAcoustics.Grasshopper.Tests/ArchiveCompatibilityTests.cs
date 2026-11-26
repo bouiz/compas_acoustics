@@ -595,6 +595,21 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Theory]
         [InlineData(false)]
         [InlineData(true)]
+        public void AnAuraliseSavedWithFemaleSpeechChosen_KeepsIt_OneSavedWithNoneHasNone(bool chosen)
+        {
+            var saved = new AuraliseComponent();
+            if (chosen)
+                ControlState.Choose(saved, saved.ControlPort("sound")!, "female_speech");
+            var fresh = new AuraliseComponent();
+            var (archive, read) = SaveThenRead(saved, fresh);
+            Assert.True(read);
+            Assert.Empty(Errors(archive));
+            Assert.Equal(chosen ? "female_speech" : null, ControlState.Persistent(fresh.ControlPort("sound")!));
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
         public void AnAuraliseSavedWithTheAnechoicSoundButton_ReadsItsFileAsTheLoadedEntryChosen(bool hidden)
         {
             // the button kept the file as the port's value, shown or hidden (control_value_sound), and nothing else

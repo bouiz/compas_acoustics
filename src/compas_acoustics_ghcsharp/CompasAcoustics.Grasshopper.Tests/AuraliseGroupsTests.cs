@@ -90,17 +90,26 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void TheAnechoicSound_IsADropdownOfTheBundledRecordings_FemaleSpeechFirst()
+        public void TheAnechoicSound_IsADropdownOfTheBundledRecordings_NoneChosenOnANewComponent()
         {
             var auralise = new AuraliseComponent();
             var dropdown = AuraliseComponent.SoundDropdown;
             Assert.Equal("Anechoic sound", ControlLayout.Title(dropdown));
             Assert.Equal(new[] { "female_speech", "male_speech", "viola", "guitar", "castanets", "Load..." }, auralise.OptionsOf(dropdown).values);
             Assert.Equal(new[] { "Female speech", "Male speech", "Viola", "Guitar", "Castanets", "Load..." }, auralise.OptionsOf(dropdown).labels);
-            Assert.Equal("female_speech", ControlState.Of(auralise.ControlPort("sound")!, auralise.OptionsOf(dropdown).values, ComponentBase.DefaultOf(dropdown)).value);
+            var port = auralise.ControlPort("sound")!;
+            // the placeholder shows, and is no entry of the menu
+            var shown = ControlState.Of(port, auralise.OptionsOf(dropdown).values, ComponentBase.DefaultOf(dropdown)).value;
+            Assert.Equal("...", ControlLayout.Label(dropdown, shown));
+            Assert.DoesNotContain("...", auralise.OptionsOf(dropdown).labels);
+            Assert.Null(ControlState.Persistent(port));
             Assert.Null(auralise.Loaded);
-            Assert.Equal(("sound", auralise.ControlPort("sound")!.Description), auralise.ControlTooltip("sound"));
-            Assert.Contains("Female speech by default", auralise.ControlPort("sound")!.Description);
+            Assert.Equal(("sound", port.Description), auralise.ControlTooltip("sound"));
+            Assert.Contains("nothing is chosen by default", port.Description);
+            // a recording chosen: the input's value, read by its label
+            ControlState.Choose(auralise, port, "viola");
+            Assert.Equal("viola", ControlState.Persistent(port));
+            Assert.Equal("Viola", ControlLayout.Label(dropdown, ControlState.Of(port, auralise.OptionsOf(dropdown).values, ComponentBase.DefaultOf(dropdown)).value));
         }
 
         [Fact]
@@ -190,31 +199,10 @@ namespace CompasAcoustics.Grasshopper.Tests
             port.AddSource(new Param_String());
             var wired = Path.Combine("takes", "bsn_tele_44.wav");
             port.AddVolatileData(new GH_Path(0), 0, new GH_String(wired));
-            var access = new FakeAccess();
-            access.Items["sound"] = wired;
-            Assert.Equal(wired, auralise.SoundOf(access));
             var options = auralise.OptionsOf(AuraliseComponent.SoundDropdown);
-            var (value, isWired) = ControlState.Of(port, options.values, "female_speech");
+            var (value, isWired) = ControlState.Of(port, options.values, ComponentBase.DefaultOf(AuraliseComponent.SoundDropdown));
             Assert.True(isWired);
             Assert.Equal("bsn_tele_44.wav", options.labels[Array.IndexOf(options.values, value)]);
-            // an empty wire: no sound, not the default
-            Assert.Null(auralise.SoundOf(new FakeAccess()));
-        }
-
-        [Theory]
-        [InlineData(false)]
-        [InlineData(true)]
-        public void Unwired_TheSoundIsTheChoice_FemaleSpeechUntilOneIsMade(bool hidden)
-        {
-            var auralise = new AuraliseComponent();
-            if (hidden)
-                auralise.ShowControlPorts(false);
-            var access = new FakeAccess();
-            Assert.Equal("female_speech", auralise.SoundOf(access));
-            ControlState.Choose(auralise, auralise.ControlPort("sound")!, "male_speech");
-            if (!hidden)
-                access.Items["sound"] = "male_speech";
-            Assert.Equal("male_speech", auralise.SoundOf(access));
         }
     }
 
@@ -303,8 +291,11 @@ namespace CompasAcoustics.Grasshopper.Tests
         private static void Solve(ComponentBase component, IGH_DataAccess access) =>
             typeof(GH_Component).GetMethod("SolveInstance", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(component, new object?[] { access });
 
-        [Fact]
-        public void Auralise_AnEmptyWiredSound_Warns()
+        [Theory]
+        [InlineData("nothing chosen")]
+        [InlineData("nothing chosen, hidden")]
+        [InlineData("an empty wire")]
+        public void Auralise_NoSound_WarnsAndCallsNoWorker(string sound)
         {
             var irs = new GH_Structure<ImpulseResponseGoo>();
             irs.Append(AuraliseGroupsTests.Ir("rec", "a"), new GH_Path(0));
@@ -312,7 +303,10 @@ namespace CompasAcoustics.Grasshopper.Tests
             var access = new FakeAccess();
             access.Trees["irs"] = irs;
             var auralise = new AuraliseComponent();
-            auralise.ControlPort("sound")!.AddSource(new Param_String());
+            if (sound == "an empty wire")
+                auralise.ControlPort("sound")!.AddSource(new Param_String());
+            if (sound == "nothing chosen, hidden")
+                auralise.ShowControlPorts(false);
             Solve(auralise, access);
             var warning = Assert.Single(auralise.RuntimeMessages(GH_RuntimeMessageLevel.Warning));
             Assert.Contains("'sound'", warning);
