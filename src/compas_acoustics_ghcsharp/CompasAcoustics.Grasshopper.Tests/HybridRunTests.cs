@@ -25,13 +25,13 @@ namespace CompasAcoustics.Grasshopper.Tests
         private static readonly IReadOnlyList<ReceiverGoo> NoReceivers = new List<ReceiverGoo>();
 
         [Fact]
-        public void Settings_LeavesUnsetInputsOut_TheSeedIncluded_AndAlwaysSendsATail()
+        public void Settings_LeavesUnsetInputsOut_TheSeedIncluded_AndAlwaysSendsATailAndALateEnvelope()
         {
             var settings = HybridRun.Settings(null, null, null, null, null, null, 48000, NoSources, NoReceivers, out var references);
-            Assert.Equal(new Dictionary<string, object?> { ["tail"] = "ray_tracing" }, settings);
+            Assert.Equal(new Dictionary<string, object?> { ["tail"] = "ray_tracing", ["late_envelope"] = "omni" }, settings);
             Assert.Null(references);
             settings = HybridRun.Settings("ray_tracing", null, "none", null, 3, null, 48000, NoSources, NoReceivers, out _);
-            Assert.Equal(new Dictionary<string, object?> { ["tail"] = "ray_tracing", ["seed"] = 3L }, settings);
+            Assert.Equal(new Dictionary<string, object?> { ["tail"] = "ray_tracing", ["late_envelope"] = "omni", ["seed"] = 3L }, settings);
         }
 
         [Theory]
@@ -81,28 +81,56 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.False(settings.ContainsKey("normalize"));
         }
 
+        [Fact]
+        public void LateEnvelopes_AreOmniFirst_AndHaveNoAuto() =>
+            Assert.Equal(new[] { "omni", "directional", "off" }, HybridRun.LateEnvelopes);
+
         [Theory]
-        [InlineData("omni", "omni")]
-        [InlineData("directional", "directional")]
-        [InlineData("off", false)]
-        [InlineData("True", "directional")]
-        [InlineData("true", "directional")]
-        [InlineData("False", false)]
-        public void Settings_PassesTheLateEnvelopeMode_AndReadsABoolean(string choice, object expected)
+        [InlineData("ray_tracing", "omni", "omni")]
+        [InlineData("ray_tracing", "directional", "directional")]
+        [InlineData("ray_tracing", "off", false)]
+        [InlineData("ray_tracing", "True", "directional")]
+        [InlineData("ray_tracing", "False", false)]
+        [InlineData("reference", "omni", "omni")]
+        [InlineData("reference", "directional", "directional")]
+        [InlineData("reference", "off", false)]
+        public void Settings_PassesTheLateEnvelopeMode_AndReadsABoolean(string tail, string choice, object expected)
         {
-            var settings = HybridRun.Settings(null, null, null, choice, 1, null, 48000, NoSources, NoReceivers, out _);
+            var settings = HybridRun.Settings(tail, null, null, choice, 1, null, 48000, NoSources, NoReceivers, out _);
             Assert.Equal(expected, settings["late_envelope"]);
         }
 
         [Theory]
         [InlineData(null)]
-        [InlineData("auto")]
         [InlineData("")]
-        public void Settings_LeavesAnAutoLateEnvelopeToTheMethod(string? choice)
+        [InlineData("auto")]
+        [InlineData("nonsense")]
+        public void Settings_SendsOmniForAnUnsetOrUnknownLateEnvelope(string? choice)
         {
             var settings = HybridRun.Settings(null, null, null, choice, 1, null, 48000, NoSources, NoReceivers, out _);
-            Assert.False(settings.ContainsKey("late_envelope"));
+            Assert.Equal("omni", settings["late_envelope"]);
         }
+
+        [Theory]
+        [InlineData("eyring", null)]
+        [InlineData("eyring", "omni")]
+        [InlineData("eyring", "directional")]
+        [InlineData("sabine", "omni")]
+        [InlineData("sabine", "directional")]
+        [InlineData("sabine", "off")]
+        public void Settings_SendLateEnvelopeOffForAnEyringOrSabineTail_WhateverIsChosen(string tail, string? choice)
+        {
+            var settings = HybridRun.Settings(tail, null, null, choice, 1, null, 48000, NoSources, NoReceivers, out _);
+            Assert.Equal(false, settings["late_envelope"]);
+        }
+
+        [Theory]
+        [InlineData("ray_tracing", false)]
+        [InlineData("reference", false)]
+        [InlineData("eyring", true)]
+        [InlineData("sabine", true)]
+        public void TheLateEnvelopeRests_ForAnEyringOrSabineTail(string tail, bool rests) =>
+            Assert.Equal(rests, HybridRun.LateEnvelopeRests(tail));
 
         [Fact]
         public void Settings_TakesTheMonoResponsesOfTheReferenceByKey()
@@ -163,7 +191,9 @@ namespace CompasAcoustics.Grasshopper.Tests
         [InlineData("ray_tracing", null, true)]
         [InlineData("ray_tracing", "omni", true)]
         [InlineData("ray_tracing", "off", true)]
+        [InlineData("ray_tracing", "directional", true)]
         [InlineData("reference", "directional", true)]
+        [InlineData("reference", "auto", false)]
         [InlineData("reference", null, false)]
         [InlineData("reference", "omni", false)]
         [InlineData("reference", "off", false)]

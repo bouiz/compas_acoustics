@@ -12,20 +12,21 @@ namespace CompasAcoustics.Grasshopper
         // first item is the default
         public static readonly string[] Tails = { "ray_tracing", "reference", "eyring", "sabine" };
         public static readonly string[] Diffraction = { "none", "udfa", "btms" };
-        public static readonly string[] LateEnvelopes = { "auto", "omni", "directional", "off" };
+        public static readonly string[] LateEnvelopes = { "omni", "directional", "off" };
 
         /// <summary>
-        /// What the methods take for the Late envelope choice: null for auto (the method's own default by tail), the mode, or
-        /// false for off. A boolean reads as directional (true) or off (false).
+        /// What the methods take for the Late envelope choice: the mode, or false for off. A boolean reads as directional
+        /// (true) or off (false); an unset or unknown choice, a saved Auto among them, is omni.
         /// </summary>
-        public static object? LateEnvelope(string? choice) => choice?.Trim().ToLowerInvariant() switch
+        public static object LateEnvelope(string? choice) => choice?.Trim().ToLowerInvariant() switch
         {
-            null or "" or "auto" => null,
-            "omni" => "omni",
             "directional" or "true" => "directional",
             "off" or "false" => false,
-            _ => choice,
+            _ => "omni",
         };
+
+        /// <summary>Whether the Late envelope rests: an Eyring or Sabine tail has no reference for it to follow, and the methods refuse a mode with one.</summary>
+        public static bool LateEnvelopeRests(string tail) => tail is "eyring" or "sabine";
 
         /// <summary>
         /// The tail to send: the chosen one, ray tracing when none is set, and, for a definition saved with the former Auto
@@ -55,7 +56,7 @@ namespace CompasAcoustics.Grasshopper
 
         /// <summary>
         /// The settings both methods take: unset inputs are left out so that the method's own defaults apply, the seed's
-        /// included, but the tail is always sent. <paramref name="references"/> are the mono responses of the reference by pair key; the reference must hold
+        /// included, but the tail and the late envelope are always sent. <paramref name="references"/> are the mono responses of the reference by pair key; the reference must hold
         /// one for every pair of the scene's <paramref name="sources"/> and <paramref name="receivers"/>.
         /// </summary>
         public static Dictionary<string, object?> Settings(string? tail, int? ismOrder, string? diffraction, string? lateEnvelope, int? seed,
@@ -82,12 +83,13 @@ namespace CompasAcoustics.Grasshopper
                 if (missing.Count > 0)
                     throw new ArgumentException($"The connected reference is incomplete: {string.Join(", ", missing)}; connect the irs of Simulate Mono simulated for this scene.");
             }
+            var sentTail = Tail(tail, reference != null);
             var given = new Dictionary<string, object?>
             {
-                ["tail"] = Tail(tail, reference != null),
+                ["tail"] = sentTail,
                 ["image_source_order"] = ismOrder is int ism ? (long)ism : null,
                 ["diffraction"] = string.IsNullOrEmpty(diffraction) || diffraction == "none" ? null : diffraction,
-                ["late_envelope"] = LateEnvelope(lateEnvelope),
+                ["late_envelope"] = LateEnvelopeRests(sentTail) ? false : LateEnvelope(lateEnvelope),
                 ["seed"] = seed is int s ? (long)s : null,
             };
             return given.Where(kv => kv.Value != null).ToDictionary(kv => kv.Key, kv => kv.Value);

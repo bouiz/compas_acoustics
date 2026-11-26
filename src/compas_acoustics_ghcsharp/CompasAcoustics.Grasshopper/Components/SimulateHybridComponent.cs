@@ -74,6 +74,9 @@ namespace CompasAcoustics.Grasshopper
         };
 
         private IReadOnlyList<Control>? _controls;
+        private string _tail = "ray_tracing";
+
+        public override bool ControlEnabled(string port) => port != "late_envelope" || !HybridRun.LateEnvelopeRests(_tail);
 
         public override float MinBodyWidth => SharedBodyWidth;
 
@@ -112,6 +115,7 @@ namespace CompasAcoustics.Grasshopper
             var references = Items<ImpulseResponseGoo>(access, "reference").Where(ir => ir != null).ToList();
             var reference = references.Count == 0 ? null : references;
             var tail = HybridRun.Tail(Text(access, "tail"), reference != null);
+            _tail = tail;
             // checked before 'run' so that it shows as soon as the tail is chosen, not only after pressing Run
             if (HybridRun.TailProblem(tail, reference != null) is { } problem)
             {

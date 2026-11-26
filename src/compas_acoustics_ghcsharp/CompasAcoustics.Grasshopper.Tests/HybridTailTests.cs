@@ -53,7 +53,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Shape = { 4, 1 }, SamplingRate = 48000, Samples = { new double[4] },
         });
 
-        private static FakeAccess Access(string? tail, bool referenced, bool run = false)
+        private static FakeAccess Access(string? tail, bool referenced, bool run = false, string? lateEnvelope = null)
         {
             var access = new FakeAccess();
             access.Items["scene"] = new SceneGoo(new SceneData
@@ -63,6 +63,8 @@ namespace CompasAcoustics.Grasshopper.Tests
             });
             if (tail != null)
                 access.Items["tail"] = tail;
+            if (lateEnvelope != null)
+                access.Items["late_envelope"] = lateEnvelope;
             if (referenced)
                 access.Lists["reference"] = new[] { Reference() };
             if (run)
@@ -205,6 +207,53 @@ namespace CompasAcoustics.Grasshopper.Tests
             hybrid.ShowControlPorts(false);
             var hidden = (SimulateBinauralComponent)RoundTrip(hybrid);
             Assert.Equal(tail, hidden.HiddenValue("tail"));
+        }
+
+        [Fact]
+        public void ANewComponent_SendsOmni()
+        {
+            Solve(new SimulateBinauralComponent(), Access(null, referenced: false, run: true));
+            Assert.Equal("omni", Settings()["late_envelope"]);
+        }
+
+        [Theory]
+        [InlineData("ray_tracing", false, "directional", "directional")]
+        [InlineData("reference", true, "directional", "directional")]
+        [InlineData("ray_tracing", false, "off", false)]
+        [InlineData("ray_tracing", false, "auto", "omni")]
+        public void TheLateEnvelopeChosen_IsSentExplicitly_AnOldAutoAsOmni(string tail, bool referenced, string chosen, object sent)
+        {
+            var component = new SimulateAmbisonicsComponent();
+            Solve(component, Access(tail, referenced, run: true, lateEnvelope: chosen));
+            Assert.Equal(sent, Settings()["late_envelope"]);
+            Assert.True(component.ControlEnabled("late_envelope"));
+            Assert.Empty(component.RuntimeMessages(GH_RuntimeMessageLevel.Error));
+        }
+
+        [Theory]
+        [InlineData("eyring", "directional")]
+        [InlineData("eyring", "omni")]
+        [InlineData("sabine", "directional")]
+        [InlineData("sabine", null)]
+        public void AnEyringOrSabineTail_RestsTheLateEnvelope_AndSendsOff(string tail, string? chosen)
+        {
+            var component = new SimulateBinauralComponent();
+            Assert.True(component.ControlEnabled("late_envelope"));
+            Solve(component, Access(tail, referenced: false, run: true, lateEnvelope: chosen));
+            Assert.False(component.ControlEnabled("late_envelope"));
+            Assert.True(component.ControlEnabled("tail"));
+            Assert.Equal(false, Settings()["late_envelope"]);
+            Assert.Empty(component.RuntimeMessages(GH_RuntimeMessageLevel.Error));
+        }
+
+        [Fact]
+        public void TheLateEnvelope_WorksAgainWhenTheTailChangesBack()
+        {
+            var component = new SimulateBinauralComponent();
+            Solve(component, Access("eyring", referenced: false));
+            Assert.False(component.ControlEnabled("late_envelope"));
+            Solve(component, Access("ray_tracing", referenced: false));
+            Assert.True(component.ControlEnabled("late_envelope"));
         }
 
         [Fact]

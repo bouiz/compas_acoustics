@@ -90,7 +90,7 @@
             },
             {
                 "name": "late_envelope",
-                "description": "How the late field follows the reference: auto (omni with a reference or ray-traced tail, off for an Eyring or Sabine tail), omni (its level per band to the reference's late energy), directional (as omni, and each delay line to its direction's share of the ray-traced energy), or off.",
+                "description": "How the late field follows the reference: omni (default; its level per band to the reference's late energy), directional (as omni, and each delay line to its direction's share of the ray-traced energy), or off. An Eyring or Sabine tail has no reference to follow: the dropdown rests and the late envelope is off.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "str"

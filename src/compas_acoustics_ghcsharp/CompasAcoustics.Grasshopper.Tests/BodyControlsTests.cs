@@ -242,12 +242,14 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void TheLateEnvelope_IsADropdownOfItsModes_AutoFirst()
+        public void TheLateEnvelope_IsADropdownOfItsModes_OmniFirst()
         {
             foreach (var component in new ComponentBase[] { new SimulateBinauralComponent(), new SimulateAmbisonicsComponent() })
             {
                 var dropdown = component.Controls.OfType<DropdownControl>().Single(d => d.Port == "late_envelope");
-                Assert.Equal(new[] { "auto", "omni", "directional", "off" }, dropdown.Options);
+                Assert.Equal(new[] { "omni", "directional", "off" }, dropdown.Options);
+                Assert.Equal(new[] { "Omni", "Directional", "Off" }, dropdown.Options.Select(o => ControlLayout.Label(dropdown, o)));
+                Assert.Equal(("omni", false), ControlState.Of(component.ControlPort("late_envelope")!, dropdown.Options));
                 Assert.Equal("Late envelope", ControlLayout.Title(dropdown));
                 Assert.IsType<global::Grasshopper.Kernel.Parameters.Param_String>(component.ControlPort("late_envelope"));
             }
