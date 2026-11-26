@@ -176,14 +176,6 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void AMenu_IsAsWideAsItsLongestText_AndNeverNarrowerThanItsDropdown()
-        {
-            Assert.Equal(160, ControlLayout.MenuWidth(new[] { 40, 100, 70 }, 90, 60));
-            Assert.Equal(90, ControlLayout.MenuWidth(new[] { 10, 20 }, 90, 60));
-            Assert.Equal(90, ControlLayout.MenuWidth(System.Array.Empty<int>(), 90, 60));
-        }
-
-        [Fact]
         public void ADropdownsLabels_StartWithACapital_AndItsValuesKeepTheirForm()
         {
             var tail = new DropdownControl("tail", new[] { "auto", "ray_tracing" });

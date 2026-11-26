@@ -125,10 +125,6 @@ namespace CompasAcoustics.Grasshopper
         public static string[] MenuLabels(DropdownControl dropdown, string[] values, string[] labels) =>
             dropdown.MenuLabels is not { } menu ? labels : values.Select((v, i) => Array.IndexOf(dropdown.Options, v) is var j && j >= 0 && j < menu.Length ? menu[j] : labels[i]).ToArray();
 
-        /// <summary>The width of the menu of a dropdown: that of its longest text with <paramref name="chrome"/> around it, but at least that of the dropdown.</summary>
-        public static int MenuWidth(IEnumerable<int> textWidths, int dropdownWidth, int chrome) =>
-            Math.Max(dropdownWidth, textWidths.DefaultIfEmpty(0).Max() + chrome);
-
         private static bool IsInline(Control? control) => control is ToggleControl { Inline: true } or ButtonControl { Inline: true };
 
         /// <summary>Whether <paramref name="control"/> goes on the row of <paramref name="previous"/>: inline toggles with toggles, inline buttons with buttons.</summary>

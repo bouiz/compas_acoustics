@@ -363,17 +363,10 @@ namespace CompasAcoustics.Grasshopper
                 };
                 menu.Items.Add(item);
             }
-            var texts = menu.Items.OfType<ToolStripMenuItem>().Select(i => TextRenderer.MeasureText(i.Text, menu.Font).Width);
-            var width = ControlLayout.MenuWidth(texts, (int)Math.Ceiling(dropdownWidth), menu.Padding.Horizontal + MenuItemChrome);
-            foreach (var item in menu.Items.OfType<ToolStripItem>())
-                item.AutoSize = false;
-            foreach (var item in menu.Items.OfType<ToolStripItem>())
-                item.Size = new Size(width, item.Height);
+            // the menu sizes its items to the longest option itself (fixed item widths cut text on macOS); at least the dropdown's width
+            menu.MinimumSize = new Size((int)Math.Ceiling(dropdownWidth), 0);
             menu.Show(sender, e.ControlLocation);
         }
-
-        // the check-mark margin, the item padding and the arrow column of a menu item, beside its text
-        private const int MenuItemChrome = 60;
     }
 
     /// <summary>How the controls look: Grasshopper's capsules, so they match the canvas.</summary>
