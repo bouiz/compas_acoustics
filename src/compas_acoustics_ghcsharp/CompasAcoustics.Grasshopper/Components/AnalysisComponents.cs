@@ -81,6 +81,7 @@ namespace CompasAcoustics.Grasshopper
             RunInBackground(access, new Background("analysis", args, new Dictionary<string, object?>(), branches, CallKey(args, branches)), (outcome, _) =>
             {
                 var result = outcome.Result;
+                ShowNotes(result);
                 var paths = (List<(GH_Path Path, string TitleSuffix)>)outcome.Context!;
                 Status(timeScale == "db" ? "time in dB" : "time linear");
                 var parameters = new DataTree<ParameterGoo>();

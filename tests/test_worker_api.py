@@ -219,6 +219,12 @@ def test_analysis_of_a_binaural_response_plots_both_ears():
     assert time["title"] == "Impulse Response (left, right)"
 
 
+def test_analysis_of_several_channels_notes_the_first_channel_and_warns_nothing():
+    result = call("analysis", [decay(channels=2)])
+    assert result["notes"] == ["Impulse response has 2 channels; analysing channel 0 only."]
+    assert result["warnings"] == []
+
+
 def test_analysis_of_an_ambisonic_response_plots_w():
     frequency = call("analysis", [decay(channels=4)])["analyses"][0]["frequency"]
     assert frequency["channels"] == ["W"] and len(frequency["values"]) == 1

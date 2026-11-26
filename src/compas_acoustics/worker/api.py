@@ -36,6 +36,7 @@ from compas_acoustics import Source
 from compas_acoustics import SpecularReflections
 from compas_acoustics import __version__
 from compas_acoustics import simulation_methods
+from compas_acoustics.analyser import CHANNEL_NOTE
 from compas_acoustics.analyser import PARAMETERS
 from compas_acoustics.analyser import frequency_response
 from compas_acoustics.analyser import time_response
@@ -276,8 +277,9 @@ def _curve_title(title, channels):
 
 
 def analysis(irs, time_scale="db"):
-    """``{"analyses": [analysis], "warnings": [str]}``, one analysis per response of ``irs`` in order, as Analyse IR
-    shows them.
+    """``{"analyses": [analysis], "warnings": [str], "notes": [str]}``, one analysis per response of ``irs`` in
+    order, as Analyse IR shows them; ``notes`` holds what flags no fault (a response of several channels analysed on
+    its first).
 
     An analysis is ``{"parameters": [parameter], "time": parameter, "frequency": parameter}``; a parameter is
     ``{"name", "title", "x_unit", "y_unit", "x_scale" ('bands', 'linear' or 'log'), "frequencies", "values" (one list
@@ -311,7 +313,8 @@ def analysis(irs, time_scale="db"):
             title = _curve_title("Frequency Response, 1/3 octave", channels)
             frequency = _parameter("FR", title, "Frequency (Hz)", "Level (dB)", "log", frequencies, magnitudes, channels=channels)
             analyses.append({"parameters": parameters, "time": time, "frequency": frequency})
-    return {"analyses": analyses, "warnings": messages}
+    messages, notes = _split_notes(messages, (CHANNEL_NOTE,))
+    return {"analyses": analyses, "warnings": messages, "notes": notes}
 
 
 # =============================================================================

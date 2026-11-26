@@ -30,6 +30,8 @@ PARAMETERS = {
 }
 _PARAM_NAMES = list(PARAMETERS)
 
+CHANNEL_NOTE = "Impulse response has {} channels; analysing channel 0 only."
+
 # pyrato < 1.0 (the only one on Python 3.9) has no `parameters` module
 _PYRATO_PARAMETERS = hasattr(pyrato, "parameters")
 _STI_SUPPORTED = _PYRATO_PARAMETERS and hasattr(pyrato.parameters, "speech_transmission_index_indirect")
@@ -215,7 +217,7 @@ class Analyser:
             raise ValueError(f"Impulse response must be 1D or 2D, got {ir_array.ndim}D.")
         if ir_array.ndim == 2:
             if ir_array.shape[1] > 1:
-                warnings.warn(f"Impulse response has {ir_array.shape[1]} channels; analysing channel 0 only.")
+                warnings.warn(CHANNEL_NOTE.format(ir_array.shape[1]))
             ir_array = ir_array[:, 0]
         return ir_array
 
