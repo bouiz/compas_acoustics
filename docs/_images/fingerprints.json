@@ -228,12 +228,13 @@
       ]
     },
     "CA_Source": {
-      "hash": "f3ada7f109e3",
+      "hash": "22bd2f0f4f51",
       "inputs": [
         "position",
         "name",
         "direction",
-        "spl"
+        "spl",
+        "sound"
       ],
       "outputs": [
         "source"
