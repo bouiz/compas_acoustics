@@ -13,8 +13,17 @@ namespace CompasAcoustics.Grasshopper
     {
         public static readonly string[] Names = { "EDT", "T20", "T30", "C50", "C80", "D50", "DRR", "Ts", "STI", "G", "SPL", "LF", "LFC" };
 
-        // first item is the default
+        public static readonly string[] Titles =
+        {
+            "Early Decay Time", "Reverberation Time", "Reverberation Time", "Clarity", "Clarity", "Definition", "Direct-to-Reverberant Ratio",
+            "Center Time", "Speech Transmission Index", "Sound Strength", "Sound Pressure Level", "Lateral Energy Fraction", "Lateral Energy Fraction, cosine",
+        };
+
         public static readonly string[] Options = new[] { "all" }.Concat(Names).ToArray();
+
+        public static readonly string[] Labels = new[] { "All" }.Concat(Names).ToArray();
+
+        public static readonly string[] MenuLabels = new[] { "All" }.Concat(Names.Select((n, i) => $"{n} ({Titles[i]})")).ToArray();
 
         public static bool IsCurve(ParameterGoo.Content p) => p.XScale != "bands";
 
@@ -40,7 +49,7 @@ namespace CompasAcoustics.Grasshopper
 
         protected override IGH_Param? CreateParam(PortSpec port, bool input) => input && port.Name == "data" ? new Param_Parameter() : null;
 
-        public override IReadOnlyList<Control> Controls { get; } = new Control[] { new DropdownControl("select", PlotSelection.Options, Title: "Select parameter") };
+        public override IReadOnlyList<Control> Controls { get; } = new Control[] { new DropdownControl("select", PlotSelection.Options, "T30", PlotSelection.Labels, "Select parameter", PlotSelection.MenuLabels) };
 
         public override void CreateAttributes() => m_attributes = new Plot2DUi(this);
 

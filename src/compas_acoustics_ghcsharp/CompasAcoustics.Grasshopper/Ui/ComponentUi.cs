@@ -343,6 +343,7 @@ namespace CompasAcoustics.Grasshopper
         {
             var (values, labels) = Component.OptionsOf(dropdown);
             var current = port != null ? ControlState.Of(port, values, ComponentBase.DefaultOf(dropdown)).value : Component.Choice(dropdown.Port);
+            labels = ControlLayout.MenuLabels(dropdown, values, labels);
             var menu = new ContextMenuStrip();
             // the input's name heads its options
             menu.Items.Add(new ToolStripMenuItem(dropdown.Port) { Enabled = false });

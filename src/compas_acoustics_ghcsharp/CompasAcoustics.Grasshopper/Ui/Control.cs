@@ -15,10 +15,10 @@ namespace CompasAcoustics.Grasshopper
 
     /// <summary>
     /// The chosen option, with a menu of the others. <c>Options</c> are the input's values (empty clears it), <c>Labels</c>
-    /// what they read; <c>Title</c> replaces the input's name above it. A component may give the options itself
-    /// (<see cref="ComponentBase.OptionsOf"/>).
+    /// what they read; <c>Title</c> replaces the input's name above it; <c>MenuLabels</c> what the opened menu reads, where the
+    /// closed dropdown is too narrow for them. A component may give the options itself (<see cref="ComponentBase.OptionsOf"/>).
     /// </summary>
-    public sealed record DropdownControl(string Port, string[] Options, string? Default = null, string[]? Labels = null, string? Title = null) : Control(Port);
+    public sealed record DropdownControl(string Port, string[] Options, string? Default = null, string[]? Labels = null, string? Title = null, string[]? MenuLabels = null) : Control(Port);
 
     /// <summary>Several options lit at once, for a list input: none lit is <c>Default</c>.</summary>
     public sealed record MultiSwitchControl(string Port, string[] Options, string[] Default) : Control(Port);
@@ -112,6 +112,10 @@ namespace CompasAcoustics.Grasshopper
             var i = Array.IndexOf(options, value);
             return labels != null && i >= 0 && i < labels.Length ? labels[i] : value.Replace('_', ' ');
         }
+
+        /// <summary>What the opened menu of <paramref name="dropdown"/> reads for the options it offers: its menu labels when it offers its own options.</summary>
+        public static string[] MenuLabels(DropdownControl dropdown, string[] values, string[] labels) =>
+            dropdown.MenuLabels is { } menu && ReferenceEquals(values, dropdown.Options) && menu.Length == values.Length ? menu : labels;
 
         private static bool IsInline(Control? control) => control is ToggleControl { Inline: true } or ButtonControl { Inline: true };
 

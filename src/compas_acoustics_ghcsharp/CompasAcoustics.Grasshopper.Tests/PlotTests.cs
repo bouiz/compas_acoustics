@@ -280,7 +280,13 @@ namespace CompasAcoustics.Grasshopper.Tests
             var select = Assert.IsType<DropdownControl>(Assert.Single(component.Controls));
             Assert.Equal("select", select.Port);
             Assert.Equal(PlotSelection.Options, select.Options);
-            Assert.Equal("all", component.Choice("select"));
+            Assert.Equal("T30", component.Choice("select"));
+            Assert.Equal("T30", select.Default);
+            Assert.Equal(new[] { "All" }.Concat(PlotSelection.Names), select.Labels);
+            Assert.Equal(PlotSelection.MenuLabels, ControlLayout.MenuLabels(select, select.Options, select.Labels!));
+            Assert.Equal(select.Labels, ControlLayout.MenuLabels(select, new[] { "all" }, select.Labels!));
+            Assert.Equal("All", ControlLayout.Label(select, "all"));
+            Assert.Equal("T30", ControlLayout.Label(select, "T30"));
             Assert.Equal(new[] { "data" }, component.Params.Input.Select(p => p.Name));
         }
 
@@ -404,6 +410,14 @@ namespace CompasAcoustics.Grasshopper.Tests
             typeof(GH_Component).GetMethod(method, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(component, args);
 
         [Fact]
+        public void ANewPlot2D_ChartsT30AndTheCurve_WithNoChoiceMade()
+        {
+            var plot = new Plot2DComponent();
+            Solve(plot, P("EDT"), P("T30"), Curve("IR", "linear"));
+            Assert.Equal(new[] { "T30", "IR" }, plot.Charts.Select(p => p.Name).ToArray());
+        }
+
+        [Fact]
         public void TheParameterDropdown_RestsWithOnlyCurvesConnected_AndKeepsItsValue()
         {
             var plot = new Plot2DComponent();
@@ -420,6 +434,17 @@ namespace CompasAcoustics.Grasshopper.Tests
             // nothing connected: Grasshopper solves no instance of the required input
             Call(plot, "BeforeSolveInstance");
             Assert.False(plot.ControlEnabled("select"));
+        }
+
+        [Fact]
+        public void MenuLabels_NameEachParameter_AsTheAnalyserTitlesDo()
+        {
+            Assert.Equal(new[]
+            {
+                "All", "EDT (Early Decay Time)", "T20 (Reverberation Time)", "T30 (Reverberation Time)", "C50 (Clarity)", "C80 (Clarity)",
+                "D50 (Definition)", "DRR (Direct-to-Reverberant Ratio)", "Ts (Center Time)", "STI (Speech Transmission Index)", "G (Sound Strength)",
+                "SPL (Sound Pressure Level)", "LF (Lateral Energy Fraction)", "LFC (Lateral Energy Fraction, cosine)",
+            }, PlotSelection.MenuLabels);
         }
 
         [Fact]

@@ -409,7 +409,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void APlot2DSavedBeforeItChoseTheParameter_ReadsWithEverythingChosen_AndKeepsItsSize()
+        public void APlot2DSavedBeforeItChoseTheParameter_ReadsWithT30Chosen_AndKeepsItsSize()
         {
             var old = new Plot2DComponent { ChartSize = new System.Drawing.SizeF(420, 240) };
             old.Params.Input[0].Access = GH_ParamAccess.list;
@@ -420,8 +420,22 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(new[] { "data" }, fresh.Params.Input.Select(p => p.Name).ToArray());
             Assert.Equal(GH_ParamAccess.tree, fresh.Params.Input[0].Access);
             Assert.Equal(new System.Drawing.SizeF(420, 240), fresh.ChartSize);
-            Assert.Equal("all", fresh.Choice("select"));
+            Assert.Equal("T30", fresh.Choice("select"));
             Assert.Empty(fresh.RuntimeMessages(GH_RuntimeMessageLevel.Remark));
+        }
+
+        [Theory]
+        [InlineData("all")]
+        [InlineData("EDT")]
+        public void APlot2DSavedWithAnotherChoice_ReadsTheChoice(string choice)
+        {
+            var saved = new Plot2DComponent();
+            saved.SetChoice("select", choice);
+            var fresh = new Plot2DComponent();
+            var (archive, read) = SaveThenRead(saved, fresh);
+            Assert.True(read);
+            Assert.Empty(Errors(archive));
+            Assert.Equal(choice, fresh.Choice("select"));
         }
 
         [Fact]
