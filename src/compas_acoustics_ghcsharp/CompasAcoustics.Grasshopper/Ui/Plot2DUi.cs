@@ -207,7 +207,7 @@ namespace CompasAcoustics.Grasshopper
             Painter.DrawGrip(g, Body);
         }
 
-        private static readonly Font DescriptionFont = new(FontFamily.GenericSansSerif, 7.5f);
+        private static readonly Font DescriptionFont = new(FontFamily.GenericSansSerif, 9f);
 
         private void DrawDescription(Graphics g)
         {
