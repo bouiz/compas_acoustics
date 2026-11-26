@@ -398,12 +398,13 @@ namespace CompasAcoustics.Grasshopper.Tests
         {
             var ism = SimulateMonoComponent.IsmOrder;
             var row = new RectangleF(0, 0, 120, StepSlider.Height);
-            var room = StepSlider.CharWidth * 2 / 2 + StepSlider.DotRadius + 3;
+            var room = Math.Max(StepSlider.CharWidth * 2 / 2, StepSlider.DotRadius) + 1;
             Assert.InRange(StepSlider.StopX(row, 0, ism), room - 0.01f, room);
             Assert.InRange(row.Right - StepSlider.StopX(row, 10, ism), room - 0.01f, room);
             Assert.True(StepSlider.StopX(row, 0, ism) < StepSlider.StopX(row, 1, ism));
+            Assert.True(room <= 7);
             var rays = VisualiseRaysComponent.OrderStops(4);
-            Assert.InRange(StepSlider.StopX(row, 0, rays), 0, StepSlider.CharWidth * 3 / 2 + StepSlider.DotRadius + 3);
+            Assert.InRange(row.Right - StepSlider.StopX(row, 4, rays), 0, Math.Max(StepSlider.CharWidth * 3 / 2, StepSlider.DotRadius) + 1);
             Assert.Equal("", StepSlider.Nearest(row, row.Right, rays, null));
         }
 

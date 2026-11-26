@@ -21,7 +21,7 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>The width a label character takes at the labels' size, to leave room for the end labels.</summary>
         public const float CharWidth = 4.5f;
 
-        private const float EdgeMargin = 3;
+        private const float EdgeMargin = 1;
         private static readonly Color Knob = Color.FromArgb(31, 98, 208);
         private static readonly Color Off = Color.FromArgb(165, 165, 165);
 
@@ -31,11 +31,12 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>The text under stop <paramref name="i"/>: its label, else its option.</summary>
         private static string LabelOf(StepSliderControl slider, int i) => slider.Labels?[i] ?? slider.Options[i];
 
-        /// <summary>How far the track's ends stand from the row's edges: half the wider end label, the knob's radius and a margin.</summary>
+        /// <summary>How far the track's ends stand from the row's edges: room for half the wider end label or the knob, whichever is larger, and a margin.</summary>
         public static float Inset(StepSliderControl slider)
         {
             var n = slider.Options.Length;
-            return Math.Max(LabelOf(slider, 0).Length, LabelOf(slider, n - 1).Length) * CharWidth / 2 + DotRadius + EdgeMargin;
+            var label = Math.Max(LabelOf(slider, 0).Length, LabelOf(slider, n - 1).Length) * CharWidth / 2;
+            return Math.Max(label, DotRadius) + EdgeMargin;
         }
 
         /// <summary>The x of stop <paramref name="i"/>, evenly along the track.</summary>
