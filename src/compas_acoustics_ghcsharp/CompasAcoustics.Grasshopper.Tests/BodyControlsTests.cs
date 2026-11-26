@@ -141,17 +141,20 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void TheIsmOrder_IsASliderOfWholeOrdersFrom0To10_OnEverySimulation()
+        public void TheIsmOrder_IsAStepSliderOfTheOrdersFrom0To10_OnEverySimulation()
         {
             foreach (var simulation in new ComponentBase[] { new SimulateMonoComponent(), new SimulateBinauralComponent(), new SimulateAmbisonicsComponent() })
             {
-                var ism = simulation.Controls.OfType<SliderControl>().Single(c => c.Port == "ism_order");
-                Assert.Equal((0.0, 10.0, 1.0, false), (ism.Min, ism.Max, ism.Step, ism.Live));
-                Assert.Equal("ISM order", ControlLayout.Title(ism));
-                Assert.DoesNotContain(simulation.Controls, c => c is DropdownControl { Port: "ism_order" });
+                var ism = simulation.Controls.OfType<StepSliderControl>().Single(c => c.Port == "ism_order");
+                Assert.Equal(Orders, ism.Options);
+                Assert.Equal(Orders, ism.Labels);
+                Assert.Equal(("3", "ISM order"), (ism.Default, ControlLayout.Title(ism)));
+                Assert.DoesNotContain(simulation.Controls, c => c is SliderControl { Port: "ism_order" } or DropdownControl { Port: "ism_order" });
                 // it shows the input's own value, 3 until moved
                 Assert.Equal(3, ControlState.Persistent(simulation.ControlPort("ism_order")!));
-                Assert.Equal(7.0, ComponentUi.SliderValue(ism, new RectangleF(0, 0, 100, 20), 66));
+                Assert.Equal(("3", false), ControlState.Of(simulation.ControlPort("ism_order")!, ism.Options, ism.Default));
+                var row = new RectangleF(0, 0, 120, StepSlider.Height);
+                Assert.Equal("7", StepSlider.Nearest(row, StepSlider.StopX(row, 7, 11) + 2, ism.Options, simulation.OfferedOptionsOf("ism_order")));
                 Assert.Equal(3, ComponentSpec.Load(simulation is SimulateMonoComponent ? "CA_Simulate_Mono" : simulation is SimulateBinauralComponent ? "CA_Simulate_Binaural" : "CA_Simulate_Ambisonics")
                     .Inputs.Single(p => p.Name == "ism_order").Default);
             }

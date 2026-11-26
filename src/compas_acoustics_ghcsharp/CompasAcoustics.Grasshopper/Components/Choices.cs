@@ -42,11 +42,12 @@ namespace CompasAcoustics.Grasshopper
             return choices;
         }
 
-        /// <summary>The option a switch or dropdown declares as its default; null for another control or none.</summary>
+        /// <summary>The option a switch, dropdown or step slider declares as its default; null for another control or none.</summary>
         internal static string? DefaultOf(Control control) => control switch
         {
             SwitchControl s => s.Default,
             DropdownControl d => d.Default,
+            StepSliderControl s => s.Default,
             _ => null,
         };
 
@@ -85,7 +86,7 @@ namespace CompasAcoustics.Grasshopper
                 ToggleControl t when Spec.Inputs.Any(p => p.Name == name) => t.Default ? "on" : "off",
                 ToggleControl => Choice(name),
                 SwitchControl s => DefaultOf(s) ?? declared ?? s.Options.FirstOrDefault(),
-                DropdownControl or SliderControl => DefaultOf(control) ?? declared,
+                DropdownControl or SliderControl or StepSliderControl => DefaultOf(control) ?? declared,
                 _ => null,
             };
             return value == null || control == null ? null : ControlLayout.Label(control, value);
