@@ -9,6 +9,16 @@ namespace CompasAcoustics.Grasshopper.Tests
     public class TicksTests
     {
         [Fact]
+        public void Padded_AddsAStepWhereAValueSitsOnTheBorder()
+        {
+            var ticks = new[] { 65.0, 66, 67, 68, 69, 70, 71 };
+            Assert.Equal(new[] { 65.0, 66, 67, 68, 69, 70, 71, 72 }, ChartLayout.Padded(ticks, new[] { 71.0, 68.1, 65.4 }, padLow: true));
+            Assert.Equal(new[] { 64.0, 65, 66, 67, 68, 69, 70, 71 }, ChartLayout.Padded(ticks, new[] { 65.0, 70.0 }, padLow: true));
+            Assert.Equal(ticks, ChartLayout.Padded(ticks, new[] { 65.0, 70.0 }, padLow: false));
+            Assert.Equal(ticks, ChartLayout.Padded(ticks, new[] { 66.0, 70.0 }, padLow: true));
+        }
+
+        [Fact]
         public void NiceStep_OfARangeOf7_Is1_AndOf12_Is2() { Assert.Equal(1.0, Ticks.NiceStep(7.0)); Assert.Equal(2.0, Ticks.NiceStep(12.0)); }
 
         [Fact]

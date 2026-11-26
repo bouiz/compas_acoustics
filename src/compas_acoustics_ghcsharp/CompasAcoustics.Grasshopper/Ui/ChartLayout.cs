@@ -112,6 +112,25 @@ namespace CompasAcoustics.Grasshopper
             return null;
         }
 
+        /// <summary>
+        /// <paramref name="ticks"/> with one more step above (and, when <paramref name="padLow"/>, below) where a value
+        /// lies within 5 % of the range of that end, so that no dot sits on the plot's border.
+        /// </summary>
+        internal static double[] Padded(double[] ticks, IEnumerable<double> values, bool padLow)
+        {
+            var finite = values.Where(double.IsFinite).ToArray();
+            if (ticks.Length < 2 || finite.Length == 0)
+                return ticks;
+            var step = ticks[1] - ticks[0];
+            var margin = 0.05 * (ticks[^1] - ticks[0]);
+            var padded = ticks.ToList();
+            if (finite.Max() >= ticks[^1] - margin)
+                padded.Add(ticks[^1] + step);
+            if (padLow && finite.Min() <= ticks[0] + margin)
+                padded.Insert(0, ticks[0] - step);
+            return padded.ToArray();
+        }
+
         public static float Y(Chart chart, double value) => Y(chart.Plot, chart.YLow, chart.YHigh, value);
 
         private static float Y(RectangleF plot, double low, double high, double value) =>
@@ -133,6 +152,8 @@ namespace CompasAcoustics.Grasshopper
             var count = Math.Min(values.Length, p.Frequencies.Length);
             var integral = false;
             var ticks = FixedTicks(p, out integral) ?? (values.Length > 0 ? Ticks.ForValues(values, out integral) : new[] { 0.0, 1.0 });
+            if (p.Name is not ("STI" or "LF"))
+                ticks = Padded(ticks, values, padLow: !ReverberationTimes.Contains(p.Name));
             var (yTicks, low, high, zero) = YAxis(plot, ticks, integral);
             var step = plot.Width / Math.Max(count, 1);
             var floor = zero ?? plot.Bottom;
