@@ -116,13 +116,16 @@ namespace CompasAcoustics.Grasshopper
             if (HybridRun.TailProblem(tail, reference != null) is { } problem)
             {
                 if (reference != null)
+                {
                     Error(problem);
+                    Status("set Tail to Reference");
+                }
                 else
                 {
                     Warn(problem);
                     Status("connect a reference");
-                    SetResponses(access, scene.Value.Guid);
                 }
+                SetResponses(access, scene.Value.Guid);
                 return;
             }
             var shOrder = ShOrder;

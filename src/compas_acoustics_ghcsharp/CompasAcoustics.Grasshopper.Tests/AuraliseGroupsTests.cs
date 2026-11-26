@@ -224,6 +224,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         public Dictionary<string, object> Trees { get; } = new();
         public Dictionary<string, object> Items { get; } = new();
         public Dictionary<string, System.Collections.IEnumerable> Lists { get; } = new();
+        public Dictionary<string, List<object?>> OutputLists { get; } = new();
 
         public bool GetDataTree<T>(string name, out GH_Structure<T> tree) where T : IGH_Goo
         {
@@ -266,7 +267,11 @@ namespace CompasAcoustics.Grasshopper.Tests
         public bool SetData(string paramName, object data) => false;
         public bool SetDataList(int paramIndex, System.Collections.IEnumerable data) => false;
         public bool SetDataList(int paramIndex, System.Collections.IEnumerable data, int listIndexOverride) => false;
-        public bool SetDataList(string paramName, System.Collections.IEnumerable data) => false;
+        public bool SetDataList(string paramName, System.Collections.IEnumerable data)
+        {
+            OutputLists[paramName] = data.Cast<object?>().ToList();
+            return true;
+        }
         public bool SetDataTree(int paramIndex, IGH_DataTree tree) => false;
         public bool SetDataTree(int paramIndex, IGH_Structure tree) => false;
         public int Util_CountNonNullRefs<T>(List<T> list) => 0;

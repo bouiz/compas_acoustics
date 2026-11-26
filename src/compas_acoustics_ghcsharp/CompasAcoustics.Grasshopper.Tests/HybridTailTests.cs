@@ -107,6 +107,18 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
+        public void TheReferenceError_SetsAStatus_AndAnEmptyOutput()
+        {
+            var component = new SimulateBinauralComponent();
+            var access = Access("eyring", referenced: true, run: true);
+            access.OutputLists["irs"] = new List<object?> { "stale" };
+            Solve(component, access);
+            Assert.Equal("set Tail to Reference", component.Message);
+            Assert.Empty(access.OutputLists["irs"]);
+            Assert.Empty(_calls);
+        }
+
+        [Fact]
         public void TailReferenceWithAReference_RunsWithoutAMessage()
         {
             var component = new SimulateAmbisonicsComponent();
