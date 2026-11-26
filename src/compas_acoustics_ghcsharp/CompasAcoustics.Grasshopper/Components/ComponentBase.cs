@@ -72,6 +72,9 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>The controls drawn on the body, below the ports; each sets its input unless a wire does.</summary>
         public virtual IReadOnlyList<Control> Controls => Array.Empty<Control>();
 
+        /// <summary>The width of the Acoustic Scene component in canvas units, the minimum body width of Simulate, Analyse Impulse Response and Auralise so they line up with it.</summary>
+        public const float SceneBodyWidth = 131;
+
         /// <summary>The narrowest the component is drawn, in canvas units; 0 for Grasshopper's own width.</summary>
         public virtual float MinBodyWidth => 0;
 

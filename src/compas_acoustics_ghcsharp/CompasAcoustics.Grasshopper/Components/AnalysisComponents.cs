@@ -15,6 +15,8 @@ namespace CompasAcoustics.Grasshopper
         protected override string SpecKey => "CA_Analyse_IR";
         public override Guid ComponentGuid => new Guid("410e7b44-f239-5e1e-ba74-5884e208b73e");
 
+        public override float MinBodyWidth => SceneBodyWidth;
+
         protected override IGH_Param? CreateParam(PortSpec port, bool input) => (input, port.Name) switch
         {
             (true, "irs") => new Param_ImpulseResponse(),

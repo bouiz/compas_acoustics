@@ -48,14 +48,15 @@ namespace CompasAcoustics.Grasshopper.Tests
 
         [Theory]
         [MemberData(nameof(Components))]
-        public void TheSimulateComponents_AreDrawnOneWidth_TheOthersAtTheirOwn(string typeName)
+        public void TheSimulateAnalyseAndAuraliseComponents_AreDrawnOneWidth_TheOthersAtTheirOwn(string typeName)
         {
             var component = Make(typeName);
-            var simulate = typeName is nameof(SimulateMonoComponent) or nameof(SimulateBinauralComponent) or nameof(SimulateAmbisonicsComponent);
-            Assert.Equal(simulate ? SimulateMonoComponent.BodyWidth : 0, component.MinBodyWidth);
+            var simulate = typeName is nameof(SimulateMonoComponent) or nameof(SimulateBinauralComponent) or nameof(SimulateAmbisonicsComponent)
+                or nameof(AnalyseIrComponent) or nameof(AuraliseComponent);
+            Assert.Equal(simulate ? ComponentBase.SceneBodyWidth : 0, component.MinBodyWidth);
             Assert.Equal(Math.Max(component.MinBodyWidth, ControlLayout.MinWidth(component.BodyControls)), ComponentUi.MinBodyWidthOf(component));
             if (simulate)
-                Assert.Equal(170f, ComponentUi.MinBodyWidthOf(component));
+                Assert.Equal(131f, ComponentUi.MinBodyWidthOf(component));
         }
 
         [Theory]
