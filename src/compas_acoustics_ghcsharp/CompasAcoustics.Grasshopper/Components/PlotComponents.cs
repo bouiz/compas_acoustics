@@ -98,7 +98,7 @@ namespace CompasAcoustics.Grasshopper
         public override bool ControlEnabled(string port) => port != "select" || _hasParameter;
 
         /// <summary>The size of one chart, saved with the component.</summary>
-        public SizeF ChartSize { get; set; } = new(360, 200);
+        public SizeF ChartSize { get; set; } = new(396, 220);
 
         protected override void BeforeSolveInstance()
         {
