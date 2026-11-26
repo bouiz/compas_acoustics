@@ -12,9 +12,11 @@
       ]
     },
     "CA_Analyse_IR": {
-      "hash": "fa7cc4a62860",
+      "hash": "05ecadba18ab",
       "inputs": [
-        "ir"
+        "irs",
+        "source_idx",
+        "receiver_idx"
       ],
       "outputs": [
         "parameters",
@@ -30,15 +32,15 @@
       "outputs": []
     },
     "CA_Auralise": {
-      "hash": "1a0238be0596",
+      "hash": "ee2e0bfa9aeb",
       "inputs": [
         "irs",
-        "anechoic_sounds",
-        "mix_sources"
+        "source_idx",
+        "receiver_idx",
+        "sound"
       ],
       "outputs": [
-        "signals",
-        "sampling_rate"
+        "signals"
       ]
     },
     "CA_Construct_Material": {
@@ -177,7 +179,7 @@
       ]
     },
     "CA_Simulate_Ambisonics": {
-      "hash": "60ce17945fdb",
+      "hash": "c1bd7f18a694",
       "inputs": [
         "scene",
         "tail",
@@ -187,15 +189,14 @@
         "late_envelope",
         "n_rays",
         "seed",
-        "normalize",
         "run"
       ],
       "outputs": [
-        "ambisonic_ir_graph"
+        "irs"
       ]
     },
     "CA_Simulate_Binaural": {
-      "hash": "fc890ff3d2f0",
+      "hash": "88919b941529",
       "inputs": [
         "scene",
         "tail",
@@ -205,36 +206,33 @@
         "late_envelope",
         "n_rays",
         "seed",
-        "normalize",
         "hrtf",
         "run"
       ],
       "outputs": [
-        "binaural_ir_graph"
+        "irs"
       ]
     },
     "CA_Simulate_Mono": {
-      "hash": "9a59b5cea4a7",
+      "hash": "0a2709578a9e",
       "inputs": [
         "scene",
         "ism_order",
         "ray_tracing",
         "n_rays",
         "duration",
-        "seed",
-        "normalize"
+        "seed"
       ],
       "outputs": [
-        "mono_ir_graph"
+        "irs"
       ]
     },
     "CA_Source": {
-      "hash": "571d634f3573",
+      "hash": "f3ada7f109e3",
       "inputs": [
         "position",
         "name",
         "direction",
-        "sound_file",
         "spl"
       ],
       "outputs": [
@@ -314,7 +312,7 @@
     }
   },
   "ghx": {
-    "simple_simulation_shoebox": "ca7b1eec4290"
+    "simple_simulation_shoebox": "ffea79f38641"
   },
   "py": {
     "obj": "59d1fe9fefeb",
