@@ -275,10 +275,11 @@ def test_auralise_none_leaves_the_convolution_as_it_is(sound):
     np.testing.assert_array_equal(result["signals"][0]["audio"].samples, Auraliser([irs[1]], anechoic_sounds=[sound]).convolve())
 
 
-def test_auralise_takes_a_bundled_sound_by_its_name():
+@pytest.mark.parametrize("name", ["female_speech", "male_speech", "viola", "guitar", "castanets"])
+def test_auralise_takes_a_bundled_sound_by_its_name(name):
     irs = two_sources_one_receiver()
-    named = call("auralise", irs, "viola", [0], ["0_0"])
-    path = call("auralise", irs, VIOLA, [0], ["0_0"])
+    named = call("auralise", irs, name, [0], ["0_0"])
+    path = call("auralise", irs, str(Path(VIOLA).with_name(name + ".wav")), [0], ["0_0"])
     np.testing.assert_array_equal(named["signals"][0]["audio"].samples, path["signals"][0]["audio"].samples)
     assert named["peak_dbfs"] == path["peak_dbfs"]
 

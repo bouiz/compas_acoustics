@@ -324,15 +324,15 @@ def _checked_level(level):
 
 
 # the bundled anechoic recordings auralise takes by name, the files of the package's anechoic sound library
-_ANECHOIC_SOUNDS = ("female_speech", "male_speech", "viola")
+_ANECHOIC_SOUNDS = ("female_speech", "male_speech", "viola", "guitar", "castanets")
 
 
 def auralise(irs, sound, chosen, labels, level="relative", save_folder=None, save_name=None):
     """``{"signals": [{"label", "audio": Audio}], "peak_dbfs": float, "warnings": [str]}``: the chosen impulse
     responses convolved with the anechoic ``sound``, one signal per chosen response in the order of ``chosen``.
 
-    ``sound`` is the name of a bundled recording (``'female_speech'``, ``'male_speech'`` or ``'viola'``) or the path
-    of a sound file.
+    ``sound`` is the name of a bundled recording (``'female_speech'``, ``'male_speech'``, ``'viola'``, ``'guitar'`` or
+    ``'castanets'``) or the path of a sound file.
 
     ``irs`` holds every connected response, ``chosen`` the indices of those to render and ``labels`` one label per
     chosen response. ``level``: ``'relative'`` (one gain from the sound convolved with every response of ``irs``, the

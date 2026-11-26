@@ -587,7 +587,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(!hidden, fresh.ControlPortsShown);
             Assert.Equal(loadedChosen ? file : "viola", ControlState.Persistent(fresh.ControlPort("sound")!));
             Assert.Equal(file, fresh.Loaded);
-            Assert.Equal(new[] { "female_speech", "male_speech", "viola", file, "Load..." }, fresh.OptionsOf(AuraliseComponent.SoundDropdown).values);
+            Assert.Equal(new[] { "female_speech", "male_speech", "viola", "guitar", "castanets", file, "Load..." }, fresh.OptionsOf(AuraliseComponent.SoundDropdown).values);
         }
 
         [Theory]
@@ -619,7 +619,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(!hidden, fresh.ControlPortsShown);
             Assert.Equal(file, ControlState.Persistent(fresh.ControlPort("sound")!));
             Assert.Equal(file, fresh.Loaded);
-            Assert.Equal(new[] { "Female speech", "Male speech", "Viola", "bsn_tele_44.wav", "Load..." }, fresh.OptionsOf(AuraliseComponent.SoundDropdown).labels);
+            Assert.Equal(new[] { "Female speech", "Male speech", "Viola", "Guitar", "Castanets", "bsn_tele_44.wav", "Load..." }, fresh.OptionsOf(AuraliseComponent.SoundDropdown).labels);
         }
 
         /// <summary>A Source as saved with a sound_file input between direction and spl (shown with its path, or hidden behind its button) and spl 90.</summary>

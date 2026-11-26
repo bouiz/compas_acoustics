@@ -95,8 +95,8 @@ namespace CompasAcoustics.Grasshopper.Tests
             var auralise = new AuraliseComponent();
             var dropdown = AuraliseComponent.SoundDropdown;
             Assert.Equal("Anechoic sound", ControlLayout.Title(dropdown));
-            Assert.Equal(new[] { "female_speech", "male_speech", "viola", "Load..." }, auralise.OptionsOf(dropdown).values);
-            Assert.Equal(new[] { "Female speech", "Male speech", "Viola", "Load..." }, auralise.OptionsOf(dropdown).labels);
+            Assert.Equal(new[] { "female_speech", "male_speech", "viola", "guitar", "castanets", "Load..." }, auralise.OptionsOf(dropdown).values);
+            Assert.Equal(new[] { "Female speech", "Male speech", "Viola", "Guitar", "Castanets", "Load..." }, auralise.OptionsOf(dropdown).labels);
             Assert.Equal("female_speech", ControlState.Of(auralise.ControlPort("sound")!, auralise.OptionsOf(dropdown).values, ComponentBase.DefaultOf(dropdown)).value);
             Assert.Null(auralise.Loaded);
             Assert.Equal(("sound", auralise.ControlPort("sound")!.Description), auralise.ControlTooltip("sound"));
@@ -118,11 +118,11 @@ namespace CompasAcoustics.Grasshopper.Tests
             var loaded = Path.Combine("sounds", "bsn_tele_44.wav");
             Assert.Equal(loaded, ControlState.Persistent(auralise.ControlPort("sound")!));
             Assert.Equal(loaded, auralise.Loaded);
-            Assert.Equal(new[] { "female_speech", "male_speech", "viola", loaded, "Load..." }, auralise.OptionsOf(dropdown).values);
-            Assert.Equal(new[] { "Female speech", "Male speech", "Viola", "bsn_tele_44.wav", "Load..." }, auralise.OptionsOf(dropdown).labels);
+            Assert.Equal(new[] { "female_speech", "male_speech", "viola", "guitar", "castanets", loaded, "Load..." }, auralise.OptionsOf(dropdown).values);
+            Assert.Equal(new[] { "Female speech", "Male speech", "Viola", "Guitar", "Castanets", "bsn_tele_44.wav", "Load..." }, auralise.OptionsOf(dropdown).labels);
             // a bundled recording chosen after: the loaded file stays on offer, and the next dialog opens in its folder
             ControlState.Choose(auralise, auralise.ControlPort("sound")!, "viola");
-            Assert.Equal(new[] { "female_speech", "male_speech", "viola", loaded, "Load..." }, auralise.OptionsOf(dropdown).values);
+            Assert.Equal(new[] { "female_speech", "male_speech", "viola", "guitar", "castanets", loaded, "Load..." }, auralise.OptionsOf(dropdown).values);
             auralise.OnDropdownOption("sound", "Load...");
             Assert.Equal(new[] { null, "sounds" }, asked);
         }
@@ -136,7 +136,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.True(auralise.OnDropdownOption("sound", "Load..."));
             Assert.Equal("viola", ControlState.Persistent(auralise.ControlPort("sound")!));
             Assert.Null(auralise.Loaded);
-            Assert.Equal(new[] { "female_speech", "male_speech", "viola", "Load..." }, auralise.OptionsOf(AuraliseComponent.SoundDropdown).values);
+            Assert.Equal(new[] { "female_speech", "male_speech", "viola", "guitar", "castanets", "Load..." }, auralise.OptionsOf(AuraliseComponent.SoundDropdown).values);
         }
 
         [Fact]

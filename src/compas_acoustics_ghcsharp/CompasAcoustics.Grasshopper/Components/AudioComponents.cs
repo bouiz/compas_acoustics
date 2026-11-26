@@ -71,8 +71,8 @@ namespace CompasAcoustics.Grasshopper
         private const string LoadedKey = "anechoic_sound_loaded";
 
         /// <summary>The bundled recordings, by the names the worker's <c>auralise</c> takes, female speech the default.</summary>
-        public static readonly DropdownControl SoundDropdown = new("sound", new[] { "female_speech", "male_speech", "viola" }, "female_speech",
-            new[] { "Female speech", "Male speech", "Viola" }, "Anechoic sound");
+        public static readonly DropdownControl SoundDropdown = new("sound", new[] { "female_speech", "male_speech", "viola", "guitar", "castanets" },
+            "female_speech", new[] { "Female speech", "Male speech", "Viola", "Guitar", "Castanets" }, "Anechoic sound");
 
         public AuraliseComponent() : base("CA_Auralise") { }
         protected override string SpecKey => "CA_Auralise";
