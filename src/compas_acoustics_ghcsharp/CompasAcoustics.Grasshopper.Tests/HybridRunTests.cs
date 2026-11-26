@@ -228,12 +228,8 @@ namespace CompasAcoustics.Grasshopper.Tests
 
         private static SceneGoo Scene(string guid, int count = 1, double x = 1, string? sound = null) => new(SceneOf(guid, count, x, sound));
 
-        private static SimulateComponent.LastResult Last(string sceneGuid, int count = 1, string tail = "reference", long? shOrder = 1, long ismOrder = 3,
-            object? diffraction = null)
+        private static SimulateComponent.LastResult Last(string sceneGuid, int count = 1)
         {
-            var generation = new Dictionary<string, object?> { ["tail"] = tail, ["image_source_order"] = ismOrder, ["diffraction"] = diffraction };
-            if (shOrder != null)
-                generation["sh_order"] = shOrder;
             var scene = Scene(sceneGuid, count);
             var responses = scene.Value.Sources.Select(source =>
             {
@@ -241,50 +237,43 @@ namespace CompasAcoustics.Grasshopper.Tests
                 ir.Value.Source = source.Clone();
                 return ir;
             }).ToArray();
-            return new SimulateComponent.LastResult(scene, Reference(responses), generation);
+            return new SimulateComponent.LastResult(scene, Reference(responses), new Dictionary<string, object?>());
         }
 
-        private static (string text, bool changed) Status(SimulateComponent.LastResult? last, SceneGoo scene, string? tail, int? shOrder, int? ismOrder, string? diffraction) =>
-            SimulateComponent.Status(last, scene, l => HybridRun.Changed(l, tail, shOrder, ismOrder, diffraction));
+        private static (string text, bool changed) Status(SimulateComponent.LastResult? last, SceneGoo scene, bool settingsChanged = false) =>
+            SimulateComponent.Status(last, scene, _ => settingsChanged);
 
         [Fact]
         public void Status_WithoutLastResult_SaysPressRun()
         {
-            Assert.Equal(("press Run", false), Status(null, Scene("scene"), null, null, null, null));
+            Assert.Equal(("press Run", false), Status(null, Scene("scene")));
         }
 
         [Fact]
         public void Status_ForAnotherScene_SaysTheModelChanged()
         {
-            Assert.Equal(("model changed,\nrerun the simulation", true), Status(Last("old"), Scene("new", x: 5), null, null, null, null));
-            Assert.Equal(("model changed,\nrerun the simulation", true), Status(Last("old"), Scene("new", x: 5), "eyring", 2, 4, "udfa"));
+            Assert.Equal(("model changed,\nrerun the simulation", true), Status(Last("old"), Scene("new", x: 5)));
+            Assert.Equal(("model changed,\nrerun the simulation", true), Status(Last("old"), Scene("new", x: 5), settingsChanged: true));
         }
 
         [Fact]
         public void Status_ForResponsesThatHold_SaysNothing()
         {
-            Assert.Equal(("", false), Status(Last("scene", count: 2), Scene("scene", count: 2), null, null, null, null));
-            Assert.Equal(("", false), Status(Last("scene"), Scene("scene"), "reference", 1, 3, "none"));
+            Assert.Equal(("", false), Status(Last("scene", count: 2), Scene("scene", count: 2)));
         }
 
         [Fact]
         public void Status_SaysSettingsChanged()
         {
-            var last = Last("scene");
-            var changed = ("settings changed,\nrerun the simulation", true);
-            Assert.Equal(changed, Status(last, Scene("scene"), null, null, 4, null));
-            Assert.Equal(changed, Status(last, Scene("scene"), "eyring", null, null, null));
-            Assert.Equal(changed, Status(last, Scene("scene"), null, 2, null, null));
-            Assert.Equal(changed, Status(last, Scene("scene"), null, null, null, "udfa"));
-            Assert.Equal(("", false), Status(Last("scene", diffraction: "udfa"), Scene("scene"), null, null, null, "udfa"));
+            Assert.Equal(("settings changed,\nrerun the simulation", true), Status(Last("scene"), Scene("scene"), settingsChanged: true));
         }
 
         [Fact]
         public void Status_ForASoundOnlyChange_SaysNothing_AndAPositionChangeSaysTheModelChanged()
         {
             var last = Last("scene", count: 2);
-            Assert.Equal(("", false), Status(last, Scene("again", count: 2, sound: "speech"), null, null, null, null));
-            Assert.Equal(("model changed,\nrerun the simulation", true), Status(last, Scene("again", count: 2, x: 3, sound: "speech"), null, null, null, null));
+            Assert.Equal(("", false), Status(last, Scene("again", count: 2, sound: "speech")));
+            Assert.Equal(("model changed,\nrerun the simulation", true), Status(last, Scene("again", count: 2, x: 3, sound: "speech")));
         }
 
         [Fact]

@@ -42,7 +42,21 @@ namespace CompasAcoustics.Grasshopper.Tests
             if (path == "/api/info")
                 return FakeHandler.Result(new Dictionary<string, object?> { ["compas_acoustics"] = Versions.Library, ["schema"] = Schema.Hash, ["hybrid"] = true });
             _calls.Add(path, body);
-            return FakeHandler.Result(null);
+            var response = new ImpulseResponseData
+            {
+                Source = new SourceData { Guid = "s0", Name = "s0" }, Receiver = new ReceiverData { Guid = "r0", Name = "r0" },
+                Shape = { 4, 2 }, SamplingRate = 48000, Samples = { new double[8] },
+            };
+            var responses = new Dictionary<string, object?> { ["r0_s0"] = response };
+            return FakeHandler.Result(new Dictionary<string, object?> { ["responses"] = new Dictionary<string, object?> { ["binaural"] = responses, ["ambisonics"] = responses } });
+        }
+
+        private static void WaitForTheRun(ComponentBase component)
+        {
+            var deadline = DateTime.UtcNow.AddSeconds(5);
+            while (component.Runs.AnyRunning && DateTime.UtcNow < deadline)
+                System.Threading.Thread.Sleep(10);
+            Assert.False(component.Runs.AnyRunning);
         }
 
         private static ImpulseResponseGoo Reference() => new(new ImpulseResponseData
@@ -147,6 +161,41 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(new[] { Stale }, component.RuntimeMessages(GH_RuntimeMessageLevel.Error).ToArray());
             Assert.Equal("rerun Simulate Mono first", component.Message);
             Assert.Empty(_calls);
+        }
+
+        private SimulateBinauralComponent Ran()
+        {
+            var component = new SimulateBinauralComponent();
+            Solve(component, Access("reference", referenced: true, run: true));
+            _calls.AwaitSingle();
+            WaitForTheRun(component);
+            var access = Access("reference", referenced: true);
+            Solve(component, access);
+            Assert.Equal("", component.Message);
+            Assert.Single(access.OutputLists["irs"]);
+            return component;
+        }
+
+        [Fact]
+        public void AChangedLateEnvelope_AfterARun_SaysTheSettingsChanged_AndKeepsTheResponses()
+        {
+            var component = Ran();
+            var access = Access("reference", referenced: true, lateEnvelope: "directional");
+            Solve(component, access);
+            Assert.Equal("settings changed,\nrerun the simulation", component.Message);
+            Assert.Single(access.OutputLists["irs"]);
+        }
+
+        [Fact]
+        public void AReferenceRerunWithOtherSamples_AfterARun_SaysTheSettingsChanged()
+        {
+            var component = Ran();
+            var access = Access("reference", referenced: true);
+            var rerun = Reference();
+            rerun.Value.Samples[1] = 0.5;
+            access.Lists["reference"] = new[] { rerun };
+            Solve(component, access);
+            Assert.Equal("settings changed,\nrerun the simulation", component.Message);
         }
 
         [Fact]

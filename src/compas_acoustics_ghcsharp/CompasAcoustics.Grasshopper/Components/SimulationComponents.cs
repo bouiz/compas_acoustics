@@ -90,7 +90,7 @@ namespace CompasAcoustics.Grasshopper
             if (SavedEnergyThreshold is double threshold)
                 Remark($"This definition was saved with energy_thres {threshold:g}. Simulate Mono now always uses the method's 1e-7, so its responses differ from those saved. Save the definition to clear this remark.");
             var request = Request(scene, settings, null);
-            Simulate(access, scene, request, last => last.Key != request.Key);
+            Simulate(access, scene, request);
         }
     }
 }

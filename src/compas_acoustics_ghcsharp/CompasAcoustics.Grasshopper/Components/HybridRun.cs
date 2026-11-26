@@ -1,12 +1,11 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using CompasAcoustics.Pb;
 
 namespace CompasAcoustics.Grasshopper
 {
-    /// <summary>What Simulate Binaural and Simulate Ambisonics pass to their method, and whether it differs from their last run.</summary>
+    /// <summary>What Simulate Binaural and Simulate Ambisonics pass to their method, and whether their reference is from an earlier model.</summary>
     public static class HybridRun
     {
         // first item is the default
@@ -92,30 +91,10 @@ namespace CompasAcoustics.Grasshopper
             return given.Where(kv => kv.Value != null).ToDictionary(kv => kv.Key, kv => kv.Value);
         }
 
-        private static object? Model(object? diffraction) => diffraction switch
-        {
-            null or false or "none" or "" => false,
-            true or "udfa" => "udfa",
-            "btms" => "btms",
-            _ => diffraction,
-        };
-
-        private static bool Differs(int? given, object? last) => given is int g && !(last is IConvertible c && Convert.ToInt64(c, CultureInfo.InvariantCulture) == g);
-
         public const string StaleReference = "The reference is from an earlier model: rerun Simulate Mono first.";
 
         /// <summary>Whether a response of <paramref name="reference"/> was simulated for another model than <paramref name="scene"/>.</summary>
         public static bool Stale(IEnumerable<ImpulseResponseGoo> reference, SceneGoo scene) =>
             reference.Select(ir => ir.SimulatedFor).OfType<SceneGoo>().Distinct().Any(ran => !SimulatedScene.Same(ran, scene));
-
-        /// <summary>Whether the settings differ from the description of the last run.</summary>
-        public static bool Changed(SimulateComponent.LastResult last, string? tail, int? shOrder, int? ismOrder, string? diffraction)
-        {
-            object? Last(string key) => last.Generation.TryGetValue(key, out var value) ? value : null;
-            return (!string.IsNullOrEmpty(tail) && tail != Last("tail") as string)
-                   || Differs(shOrder, Last("sh_order"))
-                   || Differs(ismOrder, Last("image_source_order"))
-                   || (diffraction != null && !Equals(Model(diffraction), Model(Last("diffraction"))));
-        }
     }
 }

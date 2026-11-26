@@ -67,19 +67,20 @@ namespace CompasAcoustics.Grasshopper
 
         /// <summary>
         /// Start <paramref name="request"/> when Run is pressed or 'run' is true; otherwise pass on the responses of the last
-        /// run for <paramref name="scene"/>, and say whether the settings differ from that run's (<paramref name="changed"/>).
+        /// run, and say whether the model or the call (every setting and reference) differs from that run's.
         /// </summary>
-        protected void Simulate(IGH_DataAccess access, SceneGoo scene, Background request, Func<LastResult, bool> changed)
+        protected void Simulate(IGH_DataAccess access, SceneGoo scene, Background request)
         {
             var iteration = access.Iteration;
-            var shown = false;
+            bool Changed(LastResult last) => last.Key != request.Key;
+            (string text, bool changed)? shown = null;
             void Deliver(Outcome outcome, bool fresh)
             {
                 if (fresh)
                     Keep(iteration, (SceneGoo)outcome.Context!, outcome.Result, request.Key);
-                ShowStatus(fresh ? ("", false) : Status(_last.GetValueOrDefault(iteration), scene, changed));
+                shown = fresh ? ("", false) : Status(_last.GetValueOrDefault(iteration), scene, Changed);
+                ShowStatus(shown.Value);
                 SetResponses(access, scene);
-                shown = true;
             }
             // the simulation can take minutes and Grasshopper recomputes on every change of the inputs, so it starts only
             // when 'run' is true (a button pulse); otherwise the responses of the last run are passed on
@@ -87,15 +88,17 @@ namespace CompasAcoustics.Grasshopper
             var decision = RunInBackground(access, request, Deliver, start: pressed, restart: pressed);
             if (decision.Kind == RunKind.Idle)
             {
-                if (!shown)
+                if (shown == null)
                 {
-                    ShowStatus(Status(_last.GetValueOrDefault(iteration), scene, changed));
+                    shown = Status(_last.GetValueOrDefault(iteration), scene, Changed);
+                    ShowStatus(shown.Value);
                     SetResponses(access, scene);
                 }
-                if (decision.Interrupted)
+                // a run cancelled by a change: say so unless the status already says what changed
+                if (decision.Interrupted && !shown.Value.changed)
                     ShowStatus((SettingsChanged, true));
             }
-            else if (!shown && decision.Kind != RunKind.Failed)
+            else if (shown == null && decision.Kind != RunKind.Failed)
                 SetResponses(access, scene);
         }
 

@@ -101,6 +101,44 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.NotEqual(key, SimulatedScene.Key(after, "binaural", Settings, other));
         }
 
+        private static SceneGoo Solved(string guid, double absorption = 0.1)
+        {
+            var scene = Scene(guid);
+            scene.Value.Receivers[0].Guid = $"{guid}-r";
+            scene.Value.AcousticObjects.Add(new AcousticObjectData
+            {
+                Guid = $"{guid}-o", Name = "wall", Role = "boundary", Sources = { new SourceData { Guid = $"{guid}-os", Name = "os" } },
+                Material = new AcousticMaterialData { Guid = $"{guid}-m", Name = "plaster", AbsorptionCoefficients = { absorption } },
+            });
+            return scene;
+        }
+
+        [Fact]
+        public void Same_IgnoresTheGuidsAComponentDrawsAnewOnEverySolution()
+        {
+            Assert.True(SimulatedScene.Same(Solved("a"), Solved("b")));
+            Assert.False(SimulatedScene.Same(Solved("a"), Solved("b", absorption: 0.2)));
+        }
+
+        [Fact]
+        public void Current_GivesTheResponsesTheReceiversCurrentGuid()
+        {
+            var ran = Solved("a");
+            var scene = Solved("b");
+            var current = SimulatedScene.Current(new[] { new ImpulseResponseGoo(Response(ran)) }, ran, scene).Single();
+            Assert.Equal("b-r", current.ReceiverGuid);
+            Assert.Equal("b-s", current.SourceGuid);
+        }
+
+        [Fact]
+        public void Key_OfAHybrid_IgnoresTheGuidsOfItsReferencesReceiver()
+        {
+            var before = Solved("a");
+            var after = Solved("b");
+            Assert.Equal(SimulatedScene.Key(before, "binaural", Settings, new Dictionary<string, ImpulseResponseData> { ["x"] = Response(before) }),
+                SimulatedScene.Key(after, "binaural", Settings, new Dictionary<string, ImpulseResponseData> { ["x"] = Response(after) }));
+        }
+
         [Fact]
         public void Current_GivesTheResponsesTheSourcesCurrentSound_AndLeavesTheRunsOwn()
         {

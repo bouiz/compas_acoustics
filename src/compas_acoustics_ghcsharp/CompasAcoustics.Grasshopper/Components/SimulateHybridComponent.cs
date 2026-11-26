@@ -161,7 +161,7 @@ namespace CompasAcoustics.Grasshopper
                 else
                     Remark("n_rays is not used: the method traces no rays itself (an Eyring or Sabine tail, or a given reference without a directional late envelope). Set the reference's rays on Simulate Mono.");
             }
-            Simulate(access, scene, Request(scene, settings, refs), last => HybridRun.Changed(last, tail, shOrder, ismOrder, diffraction));
+            Simulate(access, scene, Request(scene, settings, refs));
         }
 
         protected override async Task<object?> Call(Background request, string callId, CancellationToken cancel)
