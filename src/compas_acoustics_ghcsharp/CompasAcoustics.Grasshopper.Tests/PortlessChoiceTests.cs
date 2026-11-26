@@ -21,8 +21,8 @@ namespace CompasAcoustics.Grasshopper.Tests
         public void AuraliseLevel_IsAChoiceOfTheComponent_SavedWithIt()
         {
             var auralise = new AuraliseComponent();
-            // none, relative, individual from left to right; relative the default
-            Assert.Equal(new[] { "none", "relative", "individual" }, auralise.Controls.OfType<SwitchControl>().Single(c => c.Port == "level").Options);
+            // a dropdown: relative, the default, first
+            Assert.Equal(new[] { "relative", "individual", "none" }, auralise.Controls.OfType<DropdownControl>().Single(c => c.Port == "level").Options);
             Assert.Equal("relative", auralise.Choice("level"));
             // level is the component's own; the dropdowns and the Sound... button set inputs
             Assert.Equal(new[] { "source_idx", "receiver_idx", "sound" }, auralise.ControlPorts);

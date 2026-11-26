@@ -437,7 +437,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         /// <summary>An Auralise as saved before it chose pairs: irs, anechoic_sounds wired to a path, mix_sources true (shown, or hidden behind its toggle).</summary>
-        private static GH_Archive OldAuralise(bool mixHidden)
+        private static GH_Archive OldAuralise(bool mixHidden, string? level = null)
         {
             var old = new AuraliseComponent();
             foreach (var p in old.Params.Input.Skip(1).ToList())
@@ -466,6 +466,9 @@ namespace CompasAcoustics.Grasshopper.Tests
             node.SetString("control_inputs_hidden", mixHidden ? "mix_sources" : "");
             if (mixHidden)
                 node.SetString("control_value_mix_sources", "True");
+            // as the level switch saved its choice
+            if (level != null)
+                node.SetString("choice_level", level);
             var back = new GH_Archive();
             back.Deserialize_Binary(archive.Serialize_Binary());
             return back;
@@ -493,6 +496,20 @@ namespace CompasAcoustics.Grasshopper.Tests
             }
             Assert.Equal("relative", fresh.Choice("level"));
             Assert.Empty(fresh.RuntimeMessages(GH_RuntimeMessageLevel.Remark));
+        }
+
+        [Theory]
+        [InlineData("individual")]
+        [InlineData("none")]
+        public void AnAuraliseSavedWithItsLevelSwitch_ReadsTheLevelIntoTheDropdown(string level)
+        {
+            var back = OldAuralise(false, level);
+            var fresh = new AuraliseComponent();
+            fresh.CreateAttributes();
+            Assert.True(fresh.Read(back.GetRootNode.FindChunk("component")));
+            Assert.Empty(Errors(back));
+            Assert.IsType<DropdownControl>(fresh.Controls.Single(c => c.Port == "level"));
+            Assert.Equal(level, fresh.Choice("level"));
         }
 
         [Fact]

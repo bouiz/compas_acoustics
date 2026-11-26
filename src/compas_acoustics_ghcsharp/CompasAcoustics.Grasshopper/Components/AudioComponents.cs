@@ -79,7 +79,7 @@ namespace CompasAcoustics.Grasshopper
 
     public sealed class AuraliseComponent : ComponentBase
     {
-        private static readonly string[] Levels = { "none", "relative", "individual" };
+        private static readonly string[] Levels = { "relative", "individual", "none" };
 
         public AuraliseComponent() : base("CA_Auralise") { }
         protected override string SpecKey => "CA_Auralise";
@@ -94,7 +94,7 @@ namespace CompasAcoustics.Grasshopper
 
         public override IReadOnlyList<Control> Controls { get; } = new Control[]
         {
-            new SwitchControl("level", Levels, Default: "relative"), SceneIndices.SourceDropdown, SceneIndices.ReceiverDropdown,
+            new DropdownControl("level", Levels, "relative"), SceneIndices.SourceDropdown, SceneIndices.ReceiverDropdown,
             new ButtonControl("sound", "Sound..."), new ButtonControl("save_rir", "Save RIR"), new ButtonControl("save_auralisation", "Save auralisation"),
         };
 
