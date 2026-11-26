@@ -3507,7 +3507,8 @@ ceiling</item>
                     <item name="InstanceGuid" type_name="gh_guid" type_code="9">f6980ff4-7096-4fa7-a4ea-0f87aa83a10d</item>
                     <item name="Name" type_name="gh_string" type_code="10">Simulate Mono</item>
                     <item name="NickName" type_name="gh_string" type_code="10">SimMono</item>
-                    <item name="control_inputs_hidden" type_name="gh_string" type_code="10">ism_order</item>
+                    <item name="control_inputs_hidden" type_name="gh_string" type_code="10">ism_order
+run</item>
                     <item name="control_inputs_shown" type_name="gh_bool" type_code="1">false</item>
                     <item name="control_value_ism_order" type_name="gh_string" type_code="10">3</item>
                   </items>
@@ -3516,9 +3517,9 @@ ceiling</item>
                       <items count="2">
                         <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
                           <X>1493</X>
-                          <Y>408</Y>
+                          <Y>398</Y>
                           <W>135</W>
-                          <H>158</H>
+                          <H>208</H>
                         </item>
                         <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
                           <X>1580</X>
@@ -3541,13 +3542,13 @@ ceiling</item>
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
                               <X>1495</X>
-                              <Y>410</Y>
+                              <Y>400</Y>
                               <W>56</W>
                               <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
                               <X>1524.5</X>
-                              <Y>420</Y>
+                              <Y>410</Y>
                             </item>
                           </items>
                         </chunk>
@@ -3567,13 +3568,13 @@ ceiling</item>
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
                               <X>1495</X>
-                              <Y>430</Y>
+                              <Y>420</Y>
                               <W>56</W>
                               <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
                               <X>1524.5</X>
-                              <Y>440</Y>
+                              <Y>430</Y>
                             </item>
                           </items>
                         </chunk>
@@ -3594,13 +3595,13 @@ ceiling</item>
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
                               <X>1495</X>
-                              <Y>450</Y>
+                              <Y>440</Y>
                               <W>56</W>
                               <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
                               <X>1524.5</X>
-                              <Y>460</Y>
+                              <Y>450</Y>
                             </item>
                           </items>
                         </chunk>
@@ -3640,13 +3641,13 @@ ceiling</item>
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
                               <X>1495</X>
-                              <Y>470</Y>
+                              <Y>460</Y>
                               <W>56</W>
                               <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
                               <X>1524.5</X>
-                              <Y>480</Y>
+                              <Y>470</Y>
                             </item>
                           </items>
                         </chunk>
@@ -3667,13 +3668,13 @@ ceiling</item>
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
                               <X>1495</X>
-                              <Y>490</Y>
+                              <Y>480</Y>
                               <W>56</W>
                               <H>20</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
                               <X>1524.5</X>
-                              <Y>500</Y>
+                              <Y>490</Y>
                             </item>
                           </items>
                         </chunk>
@@ -3693,9 +3694,9 @@ ceiling</item>
                           <items count="2">
                             <item name="Bounds" type_name="gh_drawing_rectanglef" type_code="35">
                               <X>1609</X>
-                              <Y>410</Y>
+                              <Y>400</Y>
                               <W>17</W>
-                              <H>100</H>
+                              <H>120</H>
                             </item>
                             <item name="Pivot" type_name="gh_drawing_pointf" type_code="31">
                               <X>1617.5</X>

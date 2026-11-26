@@ -111,6 +111,16 @@ def _running(document):
     return False
 
 
+def press_run(document):
+    """Press the Run button of every component that has one (the simulations run only on Run)."""
+    for obj in document.Objects:
+        controls = obj.GetType().GetProperty("Controls")
+        if controls is None or not any(getattr(c, "Port", None) == "run" for c in controls.GetValue(obj)):
+            continue
+        state = obj.GetType().Assembly.GetType("CompasAcoustics.Grasshopper.ControlState")
+        state.GetMethod("Press").Invoke(None, System.Array[System.Object]([obj, "run"]))
+
+
 def _preview_box(document):
     box = Rhino.Geometry.BoundingBox.Empty
     for obj in document.Objects:
@@ -166,6 +176,7 @@ class ExampleQueue:
         self.canvas.Document = self.document
         self.document.Enabled = True
         self.document.NewSolution(True)
+        press_run(self.document)
         self.idle_since = None
         log("solving {}".format(self.example.name))
 

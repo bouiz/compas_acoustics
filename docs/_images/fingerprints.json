@@ -214,14 +214,15 @@
       ]
     },
     "CA_Simulate_Mono": {
-      "hash": "0a2709578a9e",
+      "hash": "a5837fea7469",
       "inputs": [
         "scene",
         "ism_order",
         "ray_tracing",
         "n_rays",
         "duration",
-        "seed"
+        "seed",
+        "run"
       ],
       "outputs": [
         "irs"
@@ -313,7 +314,7 @@
     }
   },
   "ghx": {
-    "simple_simulation_shoebox": "5047f776b37c"
+    "simple_simulation_shoebox": "dc3e0d506e0c"
   },
   "py": {
     "obj": "59d1fe9fefeb",
