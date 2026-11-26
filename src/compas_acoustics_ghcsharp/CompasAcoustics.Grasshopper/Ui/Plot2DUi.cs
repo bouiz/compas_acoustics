@@ -207,6 +207,8 @@ namespace CompasAcoustics.Grasshopper
             Painter.DrawGrip(g, Body);
         }
 
+        private static readonly Font DescriptionFont = new(FontFamily.GenericSansSerif, 7.5f);
+
         private void DrawDescription(Graphics g)
         {
             var area = Plot2DLayout.DescriptionArea(ControlArea);
@@ -215,7 +217,7 @@ namespace CompasAcoustics.Grasshopper
                 return;
             using var format = new StringFormat { Trimming = StringTrimming.EllipsisWord, FormatFlags = StringFormatFlags.LineLimit };
             using var brush = new SolidBrush(Plot.ControlEnabled("select") ? Color.DimGray : Color.Silver);
-            g.DrawString(text, ChartPainter.Small, brush, area, format);
+            g.DrawString(text, DescriptionFont, brush, area, format);
         }
 
         protected override GH_ObjectResponse? RespondToExtraMouseDown(GH_Canvas sender, GH_CanvasMouseEvent e)
