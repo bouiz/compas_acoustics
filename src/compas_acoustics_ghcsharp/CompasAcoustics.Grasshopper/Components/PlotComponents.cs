@@ -30,7 +30,7 @@ namespace CompasAcoustics.Grasshopper
             ["C80"] = "Clarity for music: the energy of the first 80 ms over the later energy, in dB (ISO 3382-1).",
             ["D50"] = "Definition: the share of the energy arriving in the first 50 ms, in percent (ISO 3382-1).",
             ["Ts"] = "Centre time: the centre of gravity of the squared impulse response, in seconds after the direct sound (ISO 3382-1).",
-            ["DRR"] = "Direct-to-reverberant ratio: the energy of the direct sound over that of the reflected sound, in dB; a main cue for how far away a source sounds.",
+            ["DRR"] = "Direct-to-reverberant ratio: the energy of the direct sound over that of the reflected sound, in dB; a main cue for the perceived distance of a source.",
             ["STI"] = "Speech transmission index: how intelligible speech is at the receiver, from 0 (unintelligible) to 1 (perfect) (IEC 60268-16).",
             ["G"] = "Strength: the level relative to the same source's free-field level at 10 m, in dB (ISO 3382-1).",
             ["SPL"] = "Sound pressure level: from the source's level and G; the single number is the A-weighted total.",
