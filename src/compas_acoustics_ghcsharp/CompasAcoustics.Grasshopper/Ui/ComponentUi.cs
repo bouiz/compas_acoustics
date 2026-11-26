@@ -343,6 +343,8 @@ namespace CompasAcoustics.Grasshopper
                 var item = new ToolStripMenuItem(labels[i]) { Checked = option == current };
                 item.Click += (s, a) =>
                 {
+                    if (Component.OnDropdownOption(dropdown.Port, option))
+                        return;
                     if (port != null)
                         ControlState.Choose(Component, port, option);
                     else

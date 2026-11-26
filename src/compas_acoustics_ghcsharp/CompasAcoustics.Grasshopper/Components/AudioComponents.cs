@@ -52,20 +52,6 @@ namespace CompasAcoustics.Grasshopper
             return (audio, formats);
         }
 
-        /// <summary>The folder of the anechoic sounds the worker's compas_acoustics bundles, where the Anechoic sound dialog opens; null when the worker cannot tell.</summary>
-        public static string? LibraryFolder()
-        {
-            try
-            {
-                return Worker.Instance.Call("anechoic_library_folder") as string;
-            }
-            catch (Exception)
-            {
-                // whatever keeps the worker from answering, the dialog opens where the system puts it
-                return null;
-            }
-        }
-
         public static string Message(IEnumerable<string> formats, string level, double peakDbfs) =>
             string.Format(CultureInfo.InvariantCulture, "{0}, {1}, peak {2:0.0} dBFS", string.Join(" + ", formats.Distinct().OrderBy(f => f, StringComparer.Ordinal)),
                 level, peakDbfs);
@@ -78,6 +64,15 @@ namespace CompasAcoustics.Grasshopper
     public sealed class AuraliseComponent : ComponentBase
     {
         private static readonly string[] Levels = { "relative", "individual", "none" };
+
+        /// <summary>The entry of the Anechoic sound dropdown that opens a file dialog.</summary>
+        public const string LoadOption = "Load...";
+
+        private const string LoadedKey = "anechoic_sound_loaded";
+
+        /// <summary>The bundled recordings, by the names the worker's <c>auralise</c> takes, female speech the default.</summary>
+        public static readonly DropdownControl SoundDropdown = new("sound", new[] { "female_speech", "male_speech", "viola" }, "female_speech",
+            new[] { "Female speech", "Male speech", "Viola" }, "Anechoic sound");
 
         public AuraliseComponent() : base("CA_Auralise") { }
         protected override string SpecKey => "CA_Auralise";
@@ -92,9 +87,58 @@ namespace CompasAcoustics.Grasshopper
 
         public override IReadOnlyList<Control> Controls { get; } = new Control[]
         {
-            new DropdownControl("level", Levels, "relative"), SceneIndices.SourceDropdown, SceneIndices.ReceiverDropdown,
-            new ButtonControl("sound", "Anechoic sound"), new ButtonControl("save_rir", "Save RIR"), new ButtonControl("save_auralisation", "Save auralisation"),
+            new DropdownControl("level", Levels, "relative"), SceneIndices.SourceDropdown, SceneIndices.ReceiverDropdown, SoundDropdown,
+            new ButtonControl("save_rir", "Save RIR"), new ButtonControl("save_auralisation", "Save auralisation"),
         };
+
+        // the file Load... chose last, offered after the bundled recordings once another is chosen
+        private string? _loaded;
+
+        /// <summary>The file the dropdown offers after the bundled recordings: the one chosen, else the one Load... chose last; null for none.</summary>
+        public string? Loaded =>
+            ControlPort("sound") is { } port && ControlState.Persistent(port) is string own && own.Length > 0 && !SoundDropdown.Options.Contains(own) ? own : _loaded;
+
+        /// <summary>The open-file dialog of Load..., given the folder it starts in; the file chosen, null when cancelled.</summary>
+        internal Func<string?, string?> OpenSound { get; set; } = folder =>
+            FileButtons.Open("Anechoic sound to auralise", folder, "Audio", ".wav", ".flac", ".aiff", ".aif", ".ogg", ".mp3");
+
+        /// <summary>
+        /// The Anechoic sound dropdown's entries: the bundled recordings, the loaded file (a wired path instead, while one
+        /// is wired) by its name, and Load...
+        /// </summary>
+        public override (string[] values, string[] labels) OptionsOf(DropdownControl dropdown)
+        {
+            if (dropdown.Port != SoundDropdown.Port)
+                return base.OptionsOf(dropdown);
+            var port = ControlPort("sound");
+            var wired = port is { SourceCount: > 0 } ? ControlState.Of(port, SoundDropdown.Options).value : null;
+            var file = wired is { Length: > 0 } && !SoundDropdown.Options.Contains(wired) ? wired : port is { SourceCount: > 0 } ? null : Loaded;
+            var files = file == null ? Array.Empty<string>() : new[] { file };
+            return (SoundDropdown.Options.Concat(files).Append(LoadOption).ToArray(),
+                SoundDropdown.Labels!.Concat(files.Select(f => Path.GetFileName(f))).Append(LoadOption).ToArray());
+        }
+
+        public override bool OnDropdownOption(string port, string option)
+        {
+            if (port != SoundDropdown.Port || option != LoadOption)
+                return false;
+            if (ControlPort(port) is not { } input || OpenSound(Loaded is string last ? Path.GetDirectoryName(last) : null) is not string file)
+                return true;
+            _loaded = file;
+            ControlState.Choose(this, input, file);
+            return true;
+        }
+
+        /// <summary>The sound to auralise: a wired value (null when it is empty), else the dropdown's choice.</summary>
+        internal string? SoundOf(IGH_DataAccess access) =>
+            Text(access, "sound") ?? (ControlPort("sound") is { SourceCount: > 0 } ? null : SoundDropdown.Default);
+
+        public override bool Write(GH_IWriter writer)
+        {
+            if (Loaded is string loaded)
+                writer.SetString(LoadedKey, loaded);
+            return base.Write(writer);
+        }
 
         /// <summary>
         /// A definition saved before Auralise chose pairs, with anechoic_sounds and mix_sources: Grasshopper reads the saved
@@ -103,6 +147,7 @@ namespace CompasAcoustics.Grasshopper
         /// </summary>
         public override bool Read(GH_IReader reader)
         {
+            _loaded = reader.ItemExists(LoadedKey) ? reader.GetString(LoadedKey) : null;
             if (!SavedInput(reader, "anechoic_sounds"))
                 return base.Read(reader);
             var added = Params.Input.Skip(1).ToList();
@@ -123,25 +168,18 @@ namespace CompasAcoustics.Grasshopper
             return read;
         }
 
+        private const string EmptySound = "No sound to auralise: the value wired to 'sound' is empty. Wire a sound file, or disconnect it to choose one on the Anechoic sound dropdown.";
+
         private sealed record LastRequest(List<object?> Irs, List<object?> Chosen, List<object?> Labels, string? Sound, string Level);
 
         // the last solution's request, which the Save buttons write into the chosen files
         private LastRequest? _last;
         private string? _saved;
 
-        public override bool HandlesButton(string port) => port is "sound" or "save_rir" or "save_auralisation";
-
-        public override string? ButtonLabel(string port) => port == "sound" ? FileButtons.Label(this, port, "Anechoic sound: ", "Anechoic sound") : null;
-
-        protected override void AppendMenu(System.Windows.Forms.ToolStripDropDown menu) => FileButtons.AppendClear(this, menu, "sound", "Clear sound");
+        public override bool HandlesButton(string port) => port is "save_rir" or "save_auralisation";
 
         public override void OnButton(string port)
         {
-            if (port == "sound")
-            {
-                FileButtons.Choose(this, port, "Anechoic sound to auralise", AuraliseGroups.LibraryFolder, "Audio", ".wav", ".flac", ".aiff", ".aif", ".ogg", ".mp3");
-                return;
-            }
             if (!HandlesButton(port))
                 return;
             var last = _last;
@@ -153,7 +191,7 @@ namespace CompasAcoustics.Grasshopper
             var rir = port == "save_rir";
             if (!rir && last.Sound == null)
             {
-                Rhino.UI.Dialogs.ShowMessage("Choose a sound with the Anechoic sound button, or connect a File Path to 'sound', first.", CategoryName);
+                Rhino.UI.Dialogs.ShowMessage(EmptySound, CategoryName);
                 return;
             }
             var dialog = new Eto.Forms.SaveFileDialog
@@ -204,7 +242,7 @@ namespace CompasAcoustics.Grasshopper
             if (ChosenPairs(access) is not { } pairs)
                 return;
             var level = Choice("level");
-            var sound = Text(access, "sound");
+            var sound = SoundOf(access);
             var (irs, indices, names) = AuraliseGroups.Request(pairs.All, pairs.Chosen);
             var (chosen, labels) = (indices.Cast<object?>().ToList(), names.Cast<object?>().ToList());
             _last = new LastRequest(irs, chosen, labels, sound, level);
@@ -216,7 +254,7 @@ namespace CompasAcoustics.Grasshopper
             }
             if (sound == null)
             {
-                Warn("No sound to auralise: choose an anechoic sound file with the Anechoic sound button, or connect a File Path to 'sound'.");
+                Warn(EmptySound);
                 return;
             }
             var args = new object?[] { irs, sound, chosen, labels };

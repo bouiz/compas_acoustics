@@ -72,7 +72,6 @@ __all__ = [
     "resume",
     "playback_status",
     "sound_samples",
-    "anechoic_library_folder",
     "make_scattering_sample",
     "run_scattering_lab",
     "polar_balloon",
@@ -324,9 +323,16 @@ def _checked_level(level):
     return level
 
 
+# the bundled anechoic recordings auralise takes by name, the files of the package's anechoic sound library
+_ANECHOIC_SOUNDS = ("female_speech", "male_speech", "viola")
+
+
 def auralise(irs, sound, chosen, labels, level="relative", save_folder=None, save_name=None):
     """``{"signals": [{"label", "audio": Audio}], "peak_dbfs": float, "warnings": [str]}``: the chosen impulse
-    responses convolved with the anechoic ``sound`` file, one signal per chosen response in the order of ``chosen``.
+    responses convolved with the anechoic ``sound``, one signal per chosen response in the order of ``chosen``.
+
+    ``sound`` is the name of a bundled recording (``'female_speech'``, ``'male_speech'`` or ``'viola'``) or the path
+    of a sound file.
 
     ``irs`` holds every connected response, ``chosen`` the indices of those to render and ``labels`` one label per
     chosen response. ``level``: ``'relative'`` (one gain from the sound convolved with every response of ``irs``, the
@@ -335,6 +341,8 @@ def auralise(irs, sound, chosen, labels, level="relative", save_folder=None, sav
     ``<save_name or 'convolved_sound'>_mic_<label>.wav``.
     """
     level = _checked_level(level)
+    if sound in _ANECHOIC_SOUNDS:
+        sound = os.path.join(Defaults.ANECHOIC_SOUNDFILES_LIBRARY_PATH, sound + ".wav")
     if not os.path.exists(sound):
         raise ValueError(f"The sound file {sound} does not exist.")
     irs = list(irs)
@@ -449,11 +457,6 @@ def sound_samples(path):
         raise ValueError(f"Cannot read {path}: {e}")
     channels = samples.shape[1]
     return Audio(samples[:, 0] if channels == 1 else samples, rate, "mono" if channels == 1 else "binaural" if channels == 2 else "ambisonic")
-
-
-def anechoic_library_folder():
-    """The folder of the bundled anechoic sound files, where the Grasshopper plugin's Anechoic sound dialog opens."""
-    return Defaults.ANECHOIC_SOUNDFILES_LIBRARY_PATH
 
 
 # =============================================================================

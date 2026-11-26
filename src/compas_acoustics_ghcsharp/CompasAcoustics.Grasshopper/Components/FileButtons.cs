@@ -16,21 +16,23 @@ namespace CompasAcoustics.Grasshopper
             Chosen(component, port) is string path ? prefix + Path.GetFileName(path) : empty;
 
         /// <summary>Open a file dialog and make the file chosen <paramref name="port"/>'s value; a wired input is left as it is.</summary>
-        public static void Choose(ComponentBase component, string port, string title, string filterName, params string[] extensions) =>
-            Choose(component, port, title, () => null, filterName, extensions);
-
-        /// <param name="startFolder">The folder the dialog opens in when no file is chosen; asked only then, and null leaves it to the system.</param>
-        public static void Choose(ComponentBase component, string port, string title, Func<string?> startFolder, string filterName, params string[] extensions)
+        public static void Choose(ComponentBase component, string port, string title, string filterName, params string[] extensions)
         {
             if (component.ControlPort(port) is not { } input || input.SourceCount > 0)
                 return;
+            var folder = Chosen(component, port) is string current ? Path.GetDirectoryName(current) : null;
+            if (Open(title, folder, filterName, extensions) is string file)
+                ControlState.Choose(component, input, file);
+        }
+
+        /// <summary>The file chosen in an open-file dialog that starts in <paramref name="folder"/> (the system's when null or missing); null when cancelled.</summary>
+        public static string? Open(string title, string? folder, string filterName, params string[] extensions)
+        {
             var dialog = new Eto.Forms.OpenFileDialog { Title = title };
             dialog.Filters.Add(new Eto.Forms.FileFilter(filterName, extensions));
-            var folder = Chosen(component, port) is string current ? Path.GetDirectoryName(current) : startFolder();
             if (Directory.Exists(folder))
                 dialog.Directory = new Uri(folder);
-            if (dialog.ShowDialog(Rhino.UI.RhinoEtoApp.MainWindow) == Eto.Forms.DialogResult.Ok && !string.IsNullOrEmpty(dialog.FileName))
-                ControlState.Choose(component, input, dialog.FileName);
+            return dialog.ShowDialog(Rhino.UI.RhinoEtoApp.MainWindow) == Eto.Forms.DialogResult.Ok && !string.IsNullOrEmpty(dialog.FileName) ? dialog.FileName : null;
         }
 
         /// <summary>The right-click entry that clears the file of <paramref name="port"/>, when one is chosen.</summary>

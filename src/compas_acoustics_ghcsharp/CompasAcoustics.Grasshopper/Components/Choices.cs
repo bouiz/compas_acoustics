@@ -96,7 +96,7 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>The directions an incidence control offers (Polar Preview's: those of its result); none by default.</summary>
         public virtual IReadOnlyList<Incidence> IncidencesOf(string port) => Array.Empty<Incidence>();
 
-        public (string[] values, string[] labels) OptionsOf(DropdownControl dropdown)
+        public virtual (string[] values, string[] labels) OptionsOf(DropdownControl dropdown)
         {
             if (_indexOptions.TryGetValue(dropdown.Port, out var given))
                 return given;

@@ -565,6 +565,63 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal("/sounds/viola.wav", fresh.HiddenValue("sound"));
         }
 
+        [Theory]
+        [InlineData(false, false)]
+        [InlineData(false, true)]
+        [InlineData(true, false)]
+        [InlineData(true, true)]
+        public void AnAuraliseSavedWithALoadedSound_ReadsTheChoiceAndTheLoadedEntryBack(bool hidden, bool loadedChosen)
+        {
+            var saved = new AuraliseComponent();
+            if (hidden)
+                saved.ShowControlPorts(false);
+            var file = System.IO.Path.Combine("takes", "bsn_tele_44.wav");
+            saved.OpenSound = _ => file;
+            saved.OnDropdownOption("sound", "Load...");
+            if (!loadedChosen)
+                ControlState.Choose(saved, saved.ControlPort("sound")!, "viola");
+            var fresh = new AuraliseComponent();
+            var (archive, read) = SaveThenRead(saved, fresh);
+            Assert.True(read);
+            Assert.Empty(Errors(archive));
+            Assert.Equal(!hidden, fresh.ControlPortsShown);
+            Assert.Equal(loadedChosen ? file : "viola", ControlState.Persistent(fresh.ControlPort("sound")!));
+            Assert.Equal(file, fresh.Loaded);
+            Assert.Equal(new[] { "female_speech", "male_speech", "viola", file, "Load..." }, fresh.OptionsOf(AuraliseComponent.SoundDropdown).values);
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void AnAuraliseSavedWithTheAnechoicSoundButton_ReadsItsFileAsTheLoadedEntryChosen(bool hidden)
+        {
+            // the button kept the file as the port's value, shown or hidden (control_value_sound), and nothing else
+            var saved = new AuraliseComponent();
+            if (hidden)
+                saved.ShowControlPorts(false);
+            var file = System.IO.Path.Combine("sounds", "bsn_tele_44.wav");
+            ControlState.Choose(saved, saved.ControlPort("sound")!, file);
+            saved.CreateAttributes();
+            foreach (var p in saved.Params)
+                if (p.Attributes == null)
+                    p.CreateAttributes();
+            var archive = new GH_Archive();
+            var node = archive.CreateTopLevelNode("component");
+            Assert.True(saved.Write(node));
+            node.RemoveItem("anechoic_sound_loaded");
+            var back = new GH_Archive();
+            back.Deserialize_Binary(archive.Serialize_Binary());
+            Assert.Equal(hidden, back.GetRootNode.FindChunk("component").ItemExists("control_value_sound"));
+            var fresh = new AuraliseComponent();
+            fresh.CreateAttributes();
+            Assert.True(fresh.Read(back.GetRootNode.FindChunk("component")));
+            Assert.Empty(Errors(back));
+            Assert.Equal(!hidden, fresh.ControlPortsShown);
+            Assert.Equal(file, ControlState.Persistent(fresh.ControlPort("sound")!));
+            Assert.Equal(file, fresh.Loaded);
+            Assert.Equal(new[] { "Female speech", "Male speech", "Viola", "bsn_tele_44.wav", "Load..." }, fresh.OptionsOf(AuraliseComponent.SoundDropdown).labels);
+        }
+
         /// <summary>A Source as saved with a sound_file input between direction and spl (shown with its path, or hidden behind its button) and spl 90.</summary>
         private static GH_Archive OldSource(bool soundHidden)
         {

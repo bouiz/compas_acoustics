@@ -275,6 +275,14 @@ def test_auralise_none_leaves_the_convolution_as_it_is(sound):
     np.testing.assert_array_equal(result["signals"][0]["audio"].samples, Auraliser([irs[1]], anechoic_sounds=[sound]).convolve())
 
 
+def test_auralise_takes_a_bundled_sound_by_its_name():
+    irs = two_sources_one_receiver()
+    named = call("auralise", irs, "viola", [0], ["0_0"])
+    path = call("auralise", irs, VIOLA, [0], ["0_0"])
+    np.testing.assert_array_equal(named["signals"][0]["audio"].samples, path["signals"][0]["audio"].samples)
+    assert named["peak_dbfs"] == path["peak_dbfs"]
+
+
 def test_auralise_refuses_a_missing_sound_file(tmp_path):
     with pytest.raises(ValueError, match="does not exist"):
         api.auralise(two_sources_one_receiver(), str(tmp_path / "nowhere.wav"), [0], ["0_0"])
@@ -323,12 +331,6 @@ def test_save_impulse_responses_follows_the_level(tmp_path, level, peaks):
 def test_save_impulse_responses_refuses_an_unknown_level(tmp_path):
     with pytest.raises(ValueError, match="relative"):
         api.save_impulse_responses(two_sources_one_receiver(), [0], ["0_0"], str(tmp_path), "loud")
-
-
-def test_anechoic_library_folder_holds_the_bundled_sounds():
-    folder = Path(call("anechoic_library_folder"))
-    assert "anechoic_library_folder" in api.__all__
-    assert folder.name == "anechoic_soundfiles_library" and (folder / "viola.wav").is_file()
 
 
 def test_play_refuses_a_missing_file():

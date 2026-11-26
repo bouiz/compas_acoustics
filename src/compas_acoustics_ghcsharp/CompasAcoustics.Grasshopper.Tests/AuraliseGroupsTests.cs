@@ -9,6 +9,7 @@ using Grasshopper.Kernel.Types;
 using CompasAcoustics.Pb;
 using Grasshopper.Kernel;
 using Grasshopper.Kernel.Data;
+using Grasshopper.Kernel.Parameters;
 using Xunit;
 
 namespace CompasAcoustics.Grasshopper.Tests
@@ -76,19 +77,112 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(new Control[]
             {
                 new DropdownControl("level", new[] { "relative", "individual", "none" }, "relative"),
-                SceneIndices.SourceDropdown, SceneIndices.ReceiverDropdown,
-                new ButtonControl("sound", "Anechoic sound"), new ButtonControl("save_rir", "Save RIR"), new ButtonControl("save_auralisation", "Save auralisation"),
+                SceneIndices.SourceDropdown, SceneIndices.ReceiverDropdown, AuraliseComponent.SoundDropdown,
+                new ButtonControl("save_rir", "Save RIR"), new ButtonControl("save_auralisation", "Save auralisation"),
             }.Select(c => c.ToString()), auralise.Controls.Select(c => c.ToString()));
             Assert.DoesNotContain(auralise.Controls, c => c.Port == "mix_sources");
             Assert.Equal(new[] { "source_idx", "receiver_idx", "sound" }, auralise.ControlPorts);
-            Assert.True(auralise.HandlesButton("sound"));
+            Assert.False(auralise.HandlesButton("sound"));
             Assert.True(auralise.HandlesButton("save_rir"));
             Assert.True(auralise.HandlesButton("save_auralisation"));
             Assert.False(auralise.HandlesButton("run"));
-            Assert.Equal("Anechoic sound", auralise.ButtonLabel("sound"));
-            ControlState.Choose(auralise, auralise.ControlPort("sound")!, "/sounds/viola.wav");
-            Assert.Equal("Anechoic sound: viola.wav", auralise.ButtonLabel("sound"));
             Assert.Null(auralise.ButtonLabel("save_rir"));
+        }
+
+        [Fact]
+        public void TheAnechoicSound_IsADropdownOfTheBundledRecordings_FemaleSpeechFirst()
+        {
+            var auralise = new AuraliseComponent();
+            var dropdown = AuraliseComponent.SoundDropdown;
+            Assert.Equal("Anechoic sound", ControlLayout.Title(dropdown));
+            Assert.Equal(new[] { "female_speech", "male_speech", "viola", "Load..." }, auralise.OptionsOf(dropdown).values);
+            Assert.Equal(new[] { "Female speech", "Male speech", "Viola", "Load..." }, auralise.OptionsOf(dropdown).labels);
+            Assert.Equal("female_speech", ControlState.Of(auralise.ControlPort("sound")!, auralise.OptionsOf(dropdown).values, ComponentBase.DefaultOf(dropdown)).value);
+            Assert.Null(auralise.Loaded);
+            Assert.Equal(("sound", auralise.ControlPort("sound")!.Description), auralise.ControlTooltip("sound"));
+            Assert.Contains("Female speech by default", auralise.ControlPort("sound")!.Description);
+        }
+
+        [Fact]
+        public void Load_ChoosesTheFile_ThenOffersItBeforeLoad()
+        {
+            var auralise = new AuraliseComponent();
+            var asked = new List<string?>();
+            auralise.OpenSound = folder =>
+            {
+                asked.Add(folder);
+                return Path.Combine("sounds", "bsn_tele_44.wav");
+            };
+            var dropdown = AuraliseComponent.SoundDropdown;
+            Assert.True(auralise.OnDropdownOption("sound", "Load..."));
+            var loaded = Path.Combine("sounds", "bsn_tele_44.wav");
+            Assert.Equal(loaded, ControlState.Persistent(auralise.ControlPort("sound")!));
+            Assert.Equal(loaded, auralise.Loaded);
+            Assert.Equal(new[] { "female_speech", "male_speech", "viola", loaded, "Load..." }, auralise.OptionsOf(dropdown).values);
+            Assert.Equal(new[] { "Female speech", "Male speech", "Viola", "bsn_tele_44.wav", "Load..." }, auralise.OptionsOf(dropdown).labels);
+            // a bundled recording chosen after: the loaded file stays on offer, and the next dialog opens in its folder
+            ControlState.Choose(auralise, auralise.ControlPort("sound")!, "viola");
+            Assert.Equal(new[] { "female_speech", "male_speech", "viola", loaded, "Load..." }, auralise.OptionsOf(dropdown).values);
+            auralise.OnDropdownOption("sound", "Load...");
+            Assert.Equal(new[] { null, "sounds" }, asked);
+        }
+
+        [Fact]
+        public void Load_Cancelled_KeepsTheSelection()
+        {
+            var auralise = new AuraliseComponent();
+            ControlState.Choose(auralise, auralise.ControlPort("sound")!, "viola");
+            auralise.OpenSound = _ => null;
+            Assert.True(auralise.OnDropdownOption("sound", "Load..."));
+            Assert.Equal("viola", ControlState.Persistent(auralise.ControlPort("sound")!));
+            Assert.Null(auralise.Loaded);
+            Assert.Equal(new[] { "female_speech", "male_speech", "viola", "Load..." }, auralise.OptionsOf(AuraliseComponent.SoundDropdown).values);
+        }
+
+        [Fact]
+        public void AnyOtherOption_IsSetByTheDropdown()
+        {
+            var auralise = new AuraliseComponent();
+            auralise.OpenSound = _ => throw new InvalidOperationException("no dialog");
+            Assert.False(auralise.OnDropdownOption("sound", "viola"));
+            Assert.False(auralise.OnDropdownOption("level", "Load..."));
+            Assert.False(new AnalyseIrComponent().OnDropdownOption("source_idx", "Load..."));
+        }
+
+        [Fact]
+        public void AWiredFilePath_WinsAndShowsItsFileName()
+        {
+            var auralise = new AuraliseComponent();
+            var port = auralise.ControlPort("sound")!;
+            ControlState.Choose(auralise, port, "viola");
+            port.AddSource(new Param_String());
+            var wired = Path.Combine("takes", "bsn_tele_44.wav");
+            port.AddVolatileData(new GH_Path(0), 0, new GH_String(wired));
+            var access = new FakeAccess();
+            access.Items["sound"] = wired;
+            Assert.Equal(wired, auralise.SoundOf(access));
+            var options = auralise.OptionsOf(AuraliseComponent.SoundDropdown);
+            var (value, isWired) = ControlState.Of(port, options.values, "female_speech");
+            Assert.True(isWired);
+            Assert.Equal("bsn_tele_44.wav", options.labels[Array.IndexOf(options.values, value)]);
+            // an empty wire: no sound, not the default
+            Assert.Null(auralise.SoundOf(new FakeAccess()));
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Unwired_TheSoundIsTheChoice_FemaleSpeechUntilOneIsMade(bool hidden)
+        {
+            var auralise = new AuraliseComponent();
+            if (hidden)
+                auralise.ShowControlPorts(false);
+            var access = new FakeAccess();
+            Assert.Equal("female_speech", auralise.SoundOf(access));
+            ControlState.Choose(auralise, auralise.ControlPort("sound")!, "male_speech");
+            if (!hidden)
+                access.Items["sound"] = "male_speech";
+            Assert.Equal("male_speech", auralise.SoundOf(access));
         }
     }
 
@@ -148,7 +242,6 @@ namespace CompasAcoustics.Grasshopper.Tests
     {
         private readonly List<string> _calls = new();
         private readonly string _home = Directory.CreateTempSubdirectory("compas_acoustics_home_").FullName;
-        private bool _fail;
 
         public AuraliseComponentTests()
         {
@@ -172,16 +265,14 @@ namespace CompasAcoustics.Grasshopper.Tests
             if (path == "/api/info")
                 return FakeHandler.Result(new Dictionary<string, object?> { ["compas_acoustics"] = Versions.Library, ["schema"] = Schema.Hash, ["hybrid"] = true });
             _calls.Add(path);
-            if (_fail)
-                return FakeHandler.Answer(System.Net.HttpStatusCode.BadRequest, new Dictionary<string, object?> { ["error"] = "ImportError: broken" });
-            return FakeHandler.Result(path == "/api/anechoic_library_folder" ? "/site-packages/compas_acoustics/anechoic_soundfiles_library" : null);
+            return FakeHandler.Result(null);
         }
 
         private static void Solve(ComponentBase component, IGH_DataAccess access) =>
             typeof(GH_Component).GetMethod("SolveInstance", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(component, new object?[] { access });
 
         [Fact]
-        public void Auralise_NoSound_Warns()
+        public void Auralise_AnEmptyWiredSound_Warns()
         {
             var irs = new GH_Structure<ImpulseResponseGoo>();
             irs.Append(AuraliseGroupsTests.Ir("rec", "a"), new GH_Path(0));
@@ -189,6 +280,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             var access = new FakeAccess();
             access.Trees["irs"] = irs;
             var auralise = new AuraliseComponent();
+            auralise.ControlPort("sound")!.AddSource(new Param_String());
             Solve(auralise, access);
             var warning = Assert.Single(auralise.RuntimeMessages(GH_RuntimeMessageLevel.Warning));
             Assert.Contains("'sound'", warning);
@@ -212,15 +304,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             // irs disconnected: the required input has no data, so Grasshopper solves no instance
             typeof(GH_Component).GetMethod("BeforeSolveInstance", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(auralise, null);
             Assert.Null(last.GetValue(auralise));
-        }
-
-        [Fact]
-        public void LibraryFolder_IsTheWorkersAnechoicLibrary_OrNullWhenTheWorkerFails()
-        {
-            Assert.Equal("/site-packages/compas_acoustics/anechoic_soundfiles_library", AuraliseGroups.LibraryFolder());
-            Assert.Equal(new[] { "/api/anechoic_library_folder" }, _calls);
-            _fail = true;
-            Assert.Null(AuraliseGroups.LibraryFolder());
         }
     }
 }

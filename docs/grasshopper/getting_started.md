@@ -17,8 +17,8 @@ in panels from left to right in the order a definition uses them. [Concepts](../
 4. **Analysis.** [Analyse Impulse Response](components/CA_Analyse_IR.md) gives the room acoustic parameters of the
    source and receiver its dropdowns choose (all, or one), and [Plot 2D](components/CA_Plot_2D.md) draws them on the
    canvas, all parameters or the one its dropdown names.
-5. **Auralisation.** [Auralise](components/CA_Auralise.md) convolves a recording (Anechoic sound, which opens in the
-   bundled anechoic sound library) with the responses of the pairs its dropdowns choose;
+5. **Auralisation.** [Auralise](components/CA_Auralise.md) convolves a recording (the Anechoic sound dropdown: a bundled
+   anechoic recording, or a file of yours with Load...) with the responses of the pairs its dropdowns choose;
    [Audio Player](components/CA_Audio_Player.md) plays it.
 6. **Display.** Show reflection paths, rays, a billiard of sound particles or an energy map in the Rhino viewport.
 

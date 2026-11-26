@@ -93,6 +93,12 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>A button the component handles itself was pressed.</summary>
         public virtual void OnButton(string port) { }
 
+        /// <summary>
+        /// <paramref name="option"/> was picked on the dropdown of <paramref name="port"/>: true when the component acts on it
+        /// itself (an entry that opens a dialog), false when the dropdown sets it.
+        /// </summary>
+        public virtual bool OnDropdownOption(string port, string option) => false;
+
         /// <summary>A slider without an input port was set; the component keeps the value itself.</summary>
         public virtual void SliderChanged(string name, double value) { }
 
