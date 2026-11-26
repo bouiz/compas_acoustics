@@ -102,6 +102,12 @@ namespace CompasAcoustics.Grasshopper
 
         private static bool Differs(int? given, object? last) => given is int g && !(last is IConvertible c && Convert.ToInt64(c, CultureInfo.InvariantCulture) == g);
 
+        public const string StaleReference = "The reference is from an earlier model: rerun Simulate Mono first.";
+
+        /// <summary>Whether a response of <paramref name="reference"/> was simulated for another model than <paramref name="scene"/>.</summary>
+        public static bool Stale(IEnumerable<ImpulseResponseGoo> reference, SceneGoo scene) =>
+            reference.Select(ir => ir.SimulatedFor).OfType<SceneGoo>().Distinct().Any(ran => !SimulatedScene.Same(ran, scene));
+
         /// <summary>Whether the settings differ from the description of the last run.</summary>
         public static bool Changed(SimulateComponent.LastResult last, string? tail, int? shOrder, int? ismOrder, string? diffraction)
         {

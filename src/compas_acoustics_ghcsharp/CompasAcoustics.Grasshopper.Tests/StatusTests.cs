@@ -19,13 +19,6 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void RunMessage_ShowsTheRateAndTheNumberOfResponses()
-        {
-            Assert.Equal("48 kHz, 4 responses", MessageText.Run(48000, 4));
-            Assert.Equal("44.1 kHz, 1 response", MessageText.Run(44100, 1));
-        }
-
-        [Fact]
         public void AcousticObjectMessage_ShowsItsSurface()
         {
             Assert.Equal("Total area: 12.3 m2", MessageText.Object(12.34));

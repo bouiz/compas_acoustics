@@ -121,6 +121,19 @@ namespace CompasAcoustics.Grasshopper
                 SetResponses(access, scene);
                 return;
             }
+            // the guid check below passes a reference kept from an earlier model when Source and Receiver did not solve again
+            if (reference != null && HybridRun.Stale(reference, scene))
+            {
+                Hold(access, scene);
+                if (Value<bool>(access, "run") == true || Pressed("run"))
+                {
+                    Error(HybridRun.StaleReference);
+                    Status("rerun Simulate Mono first");
+                }
+                else
+                    Warn(HybridRun.StaleReference);
+                return;
+            }
             var shOrder = ShOrder;
             var hrtf = Hrtf(access);
             var ismOrder = Value<int>(access, "ism_order");

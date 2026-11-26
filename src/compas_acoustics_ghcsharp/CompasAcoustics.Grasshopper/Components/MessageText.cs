@@ -22,9 +22,6 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>A sampling rate in kHz: <c>48 kHz</c>, <c>44.1 kHz</c>.</summary>
         public static string Rate(int samplingRate) => string.Format(CultureInfo.InvariantCulture, "{0:0.#} kHz", samplingRate / 1000.0);
 
-        /// <summary>A finished simulation: its sampling rate and the number of responses, <c>48 kHz, 4 responses</c>.</summary>
-        public static string Run(int samplingRate, int responses) => $"{Rate(samplingRate)}, {Count(responses, "response")}";
-
         /// <summary>The Acoustic Object's strip: its surface.</summary>
         public static string Object(double area) => string.Format(CultureInfo.InvariantCulture, "Total area: {0:0.#} m2", area);
 

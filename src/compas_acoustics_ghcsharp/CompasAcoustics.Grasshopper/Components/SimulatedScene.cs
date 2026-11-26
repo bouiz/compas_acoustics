@@ -79,7 +79,7 @@ namespace CompasAcoustics.Grasshopper
                     clone.Source.SoundFile = source.SoundFile;
                 else
                     clone.Source.ClearSoundFile();
-                return new ImpulseResponseGoo(clone);
+                return new ImpulseResponseGoo(clone) { SimulatedFor = ir.SimulatedFor };
             }).ToList();
         }
     }

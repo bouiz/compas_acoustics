@@ -116,6 +116,39 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Empty(_calls);
         }
 
+        private const string Stale = "The reference is from an earlier model: rerun Simulate Mono first.";
+
+        private static FakeAccess StaleAccess(bool run)
+        {
+            var access = Access("reference", referenced: true, run: run);
+            var earlier = ((SceneGoo)access.Items["scene"]).Value.Clone();
+            earlier.Receivers[0].Name = "moved";
+            var reference = Reference();
+            reference.SimulatedFor = new SceneGoo(earlier);
+            access.Lists["reference"] = new[] { reference };
+            return access;
+        }
+
+        [Fact]
+        public void AReferenceFromAnEarlierModel_Warns_AndCallsNoWorker()
+        {
+            var component = new SimulateBinauralComponent();
+            Solve(component, StaleAccess(run: false));
+            Assert.Equal(new[] { Stale }, component.RuntimeMessages(GH_RuntimeMessageLevel.Warning).ToArray());
+            Assert.Empty(component.RuntimeMessages(GH_RuntimeMessageLevel.Error));
+            Assert.Empty(_calls);
+        }
+
+        [Fact]
+        public void RunWithAReferenceFromAnEarlierModel_IsAnError_AndCallsNoWorker()
+        {
+            var component = new SimulateAmbisonicsComponent();
+            Solve(component, StaleAccess(run: true));
+            Assert.Equal(new[] { Stale }, component.RuntimeMessages(GH_RuntimeMessageLevel.Error).ToArray());
+            Assert.Equal("rerun Simulate Mono first", component.Message);
+            Assert.Empty(_calls);
+        }
+
         [Fact]
         public void TailReferenceWithAReference_RunsWithoutAMessage()
         {

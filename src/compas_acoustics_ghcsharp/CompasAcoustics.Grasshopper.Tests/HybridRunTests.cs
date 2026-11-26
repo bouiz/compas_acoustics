@@ -254,36 +254,37 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void Status_ForAnotherScene_SaysPressRun()
+        public void Status_ForAnotherScene_SaysTheModelChanged()
         {
-            Assert.Equal(("press Run", false), Status(Last("old"), Scene("new", x: 5), null, null, null, null));
+            Assert.Equal(("model changed,\nrerun the simulation", true), Status(Last("old"), Scene("new", x: 5), null, null, null, null));
+            Assert.Equal(("model changed,\nrerun the simulation", true), Status(Last("old"), Scene("new", x: 5), "eyring", 2, 4, "udfa"));
         }
 
         [Fact]
-        public void Status_SaysDoneWithTheRateAndCount()
+        public void Status_ForResponsesThatHold_SaysNothing()
         {
-            Assert.Equal(("done, 48 kHz, 2 responses (Run to redo)", false), Status(Last("scene", count: 2), Scene("scene", count: 2), null, null, null, null));
-            Assert.Equal(("done, 48 kHz, 1 response (Run to redo)", false), Status(Last("scene"), Scene("scene"), "reference", 1, 3, "none"));
+            Assert.Equal(("", false), Status(Last("scene", count: 2), Scene("scene", count: 2), null, null, null, null));
+            Assert.Equal(("", false), Status(Last("scene"), Scene("scene"), "reference", 1, 3, "none"));
         }
 
         [Fact]
         public void Status_SaysSettingsChanged()
         {
             var last = Last("scene");
-            var changed = ("settings changed, press Run (48 kHz, 1 response)", true);
+            var changed = ("settings changed,\nrerun the simulation", true);
             Assert.Equal(changed, Status(last, Scene("scene"), null, null, 4, null));
             Assert.Equal(changed, Status(last, Scene("scene"), "eyring", null, null, null));
             Assert.Equal(changed, Status(last, Scene("scene"), null, 2, null, null));
             Assert.Equal(changed, Status(last, Scene("scene"), null, null, null, "udfa"));
-            Assert.Equal(("done, 48 kHz, 1 response (Run to redo)", false), Status(Last("scene", diffraction: "udfa"), Scene("scene"), null, null, null, "udfa"));
+            Assert.Equal(("", false), Status(Last("scene", diffraction: "udfa"), Scene("scene"), null, null, null, "udfa"));
         }
 
         [Fact]
-        public void Status_ForASoundOnlyChange_SaysDone_AndAPositionChangeAsksForRun()
+        public void Status_ForASoundOnlyChange_SaysNothing_AndAPositionChangeSaysTheModelChanged()
         {
             var last = Last("scene", count: 2);
-            Assert.Equal(("done, 48 kHz, 2 responses (Run to redo)", false), Status(last, Scene("again", count: 2, sound: "speech"), null, null, null, null));
-            Assert.Equal(("press Run", false), Status(last, Scene("again", count: 2, x: 3, sound: "speech"), null, null, null, null));
+            Assert.Equal(("", false), Status(last, Scene("again", count: 2, sound: "speech"), null, null, null, null));
+            Assert.Equal(("model changed,\nrerun the simulation", true), Status(last, Scene("again", count: 2, x: 3, sound: "speech"), null, null, null, null));
         }
 
         [Fact]
@@ -297,8 +298,41 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.All(passed, ir => Assert.Equal("speech", ir.Value.Source.SoundFile));
             Assert.Equal(last.Responses.Select(ir => ir.Value.Samples.ToArray()), passed.Select(ir => ir.Value.Samples.ToArray()));
             Assert.All(last.Responses, ir => Assert.False(ir.Value.Source.HasSoundFile));
-            Assert.Empty(SimulateComponent.Passed(last, Scene("again", count: 2, x: 3, sound: "speech")));
             Assert.Empty(SimulateComponent.Passed(null, scene));
+        }
+
+        [Fact]
+        public void Passed_ForAnotherModel_KeepsTheLastResponsesAsTheyWere()
+        {
+            var last = Last("scene", count: 2);
+            var passed = SimulateComponent.Passed(last, Scene("again", count: 2, x: 3, sound: "speech"));
+            Assert.Equal(last.Responses, passed);
+        }
+
+        [Fact]
+        public void TheSceneOfAResponse_SurvivesDuplicateCastAndASoundChange()
+        {
+            var scene = Scene("scene");
+            var ir = Response("scene-s0", "r");
+            ir.Value.Source = scene.Value.Sources[0].Clone();
+            ir.SimulatedFor = scene;
+            Assert.Same(scene, ((ImpulseResponseGoo)ir.Duplicate()).SimulatedFor);
+            var cast = new ImpulseResponseGoo();
+            Assert.True(cast.CastFrom(ir));
+            Assert.Same(scene, cast.SimulatedFor);
+            var passed = SimulatedScene.Current(new[] { ir }, scene, Scene("again", sound: "speech"));
+            Assert.Same(scene, Assert.Single(passed).SimulatedFor);
+        }
+
+        [Fact]
+        public void AReference_IsStale_OnlyWhenItWasSimulatedForAnotherModel()
+        {
+            var ir = Response("scene-s0", "r");
+            Assert.False(HybridRun.Stale(new[] { ir }, Scene("scene")));
+            ir.SimulatedFor = Scene("other");
+            Assert.False(HybridRun.Stale(new[] { ir }, Scene("scene")));
+            Assert.False(HybridRun.Stale(new[] { ir }, Scene("scene", sound: "speech")));
+            Assert.True(HybridRun.Stale(new[] { ir }, Scene("scene", x: 5)));
         }
     }
 }

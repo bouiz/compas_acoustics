@@ -84,7 +84,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             WaitForTheRun(mono);
             var access = Access();
             Solve(mono, access);
-            Assert.Equal("48 kHz, 1 response", (mono.FullMessage ?? mono.Message));
+            Assert.Equal("", (mono.FullMessage ?? mono.Message));
             Assert.Single(access.OutputLists["irs"]);
             return mono;
         }
@@ -117,7 +117,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Solve(mono, access);
             Assert.False(mono.Runs.AnyRunning);
             Assert.Single(_calls);
-            Assert.Equal("done, 48 kHz, 1 response (Run to redo)", (mono.FullMessage ?? mono.Message));
+            Assert.Equal("", (mono.FullMessage ?? mono.Message));
             Assert.Equal("b-s0", ((ImpulseResponseGoo)Assert.Single(access.OutputLists["irs"])!).SourceGuid);
         }
 
@@ -129,7 +129,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Solve(mono, access);
             Assert.False(mono.Runs.AnyRunning);
             Assert.Single(_calls);
-            Assert.Equal("settings changed, press Run (48 kHz, 1 response)", (mono.FullMessage ?? mono.Message));
+            Assert.Equal("settings changed,\nrerun the simulation", (mono.FullMessage ?? mono.Message));
             Assert.Single(mono.RuntimeMessages(GH_RuntimeMessageLevel.Warning));
             Assert.Single(access.OutputLists["irs"]);
         }
@@ -141,22 +141,35 @@ namespace CompasAcoustics.Grasshopper.Tests
             var access = Access("c", sound: "speech");
             Solve(mono, access);
             Assert.Single(_calls);
-            Assert.Equal("done, 48 kHz, 1 response (Run to redo)", (mono.FullMessage ?? mono.Message));
+            Assert.Equal("", (mono.FullMessage ?? mono.Message));
             var ir = (ImpulseResponseGoo)Assert.Single(access.OutputLists["irs"])!;
             Assert.Equal("speech", ir.Value.Source.SoundFile);
             Assert.Equal("c-s0", ir.SourceGuid);
         }
 
         [Fact]
-        public void AnotherScene_AsksForRun_AndPassesNothing()
+        public void AnotherScene_KeepsTheResponses_AndSaysTheModelChanged()
         {
             var mono = Ran();
             var access = Access();
-            ((SceneGoo)access.Items["scene"]).Value.Receivers[0].Name = "moved";
+            var scene = (SceneGoo)access.Items["scene"];
+            scene.Value.Receivers[0].Name = "moved";
             Solve(mono, access);
             Assert.Single(_calls);
-            Assert.Equal("press Run", (mono.FullMessage ?? mono.Message));
-            Assert.Empty(access.OutputLists["irs"]);
+            Assert.Equal("model changed,\nrerun the simulation", (mono.FullMessage ?? mono.Message));
+            Assert.Single(mono.RuntimeMessages(GH_RuntimeMessageLevel.Warning));
+            var ir = (ImpulseResponseGoo)Assert.Single(access.OutputLists["irs"])!;
+            Assert.False(SimulatedScene.Same(ir.SimulatedFor!, scene));
+        }
+
+        [Fact]
+        public void TheResponsesOfARun_CarryTheSceneTheyWereSimulatedFor()
+        {
+            var mono = Ran();
+            var access = Access("b");
+            Solve(mono, access);
+            var ir = (ImpulseResponseGoo)Assert.Single(access.OutputLists["irs"])!;
+            Assert.True(SimulatedScene.Same(ir.SimulatedFor!, (SceneGoo)access.Items["scene"]));
         }
     }
 }

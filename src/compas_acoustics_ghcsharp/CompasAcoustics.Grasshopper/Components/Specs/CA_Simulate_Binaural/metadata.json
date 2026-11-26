@@ -22,7 +22,7 @@
             },
             {
                 "name": "reference",
-                "description": "Optional reference for the tail: connect the irs output of Simulate Mono, simulated for the same scene, one response per source and receiver (the wire also makes Grasshopper run the ray tracing first). Set Tail to Reference with it; any other tail is an error.",
+                "description": "Optional reference for the tail: connect the irs output of Simulate Mono, simulated for the same scene (a reference Simulate Mono kept from an earlier model is refused: rerun it first), one response per source and receiver (the wire also makes Grasshopper run the ray tracing first). Set Tail to Reference with it; any other tail is an error.",
                 "optional": true,
                 "scriptParamAccess": 1,
                 "typeHintID": "ghdoc"
@@ -119,7 +119,7 @@
             },
             {
                 "name": "run",
-                "description": "Simulate when true: the body's Run button, or a Button or Boolean Toggle wired here. The simulation takes seconds to minutes and Grasshopper recomputes on every change of the inputs, so it starts only on a press; otherwise the responses of the last run for this scene are passed on.",
+                "description": "Simulate when true: the body's Run button, or a Button or Boolean Toggle wired here. The simulation takes seconds to minutes and Grasshopper recomputes on every change of the inputs, so it starts only on a press; otherwise the responses of the last run are passed on until the next one, and the message says \"model changed, rerun the simulation\" when the scene differs from the run's.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "bool"

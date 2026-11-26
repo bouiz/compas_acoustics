@@ -98,7 +98,7 @@
             },
             {
                 "name": "run",
-                "description": "Simulate when true: the body's Run button, or a Button or Boolean Toggle wired here. The simulation takes seconds to minutes and Grasshopper recomputes on every change of the inputs, so it starts only on a press; otherwise the responses of the last run for this scene are passed on, to Simulate Binaural and Simulate Ambisonics among others.",
+                "description": "Simulate when true: the body's Run button, or a Button or Boolean Toggle wired here. The simulation takes seconds to minutes and Grasshopper recomputes on every change of the inputs, so it starts only on a press; otherwise the responses of the last run are passed on until the next one, and the message says \"model changed, rerun the simulation\" when the scene differs from the run's, to Simulate Binaural and Simulate Ambisonics among others.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "bool"
