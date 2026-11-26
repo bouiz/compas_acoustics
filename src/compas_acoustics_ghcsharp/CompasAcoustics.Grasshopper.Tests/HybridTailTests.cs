@@ -171,7 +171,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             WaitForTheRun(component);
             var access = Access("reference", referenced: true);
             Solve(component, access);
-            Assert.Equal("", component.Message);
+            Assert.Equal("simulated 1 response", component.Message);
             Assert.Single(access.OutputLists["irs"]);
             return component;
         }

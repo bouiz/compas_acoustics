@@ -19,6 +19,9 @@ namespace CompasAcoustics.Grasshopper
 
         private static string Count(int n, string noun) => $"{n} {noun}{(n == 1 ? "" : "s")}";
 
+        /// <summary>A simulation whose responses hold: <c>simulated 1 response</c>, <c>simulated 4 responses</c>.</summary>
+        public static string Simulated(int responses) => $"simulated {Count(responses, "response")}";
+
         /// <summary>A sampling rate in kHz: <c>48 kHz</c>, <c>44.1 kHz</c>.</summary>
         public static string Rate(int samplingRate) => string.Format(CultureInfo.InvariantCulture, "{0:0.#} kHz", samplingRate / 1000.0);
 

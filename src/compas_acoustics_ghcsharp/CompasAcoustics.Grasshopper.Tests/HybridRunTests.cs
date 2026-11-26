@@ -257,9 +257,10 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void Status_ForResponsesThatHold_SaysNothing()
+        public void Status_ForResponsesThatHold_SaysHowManyWereSimulated()
         {
-            Assert.Equal(("", false), Status(Last("scene", count: 2), Scene("scene", count: 2)));
+            Assert.Equal(("simulated 2 responses", false), Status(Last("scene", count: 2), Scene("scene", count: 2)));
+            Assert.Equal(("simulated 1 response", false), Status(Last("scene"), Scene("scene")));
         }
 
         [Fact]
@@ -269,10 +270,10 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void Status_ForASoundOnlyChange_SaysNothing_AndAPositionChangeSaysTheModelChanged()
+        public void Status_ForASoundOnlyChange_SaysHowManyWereSimulated_AndAPositionChangeSaysTheModelChanged()
         {
             var last = Last("scene", count: 2);
-            Assert.Equal(("", false), Status(last, Scene("again", count: 2, sound: "speech")));
+            Assert.Equal(("simulated 2 responses", false), Status(last, Scene("again", count: 2, sound: "speech")));
             Assert.Equal(("model changed,\nrerun the simulation", true), Status(last, Scene("again", count: 2, x: 3, sound: "speech")));
         }
 

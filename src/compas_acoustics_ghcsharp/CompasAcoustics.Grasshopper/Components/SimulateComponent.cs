@@ -38,8 +38,8 @@ namespace CompasAcoustics.Grasshopper
             last == null ? Array.Empty<ImpulseResponseGoo>() : SimulatedScene.Current(last.Responses, last.Scene, scene);
 
         /// <summary>
-        /// What the component says while it is not running: nothing while its responses hold, else that there are none or
-        /// that the model or the settings (as <paramref name="changed"/> tells) differ from the last run's.
+        /// What the component says while it is not running: how many responses it simulated while they hold, else that there
+        /// are none or that the model or the settings (as <paramref name="changed"/> tells) differ from the last run's.
         /// </summary>
         public static (string text, bool changed) Status(LastResult? last, SceneGoo scene, Func<LastResult, bool> changed)
         {
@@ -47,7 +47,7 @@ namespace CompasAcoustics.Grasshopper
                 return ("press Run", false);
             if (!SimulatedScene.Same(last.Scene, scene))
                 return (ModelChanged, true);
-            return changed(last) ? (SettingsChanged, true) : ("", false);
+            return changed(last) ? (SettingsChanged, true) : (MessageText.Simulated(last.Responses.Count), false);
         }
 
         /// <summary>The method's call for <paramref name="scene"/>.</summary>
@@ -78,7 +78,7 @@ namespace CompasAcoustics.Grasshopper
             {
                 if (fresh)
                     Keep(iteration, (SceneGoo)outcome.Context!, outcome.Result, request.Key);
-                shown = fresh ? ("", false) : Status(_last.GetValueOrDefault(iteration), scene, Changed);
+                shown = fresh ? (MessageText.Simulated(_last[iteration].Responses.Count), false) : Status(_last.GetValueOrDefault(iteration), scene, Changed);
                 ShowStatus(shown.Value);
                 SetResponses(access, scene);
             }

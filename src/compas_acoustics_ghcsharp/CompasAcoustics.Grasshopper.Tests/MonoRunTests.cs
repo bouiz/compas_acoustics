@@ -84,7 +84,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             WaitForTheRun(mono);
             var access = Access();
             Solve(mono, access);
-            Assert.Equal("", (mono.FullMessage ?? mono.Message));
+            Assert.Equal("simulated 1 response", (mono.FullMessage ?? mono.Message));
             Assert.Single(access.OutputLists["irs"]);
             return mono;
         }
@@ -117,7 +117,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Solve(mono, access);
             Assert.False(mono.Runs.AnyRunning);
             Assert.Single(_calls);
-            Assert.Equal("", (mono.FullMessage ?? mono.Message));
+            Assert.Equal("simulated 1 response", (mono.FullMessage ?? mono.Message));
             Assert.Equal("b-s0", ((ImpulseResponseGoo)Assert.Single(access.OutputLists["irs"])!).SourceGuid);
         }
 
@@ -141,7 +141,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             var access = Access("c", sound: "speech");
             Solve(mono, access);
             Assert.Single(_calls);
-            Assert.Equal("", (mono.FullMessage ?? mono.Message));
+            Assert.Equal("simulated 1 response", (mono.FullMessage ?? mono.Message));
             var ir = (ImpulseResponseGoo)Assert.Single(access.OutputLists["irs"])!;
             Assert.Equal("speech", ir.Value.Source.SoundFile);
             Assert.Equal("c-s0", ir.SourceGuid);
