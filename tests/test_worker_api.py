@@ -977,3 +977,45 @@ def test_the_worker_lets_the_least_recently_used_results_go_beyond_its_budget(mo
     assert api.polar_balloon(str(second.guid))["mesh"] is not None
     api.polar_balloon(first)  # sent again, it is held again
     assert api.polar_balloon(str(first.guid))["mesh"] is not None
+
+
+def _fixture_result():
+    import base64
+
+    return pb_load_bts(base64.b64decode((Path(__file__).parent / "pb_fixtures" / "scattering_result.b64").read_text()))
+
+
+def _centre_of_a_run(monkeypatch, sample):
+    import compas_acoustics.lab
+
+    made = _fixture_result()
+    monkeypatch.setattr(compas_acoustics.lab, "measure_scattering", lambda *args, **kwargs: made)
+    return call("run_scattering_lab", sample, preset="survey")["result"].generation["sample_centre"]
+
+
+def test_a_run_records_the_centre_of_a_sample_off_the_origin(monkeypatch):
+    from compas.geometry import Translation
+
+    box = call("make_scattering_sample", _closed_box().transformed(Translation.from_vector([3, 1, 0])))
+    # the footprint's centroid in x and y, the top in z (the box's bottom is moved to z = -baseplate)
+    assert _centre_of_a_run(monkeypatch, box) == pytest.approx([3.6, 1.4, 0.29])
+    panel = call("make_scattering_sample", _wavy_panel().transformed(Translation.from_vector([2, 3, 0.5])))
+    assert _centre_of_a_run(monkeypatch, panel) == pytest.approx([2.0, 3.0, 0.08])
+
+
+def test_a_run_records_the_centre_of_a_sample_given_its_plane_where_the_sample_is_drawn(monkeypatch):
+    from compas.geometry import Transformation
+
+    # the box of the floor at x 3 to 4.2, y 1 to 1.8, put on a wall at y = 4 facing -y
+    frame = Frame([2, 4, 1.0], [1, 0, 0], [0, 0, 1])
+    floor_box = _closed_box().transformed(Transformation.from_frame_to_frame(Frame.worldXY(), Frame([3, 1, 0], [1, 0, 0], [0, 1, 0])))
+    wall = call("make_scattering_sample", floor_box.transformed(Transformation.from_frame_to_frame(Frame.worldXY(), frame)), frame=frame)
+    # drawn, as the lab measures it, on the world XY plane where it lay before it was put on the wall
+    assert _centre_of_a_run(monkeypatch, wall) == pytest.approx([3.6, 1.4, 0.29])
+
+
+def test_polar_balloon_gives_the_centre_its_result_records():
+    result = _fixture_result()
+    assert call("polar_balloon", result, preview=0, octave=result.octave_bands[0])["centre"] is None
+    result.generation["sample_centre"] = [1.0, 2.0, 0.3]
+    assert call("polar_balloon", result, preview=0, octave=result.octave_bands[0])["centre"] == [1.0, 2.0, 0.3]

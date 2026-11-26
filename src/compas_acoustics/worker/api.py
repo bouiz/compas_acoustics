@@ -691,8 +691,29 @@ def run_scattering_lab(sample, method="geometric", preset=None, band_range="iso"
     # the sample's own warnings are the Scattering Sample's; how long the run takes is news only before it
     messages = [m for m in caught if m not in sample.warnings]
     messages, notes = _split_notes(messages, NOTE_TEMPLATES + (_SERIAL,), dropped=DURATION_TEMPLATES + (_SLOW_GRID, _BIG))
+    result.generation["sample_centre"] = _sample_centre(sample)
     _hold(result)
     return {"result": result, "scattering_coefficients": result.scattering_coefficients, "octave_bands": list(result.octave_bands), "warnings": messages, "notes": notes}
+
+
+def _sample_centre(sample):
+    """Where Polar Preview centres the balloon over ``sample``, as it is drawn: the area centroid of its footprint (its
+    bottom, flat at its lowest z) in x and y, and its highest z."""
+    vertices, faces = sample.sample.to_vertices_and_faces()
+    vertices = np.asarray(vertices, dtype=float)
+    bottom = vertices[:, 2].min()
+    tolerance = 1e-9 * max(1.0, float(np.ptp(vertices, axis=0).max()))
+    areas, centroids = [], []
+    for face in faces:
+        corners = vertices[face]
+        if np.abs(corners[:, 2] - bottom).max() > tolerance:
+            continue
+        for b, c in zip(corners[1:-1], corners[2:]):
+            a = corners[0]
+            areas.append(abs((b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1])) / 2)
+            centroids.append((a[:2] + b[:2] + c[:2]) / 3)
+    x, y = np.average(centroids, axis=0, weights=areas)
+    return [float(x), float(y), float(vertices[:, 2].max())]
 
 
 #: The start of the error of a call that names a result by its guid when the worker does not hold it (it restarted, or
@@ -814,4 +835,11 @@ def polar_balloon(result, preview=0, octave=1000, body="sample", radius=1.0, flo
     colatitude, azimuth = float(result.source_colatitude[index]), float(result.source_azimuth[index])
     theta, phi = np.radians(colatitude), np.radians(azimuth)
     source = 1.2 * radius * np.array([np.sin(theta) * np.cos(phi), np.sin(theta) * np.sin(phi), np.cos(theta)])
-    return {"mesh": mesh, "levels": [float(v) for v in levels], "source": [float(v) for v in source], "label": f"θ {colatitude:g}°, φ {azimuth:g}°, {octave} Hz, {body}"}
+    centre = (result.generation or {}).get("sample_centre")
+    return {
+        "mesh": mesh,
+        "levels": [float(v) for v in levels],
+        "source": [float(v) for v in source],
+        "label": f"θ {colatitude:g}°, φ {azimuth:g}°, {octave} Hz, {body}",
+        "centre": [float(v) for v in centre] if centre is not None else None,
+    }

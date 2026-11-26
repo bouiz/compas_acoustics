@@ -521,11 +521,30 @@ namespace CompasAcoustics.Grasshopper.Tests
                 ["source"] = new List<object> { 0.6, 0.0, 1.0 },
                 ["label"] = "\u03b8 30\u00b0, \u03c6 0\u00b0, 1000 Hz, sample",
             };
-            var (read, levels, source, label) = LabResults.ReadBalloon(answer);
+            var (read, levels, source, label, centre) = LabResults.ReadBalloon(answer);
             Assert.Same(mesh, read);
             Assert.Equal(new[] { 0.0, -3.0, -30.0 }, levels);
             Assert.Equal(new[] { 0.6, 0.0, 1.0 }, source);
             Assert.Equal("\u03b8 30\u00b0, \u03c6 0\u00b0, 1000 Hz, sample", label);
+            Assert.Null(centre);
+        }
+
+        [Fact]
+        public void TheBalloonsCentre_IsTheWiredPoint_ElseTheSamplesTheResultRecords_ElseTheOrigin()
+        {
+            var answer = new Dictionary<string, object?>
+            {
+                ["mesh"] = Mesh(),
+                ["levels"] = new List<object> { 0.0, -3.0, -30.0 },
+                ["source"] = new List<object> { 0.6, 0.0, 1.0 },
+                ["label"] = "",
+                ["centre"] = new List<object> { 3.6, 1.4, 0.29 },
+            };
+            var centre = LabResults.ReadBalloon(answer).centre;
+            Assert.Equal(new Rhino.Geometry.Point3d(3.6, 1.4, 0.29), LabResults.BalloonCentre(null, centre));
+            Assert.Equal(new Rhino.Geometry.Point3d(5, 5, 5), LabResults.BalloonCentre(new Rhino.Geometry.Point3d(5, 5, 5), centre));
+            answer["centre"] = null;
+            Assert.Equal(Rhino.Geometry.Point3d.Origin, LabResults.BalloonCentre(null, LabResults.ReadBalloon(answer).centre));
         }
 
         [Fact]

@@ -229,8 +229,8 @@ namespace CompasAcoustics.Grasshopper
             var floor = (double)kwargs["floor_db"]!;
             // the result by its guid: the worker holds the results it made, so a change of the direction or the octave sends no levels
             var answer = LabRequests.NamingTheResult(args, a => Worker.Call("polar_balloon", a, kwargs));
-            var (mesh, levels, direction, _) = LabResults.ReadBalloon((IDictionary<string, object?>)answer!);
-            var centre = Value<Point3d>(access, "centre") ?? Point3d.Origin;
+            var (mesh, levels, direction, _, sampleCentre) = LabResults.ReadBalloon((IDictionary<string, object?>)answer!);
+            var centre = LabResults.BalloonCentre(Value<Point3d>(access, "centre"), sampleCentre);
             var move = centre - Point3d.Origin;
             var (corners, faces) = PreviewGeometry.MeshOf(mesh);
             var vertices = corners.Select(v => v + move).ToArray();
