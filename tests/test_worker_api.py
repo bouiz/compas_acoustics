@@ -1019,3 +1019,56 @@ def test_polar_balloon_gives_the_centre_its_result_records():
     assert call("polar_balloon", result, preview=0, octave=result.octave_bands[0])["centre"] is None
     result.generation["sample_centre"] = [1.0, 2.0, 0.3]
     assert call("polar_balloon", result, preview=0, octave=result.octave_bands[0])["centre"] == [1.0, 2.0, 0.3]
+
+
+def _box_at_3_1_with_a_bottom_corner_at(z):
+    from compas.geometry import Translation
+
+    box = _closed_box().transformed(Translation.from_vector([3, 1, 0]))
+    corner = next(v for v in box.vertices() if box.vertex_attribute(v, "z") == 0)
+    box.vertex_attribute(corner, "z", z)
+    return box
+
+
+@pytest.mark.parametrize("z", [1e-8, -1e-8, -5e-7])
+def test_the_centre_takes_a_bottom_as_flat_as_the_lab_does(monkeypatch, z):
+    sample = call("make_scattering_sample", _box_at_3_1_with_a_bottom_corner_at(z))
+    centre = _centre_of_a_run(monkeypatch, sample)
+    assert centre[:2] == pytest.approx([3.6, 1.4], abs=1e-6)
+    assert centre[2] == pytest.approx(0.29 - min(z, 0.0), abs=1e-9)
+
+
+def test_a_centre_that_cannot_be_found_never_costs_the_run(monkeypatch):
+    import compas_acoustics.lab
+
+    def broken(sample):
+        raise ZeroDivisionError("Weights sum to zero")
+
+    made = _fixture_result()
+    monkeypatch.setattr(compas_acoustics.lab, "measure_scattering", lambda *args, **kwargs: made)
+    monkeypatch.setattr(api, "_sample_centre", broken)
+    out = call("run_scattering_lab", call("make_scattering_sample", _closed_box()), preset="survey")
+    assert out["result"].guid == made.guid and "sample_centre" not in out["result"].generation
+    assert out["scattering_coefficients"] == made.scattering_coefficients
+
+
+def test_auralise_relative_names_the_connected_pairs_it_leaves_out_of_the_gain():
+    irs = two_sources_one_receiver()
+    irs[1] = decay(source=Source("b", 2, 1, 1.5), receiver=irs[1].receiver, level=0.25, seed=1, sound_file=VIOLA)
+    result = call("auralise", irs, None, [1], ["0_1"])
+    assert "Left out of the relative level, no sound on their Source or on Auralise: source 'a' to receiver 'rec'." in result["warnings"]
+    irs[0] = decay(source=Source("a", 1, 1, 1.5), receiver=irs[0].receiver, sound_file=VIOLA)
+    assert not [w for w in call("auralise", irs, None, [1], ["0_1"])["warnings"] if w.startswith("Left out")]
+
+
+def test_a_sources_missing_sound_file_says_to_choose_it_again_on_the_source(tmp_path):
+    missing = str(tmp_path / "moved.wav")
+    with pytest.raises(ValueError, match=r"^The sound file .*moved\.wav does not exist\. .*Choose it again on the Source's Anechoic sound dropdown\.$"):
+        api.make_source("s", [0, 0, 0], sound_file=missing)
+    irs = two_sources_one_receiver()
+    irs[0].source._sound_file = missing  # a file moved since the source was made
+    with pytest.raises(ValueError, match=r"Choose it again on the Source's Anechoic sound dropdown\.$"):
+        api.auralise(irs, None, [0], ["0_0"])
+    # Auralise's own sound keeps its wording
+    with pytest.raises(ValueError, match=r"^The sound file .*moved\.wav does not exist\. Bundled sounds: [a-z_, ]+\.$"):
+        api.auralise(two_sources_one_receiver(), missing, [0], ["0_0"])

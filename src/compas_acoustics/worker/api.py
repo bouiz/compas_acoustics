@@ -187,7 +187,7 @@ def make_source(name, position, direction=None, directivity=None, sound_file=Non
         *(position if position is not None else [0, 0, 0]),
         directivity=directivity,
         direction=list(direction) if direction is not None else [1, 0, 0],
-        sound_file=_sound_path(sound_file) if sound_file else None,
+        sound_file=_sound_path(sound_file, _SOURCE_SOUND_FIX) if sound_file else None,
     )
     if spl is not None and len(list(spl)) > 0:
         source.spl = spl
@@ -332,12 +332,18 @@ def _checked_level(level):
 _ANECHOIC_SOUNDS = ("female_speech", "male_speech", "viola", "guitar", "castanets")
 
 
-def _sound_path(sound):
-    """The file of ``sound``, a bundled recording's name or a path; ``ValueError`` when there is none."""
+# what fixes a source's sound file that is not there
+_SOURCE_SOUND_FIX = "Choose it again on the Source's Anechoic sound dropdown."
+
+
+def _sound_path(sound, fix=None):
+    """The file of ``sound``, a bundled recording's name or a path; ``ValueError`` when there is none, ending with
+    ``fix`` when given."""
     if sound in _ANECHOIC_SOUNDS:
         sound = os.path.join(Defaults.ANECHOIC_SOUNDFILES_LIBRARY_PATH, sound + ".wav")
     if not os.path.exists(sound):
-        raise ValueError(f"The sound file {sound} does not exist. Bundled sounds: {', '.join(_ANECHOIC_SOUNDS)}.")
+        message = f"The sound file {sound} does not exist. Bundled sounds: {', '.join(_ANECHOIC_SOUNDS)}."
+        raise ValueError(f"{message} {fix}" if fix else message)
     return sound
 
 
@@ -351,8 +357,10 @@ def auralise(irs, sound, chosen, labels, level="relative", save_folder=None, sav
 
     ``irs`` holds every connected response, ``chosen`` the indices of those to render and ``labels`` one label per
     chosen response. ``level``: ``'relative'`` (one gain from every response of ``irs`` convolved with its sound, the
-    loudest at -1 dBFS, so a chosen response renders as in a run of all of them; a response with no sound is left out),
-    ``'individual'`` or ``'none'`` (only the chosen responses are convolved). With a ``save_folder`` each signal is also
+    loudest at -1 dBFS, so a chosen response renders as in a run of all of them; a response with no sound, neither its
+    source's nor ``sound``, is left out, and ``warnings`` names it), ``'individual'`` or ``'none'`` (only the chosen
+    responses are convolved). A source's sound file that is not there is a ``ValueError`` that names the Source's
+    dropdown. With a ``save_folder`` each signal is also
     written there as ``<save_name or 'convolved_sound'>_mic_<label>.wav``.
     """
     level = _checked_level(level)
@@ -360,7 +368,8 @@ def auralise(irs, sound, chosen, labels, level="relative", save_folder=None, sav
     irs = list(irs)
 
     def sound_of(index):
-        return getattr(irs[index].source, "sound_file", None) or sound
+        own = getattr(irs[index].source, "sound_file", None)
+        return _sound_path(own, _SOURCE_SOUND_FIX) if own else sound
 
     for index, label in zip(chosen, labels):
         if sound_of(index) is None:
@@ -372,6 +381,10 @@ def auralise(irs, sound, chosen, labels, level="relative", save_folder=None, sav
         signals = {}
         peaks = []
         convolved = [i for i in range(len(irs)) if sound_of(i) is not None] if relative else chosen
+        silent = [irs[i] for i in range(len(irs)) if relative and i not in convolved]
+        if silent:
+            pairs = ", ".join(f"source '{ir.source.name}' to receiver '{ir.receiver.name}'" for ir in silent)
+            warnings.warn(f"Left out of the relative level, no sound on their Source or on Auralise: {pairs}.")
         for k, index in enumerate(convolved):
             jobs.progress("rendering", k)
             auraliser = Auraliser([irs[index]], anechoic_sounds=[sound_of(index)])
@@ -682,6 +695,11 @@ def run_scattering_lab(sample, method="geometric", preset=None, band_range="iso"
     ranges = {"iso": ISO_BAND_RANGE, "extended": EXTENDED_BAND_RANGE}
     if band_range not in ranges:
         raise ValueError(f"band_range is 'iso' or 'extended', not {band_range!r}")
+    try:
+        centre = _sample_centre(sample)
+    except Exception:
+        # only a preview's placement: a sample whose centre cannot be found still runs
+        centre = None
     with _user_warnings() as caught:
         try:
             result = measure_scattering(sample, method=method or "geometric", preset=preset or None, band_range=ranges[band_range], **dict(settings or {}))
@@ -691,29 +709,20 @@ def run_scattering_lab(sample, method="geometric", preset=None, band_range="iso"
     # the sample's own warnings are the Scattering Sample's; how long the run takes is news only before it
     messages = [m for m in caught if m not in sample.warnings]
     messages, notes = _split_notes(messages, NOTE_TEMPLATES + (_SERIAL,), dropped=DURATION_TEMPLATES + (_SLOW_GRID, _BIG))
-    result.generation["sample_centre"] = _sample_centre(sample)
+    if centre is not None:
+        result.generation["sample_centre"] = centre
     _hold(result)
     return {"result": result, "scattering_coefficients": result.scattering_coefficients, "octave_bands": list(result.octave_bands), "warnings": messages, "notes": notes}
 
 
 def _sample_centre(sample):
-    """Where Polar Preview centres the balloon over ``sample``, as it is drawn: the area centroid of its footprint (its
-    bottom, flat at its lowest z) in x and y, and its highest z."""
-    vertices, faces = sample.sample.to_vertices_and_faces()
-    vertices = np.asarray(vertices, dtype=float)
-    bottom = vertices[:, 2].min()
-    tolerance = 1e-9 * max(1.0, float(np.ptp(vertices, axis=0).max()))
-    areas, centroids = [], []
-    for face in faces:
-        corners = vertices[face]
-        if np.abs(corners[:, 2] - bottom).max() > tolerance:
-            continue
-        for b, c in zip(corners[1:-1], corners[2:]):
-            a = corners[0]
-            areas.append(abs((b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1])) / 2)
-            centroids.append((a[:2] + b[:2] + c[:2]) / 3)
-    x, y = np.average(centroids, axis=0, weights=areas)
-    return [float(x), float(y), float(vertices[:, 2].max())]
+    """Where Polar Preview centres the balloon over ``sample``, as it is drawn: the area centroid of its bottom (the
+    footprint, flat at its lowest z as the lab takes it) in x and y, and its highest z."""
+    from compas_acoustics.lab.sample import _bottom_centroid
+
+    x, y = _bottom_centroid(sample.sample)
+    top = max(sample.sample.vertex_attribute(v, "z") for v in sample.sample.vertices())
+    return [x, y, float(top)]
 
 
 #: The start of the error of a call that names a result by its guid when the worker does not hold it (it restarted, or
