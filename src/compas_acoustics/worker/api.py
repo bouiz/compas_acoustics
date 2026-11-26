@@ -340,14 +340,21 @@ def auralise(irs, sound, chosen, labels, level="relative", save_folder=None, sav
     irs = list(irs)
     relative = level == "relative"
     with _user_warnings() as messages:
+        kept = set(chosen)
         auralisers = {}
         signals = {}
+        peaks = []
         for k, index in enumerate(range(len(irs)) if relative else chosen):
             jobs.progress("rendering", k)
-            auralisers[index] = Auraliser([irs[index]], anechoic_sounds=[sound])
-            signals[index] = auralisers[index].convolve()
+            auraliser = Auraliser([irs[index]], anechoic_sounds=[sound])
+            signal = auraliser.convolve()
+            if index in kept:
+                auralisers[index], signals[index] = auraliser, signal
+            # the shared gain needs only each pair's peak: an unchosen pair's signal is not kept
+            if relative:
+                peaks.append(np.max(np.abs(signal), initial=0.0))
         if relative:
-            shared = Auraliser.render_gains(list(signals.values()), level, -1.0)[0]
+            shared = Auraliser.render_gains(peaks, level, -1.0)[0]
             gains = {index: shared for index in chosen}
         else:
             gains = dict(zip(chosen, Auraliser.render_gains([signals[index] for index in chosen], level, -1.0)))
