@@ -77,6 +77,13 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
+        public void DeconstructParameter_IsGone()
+        {
+            Assert.DoesNotContain("CA_Deconstruct_IR", EmbeddedSpecs.Names());
+            Assert.DoesNotContain("DeconstructParameterComponent", Components().Select(c => (string)c[0]));
+        }
+
+        [Fact]
         public void Components_HaveDistinctGuids()
         {
             var guids = Components().Select(c => Make((string)c[0]).ComponentGuid).ToList();

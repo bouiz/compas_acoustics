@@ -138,7 +138,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             new object[] { typeof(SimulateBinauralComponent), new[] { "tail", "diffraction", "run" } },
             new object[] { typeof(SimulateAmbisonicsComponent), new[] { "tail", "diffraction", "run" } },
             new object[] { typeof(AuraliseComponent), new[] { "level" } },
-            new object[] { typeof(DeconstructParameterComponent), new[] { "select" } },
+            new object[] { typeof(Plot2DComponent), new[] { "select" } },
             new object[] { typeof(AcousticObjectComponent), new[] { "role" } },
             new object[] { typeof(VisualiseBilliardComponent), new[] { "play" } },
         };

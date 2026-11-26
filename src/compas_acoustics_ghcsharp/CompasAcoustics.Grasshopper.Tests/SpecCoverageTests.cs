@@ -20,7 +20,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             ["CA_Auralise"] = "AuraliseComponent",
             ["CA_Channel"] = "CheckChannelComponent",
             ["CA_Construct_Material"] = "ConstructMaterialComponent",
-            ["CA_Deconstruct_IR"] = "DeconstructParameterComponent",
             ["CA_Deconstruct_Material"] = "DeconstructMaterialComponent",
             ["CA_Install_Worker"] = "InstallWorkerComponent",
             ["CA_Material_Library"] = "MaterialLibraryComponent",
@@ -70,6 +69,7 @@ namespace CompasAcoustics.Grasshopper.Tests
                 {
                     Assert.DoesNotContain("ir_graph", text ?? "");
                     Assert.DoesNotContain("Deconstruct IR Graph", text ?? "");
+                    Assert.DoesNotContain("Deconstruct Parameter", text ?? "");
                 });
             }
         }

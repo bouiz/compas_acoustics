@@ -21,7 +21,7 @@ namespace CompasAcoustics.Grasshopper
         IReadOnlyList<(double x, double y)[]> Data, IReadOnlyList<XTick> XTicks, IReadOnlyList<YTick> YTicks, string XTitle, string YTitle,
         string? Overall, float? ZeroY, double YLow, double YHigh, IReadOnlyList<string> Channels, bool Dots = false);
 
-    /// <summary>The layout of the charts on the canvas (Plot 2D, Deconstruct Parameter): margins, ticks and ranges.</summary>
+    /// <summary>The layout of the charts on the canvas (Plot 2D): margins, ticks and ranges.</summary>
     public static class ChartLayout
     {
         /// <summary>The margins around the plot: the y title and the y ticks on the left, the title above, the x ticks and title below.</summary>
@@ -62,7 +62,7 @@ namespace CompasAcoustics.Grasshopper
 
         /// <summary>
         /// The chart of <paramref name="p"/> in <paramref name="area"/>. <paramref name="left"/> replaces the default left
-        /// margin. <paramref name="compact"/>: the strip of Deconstruct Parameter, without titles and with three value labels.
+        /// margin. <paramref name="compact"/>: a strip, without titles and with three value labels.
         /// </summary>
         public static Chart Build(ParameterGoo.Content p, RectangleF area, float? left = null, bool compact = false)
         {
@@ -77,14 +77,11 @@ namespace CompasAcoustics.Grasshopper
             return chart with { YTicks = ends.Select(v => new YTick(Y(chart, v), v.ToString("G3", CultureInfo.InvariantCulture))).ToList() };
         }
 
-        /// <summary>The height of a body with a compact chart (Deconstruct Parameter, Material Library), and of its header row.</summary>
+        /// <summary>The height of a body with a compact chart (Material Library), and of its header row.</summary>
         public const float StripHeight = 60, StripHeader = 11;
 
         /// <summary>The overall value as a chart shows it; null without one.</summary>
         private static string? Overall(ParameterGoo.Content p) => p.Overall is double o ? $"overall {PythonFormat.Repr(o)}" : null;
-
-        /// <summary>The header above Deconstruct Parameter's strip: the overall value (the parameter is chosen just above it).</summary>
-        public static string StripHeaderText(ParameterGoo.Content p) => Overall(p) ?? "";
 
         /// <summary>Where a body of <see cref="StripHeight"/> draws its compact chart: below its header row.</summary>
         public static RectangleF StripArea(RectangleF body) =>

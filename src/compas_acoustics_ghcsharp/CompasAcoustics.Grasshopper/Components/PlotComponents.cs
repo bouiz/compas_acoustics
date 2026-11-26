@@ -4,10 +4,32 @@ using System.Drawing;
 using System.Linq;
 using GH_IO.Serialization;
 using Grasshopper.Kernel;
+using Grasshopper.Kernel.Data;
 
 namespace CompasAcoustics.Grasshopper
 {
-    /// <summary>Plot 2D: a chart per parameter on the wire, drawn on its body (no geometry in Rhino).</summary>
+    /// <summary>Which of the data Plot 2D charts: every parameter, or the one named by <c>select</c>; the time and frequency curves always.</summary>
+    public static class PlotSelection
+    {
+        public static readonly string[] Names = { "EDT", "T20", "T30", "C50", "C80", "D50", "DRR", "Ts", "STI", "G", "SPL", "LF", "LFC" };
+
+        // first item is the default
+        public static readonly string[] Options = new[] { "all" }.Concat(Names).ToArray();
+
+        private static bool IsCurve(ParameterGoo.Content p) => p.XScale != "bands";
+
+        public static IReadOnlyList<ParameterGoo.Content> Select(IReadOnlyList<ParameterGoo.Content> data, string? select, Action<string> warn)
+        {
+            if (string.IsNullOrEmpty(select) || select == "all")
+                return data;
+            var chosen = data.Where(p => IsCurve(p) || p.Name == select).ToList();
+            if (data.Any(p => !IsCurve(p)) && chosen.All(IsCurve))
+                warn($"The parameters connected do not include '{select}'.");
+            return chosen;
+        }
+    }
+
+    /// <summary>Plot 2D: a chart per parameter on the wire, the one chosen on its body or all, drawn on its body (no geometry in Rhino).</summary>
     public sealed class Plot2DComponent : ComponentBase
     {
         private readonly List<ParameterGoo.Content> _charts = new();
@@ -17,6 +39,8 @@ namespace CompasAcoustics.Grasshopper
         public override Guid ComponentGuid => new Guid("ddca21b5-bcc8-5806-85f8-fc0a45ced2e5");
 
         protected override IGH_Param? CreateParam(PortSpec port, bool input) => input && port.Name == "data" ? new Param_Parameter() : null;
+
+        public override IReadOnlyList<Control> Controls { get; } = new Control[] { new DropdownControl("select", PlotSelection.Options) };
 
         public override void CreateAttributes() => m_attributes = new Plot2DUi(this);
 
@@ -34,13 +58,14 @@ namespace CompasAcoustics.Grasshopper
 
         protected override void Solve(IGH_DataAccess access)
         {
-            var data = Items<ParameterGoo>(access, "data").Where(p => p?.Value != null).ToList();
+            access.GetDataTree("data", out GH_Structure<ParameterGoo> tree);
+            var data = (tree?.FlattenData() ?? new List<ParameterGoo>()).Where(p => p?.Value != null).Select(p => p.Value).ToList();
             if (data.Count == 0)
             {
                 WarnMissing("data");
                 return;
             }
-            _charts.AddRange(data.Select(p => p.Value));
+            _charts.AddRange(PlotSelection.Select(data, Text(access, "select"), Warn));
         }
 
         protected override void AfterSolveInstance()

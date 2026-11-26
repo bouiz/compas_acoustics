@@ -124,33 +124,6 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>The font of the compact chart's labels.</summary>
         public static readonly Font Tiny = new(FontFamily.GenericSansSerif, 5f);
 
-        /// <summary>The compact chart in <paramref name="area"/>, its left margin fitted to its three value labels.</summary>
-        public static Chart FittedCompact(ParameterGoo.Content content, RectangleF area)
-        {
-            var first = ChartLayout.Build(content, area, compact: true);
-            var width = first.YTicks.Select(t => GH_FontServer.StringWidth(t.Text, Tiny)).DefaultIfEmpty(0).Max();
-            return ChartLayout.Build(content, area, compact: true, left: 2 + width + ChartLayout.TickGap);
-        }
-
-        /// <summary>Deconstruct Parameter's strip: a line through a dot per band, the bands below, three values beside.</summary>
-        public static void DrawCompact(Graphics g, Chart chart)
-        {
-            Axes(g, chart.Plot, chart.YTicks.Select(t => (t.Y, t.Text)), chart.XTicks.Select(t => (t.X, t.Text)), compact: true);
-            var state = g.SmoothingMode;
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-            var color = ChannelColors[0];
-            foreach (var line in chart.Lines)
-            {
-                if (line.Length > 1)
-                    using (var pen = new Pen(color, 1.2f))
-                        g.DrawLines(pen, line);
-                using var dot = new SolidBrush(color);
-                foreach (var point in line)
-                    g.FillEllipse(dot, point.X - 1.6f, point.Y - 1.6f, 3.2f, 3.2f);
-            }
-            g.SmoothingMode = state;
-        }
-
         /// <summary>
         /// A chart's axes: a grid line and label per value, the labels below the plot (with a tick each unless
         /// <paramref name="compact"/>), and the plot's frame; in <see cref="Tiny"/> when compact, else in <see cref="Small"/>.
@@ -326,29 +299,6 @@ namespace CompasAcoustics.Grasshopper
                 return;
             }
             base.SetupTooltip(canvasPoint, e);
-        }
-    }
-
-    /// <summary>Deconstruct Parameter's body: its controls, and a compact chart when it holds one parameter per band.</summary>
-    public sealed class ParameterStripUi : ComponentUi
-    {
-        private const float Height = ChartLayout.StripHeight;
-
-        public ParameterStripUi(DeconstructParameterComponent owner) : base(owner) { }
-
-        private DeconstructParameterComponent Component => (DeconstructParameterComponent)Owner;
-
-        protected override float ExtraHeight => Component.Strip != null ? Height : 0;
-
-        protected override void RenderExtra(GH_Canvas canvas, Graphics g)
-        {
-            if (Component.Strip is not { } p)
-                return;
-            var area = ExtraArea;
-            g.DrawString(ChartLayout.StripHeaderText(p), ChartPainter.Small, Brushes.Black, area.Left + 3, area.Top + 1);
-            var strip = ChartLayout.StripArea(area);
-            g.FillRectangle(Brushes.White, strip);
-            ChartPainter.DrawCompact(g, ChartPainter.FittedCompact(p, strip));
         }
     }
 }

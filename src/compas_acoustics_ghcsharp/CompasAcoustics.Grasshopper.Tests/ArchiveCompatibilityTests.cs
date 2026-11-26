@@ -341,6 +341,34 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
+        public void APlot2DSavedBeforeItChoseTheParameter_ReadsWithEverythingChosen_AndKeepsItsSize()
+        {
+            var old = new Plot2DComponent { ChartSize = new System.Drawing.SizeF(420, 240) };
+            old.Params.Input[0].Access = GH_ParamAccess.list;
+            var fresh = new Plot2DComponent();
+            var (archive, read) = SaveThenRead(old, fresh);
+            Assert.True(read);
+            Assert.Empty(Errors(archive));
+            Assert.Equal(new[] { "data" }, fresh.Params.Input.Select(p => p.Name).ToArray());
+            Assert.Equal(GH_ParamAccess.tree, fresh.Params.Input[0].Access);
+            Assert.Equal(new System.Drawing.SizeF(420, 240), fresh.ChartSize);
+            Assert.Equal("all", fresh.Choice("select"));
+            Assert.Empty(fresh.RuntimeMessages(GH_RuntimeMessageLevel.Remark));
+        }
+
+        [Fact]
+        public void APlot2DSavedWithAParameterChosen_ReadsTheChoice()
+        {
+            var saved = new Plot2DComponent();
+            saved.SetChoice("select", "T30");
+            var fresh = new Plot2DComponent();
+            var (archive, read) = SaveThenRead(saved, fresh);
+            Assert.True(read);
+            Assert.Empty(Errors(archive));
+            Assert.Equal("T30", fresh.Choice("select"));
+        }
+
+        [Fact]
         public void AComponentSavedNow_ReadsWithoutErrors()
         {
             var (archive, read) = SaveThenRead(new SimulateBinauralComponent(), new SimulateBinauralComponent());

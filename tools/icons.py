@@ -148,12 +148,6 @@ def decay(image, d, accent):
     _line(d, points, accent)
 
 
-def bars(image, d, accent):
-    for x, h in zip((16, 36, 56, 76), (40, 62, 50, 28)):
-        d.rectangle((x - 6, 82 - h, x + 6, 82), fill=accent)
-    _line(d, [(6, 84), (90, 84)], DARK)
-
-
 def chart(image, d, accent):
     _line(d, [(12, 8), (12, 84), (90, 84)], DARK)
     _line(d, [(16, 70), (34, 44), (52, 56), (70, 22), (88, 34)], accent)
@@ -261,7 +255,6 @@ GLYPHS = {
     "CA_Auralise": auralise,
     "CA_Channel": channel,
     "CA_Construct_Material": material,
-    "CA_Deconstruct_IR": bars,
     "CA_Deconstruct_Material": deconstruct_material,
     "CA_Install_Worker": install,
     "CA_Material_Library": library,

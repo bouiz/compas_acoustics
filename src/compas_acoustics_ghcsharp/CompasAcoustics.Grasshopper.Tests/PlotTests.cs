@@ -159,13 +159,6 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void TheStripsHeader_IsOnlyTheOverallValue()
-        {
-            Assert.Equal("overall 0.88", ChartLayout.StripHeaderText(Bands("T30", Octaves, T30, 0.88)));
-            Assert.Equal("", ChartLayout.StripHeaderText(Bands("T30", Octaves, T30, null)));
-        }
-
-        [Fact]
         public void TheCompactChart_IsALineWithBandsBelowAndThreeValuesBeside()
         {
             var strip = new RectangleF(0, 0, 160, 50);
@@ -267,12 +260,18 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void Plot2D_OnlyTakesData()
+        public void Plot2D_OnlyTakesData_AsATree_AndChoosesTheParameterOnItsBody()
         {
             var plot = ComponentSpec.Load("CA_Plot_2D");
             Assert.Equal(new[] { "data" }, plot.Inputs.Select(p => p.Name));
-            Assert.Equal(GH_ParamAccess.list, plot.Inputs[0].Access);
+            Assert.Equal(GH_ParamAccess.tree, plot.Inputs[0].Access);
             Assert.Empty(plot.Outputs);
+            var component = new Plot2DComponent();
+            var select = Assert.IsType<DropdownControl>(Assert.Single(component.Controls));
+            Assert.Equal("select", select.Port);
+            Assert.Equal(PlotSelection.Options, select.Options);
+            Assert.Equal("all", component.Choice("select"));
+            Assert.Equal(new[] { "data" }, component.Params.Input.Select(p => p.Name));
         }
 
         private sealed class Close : System.Collections.Generic.IEqualityComparer<double>
@@ -281,6 +280,67 @@ namespace CompasAcoustics.Grasshopper.Tests
             public Close(double tolerance = 1e-9) => _tolerance = tolerance;
             public bool Equals(double a, double b) => Math.Abs(a - b) < _tolerance;
             public int GetHashCode(double v) => 0;
+        }
+    }
+
+    public class PlotSelectionTests
+    {
+        private static ParameterGoo.Content P(string name) =>
+            new(name, name + " title", "Frequency (Hz)", "Time (s)", "bands", new[] { 125.0, 250.0 }, new[] { new[] { 1.0, 2.0 } }, 1.5, Array.Empty<string>());
+
+        private static ParameterGoo.Content Curve(string name, string scale) =>
+            new(name, name + " title", "Time (s)", "Level (dB)", scale, new[] { 0.0, 1.0 }, new[] { new[] { 0.0, -3.0 } }, null, Array.Empty<string>());
+
+        [Fact]
+        public void Plot_SelectT30_KeepsOnlyT30AndTheCurves()
+        {
+            var warnings = new System.Collections.Generic.List<string>();
+            var data = new[] { P("EDT"), P("T30"), Curve("IR", "linear"), Curve("FR", "log") };
+            var chosen = PlotSelection.Select(data, "T30", warnings.Add);
+            Assert.Equal(new[] { "T30", "IR", "FR" }, chosen.Select(p => p.Name).ToArray());
+            Assert.Empty(warnings);
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("all")]
+        public void Plot_SelectAll_KeepsEverything(string? select)
+        {
+            var warnings = new System.Collections.Generic.List<string>();
+            var data = new[] { P("EDT"), P("T30"), Curve("IR", "linear") };
+            Assert.Equal(data, PlotSelection.Select(data, select, warnings.Add));
+            Assert.Empty(warnings);
+        }
+
+        [Fact]
+        public void Plot_SelectMissingName_Warns()
+        {
+            var warnings = new System.Collections.Generic.List<string>();
+            var chosen = PlotSelection.Select(new[] { P("C80"), Curve("IR", "linear") }, "T30", warnings.Add);
+            Assert.Equal(new[] { "IR" }, chosen.Select(p => p.Name).ToArray());
+            Assert.Equal(new[] { "The parameters connected do not include 'T30'." }, warnings);
+        }
+
+        [Fact]
+        public void Plot_SelectWithOnlyCurvesConnected_KeepsThemWithoutAWarning()
+        {
+            var warnings = new System.Collections.Generic.List<string>();
+            Assert.Single(PlotSelection.Select(new[] { Curve("FR", "log") }, "T30", warnings.Add));
+            Assert.Empty(warnings);
+        }
+
+        [Fact]
+        public void Plot_SelectKeepsEveryPairsParameter_OfTheName()
+        {
+            var data = new[] { P("T30"), P("EDT"), P("T30") };
+            Assert.Equal(2, PlotSelection.Select(data, "T30", _ => { }).Count);
+        }
+
+        [Fact]
+        public void Options_AreAllThenEveryParameterName()
+        {
+            Assert.Equal(new[] { "all", "EDT", "T20", "T30", "C50", "C80", "D50", "DRR", "Ts", "STI", "G", "SPL", "LF", "LFC" }, PlotSelection.Options);
         }
     }
 }
