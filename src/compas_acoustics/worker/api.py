@@ -278,7 +278,7 @@ def analysis(irs, time_scale="db"):
 
     An analysis is ``{"parameters": [parameter], "time": parameter, "frequency": parameter}``; a parameter is
     ``{"name", "title", "x_unit", "y_unit", "x_scale" ('bands', 'linear' or 'log'), "frequencies", "values" (one list
-    per channel), "overall", "channels"}``; STI, G, SPL, LF and LFC are left out where all their values are NaN.
+    per channel), "overall", "channels"}``; STI, G, SPL and LF are left out where all their values are NaN, LFC always.
     ``time_scale`` ``'db'`` gives the time response in dB re its peak, ``'linear'`` its amplitude to 60 dB down its
     decay.
     """
@@ -294,8 +294,10 @@ def analysis(irs, time_scale="db"):
             bands = analyser.frequency_bands
             parameters = []
             for name, (title, x_unit, y_unit) in PARAMETERS.items():
+                if name == "LFC":
+                    continue
                 values = [float(v) for v in data[name]]
-                if name in ("STI", "G", "SPL", "LF", "LFC") and all(math.isnan(v) for v in values):
+                if name in ("STI", "G", "SPL", "LF") and all(math.isnan(v) for v in values):
                     continue
                 parameters.append(_parameter(name, title, x_unit, y_unit, "bands", bands, [values], data[f"{name}_overall"]))
             samples, channels = _plotted_channels(ir)

@@ -11,12 +11,12 @@ namespace CompasAcoustics.Grasshopper
     /// <summary>Which of the data Plot 2D charts: every parameter, or the one named by <c>select</c>; the time and frequency curves always.</summary>
     public static class PlotSelection
     {
-        public static readonly string[] Names = { "EDT", "T20", "T30", "C50", "C80", "D50", "DRR", "Ts", "STI", "G", "SPL", "LF", "LFC" };
+        public static readonly string[] Names = { "EDT", "T20", "T30", "C50", "C80", "D50", "DRR", "Ts", "STI", "G", "SPL", "LF" };
 
         public static readonly string[] Titles =
         {
             "Early Decay Time", "Reverberation Time", "Reverberation Time", "Clarity", "Clarity", "Definition", "Direct-to-Reverberant Ratio",
-            "Center Time", "Speech Transmission Index", "Sound Strength", "Sound Pressure Level", "Lateral Energy Fraction", "Lateral Energy Fraction, cosine",
+            "Center Time", "Speech Transmission Index", "Sound Strength", "Sound Pressure Level", "Lateral Energy Fraction",
         };
 
         public static readonly string[] Options = new[] { "all" }.Concat(Names).ToArray();

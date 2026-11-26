@@ -56,7 +56,7 @@ The analyser derives these parameters (after ISO 3382) from an impulse response,
 | STI | Speech transmission index: speech intelligibility from 0 (bad) to 1 (excellent). Per band, the modulation transfer index. | |
 | G | Strength: how loud the room makes a source, against the same source 10 m away in free field. dB. | A simulated response. |
 | SPL | Sound pressure level at the receiver from the source's level at 1 m, overall A-weighted. dB. | A simulated response. |
-| LF, LFC | Early lateral energy fraction: how much early sound arrives from the sides, which widens the apparent source. | An ambisonic response. |
+| LF, LFC | Early lateral energy fraction: how much early sound arrives from the sides, which widens the apparent source. | An ambisonic response. Grasshopper shows LF only. |
 
 ## Auralisation
 

@@ -159,7 +159,6 @@ namespace CompasAcoustics.Grasshopper.Tests
 
         [Theory]
         [InlineData("LF")]
-        [InlineData("LFC")]
         public void LateralFractions_RunFromZeroToOne(string name)
         {
             var lf = new ParameterGoo.Content(name, name, "Frequency (Hz)", "Fraction (0-1)", "bands", Octaves,
@@ -443,14 +442,14 @@ namespace CompasAcoustics.Grasshopper.Tests
             {
                 "All", "EDT (Early Decay Time)", "T20 (Reverberation Time)", "T30 (Reverberation Time)", "C50 (Clarity)", "C80 (Clarity)",
                 "D50 (Definition)", "DRR (Direct-to-Reverberant Ratio)", "Ts (Center Time)", "STI (Speech Transmission Index)", "G (Sound Strength)",
-                "SPL (Sound Pressure Level)", "LF (Lateral Energy Fraction)", "LFC (Lateral Energy Fraction, cosine)",
+                "SPL (Sound Pressure Level)", "LF (Lateral Energy Fraction)",
             }, PlotSelection.MenuLabels);
         }
 
         [Fact]
         public void Options_AreAllThenEveryParameterName()
         {
-            Assert.Equal(new[] { "all", "EDT", "T20", "T30", "C50", "C80", "D50", "DRR", "Ts", "STI", "G", "SPL", "LF", "LFC" }, PlotSelection.Options);
+            Assert.Equal(new[] { "all", "EDT", "T20", "T30", "C50", "C80", "D50", "DRR", "Ts", "STI", "G", "SPL", "LF" }, PlotSelection.Options);
         }
     }
 }

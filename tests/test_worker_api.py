@@ -190,8 +190,8 @@ def test_analysis_gives_every_parameter_with_its_units_and_the_two_curves():
     assert len(result["analyses"]) == 1
     analysis = result["analyses"][0]
     names = [p["name"] for p in analysis["parameters"]]
-    # STI and G are left out where they cannot be computed (pyrato < 1.0; G needs the simulation's level), LF and LFC
-    # for a response that is not ambisonic
+    # STI and G are left out where they cannot be computed (pyrato < 1.0; G needs the simulation's level), LF
+    # for a response that is not ambisonic, LFC always
     optional = ("STI", "G", "SPL", "LF", "LFC")
     assert [n for n in api.PARAMETERS if n not in optional] == [n for n in names if n not in optional]
     t30 = next(p for p in analysis["parameters"] if p["name"] == "T30")
@@ -222,6 +222,13 @@ def test_analysis_of_a_binaural_response_plots_both_ears():
 def test_analysis_of_an_ambisonic_response_plots_w():
     frequency = call("analysis", [decay(channels=4)])["analyses"][0]["frequency"]
     assert frequency["channels"] == ["W"] and len(frequency["values"]) == 1
+
+
+def test_analysis_leaves_lfc_out_and_keeps_lf_for_an_ambisonic_response():
+    ir = decay(channels=4)
+    ambisonic = ImpulseResponse("ir", ir.source, ir.receiver, ir.ir, ir.sampling_rate, generation={"method": "test"}, ambisonic_order=1, normalization="sn3d", channel_order="acn")
+    names = [p["name"] for p in call("analysis", [ambisonic])["analyses"][0]["parameters"]]
+    assert "LF" in names and "LFC" not in names
 
 
 def test_analysis_linear_time_scale_ends_60_db_down():
