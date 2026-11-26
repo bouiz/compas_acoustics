@@ -213,32 +213,54 @@ namespace CompasAcoustics.Grasshopper.Tests
             }
         }
 
+        private static SceneData SceneOf(string guid, int count = 1, double x = 1, string? sound = null)
+        {
+            var scene = new SceneData { Guid = guid, Name = "room", SamplingRate = 48000, Receivers = { new ReceiverData { Guid = "r", Name = "r" } } };
+            for (var i = 0; i < count; i++)
+            {
+                var source = new SourceData { Guid = $"{guid}-s{i}", Name = $"s{i}", Point = new CompasPb.Data.PointData { X = x + i, Y = 2, Z = 1 } };
+                if (sound != null)
+                    source.SoundFile = sound;
+                scene.Sources.Add(source);
+            }
+            return scene;
+        }
+
+        private static SceneGoo Scene(string guid, int count = 1, double x = 1, string? sound = null) => new(SceneOf(guid, count, x, sound));
+
         private static HybridRun.LastResult Last(string sceneGuid, int count = 1, string tail = "reference", long? shOrder = 1, long ismOrder = 3,
             object? diffraction = null)
         {
             var generation = new Dictionary<string, object?> { ["tail"] = tail, ["image_source_order"] = ismOrder, ["diffraction"] = diffraction };
             if (shOrder != null)
                 generation["sh_order"] = shOrder;
-            return new HybridRun.LastResult(sceneGuid, Reference(Enumerable.Range(0, count).Select(i => Response($"s{i}", "r")).ToArray()), generation);
+            var scene = Scene(sceneGuid, count);
+            var responses = scene.Value.Sources.Select(source =>
+            {
+                var ir = Response(source.Guid, "r");
+                ir.Value.Source = source.Clone();
+                return ir;
+            }).ToArray();
+            return new HybridRun.LastResult(scene, Reference(responses), generation);
         }
 
         [Fact]
         public void Status_WithoutLastResult_SaysPressRun()
         {
-            Assert.Equal(("press Run", false), HybridRun.Status(null, "scene", null, null, null, null));
+            Assert.Equal(("press Run", false), HybridRun.Status(null, Scene("scene"), null, null, null, null));
         }
 
         [Fact]
         public void Status_ForAnotherScene_SaysPressRun()
         {
-            Assert.Equal(("press Run", false), HybridRun.Status(Last("old"), "new", null, null, null, null));
+            Assert.Equal(("press Run", false), HybridRun.Status(Last("old"), Scene("new", x: 5), null, null, null, null));
         }
 
         [Fact]
         public void Status_SaysDoneWithTheRateAndCount()
         {
-            Assert.Equal(("done, 48 kHz, 2 responses (Run to redo)", false), HybridRun.Status(Last("scene", count: 2), "scene", null, null, null, null));
-            Assert.Equal(("done, 48 kHz, 1 response (Run to redo)", false), HybridRun.Status(Last("scene"), "scene", "reference", 1, 3, "none"));
+            Assert.Equal(("done, 48 kHz, 2 responses (Run to redo)", false), HybridRun.Status(Last("scene", count: 2), Scene("scene", count: 2), null, null, null, null));
+            Assert.Equal(("done, 48 kHz, 1 response (Run to redo)", false), HybridRun.Status(Last("scene"), Scene("scene"), "reference", 1, 3, "none"));
         }
 
         [Fact]
@@ -246,11 +268,34 @@ namespace CompasAcoustics.Grasshopper.Tests
         {
             var last = Last("scene");
             var changed = ("settings changed, press Run (48 kHz, 1 response)", true);
-            Assert.Equal(changed, HybridRun.Status(last, "scene", null, null, 4, null));
-            Assert.Equal(changed, HybridRun.Status(last, "scene", "eyring", null, null, null));
-            Assert.Equal(changed, HybridRun.Status(last, "scene", null, 2, null, null));
-            Assert.Equal(changed, HybridRun.Status(last, "scene", null, null, null, "udfa"));
-            Assert.Equal(("done, 48 kHz, 1 response (Run to redo)", false), HybridRun.Status(Last("scene", diffraction: "udfa"), "scene", null, null, null, "udfa"));
+            Assert.Equal(changed, HybridRun.Status(last, Scene("scene"), null, null, 4, null));
+            Assert.Equal(changed, HybridRun.Status(last, Scene("scene"), "eyring", null, null, null));
+            Assert.Equal(changed, HybridRun.Status(last, Scene("scene"), null, 2, null, null));
+            Assert.Equal(changed, HybridRun.Status(last, Scene("scene"), null, null, null, "udfa"));
+            Assert.Equal(("done, 48 kHz, 1 response (Run to redo)", false), HybridRun.Status(Last("scene", diffraction: "udfa"), Scene("scene"), null, null, null, "udfa"));
+        }
+
+        [Fact]
+        public void Status_ForASoundOnlyChange_SaysDone_AndAPositionChangeAsksForRun()
+        {
+            var last = Last("scene", count: 2);
+            Assert.Equal(("done, 48 kHz, 2 responses (Run to redo)", false), HybridRun.Status(last, Scene("again", count: 2, sound: "speech"), null, null, null, null));
+            Assert.Equal(("press Run", false), HybridRun.Status(last, Scene("again", count: 2, x: 3, sound: "speech"), null, null, null, null));
+        }
+
+        [Fact]
+        public void Passed_ForASoundOnlyChange_KeepsTheLastResponses_WithTheSourcesCurrentSounds()
+        {
+            var last = Last("scene", count: 2);
+            var scene = Scene("again", count: 2, sound: "speech");
+            var passed = HybridRun.Passed(last, scene);
+            Assert.Equal(2, passed.Count);
+            Assert.Equal(new[] { "again-s0", "again-s1" }, passed.Select(ir => ir.SourceGuid));
+            Assert.All(passed, ir => Assert.Equal("speech", ir.Value.Source.SoundFile));
+            Assert.Equal(last.Responses.Select(ir => ir.Value.Samples.ToArray()), passed.Select(ir => ir.Value.Samples.ToArray()));
+            Assert.All(last.Responses, ir => Assert.False(ir.Value.Source.HasSoundFile));
+            Assert.Empty(HybridRun.Passed(last, Scene("again", count: 2, x: 3, sound: "speech")));
+            Assert.Empty(HybridRun.Passed(null, scene));
         }
     }
 }

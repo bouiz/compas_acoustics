@@ -90,7 +90,7 @@ namespace CompasAcoustics.Grasshopper
             {
                 var ran = (SceneGoo)outcome.Context!;
                 var responses = (IDictionary<string, object?>)((IDictionary<string, object?>)outcome.Result["responses"]!)["mono"]!;
-                var irs = PairChoice.InSceneOrder(ran, responses);
+                var irs = SimulatedScene.Current(PairChoice.InSceneOrder(ran, responses), ran, scene);
                 Status(MessageText.Run(ran.SamplingRate, irs.Count));
                 access.SetDataList(0, irs);
             });

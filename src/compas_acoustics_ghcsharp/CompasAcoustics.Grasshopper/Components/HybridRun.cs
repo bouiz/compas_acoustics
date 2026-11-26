@@ -51,8 +51,12 @@ namespace CompasAcoustics.Grasshopper
         public static bool TracesRays(string tail, string? lateEnvelope) =>
             tail == "ray_tracing" || (tail == "reference" && Equals(LateEnvelope(lateEnvelope), "directional"));
 
-        /// <summary>The responses of the last run, for the scene they were simulated for, and the run's description.</summary>
-        public sealed record LastResult(string SceneGuid, IReadOnlyList<ImpulseResponseGoo> Responses, IReadOnlyDictionary<string, object?> Generation);
+        /// <summary>The responses of the last run, the scene they were simulated for, and the run's description.</summary>
+        public sealed record LastResult(SceneGoo Scene, IReadOnlyList<ImpulseResponseGoo> Responses, IReadOnlyDictionary<string, object?> Generation);
+
+        /// <summary>The responses of the last run when they hold for <paramref name="scene"/>, with its sources' current sounds; else none.</summary>
+        public static IReadOnlyList<ImpulseResponseGoo> Passed(LastResult? last, SceneGoo scene) =>
+            last != null && SimulatedScene.Same(last.Scene, scene) ? SimulatedScene.Current(last.Responses, last.Scene, scene) : Array.Empty<ImpulseResponseGoo>();
 
         /// <summary>
         /// The settings both methods take: unset inputs are left out so that the method's own defaults apply, the seed's
@@ -109,9 +113,9 @@ namespace CompasAcoustics.Grasshopper
         /// What the component says while it is not running: the last result for this scene, or that there is none; and
         /// whether the settings differ from that result's.
         /// </summary>
-        public static (string text, bool changed) Status(LastResult? last, string sceneGuid, string? tail, int? shOrder, int? ismOrder, string? diffraction)
+        public static (string text, bool changed) Status(LastResult? last, SceneGoo scene, string? tail, int? shOrder, int? ismOrder, string? diffraction)
         {
-            if (last == null || last.SceneGuid != sceneGuid || last.Responses.Count == 0)
+            if (last == null || !SimulatedScene.Same(last.Scene, scene) || last.Responses.Count == 0)
                 return ("press Run", false);
             object? Last(string key) => last.Generation.TryGetValue(key, out var value) ? value : null;
             var changed = (!string.IsNullOrEmpty(tail) && tail != Last("tail") as string)
