@@ -86,7 +86,7 @@ namespace CompasAcoustics.Grasshopper
         internal static readonly string[] PresetLabels = { "Survey (13)", "Standard (97)" };
         internal static readonly string[] BandRanges = { "iso", "extended" };
         // the ranges of compas_acoustics.lab's ISO_BAND_RANGE and EXTENDED_BAND_RANGE, the one-third octave centres simulated
-        internal static readonly string[] BandRangeLabels = { "ISO 100–5000 Hz", "100–8000 Hz" };
+        internal static readonly string[] BandRangeLabels = { "ISO 100-5000 Hz", "100-8000 Hz" };
 
         public ScatteringLabComponent() : base("CA_Scattering_Lab") { }
         protected override string SpecKey => "CA_Scattering_Lab";

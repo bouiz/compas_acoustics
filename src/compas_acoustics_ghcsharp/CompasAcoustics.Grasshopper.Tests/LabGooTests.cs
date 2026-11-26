@@ -63,10 +63,10 @@ namespace CompasAcoustics.Grasshopper.Tests
             var goo = new ScatteringResultGoo(result);
             var s = result.SOctaves;
             var hz = result.OctaveBands;
-            var expected = $"Scattering Result '{result.Name}', {result.Method}, s {F(s.Min(), "0.00")}–{F(s.Max(), "0.00")} ({hz.Min()}–{hz.Max()} Hz), d {F(result.DOctaves.Values.Min(), "0.00")}–{F(result.DOctaves.Values.Max(), "0.00")}";
+            var expected = $"Scattering Result '{result.Name}', {result.Method}, s {F(s.Min(), "0.00")}-{F(s.Max(), "0.00")} ({hz.Min()}-{hz.Max()} Hz), d {F(result.DOctaves.Values.Min(), "0.00")}-{F(result.DOctaves.Values.Max(), "0.00")}";
             Assert.Equal(expected, goo.ToString());
             Assert.Equal("Scattering Result", goo.TypeName);
-            Assert.Contains("(125–4000 Hz)", goo.ToString());
+            Assert.Contains("(125-4000 Hz)", goo.ToString());
             Assert.NotEmpty(goo.Diffusion);
             Assert.Equal(result.DOctaves.Values, goo.Diffusion);
         }

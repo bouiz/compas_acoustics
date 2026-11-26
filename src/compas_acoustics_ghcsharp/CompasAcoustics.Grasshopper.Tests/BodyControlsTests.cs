@@ -136,7 +136,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(ComponentSpec.Load("CA_Simulate_Binaural").Inputs.Single(p => p.Name == "diffraction").Description,
                 new SimulateBinauralComponent().ControlTooltip("diffraction").text);
             Assert.EndsWith("(default 48 kHz)", new RoomSceneComponent().ControlTooltip("sampling_rate").text);
-            Assert.Equal(("level", "none, relative or individual (default None)"), new AuraliseComponent().ControlTooltip("level"));
+            Assert.Equal(("level", "None, Relative or Individual (default None)"), new AuraliseComponent().ControlTooltip("level"));
             Assert.EndsWith("(default on)", new VisualiseRaysComponent().ControlTooltip("show").text);
         }
 

@@ -65,7 +65,11 @@ namespace CompasAcoustics.Grasshopper
             if (Spec.Inputs.FirstOrDefault(p => p.Name == name) is { } port)
                 text = port.Description;
             else if (Choices.TryGetValue(name, out var options) && options.Length > 0)
-                text = options.Length == 1 ? options[0] : $"{string.Join(", ", options.Take(options.Length - 1))} or {options[^1]}";
+            {
+                var control = Controls.FirstOrDefault(c => c.Port == name);
+                var read = control == null ? options : options.Select(o => ControlLayout.Label(control, o)).ToArray();
+                text = read.Length == 1 ? read[0] : $"{string.Join(", ", read.Take(read.Length - 1))} or {read[^1]}";
+            }
             if (text.Contains("default", StringComparison.OrdinalIgnoreCase) || DefaultLabel(name) is not string shown)
                 return (name, text);
             return (name, text.Length == 0 ? $"(default {shown})" : $"{text} (default {shown})");

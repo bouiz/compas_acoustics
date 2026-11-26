@@ -34,8 +34,8 @@ namespace CompasAcoustics.Grasshopper
             list is IEnumerable<object?> items ? items.Select(v => Convert.ToDouble(v, CultureInfo.InvariantCulture)) : Enumerable.Empty<double>();
 
         /// <summary>
-        /// The Run button's label: what pressing it does while a wave method waits for it (<paramref name="waiting"/>) — start, or update
-        /// outputs that are the last run's (<paramref name="stale"/>) — and plain Run otherwise.
+        /// The Run button's label: what pressing it does while a wave method waits for it (<paramref name="waiting"/>) - start, or update
+        /// outputs that are the last run's (<paramref name="stale"/>) - and plain Run otherwise.
         /// </summary>
         public static string RunLabel(bool waiting, bool stale) => !waiting ? "Run" : stale ? "Press Run to update" : "Press Run to start";
 
@@ -63,9 +63,9 @@ namespace CompasAcoustics.Grasshopper
             : delivered ? "Inputs changed: the outputs are the last run's. Press Run to update."
             : null;
 
-        /// <summary>The strip of a result: the range of its scattering coefficients, as <c>s 0.00–0.44</c> (the method is on its dropdown); empty without any.</summary>
+        /// <summary>The strip of a result: the range of its scattering coefficients, as <c>s 0.00-0.44</c> (the method is on its dropdown); empty without any.</summary>
         public static string Summary(ScatteringResultData result) =>
-            result.SOctaves.Count == 0 ? "" : string.Create(CultureInfo.InvariantCulture, $"s {result.SOctaves.Min():0.00}–{result.SOctaves.Max():0.00}");
+            result.SOctaves.Count == 0 ? "" : string.Create(CultureInfo.InvariantCulture, $"s {result.SOctaves.Min():0.00}-{result.SOctaves.Max():0.00}");
 
         /// <summary>The level of each face of a balloon: the mean of the levels of its vertices.</summary>
         public static double[] FaceLevels(double[] levels, int[][] faces) => faces.Select(face => face.Average(v => levels[v])).ToArray();

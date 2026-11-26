@@ -329,7 +329,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             try
             {
                 System.Threading.Thread.CurrentThread.CurrentCulture = new System.Globalization.CultureInfo("de-CH");
-                Assert.Equal("s 0.00–0.44", LabResults.Summary(result));
+                Assert.Equal("s 0.00-0.44", LabResults.Summary(result));
             }
             finally
             {
@@ -367,7 +367,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             var bandRange = controls.OfType<DropdownControl>().Single(c => c.Port == "band_range");
             Assert.Equal(new[] { "iso", "extended" }, bandRange.Options);
             // each option reads as its range, the ISO one marked: ISO_BAND_RANGE (100, 5000) and EXTENDED_BAND_RANGE (100, 8000)
-            Assert.Equal(new[] { "ISO 100–5000 Hz", "100–8000 Hz" }, component.OptionsOf(bandRange).labels);
+            Assert.Equal(new[] { "ISO 100-5000 Hz", "100-8000 Hz" }, component.OptionsOf(bandRange).labels);
             Assert.Equal("Run", controls.OfType<ButtonControl>().Single(c => c.Port == "run").Label);
             Assert.IsType<Param_ScatteringResult>(component.Params.Output.First());
             Assert.Equal(new[] { "result", "scattering", "diffusion", "octaves" }, component.Params.Output.Select(p => p.Name));
