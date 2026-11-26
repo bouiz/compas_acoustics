@@ -23,7 +23,7 @@ namespace CompasAcoustics.Grasshopper
 
         private ComponentBase Component => (ComponentBase)Owner;
 
-        /// <summary>The controls' area, below the ports.</summary>
+        /// <summary>The controls' area, below the ports, or right of them in a column.</summary>
         protected RectangleF ControlArea { get; private set; }
 
         /// <summary>The height of a body drawn under the controls; 0 for none.</summary>
@@ -32,28 +32,37 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>The area of that body.</summary>
         protected RectangleF ExtraArea { get; private set; }
 
+        /// <summary>The width of a column right of Grasshopper's box <paramref name="box"/> that holds the controls; 0 for rows below it.</summary>
+        protected virtual float ControlColumn(RectangleF box) => 0;
+
         protected override void Layout()
         {
             base.Layout();
             var controls = Component.BodyControls;
-            var minWidth = ControlLayout.MinWidth(controls);
-            if (Bounds.Width < minWidth)
+            var height = ControlLayout.Height(controls);
+            var wider = Math.Max(ControlLayout.MinWidth(controls) - Bounds.Width, 0);
+            var column = ControlColumn(new RectangleF(Bounds.X, Bounds.Y, Bounds.Width + wider, Bounds.Height));
+            var taller = column > 0 ? Math.Max(height - Bounds.Height, 0) : 0;
+            if (wider > 0 || taller > 0)
             {
-                // controls that need room (the incidence dials): the component's box wider by the difference, its ports on its edges
+                // controls that need room (the incidence dials, a column taller than the ports): the component's box grown by the difference, its ports on its edges
                 var inner = LayoutComponentBox(Owner);
-                inner.Inflate((minWidth - Bounds.Width) / 2, 0);
+                inner.Inflate(wider / 2, taller / 2);
                 LayoutInputParams(Owner, inner);
                 LayoutOutputParams(Owner, inner);
                 m_innerBounds = inner;
                 Bounds = LayoutBounds(Owner, inner);
             }
-            var box = Bounds;
-            var height = ControlLayout.Height(controls);
-            ControlArea = new RectangleF(box.X, box.Bottom, box.Width, height);
-            ExtraArea = new RectangleF(box.X, box.Bottom + height, box.Width, ExtraHeight);
+            var (area, box) = ControlLayout.Place(Bounds, height, column);
+            ControlArea = area;
+            ExtraArea = new RectangleF(box.X, box.Bottom, box.Width, ExtraHeight);
             _boxes = ControlLayout.Arrange(controls, ControlArea);
-            Bounds = new RectangleF(box.X, box.Y, box.Width, box.Height + height + ExtraHeight);
+            Bounds = new RectangleF(box.X, box.Y, box.Width, box.Height + ExtraHeight);
         }
+
+        /// <summary>Whether a press on <paramref name="control"/> acts: not when a wire sets its input (buttons aside), nor while the component rests it.</summary>
+        internal static bool Pressable(ComponentBase component, Control control, IGH_Param? port) =>
+            (port == null || port.SourceCount == 0 || control is ButtonControl) && component.ControlEnabled(control.Port);
 
         protected override void Render(GH_Canvas canvas, Graphics graphics, GH_CanvasChannel channel)
         {
@@ -77,7 +86,8 @@ namespace CompasAcoustics.Grasshopper
                     continue;
                 }
                 var range = box.Control is SliderControl slider ? Component.SliderRange(slider) : ((double, double)?)null;
-                Painter.Draw(graphics, box, Value(box), Selected, Owner.Locked, ReferenceEquals(box, _down), ReferenceEquals(box, _down) ? _dragged : null, range);
+                Painter.Draw(graphics, box, Value(box), Selected, Owner.Locked, ReferenceEquals(box, _down), ReferenceEquals(box, _down) ? _dragged : null, range,
+                    Component.ControlEnabled(box.Control.Port));
             }
             RenderExtra(canvas, graphics);
         }
@@ -159,7 +169,7 @@ namespace CompasAcoustics.Grasshopper
                 return RespondToExtraMouseDown(sender, e) ?? base.RespondToMouseDown(sender, e);
             var (box, segment) = hit.Value;
             var port = Component.ControlPort(box.Control.Port);
-            if (port != null && port.SourceCount > 0 && box.Control is not ButtonControl)
+            if (!Pressable(Component, box.Control, port))
                 return GH_ObjectResponse.Handled;
             switch (box.Control)
             {
@@ -408,7 +418,7 @@ namespace CompasAcoustics.Grasshopper
         }
 
         public static void Draw(Graphics g, ControlBox box, (string value, bool wired) state, bool selected, bool locked, bool down, double? dragged,
-            (double min, double max)? range = null)
+            (double min, double max)? range = null, bool enabled = true)
         {
             switch (box.Control)
             {
@@ -432,10 +442,10 @@ namespace CompasAcoustics.Grasshopper
                 }
                 case DropdownControl:
                 {
-                    Capsule(g, box.Bounds, state.wired ? GH_Palette.Grey : GH_Palette.White, state.value, selected, locked);
+                    Capsule(g, box.Bounds, state.wired ? GH_Palette.Grey : GH_Palette.White, state.value, selected, locked || !enabled);
                     var x = box.Bounds.Right - 9;
                     var y = box.Bounds.Top + box.Bounds.Height / 2 - 2;
-                    g.FillPolygon(Brushes.Black, new[] { new PointF(x, y), new PointF(x + 6, y), new PointF(x + 3, y + 4) });
+                    g.FillPolygon(enabled ? Brushes.Black : Brushes.Gray, new[] { new PointF(x, y), new PointF(x + 6, y), new PointF(x + 3, y + 4) });
                     break;
                 }
                 case ToggleControl toggle:

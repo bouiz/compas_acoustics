@@ -6,11 +6,15 @@ using System.Text.RegularExpressions;
 
 namespace CompasAcoustics.Grasshopper
 {
-    /// <summary>Plot 2D's body: its charts stacked, then a row with the Save button.</summary>
+    /// <summary>Plot 2D's body: the parameter's dropdown right of the data input; below, its charts stacked, then a row with the Save button.</summary>
     public static class Plot2DLayout
     {
         public const float SaveRow = 22;
         public const float SaveWidth = 44;
+        public const float SelectWidth = 120;
+
+        /// <summary>The width of the dropdown's column right of Grasshopper's box <paramref name="box"/>: to the charts' right edge, at least <see cref="SelectWidth"/>.</summary>
+        public static float SelectColumn(RectangleF box, SizeF chart) => Math.Max(SelectWidth, chart.Width - box.Width);
 
         public static float BodyHeight(int charts, SizeF chart) => Math.Max(charts, 1) * chart.Height + SaveRow;
 

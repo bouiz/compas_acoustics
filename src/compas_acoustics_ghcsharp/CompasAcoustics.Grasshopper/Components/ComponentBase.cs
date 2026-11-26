@@ -72,6 +72,9 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>The controls drawn on the body, below the ports; each sets its input unless a wire does.</summary>
         public virtual IReadOnlyList<Control> Controls => Array.Empty<Control>();
 
+        /// <summary>Whether the control of <paramref name="port"/> can be used now; one at rest is drawn dimmed and keeps its value.</summary>
+        public virtual bool ControlEnabled(string port) => true;
+
         private readonly HashSet<string> _pressed = new();
 
         /// <summary>Whether the button of <paramref name="port"/> was pressed for this solution (or a wire into it is true).</summary>

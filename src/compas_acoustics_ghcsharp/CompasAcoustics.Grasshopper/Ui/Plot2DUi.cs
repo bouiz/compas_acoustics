@@ -164,12 +164,7 @@ namespace CompasAcoustics.Grasshopper
 
         protected override float ExtraHeight => Plot2DLayout.BodyHeight(Plot.Charts.Count, Plot.ChartSize);
 
-        protected override void Layout()
-        {
-            base.Layout();
-            var b = Bounds;
-            Bounds = new RectangleF(b.X, b.Y, Math.Max(b.Width, Plot.ChartSize.Width), b.Height);
-        }
+        protected override float ControlColumn(RectangleF box) => Plot2DLayout.SelectColumn(box, Plot.ChartSize);
 
         private RectangleF Body => new(Bounds.X, Bounds.Bottom - ExtraHeight, Bounds.Width, ExtraHeight);
 

@@ -135,6 +135,19 @@ namespace CompasAcoustics.Grasshopper
         public static float Height(IReadOnlyList<Control> controls) =>
             controls.Count == 0 ? 0 : Arrange(controls, new RectangleF(0, 0, 1, 0)).Max(b => b.Bounds.Bottom) + Margin;
 
+        /// <summary>
+        /// The controls' area, <paramref name="height"/> tall, and the component's box with them, for Grasshopper's box
+        /// <paramref name="box"/> (its ports and icon): in rows below it, or in a <paramref name="column"/> wide column right of
+        /// it, centred on the ports, which then are as tall as the controls when they need more.
+        /// </summary>
+        public static (RectangleF area, RectangleF box) Place(RectangleF box, float height, float column)
+        {
+            if (column <= 0)
+                return (new RectangleF(box.X, box.Bottom, box.Width, height), new RectangleF(box.X, box.Y, box.Width, box.Height + height));
+            var ports = Math.Max(box.Height, height);
+            return (new RectangleF(box.Right, box.Y + (ports - height) / 2, column, height), new RectangleF(box.X, box.Y, box.Width + column, ports));
+        }
+
         public static List<ControlBox> Arrange(IReadOnlyList<Control> controls, RectangleF body)
         {
             var boxes = new List<ControlBox>();

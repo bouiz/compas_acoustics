@@ -2,7 +2,7 @@
     "name": "Plot 2D",
     "nickname": "Plot2D",
     "subcategory": "Display",
-    "description": "Chart an acoustic parameter (a dot per band, joined by a line), or the time or frequency response of Analyse Impulse Response (a line per channel), on the canvas: one chart per parameter connected, stacked, for every source-receiver pair of Analyse Impulse Response. Choose on the body which parameter to chart: all of them, or one by name (EDT, T20, T30, C50, C80, D50, DRR, Ts, STI, G, SPL, LF, LFC); the time and frequency responses are charted whichever is chosen. Drag the corner to resize; hover a chart to read its values; Save writes the charts as a PNG image.",
+    "description": "Chart an acoustic parameter (a dot per band, joined by a line), or the time or frequency response of Analyse Impulse Response (a line per channel), on the canvas: one chart per parameter connected, stacked, for every source-receiver pair of Analyse Impulse Response. Choose which parameter to chart with the Select parameter dropdown beside the data input: all of them, or one by name (EDT, T20, T30, C50, C80, D50, DRR, Ts, STI, G, SPL, LF, LFC); the time and frequency responses are charted whichever is chosen, and with only them connected the dropdown rests. Drag the corner to resize; hover a chart to read its values; Save writes the charts as a PNG image.",
     "exposure": 2,
     "ports": {
         "inputParameters": [

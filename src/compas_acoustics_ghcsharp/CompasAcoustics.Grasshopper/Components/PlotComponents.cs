@@ -16,7 +16,7 @@ namespace CompasAcoustics.Grasshopper
         // first item is the default
         public static readonly string[] Options = new[] { "all" }.Concat(Names).ToArray();
 
-        private static bool IsCurve(ParameterGoo.Content p) => p.XScale != "bands";
+        public static bool IsCurve(ParameterGoo.Content p) => p.XScale != "bands";
 
         public static IReadOnlyList<ParameterGoo.Content> Select(IReadOnlyList<ParameterGoo.Content> data, string? select, Action<string> warn)
         {
@@ -40,12 +40,17 @@ namespace CompasAcoustics.Grasshopper
 
         protected override IGH_Param? CreateParam(PortSpec port, bool input) => input && port.Name == "data" ? new Param_Parameter() : null;
 
-        public override IReadOnlyList<Control> Controls { get; } = new Control[] { new DropdownControl("select", PlotSelection.Options) };
+        public override IReadOnlyList<Control> Controls { get; } = new Control[] { new DropdownControl("select", PlotSelection.Options, Title: "Select parameter") };
 
         public override void CreateAttributes() => m_attributes = new Plot2DUi(this);
 
         /// <summary>The parameters of the last solution, a chart each.</summary>
         public IReadOnlyList<ParameterGoo.Content> Charts => _charts;
+
+        private bool _hasParameter;
+
+        /// <summary>The parameter's dropdown rests while the data hold no parameter: only curves, which are charted whichever is chosen.</summary>
+        public override bool ControlEnabled(string port) => port != "select" || _hasParameter;
 
         /// <summary>The size of one chart, saved with the component.</summary>
         public SizeF ChartSize { get; set; } = new(360, 200);
@@ -53,6 +58,7 @@ namespace CompasAcoustics.Grasshopper
         protected override void BeforeSolveInstance()
         {
             _charts.Clear();
+            _hasParameter = false;
             base.BeforeSolveInstance();
         }
 
@@ -65,6 +71,7 @@ namespace CompasAcoustics.Grasshopper
                 WarnMissing("data");
                 return;
             }
+            _hasParameter = !data.All(PlotSelection.IsCurve);
             _charts.AddRange(PlotSelection.Select(data, Text(access, "select"), Warn));
         }
 

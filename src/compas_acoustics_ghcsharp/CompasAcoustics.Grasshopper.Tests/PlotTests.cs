@@ -274,6 +274,30 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(new[] { "data" }, component.Params.Input.Select(p => p.Name));
         }
 
+        [Fact]
+        public void Plot2D_PutsTheParameterDropdownRightOfTheDataInput_InsteadOfARowBelow()
+        {
+            var plot = new Plot2DComponent();
+            var select = Assert.IsType<DropdownControl>(Assert.Single(plot.Controls));
+            Assert.Equal("Select parameter", ControlLayout.Title(select));
+            // Grasshopper's box of a component with one input: the data input and the icon
+            var box = new RectangleF(0, 0, 70, 28);
+            var height = ControlLayout.Height(plot.Controls);
+            var (area, ports) = ControlLayout.Place(box, height, Plot2DLayout.SelectColumn(box, plot.ChartSize));
+            var dropdown = Assert.Single(ControlLayout.Arrange(plot.Controls, area));
+            Assert.True(dropdown.Title.Left >= box.Right && dropdown.Bounds.Left >= box.Right);
+            Assert.True(dropdown.Title.Bottom <= dropdown.Bounds.Top);
+            Assert.True(dropdown.Title.Top >= ports.Top && dropdown.Bounds.Bottom <= ports.Bottom);
+            Assert.Equal(plot.ChartSize.Width, ports.Width, 3);
+            Assert.Equal(Math.Max(box.Height, height), ports.Height, 3);
+            // before: the ports, then the dropdown in a row of its own above the charts
+            var rows = ControlLayout.Place(box, height, 0);
+            Assert.Equal(box.Bottom, rows.area.Top, 3);
+            Assert.True(ports.Height + Plot2DLayout.BodyHeight(1, plot.ChartSize) < rows.box.Height + Plot2DLayout.BodyHeight(1, plot.ChartSize));
+            // charts narrower than the ports and the dropdown: the dropdown keeps its width
+            Assert.Equal(Plot2DLayout.SelectWidth, Plot2DLayout.SelectColumn(box, new SizeF(160, 90)));
+        }
+
         private sealed class Close : System.Collections.Generic.IEqualityComparer<double>
         {
             private readonly double _tolerance;
@@ -335,6 +359,39 @@ namespace CompasAcoustics.Grasshopper.Tests
         {
             var data = new[] { P("T30"), P("EDT"), P("T30") };
             Assert.Equal(2, PlotSelection.Select(data, "T30", _ => { }).Count);
+        }
+
+        private static void Solve(Plot2DComponent plot, params ParameterGoo.Content[] data)
+        {
+            var tree = new global::Grasshopper.Kernel.Data.GH_Structure<ParameterGoo>();
+            foreach (var p in data)
+                tree.Append(new ParameterGoo(p), new global::Grasshopper.Kernel.Data.GH_Path(0));
+            var access = new FakeAccess();
+            access.Trees["data"] = tree;
+            Call(plot, "BeforeSolveInstance");
+            Call(plot, "SolveInstance", access);
+        }
+
+        private static void Call(GH_Component component, string method, params object?[] args) =>
+            typeof(GH_Component).GetMethod(method, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(component, args);
+
+        [Fact]
+        public void TheParameterDropdown_RestsWithOnlyCurvesConnected_AndKeepsItsValue()
+        {
+            var plot = new Plot2DComponent();
+            var select = plot.Controls.Single();
+            plot.SetChoice("select", "T30");
+            Solve(plot, Curve("IR", "linear"), Curve("FR", "log"));
+            Assert.False(plot.ControlEnabled("select"));
+            Assert.False(ComponentUi.Pressable(plot, select, null));
+            Assert.Equal("T30", plot.Choice("select"));
+            // a band parameter with them: the dropdown chooses again
+            Solve(plot, P("T30"), Curve("IR", "linear"));
+            Assert.True(plot.ControlEnabled("select"));
+            Assert.True(ComponentUi.Pressable(plot, select, null));
+            // nothing connected: Grasshopper solves no instance of the required input
+            Call(plot, "BeforeSolveInstance");
+            Assert.False(plot.ControlEnabled("select"));
         }
 
         [Fact]
