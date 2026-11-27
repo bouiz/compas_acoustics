@@ -122,7 +122,8 @@ class SurfaceMaterial:
 
 @dataclass(frozen=True, eq=False)
 class DrawnSides:
-    """Which sides of each drawn polygon the air touches, which the room's accounting counts.
+    """Which sides of each drawn polygon the air touches, for the sector edge detector
+    (:func:`compas_acoustics.geometry.sector_edges`).
 
     :meth:`RoomGeometry.from_prepared` sets it from the prepared mesh's walls. In a room the polygons are those of
     :class:`~compas_acoustics.hybrid.diffraction.Occluders`, in its order: ``obstacle_faces``, then the boundary faces.
@@ -135,6 +136,10 @@ class DrawnSides:
         Air on both sides.
     reached : (n,) ndarray of bool
         False where the air never touches the polygon: both of its sides are solid.
+    min_excess : float
+        In radians: an air sector must open wider than pi by more than this to diffract.
+    min_length : float
+        In metres: shorter edges are dropped.
     side_reached : (n, 2) ndarray of bool, optional
         Whether the air reaches each side: column 0 the side opposite ``normals`` (the air side of a one-sided
         polygon), column 1 the side ``normals`` points to. :attr:`RoomGeometry.surfaces` counts an obstacle's two
@@ -144,6 +149,8 @@ class DrawnSides:
     normals: np.ndarray
     two_sided: np.ndarray
     reached: np.ndarray
+    min_excess: float = 1e-4
+    min_length: float = 0.0
     side_reached: Optional[np.ndarray] = None
 
     def take(self, indices) -> DrawnSides:
@@ -663,7 +670,9 @@ class RoomGeometry:
     #: Area of the openings in m^2, fully absorbing in :attr:`surfaces` and :attr:`surface_area` (a prepared, open
     #: model).
     open_area: float = 0.0
-    #: Which sides of each drawn polygon the air touches (a prepared model): the accounting counts the reached ones.
+    #: Which sides of each drawn polygon the air touches (a prepared model): when set,
+    #: :func:`~compas_acoustics.hybrid.diffraction.diffraction_edges` finds the edges by the sector detector from it,
+    #: otherwise by the role-based legacy detectors.
     drawn_sides: Optional[DrawnSides] = None
     #: Whether the boundary faces enclose the air exactly, so the divergence theorem gives :attr:`volume` and the
     #: winding number tells inside from outside (a prepared model, :meth:`from_prepared`); None (any other room):
@@ -724,6 +733,9 @@ class RoomGeometry:
         materials,
         check_inside: bool = False,
         air_volume: Optional[float] = None,
+        *,
+        diffraction_min_excess: float = 1e-4,
+        diffraction_min_length: float = 0.0,
     ) -> RoomGeometry:
         """The room of a :class:`compas_acoustics.geometry.PreparedMesh`, its orientation and two-sided faces kept.
 
@@ -744,9 +756,15 @@ class RoomGeometry:
 
         :attr:`surfaces`, :attr:`surface_area` and :meth:`area_normals` count the walls the air reaches only
         (:attr:`drawn_sides`), each side of an obstacle the air reaches. Unreached walls stay in the room and
-        reflect; they are left out of this accounting only. Known limit: a merged wall counts whole, so the parts of
-        it the air cannot reach (under an adjoining slab, say) are counted too: a room of closed slabs overlapping at
-        their ends counts more surface than its air touches.
+        reflect; they are left out of this accounting and of the diffraction only. Known limit: a merged wall counts
+        whole, so the parts of it the air cannot reach (under an adjoining slab, say) are counted too: a room of
+        closed slabs overlapping at their ends counts more surface than its air touches.
+
+        The diffracting edges (:func:`~compas_acoustics.hybrid.diffraction.diffraction_edges`) are found by the sector
+        detector (:func:`compas_acoustics.geometry.sector_edges`) from what the preparation knows of each wall
+        (:attr:`drawn_sides`, :func:`compas_acoustics.geometry.prepared_wall_sides`), not from the roles: a room that
+        does not close still diffracts at its re-entrant corners and at the pillars fused into its shell, and a wall
+        the air never reaches gives no edge.
 
         Parameters
         ----------
@@ -760,6 +778,11 @@ class RoomGeometry:
             (:func:`compas_acoustics.geometry.analyze`).
         air_volume : float, optional
             In m^3; default the prepared mesh's (from the mean free path) unless the boundary encloses the air.
+        diffraction_min_excess : float, default=1e-4
+            In radians: an edge diffracts when its air sector opens wider than pi by more than this (the facets of a
+            tessellated curve open by 2 pi / sides).
+        diffraction_min_length : float, default=0
+            In metres: shorter diffracting edges are dropped.
         """
         from compas_acoustics.geometry import boundary_closes
         from compas_acoustics.geometry import obstacle_mask
@@ -801,7 +824,7 @@ class RoomGeometry:
         # side opposite it, other_hits on the side it points to
         air_side, other_side = np.asarray(prepared.air_hits) > 0, np.asarray(prepared.other_hits) > 0
         side_reached = np.array([[air_side[w.faces].any(), other_side[w.faces].any()] for w in prepared.walls], dtype=bool).reshape(-1, 2)
-        sides = DrawnSides(normals, two_sided, reached, side_reached)
+        sides = DrawnSides(normals, two_sided, reached, float(diffraction_min_excess), float(diffraction_min_length), side_reached)
 
         watertight = boundary_closes(prepared, obstacle)
         boundary = [k for k, group in enumerate(groups) if group[0] == "boundary"]

@@ -71,6 +71,17 @@ def _column(size=0.5):
     return scene
 
 
+def _edges(geometry):
+    """The room's diffraction edges; skips the rest of the test where spharpy, which hybrid.diffraction needs, is
+    missing."""
+    pytest.importorskip("spharpy")
+    from compas_acoustics.hybrid.diffraction import diffraction_edges
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return diffraction_edges(geometry)
+
+
 # ---------------------------------------------------------------------------------------------------------------
 # Roles, accounting, closedness, volume
 # ---------------------------------------------------------------------------------------------------------------
@@ -99,6 +110,7 @@ def test_six_closed_slabs_are_one_sided_boundary_and_the_room_is_acoustically_cl
     assert geometry.surface_area == pytest.approx(SLAB_REACHED_AREA)
     assert geometry.area_normals().shape == (6, 3)
     assert sum(area for area, _ in geometry.surfaces) == pytest.approx(SLAB_REACHED_AREA)
+    assert _edges(geometry) == []  # the inner corners open pi / 2
 
 
 def test_the_closedness_reads_the_stats_without_the_visibility():
@@ -132,6 +144,9 @@ def test_a_column_is_boundary_and_leaves_the_volume():
     assert geometry.volume == pytest.approx(72.0 - 0.75)
     # the ends are out of the accounting; the floor and ceiling under them count whole (merged walls)
     assert geometry.surface_area == pytest.approx(108.0 + 4 * 0.5 * 3.0)
+    edges = _edges(geometry)
+    assert len(edges) == 4 and all(e.component == -1 and abs(e.axis[2]) > 0.99 for e in edges)
+    assert sorted((round(float(e.start[0]), 6), round(float(e.start[1]), 6)) for e in edges) == [(2.75, 1.75), (2.75, 2.25), (3.25, 1.75), (3.25, 2.25)]
 
 
 def test_the_inside_test_of_a_prepared_room():
