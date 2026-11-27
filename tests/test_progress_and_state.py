@@ -26,9 +26,10 @@ def test_reporting_sees_every_stage_and_restores_the_outer_callback():
             _scene(2).simulate(ca.Mono(image_source_order=1, ray_tracing=False))
         _scene().simulate(ca.Mono(image_source_order=1, ray_tracing=False))
     assert inner[0] == ("simulating", None, None)
-    assert [r for r in inner if r[1] is not None] == [("simulating", 0, 2), ("simulating", 1, 2)]
+    assert [r for r in inner if r[0] == "simulating" and r[1] is not None] == [("simulating", 0, 2), ("simulating", 1, 2)]
     # the inner block's reports did not reach the outer callback
-    assert outer == [("simulating", None, None), ("simulating", 0, 1)]
+    # (the search reports the reflections it found: a shoebox at order 1 has its six walls' images)
+    assert outer == [("simulating", None, None), ("image sources", 6, None), ("simulating", 0, 1)]
 
 
 def test_raising_from_the_callback_stops_the_simulation():
