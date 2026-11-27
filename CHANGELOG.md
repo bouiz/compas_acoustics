@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added `hybrid.diffraction.set_diffraction_edges(geometry, edges)` and `clear_diffraction_edges(geometry)`: every diffracted path of that geometry uses the given subset of its `diffraction_edges` until it is cleared.
 * Added `hybrid.diffraction.AmbiguousEdgeWarning`, which counts the edge pieces where the sector detector found faces disagreeing on which side is air.
 * Added diffraction at the convex edges of closed obstacles that are not convex (an L-shaped counter), oriented from their own winding; they were skipped.
+* Added `room.geometry.PRA_STATE_LOCK`, held while pyroomacoustics' process-wide constants and random generator are set and used, so seeded simulations in threads give the results they give alone.
+* Added `Mono(n_jobs=...)`: the sources run in rooms and processes of their own, and the processes left over split each source's rays, whose histograms are summed (`compas_acoustics.room.parallel`, `room.raytracing.emitter_rirs`). Image-source responses are unchanged, and ray-traced ones repeat for a given seed and `n_jobs`. `ray_traced_run`, `image_source_rirs` and `directional_histograms` take `n_jobs` too, and so do `Binaural` and `Ambisonics`, for their reference run and directional histograms.
+* Added `Mono(reciprocity=True)`: with more sources than receivers, all omnidirectional, the receivers emit, one room per receiver instead of one per source. `generation["reciprocal"]` says whether it applied.
+* Added `per_pair_seeds` to `Mono`, `Binaural`, `Ambisonics`, `room.raytracing.ray_traced_run` and `directional_histograms`: with a seed, each source's rays restart from it and each pair's ray-traced tail from `room.raytracing.stable_seed` of it and the pair's positions. A pair's response then does not depend on the other sources and receivers of the run, so a caller may split the pairs over processes. It is off by default, which keeps seeded runs bit-identical to pyroomacoustics' own `Room.compute_rir`.
 
 ### Changed
 
