@@ -6,12 +6,12 @@
     <AssemblyName>CompasAcoustics</AssemblyName>
     <RootNamespace>CompasAcoustics.Grasshopper</RootNamespace>
     <!-- the plugin's version: always the library's, which bump-my-version updates here on every release (pyproject.toml) -->
-    <Version>0.1.1</Version>
+    <Version>0.2.0</Version>
     <!-- the oldest compas_acoustics the plugin works with: always the library's own version, which bump-my-version
          updates here on every release (pyproject.toml), so a plugin requires the release it was built with. Install Worker
          takes the newest up to its next breaking release (semver; in 0.x a minor release): >=0.1.1,<0.2.0.
          tests/test_gha_version.py checks that it equals compas_acoustics.__version__. -->
-    <CompasAcousticsVersion>0.1.1</CompasAcousticsVersion>
+    <CompasAcousticsVersion>0.2.0</CompasAcousticsVersion>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <ImplicitUsings>disable</ImplicitUsings>

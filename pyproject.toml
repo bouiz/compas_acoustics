@@ -106,7 +106,7 @@ markers = [
 # ============================================================================
 
 [tool.bumpversion]
-current_version = "0.1.1"
+current_version = "0.2.0"
 message = "Bump version to {new_version}"
 commit = true
 tag = true
