@@ -10,9 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 * Added `Analyser(ir, channel=...)` (any channel, no note), `Analyser.decay_curves()` (the energy decay curve per band) and `Analyser.reliability()`. The latter gives, per band, the dynamic range the decay offers, ISO 3382-2's non-linearity of the T20 and T30 fits, and whether EDT, T20 and T30 can be trusted.
+* Added `Analyser.analyse(parameters=...)`: only the requested parameters, and the methods they need, are computed; `("T30", "EDT", "C50", "C80", "D50", "STI")` skips the sound strength, the DRR, the centre time and the lateral fractions. `print_table`, `plot` and `export_csv` default to the parameters analysed.
+* Added `compas_acoustics.analyser.decay_end(ir, trim_db, margin)` (it was private): where a response's Schroeder curve has fallen `trim_db`, to cut a response where its reverberation has decayed rather than at the level of its direct sound.
 
 ### Changed
 
+* Changed the `Analyser` to give the same results 5 to 25 times faster: each octave band is filtered only until its filter has rung out after the last non-zero sample (the rest is below 1e-30 of its energy, and was arithmetic on subnormal numbers), the zero-phase bands are kept for the analyser's lifetime (cleared when the response or the rate changes), and the STI takes the analyser's octave bank, the same as pyrato's, with one complex exponential per modulation frequency for all bands. One filter bank is designed per rate, in place of eight.
 ### Removed
 
 
