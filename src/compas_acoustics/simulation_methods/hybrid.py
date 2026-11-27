@@ -233,9 +233,7 @@ class _HybridMethod(SimulationMethod):
             "seed": self.seed,
             "scene": getattr(context.scene, "name", None),
         }
-        histograms, generation["histogram_rays"], rays_are_the_reference = self._histograms(
-            context, geometry, room, run, grid, directions, air_absorption, air
-        )
+        histograms, generation["histogram_rays"], rays_are_the_reference = self._histograms(context, geometry, room, run, grid, directions, air_absorption, air)
 
         inputs = self._pair_inputs(context, geometry, room, rotations, references, damping, scattered, histograms, air_absorption, air)
         return self._rendered(inputs, rng, generation, context.sampling_rate, rays_are_the_reference)
@@ -733,8 +731,8 @@ class Ambisonics(_HybridMethod):
         method traces itself (``tail="ray_tracing"``, or a ``Mono`` at the method's ``image_source_order``), its
         energy per band is the rays' and its directions the boundary's reflection (``directional_absorption``);
         with ``"directional"`` its directions are the rays' too; with a reference given as responses, or ``False``,
-        its energy is the network's (brought to the reference by a late envelope, also raised, by up to 12 dB). ``"fdn"``: the
-        directional FDN, as before. ``generation["late_field"]`` records it and, per response,
+        its energy is the network's (brought to the reference by a late envelope, also raised, by up to 12 dB).
+        ``"fdn"``: the directional FDN, as before. ``generation["late_field"]`` records it and, per response,
         ``generation["late_energy"]`` whether the energy came from the ``"rays"`` or the ``"network"``.
 
     Examples

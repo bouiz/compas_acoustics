@@ -341,7 +341,8 @@ def _directional_histogram(room, lines: list, directions: np.ndarray, duration: 
 
 
 def omni_histograms(run: "RayTracedRun", air_absorption: bool) -> List[List["DirectionalHistogram"]]:
-    """The run's omnidirectional ray histograms ``[mic][source]``, each as a :class:`DirectionalHistogram` of one direction.
+    """The run's omnidirectional ray histograms ``[mic][source]``, each as a :class:`DirectionalHistogram` of one
+    direction.
 
     The bins of the responses themselves, on the package scale with air absorption applied per bin, as
     :func:`directional_histograms` gives them: their sum over directions without sorting the rays. ``air_absorption``

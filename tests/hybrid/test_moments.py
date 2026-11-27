@@ -199,7 +199,8 @@ def test_the_rays_energy_is_the_bins_per_sample_and_continues_at_the_target_past
 
 def test_one_loud_bin_before_the_hold_does_not_lift_the_continuation():
     """The last bins before the hold hold few rays; the continuation starts from the level of the last HOLD_FIT_MS of
-    them, so a bin ten times too loud there moves it by under 1.5 dB (one bin's 10 dB), and the energy has no step at the hold."""
+    them, so a bin ten times too loud there moves it by under 1.5 dB (one bin's 10 dB), and the energy has no step at
+    the hold."""
     histogram = ray_histogram()
     edc = np.cumsum(histogram.energy[0, 3, ::-1])[::-1]
     hold = int(np.flatnonzero(edc <= 1e-6 * edc[0])[0])
@@ -230,19 +231,24 @@ def office():
 
 
 def test_the_rays_late_field_carries_the_references_late_energy():
-    """Per octave 250 Hz to 4 kHz, the late field's W energy is the reference's minus the early field's within 1.5 dB."""
-    method = ca.Ambisonics(sh_order=1, duration=0.8)
-    office().simulate(method)
-    ((key, result),) = method.results.items()
-    reference = np.asarray(method.reference_rirs[key].denormalized(), dtype=float).ravel()
-    n = min(reference.size, result.early.shape[0])
+    """Per octave 250 Hz to 4 kHz, the late field's W energy is the reference's minus the early field's, within
+    1.5 dB over four seeds: one seed's reference, pyroomacoustics' noise on the rays, scatters by up to 1.6 dB (one
+    standard deviation, 250 Hz) in this 0.8 s office."""
 
     def bands(x):
         return (octave_band_split(x, FS) ** 2).sum(axis=1)
 
-    late_part = bands(reference[:n]) - bands(result.early[:n, 0])
-    difference = 10 * np.log10(bands(result.late[:n, 0]) / late_part)
-    assert result.core.late.source == "rays"
+    differences = []
+    for seed in range(1, 5):
+        method = ca.Ambisonics(sh_order=1, duration=0.8, seed=seed)
+        office().simulate(method)
+        ((key, result),) = method.results.items()
+        reference = np.asarray(method.reference_rirs[key].denormalized(), dtype=float).ravel()
+        n = min(reference.size, result.early.shape[0])
+        late_part = bands(reference[:n]) - bands(result.early[:n, 0])
+        differences.append(10 * np.log10(bands(result.late[:n, 0]) / late_part))
+        assert result.core.late.source == "rays"
+    difference = np.mean(differences, axis=0)
     assert np.all(np.abs(difference[2:7]) < 1.5), difference
 
 

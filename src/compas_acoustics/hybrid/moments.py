@@ -26,7 +26,8 @@ own code, so the moments are accumulated from the bins of a fine grid (:data:`MO
 than per hit: the grid moves the covariance by under 0.5 % up to third order, against a spread of 20 to 45 % between
 ray seeds in one 4 ms bin at the package's ray counts.
 
-Where the energy and the shape come from (:func:`~compas_acoustics.hybrid.synthesis.prepare` with ``late_field="moments"``):
+Where the energy and the shape come from (:func:`~compas_acoustics.hybrid.synthesis.prepare` with
+``late_field="moments"``):
 
 - Energy: the rays' own (``M_0``), when the late field follows a reference traced by the same run at the method's
   image source order: a ray is logged only after that order, so its bins hold exactly what the image sources do not.
@@ -100,7 +101,8 @@ def pair_seed(seed: int, *coords) -> int:
 
 
 def sh_basis(order: int, unit: np.ndarray) -> np.ndarray:
-    """Real spherical harmonics up to ``order`` at ``unit`` (M, 3), (M, (order + 1) ** 2): N3D with W = 1 (``"NM"``), ACN.
+    """Real spherical harmonics up to ``order`` at ``unit`` (M, 3), (M, (order + 1) ** 2): N3D with W = 1 (``"NM"``),
+    ACN.
 
     Orthogonal with ``integral Y_i Y_j dOmega = 4 pi delta_ij``, so a direction's W is 1.
     """
@@ -111,7 +113,8 @@ def sh_basis(order: int, unit: np.ndarray) -> np.ndarray:
 
 @cache
 def gaunt(sh_order: int) -> np.ndarray:
-    """Real Gaunt coefficients ``G_ijk``, (K, K, (2N + 1) ** 2) with ``K = (N + 1) ** 2``: ``Y_i Y_j = sum_k G_ijk Y_k``.
+    """Real Gaunt coefficients ``G_ijk``, (K, K, (2N + 1) ** 2) with ``K = (N + 1) ** 2``:
+    ``Y_i Y_j = sum_k G_ijk Y_k``.
 
     ``G_ijk = (1 / 4 pi) integral Y_i Y_j Y_k dOmega``, exact on a Gaussian grid integrating order 4N.
     """
@@ -144,7 +147,8 @@ def moments_from_hits(directions: np.ndarray, energies: np.ndarray, order: int) 
 
 
 def histogram_moments(histogram, order: int, rotation: np.ndarray | None = None) -> np.ndarray:
-    """The moments of a :class:`~compas_acoustics.room.raytracing.DirectionalHistogram`, (n_bands, n_bins, (order + 1) ** 2).
+    """The moments of a :class:`~compas_acoustics.room.raytracing.DirectionalHistogram`,
+    (n_bands, n_bins, (order + 1) ** 2).
 
     Each bin's energy counts at its grid direction, turned into the receiver's frame by ``rotation`` (its columns
     the receiver's axes in room coordinates).
@@ -165,10 +169,11 @@ def covariance(moments: np.ndarray, sh_order: int) -> np.ndarray:
 def absorption_shape(absorption: np.ndarray | None, directions: np.ndarray, order: int) -> tuple[np.ndarray, np.ndarray]:
     """``(shape, level)``: the normalised moments (N_BANDS + 1, (order + 1) ** 2) of the distribution ``1 - a(u)``.
 
-    ``absorption`` (n_dir, 8) is the boundary's per direction (:func:`~compas_acoustics.hybrid.directional.scanned_absorption`)
-    on the equal-area grid ``directions``, whose equal weights integrate the moments; None is isotropic. ``level``
-    (N_BANDS + 1,) is the mean ``1 - a``, the one reflection's absorption the network's directional filters take
-    from the late field. The 16 kHz row repeats the 8 kHz one.
+    ``absorption`` (n_dir, 8) is the boundary's per direction
+    (:func:`~compas_acoustics.hybrid.directional.scanned_absorption`) on the equal-area grid ``directions``, whose
+    equal weights integrate the moments; None is isotropic. ``level`` (N_BANDS + 1,) is the mean ``1 - a``, the one
+    reflection's absorption the network's directional filters take from the late field. The 16 kHz row repeats the
+    8 kHz one.
     """
     Y = sh_basis(order, directions)
     if absorption is None:
@@ -252,7 +257,8 @@ def network_energy(
 
 
 def ray_late_field(histogram, sh_order: int, rotation: np.ndarray | None, target, n_samples: int, fs: float, *, shape: bool = True) -> tuple[np.ndarray, np.ndarray | None, int]:
-    """``(energy, shape, bin_samples)`` of the rays in a :class:`~compas_acoustics.room.raytracing.DirectionalHistogram`.
+    """``(energy, shape, bin_samples)`` of the rays in a
+    :class:`~compas_acoustics.room.raytracing.DirectionalHistogram`.
 
     ``energy`` (N_BANDS + 1, n) is the W energy per sample, the bins' over ``ENERGY_SMOOTH_MS``; ``shape`` (N_BANDS + 1,
     n_bins, (2N + 1) ** 2) the moments over ``SMOOTH_MS`` divided by their W, per bin, or None without ``shape``.

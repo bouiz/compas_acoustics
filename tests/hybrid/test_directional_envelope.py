@@ -381,7 +381,8 @@ def test_the_reference_run_sorts_its_own_rays_by_direction():
 
 
 def late_level_by_x_of_the_channels(result, a=0.15, b=0.6):
-    """The late field's energy from -x minus that from +x in dB, through cardioids W -+ X / sqrt(3) (N3D: X = sqrt(3) cos)."""
+    """The late field's energy from -x minus that from +x in dB, through cardioids W -+ X / sqrt(3)
+    (N3D: X = sqrt(3) cos)."""
     late = np.asarray(result.late, dtype=float)[int(a * FS) : int(b * FS)]
     w, x = late[:, 0], late[:, 3] * (1.0 if result.normalization == "N3D" else np.sqrt(3.0)) / np.sqrt(3.0)
     return 10 * np.log10(np.sum((w - x) ** 2) / np.sum((w + x) ** 2))
