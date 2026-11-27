@@ -150,18 +150,33 @@ def frequency_response(ir, sampling_rate, num_fractions=3, frequency_range=(20.0
     return smoothed.frequencies[keep], _level_re_peak(smoothed.freq[..., keep])
 
 
+def _nonlinearity(edc_db: np.ndarray, fs: int, high: float, low: float) -> float:
+    """ISO 3382-2:2008 Annex B non-linearity, ``1000 (1 - r^2)`` per mille, of the decay curve between ``high`` and
+    ``low`` dB; NaN when the curve does not fall below ``low`` or holds fewer than three samples in the range."""
+    inside = np.flatnonzero((edc_db <= high) & (edc_db >= low))
+    if inside.size < 3 or not np.any(edc_db < low):
+        return float("nan")
+    t = inside / float(fs)
+    r = np.corrcoef(t, edc_db[inside])[0, 1]
+    return round(float(1000.0 * (1.0 - r * r)), 2)
+
+
 class Analyser:
     """Room acoustic parameters of an impulse response (:meth:`analyse`).
 
-    Every window starts at ``onset``, the direct sound of channel 0 as ``pyfar.dsp.find_impulse_response_start``
-    finds it with the 20 dB criterion of ISO 3382-1:2009, p. 22.
+    Every window starts at ``onset``, the direct sound of the analysed channel as
+    ``pyfar.dsp.find_impulse_response_start`` finds it with the 20 dB criterion of ISO 3382-1:2009, p. 22.
 
     Parameters
     ----------
     ir : list, np.ndarray or ImpulseResponse
         (samples,) or (samples, channels). LF and LFC take the first-order channels of an ambisonic
-        :class:`ImpulseResponse`, every other parameter channel 0 (the omnidirectional component, or the left ear).
-        An :class:`ImpulseResponse` is analysed at its raw level and sets :attr:`sampling_rate`.
+        :class:`ImpulseResponse`, every other parameter the channel ``channel``. An :class:`ImpulseResponse` is
+        analysed at its raw level and sets :attr:`sampling_rate`.
+    channel : int, optional
+        The channel analysed: 0 is the omnidirectional component of an ambisonic response or the left ear of a
+        binaural one, 1 the right ear. Default: channel 0, with a note (:data:`CHANNEL_NOTE`) for a response of
+        several channels.
 
     Examples
     --------
@@ -180,7 +195,8 @@ class Analyser:
     True
     """
 
-    def __init__(self, ir):
+    def __init__(self, ir, channel=None):
+        self._channel = channel
         self.ir = ir
         self.analysis_data = None
         # Zero-phase bands of self.ir by centre frequency, kept while analyse() runs
@@ -198,14 +214,15 @@ class Analyser:
         self._package_scale = (getattr(ir, "generation", None) or {}).get("scale") == "package"
         # the spatial parameters need the response's channels, source and receiver
         self._response = ir
-        self._ir = self._as_mono_array(ir)
+        self._ir = self._as_mono_array(ir, getattr(self, "_channel", None))
         # pyfar's start sample is -1 for a response whose first sample is already within 20 dB of its maximum
         start = pf.dsp.find_impulse_response_start(pf.Signal(self._ir, getattr(ir, "sampling_rate", None) or Defaults().SAMPLING_RATE), threshold=20)
         self.onset = max(0, int(np.squeeze(start)))
 
     @staticmethod
-    def _as_mono_array(ir):
-        """A 1D array of an impulse response, at the raw level for an ImpulseResponse."""
+    def _as_mono_array(ir, channel=None):
+        """A 1D array of one channel of an impulse response (``channel``; default 0, with a note for several), at the
+        raw level for an ImpulseResponse."""
         if hasattr(ir, "denormalized"):
             ir = ir.denormalized()
         elif hasattr(ir, "ir") and hasattr(ir, "sampling_rate"):
@@ -216,9 +233,15 @@ class Analyser:
         if ir_array.ndim > 2:
             raise ValueError(f"Impulse response must be 1D or 2D, got {ir_array.ndim}D.")
         if ir_array.ndim == 2:
-            if ir_array.shape[1] > 1:
-                warnings.warn(CHANNEL_NOTE.format(ir_array.shape[1]))
-            ir_array = ir_array[:, 0]
+            if channel is None:
+                if ir_array.shape[1] > 1:
+                    warnings.warn(CHANNEL_NOTE.format(ir_array.shape[1]))
+                channel = 0
+            if not 0 <= int(channel) < ir_array.shape[1]:
+                raise ValueError(f"channel {channel} is not among the response's {ir_array.shape[1]} channels")
+            ir_array = ir_array[:, int(channel)]
+        elif channel not in (None, 0):
+            raise ValueError(f"channel {channel} of a one-channel response")
         return ir_array
 
     @property
@@ -314,6 +337,56 @@ class Analyser:
                 f"pyrato could not evaluate the decay in the {', '.join(f'{f:g}' for f in failed)} Hz band(s) ({next(iter(failed.values()))}); EDT, T20 and T30 are NaN there."
             )
         return results
+
+    def decay_curves(self) -> dict:
+        """The energy decay curve per band that :meth:`reverberation_times` evaluates.
+
+        Returns
+        -------
+        dict
+            ``'freqs'``; ``'times'``, seconds from the direct sound; ``'edc_db'``, one array per band in dB, 0 at the
+            direct sound (Schroeder backward integration of the zero-phase band, to the last non-zero sample).
+        """
+        ir_array = self.ir
+        onset = self.onset
+        end = int(np.flatnonzero(ir_array)[-1]) + 1 if np.any(ir_array) else len(ir_array)
+        curves = []
+        for center_freq in self.frequency_bands:
+            band, direct = self._band_from_onset(center_freq)
+            energy = np.cumsum(band[direct : direct + end - onset][::-1] ** 2)[::-1]
+            with np.errstate(divide="ignore", invalid="ignore"):
+                curves.append(10.0 * np.log10(energy / energy[0]) if energy.size and energy[0] > 0 else np.full(energy.size, -np.inf))
+        n = max((c.size for c in curves), default=0)
+        return {"freqs": list(self.frequency_bands), "times": np.arange(n) / self.sampling_rate, "edc_db": curves}
+
+    def reliability(self, nonlinearity_limit: float = 10.0) -> dict:
+        """How far each band's decay supports EDT, T20 and T30 (ISO 3382-1:2009 and ISO 3382-2:2008 Annex B).
+
+        A response cut at a fixed length bends its decay curve down at the end, so the usable range is the drop
+        reached at 90 % of the curve. EDT needs 10 dB of it and 10 dB to spare (20 dB), T20 its -5 to -25 dB range and
+        10 dB to spare (35 dB), T30 45 dB; the margins are the package's choice. The non-linearity
+        ``xi = 1000 (1 - r^2)`` of the line fitted over each range marks a curved decay (coupled volumes, a cut tail)
+        above ``nonlinearity_limit`` per mille (Annex B).
+
+        Returns
+        -------
+        dict
+            ``'freqs'``, and per band ``'range_db'``, ``'T20_xi'`` and ``'T30_xi'`` (per mille, NaN where the range
+            is not reached), ``'EDT_reliable'``, ``'T20_reliable'`` and ``'T30_reliable'``.
+        """
+        curves = self.decay_curves()
+        out = {"freqs": curves["freqs"], "range_db": [], "T20_xi": [], "T30_xi": [], "EDT_reliable": [], "T20_reliable": [], "T30_reliable": []}
+        for edc in curves["edc_db"]:
+            finite = edc[np.isfinite(edc)]
+            usable = float(-edc[min(int(0.9 * edc.size), edc.size - 1)]) if edc.size else 0.0
+            usable = usable if np.isfinite(usable) else (float(-finite.min()) if finite.size else 0.0)
+            out["range_db"].append(round(usable, 1))
+            for key, low, needed in (("T20", -25.0, 35.0), ("T30", -35.0, 45.0)):
+                xi = _nonlinearity(edc, self.sampling_rate, -5.0, low)
+                out[f"{key}_xi"].append(xi)
+                out[f"{key}_reliable"].append(bool(usable >= needed and np.isfinite(xi) and xi <= nonlinearity_limit))
+            out["EDT_reliable"].append(bool(usable >= 20.0))
+        return out
 
     def clarity_definition(self) -> dict:
         """C50, C80 and D50 per band (ISO 3382-1:2009).

@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+* Added `Analyser(ir, channel=...)` (any channel, no note), `Analyser.decay_curves()` (the energy decay curve per band) and `Analyser.reliability()`. The latter gives, per band, the dynamic range the decay offers, ISO 3382-2's non-linearity of the T20 and T30 fits, and whether EDT, T20 and T30 can be trusted.
+
 ### Changed
 
 ### Removed
