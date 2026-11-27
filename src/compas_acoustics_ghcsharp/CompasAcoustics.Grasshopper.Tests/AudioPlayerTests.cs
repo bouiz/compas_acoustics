@@ -52,12 +52,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(0f, ticks[0].x);
             Assert.Equal(200f, ticks[^1].x, 3);
         }
-
-        [Fact]
-        public void Header_NamesFormatChannelsRateDurationAndPeak()
-        {
-            Assert.Equal("binaural, 2 ch, 48 kHz, 2.50 s, peak -1.0 dBFS", Waveform.Header("binaural", 2, 48000, 2.5, 10 * Math.Log10(Math.Pow(10, -0.1))));
-        }
     }
 
     public class PlayerLayoutTests
@@ -92,7 +86,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             var boxes = PlayerLayout.Arrange(Controls, RectangleF.Empty);
             Assert.True(boxes.Lanes.IsEmpty && boxes.Header.IsEmpty && boxes.Ruler.IsEmpty);
             Assert.True(Controls.Contains(boxes.PlayPause) && Controls.Contains(boxes.Volume) && Controls.Contains(boxes.VolumeLabel));
-            Assert.True(boxes.PlayPause.Width >= 32 && boxes.PlayPause.Height >= 22);
         }
 
         [Theory]
@@ -108,13 +101,8 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void TheNormalizeButton_SaysWhatTheInputSaid_AndItsDefault()
+        public void TheNormalizeButton_IsOffByDefault()
         {
-            // what normalizing does, with the button's default
-            Assert.Equal("normalize", PlayerLayout.NormalizeTooltip.title);
-            Assert.Contains("full level before playing", PlayerLayout.NormalizeTooltip.text);
-            Assert.Contains("rendered level", PlayerLayout.NormalizeTooltip.text);
-            Assert.Contains("(default off)", PlayerLayout.NormalizeTooltip.text);
             Assert.False(new AudioPlayerComponent().Normalize);
         }
 

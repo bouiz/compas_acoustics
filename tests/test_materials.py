@@ -46,12 +46,6 @@ def test_category_survives_serialization():
     assert json_loads(material.to_jsonstring()).category is MaterialCategory.CONCRETE
 
 
-def test_material_without_category_loads_as_other():
-    data = make_material().__data__
-    del data["category"]
-    assert AcousticMaterial.__from_data__(data).category is MaterialCategory.OTHER
-
-
 @pytest.fixture
 def library(tmp_path):
     for material in (

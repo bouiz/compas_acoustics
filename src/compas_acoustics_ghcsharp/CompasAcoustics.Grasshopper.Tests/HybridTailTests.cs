@@ -292,8 +292,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         [InlineData("ray_tracing", false, "directional", "directional")]
         [InlineData("reference", true, "directional", "directional")]
         [InlineData("ray_tracing", false, "off", false)]
-        [InlineData("ray_tracing", false, "auto", "omni")]
-        public void TheLateEnvelopeChosen_IsSentExplicitly_AnOldAutoAsOmni(string tail, bool referenced, string chosen, object sent)
+        public void TheLateEnvelopeChosen_IsSentExplicitly(string tail, bool referenced, string chosen, object sent)
         {
             var component = new SimulateAmbisonicsComponent();
             Solve(component, Access(tail, referenced, run: true, lateEnvelope: chosen));

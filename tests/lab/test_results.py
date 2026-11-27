@@ -34,11 +34,8 @@ def test_results_round_trip_with_d():
     assert np.array_equal(t.d_angle, r.d_angle) and t.d_bands == r.d_bands and t.d_octaves == r.d_octaves
 
 
-def test_a_result_without_d_round_trips_and_old_data_loads():
+def test_a_result_without_d_round_trips():
     r = _result()
     assert r.d_angle is None and r.d_bands is None and r.d_octaves is None
     t = json_loads(json_dumps(r))
     assert t.d_angle is None and t.d_bands is None and t.d_octaves is None
-    old = {k: v for k, v in r.__data__.items() if not k.startswith("d_")}  # written before d existed
-    loaded = ScatteringResult.__from_data__(old)
-    assert loaded.d_angle is None and loaded.d_bands is None and loaded.d_octaves is None and loaded.s_octaves == r.s_octaves

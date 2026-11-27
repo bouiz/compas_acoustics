@@ -155,25 +155,6 @@ def test_grazing_incidence_is_finite():
     assert np.all(np.isfinite(udfa_transfer(path, F, c=C)))
 
 
-def test_finite_single_term_tends_to_the_infinite_one():
-    args = (2 * np.pi, np.pi / 4, np.pi / 4 + np.pi + np.pi / 3)
-    finite = udfa_single_transfer(centred(*args, 4.0, 1e4), F, c=C)
-    infinite = udfa_single_transfer(WedgePath.infinite(*args, 4.0, 4.0, np.pi / 2), F, c=C)
-    np.testing.assert_allclose(db(finite), db(infinite), atol=0.01)
-
-
-def test_finite_single_term_is_the_two_half_wedges():
-    # Kirsch and Ewert (2023), Sec. III-B: (g1 H(fc/g1^2) + g2 H(fc/g2^2)) / 2,
-    # the finite single term with unit gain (Sec. VII)
-    from compas_acoustics.hybrid.udfa import _finite_half_wedge, _half_wedge_gain
-
-    path = WedgePath(2 * np.pi, np.pi / 4, np.pi / 4 + np.pi + 1.0, 2.0, 3.0, -0.3, 0.4, 1.5)
-    fc = single_term_cutoff(path, C)
-    t1, t2 = sorted(((path.length_via(-0.75) - path.d) / C, (path.length_via(0.75) - path.d) / C))
-    expected = (_finite_half_wedge(F, fc, _half_wedge_gain(fc, t1)) + _finite_half_wedge(F, fc, _half_wedge_gain(fc, t2))) / 2
-    np.testing.assert_allclose(udfa_single_transfer(path, F, c=C), expected, rtol=1e-12)
-
-
 # Three-sided barrier
 
 

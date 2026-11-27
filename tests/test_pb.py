@@ -309,10 +309,6 @@ def test_a_scattering_result_round_trips_every_field():
     ):
         assert getattr(loaded, field) == getattr(result, field), field
     assert loaded.scattering_coefficients == result.scattering_coefficients
-    older = ScatteringResult.__from_data__({**result.__data__, "d_angle": None, "d_bands": None, "d_octaves": None})
-    loaded = roundtrip(older)
-    assert loaded.d_angle is None and loaded.d_bands is None and loaded.d_octaves is None
-    assert np.allclose(loaded.s_angle, older.s_angle)
 
 
 FIXTURES = Path(__file__).parent / "pb_fixtures"

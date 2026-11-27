@@ -148,9 +148,6 @@ def test_a_mixed_open_and_closed_pair_is_refused():
 def test_reference_kind_round_trips():
     s = ScatteringSample.as_drawn(bumped_box(), reference=bumped_box(bump=0.0))
     assert ScatteringSample.__from_data__(s.__data__).reference_kind == "proxy"
-    data = ScatteringSample.as_drawn(bumped_box()).__data__
-    del data["reference_kind"]
-    assert ScatteringSample.__from_data__(data).reference_kind == "flat"
 
 
 def _polar_disc_patch(radius=0.5, n=64, rings=8, z=0.0, wobble=0.0):

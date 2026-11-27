@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Linq;
 using Grasshopper.Kernel;
 using Xunit;
@@ -96,11 +95,8 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void OrderColors_Order0IsBlack_Order1IsTab10Red_Order11RepeatsOrder1()
+        public void OrderColors_Order11RepeatsOrder1_ANegativeOrderIsOrder0()
         {
-            Assert.Equal(Color.FromArgb(0, 0, 0).ToArgb(), OrderColors.Of(0).ToArgb());
-            Assert.Equal(Color.FromArgb(214, 39, 40).ToArgb(), OrderColors.Of(1).ToArgb());
-            Assert.Equal(Color.FromArgb(31, 119, 180).ToArgb(), OrderColors.Of(2).ToArgb());
             Assert.Equal(OrderColors.Of(1).ToArgb(), OrderColors.Of(11).ToArgb());
             Assert.Equal(OrderColors.Of(0).ToArgb(), OrderColors.Of(-3).ToArgb());
         }

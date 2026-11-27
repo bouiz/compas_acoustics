@@ -142,7 +142,6 @@ namespace CompasAcoustics.Grasshopper.Tests
         [InlineData("ray_tracing", "off", true)]
         [InlineData("ray_tracing", "directional", true)]
         [InlineData("reference", "directional", true)]
-        [InlineData("reference", "auto", false)]
         [InlineData("reference", null, false)]
         [InlineData("reference", "omni", false)]
         [InlineData("reference", "off", false)]

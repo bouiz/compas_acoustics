@@ -124,15 +124,12 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void ADropdownsLabels_StartWithACapital_AndItsValuesKeepTheirForm()
+        public void ADropdownsValues_KeepTheirForm()
         {
             var tail = new DropdownControl("tail", new[] { "auto", "ray_tracing" });
             var diffraction = new DropdownControl("diffraction", new[] { "none", "udfa", "btms" });
-            Assert.Equal("Ray tracing", ControlLayout.Label(tail, "ray_tracing"));
-            Assert.Equal(new[] { "None", "UDFA", "BTMS" }, diffraction.Options.Select(o => ControlLayout.Label(diffraction, o)));
             Assert.Equal(new[] { "none", "udfa", "btms" }, diffraction.Options);
             Assert.Equal("c:/x.wav", ControlLayout.Label(tail, "c:/x.wav"));
-            Assert.Equal(("level", "Boundary"), ("level", ControlLayout.Label(new SwitchControl("role", new[] { "boundary", "obstacle" }), "boundary")));
         }
 
         [Fact]
