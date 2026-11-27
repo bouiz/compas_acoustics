@@ -87,6 +87,15 @@ jobs:
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@v1.14.2
 
+  # the plugin requires the release it is built with, so it goes to Yak only once that release is on PyPI
+  yak:
+    needs: [release, publish]
+    if: needs.release.outputs.is-release == 'true'
+    uses: ./.github/workflows/yak_publish.yml
+    with:
+      environment: prod
+    secrets: inherit
+
   create-release:
     needs: [release, prepare, proto-assets, publish]
     if: needs.release.outputs.is-release == 'true'
