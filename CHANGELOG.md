@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+* The Grasshopper plugin is released with the library: its version is the library's, and it requires that release of compas_acoustics (`>=X.Y.Z` up to the next breaking release). bump-my-version updates both versions in the .csproj, and `release.yml` publishes the plugin to Yak after the library is on PyPI. `publish_yak` can still be run by hand.
 * Changed Plot 2D to show a one-sentence description of the chosen parameter right of the Select parameter dropdown (dimmed while the dropdown rests): what the parameter is and its standard, from one table beside `PlotSelection.Names`.
 * Changed Visualise Energy Map to compute the map when its Run button is pressed (or its new `run` input is true), not on every change of its inputs: the map takes seconds, and on the one worker it slowed the components that run on every change of the scene, Simulate Mono among them. Until a press the last map stays drawn; changing the band or the range redraws it without a run.
 * Changed Simulate Mono to simulate when its Run button is pressed (or its new `run` input, its last, is true), as Simulate Binaural and Simulate Ambisonics do, not on every change of its inputs. Until the first press it outputs nothing and says "press Run" (a hybrid with Tail Reference waits for its reference meanwhile). After a run it passes its responses on until the next run, a change of a source's sound included, and says when the settings differ from the run's; Cancel stops a run.
