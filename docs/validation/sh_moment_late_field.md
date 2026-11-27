@@ -188,5 +188,16 @@ What got worse:
   2.5/0.04/0.47). That part is 36 to 53 dB below the loudest 50 ms in the corridor; a decay per direction fitted from
   the rays would let the shape keep evolving.
 - In the room with an absorbing floor and ceiling the moments' EDT is 0.20 to 0.25 s shorter than the 2 s
-  reference's, the FDN's 0.02 to 0.06 s; it is the same with and without the fitted start, and was hidden while the
-  reference was cut at 0.5 s. Not yet explained.
+  reference's (seed 42), the FDN's 0.02 to 0.06 s; it is the same with and without the fitted start, and was hidden
+  while the reference was cut at 0.5 s. Over seeds 42 and 1 to 5 (12 responses) the moments are 0.13 +- 0.03 s short
+  (11 of 12), the FDN +0.003 s: a bias, which seed 42 shows at its largest. This room's EDT is fragile: its decay
+  lingers between -5 and -10 dB for 300 ms, and the reference's EDT varies by 0.18 s between seeds. What is known:
+  - The reference's tail holds 10.5 % (+0.44 dB) more energy than its own rays from about 20 ms on.
+    pyroomacoustics scales each impulse of its Poisson sequence by `1 / sqrt(local power)`, the power a two-bin
+    rolling mean (`simulation/rt.py`, `directional_sequence`, `seq_rolling_power(..., filter_length_mult=2)`); a
+    sequence asked for unit energy per bin delivers 1.10 to 1.11 at 144 and 1500 m^3. The moments deliver the rays'
+    energy (1.001). The FDN follows the reference's measured envelope, excess included.
+  - Raising the moments' late field by that 0.44 dB moves the bias from -0.13 to -0.09 s: about a third of it.
+  - The rest: between 25 and 75 ms the hybrid (image sources plus the moments' late field) holds 0.5 to 2.5 dB
+    more than the reference (C50 +0.66 dB with the 0.44 dB raised), where the image sources and the rays' first
+    bins overlap. Not yet explained; the next step is to split the reference into its image-source and ray parts.
