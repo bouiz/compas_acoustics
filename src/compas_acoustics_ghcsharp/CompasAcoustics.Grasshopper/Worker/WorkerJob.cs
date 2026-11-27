@@ -128,9 +128,17 @@ namespace CompasAcoustics.Grasshopper
             ["late reverberation"] = "late reverberation (FDN)",
         };
 
+        /// <summary>What a stage's amounts count: rays traced, reflections found (the search reports them with no total).</summary>
+        private static readonly IReadOnlyDictionary<string, string> AmountUnits = new Dictionary<string, string>
+        {
+            ["ray tracing"] = "rays",
+            ["image sources"] = "reflections",
+        };
+
         /// <summary>
         /// A report as text: <c>stage</c>, <c>stage 3</c> or <c>stage 3/4</c> for items (<c>done</c> counts the finished ones, so the
-        /// current one is <c>done + 1</c>), <c>stage 6,200/20,000</c> for an amount such as rays, and
+        /// current one is <c>done + 1</c>), <c>ray tracing 6,200/20,000 rays</c> for an amount, <c>image sources, 1,234 reflections</c>
+        /// for an amount found so far (no total), and
         /// <c>late reverberation (FDN), pair 3/4</c> for a rendering step of the hybrid.
         /// </summary>
         public static string? Describe(IDictionary<string, object?>? report)
@@ -143,8 +151,11 @@ namespace CompasAcoustics.Grasshopper
                 return label;
             var count = Convert.ToInt64(done);
             long? total = report.TryGetValue("of", out var of) && of != null ? Convert.ToInt64(of) : null;
+            var unit = AmountUnits.TryGetValue(text, out var counts) ? counts : null;
+            if (total == null && unit != null)
+                return string.Format(CultureInfo.InvariantCulture, "{0}, {1:N0} {2}", label, count, unit);
             if (total > ItemsAtMost)
-                return string.Format(CultureInfo.InvariantCulture, "{0} {1:N0}/{2:N0}", label, count, total);
+                return string.Format(CultureInfo.InvariantCulture, "{0} {1:N0}/{2:N0}{3}", label, count, total, unit == null ? "" : " " + unit);
             var current = total is long n ? Math.Min(count + 1, n) : count + 1;
             var counted = total is long all ? $"{current}/{all}" : $"{current}";
             return step == null ? $"{label} {counted}" : $"{label}, pair {counted}";
