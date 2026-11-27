@@ -144,9 +144,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             // the Source and Receiver previews switch them off; a scene or a graph drawing them again would not
             Assert.Null(typeof(ScenePreview).GetProperty("Sources"));
             Assert.Null(typeof(ScenePreview).GetProperty("Receivers"));
-            var graph = new DeconstructIrGraphComponent();
-            // nor its source-to-receiver edges: an output to wire on, not to see over the room
-            Assert.Empty(graph.Params.Output.Where(graph.PreviewsOutput).Select(p => p.Name));
             var source = new SourceComponent();
             Assert.All(source.Params.Output, p => Assert.True(source.PreviewsOutput(p)));
         }
@@ -227,14 +224,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.False(new SourceComponent().PreviewOffByDefault);
             // the Visualise components draw their rays themselves
             Assert.True(new VisualiseReflectionsComponent().IsPreviewCapable);
-        }
-
-        [Fact]
-        public void AnIrGraph_DrawsNothing()
-        {
-            // a line and a label per source and receiver pair would clutter the room
-            Assert.False(typeof(global::Grasshopper.Kernel.IGH_PreviewData).IsAssignableFrom(typeof(IrGraphGoo)));
-            Assert.False(typeof(global::Grasshopper.Kernel.IGH_PreviewObject).IsAssignableFrom(typeof(Param_IrGraph)));
         }
     }
 }

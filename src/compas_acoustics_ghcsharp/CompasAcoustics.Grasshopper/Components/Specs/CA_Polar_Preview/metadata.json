@@ -56,7 +56,7 @@
             },
             {
                 "name": "centre",
-                "description": "Optional. The point the balloon is centred on; the origin unless given.",
+                "description": "Optional. The point the balloon is centred on. Unless given, the centre of the result's sample as Scattering Sample draws it: the centroid of its footprint in x and y, its top in z (the origin for a result made before the lab recorded it).",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "point"

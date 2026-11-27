@@ -110,9 +110,8 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void TheMaterialStrip_HasDeconstructParametersHeightAndArea()
+        public void TheMaterialStrip_IsDrawnInTheStripAreaOfAStripHeightBody()
         {
-            // both bodies draw their chart in ChartLayout.StripArea of a ChartLayout.StripHeight body
             var body = new RectangleF(10, 100, 120, ChartLayout.StripHeight);
             var chart = ChartLayout.StripArea(body);
             Assert.Equal(ChartLayout.StripHeight - ChartLayout.StripHeader - 2, chart.Height, 3);

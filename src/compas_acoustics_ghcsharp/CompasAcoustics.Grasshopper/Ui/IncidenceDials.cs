@@ -203,7 +203,7 @@ namespace CompasAcoustics.Grasshopper
             // the chosen angles under the dials
             var labels = row.Top + Height - 8;
             g.DrawString(current == null ? "θ" : $"θ {Degrees(current.Theta)}", bold, Brushes.Black, new PointF(section.X, labels), centred);
-            g.DrawString(normal ? "φ –" : $"φ {Degrees(current!.Phi)}", bold, normal ? Brushes.DimGray : Brushes.Black, new PointF(plan.X, labels), centred);
+            g.DrawString(normal ? "φ -" : $"φ {Degrees(current!.Phi)}", bold, normal ? Brushes.DimGray : Brushes.Black, new PointF(plan.X, labels), centred);
             g.SmoothingMode = state;
         }
     }

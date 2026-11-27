@@ -104,9 +104,14 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(new[] { "mode", "symmetry" }, component.Controls.OfType<DropdownControl>().Select(c => c.Port));
             var mode = component.Controls.OfType<DropdownControl>().Single(c => c.Port == "mode");
             Assert.Equal(new[] { "as_drawn", "disc" }, mode.Options);
-            // an option reads without its underscore; its value, which the worker gets, keeps it
-            Assert.Equal(new[] { "as drawn", "disc" }, component.OptionsOf(mode).labels);
-            Assert.Equal("ray tracing", ControlLayout.Label(new DropdownControl("tail", HybridRun.Tails), "ray_tracing"));
+            // an option reads without its underscore and with a capital; its value, which the worker gets, keeps its form
+            Assert.Equal(new[] { "As drawn", "Disc" }, component.OptionsOf(mode).labels);
+            var tail = new DropdownControl("tail", HybridRun.Tails);
+            var diffraction = new DropdownControl("diffraction", HybridRun.Diffraction);
+            Assert.Equal("Ray tracing", ControlLayout.Label(tail, "ray_tracing"));
+            Assert.Equal(new[] { "Ray tracing", "Reference", "Eyring", "Sabine" }, HybridRun.Tails.Select(o => ControlLayout.Label(tail, o)));
+            Assert.Equal(new[] { "None", "UDFA", "BTMS" }, HybridRun.Diffraction.Select(o => ControlLayout.Label(diffraction, o)));
+            Assert.Equal("ray_tracing", HybridRun.Tails[0]);
             Assert.Equal(new[] { "none", "rotational" }, component.Controls.OfType<DropdownControl>().Single(c => c.Port == "symmetry").Options);
             Assert.Equal(new System.Guid("ff1614f6-bb68-5861-aed6-d8d222af8471"), component.ComponentGuid);
             Assert.IsType<Param_ScatteringSample>(component.Params.Output.Single());
@@ -324,7 +329,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             try
             {
                 System.Threading.Thread.CurrentThread.CurrentCulture = new System.Globalization.CultureInfo("de-CH");
-                Assert.Equal("s 0.00–0.44", LabResults.Summary(result));
+                Assert.Equal("s 0.00-0.44", LabResults.Summary(result));
             }
             finally
             {
@@ -362,7 +367,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             var bandRange = controls.OfType<DropdownControl>().Single(c => c.Port == "band_range");
             Assert.Equal(new[] { "iso", "extended" }, bandRange.Options);
             // each option reads as its range, the ISO one marked: ISO_BAND_RANGE (100, 5000) and EXTENDED_BAND_RANGE (100, 8000)
-            Assert.Equal(new[] { "ISO 100–5000 Hz", "100–8000 Hz" }, component.OptionsOf(bandRange).labels);
+            Assert.Equal(new[] { "ISO 100-5000 Hz", "100-8000 Hz" }, component.OptionsOf(bandRange).labels);
             Assert.Equal("Run", controls.OfType<ButtonControl>().Single(c => c.Port == "run").Label);
             Assert.IsType<Param_ScatteringResult>(component.Params.Output.First());
             Assert.Equal(new[] { "result", "scattering", "diffusion", "octaves" }, component.Params.Output.Select(p => p.Name));
@@ -516,11 +521,30 @@ namespace CompasAcoustics.Grasshopper.Tests
                 ["source"] = new List<object> { 0.6, 0.0, 1.0 },
                 ["label"] = "\u03b8 30\u00b0, \u03c6 0\u00b0, 1000 Hz, sample",
             };
-            var (read, levels, source, label) = LabResults.ReadBalloon(answer);
+            var (read, levels, source, label, centre) = LabResults.ReadBalloon(answer);
             Assert.Same(mesh, read);
             Assert.Equal(new[] { 0.0, -3.0, -30.0 }, levels);
             Assert.Equal(new[] { 0.6, 0.0, 1.0 }, source);
             Assert.Equal("\u03b8 30\u00b0, \u03c6 0\u00b0, 1000 Hz, sample", label);
+            Assert.Null(centre);
+        }
+
+        [Fact]
+        public void TheBalloonsCentre_IsTheWiredPoint_ElseTheSamplesTheResultRecords_ElseTheOrigin()
+        {
+            var answer = new Dictionary<string, object?>
+            {
+                ["mesh"] = Mesh(),
+                ["levels"] = new List<object> { 0.0, -3.0, -30.0 },
+                ["source"] = new List<object> { 0.6, 0.0, 1.0 },
+                ["label"] = "",
+                ["centre"] = new List<object> { 3.6, 1.4, 0.29 },
+            };
+            var centre = LabResults.ReadBalloon(answer).centre;
+            Assert.Equal(new Rhino.Geometry.Point3d(3.6, 1.4, 0.29), LabResults.BalloonCentre(null, centre));
+            Assert.Equal(new Rhino.Geometry.Point3d(5, 5, 5), LabResults.BalloonCentre(new Rhino.Geometry.Point3d(5, 5, 5), centre));
+            answer["centre"] = null;
+            Assert.Equal(Rhino.Geometry.Point3d.Origin, LabResults.BalloonCentre(null, LabResults.ReadBalloon(answer).centre));
         }
 
         [Fact]

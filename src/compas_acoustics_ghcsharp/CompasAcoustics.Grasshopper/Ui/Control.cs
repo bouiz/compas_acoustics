@@ -15,10 +15,10 @@ namespace CompasAcoustics.Grasshopper
 
     /// <summary>
     /// The chosen option, with a menu of the others. <c>Options</c> are the input's values (empty clears it), <c>Labels</c>
-    /// what they read; <c>Title</c> replaces the input's name above it. A component may give the options itself
-    /// (<see cref="ComponentBase.OptionsOf"/>).
+    /// what they read; <c>Title</c> replaces the input's name above it; <c>MenuLabels</c> what the opened menu reads, where the
+    /// closed dropdown is too narrow for them. A component may give the options itself (<see cref="ComponentBase.OptionsOf"/>).
     /// </summary>
-    public sealed record DropdownControl(string Port, string[] Options, string? Default = null, string[]? Labels = null, string? Title = null) : Control(Port);
+    public sealed record DropdownControl(string Port, string[] Options, string? Default = null, string[]? Labels = null, string? Title = null, string[]? MenuLabels = null) : Control(Port);
 
     /// <summary>Several options lit at once, for a list input: none lit is <c>Default</c>.</summary>
     public sealed record MultiSwitchControl(string Port, string[] Options, string[] Default) : Control(Port);
@@ -53,7 +53,7 @@ namespace CompasAcoustics.Grasshopper
 
     /// <summary>
     /// A horizontal slider of fixed stops (<see cref="StepSlider"/>), one per option, ``Labels`` under them: the input's value is the
-    /// option of the stop. The component may offer only some stops now (<see cref="ComponentBase.OfferedOptionsOf"/>); the others are
+    /// option of the stop, or the component's choice when ``Port`` is no input. The component may offer only some stops now (<see cref="ComponentBase.OfferedOptionsOf"/>); the others are
     /// grey and the knob never stops there. ``Title`` replaces the input's name above it.
     /// </summary>
     public sealed record StepSliderControl(string Port, string[] Options, string? Default = null, string[]? Labels = null, string? Title = null) : Control(Port);
@@ -98,8 +98,9 @@ namespace CompasAcoustics.Grasshopper
         }
 
         /// <summary>
-        /// What an option of a switch or dropdown reads: its label, else the value with its underscores as spaces (``as_drawn`` reads
-        /// "as drawn"). Only the text shown: the value, which the worker gets and a definition saves, keeps them.
+        /// What an option of a switch or dropdown reads: its label, else the value with its underscores as spaces and a capital
+        /// first letter (``as_drawn`` reads "As drawn", ``udfa`` "UDFA"). A value that is no option reads as it is, spaced. Only the
+        /// text shown: the value, which the worker gets and a definition saves, keeps its form.
         /// </summary>
         public static string Label(Control control, string value)
         {
@@ -110,8 +111,19 @@ namespace CompasAcoustics.Grasshopper
                 _ => (Array.Empty<string>(), null),
             };
             var i = Array.IndexOf(options, value);
-            return labels != null && i >= 0 && i < labels.Length ? labels[i] : value.Replace('_', ' ');
+            if (labels != null && i >= 0 && i < labels.Length)
+                return labels[i];
+            var spaced = value.Replace('_', ' ');
+            if (i < 0 || spaced.Length == 0)
+                return spaced;
+            return Acronyms.Contains(value) ? spaced.ToUpperInvariant() : char.ToUpperInvariant(spaced[0]) + spaced.Substring(1);
         }
+
+        private static readonly HashSet<string> Acronyms = new() { "udfa", "btms", "bem" };
+
+        /// <summary>What the opened menu of <paramref name="dropdown"/> reads for the options it offers: its menu labels when it offers its own options.</summary>
+        public static string[] MenuLabels(DropdownControl dropdown, string[] values, string[] labels) =>
+            dropdown.MenuLabels is not { } menu ? labels : values.Select((v, i) => Array.IndexOf(dropdown.Options, v) is var j && j >= 0 && j < menu.Length ? menu[j] : labels[i]).ToArray();
 
         private static bool IsInline(Control? control) => control is ToggleControl { Inline: true } or ButtonControl { Inline: true };
 
@@ -134,6 +146,19 @@ namespace CompasAcoustics.Grasshopper
 
         public static float Height(IReadOnlyList<Control> controls) =>
             controls.Count == 0 ? 0 : Arrange(controls, new RectangleF(0, 0, 1, 0)).Max(b => b.Bounds.Bottom) + Margin;
+
+        /// <summary>
+        /// The controls' area, <paramref name="height"/> tall, and the component's box with them, for Grasshopper's box
+        /// <paramref name="box"/> (its ports and icon): in rows below it, or in a <paramref name="column"/> wide column right of
+        /// it, centred on the ports, which then are as tall as the controls when they need more.
+        /// </summary>
+        public static (RectangleF area, RectangleF box) Place(RectangleF box, float height, float column)
+        {
+            if (column <= 0)
+                return (new RectangleF(box.X, box.Bottom, box.Width, height), new RectangleF(box.X, box.Y, box.Width, box.Height + height));
+            var ports = Math.Max(box.Height, height);
+            return (new RectangleF(box.Right, box.Y + (ports - height) / 2, column, height), new RectangleF(box.X, box.Y, box.Width + column, ports));
+        }
 
         public static List<ControlBox> Arrange(IReadOnlyList<Control> controls, RectangleF body)
         {

@@ -93,14 +93,15 @@ namespace CompasAcoustics.Grasshopper.Tests
         public void TheOctaveSlider_StopsOnlyAtSimulatedOctaves()
         {
             var row = new RectangleF(0, 0, 170, StepSlider.Height);
-            Assert.Equal("1000", StepSlider.Nearest(row, StepSlider.StopX(row, 3, 7) + 4, Octaves, Simulated));
+            var octaves = new StepSliderControl("octave", Octaves, "1000", new[] { "125", "250", "500", "1k", "2k", "4k", "8k" }, "Octave");
+            Assert.Equal("1000", StepSlider.Nearest(row, StepSlider.StopX(row, 3, octaves) + 4, octaves, Simulated));
             // a drag to the far right stops at 4000 Hz: 8000 Hz was not simulated
-            Assert.Equal("4000", StepSlider.Nearest(row, row.Right + 20, Octaves, Simulated));
-            Assert.Equal("8000", StepSlider.Nearest(row, row.Right, Octaves, null));
+            Assert.Equal("4000", StepSlider.Nearest(row, row.Right + 20, octaves, Simulated));
+            Assert.Equal("8000", StepSlider.Nearest(row, row.Right, octaves, null));
             // a definition saved at 8000 Hz shows the knob at 4000 Hz
-            Assert.Equal("4000", StepSlider.Shown(row, "8000", Octaves, Simulated));
-            Assert.Equal("2000", StepSlider.Shown(row, "2000", Octaves, Simulated));
-            Assert.True(StepSlider.StopX(row, 0, 7) < StepSlider.StopX(row, 6, 7));
+            Assert.Equal("4000", StepSlider.Shown(row, "8000", octaves, Simulated));
+            Assert.Equal("2000", StepSlider.Shown(row, "2000", octaves, Simulated));
+            Assert.True(StepSlider.StopX(row, 0, octaves) < StepSlider.StopX(row, 6, octaves));
         }
 
         [Fact]

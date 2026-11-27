@@ -83,10 +83,10 @@ namespace CompasAcoustics.Grasshopper
         internal static readonly string[] Methods = { "geometric", "kirchhoff", "bem" };
         // survey (13 source directions) first, the Lab's default: a quick look; standard (97) is more accurate (see the input's description)
         internal static readonly string[] Presets = { "survey", "standard" };
-        internal static readonly string[] PresetLabels = { "survey (13)", "standard (97)" };
+        internal static readonly string[] PresetLabels = { "Survey (13)", "Standard (97)" };
         internal static readonly string[] BandRanges = { "iso", "extended" };
         // the ranges of compas_acoustics.lab's ISO_BAND_RANGE and EXTENDED_BAND_RANGE, the one-third octave centres simulated
-        internal static readonly string[] BandRangeLabels = { "ISO 100–5000 Hz", "100–8000 Hz" };
+        internal static readonly string[] BandRangeLabels = { "ISO 100-5000 Hz", "100-8000 Hz" };
 
         public ScatteringLabComponent() : base("CA_Scattering_Lab") { }
         protected override string SpecKey => "CA_Scattering_Lab";
@@ -229,8 +229,8 @@ namespace CompasAcoustics.Grasshopper
             var floor = (double)kwargs["floor_db"]!;
             // the result by its guid: the worker holds the results it made, so a change of the direction or the octave sends no levels
             var answer = LabRequests.NamingTheResult(args, a => Worker.Call("polar_balloon", a, kwargs));
-            var (mesh, levels, direction, _) = LabResults.ReadBalloon((IDictionary<string, object?>)answer!);
-            var centre = Value<Point3d>(access, "centre") ?? Point3d.Origin;
+            var (mesh, levels, direction, _, sampleCentre) = LabResults.ReadBalloon((IDictionary<string, object?>)answer!);
+            var centre = LabResults.BalloonCentre(Value<Point3d>(access, "centre"), sampleCentre);
             var move = centre - Point3d.Origin;
             var (corners, faces) = PreviewGeometry.MeshOf(mesh);
             var vertices = corners.Select(v => v + move).ToArray();

@@ -142,24 +142,10 @@ def ambisonics(image, d, accent):
                 image.putpixel((x, y), fill)
 
 
-def graph(image, d, accent):
-    for y in (24, 72):
-        _line(d, [(22, y), (74, 48)], accent)
-    _dot(d, 22, 24, 11, DARK)
-    _dot(d, 22, 72, 11, DARK)
-    _dot(d, 74, 48, 13, accent)
-
-
 def decay(image, d, accent):
     _line(d, [(14, 10), (14, 84), (88, 84)], DARK)
     points = [(16 + 70 * t, 16 + 64 * (1 - math.exp(-4 * t))) for t in [i / 40 for i in range(41)]]
     _line(d, points, accent)
-
-
-def bars(image, d, accent):
-    for x, h in zip((16, 36, 56, 76), (40, 62, 50, 28)):
-        d.rectangle((x - 6, 82 - h, x + 6, 82), fill=accent)
-    _line(d, [(6, 84), (90, 84)], DARK)
 
 
 def chart(image, d, accent):
@@ -176,12 +162,6 @@ def auralise(image, d, accent):
 def play(image, d, accent):
     _ring(d, 48, 48, 40, DARK, W - 2)
     d.polygon([(36, 26), (36, 70), (72, 48)], fill=accent)
-
-
-def channel(image, d, accent):
-    for y in (22, 58):
-        d.rectangle((14, y, 82, y + 16), fill=accent)
-    _line(d, [(8, 10), (8, 86)], DARK)
 
 
 def target(image, d, accent):
@@ -267,10 +247,7 @@ GLYPHS = {
     "CA_Analyse_IR": decay,
     "CA_Audio_Player": play,
     "CA_Auralise": auralise,
-    "CA_Channel": channel,
     "CA_Construct_Material": material,
-    "CA_Deconstruct_IR": bars,
-    "CA_Deconstruct_IR_Graph": graph,
     "CA_Deconstruct_Material": deconstruct_material,
     "CA_Install_Worker": install,
     "CA_Material_Library": library,

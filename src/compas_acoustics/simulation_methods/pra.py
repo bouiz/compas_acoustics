@@ -159,14 +159,14 @@ class Mono(SimulationMethod):
         from compas_acoustics.worker import jobs
 
         if not self.ray_tracing:
-            jobs.progress("image sources")
+            jobs.progress("simulating")
             responses = image_source_rirs(context.geometry, sources, mic_positions, fs, max_order=self.image_source_order, air_absorption=self.air_absorption, air=self.air)
             return self._responses(context, responses, fs), None
 
         lengthen = self.duration is None if lengthen is None else lengthen
         duration = self.duration
         while True:
-            jobs.progress("ray tracing")
+            jobs.progress("simulating")
             run = ray_traced_run(
                 context.geometry,
                 sources,
@@ -199,7 +199,7 @@ class Mono(SimulationMethod):
         rirs = {}
         for m, receiver in enumerate(context.receivers):
             for s, source in enumerate(context.sources):
-                jobs.progress("responses", m * len(context.sources) + s, len(context.sources) * len(context.receivers))
+                jobs.progress("simulating", m * len(context.sources) + s, len(context.sources) * len(context.receivers))
                 key = context.key(source, receiver)
                 rirs[key] = ImpulseResponse(
                     name=key,

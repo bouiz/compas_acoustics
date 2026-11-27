@@ -6,6 +6,7 @@ import sys
 
 import numpy as np
 import pytest
+import soundfile as sf
 from compas.datastructures import Mesh
 from compas.geometry import Frame
 from compas.geometry import Polyline
@@ -21,6 +22,7 @@ from compas_acoustics import MaterialsLibrary
 from compas_acoustics import Receiver
 from compas_acoustics import Scene
 from compas_acoustics import Source
+from compas_acoustics.auraliser import Auraliser
 from compas_acoustics.pb import plain
 from compas_acoustics.worker import api
 
@@ -170,8 +172,8 @@ from compas_acoustics.pb.types import Audio  # noqa: E402
 VIOLA = str(Path(compas_acoustics.__file__).parent / "anechoic_soundfiles_library" / "viola.wav")
 
 
-def decay(channels=1, seconds=0.6, rt=0.5, rate=48000, seed=0, level=1.0, source=None, receiver=None):
-    """An exponentially decaying noise response with a direct sound."""
+def decay(channels=1, seconds=0.6, rt=0.5, rate=48000, seed=0, level=1.0, source=None, receiver=None, sound_file=None):
+    """An exponentially decaying noise response with a direct sound, its source's sound ``sound_file``."""
     rng = np.random.default_rng(seed)
     n = int(seconds * rate)
     envelope = np.exp(-6.9 * np.arange(n) / rate / rt)
@@ -179,52 +181,72 @@ def decay(channels=1, seconds=0.6, rt=0.5, rate=48000, seed=0, level=1.0, source
     raw[100] = 1.0
     raw *= level
     source = source or Source("src", 1, 1, 1.5)
-    source._sound_file = VIOLA
+    source._sound_file = sound_file
     return ImpulseResponse("ir", source, receiver or Receiver("rec", 4, 3, 1.5), raw if channels > 1 else raw[:, 0], rate, generation={"method": "test"})
 
 
 def test_analysis_gives_every_parameter_with_its_units_and_the_two_curves():
-    result = call("analysis", decay())
-    names = [p["name"] for p in result["parameters"]]
-    # STI and G are left out where they cannot be computed (pyrato < 1.0; G needs the simulation's level), LF and LFC
-    # for a response that is not ambisonic
+    result = call("analysis", [decay()])
+    assert len(result["analyses"]) == 1
+    analysis = result["analyses"][0]
+    names = [p["name"] for p in analysis["parameters"]]
+    # STI and G are left out where they cannot be computed (pyrato < 1.0; G needs the simulation's level), LF
+    # for a response that is not ambisonic, LFC always
     optional = ("STI", "G", "SPL", "LF", "LFC")
     assert [n for n in api.PARAMETERS if n not in optional] == [n for n in names if n not in optional]
-    t30 = next(p for p in result["parameters"] if p["name"] == "T30")
+    t30 = next(p for p in analysis["parameters"] if p["name"] == "T30")
     assert t30["title"] == "Reverberation Time (T30)" and t30["x_unit"] == "Frequency (Hz)" and t30["y_unit"] == "Time (s)"
     assert t30["x_scale"] == "bands" and len(t30["values"]) == 1 and len(t30["values"][0]) == len(t30["frequencies"])
     assert isinstance(t30["overall"], float)
-    time, frequency = result["time"], result["frequency"]
+    time, frequency = analysis["time"], analysis["frequency"]
     assert time["x_scale"] == "linear" and time["y_unit"] == "Level (dB)" and time["channels"] == []
     assert frequency["x_scale"] == "log" and frequency["frequencies"][0] >= 20 and frequency["frequencies"][-1] <= 20000
     assert len(time["values"][0]) == len(time["frequencies"])
     assert isinstance(result["warnings"], list)
 
 
+def test_analysis_of_several_responses_gives_one_analysis_each_in_order():
+    first, second = decay(rt=0.3), decay(rt=0.9, seed=1)
+    result = call("analysis", [first, second])
+    t30 = [next(p for p in a["parameters"] if p["name"] == "T30")["overall"] for a in result["analyses"]]
+    assert len(t30) == 2 and t30[0] < t30[1]
+    assert call("analysis", [second, first])["analyses"][0]["parameters"] == result["analyses"][1]["parameters"]
+
+
 def test_analysis_of_a_binaural_response_plots_both_ears():
-    result = call("analysis", decay(channels=2))
-    assert result["time"]["channels"] == ["left", "right"] and len(result["time"]["values"]) == 2
-    assert result["time"]["title"] == "Impulse Response (left, right)"
+    time = call("analysis", [decay(channels=2)])["analyses"][0]["time"]
+    assert time["channels"] == ["left", "right"] and len(time["values"]) == 2
+    assert time["title"] == "Impulse Response (left, right)"
+
+
+def test_analysis_of_several_channels_notes_the_first_channel_instead_of_warning():
+    result = call("analysis", [decay(channels=2)])
+    note = "Impulse response has 2 channels; analysing channel 0 only."
+    assert result["notes"] == [note]
+    assert note not in result["warnings"]
 
 
 def test_analysis_of_an_ambisonic_response_plots_w():
-    result = call("analysis", decay(channels=4))
-    assert result["frequency"]["channels"] == ["W"] and len(result["frequency"]["values"]) == 1
+    frequency = call("analysis", [decay(channels=4)])["analyses"][0]["frequency"]
+    assert frequency["channels"] == ["W"] and len(frequency["values"]) == 1
+
+
+def test_analysis_leaves_lfc_out_and_keeps_lf_for_an_ambisonic_response():
+    ir = decay(channels=4)
+    ambisonic = ImpulseResponse("ir", ir.source, ir.receiver, ir.ir, ir.sampling_rate, generation={"method": "test"}, ambisonic_order=1, normalization="sn3d", channel_order="acn")
+    names = [p["name"] for p in call("analysis", [ambisonic])["analyses"][0]["parameters"]]
+    assert "LF" in names and "LFC" not in names
 
 
 def test_analysis_linear_time_scale_ends_60_db_down():
-    db = call("analysis", decay(seconds=2.0), "db")["time"]
-    linear = call("analysis", decay(seconds=2.0), time_scale="linear")["time"]
+    db = call("analysis", [decay(seconds=2.0)], "db")["analyses"][0]["time"]
+    linear = call("analysis", [decay(seconds=2.0)], time_scale="linear")["analyses"][0]["time"]
     assert linear["y_unit"] == "Amplitude" and len(linear["frequencies"]) < len(db["frequencies"])
 
 
 def test_analysis_rejects_an_unknown_time_scale():
     with pytest.raises(ValueError, match="db.*linear"):
-        api.analysis(decay(), "log")
-
-
-def group(irs, branch="{0}", sounds=None):
-    return {"branch": branch, "irs": irs, "sounds": sounds if sounds is not None else [None] * len(irs)}
+        api.analysis([decay()], "log")
 
 
 def two_sources_one_receiver(**kwargs):
@@ -232,69 +254,123 @@ def two_sources_one_receiver(**kwargs):
     return [decay(source=Source("a", 1, 1, 1.5), receiver=receiver, level=1.0, **kwargs), decay(source=Source("b", 2, 1, 1.5), receiver=receiver, level=0.25, seed=1, **kwargs)]
 
 
-def test_auralise_renders_one_signal_per_source_and_receiver():
-    result = call("auralise", [group(two_sources_one_receiver(), "{0;1}")])
-    signals = result["signals"]
-    assert len(signals) == 2
-    assert all(s["branch"] == "{0;1}" for s in signals)
-    assert all(isinstance(s["audio"], Audio) and s["audio"].format == "mono" for s in signals)
-    assert signals[0]["audio"].sampling_rate == 48000
+@pytest.fixture
+def sound(tmp_path):
+    path = tmp_path / "noise.wav"
+    sf.write(path, np.random.default_rng(3).normal(size=int(0.2 * 48000)) * 0.1, 48000)
+    return str(path)
 
 
-def test_auralise_mixes_the_sources_of_a_receiver():
-    result = call("auralise", [group(two_sources_one_receiver())], mix_sources=True)
+def test_auralise_renders_the_chosen_pairs_only(sound):
+    result = call("auralise", two_sources_one_receiver(), sound, [1], ["0_1"])
     assert len(result["signals"]) == 1
+    signal = result["signals"][0]
+    assert signal["label"] == "0_1"
+    assert isinstance(signal["audio"], Audio) and signal["audio"].format == "mono" and signal["audio"].sampling_rate == 48000
 
 
-def test_auralise_relative_level_applies_one_gain_to_all():
-    result = call("auralise", [group(two_sources_one_receiver())], "relative")
-    assert result["peak_dbfs"] == pytest.approx(-1.0, abs=0.05)
-    loud, quiet = (np.max(np.abs(s["audio"].samples)) for s in result["signals"])
-    individual = call("auralise", [group(two_sources_one_receiver())], "individual")
-    assert [np.max(np.abs(s["audio"].samples)) for s in individual["signals"]] == pytest.approx([10 ** (-1 / 20)] * 2, rel=1e-3)
-    assert quiet < loud
-
-
-def test_auralise_takes_the_given_sounds():
+def test_auralise_relative_gain_comes_from_every_connected_pair(sound):
     irs = two_sources_one_receiver()
-    result = call("auralise", [group(irs, sounds=[VIOLA, VIOLA])])
-    assert len(result["signals"]) == 2
+    one = call("auralise", irs, sound, [1], ["0_1"])
+    both = call("auralise", irs, sound, [0, 1], ["0_0", "0_1"])
+    np.testing.assert_array_equal(one["signals"][0]["audio"].samples, both["signals"][1]["audio"].samples)
+    assert one["peak_dbfs"] < -1.5
+    assert both["peak_dbfs"] == pytest.approx(-1.0, abs=0.05)
 
 
-def test_auralise_refuses_mixed_formats_at_one_receiver():
-    receiver = Receiver("rec", 4, 3, 1.5)
-    irs = [decay(receiver=receiver), decay(channels=2, receiver=receiver, source=Source("b", 2, 1, 1.5))]
-    with pytest.raises(ValueError, match="mix responses of one format"):
-        api.auralise([group(irs)], mix_sources=True)
+def test_auralise_individual_peaks_each_chosen_at_minus_one(sound):
+    result = call("auralise", two_sources_one_receiver(), sound, [1], ["0_1"], "individual")
+    assert np.max(np.abs(result["signals"][0]["audio"].samples)) == pytest.approx(10 ** (-1 / 20), rel=1e-3)
 
 
-def test_auralise_refuses_an_unknown_level():
+def test_auralise_none_leaves_the_convolution_as_it_is(sound):
+    irs = two_sources_one_receiver()
+    result = call("auralise", irs, sound, [1], ["0_1"], "none")
+    np.testing.assert_array_equal(result["signals"][0]["audio"].samples, Auraliser([irs[1]], anechoic_sounds=[sound]).convolve())
+
+
+@pytest.mark.parametrize("name", ["female_speech", "male_speech", "viola", "guitar", "castanets"])
+def test_auralise_takes_a_bundled_sound_by_its_name(name):
+    irs = two_sources_one_receiver()
+    named = call("auralise", irs, name, [0], ["0_0"])
+    path = call("auralise", irs, str(Path(VIOLA).with_name(name + ".wav")), [0], ["0_0"])
+    np.testing.assert_array_equal(named["signals"][0]["audio"].samples, path["signals"][0]["audio"].samples)
+    assert named["peak_dbfs"] == path["peak_dbfs"]
+
+
+def test_auralise_refuses_a_missing_sound_file(tmp_path):
+    with pytest.raises(ValueError, match="does not exist"):
+        api.auralise(two_sources_one_receiver(), str(tmp_path / "nowhere.wav"), [0], ["0_0"])
+    with pytest.raises(ValueError, match="^The sound file Viola does not exist. Bundled sounds: female_speech, male_speech, viola, guitar, castanets.$"):
+        api.auralise(two_sources_one_receiver(), "Viola", [0], ["0_0"])
+
+
+def test_auralise_refuses_an_unknown_level(sound):
     with pytest.raises(ValueError, match="relative"):
-        api.auralise([group(two_sources_one_receiver())], "loud")
+        api.auralise(two_sources_one_receiver(), sound, [0], ["0_0"], "loud")
 
 
-def test_auralise_saves_with_the_components_naming(tmp_path):
-    call("auralise", [group(two_sources_one_receiver())], save_folder=str(tmp_path), save_name="take")
-    assert sorted(p.name for p in tmp_path.glob("*.wav")) == ["take_mic_0_0.wav", "take_mic_0_1.wav"]
-    call("auralise", [group(two_sources_one_receiver())], mix_sources=True, save_folder=str(tmp_path))
-    assert (tmp_path / "convolved_sound_mic_0.wav").exists()
+def test_auralise_takes_the_sound_of_a_source_that_has_one(sound):
+    irs = two_sources_one_receiver()
+    irs[1] = decay(source=Source("b", 2, 1, 1.5), receiver=irs[1].receiver, level=0.25, seed=1, sound_file=VIOLA)
+    result = call("auralise", irs, sound, [0, 1], ["0_0", "0_1"], "none")
+    np.testing.assert_array_equal(result["signals"][0]["audio"].samples, Auraliser([irs[0]], anechoic_sounds=[sound]).convolve())
+    np.testing.assert_array_equal(result["signals"][1]["audio"].samples, Auraliser([irs[1]], anechoic_sounds=[VIOLA]).convolve())
 
 
-def test_save_impulse_responses_numbers_them_as_auralise_numbers_its_signals(tmp_path):
-    result = call("save_impulse_responses", [group(two_sources_one_receiver())], str(tmp_path), save_name="rir")
+def test_auralise_needs_no_sound_when_every_chosen_source_has_one():
+    irs = two_sources_one_receiver()
+    irs[1] = decay(source=Source("b", 2, 1, 1.5), receiver=irs[1].receiver, level=0.25, seed=1, sound_file=VIOLA)
+    result = call("auralise", irs, None, [1], ["0_1"], "individual")
+    assert [s["label"] for s in result["signals"]] == ["0_1"]
+    # the relative gain leaves out a connected response with no sound at all
+    relative = call("auralise", irs, None, [1], ["0_1"])
+    assert relative["peak_dbfs"] == pytest.approx(-1.0, abs=0.05)
+
+
+def test_auralise_relative_gain_convolves_each_connected_response_with_its_own_sound(sound):
+    irs = two_sources_one_receiver()
+    irs[0] = decay(source=Source("a", 1, 1, 1.5), receiver=irs[0].receiver, level=1.0, sound_file=VIOLA)
+    alone = call("auralise", irs, sound, [1], ["0_1"], "none")["signals"][0]["audio"].samples
+    relative = call("auralise", irs, sound, [1], ["0_1"])["signals"][0]["audio"].samples
+    loudest = max(np.max(np.abs(Auraliser([irs[0]], anechoic_sounds=[VIOLA]).convolve())), np.max(np.abs(alone)))
+    np.testing.assert_allclose(relative, alone * 10 ** (-1 / 20) / loudest, rtol=1e-6)
+
+
+def test_auralise_without_a_sound_names_the_response_that_has_none():
+    with pytest.raises(ValueError, match="^No sound to auralise 0_1: its source 'b' has no sound and Auralise has none.$"):
+        api.auralise(two_sources_one_receiver(), None, [1], ["0_1"])
+
+
+def test_auralise_saves_the_chosen_under_their_labels(sound, tmp_path):
+    folder = tmp_path / "out"
+    folder.mkdir()
+    call("auralise", two_sources_one_receiver(), sound, [1], ["0_1"], save_folder=str(folder), save_name="take")
+    assert [p.name for p in folder.glob("*.wav")] == ["take_mic_0_1.wav"]
+    call("auralise", two_sources_one_receiver(), sound, [0], ["0_0"], save_folder=str(folder))
+    assert (folder / "convolved_sound_mic_0_0.wav").exists()
+
+
+def test_save_impulse_responses_saves_the_chosen_under_their_labels(tmp_path):
+    result = call("save_impulse_responses", two_sources_one_receiver(), [0, 1], ["0_0", "0_1"], str(tmp_path), save_name="rir")
     assert sorted(p.name for p in tmp_path.glob("*.wav")) == ["rir_mic_0_0.wav", "rir_mic_0_1.wav"]
     assert sorted(p.name for p in tmp_path.glob("*.json")) == ["rir_mic_0_0.json", "rir_mic_0_1.json"]
     assert sorted(result["files"]) == sorted(str(p) for p in tmp_path.glob("*.wav"))
-    call("save_impulse_responses", [group(two_sources_one_receiver())], str(tmp_path))
+    call("save_impulse_responses", two_sources_one_receiver(), [1], ["0_1"], str(tmp_path))
     assert (tmp_path / "impulse_response_mic_0_1.wav").exists()
+
+
+def test_save_impulse_responses_relative_gain_from_every_connected_response(tmp_path):
+    call("save_impulse_responses", two_sources_one_receiver(), [1], ["0_1"], str(tmp_path), save_name="rir")
+    written = sf.read(tmp_path / "rir_mic_0_1.wav")[0]
+    assert np.max(np.abs(written)) == pytest.approx(0.25 * 10 ** (-1 / 20), rel=1e-6)
+    assert (tmp_path / "rir_mic_0_1.json").exists()
 
 
 @pytest.mark.parametrize("level, peaks", [("relative", [10 ** (-1 / 20), 0.25 * 10 ** (-1 / 20)]), ("individual", [10 ** (-1 / 20)] * 2), ("none", [1.0, 0.25])])
 def test_save_impulse_responses_follows_the_level(tmp_path, level, peaks):
-    import soundfile as sf
-
     irs = two_sources_one_receiver()
-    call("save_impulse_responses", [group(irs)], str(tmp_path), level, "rir")
+    call("save_impulse_responses", irs, [0, 1], ["0_0", "0_1"], str(tmp_path), level, "rir")
     written = [sf.read(tmp_path / f"rir_mic_0_{j}.wav")[0] for j in range(2)]
     assert [np.max(np.abs(w)) for w in written] == pytest.approx(peaks, rel=1e-6)
     for j, ir in enumerate(irs):
@@ -303,7 +379,7 @@ def test_save_impulse_responses_follows_the_level(tmp_path, level, peaks):
 
 def test_save_impulse_responses_refuses_an_unknown_level(tmp_path):
     with pytest.raises(ValueError, match="relative"):
-        api.save_impulse_responses([group(two_sources_one_receiver())], str(tmp_path), "loud")
+        api.save_impulse_responses(two_sources_one_receiver(), [0], ["0_0"], str(tmp_path), "loud")
 
 
 def test_play_refuses_a_missing_file():
@@ -409,28 +485,6 @@ def test_regularized_fitness_matches_the_function():
 
 
 # ---------------------------------------------------------------------------
-# What the Check Channel component asks about a file
-# ---------------------------------------------------------------------------
-
-
-def test_sound_info_reads_the_channels_of_any_soundfile_format(tmp_path):
-    import soundfile as sf
-
-    path = tmp_path / "s.flac"
-    sf.write(str(path), np.zeros((100, 3)), 22050)
-    assert call("sound_info", str(path)) == {"channels": 3}
-    assert call("sound_info", VIOLA)["channels"] >= 1
-
-
-def test_sound_info_of_a_missing_or_unreadable_file_is_a_value_error(tmp_path):
-    with pytest.raises(ValueError, match="does not exist"):
-        api.sound_info(str(tmp_path / "none.wav"))
-    (tmp_path / "text.wav").write_text("not audio")
-    with pytest.raises(ValueError, match="Cannot read"):
-        api.sound_info(str(tmp_path / "text.wav"))
-
-
-# ---------------------------------------------------------------------------
 # Playback control
 # ---------------------------------------------------------------------------
 
@@ -489,10 +543,24 @@ def test_sound_samples_reads_a_file_as_audio(tmp_path):
 
 
 def test_the_worker_leaves_lf_out_for_a_mono_response():
-    names = [p["name"] for p in call("analysis", decay())["parameters"]]
+    names = [p["name"] for p in call("analysis", [decay()])["analyses"][0]["parameters"]]
     assert "LF" not in names and "LFC" not in names
     assert list(api.PARAMETERS)[-2:] == ["LF", "LFC"]
     assert api.PARAMETERS["LF"] == ("Lateral Energy Fraction (LF)", "Frequency (Hz)", "Fraction (0-1)")
+
+
+@pytest.mark.parametrize("name", ["female_speech", "male_speech", "viola", "guitar", "castanets"])
+def test_make_source_takes_a_bundled_sound_by_its_name(name):
+    source = call("make_source", "s", [0, 0, 0], sound_file=name)
+    assert source.sound_file == str(Path(VIOLA).with_name(name + ".wav"))
+
+
+def test_make_source_takes_a_sound_file_and_refuses_a_missing_one(tmp_path):
+    assert call("make_source", "s", [0, 0, 0], None, None, VIOLA).sound_file == VIOLA
+    assert call("make_source", "s", [0, 0, 0]).sound_file is None
+    assert call("make_source", "s", [0, 0, 0], sound_file="").sound_file is None
+    with pytest.raises(ValueError, match="does not exist"):
+        api.make_source("s", [0, 0, 0], sound_file=str(tmp_path / "nowhere.wav"))
 
 
 def test_make_source_takes_the_level_at_1_m():
@@ -916,3 +984,98 @@ def test_the_worker_lets_the_least_recently_used_results_go_beyond_its_budget(mo
     assert api.polar_balloon(str(second.guid))["mesh"] is not None
     api.polar_balloon(first)  # sent again, it is held again
     assert api.polar_balloon(str(first.guid))["mesh"] is not None
+
+
+def _fixture_result():
+    import base64
+
+    return pb_load_bts(base64.b64decode((Path(__file__).parent / "pb_fixtures" / "scattering_result.b64").read_text()))
+
+
+def _centre_of_a_run(monkeypatch, sample):
+    import compas_acoustics.lab
+
+    made = _fixture_result()
+    monkeypatch.setattr(compas_acoustics.lab, "measure_scattering", lambda *args, **kwargs: made)
+    return call("run_scattering_lab", sample, preset="survey")["result"].generation["sample_centre"]
+
+
+def test_a_run_records_the_centre_of_a_sample_off_the_origin(monkeypatch):
+    from compas.geometry import Translation
+
+    box = call("make_scattering_sample", _closed_box().transformed(Translation.from_vector([3, 1, 0])))
+    # the footprint's centroid in x and y, the top in z (the box's bottom is moved to z = -baseplate)
+    assert _centre_of_a_run(monkeypatch, box) == pytest.approx([3.6, 1.4, 0.29])
+    panel = call("make_scattering_sample", _wavy_panel().transformed(Translation.from_vector([2, 3, 0.5])))
+    assert _centre_of_a_run(monkeypatch, panel) == pytest.approx([2.0, 3.0, 0.08])
+
+
+def test_a_run_records_the_centre_of_a_sample_given_its_plane_where_the_sample_is_drawn(monkeypatch):
+    from compas.geometry import Transformation
+
+    # the box of the floor at x 3 to 4.2, y 1 to 1.8, put on a wall at y = 4 facing -y
+    frame = Frame([2, 4, 1.0], [1, 0, 0], [0, 0, 1])
+    floor_box = _closed_box().transformed(Transformation.from_frame_to_frame(Frame.worldXY(), Frame([3, 1, 0], [1, 0, 0], [0, 1, 0])))
+    wall = call("make_scattering_sample", floor_box.transformed(Transformation.from_frame_to_frame(Frame.worldXY(), frame)), frame=frame)
+    # drawn, as the lab measures it, on the world XY plane where it lay before it was put on the wall
+    assert _centre_of_a_run(monkeypatch, wall) == pytest.approx([3.6, 1.4, 0.29])
+
+
+def test_polar_balloon_gives_the_centre_its_result_records():
+    result = _fixture_result()
+    assert call("polar_balloon", result, preview=0, octave=result.octave_bands[0])["centre"] is None
+    result.generation["sample_centre"] = [1.0, 2.0, 0.3]
+    assert call("polar_balloon", result, preview=0, octave=result.octave_bands[0])["centre"] == [1.0, 2.0, 0.3]
+
+
+def _box_at_3_1_with_a_bottom_corner_at(z):
+    from compas.geometry import Translation
+
+    box = _closed_box().transformed(Translation.from_vector([3, 1, 0]))
+    corner = next(v for v in box.vertices() if box.vertex_attribute(v, "z") == 0)
+    box.vertex_attribute(corner, "z", z)
+    return box
+
+
+@pytest.mark.parametrize("z", [1e-8, -1e-8, -5e-7])
+def test_the_centre_takes_a_bottom_as_flat_as_the_lab_does(monkeypatch, z):
+    sample = call("make_scattering_sample", _box_at_3_1_with_a_bottom_corner_at(z))
+    centre = _centre_of_a_run(monkeypatch, sample)
+    assert centre[:2] == pytest.approx([3.6, 1.4], abs=1e-6)
+    assert centre[2] == pytest.approx(0.29 - min(z, 0.0), abs=1e-9)
+
+
+def test_a_centre_that_cannot_be_found_never_costs_the_run(monkeypatch):
+    import compas_acoustics.lab
+
+    def broken(sample):
+        raise ZeroDivisionError("Weights sum to zero")
+
+    made = _fixture_result()
+    monkeypatch.setattr(compas_acoustics.lab, "measure_scattering", lambda *args, **kwargs: made)
+    monkeypatch.setattr(api, "_sample_centre", broken)
+    out = call("run_scattering_lab", call("make_scattering_sample", _closed_box()), preset="survey")
+    assert out["result"].guid == made.guid and "sample_centre" not in out["result"].generation
+    assert out["scattering_coefficients"] == made.scattering_coefficients
+
+
+def test_auralise_relative_names_the_connected_pairs_it_leaves_out_of_the_gain():
+    irs = two_sources_one_receiver()
+    irs[1] = decay(source=Source("b", 2, 1, 1.5), receiver=irs[1].receiver, level=0.25, seed=1, sound_file=VIOLA)
+    result = call("auralise", irs, None, [1], ["0_1"])
+    assert "Left out of the relative level, no sound on their Source or on Auralise: source 'a' to receiver 'rec'." in result["warnings"]
+    irs[0] = decay(source=Source("a", 1, 1, 1.5), receiver=irs[0].receiver, sound_file=VIOLA)
+    assert not [w for w in call("auralise", irs, None, [1], ["0_1"])["warnings"] if w.startswith("Left out")]
+
+
+def test_a_sources_missing_sound_file_says_to_choose_it_again_on_the_source(tmp_path):
+    missing = str(tmp_path / "moved.wav")
+    with pytest.raises(ValueError, match=r"^The sound file .*moved\.wav does not exist\. .*Choose it again on the Source's Anechoic sound dropdown\.$"):
+        api.make_source("s", [0, 0, 0], sound_file=missing)
+    irs = two_sources_one_receiver()
+    irs[0].source._sound_file = missing  # a file moved since the source was made
+    with pytest.raises(ValueError, match=r"Choose it again on the Source's Anechoic sound dropdown\.$"):
+        api.auralise(irs, None, [0], ["0_0"])
+    # Auralise's own sound keeps its wording
+    with pytest.raises(ValueError, match=r"^The sound file .*moved\.wav does not exist\. Bundled sounds: [a-z_, ]+\.$"):
+        api.auralise(two_sources_one_receiver(), missing, [0], ["0_0"])

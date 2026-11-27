@@ -571,13 +571,13 @@ def test_the_hybrid_reports_its_stages(monkeypatch):
 
     stages = recorded_stages(monkeypatch)
     scene().simulate(Ambisonics(tail="eyring", late_envelope=False))
-    assert [s for s in dict.fromkeys(stages)] == ["references", "image sources", "rendering"]
+    assert [s for s in dict.fromkeys(stages)] == ["references", "image sources", "simulating"]
 
 
 def test_mono_reports_its_stages(monkeypatch):
     stages = recorded_stages(monkeypatch)
     scene().simulate(Mono(image_source_order=1, ray_tracing=False))
-    assert list(dict.fromkeys(stages)) == ["image sources", "responses"]
+    assert list(dict.fromkeys(stages)) == ["simulating"]
 
 
 def test_the_ray_field_reports_each_source(monkeypatch):

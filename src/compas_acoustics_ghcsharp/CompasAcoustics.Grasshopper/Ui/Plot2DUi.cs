@@ -124,33 +124,6 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>The font of the compact chart's labels.</summary>
         public static readonly Font Tiny = new(FontFamily.GenericSansSerif, 5f);
 
-        /// <summary>The compact chart in <paramref name="area"/>, its left margin fitted to its three value labels.</summary>
-        public static Chart FittedCompact(ParameterGoo.Content content, RectangleF area)
-        {
-            var first = ChartLayout.Build(content, area, compact: true);
-            var width = first.YTicks.Select(t => GH_FontServer.StringWidth(t.Text, Tiny)).DefaultIfEmpty(0).Max();
-            return ChartLayout.Build(content, area, compact: true, left: 2 + width + ChartLayout.TickGap);
-        }
-
-        /// <summary>Deconstruct Parameter's strip: a line through a dot per band, the bands below, three values beside.</summary>
-        public static void DrawCompact(Graphics g, Chart chart)
-        {
-            Axes(g, chart.Plot, chart.YTicks.Select(t => (t.Y, t.Text)), chart.XTicks.Select(t => (t.X, t.Text)), compact: true);
-            var state = g.SmoothingMode;
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-            var color = ChannelColors[0];
-            foreach (var line in chart.Lines)
-            {
-                if (line.Length > 1)
-                    using (var pen = new Pen(color, 1.2f))
-                        g.DrawLines(pen, line);
-                using var dot = new SolidBrush(color);
-                foreach (var point in line)
-                    g.FillEllipse(dot, point.X - 1.6f, point.Y - 1.6f, 3.2f, 3.2f);
-            }
-            g.SmoothingMode = state;
-        }
-
         /// <summary>
         /// A chart's axes: a grid line and label per value, the labels below the plot (with a tick each unless
         /// <paramref name="compact"/>), and the plot's frame; in <see cref="Tiny"/> when compact, else in <see cref="Small"/>.
@@ -179,9 +152,9 @@ namespace CompasAcoustics.Grasshopper
     /// <summary>Plot 2D's body: one chart per parameter, stacked, resized by the corner grip, values in the tooltip.</summary>
     public sealed class Plot2DUi : ComponentUi
     {
-        private const float MinWidth = 160;
         private readonly Dictionary<(ParameterGoo.Content, RectangleF), Chart> _cache = new();
         private bool _resizing;
+        private RectangleF _box;
 
         public Plot2DUi(Plot2DComponent owner) : base(owner) { }
 
@@ -191,12 +164,13 @@ namespace CompasAcoustics.Grasshopper
 
         protected override float ExtraHeight => Plot2DLayout.BodyHeight(Plot.Charts.Count, Plot.ChartSize);
 
-        protected override void Layout()
+        protected override float ControlColumn(RectangleF box)
         {
-            base.Layout();
-            var b = Bounds;
-            Bounds = new RectangleF(b.X, b.Y, Math.Max(b.Width, Plot.ChartSize.Width), b.Height);
+            _box = box;
+            return Plot2DLayout.SelectColumn(box, Plot.ChartSize);
         }
+
+        protected override RectangleF ArrangedIn(RectangleF area) => Plot2DLayout.SelectArea(area);
 
         private RectangleF Body => new(Bounds.X, Bounds.Bottom - ExtraHeight, Bounds.Width, ExtraHeight);
 
@@ -225,11 +199,25 @@ namespace CompasAcoustics.Grasshopper
                 g.FillRectangle(Brushes.White, Slot(0));
                 g.DrawString("connect a parameter, or the time or frequency output of Analyse Impulse Response", font, Brushes.Gray, Slot(0));
             }
+            DrawDescription(g);
             for (var i = 0; i < Plot.Charts.Count; i++)
                 ChartPainter.Draw(g, ChartOf(i), Slot(i));
             Painter.Capsule(g, Plot2DLayout.SaveButton(Body), Plot.Charts.Count == 0 ? GH_Palette.Hidden : _saving ? GH_Palette.Grey : GH_Palette.Black,
                 "Save", Selected, Owner.Locked);
             Painter.DrawGrip(g, Body);
+        }
+
+        private static readonly Font DescriptionFont = new(FontFamily.GenericSansSerif, 9f);
+
+        private void DrawDescription(Graphics g)
+        {
+            var area = Plot2DLayout.DescriptionArea(ControlArea);
+            var text = PlotSelection.Description(Plot.Choice("select"));
+            if (area.Width < 20 || text.Length == 0)
+                return;
+            using var format = new StringFormat { Trimming = StringTrimming.EllipsisWord, FormatFlags = StringFormatFlags.LineLimit };
+            using var brush = new SolidBrush(Plot.ControlEnabled("select") ? Color.DimGray : Color.Silver);
+            g.DrawString(text, DescriptionFont, brush, area, format);
         }
 
         protected override GH_ObjectResponse? RespondToExtraMouseDown(GH_Canvas sender, GH_CanvasMouseEvent e)
@@ -253,7 +241,7 @@ namespace CompasAcoustics.Grasshopper
             if (!_resizing)
                 return base.RespondToMouseMove(sender, e);
             // the width follows the mouse, the height keeps the chart's aspect ratio: a resize does not distort the charts
-            Plot.ChartSize = Plot2DLayout.Resize(Plot.ChartSize, e.CanvasLocation.X - Bounds.X, MinWidth);
+            Plot.ChartSize = Plot2DLayout.Resize(Plot.ChartSize, e.CanvasLocation.X - Bounds.X, Plot2DLayout.MinChartWidth(_box));
             ExpireLayout();
             sender.Invalidate();
             return GH_ObjectResponse.Handled;
@@ -326,29 +314,6 @@ namespace CompasAcoustics.Grasshopper
                 return;
             }
             base.SetupTooltip(canvasPoint, e);
-        }
-    }
-
-    /// <summary>Deconstruct Parameter's body: its controls, and a compact chart when it holds one parameter per band.</summary>
-    public sealed class ParameterStripUi : ComponentUi
-    {
-        private const float Height = ChartLayout.StripHeight;
-
-        public ParameterStripUi(DeconstructParameterComponent owner) : base(owner) { }
-
-        private DeconstructParameterComponent Component => (DeconstructParameterComponent)Owner;
-
-        protected override float ExtraHeight => Component.Strip != null ? Height : 0;
-
-        protected override void RenderExtra(GH_Canvas canvas, Graphics g)
-        {
-            if (Component.Strip is not { } p)
-                return;
-            var area = ExtraArea;
-            g.DrawString(ChartLayout.StripHeaderText(p), ChartPainter.Small, Brushes.Black, area.Left + 3, area.Top + 1);
-            var strip = ChartLayout.StripArea(area);
-            g.FillRectangle(Brushes.White, strip);
-            ChartPainter.DrawCompact(g, ChartPainter.FittedCompact(p, strip));
         }
     }
 }

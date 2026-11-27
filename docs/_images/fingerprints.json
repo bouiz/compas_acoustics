@@ -12,9 +12,11 @@
       ]
     },
     "CA_Analyse_IR": {
-      "hash": "fa7cc4a62860",
+      "hash": "05ecadba18ab",
       "inputs": [
-        "ir"
+        "irs",
+        "source_idx",
+        "receiver_idx"
       ],
       "outputs": [
         "parameters",
@@ -30,24 +32,15 @@
       "outputs": []
     },
     "CA_Auralise": {
-      "hash": "1a0238be0596",
+      "hash": "ee2e0bfa9aeb",
       "inputs": [
         "irs",
-        "anechoic_sounds",
-        "mix_sources"
-      ],
-      "outputs": [
-        "signals",
-        "sampling_rate"
-      ]
-    },
-    "CA_Channel": {
-      "hash": "e7725a50648b",
-      "inputs": [
+        "source_idx",
+        "receiver_idx",
         "sound"
       ],
       "outputs": [
-        "channels"
+        "signals"
       ]
     },
     "CA_Construct_Material": {
@@ -60,33 +53,6 @@
       ],
       "outputs": [
         "material"
-      ]
-    },
-    "CA_Deconstruct_IR": {
-      "hash": "03b0f0502ec4",
-      "inputs": [
-        "parameters"
-      ],
-      "outputs": [
-        "parameter",
-        "name",
-        "values",
-        "overall",
-        "frequencies"
-      ]
-    },
-    "CA_Deconstruct_IR_Graph": {
-      "hash": "386243f5aa54",
-      "inputs": [
-        "ir_graph",
-        "source_idx",
-        "receiver_idx"
-      ],
-      "outputs": [
-        "ir",
-        "sources",
-        "receivers",
-        "edges"
       ]
     },
     "CA_Deconstruct_Material": {
@@ -213,7 +179,7 @@
       ]
     },
     "CA_Simulate_Ambisonics": {
-      "hash": "60ce17945fdb",
+      "hash": "c1bd7f18a694",
       "inputs": [
         "scene",
         "tail",
@@ -223,15 +189,14 @@
         "late_envelope",
         "n_rays",
         "seed",
-        "normalize",
         "run"
       ],
       "outputs": [
-        "ambisonic_ir_graph"
+        "irs"
       ]
     },
     "CA_Simulate_Binaural": {
-      "hash": "fc890ff3d2f0",
+      "hash": "88919b941529",
       "inputs": [
         "scene",
         "tail",
@@ -241,16 +206,15 @@
         "late_envelope",
         "n_rays",
         "seed",
-        "normalize",
         "hrtf",
         "run"
       ],
       "outputs": [
-        "binaural_ir_graph"
+        "irs"
       ]
     },
     "CA_Simulate_Mono": {
-      "hash": "9a59b5cea4a7",
+      "hash": "a5837fea7469",
       "inputs": [
         "scene",
         "ism_order",
@@ -258,20 +222,20 @@
         "n_rays",
         "duration",
         "seed",
-        "normalize"
+        "run"
       ],
       "outputs": [
-        "mono_ir_graph"
+        "irs"
       ]
     },
     "CA_Source": {
-      "hash": "571d634f3573",
+      "hash": "22bd2f0f4f51",
       "inputs": [
         "position",
         "name",
         "direction",
-        "sound_file",
-        "spl"
+        "spl",
+        "sound"
       ],
       "outputs": [
         "source"
@@ -350,7 +314,7 @@
     }
   },
   "ghx": {
-    "simple_simulation_shoebox": "ca7b1eec4290"
+    "simple_simulation_shoebox": "dc3e0d506e0c"
   },
   "py": {
     "obj": "59d1fe9fefeb",

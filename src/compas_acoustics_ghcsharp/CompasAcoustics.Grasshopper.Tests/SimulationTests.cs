@@ -11,7 +11,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void Mono_LeavesUnsetInputsOut_AndAlwaysAbsorbsInAir()
         {
-            var settings = SimulationSettings.Mono(null, true, null, null, 7, null, out var ignored);
+            var settings = SimulationSettings.Mono(null, true, null, null, 7, out var ignored);
             Assert.Equal(new Dictionary<string, object?> { ["ray_tracing"] = true, ["air_absorption"] = true, ["seed"] = 7L }, settings);
             Assert.Empty(ignored);
         }
@@ -19,19 +19,24 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void Mono_PassesGivenInputsUnderTheMethodsNames()
         {
-            var settings = SimulationSettings.Mono(2, true, 1000, 1.5, 3, false, out _);
+            var settings = SimulationSettings.Mono(2, true, 1000, 1.5, 3, out _);
             Assert.Equal(2L, settings["image_source_order"]);
             Assert.Equal(1000L, settings["n_rays"]);
             Assert.Equal(true, settings["air_absorption"]);
             Assert.False(settings.ContainsKey("energy_thres"));
             Assert.Equal(1.5, settings["duration"]);
-            Assert.Equal(false, settings["normalize"]);
+        }
+
+        [Fact]
+        public void Mono_SendsNoNormalize()
+        {
+            Assert.False(SimulationSettings.Mono(2, true, 1000, 1.5, 3, out _).ContainsKey("normalize"));
         }
 
         [Fact]
         public void Mono_WithoutRayTracing_DropsTheRayInputsAndNamesThem()
         {
-            var settings = SimulationSettings.Mono(1, false, 500, null, 3, null, out var ignored);
+            var settings = SimulationSettings.Mono(1, false, 500, null, 3, out var ignored);
             Assert.Equal(new[] { "n_rays", "seed" }, ignored);
             Assert.False(settings.ContainsKey("n_rays") || settings.ContainsKey("seed"));
             Assert.Equal(false, settings["ray_tracing"]);
@@ -40,70 +45,115 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void Mono_WithoutASeed_LeavesItToTheMethod()
         {
-            Assert.False(SimulationSettings.Mono(null, true, null, null, null, null, out _).ContainsKey("seed"));
-        }
-
-        [Fact]
-        public void Mono_Message_ShowsRateMethodOrderRaysAndSeed()
-        {
-            var settings = SimulationSettings.Mono(null, true, null, null, 5, null, out _);
-            Assert.Equal("48 kHz, ISM + ray tracing, ISM order default, rays default, seed 5", SimulationSettings.MonoMessage(48000, settings));
-            settings = SimulationSettings.Mono(2, false, null, null, null, null, out _);
-            Assert.Equal("44.1 kHz, ISM, ISM order 2", SimulationSettings.MonoMessage(44100, settings));
+            Assert.False(SimulationSettings.Mono(null, true, null, null, null, out _).ContainsKey("seed"));
         }
     }
 
-    public class IrGraphGroupingTests
+    public class SimulatedSceneTests
     {
-        private static IrGraphGoo.Content Graph(int sources, int receivers)
+        private static SceneGoo Scene(string guid, double x = 1, string? sound = null)
         {
-            var s = Enumerable.Range(0, sources).Select(i => new SourceGoo(new SourceData { Guid = $"s{i}", Name = $"S{i}", Point = new PointData { X = i } })).ToList();
-            var r = Enumerable.Range(0, receivers).Select(i => new ReceiverGoo(new ReceiverData { Guid = $"r{i}", Name = $"R{i}", Point = new PointData { Y = i } })).ToList();
-            var irs = (from source in s
-                       from receiver in r
-                       select new ImpulseResponseGoo(new ImpulseResponseData
-                       {
-                           Name = $"{source.Name}{receiver.Name}", Source = source.Value, Receiver = receiver.Value, Shape = { 1 }, Samples = { 0 },
-                       })).ToList();
-            return new IrGraphGoo.Content("mono", s, r, irs);
+            var source = new SourceData { Guid = $"{guid}-s", Name = "s", Point = new PointData { X = x, Y = 2, Z = 1 }, Directivity = "omnidirectional" };
+            if (sound != null)
+                source.SoundFile = sound;
+            return new SceneGoo(new SceneData
+            {
+                Guid = guid, Name = "room", SamplingRate = 48000, Sources = { source },
+                Receivers = { new ReceiverData { Guid = "r", Name = "r", Point = new PointData { X = 4, Y = 2, Z = 1 } } },
+            });
+        }
+
+        private static readonly Dictionary<string, object?> Settings = new() { ["ism_order"] = 3L };
+
+        private static ImpulseResponseData Response(SceneGoo scene) => new()
+        {
+            Guid = "ir", Source = scene.Value.Sources[0].Clone(), Receiver = scene.Value.Receivers[0].Clone(),
+            Shape = { 4 }, SamplingRate = 48000, Samples = { 1.0, 0.5, 0.25, 0.0 },
+        };
+
+        private static Dictionary<string, ImpulseResponseData> References(SceneGoo scene) =>
+            new() { [$"r_{scene.Value.Sources[0].Guid}"] = Response(scene) };
+
+        [Fact]
+        public void Key_OfTwoScenesDifferingOnlyInASourcesSound_IsTheSame()
+        {
+            var key = SimulatedScene.Key(Scene("a"), "mono", Settings, null);
+            Assert.Equal(key, SimulatedScene.Key(Scene("b", sound: "speech"), "mono", Settings, null));
+            Assert.Equal(key, SimulatedScene.Key(Scene("c", sound: "piano"), "mono", Settings, null));
         }
 
         [Fact]
-        public void Grouping_PutsEachReceiversResponsesInItsBranch()
+        public void Key_OfTwoScenesDifferingInASourcesPosition_Differs()
         {
-            var warnings = new List<string>();
-            var grouped = IrGraphGrouping.Group(Graph(2, 2), null, null, warnings.Add);
-            Assert.Equal(new[] { 0, 1 }, grouped.Select(b => b.ReceiverIndex).ToArray());
-            Assert.Equal(new[] { "S0R1", "S1R1" }, grouped[1].Responses.Select(ir => ir.Value.Name).ToArray());
-            Assert.Equal(new[] { "S0", "S1" }, grouped[1].Sources.Select(s => s.Value.Name).ToArray());
-            Assert.Empty(warnings);
+            Assert.NotEqual(SimulatedScene.Key(Scene("a"), "mono", Settings, null), SimulatedScene.Key(Scene("a", x: 2), "mono", Settings, null));
+            Assert.NotEqual(SimulatedScene.Key(Scene("a"), "mono", Settings, null), SimulatedScene.Key(Scene("a"), "binaural", Settings, null));
         }
 
         [Fact]
-        public void Grouping_FiltersBySourceAndReceiverIndex()
+        public void Key_OfAHybrid_IgnoresTheSoundOfItsReference_ButNotItsSamples()
         {
-            var grouped = IrGraphGrouping.Group(Graph(3, 2), new[] { 2 }, new[] { 1 }, _ => { });
-            var branch = Assert.Single(grouped);
-            Assert.Equal(1, branch.ReceiverIndex);
-            Assert.Equal("S2R1", Assert.Single(branch.Responses).Value.Name);
+            var before = Scene("a");
+            var after = Scene("b", sound: "speech");
+            var key = SimulatedScene.Key(before, "binaural", Settings, References(before));
+            Assert.Equal(key, SimulatedScene.Key(after, "binaural", Settings, References(after)));
+            var other = References(after);
+            other.Values.First().Samples[1] = 0.4;
+            Assert.NotEqual(key, SimulatedScene.Key(after, "binaural", Settings, other));
+        }
+
+        private static SceneGoo Solved(string guid, double absorption = 0.1)
+        {
+            var scene = Scene(guid);
+            scene.Value.Receivers[0].Guid = $"{guid}-r";
+            scene.Value.AcousticObjects.Add(new AcousticObjectData
+            {
+                Guid = $"{guid}-o", Name = "wall", Role = "boundary", Sources = { new SourceData { Guid = $"{guid}-os", Name = "os" } },
+                Material = new AcousticMaterialData { Guid = $"{guid}-m", Name = "plaster", AbsorptionCoefficients = { absorption } },
+            });
+            return scene;
         }
 
         [Fact]
-        public void Grouping_WarnsForAnIndexOutOfRange()
+        public void Same_IgnoresTheGuidsAComponentDrawsAnewOnEverySolution()
         {
-            var warnings = new List<string>();
-            var grouped = IrGraphGrouping.Group(Graph(2, 1), new[] { 5, 0 }, new[] { 3, 0 }, warnings.Add);
-            Assert.Contains("No source at index 5; the graph has 2 source(s), 0 to 1.", warnings);
-            Assert.Contains("No receiver at index 3; the graph has 1 receiver(s), 0 to 0.", warnings);
-            Assert.Equal("S0R0", Assert.Single(Assert.Single(grouped).Responses).Value.Name);
+            Assert.True(SimulatedScene.Same(Solved("a"), Solved("b")));
+            Assert.False(SimulatedScene.Same(Solved("a"), Solved("b", absorption: 0.2)));
         }
 
         [Fact]
-        public void Grouping_CopiesNoSamples()
+        public void Current_GivesTheResponsesTheReceiversCurrentGuid()
         {
-            var graph = Graph(2, 2);
-            var grouped = IrGraphGrouping.Group(graph, null, null, _ => { });
-            Assert.Same(graph.Responses[1].Value, grouped[1].Responses[0].Value);
+            var ran = Solved("a");
+            var scene = Solved("b");
+            var current = SimulatedScene.Current(new[] { new ImpulseResponseGoo(Response(ran)) }, ran, scene).Single();
+            Assert.Equal("b-r", current.ReceiverGuid);
+            Assert.Equal("b-s", current.SourceGuid);
+        }
+
+        [Fact]
+        public void Key_OfAHybrid_IgnoresTheGuidsOfItsReferencesReceiver()
+        {
+            var before = Solved("a");
+            var after = Solved("b");
+            Assert.Equal(SimulatedScene.Key(before, "binaural", Settings, new Dictionary<string, ImpulseResponseData> { ["x"] = Response(before) }),
+                SimulatedScene.Key(after, "binaural", Settings, new Dictionary<string, ImpulseResponseData> { ["x"] = Response(after) }));
+        }
+
+        [Fact]
+        public void Current_GivesTheResponsesTheSourcesCurrentSound_AndLeavesTheRunsOwn()
+        {
+            var ran = Scene("a");
+            var ir = new ImpulseResponseGoo(Response(ran));
+            var scene = Scene("b", sound: "speech");
+            var current = SimulatedScene.Current(new[] { ir }, ran, scene).Single();
+            Assert.Equal("speech", current.Value.Source.SoundFile);
+            Assert.Equal("b-s", current.SourceGuid);
+            Assert.Equal(ir.Value.Samples, current.Value.Samples);
+            Assert.False(ir.Value.Source.HasSoundFile);
+            Assert.Equal("a-s", ir.SourceGuid);
+            var silent = SimulatedScene.Current(new[] { current }, scene, Scene("c")).Single();
+            Assert.False(silent.Value.Source.HasSoundFile);
+            Assert.Same(ir, SimulatedScene.Current(new[] { ir }, ran, ran).Single());
         }
     }
 }

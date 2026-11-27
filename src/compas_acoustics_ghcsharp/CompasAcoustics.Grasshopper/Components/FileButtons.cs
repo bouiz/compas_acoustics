@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using Grasshopper.Kernel;
 
@@ -19,12 +20,19 @@ namespace CompasAcoustics.Grasshopper
         {
             if (component.ControlPort(port) is not { } input || input.SourceCount > 0)
                 return;
+            var folder = Chosen(component, port) is string current ? Path.GetDirectoryName(current) : null;
+            if (Open(title, folder, filterName, extensions) is string file)
+                ControlState.Choose(component, input, file);
+        }
+
+        /// <summary>The file chosen in an open-file dialog that starts in <paramref name="folder"/> (the system's when null or missing); null when cancelled.</summary>
+        public static string? Open(string title, string? folder, string filterName, params string[] extensions)
+        {
             var dialog = new Eto.Forms.OpenFileDialog { Title = title };
             dialog.Filters.Add(new Eto.Forms.FileFilter(filterName, extensions));
-            if (Chosen(component, port) is string current && Directory.Exists(Path.GetDirectoryName(current)))
-                dialog.Directory = new System.Uri(Path.GetDirectoryName(current)!);
-            if (dialog.ShowDialog(Rhino.UI.RhinoEtoApp.MainWindow) == Eto.Forms.DialogResult.Ok && !string.IsNullOrEmpty(dialog.FileName))
-                ControlState.Choose(component, input, dialog.FileName);
+            if (Directory.Exists(folder))
+                dialog.Directory = new Uri(folder);
+            return dialog.ShowDialog(Rhino.UI.RhinoEtoApp.MainWindow) == Eto.Forms.DialogResult.Ok && !string.IsNullOrEmpty(dialog.FileName) ? dialog.FileName : null;
         }
 
         /// <summary>The right-click entry that clears the file of <paramref name="port"/>, when one is chosen.</summary>

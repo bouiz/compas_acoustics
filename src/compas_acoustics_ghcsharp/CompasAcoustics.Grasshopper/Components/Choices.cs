@@ -7,7 +7,7 @@ using GH_IO.Serialization;
 namespace CompasAcoustics.Grasshopper
 {
     /// <summary>
-    /// Choices the component holds itself, without an input: a switch, dropdown or toggle on the body whose port is not an
+    /// Choices the component holds itself, without an input: a switch, dropdown, step slider or toggle on the body whose port is not an
     /// input, or a menu entry. Saved with the document.
     /// </summary>
     public abstract partial class ComponentBase
@@ -35,6 +35,9 @@ namespace CompasAcoustics.Grasshopper
                         case DropdownControl d:
                             choices[d.Port] = d.Options;
                             break;
+                        case StepSliderControl step:
+                            choices[step.Port] = step.Options;
+                            break;
                         case ToggleControl t:
                             choices[t.Port] = new[] { "on", "off" };
                             break;
@@ -42,11 +45,12 @@ namespace CompasAcoustics.Grasshopper
             return choices;
         }
 
-        /// <summary>The option a switch or dropdown declares as its default; null for another control or none.</summary>
+        /// <summary>The option a switch, dropdown or step slider declares as its default; null for another control or none.</summary>
         internal static string? DefaultOf(Control control) => control switch
         {
             SwitchControl s => s.Default,
             DropdownControl d => d.Default,
+            StepSliderControl s => s.Default,
             _ => null,
         };
 
@@ -65,7 +69,11 @@ namespace CompasAcoustics.Grasshopper
             if (Spec.Inputs.FirstOrDefault(p => p.Name == name) is { } port)
                 text = port.Description;
             else if (Choices.TryGetValue(name, out var options) && options.Length > 0)
-                text = options.Length == 1 ? options[0] : $"{string.Join(", ", options.Take(options.Length - 1))} or {options[^1]}";
+            {
+                var control = Controls.FirstOrDefault(c => c.Port == name);
+                var read = control == null ? options : options.Select(o => ControlLayout.Label(control, o)).ToArray();
+                text = read.Length == 1 ? read[0] : $"{string.Join(", ", read.Take(read.Length - 1))} or {read[^1]}";
+            }
             if (text.Contains("default", StringComparison.OrdinalIgnoreCase) || DefaultLabel(name) is not string shown)
                 return (name, text);
             return (name, text.Length == 0 ? $"(default {shown})" : $"{text} (default {shown})");
@@ -81,7 +89,7 @@ namespace CompasAcoustics.Grasshopper
                 ToggleControl t when Spec.Inputs.Any(p => p.Name == name) => t.Default ? "on" : "off",
                 ToggleControl => Choice(name),
                 SwitchControl s => DefaultOf(s) ?? declared ?? s.Options.FirstOrDefault(),
-                DropdownControl or SliderControl => DefaultOf(control) ?? declared,
+                DropdownControl or SliderControl or StepSliderControl => DefaultOf(control) ?? declared,
                 _ => null,
             };
             return value == null || control == null ? null : ControlLayout.Label(control, value);
@@ -90,13 +98,16 @@ namespace CompasAcoustics.Grasshopper
         private readonly Dictionary<string, (string[] values, string[] labels)> _indexOptions = new();
 
         /// <summary>The values and labels a dropdown offers: those of the wired scene or graph for an index, else its own.</summary>
+        /// <summary>The stops of a step slider now: its own, unless the component sets them from its data (Visualise Rays': the orders it traced).</summary>
+        public virtual StepSliderControl StepStopsOf(StepSliderControl step) => step;
+
         /// <summary>The options of a step slider it offers now (Polar Preview's: the octaves its result simulated); null for all of them.</summary>
         public virtual IReadOnlyCollection<string>? OfferedOptionsOf(string port) => null;
 
         /// <summary>The directions an incidence control offers (Polar Preview's: those of its result); none by default.</summary>
         public virtual IReadOnlyList<Incidence> IncidencesOf(string port) => Array.Empty<Incidence>();
 
-        public (string[] values, string[] labels) OptionsOf(DropdownControl dropdown)
+        public virtual (string[] values, string[] labels) OptionsOf(DropdownControl dropdown)
         {
             if (_indexOptions.TryGetValue(dropdown.Port, out var given))
                 return given;
@@ -155,7 +166,7 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>Choose <paramref name="value"/> for <paramref name="name"/> (an option of it), as an undoable change, and solve again.</summary>
         public virtual void SetChoice(string name, string value)
         {
-            if (!Choices.TryGetValue(name, out var options) || !options.Contains(value) || Choice(name) == value)
+            if (!Choices.ContainsKey(name) || !IsOption(name, value) || Choice(name) == value)
                 return;
             var document = OnPingDocument();
             if (document != null)
@@ -165,6 +176,9 @@ namespace CompasAcoustics.Grasshopper
                 ExpireSolution(true);
         }
 
+        /// <summary>Whether <paramref name="value"/> may be chosen or read back for the choice <paramref name="name"/>: by default one of its options.</summary>
+        protected virtual bool IsOption(string name, string value) => Choices.TryGetValue(name, out var options) && options.Contains(value);
+
         private void WriteChoices(GH_IWriter writer)
         {
             foreach (var (name, value) in _choices)
@@ -173,8 +187,8 @@ namespace CompasAcoustics.Grasshopper
 
         private void ReadChoices(GH_IReader reader)
         {
-            foreach (var (name, options) in Choices)
-                if (reader.ItemExists(ChoiceKey + name) && options.Contains(reader.GetString(ChoiceKey + name)))
+            foreach (var name in Choices.Keys)
+                if (reader.ItemExists(ChoiceKey + name) && IsOption(name, reader.GetString(ChoiceKey + name)))
                     _choices[name] = reader.GetString(ChoiceKey + name);
         }
     }

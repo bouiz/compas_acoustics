@@ -30,7 +30,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Fact]
         public void Specs_AreEmbeddedForEveryComponent()
         {
-            Assert.Equal(27, EmbeddedSpecs.Names().Count());
+            Assert.Equal(24, EmbeddedSpecs.Names().Count());
             var model = ComponentSpec.Load("CA_Model");
             Assert.Equal("Acoustic Scene", model.Name);
             Assert.Equal("Scene", model.Nickname);
@@ -76,8 +76,8 @@ namespace CompasAcoustics.Grasshopper.Tests
         private sealed class Failing : ComponentBase
         {
             private readonly System.Exception _error;
-            public Failing(System.Exception error) : base("CA_Channel") { _error = error; }
-            protected override string SpecKey => "CA_Channel";
+            public Failing(System.Exception error) : base("CA_Worker") { _error = error; }
+            protected override string SpecKey => "CA_Worker";
             public override System.Guid ComponentGuid => new System.Guid("00000000-0000-0000-0000-0000000000ab");
             protected override void Solve(IGH_DataAccess access) => throw _error;
             public void Run() => typeof(GH_Component).GetMethod("SolveInstance", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!

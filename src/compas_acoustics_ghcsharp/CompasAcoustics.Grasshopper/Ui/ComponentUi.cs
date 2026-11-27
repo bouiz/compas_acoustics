@@ -23,7 +23,7 @@ namespace CompasAcoustics.Grasshopper
 
         private ComponentBase Component => (ComponentBase)Owner;
 
-        /// <summary>The controls' area, below the ports.</summary>
+        /// <summary>The controls' area, below the ports, or right of them in a column.</summary>
         protected RectangleF ControlArea { get; private set; }
 
         /// <summary>The height of a body drawn under the controls; 0 for none.</summary>
@@ -32,28 +32,43 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>The area of that body.</summary>
         protected RectangleF ExtraArea { get; private set; }
 
+        /// <summary>The width of a column right of Grasshopper's box <paramref name="box"/> that holds the controls; 0 for rows below it.</summary>
+        protected virtual float ControlColumn(RectangleF box) => 0;
+
+        /// <summary>The part of the controls' area <paramref name="area"/> they are arranged in: all of it, unless they are narrower.</summary>
+        protected virtual RectangleF ArrangedIn(RectangleF area) => area;
+
         protected override void Layout()
         {
             base.Layout();
             var controls = Component.BodyControls;
-            var minWidth = ControlLayout.MinWidth(controls);
-            if (Bounds.Width < minWidth)
+            var height = ControlLayout.Height(controls);
+            var wider = Math.Max(MinBodyWidthOf(Component) - Bounds.Width, 0);
+            var column = ControlColumn(new RectangleF(Bounds.X, Bounds.Y, Bounds.Width + wider, Bounds.Height));
+            var taller = column > 0 ? Math.Max(height - Bounds.Height, 0) : 0;
+            if (wider > 0 || taller > 0)
             {
-                // controls that need room (the incidence dials): the component's box wider by the difference, its ports on its edges
+                // a minimum width, or controls that need room (the incidence dials, a column taller than the ports): the component's box grown by the difference, its ports on its edges
                 var inner = LayoutComponentBox(Owner);
-                inner.Inflate((minWidth - Bounds.Width) / 2, 0);
+                inner.Inflate(wider / 2, taller / 2);
                 LayoutInputParams(Owner, inner);
                 LayoutOutputParams(Owner, inner);
                 m_innerBounds = inner;
                 Bounds = LayoutBounds(Owner, inner);
             }
-            var box = Bounds;
-            var height = ControlLayout.Height(controls);
-            ControlArea = new RectangleF(box.X, box.Bottom, box.Width, height);
-            ExtraArea = new RectangleF(box.X, box.Bottom + height, box.Width, ExtraHeight);
-            _boxes = ControlLayout.Arrange(controls, ControlArea);
-            Bounds = new RectangleF(box.X, box.Y, box.Width, box.Height + height + ExtraHeight);
+            var (area, box) = ControlLayout.Place(Bounds, height, column);
+            ControlArea = area;
+            ExtraArea = new RectangleF(box.X, box.Bottom, box.Width, ExtraHeight);
+            _boxes = ControlLayout.Arrange(controls, ArrangedIn(ControlArea));
+            Bounds = new RectangleF(box.X, box.Y, box.Width, box.Height + ExtraHeight);
         }
+
+        /// <summary>The narrowest the component's box is drawn: its own minimum, or the width its controls need (the incidence dials).</summary>
+        internal static float MinBodyWidthOf(ComponentBase component) => Math.Max(component.MinBodyWidth, ControlLayout.MinWidth(component.BodyControls));
+
+        /// <summary>Whether a press on <paramref name="control"/> acts: not when a wire sets its input (buttons aside), nor while the component rests it.</summary>
+        internal static bool Pressable(ComponentBase component, Control control, IGH_Param? port) =>
+            (port == null || port.SourceCount == 0 || control is ButtonControl) && component.ControlEnabled(control.Port);
 
         protected override void Render(GH_Canvas canvas, Graphics graphics, GH_CanvasChannel channel)
         {
@@ -64,8 +79,9 @@ namespace CompasAcoustics.Grasshopper
             {
                 if (!box.Title.IsEmpty)
                     Painter.DrawTitle(graphics, box);
-                if (box.Control is StepSliderControl step)
+                if (box.Control is StepSliderControl declared)
                 {
+                    var step = Component.StepStopsOf(declared);
                     var (value, wired, offered) = StepState(step, box);
                     StepSlider.Draw(graphics, box.Bounds, step, ReferenceEquals(box, _down) ? _stepped ?? value : value, offered, wired);
                     continue;
@@ -77,7 +93,8 @@ namespace CompasAcoustics.Grasshopper
                     continue;
                 }
                 var range = box.Control is SliderControl slider ? Component.SliderRange(slider) : ((double, double)?)null;
-                Painter.Draw(graphics, box, Value(box), Selected, Owner.Locked, ReferenceEquals(box, _down), ReferenceEquals(box, _down) ? _dragged : null, range);
+                Painter.Draw(graphics, box, Value(box), Selected, Owner.Locked, ReferenceEquals(box, _down), ReferenceEquals(box, _down) ? _dragged : null, range,
+                    Component.ControlEnabled(box.Control.Port));
             }
             RenderExtra(canvas, graphics);
         }
@@ -86,9 +103,22 @@ namespace CompasAcoustics.Grasshopper
         private (string? value, bool wired, IReadOnlyCollection<string>? offered) StepState(StepSliderControl step, ControlBox box)
         {
             var offered = Component.OfferedOptionsOf(step.Port);
-            var port = Component.ControlPort(step.Port);
-            var (value, wired) = port == null ? (step.Default ?? step.Options[0], false) : ControlState.Of(port, step.Options, step.Default);
-            return (wired ? value : StepSlider.Shown(box.Bounds, value, step.Options, offered), wired, offered);
+            var (value, wired) = StepValue(Component, step);
+            return (wired ? value : StepSlider.Shown(box.Bounds, value, step, offered), wired, offered);
+        }
+
+        /// <summary>A step slider's option and whether a wire sets it: its input's, or the component's choice when it has no input.</summary>
+        internal static (string value, bool wired) StepValue(ComponentBase component, StepSliderControl step) => component.ControlPort(step.Port) is { } port
+            ? ControlState.Of(port, step.Options, step.Default)
+            : (component.IsChoice(step.Port) ? component.Choice(step.Port) : step.Default ?? step.Options[0], false);
+
+        /// <summary>Set the stop a step slider was let go on: on its input, or as the component's choice when it has no input.</summary>
+        internal static void ChooseStop(ComponentBase component, StepSliderControl step, string stop)
+        {
+            if (component.ControlPort(step.Port) is { } port)
+                ControlState.Choose(component, port, stop);
+            else
+                component.SetChoice(step.Port, stop);
         }
 
         /// <summary>An incidence control's directions, the one its input holds (the first until it holds one), and whether a wire sets it.</summary>
@@ -115,11 +145,11 @@ namespace CompasAcoustics.Grasshopper
                 case DropdownControl d when port != null:
                 {
                     var (value, wired) = ControlState.Of(port, Component.OptionsOf(d).values, ComponentBase.DefaultOf(d));
-                    return (DropdownText(d, value), wired);
+                    return (DropdownText(Component, d, value), wired);
                 }
                 case SwitchControl or DropdownControl when Component.IsChoice(box.Control.Port):
                     var choice = Component.Choice(box.Control.Port);
-                    return (box.Control is DropdownControl dd ? DropdownText(dd, choice) : choice, false);
+                    return (box.Control is DropdownControl dd ? DropdownText(Component, dd, choice) : choice, false);
                 case MultiSwitchControl m when port != null:
                     return (string.Join("\n", ControlState.Members(port, m.Default)), port.SourceCount > 0);
                 case SliderControl slider when port != null:
@@ -142,12 +172,19 @@ namespace CompasAcoustics.Grasshopper
             }
         }
 
-        /// <summary>What a dropdown reads for <paramref name="value"/>: its label among the options offered now, else the first's ("All").</summary>
-        private string DropdownText(DropdownControl dropdown, string value)
+        /// <summary>
+        /// What a dropdown reads for <paramref name="value"/>: its label among the options offered now, else the first's ("All"),
+        /// or its placeholder when it has one ("..."): an empty value there means nothing is chosen.
+        /// </summary>
+        internal static string DropdownText(ComponentBase component, DropdownControl dropdown, string value)
         {
-            var (values, labels) = Component.OptionsOf(dropdown);
+            var (values, labels) = component.OptionsOf(dropdown);
             var i = Array.IndexOf(values, value);
-            return i >= 0 ? labels[i] : value.Length == 0 && labels.Length > 0 ? labels[0] : ControlLayout.Label(dropdown, value);
+            if (i >= 0)
+                return labels[i];
+            if (value.Length > 0 || labels.Length == 0)
+                return ControlLayout.Label(dropdown, value);
+            return dropdown.Default is { Length: > 0 } placeholder && Array.IndexOf(values, placeholder) < 0 ? placeholder : labels[0];
         }
 
         public override GH_ObjectResponse RespondToMouseDown(GH_Canvas sender, GH_CanvasMouseEvent e)
@@ -159,13 +196,14 @@ namespace CompasAcoustics.Grasshopper
                 return RespondToExtraMouseDown(sender, e) ?? base.RespondToMouseDown(sender, e);
             var (box, segment) = hit.Value;
             var port = Component.ControlPort(box.Control.Port);
-            if (port != null && port.SourceCount > 0 && box.Control is not ButtonControl)
+            if (!Pressable(Component, box.Control, port))
                 return GH_ObjectResponse.Handled;
             switch (box.Control)
             {
-                case StepSliderControl step when port != null:
+                case StepSliderControl declared when port != null || Component.IsChoice(declared.Port):
+                    var step = Component.StepStopsOf(declared);
                     _down = box;
-                    _stepped = StepSlider.Nearest(box.Bounds, e.CanvasLocation.X, step.Options, Component.OfferedOptionsOf(step.Port));
+                    _stepped = StepSlider.Nearest(box.Bounds, e.CanvasLocation.X, step, Component.OfferedOptionsOf(step.Port));
                     sender.Invalidate();
                     return GH_ObjectResponse.Capture;
                 case IncidenceControl incidence when port != null:
@@ -190,7 +228,7 @@ namespace CompasAcoustics.Grasshopper
                     Component.SetChoice(s.Port, s.Options[segment]);
                     return GH_ObjectResponse.Handled;
                 case DropdownControl d when port != null || Component.IsChoice(d.Port):
-                    OpenMenu(sender, e, d, port);
+                    OpenMenu(d, port);
                     return GH_ObjectResponse.Handled;
                 case MultiSwitchControl m when segment >= 0 && port != null:
                     ControlState.ToggleMember(Component, port, m.Options[segment], m.Default);
@@ -241,10 +279,11 @@ namespace CompasAcoustics.Grasshopper
 
         public override GH_ObjectResponse RespondToMouseMove(GH_Canvas sender, GH_CanvasMouseEvent e)
         {
-            if (_down?.Control is StepSliderControl step)
+            if (_down?.Control is StepSliderControl declared)
             {
+                var step = Component.StepStopsOf(declared);
                 // the knob snaps from offered stop to offered stop; the input is set when it is let go
-                _stepped = StepSlider.Nearest(_down.Bounds, e.CanvasLocation.X, step.Options, Component.OfferedOptionsOf(step.Port)) ?? _stepped;
+                _stepped = StepSlider.Nearest(_down.Bounds, e.CanvasLocation.X, step, Component.OfferedOptionsOf(step.Port)) ?? _stepped;
                 sender.Invalidate();
                 return GH_ObjectResponse.Handled;
             }
@@ -273,11 +312,12 @@ namespace CompasAcoustics.Grasshopper
                 else
                     ControlState.Press(Component, button.Port);
             }
-            else if (box.Control is StepSliderControl && _stepped is string stop && Component.ControlPort(box.Control.Port) is { } stepPort)
+            else if (box.Control is StepSliderControl declared && _stepped is string stop)
             {
-                var (shown, _, _) = StepState((StepSliderControl)box.Control, box);
+                var step = Component.StepStopsOf(declared);
+                var (shown, _, _) = StepState(step, box);
                 if (stop != shown)
-                    ControlState.Choose(Component, stepPort, stop);
+                    ChooseStop(Component, step, stop);
             }
             else if (box.Control is SliderControl { Live: true })
             {
@@ -316,20 +356,23 @@ namespace CompasAcoustics.Grasshopper
             return Math.Clamp(Math.Round(Math.Round((value - min) / step) * step + min, 6), min, Math.Max(min, max));
         }
 
-        private void OpenMenu(GH_Canvas sender, GH_CanvasMouseEvent e, DropdownControl dropdown, IGH_Param? port)
+        private void OpenMenu(DropdownControl dropdown, IGH_Param? port)
         {
             var (values, labels) = Component.OptionsOf(dropdown);
             var current = port != null ? ControlState.Of(port, values, ComponentBase.DefaultOf(dropdown)).value : Component.Choice(dropdown.Port);
-            var menu = new ContextMenuStrip();
-            // the input's name heads its options
-            menu.Items.Add(new ToolStripMenuItem(dropdown.Port) { Enabled = false });
-            menu.Items.Add(new ToolStripSeparator());
+            labels = ControlLayout.MenuLabels(dropdown, values, labels);
+            // Eto's menu is the platform's own and sizes to its longest option; the WinForms menu cut "Ray tracing" on macOS
+            var menu = new Eto.Forms.ContextMenu();
+            menu.Items.Add(new Eto.Forms.ButtonMenuItem { Text = ControlLayout.Title(dropdown), Enabled = false });
+            menu.Items.Add(new Eto.Forms.SeparatorMenuItem());
             for (var i = 0; i < values.Length; i++)
             {
                 var option = values[i];
-                var item = new ToolStripMenuItem(labels[i]) { Checked = option == current };
+                var item = new Eto.Forms.CheckMenuItem { Text = labels[i], Checked = option == current };
                 item.Click += (s, a) =>
                 {
+                    if (Component.OnDropdownOption(dropdown.Port, option))
+                        return;
                     if (port != null)
                         ControlState.Choose(Component, port, option);
                     else
@@ -337,7 +380,7 @@ namespace CompasAcoustics.Grasshopper
                 };
                 menu.Items.Add(item);
             }
-            menu.Show(sender, e.ControlLocation);
+            menu.Show();
         }
     }
 
@@ -408,7 +451,7 @@ namespace CompasAcoustics.Grasshopper
         }
 
         public static void Draw(Graphics g, ControlBox box, (string value, bool wired) state, bool selected, bool locked, bool down, double? dragged,
-            (double min, double max)? range = null)
+            (double min, double max)? range = null, bool enabled = true)
         {
             switch (box.Control)
             {
@@ -432,10 +475,10 @@ namespace CompasAcoustics.Grasshopper
                 }
                 case DropdownControl:
                 {
-                    Capsule(g, box.Bounds, state.wired ? GH_Palette.Grey : GH_Palette.White, state.value, selected, locked);
+                    Capsule(g, box.Bounds, state.wired ? GH_Palette.Grey : GH_Palette.White, state.value, selected, locked || !enabled);
                     var x = box.Bounds.Right - 9;
                     var y = box.Bounds.Top + box.Bounds.Height / 2 - 2;
-                    g.FillPolygon(Brushes.Black, new[] { new PointF(x, y), new PointF(x + 6, y), new PointF(x + 3, y + 4) });
+                    g.FillPolygon(enabled ? Brushes.Black : Brushes.Gray, new[] { new PointF(x, y), new PointF(x + 6, y), new PointF(x + 3, y + 4) });
                     break;
                 }
                 case ToggleControl toggle:

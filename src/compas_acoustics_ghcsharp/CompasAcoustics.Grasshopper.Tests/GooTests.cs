@@ -17,12 +17,11 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void SourceGoo_ReadsNamePositionAndSoundFile()
+        public void SourceGoo_ReadsNameAndPosition()
         {
             var source = new SourceGoo(Fixture<SourceData>("source"));
             Assert.True(source.IsValid);
             Assert.Equal(new Point3d(1, 2, 3), source.Position);
-            Assert.Null(source.SoundFile);
             Assert.Equal("Source 'src'", source.ToString());
             Assert.Equal(InteropTests.Guid(1), source.Guid);
         }
@@ -83,21 +82,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(InteropTests.Guid(1), ir.SourceGuid);
             Assert.Equal(InteropTests.Guid(2), ir.ReceiverGuid);
             Assert.Equal("IR src -> rec, 2 ch, 48000 Hz", ir.ToString());
-        }
-
-        [Fact]
-        public void IrGraphGoo_FromSimulation_KeepsSceneOrderAndMapsGuids()
-        {
-            var scene = new SceneGoo(Fixture<SceneData>("scene"));
-            var ir = Fixture<ImpulseResponseData>("ir");
-            ir.Source = scene.Value.Sources[0].Clone();
-            ir.Receiver = scene.Value.Receivers[0].Clone();
-            var key = $"{ir.Receiver.Guid}_{ir.Source.Guid}";
-            var graph = IrGraphGoo.FromSimulation(scene, "binaural", new Dictionary<string, object?> { [key] = ir });
-            Assert.Equal("binaural", graph.Value.Method);
-            Assert.Same(ir, graph.Value.Responses.Single().Value);
-            Assert.Equal("src", graph.Value.Sources.Single().Value.Name);
-            Assert.Equal("binaural: 1 response", graph.ToString());
         }
 
         [Fact]

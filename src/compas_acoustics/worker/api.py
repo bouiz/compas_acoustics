@@ -36,6 +36,7 @@ from compas_acoustics import Source
 from compas_acoustics import SpecularReflections
 from compas_acoustics import __version__
 from compas_acoustics import simulation_methods
+from compas_acoustics.analyser import CHANNEL_NOTE
 from compas_acoustics.analyser import PARAMETERS
 from compas_acoustics.analyser import frequency_response
 from compas_acoustics.analyser import time_response
@@ -72,7 +73,6 @@ __all__ = [
     "resume",
     "playback_status",
     "sound_samples",
-    "sound_info",
     "make_scattering_sample",
     "run_scattering_lab",
     "polar_balloon",
@@ -176,7 +176,9 @@ def make_material(name, absorption, scattering=None, category=None):
 def make_source(name, position, direction=None, directivity=None, sound_file=None, spl=None):
     """A :class:`Source` with the defaults of the Source component: ``my_source``, facing +x, omnidirectional.
 
-    ``spl``: one value for all bands or one per band; None or empty keeps the default.
+    ``sound_file``: the anechoic sound its auralisations take, a bundled recording by its name (as :func:`auralise`
+    takes it) or a file's path; None or empty for none. ``spl``: one value for all bands or one per band; None or empty
+    keeps the default.
     """
     directivity = directivity or "omnidirectional"
     if directivity not in CARDIOID_P:
@@ -186,7 +188,7 @@ def make_source(name, position, direction=None, directivity=None, sound_file=Non
         *(position if position is not None else [0, 0, 0]),
         directivity=directivity,
         direction=list(direction) if direction is not None else [1, 0, 0],
-        sound_file=sound_file or None,
+        sound_file=_sound_path(sound_file, _SOURCE_SOUND_FIX) if sound_file else None,
     )
     if spl is not None and len(list(spl)) > 0:
         source.spl = spl
@@ -274,36 +276,45 @@ def _curve_title(title, channels):
     return "{} ({})".format(title, ", ".join(channels)) if channels else title
 
 
-def analysis(ir, time_scale="db"):
-    """``{"parameters": [parameter], "time": parameter, "frequency": parameter, "warnings": [str]}`` of ``ir``, as
-    Analyse IR shows them.
+def analysis(irs, time_scale="db"):
+    """``{"analyses": [analysis], "warnings": [str], "notes": [str]}``, one analysis per response of ``irs`` in
+    order, as Analyse IR shows them; ``notes`` holds what flags no fault (a response of several channels analysed on
+    its first).
 
-    A parameter is ``{"name", "title", "x_unit", "y_unit", "x_scale" ('bands', 'linear' or 'log'), "frequencies",
-    "values" (one list per channel), "overall", "channels"}``; STI, G, SPL, LF and LFC are left out where all their
-    values are NaN. ``time_scale`` ``'db'`` gives the time response in dB re its peak, ``'linear'`` its amplitude to
-    60 dB down its decay.
+    An analysis is ``{"parameters": [parameter], "time": parameter, "frequency": parameter}``; a parameter is
+    ``{"name", "title", "x_unit", "y_unit", "x_scale" ('bands', 'linear' or 'log'), "frequencies", "values" (one list
+    per channel), "overall", "channels"}``; STI, G, SPL and LF are left out where all their values are NaN, LFC always.
+    ``time_scale`` ``'db'`` gives the time response in dB re its peak, ``'linear'`` its amplitude to 60 dB down its
+    decay.
     """
     time_scale = time_scale or TIME_SCALES[0]
     if time_scale not in TIME_SCALES:
         raise ValueError(f"Input parameter 'time_scale' must be one of {TIME_SCALES}.")
+    analyses = []
     with _user_warnings() as messages:
-        analyser = Analyser(ir)
-        analyser.analyse()
-        data = analyser.analysis_data
-        bands = analyser.frequency_bands
-        parameters = []
-        for name, (title, x_unit, y_unit) in PARAMETERS.items():
-            values = [float(v) for v in data[name]]
-            if name in ("STI", "G", "SPL", "LF", "LFC") and all(math.isnan(v) for v in values):
-                continue
-            parameters.append(_parameter(name, title, x_unit, y_unit, "bands", bands, [values], data[f"{name}_overall"]))
-        samples, channels = _plotted_channels(ir)
-        db = time_scale == "db"
-        times, levels = time_response(samples, ir.sampling_rate, db=db, trim_db=None if db else 60.0)
-        time = _parameter("IR", _curve_title("Impulse Response", channels), "Time (s)", "Level (dB)" if db else "Amplitude", "linear", times, levels, channels=channels)
-        frequencies, magnitudes = frequency_response(samples, ir.sampling_rate, num_fractions=3, frequency_range=(20.0, 20000.0))
-        frequency = _parameter("FR", _curve_title("Frequency Response, 1/3 octave", channels), "Frequency (Hz)", "Level (dB)", "log", frequencies, magnitudes, channels=channels)
-    return {"parameters": parameters, "time": time, "frequency": frequency, "warnings": messages}
+        for ir in irs:
+            analyser = Analyser(ir)
+            analyser.analyse()
+            data = analyser.analysis_data
+            bands = analyser.frequency_bands
+            parameters = []
+            for name, (title, x_unit, y_unit) in PARAMETERS.items():
+                if name == "LFC":
+                    continue
+                values = [float(v) for v in data[name]]
+                if name in ("STI", "G", "SPL", "LF") and all(math.isnan(v) for v in values):
+                    continue
+                parameters.append(_parameter(name, title, x_unit, y_unit, "bands", bands, [values], data[f"{name}_overall"]))
+            samples, channels = _plotted_channels(ir)
+            db = time_scale == "db"
+            times, levels = time_response(samples, ir.sampling_rate, db=db, trim_db=None if db else 60.0)
+            time = _parameter("IR", _curve_title("Impulse Response", channels), "Time (s)", "Level (dB)" if db else "Amplitude", "linear", times, levels, channels=channels)
+            frequencies, magnitudes = frequency_response(samples, ir.sampling_rate, num_fractions=3, frequency_range=(20.0, 20000.0))
+            title = _curve_title("Frequency Response, 1/3 octave", channels)
+            frequency = _parameter("FR", title, "Frequency (Hz)", "Level (dB)", "log", frequencies, magnitudes, channels=channels)
+            analyses.append({"parameters": parameters, "time": time, "frequency": frequency})
+    messages, notes = _split_notes(messages, (CHANNEL_NOTE,))
+    return {"analyses": analyses, "warnings": messages, "notes": notes}
 
 
 # =============================================================================
@@ -320,65 +331,104 @@ def _checked_level(level):
     return level
 
 
-def _receivers(group):
-    """The ``(ir, sound)`` pairs of one ``{"branch", "irs", "sounds"}`` group per receiver, in order of appearance; a
-    None sound is the sound file of the response's source."""
-    irs = list(group["irs"])
-    sounds = list(group.get("sounds") or [None] * len(irs))
-    if len(sounds) != len(irs):
-        raise ValueError("DataTree branch length mismatch.")
-    receivers = {}
-    for ir, sound in zip(irs, sounds):
-        receivers.setdefault(str(ir.receiver.guid), []).append((ir, sound or ir.source.sound_file))
-    return list(receivers.values())
+# the bundled anechoic recordings auralise and make_source take by name, the files of the package's anechoic library
+_ANECHOIC_SOUNDS = ("female_speech", "male_speech", "viola", "guitar", "castanets")
 
 
-def auralise(groups, level="relative", mix_sources=False, save_folder=None, save_name=None):
-    """``{"signals": [{"branch", "audio": Audio}], "peak_dbfs": float, "warnings": [str]}``: the impulse responses
-    convolved with anechoic sounds per receiver, as Auralise does.
+# what fixes a source's sound file that is not there
+_SOURCE_SOUND_FIX = "Choose it again on the Source's Anechoic sound dropdown."
 
-    ``groups`` holds one ``{"branch", "irs", "sounds"}`` per Grasshopper branch; a None sound is the sound file of the
-    response's source. One signal per source and receiver, or per receiver with ``mix_sources``. ``level``:
-    ``'relative'`` (one gain for the call, the loudest at -1 dBFS), ``'individual'`` or ``'none'``. With a
-    ``save_folder`` each signal is also written there as ``<save_name or 'convolved_sound'>_mic_<suffix>.wav``.
+
+def _sound_path(sound, fix=None):
+    """The file of ``sound``, a bundled recording's name or a path; ``ValueError`` when there is none, ending with
+    ``fix`` when given."""
+    if sound in _ANECHOIC_SOUNDS:
+        sound = os.path.join(Defaults.ANECHOIC_SOUNDFILES_LIBRARY_PATH, sound + ".wav")
+    if not os.path.exists(sound):
+        message = f"The sound file {sound} does not exist. Bundled sounds: {', '.join(_ANECHOIC_SOUNDS)}."
+        raise ValueError(f"{message} {fix}" if fix else message)
+    return sound
+
+
+def auralise(irs, sound, chosen, labels, level="relative", save_folder=None, save_name=None):
+    """``{"signals": [{"label", "audio": Audio}], "peak_dbfs": float, "warnings": [str]}``: the chosen impulse
+    responses convolved with their anechoic sounds, one signal per chosen response in the order of ``chosen``.
+
+    A response takes the ``sound_file`` of its source when that has one, else ``sound``: the name of a bundled recording
+    (``'female_speech'``, ``'male_speech'``, ``'viola'``, ``'guitar'`` or ``'castanets'``) or the path of a sound file,
+    None when every chosen response's source has a sound.
+
+    ``irs`` holds every connected response, ``chosen`` the indices of those to render and ``labels`` one label per
+    chosen response. ``level``: ``'relative'`` (one gain from every response of ``irs`` convolved with its sound, the
+    loudest at -1 dBFS, so a chosen response renders as in a run of all of them; a response with no sound, neither its
+    source's nor ``sound``, is left out, and ``warnings`` names it), ``'individual'`` or ``'none'`` (only the chosen
+    responses are convolved). A source's sound file that is not there is a ``ValueError`` that names the Source's
+    dropdown. With a ``save_folder`` each signal is also
+    written there as ``<save_name or 'convolved_sound'>_mic_<label>.wav``.
     """
     level = _checked_level(level)
-    renders = []
+    sound = _sound_path(sound) if sound else None
+    irs = list(irs)
+
+    def sound_of(index):
+        own = getattr(irs[index].source, "sound_file", None)
+        return _sound_path(own, _SOURCE_SOUND_FIX) if own else sound
+
+    for index, label in zip(chosen, labels):
+        if sound_of(index) is None:
+            raise ValueError(f"No sound to auralise {label}: its source '{irs[index].source.name}' has no sound and Auralise has none.")
+    relative = level == "relative"
     with _user_warnings() as messages:
-        for group in groups:
-            for r, pairs in enumerate(_receivers(group)):
-                tasks = [(pairs, f"{r}")] if mix_sources else [([pair], f"{r}_{j}") for j, pair in enumerate(pairs)]
-                for task, suffix in tasks:
-                    jobs.progress("rendering", len(renders))
-                    task_formats = sorted({ir.format for ir, _ in task})
-                    if len(task_formats) > 1:
-                        raise ValueError(
-                            "The impulse responses at receiver {} are {}: mix responses of one format, or turn mix_sources off.".format(r, " and ".join(task_formats))
-                        )
-                    auraliser = Auraliser([ir for ir, _ in task], anechoic_sounds=[sound for _, sound in task])
-                    renders.append((group["branch"], auraliser, auraliser.convolve(), suffix, task_formats[0]))
-        gains = Auraliser.render_gains([render[2] for render in renders], level, -1.0)
-        signals = []
+        kept = set(chosen)
+        auralisers = {}
+        signals = {}
+        peaks = []
+        convolved = [i for i in range(len(irs)) if sound_of(i) is not None] if relative else chosen
+        silent = [irs[i] for i in range(len(irs)) if relative and i not in convolved]
+        if silent:
+            pairs = ", ".join(f"source '{ir.source.name}' to receiver '{ir.receiver.name}'" for ir in silent)
+            warnings.warn(f"Left out of the relative level, no sound on their Source or on Auralise: {pairs}.")
+        for k, index in enumerate(convolved):
+            jobs.progress("rendering", k)
+            auraliser = Auraliser([irs[index]], anechoic_sounds=[sound_of(index)])
+            signal = auraliser.convolve()
+            if index in kept:
+                auralisers[index], signals[index] = auraliser, signal
+            # the shared gain needs only each pair's peak: an unchosen pair's signal is not kept
+            if relative:
+                peaks.append(np.max(np.abs(signal), initial=0.0))
+        if relative:
+            shared = Auraliser.render_gains(peaks, level, -1.0)[0]
+            gains = {index: shared for index in chosen}
+        else:
+            gains = dict(zip(chosen, Auraliser.render_gains([signals[index] for index in chosen], level, -1.0)))
+        rendered = []
         peak = -np.inf
-        for (branch, auraliser, signal, suffix, ir_format), gain in zip(renders, gains):
-            leveled = signal * gain
+        for index, label in zip(chosen, labels):
+            leveled = signals[index] * gains[index]
             peak = max(peak, Auraliser.peak_dbfs(leveled))
-            signals.append({"branch": branch, "audio": Audio(leveled, auraliser.sampling_rate, ir_format)})
+            rendered.append({"label": label, "audio": Audio(leveled, auralisers[index].sampling_rate, irs[index].format)})
             if save_folder:
-                auraliser.export_convolved_sound(os.path.join(save_folder, f"{save_name or 'convolved_sound'}_mic_{suffix}.wav"), signal, gain=gain)
-    return {"signals": signals, "peak_dbfs": float(peak), "warnings": messages}
+                auralisers[index].export_convolved_sound(os.path.join(save_folder, f"{save_name or 'convolved_sound'}_mic_{label}.wav"), signals[index], gain=gains[index])
+    return {"signals": rendered, "peak_dbfs": float(peak), "warnings": messages}
 
 
-def save_impulse_responses(groups, save_folder, level="relative", save_name=None):
-    """``{"files": [str], "warnings": [str]}``: the impulse responses of ``groups``, as :func:`auralise` takes them,
-    written to ``save_folder`` as ``<save_name or 'impulse_response'>_mic_<r>_<j>.wav`` with their JSON metadata,
-    numbered as :func:`auralise` numbers its signals per source and receiver. ``level`` as in :func:`auralise`, on the
-    raw responses."""
+def save_impulse_responses(irs, chosen, labels, save_folder, level="relative", save_name=None):
+    """``{"files": [str], "warnings": [str]}``: the chosen impulse responses of ``irs``, as :func:`auralise` takes
+    them, written to ``save_folder`` as ``<save_name or 'impulse_response'>_mic_<label>.wav`` with their JSON
+    metadata. ``level`` as in :func:`auralise`, on the raw responses: ``'relative'`` takes one gain from every
+    response of ``irs``."""
     level = _checked_level(level)
-    named = [(f"{r}_{j}", ir) for group in groups for r, pairs in enumerate(_receivers(group)) for j, (ir, _) in enumerate(pairs)]
-    gains = Auraliser.render_gains([ir.denormalized() for _, ir in named], level, -1.0)
+    irs = list(irs)
+    raw = [ir.denormalized() for ir in irs] if level == "relative" else [irs[index].denormalized() for index in chosen]
+    gains = Auraliser.render_gains(raw, level, -1.0)
+    if level == "relative":
+        gains = [gains[index] for index in chosen]
     with _user_warnings() as messages:
-        files = [str(ir.to_wav(os.path.join(save_folder, f"{save_name or 'impulse_response'}_mic_{suffix}.wav"), gain=gain)[0]) for (suffix, ir), gain in zip(named, gains)]
+        files = [
+            str(irs[index].to_wav(os.path.join(save_folder, f"{save_name or 'impulse_response'}_mic_{label}.wav"), gain=gain)[0])
+            for index, label, gain in zip(chosen, labels, gains)
+        ]
     return {"files": files, "warnings": messages}
 
 
@@ -443,17 +493,6 @@ def sound_samples(path):
         raise ValueError(f"Cannot read {path}: {e}")
     channels = samples.shape[1]
     return Audio(samples[:, 0] if channels == 1 else samples, rate, "mono" if channels == 1 else "binaural" if channels == 2 else "ambisonic")
-
-
-def sound_info(path):
-    """The channels of an audio file, in any format soundfile reads: ``{"channels"}``."""
-    if not os.path.exists(path):
-        raise ValueError(f"The file {path} does not exist.")
-    try:
-        header = sf.info(path)
-    except Exception as e:
-        raise ValueError(f"Cannot read the channels of {path}: {e}")
-    return {"channels": int(header.channels)}
 
 
 # =============================================================================
@@ -659,6 +698,11 @@ def run_scattering_lab(sample, method="geometric", preset=None, band_range="iso"
     ranges = {"iso": ISO_BAND_RANGE, "extended": EXTENDED_BAND_RANGE}
     if band_range not in ranges:
         raise ValueError(f"band_range is 'iso' or 'extended', not {band_range!r}")
+    try:
+        centre = _sample_centre(sample)
+    except Exception:
+        # only a preview's placement: a sample whose centre cannot be found still runs
+        centre = None
     with _user_warnings() as caught:
         try:
             result = measure_scattering(sample, method=method or "geometric", preset=preset or None, band_range=ranges[band_range], **dict(settings or {}))
@@ -668,8 +712,20 @@ def run_scattering_lab(sample, method="geometric", preset=None, band_range="iso"
     # the sample's own warnings are the Scattering Sample's; how long the run takes is news only before it
     messages = [m for m in caught if m not in sample.warnings]
     messages, notes = _split_notes(messages, NOTE_TEMPLATES + (_SERIAL,), dropped=DURATION_TEMPLATES + (_SLOW_GRID, _BIG))
+    if centre is not None:
+        result.generation["sample_centre"] = centre
     _hold(result)
     return {"result": result, "scattering_coefficients": result.scattering_coefficients, "octave_bands": list(result.octave_bands), "warnings": messages, "notes": notes}
+
+
+def _sample_centre(sample):
+    """Where Polar Preview centres the balloon over ``sample``, as it is drawn: the area centroid of its bottom (the
+    footprint, flat at its lowest z as the lab takes it) in x and y, and its highest z."""
+    from compas_acoustics.lab.sample import _bottom_centroid
+
+    x, y = _bottom_centroid(sample.sample)
+    top = max(sample.sample.vertex_attribute(v, "z") for v in sample.sample.vertices())
+    return [x, y, float(top)]
 
 
 #: The start of the error of a call that names a result by its guid when the worker does not hold it (it restarted, or
@@ -791,4 +847,11 @@ def polar_balloon(result, preview=0, octave=1000, body="sample", radius=1.0, flo
     colatitude, azimuth = float(result.source_colatitude[index]), float(result.source_azimuth[index])
     theta, phi = np.radians(colatitude), np.radians(azimuth)
     source = 1.2 * radius * np.array([np.sin(theta) * np.cos(phi), np.sin(theta) * np.sin(phi), np.cos(theta)])
-    return {"mesh": mesh, "levels": [float(v) for v in levels], "source": [float(v) for v in source], "label": f"θ {colatitude:g}°, φ {azimuth:g}°, {octave} Hz, {body}"}
+    centre = (result.generation or {}).get("sample_centre")
+    return {
+        "mesh": mesh,
+        "levels": [float(v) for v in levels],
+        "source": [float(v) for v in source],
+        "label": f"θ {colatitude:g}°, φ {azimuth:g}°, {octave} Hz, {body}",
+        "centre": [float(v) for v in centre] if centre is not None else None,
+    }

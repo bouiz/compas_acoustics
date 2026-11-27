@@ -384,7 +384,7 @@ class _HybridMethod(SimulationMethod):
             futures = [pool.submit(rendered, item) for item in inputs]
             try:
                 for i, (item, future) in enumerate(zip(inputs, futures)):
-                    jobs.progress("rendering", i, len(inputs))
+                    jobs.progress("simulating", i, len(inputs))
                     self.results[item.key], rirs[item.key] = future.result()
             except BaseException:
                 pool.shutdown(cancel_futures=True)

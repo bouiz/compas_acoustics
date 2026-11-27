@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using CompasAcoustics.Pb;
 using Google.Protobuf;
+using GH_IO.Serialization;
 using Grasshopper.Kernel;
+using Grasshopper.Kernel.Parameters;
 using Grasshopper.Kernel.Types;
 using Rhino.Geometry;
 
@@ -11,31 +13,65 @@ namespace CompasAcoustics.Grasshopper
 {
     public sealed class SourceComponent : ComponentBase
     {
-        public SourceComponent() : base("CA_Source") { }
+        public SourceComponent() : base("CA_Source") => Sound = new AnechoicSound(this);
         protected override string SpecKey => "CA_Source";
         public override Guid ComponentGuid => new Guid("c2b3794e-54b9-5ba2-8d99-2e10bef8be08");
+
+        public override float MinBodyWidth => SharedBodyWidth;
 
         protected override IGH_Param? CreateParam(PortSpec port, bool input) => input ? null : new Param_Source();
 
         /// <summary>The source's directivity patterns, the first the default.</summary>
         internal static readonly string[] Directivities = { "omnidirectional", "cardioid", "supercardioid", "hypercardioid", "bidirectional" };
 
-        public override IReadOnlyList<Control> Controls { get; } = new Control[]
-        {
-            new DropdownControl("directivity", Directivities), new ButtonControl("sound_file", "Sound file..."),
-        };
+        public override IReadOnlyList<Control> Controls { get; } = new Control[] { new DropdownControl("directivity", Directivities), AnechoicSound.Dropdown };
 
-        public override bool HandlesButton(string port) => port == "sound_file";
+        /// <summary>The Anechoic sound dropdown's entries and its loaded file, as on Auralise.</summary>
+        public AnechoicSound Sound { get; }
 
-        public override void OnButton(string port)
+        public override (string[] values, string[] labels) OptionsOf(DropdownControl dropdown) =>
+            dropdown.Port == AnechoicSound.Dropdown.Port ? Sound.Options() : base.OptionsOf(dropdown);
+
+        public override bool OnDropdownOption(string port, string option) => port == AnechoicSound.Dropdown.Port && Sound.OnOption(option);
+
+        public override bool Write(GH_IWriter writer)
         {
-            if (port == "sound_file")
-                FileButtons.Choose(this, port, "Sound file of the source", "Audio", ".wav", ".flac", ".aiff", ".aif", ".ogg", ".mp3");
+            Sound.Write(writer);
+            return base.Write(writer);
         }
 
-        public override string? ButtonLabel(string port) => port == "sound_file" ? FileButtons.Label(this, port, "Sound: ", "Sound file...") : null;
-
-        protected override void AppendMenu(System.Windows.Forms.ToolStripDropDown menu) => FileButtons.AppendClear(this, menu, "sound_file", "Clear sound file");
+        /// <summary>
+        /// A definition saved before the source had its sound input: the input is set aside while Grasshopper reads the saved
+        /// ones by position, so that none is reported missing, and comes back after it, empty and hidden, as on a new Source.
+        /// One saved when the source had a sound_file input before spl: spl is set aside too while the removed input holds its
+        /// place, and comes back without it.
+        /// </summary>
+        public override bool Read(GH_IReader reader)
+        {
+            Sound.Read(reader);
+            if (SavedControlPort(reader, "sound"))
+                return base.Read(reader);
+            var sound = Params.Input.Find(p => p.Name == "sound");
+            if (sound != null)
+                Params.UnregisterInputParameter(sound, false);
+            Param_String? removed = null;
+            if (SavedInput(reader, "sound_file"))
+            {
+                var spl = Params.Input.Single(p => p.Name == "spl");
+                Params.UnregisterInputParameter(spl, false);
+                removed = new Param_String { Name = "sound_file", NickName = "sound_file", Optional = true };
+                Params.RegisterInputParam(removed);
+                Params.RegisterInputParam(spl);
+            }
+            var read = base.Read(reader);
+            if (removed != null)
+                Params.UnregisterInputParameter(removed, true);
+            if (sound != null)
+                Params.RegisterInputParam(sound);
+            Params.OnParametersChanged();
+            HideControlPortsAsNew();
+            return read;
+        }
 
         protected override void Solve(IGH_DataAccess access)
         {
@@ -43,7 +79,7 @@ namespace CompasAcoustics.Grasshopper
             var direction = Value<Vector3d>(access, "direction") ?? Vector3d.XAxis;
             var spl = Items<double>(access, "spl");
             var source = (SourceData)Worker.Call("make_source", Text(access, "name"), MeshConversion.Xyz(position), MeshConversion.Xyz(direction),
-                Text(access, "directivity"), Text(access, "sound_file"), spl.Count == 0 ? null : spl.Cast<object?>().ToList())!;
+                Text(access, "directivity"), Text(access, "sound"), spl.Count == 0 ? null : spl.Cast<object?>().ToList())!;
             access.SetData(0, new SourceGoo(source));
         }
     }
@@ -53,6 +89,8 @@ namespace CompasAcoustics.Grasshopper
         public ReceiverComponent() : base("CA_Receiver") { }
         protected override string SpecKey => "CA_Receiver";
         public override Guid ComponentGuid => new Guid("3a875c99-7e37-5257-a83d-1265489c24df");
+
+        public override float MinBodyWidth => SharedBodyWidth;
 
         protected override IGH_Param? CreateParam(PortSpec port, bool input) => input ? null : new Param_Receiver();
 
@@ -157,6 +195,8 @@ namespace CompasAcoustics.Grasshopper
         public RoomSceneComponent() : base("CA_Model") { }
         protected override string SpecKey => "CA_Model";
         public override Guid ComponentGuid => new Guid("63ac4b6f-5c00-50a5-973f-6337bd1f2b11");
+
+        public override float MinBodyWidth => SharedBodyWidth;
 
         public override bool PreviewOffByDefault => true;
 

@@ -86,6 +86,20 @@ namespace CompasAcoustics.Grasshopper
             Attributes?.ExpireLayout();
         }
 
+        /// <summary>
+        /// After a read of an old layout that set inputs aside and put them back shown: hide those the body sets, unwired, when
+        /// the definition saved its control inputs hidden.
+        /// </summary>
+        protected void HideControlPortsAsRead()
+        {
+            if (!ControlPortsShown)
+                HideControlPortsAsNew();
+        }
+
+        /// <summary>After a read of a layout saved before the component had controls: hide those the body sets, unwired, as on a new component.</summary>
+        protected void HideControlPortsAsNew() =>
+            SetControlPorts(false, ControlPorts.Where(n => Params.Input.Find(p => p.Name == n)?.SourceCount == 0).ToList());
+
         public override void AddedToDocument(GH_Document document)
         {
             // a new component, placed from the toolbar: one read from a file or pasted has its own layout and preview
@@ -119,8 +133,26 @@ namespace CompasAcoustics.Grasshopper
             _layoutRead = true;
             ReadChoices(reader);
             var read = ReadPorts(reader);
+            TakeTheSpecsOutputNames();
             TakeTheSpecsDescriptions();
             return read;
+        }
+
+        /// <summary>
+        /// The outputs' names of the installed plugin, by position: Grasshopper restores a port's names from the file, and an
+        /// output a file saved under its former name would never be found by name. A name chosen on the canvas stays.
+        /// </summary>
+        private void TakeTheSpecsOutputNames()
+        {
+            if (Params.Output.Count != Spec.Outputs.Count)
+                return;
+            for (var i = 0; i < Params.Output.Count; i++)
+            {
+                var (port, name) = (Params.Output[i], Spec.Outputs[i].Name);
+                if (port.NickName == port.Name)
+                    port.NickName = name;
+                port.Name = name;
+            }
         }
 
         private bool ReadPorts(GH_IReader reader)
@@ -177,6 +209,10 @@ namespace CompasAcoustics.Grasshopper
                     return value;
             return null;
         }
+
+        /// <summary>Whether the definition saved the control input <paramref name="name"/>, shown or hidden.</summary>
+        protected static bool SavedControlPort(GH_IReader reader, string name) =>
+            SavedInput(reader, name) || (reader.ItemExists(HiddenKey) && reader.GetString(HiddenKey).Split('\n').Contains(name));
 
         /// <summary>Whether the definition saved the input <paramref name="name"/> as a port.</summary>
         protected static bool SavedInput(GH_IReader reader, string name)

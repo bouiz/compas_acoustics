@@ -19,17 +19,11 @@ namespace CompasAcoustics.Grasshopper
 
         private static string Count(int n, string noun) => $"{n} {noun}{(n == 1 ? "" : "s")}";
 
+        /// <summary>A simulation whose responses hold: <c>simulated 1 response</c>, <c>simulated 4 responses</c>.</summary>
+        public static string Simulated(int responses) => $"simulated {Count(responses, "response")}";
+
         /// <summary>A sampling rate in kHz: <c>48 kHz</c>, <c>44.1 kHz</c>.</summary>
         public static string Rate(int samplingRate) => string.Format(CultureInfo.InvariantCulture, "{0:0.#} kHz", samplingRate / 1000.0);
-
-        /// <summary>A setting as the messages show it: a number in invariant digits, a boolean as on or off.</summary>
-        public static string Show(object? value) => value switch
-        {
-            null => "none",
-            bool b => b ? "on" : "off",
-            System.IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
-            _ => value.ToString() ?? "",
-        };
 
         /// <summary>The Acoustic Object's strip: its surface.</summary>
         public static string Object(double area) => string.Format(CultureInfo.InvariantCulture, "Total area: {0:0.#} m2", area);

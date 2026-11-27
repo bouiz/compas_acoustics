@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using CompasAcoustics.Pb;
 using Grasshopper.Kernel;
 
 namespace CompasAcoustics.Grasshopper
@@ -84,9 +85,10 @@ namespace CompasAcoustics.Grasshopper
             return decision;
         }
 
-        /// <summary>The worker's <c>simulate</c> of <paramref name="method"/>.</summary>
-        protected static Background Simulation(SceneGoo scene, string method, Dictionary<string, object?> settings, object? references, object? context) =>
-            new("simulate", new object?[] { scene.Value, method, settings, references }, new Dictionary<string, object?>(), context);
+        /// <summary>The worker's <c>simulate</c> of <paramref name="method"/>, keyed by what the simulation sees (<see cref="SimulatedScene.Key"/>).</summary>
+        protected static Background Simulation(SceneGoo scene, string method, Dictionary<string, object?> settings, IReadOnlyDictionary<string, ImpulseResponseData>? references, object? context) =>
+            new("simulate", new object?[] { scene.Value, method, settings, references?.ToDictionary(kv => kv.Key, kv => (object?)kv.Value) }, new Dictionary<string, object?>(), context,
+                SimulatedScene.Key(scene, method, settings, references));
 
         /// <summary>The call itself; a component may check the worker first.</summary>
         protected virtual Task<object?> Call(Background request, string callId, CancellationToken cancel) =>

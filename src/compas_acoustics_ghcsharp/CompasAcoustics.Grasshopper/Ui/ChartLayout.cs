@@ -21,7 +21,7 @@ namespace CompasAcoustics.Grasshopper
         IReadOnlyList<(double x, double y)[]> Data, IReadOnlyList<XTick> XTicks, IReadOnlyList<YTick> YTicks, string XTitle, string YTitle,
         string? Overall, float? ZeroY, double YLow, double YHigh, IReadOnlyList<string> Channels, bool Dots = false);
 
-    /// <summary>The layout of the charts on the canvas (Plot 2D, Deconstruct Parameter): margins, ticks and ranges.</summary>
+    /// <summary>The layout of the charts on the canvas (Plot 2D): margins, ticks and ranges.</summary>
     public static class ChartLayout
     {
         /// <summary>The margins around the plot: the y title and the y ticks on the left, the title above, the x ticks and title below.</summary>
@@ -62,7 +62,7 @@ namespace CompasAcoustics.Grasshopper
 
         /// <summary>
         /// The chart of <paramref name="p"/> in <paramref name="area"/>. <paramref name="left"/> replaces the default left
-        /// margin. <paramref name="compact"/>: the strip of Deconstruct Parameter, without titles and with three value labels.
+        /// margin. <paramref name="compact"/>: a strip, without titles and with three value labels.
         /// </summary>
         public static Chart Build(ParameterGoo.Content p, RectangleF area, float? left = null, bool compact = false)
         {
@@ -77,14 +77,11 @@ namespace CompasAcoustics.Grasshopper
             return chart with { YTicks = ends.Select(v => new YTick(Y(chart, v), v.ToString("G3", CultureInfo.InvariantCulture))).ToList() };
         }
 
-        /// <summary>The height of a body with a compact chart (Deconstruct Parameter, Material Library), and of its header row.</summary>
+        /// <summary>The height of a body with a compact chart (Material Library), and of its header row.</summary>
         public const float StripHeight = 60, StripHeader = 11;
 
         /// <summary>The overall value as a chart shows it; null without one.</summary>
         private static string? Overall(ParameterGoo.Content p) => p.Overall is double o ? $"overall {PythonFormat.Repr(o)}" : null;
-
-        /// <summary>The header above Deconstruct Parameter's strip: the overall value (the parameter is chosen just above it).</summary>
-        public static string StripHeaderText(ParameterGoo.Content p) => Overall(p) ?? "";
 
         /// <summary>Where a body of <see cref="StripHeight"/> draws its compact chart: below its header row.</summary>
         public static RectangleF StripArea(RectangleF body) =>
@@ -101,18 +98,37 @@ namespace CompasAcoustics.Grasshopper
         private static readonly HashSet<string> ReverberationTimes = new() { "EDT", "T20", "T30" };
 
         /// <summary>
-        /// The y range a parameter always has, whatever its values: STI is an index and LF and LFC are fractions from 0 to
+        /// The y range a parameter always has, whatever its values: STI is an index and LF is a fraction from 0 to
         /// 1, a reverberation time starts at 0.
         /// </summary>
         private static double[]? FixedTicks(ParameterGoo.Content p, out bool integral)
         {
             integral = false;
-            if (p.Name is "STI" or "LF" or "LFC")
+            if (p.Name is "STI" or "LF")
                 return Ticks.Linear(0, 1, out integral);
             var values = p.Values.Length > 0 ? p.Values[0].Where(double.IsFinite).ToArray() : Array.Empty<double>();
             if (ReverberationTimes.Contains(p.Name) && values.Length > 0 && values.Max() > 0)
                 return Ticks.Linear(0, values.Max(), out integral);
             return null;
+        }
+
+        /// <summary>
+        /// <paramref name="ticks"/> with one more step above (and, when <paramref name="padLow"/>, below) where a value
+        /// lies within 5 % of the range of that end, so that no dot sits on the plot's border.
+        /// </summary>
+        internal static double[] Padded(double[] ticks, IEnumerable<double> values, bool padLow)
+        {
+            var finite = values.Where(double.IsFinite).ToArray();
+            if (ticks.Length < 2 || finite.Length == 0)
+                return ticks;
+            var step = ticks[1] - ticks[0];
+            var margin = 0.05 * (ticks[^1] - ticks[0]);
+            var padded = ticks.ToList();
+            if (finite.Max() >= ticks[^1] - margin)
+                padded.Add(ticks[^1] + step);
+            if (padLow && finite.Min() <= ticks[0] + margin)
+                padded.Insert(0, ticks[0] - step);
+            return padded.ToArray();
         }
 
         public static float Y(Chart chart, double value) => Y(chart.Plot, chart.YLow, chart.YHigh, value);
@@ -136,6 +152,8 @@ namespace CompasAcoustics.Grasshopper
             var count = Math.Min(values.Length, p.Frequencies.Length);
             var integral = false;
             var ticks = FixedTicks(p, out integral) ?? (values.Length > 0 ? Ticks.ForValues(values, out integral) : new[] { 0.0, 1.0 });
+            if (p.Name is not ("STI" or "LF"))
+                ticks = Padded(ticks, values, padLow: !ReverberationTimes.Contains(p.Name));
             var (yTicks, low, high, zero) = YAxis(plot, ticks, integral);
             var step = plot.Width / Math.Max(count, 1);
             var floor = zero ?? plot.Bottom;

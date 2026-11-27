@@ -19,6 +19,13 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
+        public void SimulatedMessage_CountsTheResponses()
+        {
+            Assert.Equal("simulated 1 response", MessageText.Simulated(1));
+            Assert.Equal("simulated 4 responses", MessageText.Simulated(4));
+        }
+
+        [Fact]
         public void AcousticObjectMessage_ShowsItsSurface()
         {
             Assert.Equal("Total area: 12.3 m2", MessageText.Object(12.34));
@@ -58,7 +65,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal("Util", spec.Subcategory);
             Assert.Empty(spec.Inputs);
             Assert.Equal(new[] { "python", "version", "running" }, spec.Outputs.Select(p => p.Name));
-            Assert.Equal(27, EmbeddedSpecs.Names().Count());
+            Assert.Equal(24, EmbeddedSpecs.Names().Count());
         }
     }
 }

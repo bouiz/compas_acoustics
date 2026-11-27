@@ -117,13 +117,13 @@ namespace CompasAcoustics.Grasshopper
             var text = string.Format(CultureInfo.InvariantCulture, "{0} '{1}', {2}", TypeName, Value.Name, Value.Method);
             if (Value.SOctaves.Count > 0)
             {
-                text += string.Format(CultureInfo.InvariantCulture, ", s {0:0.00}–{1:0.00}", Value.SOctaves.Min(), Value.SOctaves.Max());
+                text += string.Format(CultureInfo.InvariantCulture, ", s {0:0.00}-{1:0.00}", Value.SOctaves.Min(), Value.SOctaves.Max());
                 if (Value.OctaveBands.Count > 0)
-                    text += string.Format(CultureInfo.InvariantCulture, " ({0}–{1} Hz)", Value.OctaveBands.Min(), Value.OctaveBands.Max());
+                    text += string.Format(CultureInfo.InvariantCulture, " ({0}-{1} Hz)", Value.OctaveBands.Min(), Value.OctaveBands.Max());
             }
             var d = Diffusion;
             if (d.Length > 0)
-                text += string.Format(CultureInfo.InvariantCulture, ", d {0:0.00}–{1:0.00}", d.Min(), d.Max());
+                text += string.Format(CultureInfo.InvariantCulture, ", d {0:0.00}-{1:0.00}", d.Min(), d.Max());
             return text;
         }
 

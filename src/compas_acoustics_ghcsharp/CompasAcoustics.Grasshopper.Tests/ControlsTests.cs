@@ -138,7 +138,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             new object[] { typeof(SimulateBinauralComponent), new[] { "tail", "diffraction", "run" } },
             new object[] { typeof(SimulateAmbisonicsComponent), new[] { "tail", "diffraction", "run" } },
             new object[] { typeof(AuraliseComponent), new[] { "level" } },
-            new object[] { typeof(DeconstructParameterComponent), new[] { "select" } },
+            new object[] { typeof(Plot2DComponent), new[] { "select" } },
             new object[] { typeof(AcousticObjectComponent), new[] { "role" } },
             new object[] { typeof(VisualiseBilliardComponent), new[] { "play" } },
         };
@@ -172,7 +172,19 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal("diffraction", title);
             Assert.Equal(ComponentSpec.Load("CA_Simulate_Binaural").Inputs.Single(p => p.Name == "diffraction").Description, text);
             // a choice without an input: its options, and its default
-            Assert.Equal(("level", "none, relative or individual (default relative)"), new AuraliseComponent().ControlTooltip("level"));
+            Assert.Equal(("level", "None, Relative or Individual (default None)"), new AuraliseComponent().ControlTooltip("level"));
+        }
+
+        [Fact]
+        public void ADropdownsLabels_StartWithACapital_AndItsValuesKeepTheirForm()
+        {
+            var tail = new DropdownControl("tail", new[] { "auto", "ray_tracing" });
+            var diffraction = new DropdownControl("diffraction", new[] { "none", "udfa", "btms" });
+            Assert.Equal("Ray tracing", ControlLayout.Label(tail, "ray_tracing"));
+            Assert.Equal(new[] { "None", "UDFA", "BTMS" }, diffraction.Options.Select(o => ControlLayout.Label(diffraction, o)));
+            Assert.Equal(new[] { "none", "udfa", "btms" }, diffraction.Options);
+            Assert.Equal("c:/x.wav", ControlLayout.Label(tail, "c:/x.wav"));
+            Assert.Equal(("level", "Boundary"), ("level", ControlLayout.Label(new SwitchControl("role", new[] { "boundary", "obstacle" }), "boundary")));
         }
 
         [Fact]

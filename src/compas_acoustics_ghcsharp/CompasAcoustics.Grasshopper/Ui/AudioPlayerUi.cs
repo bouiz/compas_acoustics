@@ -54,8 +54,8 @@ namespace CompasAcoustics.Grasshopper
             {
                 if (_peak is not { } peak || !ReferenceEquals(peak.signal, signal))
                     _peak = peak = (signal, PeakDbfs(signal));
-                var header = Player.Problem ?? Waveform.Header(signal.Format, channels, signal.SamplingRate, Player.Transport.Duration, peak.peakDbfs);
-                g.DrawString(header, small, Player.Problem != null ? Brushes.DarkRed : Brushes.Black,
+                var header = Waveform.Header(signal.Format, channels, signal.SamplingRate, Player.Transport.Duration, peak.peakDbfs);
+                g.DrawString(header, small, Brushes.Black,
                     new RectangleF(boxes.Header.Location, new SizeF(boxes.Header.Width, boxes.Header.Height + 2)));
                 var lanes = Waveform.Lanes(boxes.Lanes, channels);
                 using (var back = new SolidBrush(Color.FromArgb(245, 245, 245)))

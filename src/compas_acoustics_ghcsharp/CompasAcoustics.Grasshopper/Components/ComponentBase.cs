@@ -4,6 +4,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using Grasshopper.Kernel;
+using Grasshopper.Kernel.Data;
 using Grasshopper.Kernel.Parameters;
 using Grasshopper.Kernel.Types;
 
@@ -71,6 +72,18 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>The controls drawn on the body, below the ports; each sets its input unless a wire does.</summary>
         public virtual IReadOnlyList<Control> Controls => Array.Empty<Control>();
 
+        /// <summary>The minimum body width, in canvas units, of the Acoustic Scene, Source, Receiver, Simulate, Analyse Impulse Response, Auralise and Visualise components, so they line up. A minimum: a component whose port names need more stays wider.</summary>
+        public const float SharedBodyWidth = 135;
+
+        /// <summary>The minimum body width of the four Visualise components (Energy Map, Rays, Reflections, Billiard), which line up with each other.</summary>
+        public const float VisualiseBodyWidth = 140;
+
+        /// <summary>The narrowest the component is drawn, in canvas units; 0 for Grasshopper's own width.</summary>
+        public virtual float MinBodyWidth => 0;
+
+        /// <summary>Whether the control of <paramref name="port"/> can be used now; one at rest is drawn dimmed and keeps its value.</summary>
+        public virtual bool ControlEnabled(string port) => true;
+
         private readonly HashSet<string> _pressed = new();
 
         /// <summary>Whether the button of <paramref name="port"/> was pressed for this solution (or a wire into it is true).</summary>
@@ -85,6 +98,12 @@ namespace CompasAcoustics.Grasshopper
 
         /// <summary>A button the component handles itself was pressed.</summary>
         public virtual void OnButton(string port) { }
+
+        /// <summary>
+        /// <paramref name="option"/> was picked on the dropdown of <paramref name="port"/>: true when the component acts on it
+        /// itself (an entry that opens a dialog), false when the dropdown sets it.
+        /// </summary>
+        public virtual bool OnDropdownOption(string port, string option) => false;
 
         /// <summary>A slider without an input port was set; the component keeps the value itself.</summary>
         public virtual void SliderChanged(string name, double value) { }
@@ -307,6 +326,43 @@ namespace CompasAcoustics.Grasshopper
             var values = new List<T>();
             access.GetDataList(name, values);
             return values;
+        }
+
+        /// <summary>The responses numbered as pairs; null after a warning when there are none, or an error when two are of one pair.</summary>
+        public List<Pair>? Numbered(IEnumerable<ImpulseResponseGoo?> irs)
+        {
+            List<Pair> pairs;
+            try
+            {
+                pairs = PairChoice.Number(irs.Where(ir => ir != null).Select(ir => ir!));
+            }
+            catch (ArgumentException e)
+            {
+                Error(e.Message);
+                return null;
+            }
+            if (pairs.Count == 0)
+            {
+                WarnMissing("irs");
+                return null;
+            }
+            return pairs;
+        }
+
+        /// <summary>
+        /// The responses on <c>irs</c>, flattened and numbered as pairs, and the pairs <c>source_idx</c> and <c>receiver_idx</c>
+        /// choose, once their dropdowns offer the pairs' names; null when none is chosen, after the message that says why.
+        /// </summary>
+        protected (List<Pair> All, List<Pair> Chosen)? ChosenPairs(IGH_DataAccess access)
+        {
+            access.GetDataTree("irs", out GH_Structure<ImpulseResponseGoo> irs);
+            if (Numbered(irs?.FlattenData() ?? new List<ImpulseResponseGoo>()) is not { } pairs)
+                return null;
+            var (sources, receivers) = PairChoice.Names(pairs);
+            SetIndexOptions("source_idx", sources);
+            SetIndexOptions("receiver_idx", receivers);
+            var chosen = PairChoice.Choose(pairs, Items<int>(access, "source_idx"), Items<int>(access, "receiver_idx"), Warn);
+            return chosen.Count == 0 ? null : (pairs, chosen);
         }
     }
 }

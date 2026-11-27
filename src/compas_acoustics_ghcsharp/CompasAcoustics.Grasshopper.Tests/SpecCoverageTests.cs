@@ -18,10 +18,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             ["CA_Analyse_IR"] = "AnalyseIrComponent",
             ["CA_Audio_Player"] = "AudioPlayerComponent",
             ["CA_Auralise"] = "AuraliseComponent",
-            ["CA_Channel"] = "CheckChannelComponent",
             ["CA_Construct_Material"] = "ConstructMaterialComponent",
-            ["CA_Deconstruct_IR"] = "DeconstructParameterComponent",
-            ["CA_Deconstruct_IR_Graph"] = "DeconstructIrGraphComponent",
             ["CA_Deconstruct_Material"] = "DeconstructMaterialComponent",
             ["CA_Install_Worker"] = "InstallWorkerComponent",
             ["CA_Material_Library"] = "MaterialLibraryComponent",
@@ -57,6 +54,23 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(EmbeddedSpecs.Names().OrderBy(n => n, StringComparer.Ordinal), Components.Keys.OrderBy(n => n, StringComparer.Ordinal));
             var types = TypeNames();
             Assert.All(Components.Values, name => Assert.Contains(name, types));
+        }
+
+        [Fact]
+        public void NoSpecDescription_NamesTheIrGraph()
+        {
+            Assert.DoesNotContain("CA_Deconstruct_IR_Graph", EmbeddedSpecs.Names());
+            foreach (var key in EmbeddedSpecs.Names())
+            {
+                var spec = ComponentSpec.Load(key);
+                var texts = new[] { spec.Description }.Concat(spec.Inputs.Select(p => p.Description)).Concat(spec.Outputs.Select(p => p.Description));
+                Assert.All(texts, text =>
+                {
+                    Assert.DoesNotContain("ir_graph", text ?? "");
+                    Assert.DoesNotContain("Deconstruct IR Graph", text ?? "");
+                    Assert.DoesNotContain("Deconstruct Parameter", text ?? "");
+                });
+            }
         }
 
         [Fact]

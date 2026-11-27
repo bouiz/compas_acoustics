@@ -27,8 +27,8 @@ namespace CompasAcoustics.Grasshopper.Tests
         public void TheControlPorts_AreTheInputsOfTheBodysControls_RunIncluded()
         {
             // run stays an input for loops and scripts that set it, hidden like the others
-            Assert.Equal(new[] { "ism_order", "tail", "diffraction", "late_envelope", "normalize", "hrtf", "run" }, new SimulateBinauralComponent().ControlPorts);
-            Assert.Equal(new[] { "ism_order", "tail", "diffraction", "late_envelope", "normalize", "run" }, new SimulateAmbisonicsComponent().ControlPorts);
+            Assert.Equal(new[] { "ism_order", "tail", "diffraction", "late_envelope", "hrtf", "run" }, new SimulateBinauralComponent().ControlPorts);
+            Assert.Equal(new[] { "ism_order", "tail", "diffraction", "late_envelope", "run" }, new SimulateAmbisonicsComponent().ControlPorts);
             Assert.Equal(new[] { "time", "speed", "play" }, new VisualiseBilliardComponent().ControlPorts);
             Assert.Empty(new AcousticObjectComponent().ControlPorts);
             Assert.True(new AcousticObjectComponent().IsChoice("role"));
@@ -39,21 +39,21 @@ namespace CompasAcoustics.Grasshopper.Tests
         public void TheSource_ChoosesItsDirectivityOnTheBody()
         {
             var source = new SourceComponent();
-            var dropdown = source.Controls.OfType<DropdownControl>().Single();
+            var dropdown = source.Controls.OfType<DropdownControl>().First();
             Assert.Equal("directivity", dropdown.Port);
             Assert.Equal(new[] { "omnidirectional", "cardioid", "supercardioid", "hypercardioid", "bidirectional" }, dropdown.Options);
-            // no input: a choice of the component; the sound file's button sets an input
-            Assert.Equal(new[] { "sound_file" }, source.ControlPorts);
+            // no input: a choice of the component
+            Assert.DoesNotContain("directivity", source.ControlPorts);
             Assert.True(source.IsChoice("directivity"));
             Assert.DoesNotContain("directivity", ComponentSpec.Load("CA_Source").Inputs.Select(p => p.Name));
         }
 
         [Fact]
-        public void TheSource_TakesItsLevelAsAnOptionalListAfterTheSoundFile()
+        public void TheSource_TakesItsLevelAsAnOptionalListAfterTheDirection()
         {
             var inputs = ComponentSpec.Load("CA_Source").Inputs;
-            Assert.Equal(new[] { "position", "name", "direction", "sound_file", "spl" }, inputs.Select(p => p.Name));
-            var spl = inputs.Last();
+            Assert.Equal(new[] { "position", "name", "direction", "spl", "sound" }, inputs.Select(p => p.Name));
+            var spl = inputs.Single(p => p.Name == "spl");
             Assert.True(spl.Optional);
             Assert.Equal(global::Grasshopper.Kernel.GH_ParamAccess.list, spl.Access);
         }

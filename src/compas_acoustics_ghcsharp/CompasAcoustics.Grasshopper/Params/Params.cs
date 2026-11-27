@@ -95,13 +95,6 @@ namespace CompasAcoustics.Grasshopper
         public override Guid ComponentGuid => new Guid("01777b71-1eef-5db4-ab66-df91dac8014b");
     }
 
-    public sealed class Param_IrGraph : CompasAcousticsParam<IrGraphGoo>
-    {
-        public Param_IrGraph() : base("IR Graph", "IRG", "The impulse responses of a simulation output, per source and receiver.") { }
-
-        public override Guid ComponentGuid => new Guid("c2b639d2-98e8-5278-a7c9-c6c385443532");
-    }
-
     public sealed class Param_Audio : CompasAcousticsParam<AudioGoo>
     {
         public Param_Audio() : base("Audio", "Audio", "A rendered signal.") { }

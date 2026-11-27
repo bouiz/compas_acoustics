@@ -252,13 +252,25 @@ def _same_outline(sample, proxy, diameter):
         raise ValueError("'reference' has another footprint than the relief ({:.4g} vs {:.4g} m²): give it the same outline".format(areas[1], areas[0]))
 
 
-def _bottom_area(body):
-    """The area of a closed body's bottom: its faces at its lowest z that face −z."""
+def _bottom_triangles(body):
+    """The triangles of a closed body's bottom, its faces at its lowest z that face −z: their corners and areas."""
     V, T = body.to_vertices_and_faces(triangulated=True)
     p = np.asarray(V, dtype=float)[np.asarray(T, dtype=int)]
     cross = np.cross(p[:, 1] - p[:, 0], p[:, 2] - p[:, 0])
     bottom = (np.abs(p[:, :, 2] - p[:, :, 2].min()) < _WELD).all(axis=1) & (cross[:, 2] < 0)
-    return float(-cross[bottom, 2].sum() / 2)
+    return p[bottom], -cross[bottom, 2] / 2
+
+
+def _bottom_area(body):
+    """The area of a closed body's bottom: its faces at its lowest z that face −z."""
+    return float(_bottom_triangles(body)[1].sum())
+
+
+def _bottom_centroid(body):
+    """The area centroid (x, y) of a closed body's bottom: its faces at its lowest z that face −z."""
+    corners, areas = _bottom_triangles(body)
+    x, y = areas @ corners[:, :, :2].mean(axis=1) / areas.sum()
+    return float(x), float(y)
 
 
 def _clean(mesh):

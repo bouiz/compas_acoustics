@@ -2,41 +2,43 @@
     "name": "Auralise",
     "nickname": "Auralise",
     "subcategory": "Auralisation",
-    "description": "Auralise the acoustic scene by convolving the impulse responses with the source signals. The signals keep the format of their impulse responses: mono (Simulate Mono), binaural (Simulate Binaural) or ambisonic (Simulate Ambisonics). Choose the level on the body: 'relative' (default) applies one gain to all signals of this run so the loudest peaks at -1 dBFS, keeping distance and level differences; 'individual' brings each signal to -1 dBFS; 'none' keeps the raw level and may clip. Save auralisation writes the signals as WAV files: choose a folder and a name (take.wav saves take_mic_0_0.wav, take_mic_0_1.wav, ...). Save RIR writes the impulse responses the same way, one file per source and receiver numbered like the signals, at the chosen level and each with a JSON file of its metadata, including the factor back to its raw level.",
+    "description": "Auralise the chosen source-receiver pairs: the impulse response of each pair convolved with an anechoic sound, the sound of its Source when the Source has one, else the one chosen here on the Anechoic sound dropdown (a bundled recording, or a file loaded with Load...) or a File Path wired to 'sound'. The signals keep the format of their impulse responses: mono (Simulate Mono), binaural (Simulate Binaural) or ambisonic (Simulate Ambisonics). Choose the level on the body: 'none' (default) keeps the raw level and may clip; 'relative' takes one gain from every connected pair convolved with its sound, not only the chosen ones, so the loudest connected pair would peak at -1 dBFS and a chosen pair keeps its level difference to it; 'individual' brings each signal to -1 dBFS. Save auralisation writes the signals of the chosen pairs as WAV files: choose a folder and a name (take.wav saves take_mic_<r>_<s>.wav, with r and s the receiver and source indices, as take_mic_0_0.wav, take_mic_0_1.wav, ...). Save RIR writes the impulse responses of the chosen pairs the same way, at the chosen level ('relative' from every connected response) and each with a JSON file of its metadata, including the factor back to its raw level.",
     "exposure": 2,
     "ports": {
         "inputParameters": [
             {
                 "name": "irs",
-                "description": "ImpulseResponse object(s).",
-                "optional": true,
+                "description": "ImpulseResponse object(s), as Simulate gives them, one per source-receiver pair. Sources and receivers are numbered over the responses as connected, in the order they come: the n-th distinct source (receiver) is source (receiver) n, so a filtered or reordered list renumbers the pairs. The 'relative' level takes its gain from every pair connected here.",
+                "optional": false,
                 "scriptParamAccess": 2,
                 "typeHintID": "ghdoc"
             },
             {
-                "name": "anechoic_sounds",
-                "description": "Optional anechoic sound file(s), one per impulse response, paired by position in matching branches. If not provided, each impulse response uses the sound file of its Source.",
+                "name": "source_idx",
+                "description": "Index or indices of the source(s) to auralise, counted over the connected responses. Dropdown: All, or 'n: name'. Empty auralises every source.",
                 "optional": true,
-                "scriptParamAccess": 2,
-                "typeHintID": "ghdoc"
+                "scriptParamAccess": 1,
+                "typeHintID": "int"
             },
             {
-                "name": "mix_sources",
-                "description": "If True, sum all sources heard at the same receiver into one signal per receiver (the full scene); their impulse responses must share one format. If False (default), output one signal per source and receiver.",
+                "name": "receiver_idx",
+                "description": "Index or indices of the receiver(s) to auralise, counted over the connected responses. Dropdown: All, or 'n: name'. Empty auralises every receiver.",
+                "optional": true,
+                "scriptParamAccess": 1,
+                "typeHintID": "int"
+            },
+            {
+                "name": "sound",
+                "description": "Anechoic sound to convolve with the responses whose Source has none (a Source's own sound wins). On the Anechoic sound dropdown: one of the bundled anechoic recordings, or Load... to choose a sound file (.wav, .flac, .aiff, .ogg, .mp3), which the dropdown then lists by its name; nothing is chosen by default, and the dropdown reads '...'. A File Path connected here takes precedence. When a chosen pair's Source has no sound either, Auralise warns and renders nothing.",
                 "optional": true,
                 "scriptParamAccess": 0,
-                "typeHintID": "bool"
+                "typeHintID": "str"
             }
         ],
         "outputParameters": [
             {
                 "name": "signals",
-                "description": "Auralised signal(s) in the format of their impulse responses, shaped (samples, channels). The Audio Player plays mono (on both channels) and binaural; ambisonic signals are for saving."
-            },
-            {
-                "name": "sampling_rate",
-                "typeHintID": "int",
-                "description": "Sampling rate of each auralised signal, in Hz."
+                "description": "One branch per chosen source-receiver pair, path {receiver;source}: the auralised signal in the format of its impulse response, shaped (samples, channels). The Audio Player plays mono (on both channels) and binaural; ambisonic signals are for saving."
             }
         ]
     }

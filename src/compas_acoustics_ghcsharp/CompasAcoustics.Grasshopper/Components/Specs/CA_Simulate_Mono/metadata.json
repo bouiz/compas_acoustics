@@ -2,7 +2,7 @@
     "name": "Simulate Mono",
     "nickname": "SimMono",
     "subcategory": "Simulation",
-    "description": "Simulate mono room impulse responses with pyroomacoustics: the image source method (ISM), plus ray tracing (RT) by default. Air absorption (ISO 9613-1) is always included, as in Simulate Binaural and Simulate Ambisonics. The reference of Simulate Binaural and Simulate Ambisonics. Writes the responses to the impulse response graph under 'mono'.",
+    "description": "Simulate mono room impulse responses with pyroomacoustics: the image source method (ISM), plus ray tracing (RT) by default. Air absorption (ISO 9613-1) is always included, as in Simulate Binaural and Simulate Ambisonics. The reference of Simulate Binaural and Simulate Ambisonics.",
     "exposure": 2,
     "ports": {
         "inputParameters": [
@@ -97,8 +97,8 @@
                 "default": 42
             },
             {
-                "name": "normalize",
-                "description": "Whether the impulse responses are peak-normalised (default True). The raw level is always kept and used for auralisation.",
+                "name": "run",
+                "description": "Simulate when true: the body's Run button, or a Button or Boolean Toggle wired here. The simulation takes seconds to minutes and Grasshopper recomputes on every change of the inputs, so it starts only on a press; otherwise the responses of the last run are passed on until the next one, and the message says \"model changed, rerun the simulation\" when the scene differs from the run's, to Simulate Binaural and Simulate Ambisonics among others.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "bool"
@@ -106,8 +106,8 @@
         ],
         "outputParameters": [
             {
-                "name": "mono_ir_graph",
-                "description": "IR graph of the mono responses (under 'mono'), for Deconstruct IR Graph or the reference of Simulate Binaural and Simulate Ambisonics."
+                "name": "irs",
+                "description": "The mono impulse responses, one per source and receiver in scene order (receiver by receiver, sources within each). Connect them to Analyse Impulse Response, Audio Player or Auralise, or to the reference of Simulate Binaural and Simulate Ambisonics."
             }
         ]
     }

@@ -2,15 +2,15 @@
     "name": "Plot 2D",
     "nickname": "Plot2D",
     "subcategory": "Display",
-    "description": "Chart an acoustic parameter (a dot per band, joined by a line), or the time or frequency response of Analyse Impulse Response (a line per channel), on the canvas: one chart per parameter connected, stacked. Drag the corner to resize; hover a chart to read its values; Save writes the charts as a PNG image.",
+    "description": "Chart an acoustic parameter (a dot per band, joined by a line), or the time or frequency response of Analyse Impulse Response (a line per channel), on the canvas: one chart per parameter connected, stacked, for every source-receiver pair of Analyse Impulse Response. Choose which parameter to chart with the Select parameter dropdown beside the data input: T30 until you choose, All, or one by name (EDT, T20, T30, C50, C80, D50, DRR, Ts, STI, G, SPL, LF; the opened menu gives each its title, as T30 (Reverberation Time)), and a sentence right of it says what the chosen parameter is; it lists only the parameters connected, so no LF for a response that is not ambisonic; the time and frequency responses are charted whichever is chosen, and with only them connected the dropdown rests. Drag the corner to resize; hover a chart to read its values; Save writes the charts as a PNG image.",
     "exposure": 2,
     "ports": {
         "inputParameters": [
             {
                 "name": "data",
-                "description": "Data to chart: acoustic parameters (a dot per band, joined by a line), or the time or frequency output of Analyse Impulse Response (a line per channel). One chart each.",
+                "description": "Data to chart: acoustic parameters (a dot per band, joined by a line), or the time or frequency output of Analyse Impulse Response (a line per channel). One chart each, over every branch.",
                 "optional": false,
-                "scriptParamAccess": 1,
+                "scriptParamAccess": 2,
                 "typeHintID": "ghdoc"
             }
         ],

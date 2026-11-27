@@ -2,7 +2,7 @@
     "name": "Simulate Binaural",
     "nickname": "SimBin",
     "subcategory": "Simulation",
-    "description": "Simulate binaural room impulse responses, an HRTF per path and per delay line: image sources, optional edge diffraction around obstacles and at the edges of the room's boundary that open wider than 180 deg, and a directional feedback delay network tail. Needs the worker (Python >= 3.11) and a closed room. Writes the responses to the impulse response graph under 'binaural'.",
+    "description": "Simulate binaural room impulse responses, an HRTF per path and per delay line: image sources, optional edge diffraction around obstacles and at the edges of the room's boundary that open wider than 180 deg, and a directional feedback delay network tail. Needs the worker (Python >= 3.11) and a closed room.",
     "exposure": 2,
     "ports": {
         "inputParameters": [
@@ -15,16 +15,16 @@
             },
             {
                 "name": "tail",
-                "description": "Decay target of the tail: auto (reference if given, else ray_tracing), reference, ray_tracing (its own ray-traced reference), eyring or sabine (predicted, no simulation).",
+                "description": "Decay target of the tail: ray_tracing (default; its own ray-traced reference), reference (the connected reference), eyring or sabine (predicted, no simulation). A connected reference needs Tail Reference, and Tail Reference needs a reference.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "str"
             },
             {
                 "name": "reference",
-                "description": "Optional reference for the tail: connect the mono_ir_graph output of Simulate Mono (the wire also makes Grasshopper run the ray tracing first).",
+                "description": "Optional reference for the tail: connect the irs output of Simulate Mono, simulated for the same scene (a reference Simulate Mono kept from an earlier model is refused: rerun it first), one response per source and receiver (the wire also makes Grasshopper run the ray tracing first). Set Tail to Reference with it; any other tail is an error.",
                 "optional": true,
-                "scriptParamAccess": 0,
+                "scriptParamAccess": 1,
                 "typeHintID": "ghdoc"
             },
             {
@@ -90,7 +90,7 @@
             },
             {
                 "name": "late_envelope",
-                "description": "How the late field follows the reference: auto (omni with a reference or ray-traced tail, off for an Eyring or Sabine tail), omni (its level per band to the reference's late energy), directional (as omni, and each delay line to its direction's share of the ray-traced energy), or off.",
+                "description": "How the late field follows the reference: omni (default; its level per band to the reference's late energy), directional (as omni, and each delay line to its direction's share of the ray-traced energy), or off. An Eyring or Sabine tail has no reference to follow: the dropdown rests and the late envelope is off.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "str"
@@ -104,18 +104,11 @@
             },
             {
                 "name": "seed",
-                "description": "Seed of the feedback matrices, the delay jitter and the rays the method traces, 42 as in the method: the same seed gives the same responses, and Simulate Binaural and Simulate Ambisonics up to SH order 3 the same late field; another number gives another realisation.",
+                "description": "Seed of the feedback matrices, the delay jitter and the rays the method traces, 42 as in the method: the same seed gives the same responses, and Simulate Binaural and Simulate Ambisonics up to Ambisonic order 3 the same late field; another number gives another realisation.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "int",
                 "default": 42
-            },
-            {
-                "name": "normalize",
-                "description": "Whether the impulse responses are peak-normalised (default True). The raw level is always kept.",
-                "optional": true,
-                "scriptParamAccess": 0,
-                "typeHintID": "bool"
             },
             {
                 "name": "hrtf",
@@ -126,7 +119,7 @@
             },
             {
                 "name": "run",
-                "description": "Simulate when true: the body's Run button, or a Button or Boolean Toggle wired here. The simulation takes seconds to minutes and Grasshopper recomputes on every change of the inputs, so it starts only on a press; otherwise the responses of the last run for this scene are passed on.",
+                "description": "Simulate when true: the body's Run button, or a Button or Boolean Toggle wired here. The simulation takes seconds to minutes and Grasshopper recomputes on every change of the inputs, so it starts only on a press; otherwise the responses of the last run are passed on until the next one, and the message says \"model changed, rerun the simulation\" when the scene differs from the run's.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "bool"
@@ -134,8 +127,8 @@
         ],
         "outputParameters": [
             {
-                "name": "binaural_ir_graph",
-                "description": "IR graph of the binaural responses (under 'binaural'), for Deconstruct IR Graph and Auralise."
+                "name": "irs",
+                "description": "The binaural impulse responses, one per source and receiver in scene order (receiver by receiver, sources within each). Connect them to Analyse Impulse Response, Audio Player or Auralise."
             }
         ]
     }

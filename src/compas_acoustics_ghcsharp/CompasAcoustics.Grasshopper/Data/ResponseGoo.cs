@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using CompasAcoustics.Pb;
 using CompasPb;
+using Grasshopper.Kernel.Types;
 
 namespace CompasAcoustics.Grasshopper
 {
@@ -38,6 +39,28 @@ namespace CompasAcoustics.Grasshopper
                 }
                 return _generation;
             }
+        }
+
+        /// <summary>
+        /// The scene the simulation ran for, set by Simulate, so that a hybrid can tell a reference kept from an earlier model;
+        /// null for a response from elsewhere. It is not saved: an internalised response has none.
+        /// </summary>
+        public SceneGoo? SimulatedFor { get; set; }
+
+        public override IGH_Goo Duplicate()
+        {
+            var copy = (ImpulseResponseGoo)base.Duplicate();
+            copy.SimulatedFor = SimulatedFor;
+            return copy;
+        }
+
+        public override bool CastFrom(object source)
+        {
+            if (!base.CastFrom(source))
+                return false;
+            if (source is ImpulseResponseGoo goo)
+                SimulatedFor = goo.SimulatedFor;
+            return true;
         }
 
         /// <summary><c>mono</c>, <c>binaural</c> (two channels, no ambisonic order) or <c>ambisonic</c>, as <c>ImpulseResponse.format</c>.</summary>
