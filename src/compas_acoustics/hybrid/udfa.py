@@ -125,13 +125,41 @@ class WedgePath:
 
 def fractional_lowpass(freq: np.ndarray, fc: float, blend: float = _B, q: float = _Q) -> np.ndarray:
     """Eq. (6) with the paper's alpha = 1/2, b = ``blend`` = 1.44, Q = ``q`` = 0.2 and r = 1.6. ``fc = inf`` gives a
-    flat response."""
-    jx = 1j * np.asarray(freq, dtype=float) / fc
-    return (jx ** (2.0 / blend) + (jx / q) ** (1.0 / blend**_R) + 1.0) ** (-_ALPHA * blend / 2.0)
+    flat response.
+
+    Evaluated in polar form: ``jx`` is purely imaginary, so ``(jx)^p`` is ``|x|^p`` at the angle ``sign(x) p pi / 2``,
+    and the outer power is taken from the modulus and argument of the sum: numpy's principal branch, in real
+    arithmetic instead of a complex logarithm and exponential per bin and power.
+    """
+    x = np.asarray(freq, dtype=float) / fc
+    if not np.all(np.isfinite(x)):
+        jx = 1j * x
+        return (jx ** (2.0 / blend) + (jx / q) ** (1.0 / blend**_R) + 1.0) ** (-_ALPHA * blend / 2.0)
+    p1 = 2.0 / blend
+    p2 = 1.0 / blend**_R
+    m1 = np.abs(x) ** p1
+    m2 = np.abs(x / q) ** p2
+    re = 1.0 + m1 * np.cos(p1 * np.pi / 2.0) + m2 * np.cos(p2 * np.pi / 2.0)
+    im = np.sign(x) * (m1 * np.sin(p1 * np.pi / 2.0) + m2 * np.sin(p2 * np.pi / 2.0))
+    e = -_ALPHA * blend / 2.0
+    modulus = np.hypot(re, im) ** e
+    angle = e * np.arctan2(im, re)
+    out = np.empty(x.shape, dtype=complex)
+    out.real = modulus * np.cos(angle)
+    out.imag = modulus * np.sin(angle)
+    return out
 
 
 def first_order_lowpass(freq: np.ndarray, fc: float) -> np.ndarray:
-    return 1.0 / (1.0 + 1j * np.asarray(freq, dtype=float) / fc)
+    """``1 / (1 + j f / fc)``, evaluated as ``(1 - j x) / (1 + x^2)``."""
+    x = np.asarray(freq, dtype=float) / fc
+    if not np.all(np.isfinite(x)):
+        return 1.0 / (1.0 + 1j * x)
+    inv = 1.0 / (1.0 + x * x)
+    out = np.empty(x.shape, dtype=complex)
+    out.real = inv
+    out.imag = -x * inv
+    return out
 
 
 def term_parameters(path: WedgePath, c: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
