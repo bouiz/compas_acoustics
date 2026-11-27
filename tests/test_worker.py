@@ -552,7 +552,25 @@ def test_the_hybrid_reports_its_stages(monkeypatch):
 
     stages = recorded_stages(monkeypatch)
     scene().simulate(Ambisonics(tail="eyring", late_envelope=False))
-    assert [s for s in dict.fromkeys(stages)] == ["references", "image sources", "simulating"]
+    named = list(dict.fromkeys(stages))
+    assert named[:3] == ["references", "image sources", "simulating: early reflections"]
+    # the later steps show when a report falls in them; they come in their order
+    steps = ["simulating: early reflections", "simulating: late reverberation", "simulating: ambisonic encoding"]
+    assert named[2:] == [s for s in steps if s in named[2:]]
+
+
+def test_the_hybrid_reports_the_pairs_past_each_step():
+    pytest.importorskip("pyFDN")
+    from compas_acoustics.progress import reporting
+    from compas_acoustics.simulation_methods import Ambisonics
+
+    reports = []
+    with reporting(lambda stage, done, of: reports.append((stage, done, of))):
+        scene().simulate(Ambisonics(tail="eyring", late_envelope=False))
+    rendering = [r for r in reports if r[0].startswith("simulating: ")]
+    assert rendering[0][1:] == (0, 1)
+    assert all(0 <= done < of for _, done, of in rendering)
+    assert len(set(rendering)) == len(rendering)  # a report is sent when it changes, not on every poll
 
 
 def test_mono_reports_its_stages(monkeypatch):

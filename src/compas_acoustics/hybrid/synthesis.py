@@ -9,6 +9,7 @@ from __future__ import annotations
 import warnings
 from dataclasses import dataclass
 from dataclasses import replace
+from typing import Callable
 from typing import Literal
 
 import numpy as np
@@ -96,6 +97,7 @@ def prepare(
     rng: int = 0,
     scattering: bool = False,
     source_gain=None,
+    on_step: Callable[[str], None] | None = None,
 ) -> HybridCore:
     """The format-neutral part of the hybrid for one pair: its early paths and its delay lines.
 
@@ -131,9 +133,15 @@ def prepare(
     The scattered part of every image of orders 1 to ``max_order`` enters the lines of its own hemisphere skipping
     their delays (:func:`run_network`'s ``tap``), through the allpass cascade of Eqs. 12-13 with ``R`` the mean free
     path, weighted as a driving image.
+
+    ``on_step(name)`` is called on the calling thread as each step starts: ``"early reflections"`` (the
+    network's design, the diffracted paths and the images that drive it), then ``"late reverberation"`` (the
+    network's run, the longest step).
     """
+    step = on_step or (lambda name: None)
     n_samples = int(np.ceil(duration_s * pair.fs))
 
+    step("early reflections")
     directions = fdn_directions(num_delays)
     delays = [directional_delays(pair, directions, rng=rng + slope) for slope in range(target.n_slopes)]
     builds = design_fdn(target, delays, rng=rng)
@@ -180,6 +188,8 @@ def prepare(
                 )
                 * drive_gain
             )
+    step("late reverberation")
+    lines = run_network(builds, drive * drive_gain, tap=tap, line_eq=line_eq)
     return HybridCore(
         pair=pair,
         n_samples=n_samples,
@@ -190,7 +200,7 @@ def prepare(
         diffraction_paths=paths,
         btms_contributions=contributions,
         builds=builds,
-        lines=run_network(builds, drive * drive_gain, tap=tap, line_eq=line_eq),
+        lines=lines,
         line_directions=directions.cartesian / np.linalg.norm(directions.cartesian, axis=1, keepdims=True),
         late_envelope=late_envelope,
         directional_envelope=directional_envelope,
