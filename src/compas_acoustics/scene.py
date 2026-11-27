@@ -201,7 +201,7 @@ class Scene(_PackageDtype, Data):
                 out[f"{ir.receiver.guid}_{ir.source.guid}"] = ir
         return out
 
-    def simulate(self, method) -> dict:
+    def simulate(self, method, geometry=None) -> dict:
         """Run a simulation method at :attr:`sampling_rate` and store its responses on the IR graph under its name.
 
         A mono method's responses also go under ``'data'``, the default of :meth:`impulse_responses`.
@@ -210,6 +210,9 @@ class Scene(_PackageDtype, Data):
         ----------
         method : :class:`~compas_acoustics.simulation_methods.SimulationMethod`
             E.g. ``Mono(ray_tracing=True)``, ``Binaural()`` or ``Ambisonics()``.
+        geometry : :class:`~compas_acoustics.RoomGeometry`, optional
+            The room to simulate in place of the one built from the scene's acoustic objects, e.g.
+            ``RoomGeometry.from_prepared(...)`` or ``RoomGeometry.from_scene(scene, prepare=PrepareOptions())``.
 
         Returns
         -------
@@ -218,7 +221,7 @@ class Scene(_PackageDtype, Data):
         """
         from compas_acoustics.simulation_methods import SimulationContext
 
-        context = SimulationContext.from_scene(self)
+        context = SimulationContext.from_scene(self, geometry)
         _log.info("Running %s at %s Hz on %d sources and %d receivers", method.name, context.sampling_rate, len(context.sources), len(context.receivers))
         rirs = method.compute(context)
         self.populate_ir_graph(rirs, attribute=method.name)
