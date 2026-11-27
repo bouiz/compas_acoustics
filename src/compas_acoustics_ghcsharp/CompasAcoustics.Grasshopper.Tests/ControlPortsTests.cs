@@ -29,7 +29,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             // run stays an input for loops and scripts that set it, hidden like the others
             Assert.Equal(new[] { "ism_order", "tail", "diffraction", "late_envelope", "hrtf", "run" }, new SimulateBinauralComponent().ControlPorts);
             Assert.Equal(new[] { "ism_order", "tail", "diffraction", "late_envelope", "run" }, new SimulateAmbisonicsComponent().ControlPorts);
-            Assert.Equal(new[] { "time", "speed", "play" }, new VisualiseBilliardComponent().ControlPorts);
+            Assert.Equal(new[] { "source_idx", "order", "time", "speed", "max_order" }, new VisualiseBilliardComponent().ControlPorts);
             Assert.Empty(new AcousticObjectComponent().ControlPorts);
             Assert.True(new AcousticObjectComponent().IsChoice("role"));
             Assert.Empty(new WorkerComponent().ControlPorts);

@@ -22,9 +22,12 @@ namespace CompasAcoustics.Grasshopper
         private bool _layoutRead;
         private IReadOnlyList<string>? _controlPorts;
 
-        /// <summary>The inputs that a control on the body sets: every control on an input, buttons included.</summary>
+        /// <summary>The inputs that a control on the body sets (every control on an input, buttons included), then <see cref="HiddenInputs"/>.</summary>
         public IReadOnlyList<string> ControlPorts =>
-            _controlPorts ??= Controls.Select(c => c.Port).Where(n => Spec.Inputs.Any(p => p.Name == n)).Distinct().ToList();
+            _controlPorts ??= Controls.Select(c => c.Port).Concat(HiddenInputs).Where(n => Spec.Inputs.Any(p => p.Name == n)).Distinct().ToList();
+
+        /// <summary>Inputs without a control that hide and show with the control inputs, as a body control makes them rarely needed.</summary>
+        protected virtual IEnumerable<string> HiddenInputs => Array.Empty<string>();
 
         public bool ControlPortsShown { get; private set; } = true;
 
@@ -84,6 +87,17 @@ namespace CompasAcoustics.Grasshopper
             ControlPortsShown = shown;
             Params.OnParametersChanged();
             Attributes?.ExpireLayout();
+        }
+
+        /// <summary>
+        /// After a read of a layout saved before the control inputs <paramref name="names"/> existed, which were set aside and
+        /// put back shown: hide them alone when the definition saved its control inputs hidden. The others stay as saved: a wired
+        /// one is not linked yet while the component reads.
+        /// </summary>
+        protected void HideNewControlPortsAsRead(IEnumerable<string> names)
+        {
+            if (!ControlPortsShown)
+                SetControlPorts(false, _hidden.Keys.Concat(names).ToList());
         }
 
         /// <summary>

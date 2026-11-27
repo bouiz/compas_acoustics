@@ -242,11 +242,16 @@
       ]
     },
     "CA_Visualise_Billiard": {
-      "hash": "48fd57d9bd1a",
+      "hash": "b962b8ac7d77",
       "inputs": [
-        "ray_field",
+        "scene",
+        "source_idx",
+        "n_balls",
+        "max_order",
+        "direction",
+        "angle",
+        "order",
         "time",
-        "play",
         "speed"
       ],
       "outputs": [
@@ -271,7 +276,7 @@
       ]
     },
     "CA_Visualise_Rays": {
-      "hash": "111126b4bed3",
+      "hash": "7057902237ab",
       "inputs": [
         "scene",
         "source_idx",
@@ -281,7 +286,9 @@
         "angle",
         "scattering",
         "seed",
-        "order"
+        "order",
+        "time",
+        "speed"
       ],
       "outputs": [
         "ray_field",

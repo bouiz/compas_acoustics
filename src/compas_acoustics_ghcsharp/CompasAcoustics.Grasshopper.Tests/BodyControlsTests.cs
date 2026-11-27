@@ -189,9 +189,9 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(new[] { "ism_order", "tail", "diffraction", "late_envelope", "run" }, new SimulateAmbisonicsComponent().ControlPorts);
             Assert.Empty(new RoomSceneComponent().ControlPorts);
             Assert.Equal(new[] { "source_idx", "receiver_idx", "sound" }, new AuraliseComponent().ControlPorts);
-            Assert.Equal(new[] { "source_idx", "scattering", "order" }, new VisualiseRaysComponent().ControlPorts);
+            Assert.Equal(new[] { "source_idx", "scattering", "order", "time", "speed", "max_order", "seed" }, new VisualiseRaysComponent().ControlPorts);
             Assert.Equal(new[] { "source_idx", "receiver_idx", "order" }, new VisualiseReflectionsComponent().ControlPorts);
-            Assert.Equal(new[] { "time", "speed", "play" }, new VisualiseBilliardComponent().ControlPorts);
+            Assert.Equal(new[] { "source_idx", "order", "time", "speed", "max_order" }, new VisualiseBilliardComponent().ControlPorts);
             Assert.Equal(new[] { "frequency_bands", "source_idx", "run" }, new VisualiseEnergyMapComponent().ControlPorts);
             Assert.Equal(new[] { "sound" }, new SourceComponent().ControlPorts);
             Assert.Equal(new[] { "category" }, new ConstructMaterialComponent().ControlPorts);
@@ -339,7 +339,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         {
             var rays = new VisualiseRaysComponent();
             var declared = rays.Controls.OfType<StepSliderControl>().Single();
-            Assert.DoesNotContain(rays.Controls, c => c is SliderControl);
+            Assert.DoesNotContain(rays.Controls, c => c is SliderControl { Port: "order" });
             Assert.Equal(("order", "", "Order"), (declared.Port, declared.Default, ControlLayout.Title(declared)));
             var stops = rays.StepStopsOf(declared);
             Assert.Equal(new[] { "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "" }, stops.Options);
@@ -419,19 +419,19 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void TheBilliard_ScrubsTimeOnASlider_AndPlaysAtAFactorOfItsDefaultSpeed()
+        public void TheRays_ScrubTimeOnASlider_AndPlayAtAFactorOfTheirDefaultSpeed()
         {
-            var billiard = new VisualiseBilliardComponent();
-            var time = billiard.Controls.OfType<SliderControl>().Single();
+            var rays = new VisualiseRaysComponent();
+            var time = rays.Controls.OfType<SliderControl>().Single();
             Assert.Equal(("time", "ms"), (time.Port, time.Unit));
-            var speed = billiard.Controls.OfType<DropdownControl>().Single();
+            var speed = rays.Controls.OfType<DropdownControl>().Single(c => c.Port == "speed");
             Assert.Equal(new[] { "0.25", "0.5", "1", "2", "4" }, speed.Options);
             Assert.Equal("1", speed.Default);
             Assert.Equal("2x", ControlLayout.Label(speed, "2"));
             // a factor of the whole field in 10 s
-            Assert.Equal(300.0, VisualiseBilliardComponent.Rate(1.0, 3000));
-            Assert.Equal(600.0, VisualiseBilliardComponent.Rate(2.0, 3000));
-            Assert.Equal(300.0, VisualiseBilliardComponent.Rate(null, 3000));
+            Assert.Equal(300.0, VisualiseRaysComponent.Rate(1.0, 3000));
+            Assert.Equal(600.0, VisualiseRaysComponent.Rate(2.0, 3000));
+            Assert.Equal(300.0, VisualiseRaysComponent.Rate(null, 3000));
         }
 
         [Theory]
@@ -464,16 +464,16 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void TheBilliardsTime_FollowsTheKnobWhileItIsDragged()
+        public void TheRaysTime_FollowsTheKnobWhileItIsDragged()
         {
-            var billiard = new VisualiseBilliardComponent();
-            var time = billiard.Controls.OfType<SliderControl>().Single();
+            var rays = new VisualiseRaysComponent();
+            var time = rays.Controls.OfType<SliderControl>().Single();
             Assert.True(time.Live);
             // each step of the drag sets the input and lets go of what it collected, without an undo step of its own
-            var port = billiard.ControlPort("time")!;
-            ControlState.Scrub(billiard, port, "12.5");
+            var port = rays.ControlPort("time")!;
+            ControlState.Scrub(rays, port, "12.5");
             port.CollectData();
-            ControlState.Scrub(billiard, port, "40");
+            ControlState.Scrub(rays, port, "40");
             Assert.Equal(0, port.VolatileDataCount);
             Assert.Equal(40.0, ControlState.Persistent(port));
         }

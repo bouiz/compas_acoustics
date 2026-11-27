@@ -2,34 +2,71 @@
     "name": "Visualise Billiard",
     "nickname": "Billiard",
     "subcategory": "Display",
-    "description": "The rays of a ray field as particles at a time, like a 3D billiard: press Play to animate, or connect a time (a slider scrubs it) for a frozen frame. Play (Pause while playing) and Rewind control the playback; the Preview button shows or hides the particles.",
+    "description": "Trace rays from the scene's sources and play them as balls, like a 3D billiard: each ball travels along its ray at the speed of sound and changes colour at every reflection. Press Play to set them going; the same button reads Pause while playing and holds them where they are, Rewind goes back to the start, the time slider scrubs and Speed sets how fast they move. Nothing is drawn before Play or a time. The Preview button shows or hides the balls.",
     "exposure": 2,
     "ports": {
         "inputParameters": [
             {
-                "name": "ray_field",
-                "description": "The ray field, from Visualise Rays or Visualise Reflections.",
+                "name": "scene",
+                "description": "Acoustic scene object.",
                 "optional": false,
                 "scriptParamAccess": 0,
                 "typeHintID": "ghdoc"
             },
             {
-                "name": "time",
-                "description": "Time in ms. Alone: the frame at that time (a slider scrubs). With Play: where playback stops (default: the end).",
+                "name": "source_idx",
+                "description": "Index of the source to play from, in the order of the scene's sources. Empty (default): every source.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "int"
+            },
+            {
+                "name": "n_balls",
+                "description": "Number of balls per source, one per traced ray.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "int",
+                "default": 500
+            },
+            {
+                "name": "max_order",
+                "description": "Highest reflection order traced per ball.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "int",
+                "default": 10
+            },
+            {
+                "name": "direction",
+                "description": "Axis of a spotlight cone to send the balls into, apex at each source. Empty (default): all directions. Needs angle.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "vector"
+            },
+            {
+                "name": "angle",
+                "description": "Half angle of the spotlight cone in degrees. Empty (default): all directions. Needs direction.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "float"
             },
             {
-                "name": "play",
-                "description": "Press (or turn a Boolean Toggle on) to play from 0 to time (default: the end of the ray field) and hold the last frame; pressing again restarts.",
+                "name": "order",
+                "description": "Play only the first reflections of each ball: a ball ends at that order. Empty (default): all traced orders.",
                 "optional": true,
                 "scriptParamAccess": 0,
-                "typeHintID": "bool"
+                "typeHintID": "int"
+            },
+            {
+                "name": "time",
+                "description": "Time in ms. Alone: the balls where sound has travelled at that time (a slider scrubs). With Play: where playback stops (default: the end).",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "float"
             },
             {
                 "name": "speed",
-                "description": "Playback speed, a factor of the default, which plays the whole ray field in 10 s: 0.5 is half as fast, 2 twice.",
+                "description": "Playback speed, a factor of the default, which plays the whole field in 10 s: 0.5 is half as fast, 2 twice.",
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "float"
@@ -39,7 +76,7 @@
             {
                 "name": "particles",
                 "typeHintID": "point",
-                "description": "The position of every ray that has not ended yet at the time, as points."
+                "description": "The position of every ball that has not ended yet at the time, as points."
             }
         ]
     }

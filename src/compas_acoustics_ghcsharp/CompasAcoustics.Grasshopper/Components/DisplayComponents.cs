@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using CompasAcoustics.Pb;
+using GH_IO.Serialization;
 using Grasshopper.Kernel;
 using Grasshopper.Kernel.Parameters;
 using Grasshopper.Kernel.Types;
@@ -26,6 +27,12 @@ namespace CompasAcoustics.Grasshopper
         /// Hidden holds its state, which Grasshopper saves, so the name is saved nowhere.
         /// </summary>
         protected static readonly ToggleControl PreviewSwitch = new("show", "Preview");
+
+        /// <summary>The playback speed on the body, a factor of the default (see <see cref="Rate"/>).</summary>
+        protected static readonly DropdownControl SpeedDropdown = new("speed", new[] { "0.25", "0.5", "1", "2", "4" }, "1", new[] { "0.25x", "0.5x", "1x", "2x", "4x" });
+
+        /// <summary>The playback speed, in ms of sound per second: <paramref name="factor"/> (default 1) of the whole field in 10 s.</summary>
+        public static double Rate(double? factor, double durationMs) => (factor ?? 1.0) * durationMs / 10.0;
 
         /// <summary>Not the outputs: the component draws its geometry itself.</summary>
         public override bool PreviewsOutput(IGH_Param output) => false;
@@ -165,20 +172,41 @@ namespace CompasAcoustics.Grasshopper
         }
     }
 
-    public sealed class VisualiseRaysComponent : DisplayComponent
+    /// <summary>
+    /// Visualise Rays and Visualise Billiard: rays traced from the scene's sources (the worker's ray_field) and played on the
+    /// body, with Play and Rewind, a time slider and Speed. Nothing is drawn before Play or a time.
+    /// </summary>
+    public abstract class TracedPlaybackComponent : DisplayComponent
     {
-        private const int LineThickness = 1;
-        private readonly Dictionary<int, List<Line>> _drawn = new();
         private readonly Playback _playback = NewPlayback();
         private int _maxOrder = 10;
-        // the shown field's rays and curves, the same for every frame of a playback
-        private (RayFieldData shown, List<RayGeometry.Ray> rays, PolylineCurve[] specular, PolylineCurve[] scattered)? _converted;
+        private double _durationMs;
+        private double? _shownMs;
 
-        public override IReadOnlyList<Control> Controls { get; } = new Control[]
-        {
-            PreviewSwitch, SceneIndices.SourceDropdown, new ToggleControl("scattering", "Scattering", Default: false),
-            OrderStops(10), new ButtonControl("play", "Play", Inline: true, Icon: true), new ButtonControl("rewind", "Rewind", Inline: true, Icon: true),
-        };
+        protected TracedPlaybackComponent(string key) : base(key) { }
+
+        protected static readonly SliderControl TimeSlider = new("time", 0, 1000, "ms", Step: 0.1, Live: true);
+        protected static readonly ButtonControl PlayButton = new("play", "Play", Inline: true, Icon: true);
+        protected static readonly ButtonControl RewindButton = new("rewind", "Rewind", Inline: true, Icon: true);
+
+        /// <summary>The input of the number of rays traced per source.</summary>
+        protected abstract string CountInput { get; }
+
+        /// <summary>What the status names the traced rays before Play.</summary>
+        protected abstract string CountName { get; }
+
+        /// <summary>Whether the rays also scatter at the reflections (the scattering and seed inputs).</summary>
+        protected virtual bool Scatters => false;
+
+        /// <summary>The traced order: the order slider chooses what is drawn, so it is hidden with the control inputs.</summary>
+        protected override IEnumerable<string> HiddenInputs => new[] { "max_order" };
+
+        public override (double min, double max) SliderRange(SliderControl slider) => slider.Port == "time" ? (0, Math.Round(_durationMs, 1)) : base.SliderRange(slider);
+
+        /// <summary>The time slider follows the frame shown, as playback moves it.</summary>
+        public override double? SliderShown(SliderControl slider) => slider.Port == "time" ? _shownMs : null;
+
+        public override string? ButtonLabel(string port) => port == "play" ? PlayLabel(_playback) : null;
 
         /// <summary>
         /// The drawn order's stops: 1 to <paramref name="maxOrder"/>, and All (the empty input, every traced order) last and the default.
@@ -196,28 +224,18 @@ namespace CompasAcoustics.Grasshopper
         /// <summary>The order slider's stops follow the traced order.</summary>
         public override StepSliderControl StepStopsOf(StepSliderControl step) => step.Port == "order" ? OrderStops(_maxOrder) : base.StepStopsOf(step);
 
-        public VisualiseRaysComponent() : base("CA_Visualise_Rays") { }
-
-        public override string? ButtonLabel(string port) => port == "play" ? PlayLabel(_playback) : null;
-
-        /// <summary>How far the rays are drawn: nothing until Play, then as far as sound has travelled in <paramref name="timeMs"/>.</summary>
+        /// <summary>How far the rays are drawn: nothing until Play or a time, then as far as sound has travelled in <paramref name="timeMs"/>.</summary>
         public static double DrawnDistance(bool active, double timeMs, double speedOfSound) => active ? timeMs / 1000.0 * speedOfSound : 0.0;
 
-        protected override string SpecKey => "CA_Visualise_Rays";
         public override float MinBodyWidth => VisualiseBodyWidth;
-        public override Guid ComponentGuid => new Guid("e693b3da-9ac2-56bb-a810-2910e8e4af8e");
-
-        protected override IGH_Param? CreateParam(PortSpec port, bool input) => (input, port.Name) switch
-        {
-            (true, "scene") => new Param_Scene(),
-            (false, "ray_field") => new Param_RayField(),
-            (false, _) => new Param_Curve(),
-            _ => null,
-        };
-
-        protected override void Clear() => _drawn.Clear();
 
         protected override bool RunsInBackground => true;
+
+        /// <summary>The rays of the shown field that are played, converted once per field.</summary>
+        protected abstract List<RayGeometry.Ray> Played(RayFieldData shown);
+
+        /// <summary>Draw and output the frame at <paramref name="timeMs"/>; <paramref name="drawn"/> is false before Play or a time.</summary>
+        protected abstract void Show(IGH_DataAccess access, RayFieldData field, List<RayGeometry.Ray> rays, double timeMs, bool drawn, double speedOfSound);
 
         protected override void Solve(IGH_DataAccess access)
         {
@@ -231,44 +249,126 @@ namespace CompasAcoustics.Grasshopper
             var kwargs = new Dictionary<string, object?>
             {
                 ["source_index"] = Value<int>(access, "source_idx") is int s ? (long)s : null,
-                ["n_rays"] = Value<int>(access, "n_rays") is int n ? (long)n : null,
+                ["n_rays"] = Value<int>(access, CountInput) is int n ? (long)n : null,
                 ["max_order"] = (long)maxOrder,
                 ["direction"] = direction is Vector3d d ? MeshConversion.Xyz(d) : null,
                 ["angle"] = Value<double>(access, "angle"),
-                ["scattering"] = Value<bool>(access, "scattering") ?? false,
-                ["seed"] = Value<int>(access, "seed") is int seed ? (long)seed : null,
+                ["scattering"] = Scatters && (Value<bool>(access, "scattering") ?? false),
+                ["seed"] = Scatters && Value<int>(access, "seed") is int seed ? (long)seed : null,
                 ["order"] = order is int o ? (long)o : null,
             };
             RunInBackground(access, new Background("ray_field", new object?[] { scene.Value }, kwargs), (outcome, _) =>
             {
                 var field = (RayFieldData)outcome.Result["field"]!;
-                var shown = (RayFieldData)outcome.Result["shown"]!;
-                if (_converted is not { } converted || !ReferenceEquals(converted.shown, shown))
-                {
-                    var all = RayGeometry.FromField(shown);
-                    _converted = converted = (shown, all, all.Where(r => !r.Scattered).Select(r => new PolylineCurve(r.Points)).ToArray(),
-                        all.Where(r => r.Scattered).Select(r => new PolylineCurve(r.Points)).ToArray());
-                }
-                var rays = converted.rays;
-                // nothing until Play: all rays at once are a blur; Play draws them as far as sound has travelled
+                var rays = Played((RayFieldData)outcome.Result["shown"]!);
+                // nothing until Play or a time: all rays at once are a blur; they are drawn as far as sound has travelled
                 var speedOfSound = Worker.SpeedOfSound;
-                var frame = _playback.Update(null, PressPlayback(_playback), null, Particles.DurationMs(rays, speedOfSound));
-                if (frame.Animating)
-                    OnPingDocument()?.ScheduleSolution(FrameMs, document => ExpireSolution(false));
-                var distance = DrawnDistance(_playback.Active, frame.T, speedOfSound);
-                Status(_playback.Active ? frame.Message : $"{field.Rays.Count} rays, press Play");
-                foreach (var ray in rays)
-                    foreach (var (k, line) in RayGeometry.Segments(RayGeometry.UpTo(ray, distance)))
+                var pressed = PressPlayback(_playback);
+                // Play on the body plays the whole field: the time the slider scrubbed to is let go. A shown input has
+                // collected it for this solve already, so it is passed as none now and collected again on the next frame.
+                var letGo = pressed && ControlPort("time") is { SourceCount: 0 };
+                if (letGo)
+                    ControlState.Assign(ControlPort("time")!, System.Array.Empty<string>());
+                _durationMs = Particles.DurationMs(rays, speedOfSound);
+                var time = letGo ? null : Value<double>(access, "time");
+                var frame = _playback.Update(time, pressed, Rate(Value<double>(access, "speed"), _durationMs), _durationMs);
+                _shownMs = frame.T;
+                if (frame.Remark != null)
+                    Remark(frame.Remark);
+                if (frame.Animating || letGo)
+                    OnPingDocument()?.ScheduleSolution(FrameMs, document =>
                     {
-                        if (!_drawn.TryGetValue(k, out var lines))
-                            _drawn[k] = lines = new List<Line>();
-                        lines.Add(line);
-                    }
+                        if (letGo && ControlPort("time") is { } port && !IsHidden(port))
+                            port.ExpireSolution(false);
+                        ExpireSolution(false);
+                    });
+                var drawn = _playback.Active || time != null;
+                Status(drawn ? frame.Message : $"{field.Rays.Count} {CountName}, press Play");
+                // the whole field, not the frame: the box stays still while the rays grow
                 Box = BoxOf(rays.SelectMany(r => r.Points));
-                access.SetData("ray_field", new RayFieldGoo(field));
-                access.SetDataList("rays", converted.specular);
-                access.SetDataList("scattered", converted.scattered);
+                Show(access, field, rays, frame.T, drawn, speedOfSound);
             });
+        }
+    }
+
+    public sealed class VisualiseRaysComponent : TracedPlaybackComponent
+    {
+        private const int LineThickness = 1;
+        private readonly Dictionary<int, List<Line>> _drawn = new();
+        // the shown field's rays and curves, the same for every frame of a playback
+        private (RayFieldData shown, List<RayGeometry.Ray> rays, PolylineCurve[] specular, PolylineCurve[] scattered)? _converted;
+
+        public VisualiseRaysComponent() : base("CA_Visualise_Rays") { }
+
+        public override IReadOnlyList<Control> Controls { get; } = new Control[]
+        {
+            PreviewSwitch, SceneIndices.SourceDropdown, new ToggleControl("scattering", "Scattering", Default: false), OrderStops(10),
+            TimeSlider, SpeedDropdown, PlayButton, RewindButton,
+        };
+
+        protected override string CountInput => "n_rays";
+        protected override string CountName => "rays";
+        protected override bool Scatters => true;
+
+        /// <summary>The seed of the scattered rays, rarely set: hidden with the control inputs too.</summary>
+        protected override IEnumerable<string> HiddenInputs => base.HiddenInputs.Append("seed");
+
+        /// <summary>
+        /// A definition saved before the rays had their time and speed inputs: those are set aside while Grasshopper reads the
+        /// saved ones by position, and come back after it, hidden when the definition saved its control inputs hidden.
+        /// </summary>
+        public override bool Read(GH_IReader reader)
+        {
+            var added = new[] { "time", "speed" }.Where(n => !SavedControlPort(reader, n)).Select(n => Params.Input.Single(p => p.Name == n)).ToList();
+            if (added.Count == 0)
+                return base.Read(reader);
+            foreach (var port in added)
+                Params.UnregisterInputParameter(port, false);
+            var read = base.Read(reader);
+            foreach (var port in added)
+                Params.RegisterInputParam(port);
+            Params.OnParametersChanged();
+            HideNewControlPortsAsRead(added.Select(p => p.Name));
+            return read;
+        }
+
+        protected override string SpecKey => "CA_Visualise_Rays";
+        public override Guid ComponentGuid => new Guid("e693b3da-9ac2-56bb-a810-2910e8e4af8e");
+
+        protected override IGH_Param? CreateParam(PortSpec port, bool input) => (input, port.Name) switch
+        {
+            (true, "scene") => new Param_Scene(),
+            (false, "ray_field") => new Param_RayField(),
+            (false, _) => new Param_Curve(),
+            _ => null,
+        };
+
+        protected override void Clear() => _drawn.Clear();
+
+        protected override List<RayGeometry.Ray> Played(RayFieldData shown)
+        {
+            if (_converted is not { } converted || !ReferenceEquals(converted.shown, shown))
+            {
+                var all = RayGeometry.FromField(shown);
+                _converted = converted = (shown, all, all.Where(r => !r.Scattered).Select(r => new PolylineCurve(r.Points)).ToArray(),
+                    all.Where(r => r.Scattered).Select(r => new PolylineCurve(r.Points)).ToArray());
+            }
+            return converted.rays;
+        }
+
+        protected override void Show(IGH_DataAccess access, RayFieldData field, List<RayGeometry.Ray> rays, double timeMs, bool drawn, double speedOfSound)
+        {
+            var distance = DrawnDistance(drawn, timeMs, speedOfSound);
+            foreach (var ray in rays)
+                foreach (var (k, line) in RayGeometry.Segments(RayGeometry.UpTo(ray, distance)))
+                {
+                    if (!_drawn.TryGetValue(k, out var lines))
+                        _drawn[k] = lines = new List<Line>();
+                    lines.Add(line);
+                }
+            access.SetData("ray_field", new RayFieldGoo(field));
+            access.SetDataList("rays", _converted!.Value.specular);
+            access.SetDataList("scattered", _converted!.Value.scattered);
         }
 
         public override void DrawViewportWires(IGH_PreviewArgs args)
@@ -279,89 +379,80 @@ namespace CompasAcoustics.Grasshopper
         }
     }
 
-    public sealed class VisualiseBilliardComponent : DisplayComponent
+    /// <summary>The rays traced from the scene's sources as balls, like a 3D billiard: the same tracing and playback as Visualise Rays, without scattering.</summary>
+    public sealed class VisualiseBilliardComponent : TracedPlaybackComponent
     {
         private const float ParticleRadius = 4;
         private readonly Dictionary<int, List<Point3d>> _drawn = new();
-        private readonly Playback _playback = NewPlayback();
-        private double _durationMs;
-        private double? _shownMs;
-        // the field's rays, the same for every frame of a playback
-        private (RayFieldData field, List<RayGeometry.Ray> rays)? _converted;
+        // the shown field's rays, the same for every frame of a playback
+        private (RayFieldData shown, List<RayGeometry.Ray> rays)? _converted;
 
         public VisualiseBilliardComponent() : base("CA_Visualise_Billiard") { }
 
-        /// <summary>The playback speed, in ms of sound per second: <paramref name="factor"/> (default 1) of the whole field in 10 s.</summary>
-        public static double Rate(double? factor, double durationMs) => (factor ?? 1.0) * durationMs / 10.0;
-
-        public override (double min, double max) SliderRange(SliderControl slider) => slider.Port == "time" ? (0, Math.Round(_durationMs, 1)) : base.SliderRange(slider);
-
-        /// <summary>The time slider follows the frame shown, as playback moves it.</summary>
-        public override double? SliderShown(SliderControl slider) => slider.Port == "time" ? _shownMs : null;
-
-        protected override string SpecKey => "CA_Visualise_Billiard";
-        public override float MinBodyWidth => VisualiseBodyWidth;
-        public override Guid ComponentGuid => new Guid("1dd7e727-b816-578f-8eaa-253a9a153829");
-
-        protected override IGH_Param? CreateParam(PortSpec port, bool input) => input && port.Name == "ray_field" ? new Param_RayField() : null;
-
         public override IReadOnlyList<Control> Controls { get; } = new Control[]
         {
-            PreviewSwitch, new SliderControl("time", 0, 1000, "ms", Step: 0.1, Live: true),
-            new DropdownControl("speed", new[] { "0.25", "0.5", "1", "2", "4" }, "1", new[] { "0.25x", "0.5x", "1x", "2x", "4x" }),
-            new ButtonControl("play", "Play", Inline: true, Icon: true), new ButtonControl("rewind", "Rewind", Inline: true, Icon: true),
+            PreviewSwitch, SceneIndices.SourceDropdown, OrderStops(10), TimeSlider, SpeedDropdown, PlayButton, RewindButton,
         };
 
-        public override string? ButtonLabel(string port) => port == "play" ? PlayLabel(_playback) : null;
+        protected override string CountInput => "n_balls";
+        protected override string CountName => "balls";
+
+        protected override string SpecKey => "CA_Visualise_Billiard";
+        public override Guid ComponentGuid => new Guid("1dd7e727-b816-578f-8eaa-253a9a153829");
+
+        protected override IGH_Param? CreateParam(PortSpec port, bool input) => input && port.Name == "scene" ? new Param_Scene() : null;
+
+        /// <summary>
+        /// A definition saved when the billiard played a ray field (the inputs ray_field, time, play and speed): those inputs
+        /// hold their places while Grasshopper reads the saved ones by position and go after it, with their wires; the billiard
+        /// then has the inputs of a new one, its control inputs hidden, and needs a scene.
+        /// </summary>
+        public override bool Read(GH_IReader reader)
+        {
+            if (!SavedInput(reader, "ray_field"))
+                return base.Read(reader);
+            var inputs = Params.Input.ToList();
+            foreach (var port in inputs)
+                Params.UnregisterInputParameter(port, false);
+            var former = new List<IGH_Param>();
+            foreach (var (name, port) in new (string, IGH_Param)[] { ("ray_field", new Param_RayField()), ("time", new Param_Number()), ("play", new Param_Boolean()), ("speed", new Param_Number()) })
+                if (SavedInput(reader, name))
+                {
+                    port.Name = port.NickName = name;
+                    port.Optional = true;
+                    Params.RegisterInputParam(port);
+                    former.Add(port);
+                }
+            var read = base.Read(reader);
+            foreach (var port in former)
+                Params.UnregisterInputParameter(port, true);
+            foreach (var port in inputs)
+                Params.RegisterInputParam(port);
+            Params.OnParametersChanged();
+            HideControlPortsAsNew();
+            return read;
+        }
 
         protected override void Clear() => _drawn.Clear();
 
-        protected override void Solve(IGH_DataAccess access)
+        protected override List<RayGeometry.Ray> Played(RayFieldData shown)
         {
-            var field = Item<RayFieldGoo>(access, "ray_field");
-            if (field?.Value == null || field.Value.Rays.Count == 0)
-            {
-                Message = null;
-                if (field?.Value == null)
-                    WarnMissing("ray_field");
-                else
-                    Warn("The ray field has no rays.");
+            if (_converted is not { } converted || !ReferenceEquals(converted.shown, shown))
+                _converted = converted = (shown, RayGeometry.Specular(shown));
+            return converted.rays;
+        }
+
+        protected override void Show(IGH_DataAccess access, RayFieldData field, List<RayGeometry.Ray> rays, double timeMs, bool drawn, double speedOfSound)
+        {
+            if (!drawn)
                 return;
-            }
-            Worker.EnsureStarted();
-            var speedOfSound = Worker.SpeedOfSound;
-            if (_converted is not { } converted || !ReferenceEquals(converted.field, field.Value))
-                _converted = converted = (field.Value, RayGeometry.Specular(field.Value));
-            var rays = converted.rays;
-            var pressed = PressPlayback(_playback);
-            // Play on the body plays the whole field: the time the slider scrubbed to is let go. A shown input has
-            // collected it for this solve already, so it is passed as none now and collected again on the next frame.
-            var letGo = pressed && ControlPort("time") is { SourceCount: 0 };
-            if (letGo)
-                ControlState.Assign(ControlPort("time")!, System.Array.Empty<string>());
-            _durationMs = Particles.DurationMs(rays, speedOfSound);
-            var frame = _playback.Update(letGo ? null : Value<double>(access, "time"), Value<bool>(access, "play") == true || pressed,
-                Rate(Value<double>(access, "speed"), _durationMs), _durationMs);
-            _shownMs = frame.T;
-            if (frame.Remark != null)
-                Remark(frame.Remark);
-            if (frame.Animating || letGo)
-                OnPingDocument()?.ScheduleSolution(FrameMs, document =>
-                {
-                    if (letGo && ControlPort("time") is { } time && !IsHidden(time))
-                        time.ExpireSolution(false);
-                    ExpireSolution(false);
-                });
-            Status(frame.Message);
-            var particles = Particles.At(rays, frame.T, speedOfSound, _durationMs);
+            var particles = Particles.At(rays, timeMs, speedOfSound, Particles.DurationMs(rays, speedOfSound));
             foreach (var (point, order) in particles)
             {
                 if (!_drawn.TryGetValue(order, out var points))
                     _drawn[order] = points = new List<Point3d>();
                 points.Add(point);
             }
-            // the whole field, not the particles: the box stays still while they move
-            Box = BoxOf(rays.SelectMany(r => r.Points));
             access.SetDataList("particles", particles.Select(p => p.point));
         }
 
