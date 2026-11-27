@@ -868,7 +868,13 @@ def diffraction_paths(pair: Pair, *, max_order: int = 1, source_gain=None) -> li
                 gain = gain * source_gain(points[1] - points[0])
             polyline = tuple(np.asarray(p, dtype=float) for p in points)
             out.append(DiffractionPath(length / c, length, setup.doa(points[-2]), gain, partial(udfa_transfer, wp, c=c), len(walls), wp.zone, k, polyline))
-    return [p for p in out if np.any(p.band_gain > 0.0)]
+    out = [p for p in out if np.any(p.band_gain > 0.0)]
+    from compas_acoustics.path_recorder import active
+
+    recorder = active()
+    if recorder is not None:
+        recorder.add_diffracted(pair.source, pair.receiver, out)
+    return out
 
 
 def _encode(items, sh_order: int, n_samples: int, normalization: str, extra_weights, render: Callable[[np.ndarray], np.ndarray]) -> np.ndarray:

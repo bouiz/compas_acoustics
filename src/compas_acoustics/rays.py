@@ -18,7 +18,7 @@ from compas.tolerance import TOL
 from compas_acoustics.defaults import Defaults
 from compas_acoustics.defaults import _PackageDtype
 
-__all__ = ["Ray", "ScatteredRay", "RayField", "SpecularPath", "SpecularReflections", "DiffractedPath", "diffracted_paths"]
+__all__ = ["Ray", "ScatteredRay", "RayField", "SpecularPath", "SpecularReflections", "DiffractedPath", "diffracted_paths", "room_paths", "specular_band_gain"]
 
 
 def _distance(time_ms: float) -> float:
@@ -847,59 +847,31 @@ class SpecularReflections(RayField):
         room.add_microphone_array(np.array([receiver.position for _, receiver in receivers], dtype=float).T)
         room.image_source_model()
 
-        walls = room.room_engine.walls
         tolerance = position_tolerance(geometry)
         from compas_acoustics.room.air import AirConditions
         from compas_acoustics.room.geometry import SYNTHESIS_BANDS
 
-        reflection = {name: np.sqrt(1.0 - np.asarray(m.absorption, dtype=float)) for name, m in geometry.materials.items()}
-        air = AirConditions().air_attenuation(list(SYNTHESIS_BANDS))
-
-        def band_gain(points, path_walls):
-            length = float(sum(np.linalg.norm(np.subtract(b, a)) for a, b in zip(points[:-1], points[1:])))
-            gain = np.exp(-air * length / 2.0) / (4.0 * np.pi * max(length, 1e-9))
-            for w in path_walls:
-                gain = gain * reflection[geometry.face_materials[w]]
-            return gain
-
+        attenuation = AirConditions().air_attenuation(list(SYNTHESIS_BANDS))
         paths = []
         untraced = 0
         for s, (source_index, source) in enumerate(sources):
-            pra_source = room.sources[s]
-            images = np.asarray(pra_source.images, dtype=float).T
-            orders = np.asarray(pra_source.orders, dtype=int).ravel()
-            last_walls = np.asarray(pra_source.walls, dtype=int).ravel()
-            start = np.asarray(source.position, dtype=float)
-            for m, (receiver_index, receiver) in enumerate(receivers):
-                end = np.asarray(receiver.position, dtype=float)
-                kept = []
-                failed = []
-                for i in np.flatnonzero(np.asarray(room.visibility[s][m], dtype=bool)):
-                    # the first of each group at one position, as room.reflections.first_of_each_position keeps it
-                    if _near(kept, images[i], tolerance):
-                        continue
-                    traced = _trace_back(walls, end, images[i], int(last_walls[i]), int(orders[i]), start, tolerance)
-                    if traced is None:
-                        if not _near(failed, images[i], tolerance):
-                            failed.append(images[i])
-                        continue
-                    kept.append(images[i])
-                    hits, path_walls = traced
+            for m, (receiver_index, _) in enumerate(receivers):
+                found, failed = room_paths(room, s, m, max_order, tolerance)
+                untraced += failed
+                for points, order, path_walls, image in found:
                     paths.append(
                         SpecularPath(
-                            [start, *hits, end],
-                            order=int(orders[i]),
+                            points,
+                            order=order,
                             walls=path_walls,
-                            image=images[i],
+                            image=image,
                             receiver_index=receiver_index,
-                            band_gain=band_gain([start, *hits, end], path_walls),
+                            band_gain=specular_band_gain(geometry, points, path_walls, attenuation),
                             source=source,
                             source_index=source_index,
                             ray_index=len(paths),
                         )
                     )
-                # another image of the group may have traced a position whose first image did not
-                untraced += sum(1 for image in failed if not _near(kept, image, tolerance))
         if untraced:
             warnings.warn(f"{untraced} visible image sources could not be traced back to their source.", UserWarning, stacklevel=2)
         return cls(paths)
@@ -991,6 +963,48 @@ def diffracted_paths(scene, max_order: int = 1, geometry=None) -> List[Diffracte
                     )
                 )
     return out
+
+
+def specular_band_gain(geometry, points, walls, attenuation) -> np.ndarray:
+    """Pressure per band of a specular path on the package scale: ``prod sqrt(1 - alpha)`` of its ``walls`` (indices
+    into ``geometry``'s faces), ``attenuation`` (Np/m per band, ISO 9613-1) over its length and
+    ``1 / (4 pi length)``."""
+    length = float(sum(np.linalg.norm(np.subtract(b, a)) for a, b in zip(points[:-1], points[1:])))
+    gain = np.exp(-np.asarray(attenuation, dtype=float) * length / 2.0) / (4.0 * np.pi * max(length, 1e-9))
+    for w in walls:
+        gain = gain * np.sqrt(1.0 - np.asarray(geometry.materials[geometry.face_materials[w]].absorption, dtype=float))
+    return gain
+
+
+def room_paths(room, s: int, m: int, max_order: int, tolerance: float) -> tuple:
+    """``(paths, untraced)``: the specular paths from source ``s`` to microphone ``m`` of a searched pyroomacoustics
+    ``room``, ``(points, order, walls, image)`` for each visible image up to ``max_order``, and the number of visible
+    image positions that could not be traced back to the source.
+
+    The search records only the last wall of an image; :func:`_trace_back` finds the others. An image found twice,
+    through an edge, is kept once (the first of each group, as ``room.reflections.first_of_each_position`` keeps it).
+    """
+    walls = room.room_engine.walls
+    pra_source = room.sources[s]
+    images = np.asarray(pra_source.images, dtype=float).T
+    orders = np.asarray(pra_source.orders, dtype=int).ravel()
+    last_walls = np.asarray(pra_source.walls, dtype=int).ravel()
+    start = np.asarray(pra_source.position, dtype=float).ravel()
+    end = np.asarray(room.mic_array.R, dtype=float)[:, m]
+    kept, failed, found = [], [], []
+    for i in np.flatnonzero(np.asarray(room.visibility[s][m], dtype=bool)):
+        if orders[i] > max_order or _near(kept, images[i], tolerance):
+            continue
+        traced = _trace_back(walls, end, images[i], int(last_walls[i]), int(orders[i]), start, tolerance)
+        if traced is None:
+            if not _near(failed, images[i], tolerance):
+                failed.append(images[i])
+            continue
+        kept.append(images[i])
+        hits, path_walls = traced
+        found.append(([start, *hits, end], int(orders[i]), path_walls, images[i]))
+    # another image of the group may have traced a position whose first image did not
+    return found, sum(1 for image in failed if not _near(kept, image, tolerance))
 
 
 def _near(images: list, image, tolerance: float) -> bool:

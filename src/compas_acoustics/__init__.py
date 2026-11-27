@@ -28,6 +28,8 @@ _EXPORTS = {
     "RayField": ".rays",
     "SpecularPath": ".rays",
     "SpecularReflections": ".rays",
+    "PathRecorder": ".path_recorder",
+    "record_paths": ".path_recorder",
     "Scene": ".scene",
     "Analyser": ".analyser",
     "EnergyMap": ".energy_map",
@@ -59,6 +61,8 @@ if TYPE_CHECKING:
     from .materials import AcousticMaterial  # noqa: F401
     from .materials import MaterialCategory  # noqa: F401
     from .materials import MaterialsLibrary  # noqa: F401
+    from .path_recorder import PathRecorder  # noqa: F401
+    from .path_recorder import record_paths  # noqa: F401
     from .rays import Ray  # noqa: F401
     from .rays import RayField  # noqa: F401
     from .rays import ScatteredRay  # noqa: F401
@@ -92,6 +96,8 @@ __all__ = [
     "RayField",
     "SpecularPath",
     "SpecularReflections",
+    "PathRecorder",
+    "record_paths",
     "Scene",
     "Analyser",
     "EnergyMap",

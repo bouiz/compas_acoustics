@@ -108,13 +108,19 @@ def search_images(room) -> None:
     """``room.image_source_model()``, reporting ``("image sources", reflections found)`` as each source's search ends.
 
     pyroomacoustics searches one source per engine call; the engine is wrapped for the call only. A reflection is a
-    visible image of order one or more (the direct sound is not counted)."""
+    visible image of order one or more (the direct sound is not counted). Inside
+    :func:`~compas_acoustics.path_recorder.record_paths`, the room's visible images are then traced for display."""
+    from compas_acoustics.path_recorder import active
+
     engine = room.room_engine
     room.room_engine = _CountingImages(engine)
     try:
         room.image_source_model()
     finally:
         room.room_engine = engine
+    recorder = active()
+    if recorder is not None:
+        recorder.add_room(room)
 
 
 __all__ = [
@@ -504,31 +510,48 @@ def emitter_rirs(
         ray_processes = 1
     seeds = np.random.default_rng(seed).integers(0, 2**31 - 1, size=len(sources))
     common = dict(max_order=max_order, air_absorption=air_absorption, air=air)
-    args = [(geometry, source, mic_positions, fs, common, tracing, int(seeds[s]), ray_processes) for s, source in enumerate(sources)]
+    from compas_acoustics.path_recorder import active
+
+    recorder = active()
+    record = None if recorder is None else recorder.max_order
+    args = [(geometry, source, mic_positions, fs, common, tracing, int(seeds[s]), ray_processes, record) for s, source in enumerate(sources)]
     stage = "ray tracing" if tracing is not None else "image sources"
     per_source: List = [None] * len(sources)
     jobs.progress(stage, 0, len(sources))
     if at_once == 1:
         for s, a in enumerate(args):
-            per_source[s] = _one_emitter(*a)
+            per_source[s], _ = _one_emitter(*a)  # this process: the active recorder sees its search
             jobs.progress(stage, s + 1, len(sources))
     else:
         with process_pool(at_once) as pool:
             futures = {pool.submit(_one_emitter, *a): s for s, a in enumerate(args)}
             for done, future in enumerate(as_completed(futures), 1):
-                per_source[futures[future]] = future.result()
+                per_source[futures[future]], recorded = future.result()
+                if recorder is not None:
+                    recorder.merge(recorded)
                 jobs.progress(stage, done, len(sources))
     return [[per_source[s][m] for s in range(len(sources))] for m in range(mic_positions.shape[1])]
 
 
-def _one_emitter(geometry, source, mic_positions, fs, common, tracing, seed, ray_processes) -> List[np.ndarray]:
-    """One source's responses at every microphone, ``[mic]``, in a room of its own (a worker of
-    :func:`emitter_rirs`)."""
-    if tracing is None:
-        rirs = image_source_rirs(geometry, [source], mic_positions, fs, **common)
-    else:
-        rirs = ray_traced_run(geometry, [source], mic_positions, fs, seed=seed, n_jobs=ray_processes, **common, **tracing).responses
-    return [row[0] for row in rirs]
+def _one_emitter(geometry, source, mic_positions, fs, common, tracing, seed, ray_processes, record=None) -> tuple:
+    """``(responses, recorded)``: one source's responses at every microphone, ``[mic]``, in a room of its own (a
+    worker of :func:`emitter_rirs`), and, when ``record`` is a path order and this process has no recorder of its own
+    (a worker process), the :meth:`~compas_acoustics.path_recorder.PathRecorder.state` of its search; else None."""
+    from compas_acoustics.path_recorder import active
+    from compas_acoustics.path_recorder import record_paths
+
+    def run():
+        if tracing is None:
+            rirs = image_source_rirs(geometry, [source], mic_positions, fs, **common)
+        else:
+            rirs = ray_traced_run(geometry, [source], mic_positions, fs, seed=seed, n_jobs=ray_processes, **common, **tracing).responses
+        return [row[0] for row in rirs]
+
+    if record is None or active() is not None:
+        return run(), None
+    with record_paths(record) as recorder:
+        responses = run()
+    return responses, recorder.state()
 
 
 def _unit_directions(directions, n_mics: int) -> List[np.ndarray]:
