@@ -407,11 +407,7 @@ class KirchhoffSolver(ScatteringSolver):
     both angles), so Kirchhoff's error against an independent reference is likely larger than the gap stated here.
 
     So for Λ/λ ≳ 0.4 expect Kirchhoff's s to be off by up to about 0.25 per octave (0.33 per one-third octave), mostly
-    too low, and use BEM where that matters. Reproduce with the Zenodo 15673498 results (see
-    ``validation/test_validation_heimes.py``)::
-
-        HEIMES_RESULTS=<folder> HEIMES_BEM_CACHE=<cache> python -m pytest validation/test_validation_heimes.py -v -s -k
-        gap
+    too low, and use BEM where that matters.
     """
 
     name = "kirchhoff"

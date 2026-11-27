@@ -3,8 +3,7 @@ not a tolerance.
 
 Needs no external data, only ``trimesh`` with ``embreex``. The accuracy record in the docstring of
 ``compas_acoustics.lab.geometric`` is the output of this test (``pytest tests/lab/test_geometric_validation.py -v -s``).
-The sample is the one of ``test_validation_heimes.py`` (its constants are copied here, because that module is skipped as
-a whole without the Zenodo data).
+The sample is the one of Heimes's 0.1_simulate_optimal.py (Zenodo 15673498).
 """
 
 import math
@@ -22,7 +21,7 @@ pytest.importorskip("embreex")
 
 pytestmark = pytest.mark.slow
 
-# The sample of Heimes's 0.1_simulate_optimal.py, as in test_validation_heimes.py.
+# The sample of Heimes's 0.1_simulate_optimal.py.
 LAMBDA = 0.08  # m, the structural wavelength
 DEPTH = 0.051 / 2.5  # m
 DIAMETER = 0.8  # m

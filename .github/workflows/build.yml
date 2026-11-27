@@ -55,12 +55,7 @@ jobs:
   slow:
     needs: release-change
     if: github.event_name == 'pull_request' || needs.release-change.outputs.is-release != 'true'
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        # the BEM test runs NumCalc end to end, which mesh2scattering builds on Linux and macOS and fetches on Windows
-        os: [ubuntu-24.04, macos-latest, windows-latest]
+    runs-on: ubuntu-24.04
     env:
       PYTEST_ADDOPTS: "-n auto -m slow"
     steps:

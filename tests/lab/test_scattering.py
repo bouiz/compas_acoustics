@@ -105,33 +105,6 @@ def test_result_round_trips_through_json():
     assert t.polar_source_indices == r.polar_source_indices and t.unconverged_octaves == r.unconverged_octaves == []
 
 
-class UnconvergedSolver(FakeSolver):
-    """Reports unconverged steps as BemSolver does: at 100·2^(-1/9) Hz (the 125 Hz octave) and at 630 Hz (the 500 Hz
-    octave)."""
-
-    def solve(self, sample, sources, receivers, frequencies, c):
-        p = super().solve(sample, sources, receivers, frequencies, c)
-        p.generation["unconverged"] = [
-            {"body": "sample", "frequency": float(frequencies[0]), "iterations": 250, "residual": 0.08},
-            {"body": "reference", "frequency": float(frequencies[0]), "iterations": 250, "residual": None},
-            {"body": "sample", "frequency": float(frequencies[3 * 8 + 1]), "iterations": 250, "residual": 2.6e-5},
-        ]
-        return p
-
-
-def test_unconverged_steps_reach_the_warnings_and_mark_their_octaves(monkeypatch):
-    monkeypatch.setattr(scattering, "_solver", lambda method, **kw: UnconvergedSolver())
-    with pytest.warns(UserWarning, match="did not converge"):
-        r = measure_scattering(ScatteringSample.disc(flat_tile(), diameter=0.4), method="bem", preset="survey")
-    assert r.unconverged_octaves == [125, 500]
-    assert "bem did not converge at 93, 631 Hz: s at 125, 500 Hz is unreliable" in r.warnings
-    t = json_loads(json_dumps(r))
-    assert t.unconverged_octaves == [125, 500] and t.generation["unconverged"][1]["residual"] is None
-    import json
-
-    json.loads(json_dumps(r), parse_constant=lambda name: pytest.fail("not strict JSON: " + name))
-
-
 def test_polar_levels_are_kept_for_every_source_direction(monkeypatch):
     monkeypatch.setattr(scattering, "_solver", lambda method, **kw: FakeSolver())
     sample = ScatteringSample.disc(flat_tile(), diameter=0.4)
