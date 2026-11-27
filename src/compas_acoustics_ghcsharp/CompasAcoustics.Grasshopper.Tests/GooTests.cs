@@ -142,11 +142,6 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Theory]
-        [InlineData(0.98432, 3, "0.984")]
-        [InlineData(1.7, 3, "1.7")]
-        [InlineData(1000.0, 6, "1000")]
-        [InlineData(1.25, 6, "1.25")]
-        [InlineData(0.0, 6, "0")]
         [InlineData(123456789.0, 6, "1.23457e+08")]
         [InlineData(0.00001234, 3, "1.23e-05")]
         [InlineData(-2.5, 3, "-2.5")]

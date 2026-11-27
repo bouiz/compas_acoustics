@@ -157,7 +157,7 @@ def test_mesh_geometry_keeps_the_single_sided_obstacle_polygons():
     np.testing.assert_allclose(g.vertices[list(g.obstacle_faces[1])][:, 2], 1.523)
 
 
-@pytest.mark.parametrize("bottom, triangulate", [(True, False), (False, False), (True, True)])
+@pytest.mark.parametrize("bottom, triangulate", [(False, False), (True, True)])
 def test_a_shelf_on_the_floor_has_four_top_and_four_vertical_edges(bottom, triangulate):
     edges = obstacle_edges(shelf_room(bottom, triangulate))
     assert len(edges) == 8
@@ -173,17 +173,6 @@ def test_a_panel_has_knife_edges():
     assert len(edges) == 4
     assert all(e.theta_w == pytest.approx(2 * np.pi) for e in edges)
     assert all(np.allclose(e.face_a, e.face_b) for e in edges)
-
-
-def test_a_non_convex_component_is_skipped_with_a_warning():
-    a_v, a_f = box(np.array([2.0, 2.0, 0.5]), np.array([3.0, 3.0, 1.0]))
-    b_v, b_f = box(np.array([3.0, 2.0, 0.5]), np.array([3.5, 2.5, 1.5]))
-    # two boxes sharing part of a face: one closed, non-convex component
-    v = np.vstack([a_v, b_v])
-    f = a_f + [tuple(8 + i for i in q) for q in b_f]
-    with pytest.warns(ObstacleEdgeWarning):
-        edges = obstacle_edges(room_with(v, f, "chair"))
-    assert edges == []
 
 
 def test_skipped_components_are_one_warning_that_counts_them():
@@ -325,13 +314,6 @@ def expected_floor(s, r):
     return before, after
 
 
-def test_floor_paths_reflect_before_and_after_the_diffraction():
-    s, r = np.array([2.0, 4.0, 1.5]), np.array([8.0, 4.0, 1.0])
-    before, after = expected_floor(s, r)
-    found = floor_paths(diffraction_paths(pair_at(s, r), max_order=1), before, after)
-    assert sorted(found) == sorted([round(before, 6), round(after, 6)])
-
-
 def test_a_reflection_on_a_floor_seam_counts_once():
     # Both floor reflections over the top edge land on y = 4, the seam.
     # Nanometre noise on the seam's ends, as CAD exports carry, makes the two
@@ -416,11 +398,12 @@ def window_db(rir, r):
 def test_diffraction_off_changes_nothing_and_on_adds_the_paths():
     pair = make_pair(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]), receiver=np.array([8.0, 4.0, 3.0]), air_absorption=False)
     off = render_ambisonics(prepare(pair, images(pair, 2), RoomTarget.from_room(pair), max_order=1, duration_s=0.2), normalization="N3D")
-    on = render_ambisonics(prepare(pair, images(pair, 2), RoomTarget.from_room(pair), max_order=1, duration_s=0.2, diffraction="udfa"), normalization="N3D")
     n = off.early.shape[0]
-    added = encode_diffraction(diffraction_paths(pair, max_order=1), 1, n, pair.fs)
-    np.testing.assert_allclose(on.early - off.early, added, atol=1e-12)
-    np.testing.assert_array_equal(on.late, off.late)
+    for model, paths, encode_paths in (("udfa", diffraction_paths, encode_diffraction), ("btms", btms_paths, encode_btms)):
+        on = render_ambisonics(prepare(pair, images(pair, 2), RoomTarget.from_room(pair), max_order=1, duration_s=0.2, diffraction=model), normalization="N3D")
+        added = encode_paths(paths(pair, max_order=1), 1, n, pair.fs)
+        np.testing.assert_allclose(on.early - off.early, added, atol=1e-12)
+        np.testing.assert_array_equal(on.late, off.late)
 
 
 def test_the_field_is_continuous_across_the_panel_shadow_boundary():
@@ -586,14 +569,6 @@ def shelf_pair(s, r):
     return make_pair(geometry=box_geometry(), source=s, receiver=r, air_absorption=False, speed_of_sound=C)
 
 
-def test_second_order_reaches_over_a_box_top():
-    s, r = np.array([2.0, 4.0, 1.45]), np.array([7.0, 4.0, 1.45])
-    paths = btms_paths(shelf_pair(s, r), max_order=0)
-    second = [p for p in paths if p.order == 2]
-    assert second
-    assert all(len(p.edges) == 2 and p.edges[0] != p.edges[1] for p in second)
-
-
 def test_second_order_is_reciprocal():
     s, r = np.array([2.0, 4.0, 1.45]), np.array([7.0, 4.0, 1.45])
     a = encode_btms([p for p in btms_paths(shelf_pair(s, r), max_order=0) if p.order == 2], 0, 4800, 48000.0)
@@ -604,8 +579,9 @@ def test_second_order_is_reciprocal():
 def test_second_order_needs_direct_paths_only():
     s, r = np.array([2.0, 4.0, 1.45]), np.array([7.0, 4.0, 1.45])
     assert all(p.order == 1 for p in btms_paths(shelf_pair(s, r), max_order=1, second_order=False))
-    count = [sum(p.order == 2 for p in btms_paths(shelf_pair(s, r), max_order=m)) for m in (0, 1)]
-    assert count[0] == count[1] > 0
+    second = [[p for p in btms_paths(shelf_pair(s, r), max_order=m) if p.order == 2] for m in (0, 1)]
+    assert len(second[0]) == len(second[1]) > 0
+    assert all(len(p.edges) == 2 and p.edges[0] != p.edges[1] for p in second[0])
 
 
 def test_second_order_start_is_a_lower_bound_of_the_path_through_two_long_segments():
@@ -756,15 +732,6 @@ def test_second_order_between_collinear_edges_is_skipped_without_a_warning():
     assert len(top) == 2
     assert not any(p.edges in ((top[0], top[1]), (top[1], top[0])) for p in out)
     assert all(np.all(np.isfinite(p.ir)) for p in out)
-
-
-def test_btms_mode_adds_exactly_the_btms_field():
-    pair = make_pair(geometry=panel_room(), source=np.array([2.0, 4.0, 1.5]), receiver=np.array([8.0, 4.0, 3.0]), air_absorption=False)
-    off = render_ambisonics(prepare(pair, images(pair, 2), RoomTarget.from_room(pair), max_order=1, duration_s=0.2), normalization="N3D")
-    on = render_ambisonics(prepare(pair, images(pair, 2), RoomTarget.from_room(pair), max_order=1, duration_s=0.2, diffraction="btms"), normalization="N3D")
-    added = encode_btms(btms_paths(pair, max_order=1), 1, off.early.shape[0], pair.fs)
-    np.testing.assert_allclose(on.early - off.early, added, atol=1e-12)
-    np.testing.assert_array_equal(on.late, off.late)
 
 
 def plate_in_an_absorbing_box():

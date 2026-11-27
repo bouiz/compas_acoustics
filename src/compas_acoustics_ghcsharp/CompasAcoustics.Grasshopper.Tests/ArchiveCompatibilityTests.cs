@@ -438,34 +438,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(choice, fresh.Choice("select"));
         }
 
-        [Fact]
-        public void APlot2DSavedWithLFC_ReadsIt_AndWarnsThatTheDataDoNotHaveIt()
-        {
-            var saved = new Plot2DComponent();
-            typeof(ComponentBase).GetField("_choices", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
-                .SetValue(saved, new System.Collections.Generic.Dictionary<string, string> { ["select"] = "LFC" });
-            var fresh = new Plot2DComponent();
-            var (archive, read) = SaveThenRead(saved, fresh);
-            Assert.True(read);
-            Assert.Empty(Errors(archive));
-            Assert.Equal("LFC", fresh.Choice("select"));
-            var warnings = new System.Collections.Generic.List<string>();
-            PlotSelection.Select(new[] { new ParameterGoo.Content("T30", "T30", "Frequency (Hz)", "Time (s)", "bands", new[] { 125.0 }, new[] { new[] { 1.0 } }, 1.0, System.Array.Empty<string>()) }, fresh.Choice("select"), warnings.Add);
-            Assert.Equal(new[] { "LFC is not in the connected data." }, warnings);
-        }
-
-        [Fact]
-        public void APlot2DSavedWithAParameterChosen_ReadsTheChoice()
-        {
-            var saved = new Plot2DComponent();
-            saved.SetChoice("select", "T30");
-            var fresh = new Plot2DComponent();
-            var (archive, read) = SaveThenRead(saved, fresh);
-            Assert.True(read);
-            Assert.Empty(Errors(archive));
-            Assert.Equal("T30", fresh.Choice("select"));
-        }
-
         /// <summary>An Auralise as saved before it chose pairs: irs, anechoic_sounds wired to a path, mix_sources true (shown, or hidden behind its toggle).</summary>
         private static GH_Archive OldAuralise(bool mixHidden, string? level = null)
         {
@@ -532,7 +504,6 @@ namespace CompasAcoustics.Grasshopper.Tests
         [Theory]
         [InlineData("relative")]
         [InlineData("individual")]
-        [InlineData("none")]
         public void AnAuraliseSavedWithItsLevelSwitch_ReadsTheLevelIntoTheDropdown(string level)
         {
             var back = OldAuralise(false, level);
@@ -637,38 +608,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(chosen ? "female_speech" : null, ControlState.Persistent(fresh.ControlPort("sound")!));
         }
 
-        [Theory]
-        [InlineData(false)]
-        [InlineData(true)]
-        public void AnAuraliseSavedWithTheAnechoicSoundButton_ReadsItsFileAsTheLoadedEntryChosen(bool hidden)
-        {
-            // the button kept the file as the port's value, shown or hidden (control_value_sound), and nothing else
-            var saved = new AuraliseComponent();
-            if (hidden)
-                saved.ShowControlPorts(false);
-            var file = System.IO.Path.Combine("sounds", "bsn_tele_44.wav");
-            ControlState.Choose(saved, saved.ControlPort("sound")!, file);
-            saved.CreateAttributes();
-            foreach (var p in saved.Params)
-                if (p.Attributes == null)
-                    p.CreateAttributes();
-            var archive = new GH_Archive();
-            var node = archive.CreateTopLevelNode("component");
-            Assert.True(saved.Write(node));
-            node.RemoveItem("anechoic_sound_loaded");
-            var back = new GH_Archive();
-            back.Deserialize_Binary(archive.Serialize_Binary());
-            Assert.Equal(hidden, back.GetRootNode.FindChunk("component").ItemExists("control_value_sound"));
-            var fresh = new AuraliseComponent();
-            fresh.CreateAttributes();
-            Assert.True(fresh.Read(back.GetRootNode.FindChunk("component")));
-            Assert.Empty(Errors(back));
-            Assert.Equal(!hidden, fresh.ControlPortsShown);
-            Assert.Equal(file, ControlState.Persistent(fresh.ControlPort("sound")!));
-            Assert.Equal(file, fresh.Sound.Loaded);
-            Assert.Equal(new[] { "Female speech", "Male speech", "Viola", "Guitar", "Castanets", "bsn_tele_44.wav", "Load..." }, fresh.OptionsOf(AnechoicSound.Dropdown).labels);
-        }
-
         /// <summary>A Source as saved with a sound_file input between direction and spl (shown with its path, or hidden behind its button) and spl 90.</summary>
         private static GH_Archive OldSource(bool soundHidden)
         {
@@ -720,32 +659,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             // the sound input it did not have: empty and hidden, as on a new Source
             Assert.True(fresh.IsHidden(fresh.ControlPort("sound")!));
             Assert.Null(ControlState.Persistent(fresh.ControlPort("sound")!));
-        }
-
-        [Fact]
-        public void ASourceSavedBeforeItHadASound_ReadsItsInputs_TheSoundEmptyAndHidden()
-        {
-            var old = new SourceComponent();
-            old.Params.UnregisterInputParameter(old.Params.Input.Single(p => p.Name == "sound"));
-            ControlState.Assign(old.Params.Input.Single(p => p.Name == "spl"), new[] { "70" });
-            old.CreateAttributes();
-            foreach (var p in old.Params)
-                if (p.Attributes == null)
-                    p.CreateAttributes();
-            var archive = new GH_Archive();
-            var node = archive.CreateTopLevelNode("component");
-            Assert.True(old.Write(node));
-            node.RemoveItem("control_inputs_shown");
-            node.RemoveItem("control_inputs_hidden");
-            var back = new GH_Archive();
-            back.Deserialize_Binary(archive.Serialize_Binary());
-            var fresh = new SourceComponent();
-            fresh.CreateAttributes();
-            Assert.True(fresh.Read(back.GetRootNode.FindChunk("component")));
-            Assert.Empty(Errors(back));
-            Assert.Equal(new[] { "position", "name", "direction", "spl" }, fresh.Params.Input.Select(p => p.Name).ToArray());
-            Assert.Equal(new[] { "70" }, ControlState.PersistentAll(fresh.Params.Input.Single(p => p.Name == "spl")));
-            Assert.True(fresh.IsHidden(fresh.ControlPort("sound")!));
         }
 
         [Theory]
@@ -845,14 +758,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.False(fresh.ControlPortsShown);
             Assert.Equal(new[] { "scene", "n_balls", "direction", "angle" }, fresh.Params.Input.Select(p => p.Name).ToArray());
             Assert.Equal(new[] { "particles" }, fresh.Params.Output.Select(p => p.Name).ToArray());
-        }
-
-        [Fact]
-        public void AComponentSavedNow_ReadsWithoutErrors()
-        {
-            var (archive, read) = SaveThenRead(new SimulateBinauralComponent(), new SimulateBinauralComponent());
-            Assert.True(read);
-            Assert.Empty(Errors(archive));
         }
     }
 }

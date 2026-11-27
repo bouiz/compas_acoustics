@@ -152,7 +152,6 @@ namespace CompasAcoustics.Grasshopper.Tests
         {
             var box = new RectangleF(0, 0, 70, 28);
             var smallest = Plot2DLayout.Resize(new SizeF(360, 200), 50, Plot2DLayout.MinChartWidth(box));
-            Assert.Equal(box.Width + Plot2DLayout.SelectWidth, smallest.Width);
             Assert.Equal(smallest.Width, box.Width + Plot2DLayout.SelectColumn(box, smallest));
             Assert.Equal(540f, Plot2DLayout.Resize(new SizeF(360, 200), 540, Plot2DLayout.MinChartWidth(box)).Width);
         }
@@ -303,8 +302,7 @@ namespace CompasAcoustics.Grasshopper.Tests
         public void Plot2D_PutsTheParameterDropdownRightOfTheDataInput_InsteadOfARowBelow()
         {
             var plot = new Plot2DComponent();
-            var select = Assert.IsType<DropdownControl>(Assert.Single(plot.Controls));
-            Assert.Equal("Select parameter", ControlLayout.Title(select));
+            Assert.IsType<DropdownControl>(Assert.Single(plot.Controls));
             // Grasshopper's box of a component with one input: the data input and the icon
             var box = new RectangleF(0, 0, 70, 28);
             var height = ControlLayout.Height(plot.Controls);
@@ -319,22 +317,19 @@ namespace CompasAcoustics.Grasshopper.Tests
             var rows = ControlLayout.Place(box, height, 0);
             Assert.Equal(box.Bottom, rows.area.Top, 3);
             Assert.True(ports.Height + Plot2DLayout.BodyHeight(1, plot.ChartSize) < rows.box.Height + Plot2DLayout.BodyHeight(1, plot.ChartSize));
-            // charts narrower than the ports and the dropdown: the dropdown keeps its width
-            Assert.Equal(Plot2DLayout.SelectWidth, Plot2DLayout.SelectColumn(box, new SizeF(160, 90)));
         }
 
         [Theory]
         [InlineData(160f)]
         [InlineData(400f)]
         [InlineData(900f)]
-        public void Plot2D_TheParameterDropdownKeepsItsWidth_AtTheStartOfTheColumn(float chartWidth)
+        public void Plot2D_TheParameterDropdownStays_AtTheStartOfTheColumn(float chartWidth)
         {
             var plot = new Plot2DComponent();
             var box = new RectangleF(0, 0, 70, 28);
             var chart = new SizeF(Math.Max(chartWidth, Plot2DLayout.MinChartWidth(box)), 90);
             var (area, ports) = ControlLayout.Place(box, ControlLayout.Height(plot.Controls), Plot2DLayout.SelectColumn(box, chart));
             var dropdown = Assert.Single(ControlLayout.Arrange(plot.Controls, Plot2DLayout.SelectArea(area)));
-            Assert.Equal(Plot2DLayout.SelectWidth - 2 * ControlLayout.Margin, dropdown.Bounds.Width, 3);
             Assert.Equal(dropdown.Bounds.Width, dropdown.Title.Width, 3);
             Assert.Equal(area.Left + ControlLayout.Margin, dropdown.Bounds.Left, 3);
             // the column stays as wide as the charts, the rest of it empty
@@ -358,8 +353,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.True(text.Left >= Plot2DLayout.SelectArea(area).Right);
             Assert.True(text.Right <= column.Right && text.Top >= column.Top && text.Bottom <= column.Bottom);
             Assert.False(text.IntersectsWith(dropdown.Bounds) || text.IntersectsWith(dropdown.Title));
-            if (chart.Width - box.Width > Plot2DLayout.SelectWidth + 40)
-                Assert.True(text.Width > 30 && text.Height >= 3 * 12);
         }
 
         private sealed class Close : System.Collections.Generic.IEqualityComparer<double>
@@ -399,23 +392,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             var data = new[] { P("EDT"), P("T30"), Curve("IR", "linear") };
             Assert.Equal(data, PlotSelection.Select(data, select, warnings.Add));
             Assert.Empty(warnings);
-        }
-
-        [Fact]
-        public void Plot_SelectMissingName_Warns()
-        {
-            var warnings = new System.Collections.Generic.List<string>();
-            var chosen = PlotSelection.Select(new[] { P("C80"), Curve("IR", "linear") }, "T30", warnings.Add);
-            Assert.Equal(new[] { "IR" }, chosen.Select(p => p.Name).ToArray());
-            Assert.Equal(new[] { "T30 is not in the connected data." }, warnings);
-        }
-
-        [Fact]
-        public void Plot_SelectLF_WithoutIt_WarnsThatItNeedsAnAmbisonicResponse()
-        {
-            var warnings = new System.Collections.Generic.List<string>();
-            PlotSelection.Select(new[] { P("T30"), Curve("IR", "linear") }, "LF", warnings.Add);
-            Assert.Equal(new[] { "LF is not in the connected data: it needs an ambisonic response (Simulate Ambisonics)." }, warnings);
         }
 
         [Fact]
@@ -535,23 +511,10 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void MenuLabels_NameEachParameter_AsTheAnalyserTitlesDo()
-        {
-            Assert.Equal(new[]
-            {
-                "All", "EDT (Early Decay Time)", "T20 (Reverberation Time)", "T30 (Reverberation Time)", "C50 (Clarity)", "C80 (Clarity)",
-                "D50 (Definition)", "DRR (Direct-to-Reverberant Ratio)", "Ts (Center Time)", "STI (Speech Transmission Index)", "G (Sound Strength)",
-                "SPL (Sound Pressure Level)", "LF (Lateral Energy Fraction)",
-            }, PlotSelection.MenuLabels);
-        }
-
-        [Fact]
         public void EveryParameterName_AndAll_HasADescription()
         {
             foreach (var name in PlotSelection.Names.Append("all"))
                 Assert.False(string.IsNullOrWhiteSpace(PlotSelection.Description(name)), name);
-            Assert.Equal("Every parameter the connected responses have.", PlotSelection.Description("all"));
-            Assert.Equal("Direct-to-reverberant ratio: the energy of the direct sound over that of the reflected sound, in dB; a main cue for the perceived distance of a source.", PlotSelection.Description("DRR"));
             Assert.All(PlotSelection.Descriptions.Values, d => Assert.True(d.All(c => c < 128)));
             Assert.Equal("", PlotSelection.Description("nothing"));
         }

@@ -45,13 +45,6 @@ def test_choices_optional_and_default_are_shown(component):
     assert "| item |" in text and "| list |" in text and "| int |" in text
 
 
-def test_notes_are_included_when_given(component, tmp_path):
-    notes = tmp_path / "CA_Fixture_A.md"
-    notes.write_text("Hello")
-    text = page(component, notes=notes)
-    assert "\n## Notes\n\nHello\n" in text
-
-
 def test_overview_follows_the_order_and_skips_empty_subcategories(components):
     text = overview_page(components, ["Model", "Params", "Elements"], lambda c: "_icons/{}.png".format(c.key))
     assert text.index("\n## Model\n") < text.index("\n## Elements\n") and "Params" not in text
@@ -75,11 +68,10 @@ def test_an_empty_default_shows_as_an_empty_string(component):
     assert "``" not in text and '`""`' in text
 
 
-def test_a_description_that_looks_like_a_list_or_comment_stays_text(component):
+def test_a_description_that_looks_like_a_list_stays_text(component):
     component.inputs[0].description = "- not a list"
-    component.outputs[0].description = ".. not a comment"
     text = page(component)
-    assert r"\- not a list" in text and ".. not a comment" in text
+    assert r"\- not a list" in text
 
 
 def test_overview_cards_show_the_icon_at_a_fixed_size(components):

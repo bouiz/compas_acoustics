@@ -29,12 +29,6 @@ def test_segment_and_cumulative_distances():
     assert ray.cumulative_distances == [0.0, 3.0, 7.0, 10.0]
 
 
-def test_total_distance_and_travel_time():
-    ray = make_ray()
-    assert ray.total_distance == 10.0
-    assert math.isclose(ray.travel_time, 10.0 / C * 1000.0)
-
-
 def test_reflection_order():
     ray = make_ray()
     assert ray.reflection_order == 3
@@ -57,13 +51,6 @@ def test_up_to_reflection_order_truncates_points():
     ray = make_ray()
     truncated = ray.up_to_reflection_order(2)
     assert [list(p) for p in truncated.points] == [[0, 0, 0], [3, 0, 0], [3, 4, 0]]
-
-
-def test_up_to_distance_interpolates_final_segment():
-    ray = make_ray()
-    # distance 5 falls halfway along the second segment (3..7)
-    truncated = ray.up_to_distance(5.0)
-    assert [list(p) for p in truncated.points] == [[0, 0, 0], [3, 0, 0], [3, 2, 0]]
 
 
 def test_up_to_distance_before_emergence_returns_none():

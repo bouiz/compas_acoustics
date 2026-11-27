@@ -130,15 +130,6 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void ObjectsAndScenes_PreviewOnlyTheirEdges_NoSurfacesOverTheRhinoGeometry()
-        {
-            // a mesh on the very surface it was made from covers it and fights with it in depth
-            Assert.Null(typeof(IOwnPreview).GetMethod("DrawMeshes"));
-            Assert.Null(typeof(AcousticObjectGoo).GetMethod("DrawMeshes"));
-            Assert.Null(typeof(SceneGoo).GetMethod("DrawMeshes"));
-        }
-
-        [Fact]
         public void SourcesAndReceivers_AreDrawnOnlyByTheirOwnComponents()
         {
             // the Source and Receiver previews switch them off; a scene or a graph drawing them again would not

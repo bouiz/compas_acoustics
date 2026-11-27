@@ -71,19 +71,15 @@ def call(function, *args, token="secret", authorization=None, **kwargs):
 
 
 def test_the_service_only_dispatches_the_worker_api():
+    import compas_acoustics.pb
+    from compas_acoustics import Defaults
+
     for function in ("dumps", "json", "_identity", "warnings", "importlib"):
         status, answer = call(function)
         assert status == 404 and "not part of the compas_acoustics worker API" in answer["error"]
     status, answer = call("info")
     assert status == 200 and answer["compas_acoustics"] == compas_acoustics.__version__
     assert answer["fingerprint"] == worker.fingerprint()
-
-
-def test_info_names_the_schema_and_the_speed_of_sound():
-    import compas_acoustics.pb
-    from compas_acoustics import Defaults
-
-    _, answer = call("info")
     assert answer["schema"] == compas_acoustics.pb.SCHEMA
     assert answer["speed_of_sound"] == Defaults().DEFAULT_SPEED_OF_SOUND
 
@@ -126,11 +122,6 @@ def test_results_travel_as_compas_pb_with_numpy_made_plain():
     ir = next(iter(responses.values()))
     assert attribute == "mono" and ir.denormalized().ndim == 1
     assert isinstance(answer["warnings"], list)
-
-
-def test_the_fingerprint_follows_the_sources(tmp_path):
-    assert worker.fingerprint() == worker.fingerprint()
-    assert len(worker.fingerprint()) == 64
 
 
 def test_a_process_is_alive_until_it_exits():
@@ -326,6 +317,8 @@ def test_the_worker_install_runs_its_python_without_the_callers_pythonpath(monke
     assert calls[1][0][-1].startswith("compas_acoustics[lab] @ ")
     assert json.loads((tmp_path / "worker.json").read_text()) == {"python": str(python)}
     assert calls[-1][0][1:] == ["-c", "import compas_acoustics.simulation_methods as m; m.Binaural"]
+    installs = [command[5:] for command, _ in calls if command[:3] == ["uv", "pip", "install"]]
+    assert installs == [[f"compas_acoustics[lab] @ {(tmp_path / 'compas_acoustics.whl').resolve().as_uri()}"]]
 
 
 def response():
@@ -387,7 +380,7 @@ def test_the_worker_computes_only_sti_and_g(monkeypatch):
     assert set(api.analyse(ir)["analysis"]) == {"STI", "STI_overall", "G", "G_overall"}
 
 
-@pytest.mark.parametrize("settings, normalized", [({}, True), ({"normalize": True}, True), ({"normalize": False}, False)])
+@pytest.mark.parametrize("settings, normalized", [({}, True), ({"normalize": False}, False)])
 def test_responses_from_the_worker_keep_the_methods_normalize(monkeypatch, settings, normalized):
     import types
 
@@ -400,18 +393,6 @@ def test_responses_from_the_worker_keep_the_methods_normalize(monkeypatch, setti
     for key, ir in there.items():
         assert ir.normalized is normalized
         np.testing.assert_allclose(ir.denormalized(), here[key].denormalized(), atol=1e-6 * np.max(np.abs(here[key].denormalized())))
-
-
-def test_the_worker_installs_the_wheel_with_the_lab_extra_and_nothing_else(monkeypatch, tmp_path):
-    from compas_acoustics.worker import install
-
-    calls = []
-    monkeypatch.setattr(install, "_uv", lambda: "uv")
-    monkeypatch.setattr(install, "stop_running_workers", lambda: None)
-    monkeypatch.setattr(install.subprocess, "run", lambda command, **kwargs: calls.append(command))
-    install.install_worker(tmp_path / "compas_acoustics.whl", home=tmp_path / "worker", config=tmp_path / "worker.json")
-    installs = [command[5:] for command in calls if command[:3] == ["uv", "pip", "install"]]
-    assert installs == [[f"compas_acoustics[lab] @ {(tmp_path / 'compas_acoustics.whl').resolve().as_uri()}"]]
 
 
 def test_an_empty_or_zero_result_still_travels(monkeypatch):

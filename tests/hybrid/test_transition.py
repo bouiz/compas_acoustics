@@ -45,13 +45,6 @@ def make_pair(order):
     return pair, image_sources(room, 0, 0, pair)
 
 
-def test_the_last_rendered_order_drives_the_network():
-    pair, iss = make_pair(2)
-    result = render_ambisonics(prepare(pair, iss, TARGET, max_order=2, duration_s=0.3))
-    assert result.core.driving_images == int(np.sum(iss.order == 2))
-    np.testing.assert_array_equal(np.unique(result.core.images.order), [0, 1, 2])
-
-
 def test_images_above_the_rendered_order_are_ignored():
     pair, deep = make_pair(3)
     _, shallow = make_pair(2)

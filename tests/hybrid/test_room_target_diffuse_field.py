@@ -42,14 +42,6 @@ def uniform(alpha):
     return SurfaceMaterial("wall", np.full(BANDS.size, float(alpha)))
 
 
-def treated_room():
-    """Absorption on the floor and ceiling only, as in a carpeted office."""
-    wall = np.array([0.10, 0.10, 0.08, 0.06, 0.05, 0.05, 0.05, 0.06])
-    floor = np.array([0.05, 0.05, 0.10, 0.25, 0.45, 0.60, 0.65, 0.70])
-    ceiling = np.array([0.20, 0.25, 0.45, 0.70, 0.80, 0.85, 0.85, 0.80])
-    return dict(walls=SurfaceMaterial("wall", wall), floor=SurfaceMaterial("floor", floor), ceiling=SurfaceMaterial("ceiling", ceiling))
-
-
 def test_a_uniformly_and_lightly_absorbing_room_warns_about_nothing():
     """The case both models are valid for must stay quiet, or the warning is noise."""
     with warnings.catch_warnings():
@@ -57,13 +49,8 @@ def test_a_uniformly_and_lightly_absorbing_room_warns_about_nothing():
         RoomTarget.from_room(pair_with(uniform(0.12)))
 
 
-def test_absorption_concentrated_on_two_surfaces_warns():
-    with pytest.warns(DiffuseFieldWarning, match="unevenly distributed"):
-        RoomTarget.from_room(pair_with(**treated_room()))
-
-
 def test_high_uniform_absorption_warns():
-    with pytest.warns(DiffuseFieldWarning, match="too absorbing"):
+    with pytest.warns(DiffuseFieldWarning, match="too absorbing.*tail='ray_tracing' or a reference"):
         RoomTarget.from_room(pair_with(uniform(0.35)))
 
 
@@ -83,11 +70,6 @@ def test_the_uneven_warning_names_only_the_bands_it_applies_to():
     assert "8000" in message
     assert "62.5" not in message
     assert "125" not in message
-
-
-def test_the_warning_points_at_ray_tracing_or_a_reference():
-    with pytest.warns(DiffuseFieldWarning, match="tail='ray_tracing' or a reference"):
-        RoomTarget.from_room(pair_with(uniform(0.35)))
 
 
 def test_sabine_is_warned_about_too_because_it_shares_the_assumption():

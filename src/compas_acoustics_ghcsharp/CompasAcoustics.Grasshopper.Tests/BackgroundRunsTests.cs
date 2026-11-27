@@ -121,6 +121,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             var job = Job(tcs);
             runs.Started(0, "a", job);
             job.Start();
+            Assert.Equal(RunKind.Start, runs.Next(1, "a", true).Kind);
             Assert.Equal(RunKind.Running, runs.Next(0, "a", true).Kind);
             Assert.True(runs.AnyRunning);
         }
@@ -229,15 +230,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal((RunKind.Deliver, "result", true), (d.Kind, d.Result, d.Fresh));
             Assert.False(runs.Next(0, "a", false).Fresh);
             Assert.Equal((RunKind.Start, "result"), (runs.Next(0, "a", true, restart: true).Kind, runs.Next(0, "a", true, restart: true).Result));
-        }
-
-        [Fact]
-        public void Iterations_RunApart()
-        {
-            var runs = new BackgroundRuns();
-            Assert.Equal(RunKind.Start, runs.Next(0, "a", true).Kind);
-            runs.Started(0, "a", Job(new TaskCompletionSource<object?>()));
-            Assert.Equal(RunKind.Start, runs.Next(1, "a", true).Kind);
         }
 
         [Fact]

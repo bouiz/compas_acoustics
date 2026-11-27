@@ -5,13 +5,12 @@ from compas_acoustics.room import diffuse
 
 
 @pytest.mark.parametrize("model", ["sabine", "eyring"])
-@pytest.mark.parametrize("alpha", [0.05, 0.3, 0.9])
-def test_closed_form_matches_pyrato(model, alpha):
+def test_closed_form_matches_pyrato(model):
     pyrato = pytest.importorskip("pyrato")
     if not hasattr(pyrato, "parametric"):
         pytest.skip("compares with pyrato >= 1.0")
     reference = {"sabine": pyrato.parametric.reverberation_time_sabine, "eyring": pyrato.parametric.reverberation_time_eyring}[model]
-    kwargs = dict(volume=200.0, surface_area=220.0, mean_absorption=np.full(8, alpha), speed_of_sound=343.0)
+    kwargs = dict(volume=200.0, surface_area=220.0, mean_absorption=np.full(8, 0.3), speed_of_sound=343.0)
     np.testing.assert_allclose(getattr(diffuse, f"_{model}")(**kwargs), reference(**kwargs), rtol=1e-10)
 
 

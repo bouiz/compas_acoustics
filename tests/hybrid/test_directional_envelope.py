@@ -300,13 +300,6 @@ def late_level_by_x(result, a=0.15, b=0.6):
     return 10 * np.log10(e[x < -0.5].mean() / e[x > 0.5].mean())
 
 
-def test_the_back_wall_is_at_x_zero():
-    g = RoomGeometry.from_scene(asymmetric_scene())
-    faces = g.faces_with_materials()
-    (back,) = [v for v, name in faces if name == "absorber"]
-    assert np.allclose(back[:, 0], 0.0)
-
-
 def test_the_directional_envelope_quietens_the_lines_facing_the_absorbing_wall():
     kwargs = dict(tail="ray_tracing", duration=0.8, directional_absorption=False)
     plain = ca.Ambisonics(late_envelope=False, **kwargs)

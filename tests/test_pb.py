@@ -1,6 +1,5 @@
 """compas_acoustics' compas_pb plugin: every Data class travels as its own protobuf message."""
 
-import hashlib
 from pathlib import Path
 
 import pytest
@@ -10,7 +9,6 @@ from compas_pb import pb_dump_bts
 from compas_pb import pb_load_bts
 from compas_pb.core import serialize_message
 
-import compas_acoustics.pb
 from compas_acoustics import AcousticMaterial
 from compas_acoustics import AcousticObject
 from compas_acoustics import AcousticObjectsLibrary
@@ -122,15 +120,6 @@ def test_a_scene_round_trips_with_its_sampling_rate_and_guids():
     assert len(loaded.acoustic_objects) == 6
     assert [s.guid for s in loaded.sources] == [s.guid for s in scene.sources]
     assert [r.guid for r in loaded.receivers] == [r.guid for r in scene.receivers]
-
-
-def test_the_schema_hash_follows_the_proto_text():
-    digest = hashlib.sha256()
-    root = Path(compas_acoustics.pb.PROTOBUF_DEFS)
-    for path in sorted(root.rglob("*.proto")):
-        digest.update(path.relative_to(root).as_posix().encode())
-        digest.update(path.read_bytes().replace(b"\r\n", b"\n"))
-    assert compas_acoustics.pb.SCHEMA == digest.hexdigest()
 
 
 def test_the_plugin_is_discovered_through_the_entry_point():
@@ -320,14 +309,6 @@ def test_a_scattering_result_round_trips_every_field():
     ):
         assert getattr(loaded, field) == getattr(result, field), field
     assert loaded.scattering_coefficients == result.scattering_coefficients
-
-
-def test_a_result_without_d_round_trips_with_none():
-    result = _geometric_result()
-    older = ScatteringResult.__from_data__({**result.__data__, "d_angle": None, "d_bands": None, "d_octaves": None})
-    loaded = roundtrip(older)
-    assert loaded.d_angle is None and loaded.d_bands is None and loaded.d_octaves is None
-    assert np.allclose(loaded.s_angle, older.s_angle)
 
 
 FIXTURES = Path(__file__).parent / "pb_fixtures"

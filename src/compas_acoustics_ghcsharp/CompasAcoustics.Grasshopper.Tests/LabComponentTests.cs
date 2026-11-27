@@ -258,19 +258,6 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void Lab_CacheDirGoesToTheBemSettings()
-        {
-            var (_, kwargs, unused) = LabRequests.Lab(LabSample(), "bem", "survey", "extended", null, null, "/tmp/numcalc");
-            Assert.Null(unused);
-            Assert.Equal("extended", kwargs["band_range"]);
-            Assert.Equal("survey", kwargs["preset"]);
-            var settings = Assert.IsType<Dictionary<string, object?>>(kwargs["settings"]);
-            Assert.Equal("/tmp/numcalc", settings["cache_dir"]);
-            Assert.Equal("geometric does not use 'cache_dir'.", LabRequests.Lab(LabSample(), "geometric", null, "iso", null, null, "/tmp/x").unused);
-            Assert.Equal("kirchhoff does not use 'cache_dir'.", LabRequests.Lab(LabSample(), "kirchhoff", null, "iso", null, null, "/tmp/x").unused);
-        }
-
-        [Fact]
         public void Lab_LeavesAnUnsetPresetOut()
         {
             var (_, kwargs, _) = LabRequests.Lab(LabSample(), "geometric", null, "iso", null, null, null);

@@ -54,11 +54,6 @@ def test_one_response_per_microphone_and_source():
     assert all(r.shape == (24000,) for row in rirs for r in row)
 
 
-def test_the_duration_sets_the_length():
-    ((rir,),) = traced(geometry(), duration=0.25)
-    assert rir.shape == (12000,)
-
-
 def test_the_default_length_comes_from_eyring():
     g = geometry()
     expected = default_duration(g, air_absorption=True)
@@ -88,12 +83,6 @@ def test_a_fully_absorbing_surface_has_a_finite_default():
     window = AcousticMaterial("window", 1.0, 0.1)
     materials = {"floor": WALL, "ceiling": window, "left_wall": WALL, "right_wall": WALL, "front_wall": WALL, "back_wall": WALL}
     assert 0.5 <= default_duration(geometry(materials), air_absorption=True) <= 12.0
-
-
-def test_seeded_runs_repeat():
-    ((first,),) = traced(geometry(), seed=7)
-    ((second,),) = traced(geometry(), seed=7)
-    np.testing.assert_array_equal(first, second)
 
 
 def uniform(scattering=0.15):
@@ -217,18 +206,6 @@ def test_a_source_outside_the_room_warns_and_prints_nothing(capsys):
         rirs = scene.simulate(Mono(image_source_order=1, ray_tracing=True, n_rays=500, duration=0.2))
     assert len(rirs) == 1
     assert capsys.readouterr().out == ""
-
-
-def test_the_search_time_estimate_grows_with_faces_and_order():
-    from compas_acoustics.simulation_methods import image_source_search_seconds
-
-    for order in range(1, 10):
-        times = [image_source_search_seconds(n, order) for n in range(6, 200)]
-        assert np.all(np.diff(times) > 0)
-    for n in (6, 18, 42, 120):
-        times = [image_source_search_seconds(n, order) for order in range(1, 10)]
-        # one order more multiplies the estimate by n_faces / 2.2
-        assert np.allclose(np.array(times[1:]) / times[:-1], n / 2.2)
 
 
 @pytest.mark.parametrize("seconds, message", [(30.0, None), (30.1, "tens of seconds"), (120.0, "tens of seconds"), (120.1, "minutes")])

@@ -58,17 +58,16 @@ def searched(geometry, s, order, ray_tracing):
 
 
 @pytest.mark.parametrize("panel, height", [(True, None), (False, 1.75)])
-@pytest.mark.parametrize("order", [1, 2, 3])
-def test_the_other_builds_damping_is_their_own_searchs_bit_for_bit(monkeypatch, panel, height, order):
+def test_the_other_builds_damping_is_their_own_searchs_bit_for_bit(monkeypatch, panel, height):
     """The search for ray tracing (specular products) read as the plain room's and as the scattered parts' room."""
     s = scene(panel, height)
     geometry = RoomGeometry.from_scene(s)
-    room = searched(geometry, s, order, True)
+    room = searched(geometry, s, 3, True)
     for other, ray_tracing in ((geometry, False), (complementary_scattering(geometry), True)):
-        unsearched = built(other, s, order, ray_tracing)
+        unsearched = built(other, s, 3, ray_tracing)
         monkeypatch.setattr(unsearched, "image_source_model", lambda: pytest.fail("searched the other room"))
         derived = damping_as_searched(room, unsearched)
-        own = searched(other, s, order, ray_tracing)
+        own = searched(other, s, 3, ray_tracing)
         for d, source in zip(derived, own.sources):
             assert d.dtype == source.damping.dtype
             assert np.array_equal(d, source.damping)

@@ -33,9 +33,7 @@ bands.
 
 Known offset (2026-10-24): where the solves converge, this BEM's s sits 0.03-0.10 below Heimes & Vorländer's published s
 (Zenodo 15673498) in 11 of the 12 checked one-third octaves (Λ/λ ≥ 0.5, per angle at colatitude 31.5° and 61.74°,
-azimuth 0; the per-angle validation in ``tests/lab/test_validation_heimes.py``). The cause is not settled; treat BEM's s
-as up to about
-0.1 low there.
+azimuth 0). The cause is not settled; treat BEM's s as up to about 0.1 low there.
 
 mesh2scattering needs Python ≥ 3.11 and is imported only inside the functions that need it, so this module imports on
 Python 3.9.

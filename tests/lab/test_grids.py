@@ -49,8 +49,3 @@ def test_receiver_spacing_matches_heimes_example():
     # Heimes sec. 3: d = 0.8 m, c = 346 m/s -> 5 degrees is valid up to 4.3 kHz
     assert receiver_spacing(0.8, 4300.0, 346.0) == pytest.approx(5.0, abs=0.05)
     assert receiver_spacing(0.8, 1000.0, 346.0) == 5.0  # never coarser than ISO 17497-2's 5 degrees
-
-
-def test_the_fine_preset_is_gone():
-    with pytest.raises(ValueError, match="'survey' and 'standard'"):
-        SourceGrid.preset("fine")

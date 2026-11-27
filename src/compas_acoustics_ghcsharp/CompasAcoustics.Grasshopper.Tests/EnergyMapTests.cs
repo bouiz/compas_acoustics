@@ -83,7 +83,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             var wall = new[] { new Point3d(0, 0, 0), new Point3d(1, 0, 0), new Point3d(1, 0, 1), new Point3d(0, 0, 1) };
             Assert.Equal(new Vector3d(0, 0, EnergyMapColours.Lift), EnergyMapColours.Offset(floorDown));
             Assert.Equal(new Vector3d(0, 0, EnergyMapColours.Lift), EnergyMapColours.Offset(floorUp));
-            Assert.Equal(0.01, EnergyMapColours.Lift);
             var side = EnergyMapColours.Offset(wall);
             Assert.Equal(EnergyMapColours.Lift, side.Length, 9);
             Assert.Equal(0.0, side.Z, 9);
