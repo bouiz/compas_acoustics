@@ -19,5 +19,17 @@ python examples/benchmarks/sh_moment_late_field.py --orders 1 --cases corridor
 
 The method and the results are in `docs/validation/sh_moment_late_field.md`.
 
+`sh_moment_plots.py` draws explanatory figures for the same rooms (first receiver, one octave band, both late
+fields with the directional envelope) into `examples/results/sh_moments/plots/` (about a minute): each room with
+its absorption and the early arrivals at the receiver; maps over azimuth and elevation of where the late energy
+arrives from in three time windows (the rays per grid direction, the rays as an order-N signal sees them, and the
+steered power of the moments' and the FDN's late fields); the dipole energies over time; the moment grid against the
+96 FDN lines:
+
+```bash
+python examples/benchmarks/sh_moment_plots.py
+python examples/benchmarks/sh_moment_plots.py --cases corridor --order 1 --band 500
+```
+
 `regression_against_mono.py` reads two regression recordings (the `foa`, `diffraction` and `mono` JSON files of a
 recording directory) and says, per room parameter, which of them is closer to its own mono run.
