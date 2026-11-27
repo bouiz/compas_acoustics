@@ -210,7 +210,7 @@ class Mono(SimulationMethod):
             emitters = [pra.SoundSource(position=points_to_array(receiver.position)) for receiver in context.receivers]
             mic_positions = points_to_array([source.position for source in context.sources])
         else:
-            emitters = [source_to_pra(source) for source in context.sources]
+            emitters = [source_to_pra(source, fs) for source in context.sources]
             mic_positions = points_to_array([receiver.position for receiver in context.receivers])
 
         def by_pair(responses):
