@@ -39,10 +39,15 @@ def scanned_absorption(pair: Pair, directions: pf.Coordinates) -> np.ndarray:
     scan = scan / np.linalg.norm(scan, axis=1, keepdims=True)
 
     hit = _first_hit(faces, pair.receiver, scan)
-    if np.any(hit < 0):
+    # a room of a prepared mesh may be acoustically closed without enclosing the air (seams within the leak
+    # tolerance, a room of wall slabs): a direction that meets nothing there looks out of a gap
+    open_room = not pair.geometry.is_closed or getattr(pair.geometry, "encloses", None) is False
+    if np.any(hit < 0) and not open_room:
         raise RuntimeError(f"{int(np.sum(hit < 0))} of {hit.size} scanned directions meet no boundary; the room is not closed around the receiver")
     alpha = np.stack([pair.geometry.materials[name].absorption for _, name in faces])
-    alpha = alpha[hit][:, :N_BANDS]  # (96, 8)
+    # in a room that does not close, a direction meeting nothing looks out of an opening: it absorbs all
+    alpha = np.vstack([alpha, np.ones((1, alpha.shape[1]))])
+    alpha = alpha[np.where(hit < 0, len(faces), hit)][:, :N_BANDS]  # (n_scan, 8)
 
     unit = directions.cartesian
     unit = unit / np.linalg.norm(unit, axis=1, keepdims=True)
