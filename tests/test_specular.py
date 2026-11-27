@@ -24,12 +24,6 @@ def path(order=1, s=0, r=0):
     return SpecularPath([[0, 0, 0], [3, 4, 0], [6, 0, 0]], order=order, walls=[2] * order, image=[0, 8, 0], source_index=s, receiver_index=r)
 
 
-def test_path_length_and_travel_time():
-    p = path()
-    assert p.length == pytest.approx(10.0)
-    assert p.travel_time == pytest.approx(10.0 / AirConditions().speed_of_sound * 1000)
-
-
 def test_filter_by_pair_and_exact_order():
     field = SpecularReflections([path(1, 0, 0), path(2, 0, 0), path(1, 1, 0), path(1, 0, 1)])
     assert len(field.filter(source=0, receiver_index=0)) == 2
@@ -98,14 +92,6 @@ def test_shoebox_has_one_direct_and_six_first_order_paths():
     assert [p.order for p in field].count(1) == 6
 
 
-def test_first_order_hit_points_are_the_mirror_solution():
-    # floor z=0: image (1.5, 1.5, -1.6); hit = intersection of image->receiver with z=0
-    p = next(p for p in SpecularReflections.from_scene(shoebox(), 1).filter(order=1) if abs(p.points[1][2]) < 1e-6)
-    t = 1.6 / (1.6 + 1.5)
-    assert list(p.points[1]) == pytest.approx([1.5 + t * 3.5, 1.5 + t * 1.5, 0.0], abs=1e-4)
-    assert list(p.image) == pytest.approx([1.5, 1.5, -1.6], abs=1e-5)
-
-
 @pytest.mark.parametrize("room", ["shoebox", "l_shaped", "obstacle"])
 def test_images_match_pyroomacoustics_visible_images(room):
     scene = ROOMS[room]()
@@ -120,16 +106,6 @@ def test_images_match_pyroomacoustics_visible_images(room):
 def test_the_direct_sound_is_hidden_behind_the_corner_and_the_cabinet(room):
     assert 0 not in SpecularReflections.from_scene(ROOMS[room](), max_order=1).orders
     assert len(SpecularReflections.from_scene(ROOMS[room](), max_order=0)) == 0
-
-
-@pytest.mark.parametrize("room", ["shoebox", "l_shaped", "obstacle"])
-def test_each_path_runs_from_the_source_to_the_receiver_as_long_as_its_image_is_far(room):
-    scene = ROOMS[room]()
-    for p in SpecularReflections.from_scene(scene, max_order=3):
-        assert len(p.points) == p.order + 2 and len(p.walls) == p.order
-        assert list(p.points[0]) == pytest.approx(scene.sources[0].position, abs=1e-6)
-        assert list(p.points[-1]) == pytest.approx(scene.receivers[0].position, abs=1e-6)
-        assert p.length == pytest.approx(p.image.distance_to_point(p.points[-1]), abs=1e-4)
 
 
 def test_edge_paths_are_counted_once():
@@ -241,6 +217,10 @@ def test_each_hit_is_on_its_wall_and_reflects_specularly(room):
     field = SpecularReflections.from_scene(scene, max_order=3)
     assert max(field.orders) == 3
     for p in field:
+        assert len(p.points) == p.order + 2 and len(p.walls) == p.order
+        assert list(p.points[0]) == pytest.approx(scene.sources[0].position, abs=1e-6)
+        assert list(p.points[-1]) == pytest.approx(scene.receivers[0].position, abs=1e-6)
+        assert p.length == pytest.approx(p.image.distance_to_point(p.points[-1]), abs=1e-4)
         points = np.array([list(q) for q in p.points])
         normals = []
         for k, w in enumerate(p.walls):

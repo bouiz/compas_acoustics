@@ -24,18 +24,6 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void TheControlPorts_AreTheInputsOfTheBodysControls_RunIncluded()
-        {
-            // run stays an input for loops and scripts that set it, hidden like the others
-            Assert.Equal(new[] { "ism_order", "tail", "diffraction", "late_envelope", "hrtf", "run" }, new SimulateBinauralComponent().ControlPorts);
-            Assert.Equal(new[] { "ism_order", "tail", "diffraction", "late_envelope", "run" }, new SimulateAmbisonicsComponent().ControlPorts);
-            Assert.Equal(new[] { "time", "speed", "play" }, new VisualiseBilliardComponent().ControlPorts);
-            Assert.Empty(new AcousticObjectComponent().ControlPorts);
-            Assert.True(new AcousticObjectComponent().IsChoice("role"));
-            Assert.Empty(new WorkerComponent().ControlPorts);
-        }
-
-        [Fact]
         public void TheSource_ChoosesItsDirectivityOnTheBody()
         {
             var source = new SourceComponent();

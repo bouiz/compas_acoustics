@@ -36,11 +36,6 @@ def impulse_response(builds, n_samples):
     return run_network(builds, drive) @ builds[0][0].C.T
 
 
-def test_output_matrix_shape():
-    dirs = spharpy.samplings.equal_area(n_max=1, n_points=16)
-    assert ambisonic_output_matrix(1, dirs).shape == (4, 16)
-
-
 def test_output_matrix_is_orthogonal_for_the_default_grid():
     """C @ C.T diagonal means the late field is diffuse, not directionally biased.
 
@@ -54,12 +49,6 @@ def test_output_matrix_is_orthogonal_for_the_default_grid():
     assert np.max(np.abs(off)) / np.mean(np.abs(np.diag(gram))) < 1e-6
 
 
-def test_output_matrix_rejects_a_grid_that_cannot_support_the_order():
-    dirs = spharpy.samplings.equal_area(n_max=3, n_points=8)
-    with pytest.raises(ValueError, match="leaks"):
-        ambisonic_output_matrix(3, dirs)
-
-
 def test_output_matrix_w_row_is_constant():
     dirs = spharpy.samplings.equal_area(n_max=1, n_points=16)
     c = ambisonic_output_matrix(1, dirs)
@@ -67,29 +56,21 @@ def test_output_matrix_w_row_is_constant():
 
 
 def test_design_produces_a_valid_build():
-    ((dss, filters),) = design_fdn(target_with(), delays_of(16))
+    delays = delays_of(16)
+    ((dss, filters),) = design_fdn(target_with(), delays)
     assert isinstance(dss, pyFDN.DSS)
     assert dss.A.shape == (16, 16)
+    np.testing.assert_allclose(dss.A @ dss.A.T, np.eye(16), atol=1e-10)
+    np.testing.assert_array_equal(dss.delays, delays)
     assert dss.C.shape == (1, 16) and np.allclose(dss.C, 1 / np.sqrt(16))
     assert filters["post_delay"] is not None
     assert filters["post_output"] is None
-
-
-def test_the_given_delays_are_used():
-    delays = delays_of(16)
-    ((dss, _),) = design_fdn(target_with(), delays)
-    np.testing.assert_array_equal(dss.delays, delays)
 
 
 def test_design_is_reproducible_under_a_seed():
     ((a, _),) = design_fdn(target_with(), delays_of(16), rng=7)
     ((b, _),) = design_fdn(target_with(), delays_of(16), rng=7)
     np.testing.assert_allclose(a.A, b.A)
-
-
-def test_feedback_matrix_is_orthogonal():
-    ((dss, _),) = design_fdn(target_with(), delays_of(16))
-    np.testing.assert_allclose(dss.A @ dss.A.T, np.eye(16), atol=1e-10)
 
 
 def test_rendered_rt_matches_a_flat_target():

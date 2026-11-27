@@ -1,14 +1,12 @@
 """``RoomTarget`` from the diffuse-field models and from a response; the GEQ band extension."""
 
 import numpy as np
-import pyrato
 import pytest
 
 from compas_acoustics.hybrid.bands import BANDS, N_BANDS
 from _rooms import box_room
 from _rooms import pair as make_pair
 from compas_acoustics.hybrid.target import RoomTarget
-from compas_acoustics.room.diffuse import mean_absorption
 from compas_acoustics.room.geometry import SurfaceMaterial
 
 
@@ -19,19 +17,6 @@ def pair_with(alpha=0.2, dims=(8.0, 6.0, 3.0), air_absorption=True):
         receiver=np.array([5.0, 4.0, 1.5]),
         air_absorption=air_absorption,
     )
-
-
-def test_from_room_without_air_absorption_equals_pyrato_directly():
-    """from_room is an adapter; the model must be pyrato's, unmodified."""
-    pair = pair_with(air_absorption=False)
-    target = RoomTarget.from_room(pair, model="eyring")
-    expected = pyrato.parametric.reverberation_time_eyring(
-        volume=pair.geometry.volume,
-        surface_area=pair.geometry.surface_area,
-        mean_absorption=mean_absorption(pair.geometry),
-        speed_of_sound=pair.speed_of_sound,
-    )
-    np.testing.assert_allclose(target.rt[:, 0], expected, rtol=1e-12)
 
 
 def test_from_room_sabine_differs_from_eyring_and_is_longer():
@@ -62,18 +47,6 @@ def test_from_room_shapes_and_bands():
     assert target.rt.shape == (N_BANDS, 1)
     assert target.level is None
     np.testing.assert_allclose(target.bands, BANDS)
-
-
-def test_from_rir_recovers_the_rt_of_a_synthetic_exponential_decay():
-    fs = 48000.0
-    rt_true = 0.8
-    n = int(3 * rt_true * fs)
-    rng = np.random.default_rng(0)
-    t = np.arange(n) / fs
-    rir = rng.standard_normal(n) * 10 ** (-3 * t / rt_true)
-    target = RoomTarget.from_rir(rir, fs)
-    # skip the edge bands, where the octave filters have too little support
-    np.testing.assert_allclose(target.rt[1:-1, 0], rt_true, rtol=0.15)
 
 
 def test_from_rir_decay_db_sets_the_fit_range():

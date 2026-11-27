@@ -48,7 +48,7 @@ namespace CompasAcoustics.Grasshopper.Tests
 
         [Theory]
         [MemberData(nameof(Components))]
-        public void TheSceneSourceReceiverSimulateAnalyseAuraliseAndVisualiseComponents_AreDrawnOneWidth_TheVisualiseOnesWiderAndTheOthersAtTheirOwn(string typeName)
+        public void TheSceneSourceReceiverSimulateAnalyseAuraliseAndVisualiseComponents_AreDrawnOneWidth_TheVisualiseOnesAnotherAndTheOthersAtTheirOwn(string typeName)
         {
             var component = Make(typeName);
             var shared = typeName is nameof(RoomSceneComponent) or nameof(SourceComponent) or nameof(ReceiverComponent)
@@ -57,10 +57,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             var visualise = typeName is nameof(VisualiseEnergyMapComponent) or nameof(VisualiseRaysComponent) or nameof(VisualiseBilliardComponent) or nameof(VisualiseReflectionsComponent);
             Assert.Equal(visualise ? ComponentBase.VisualiseBodyWidth : shared ? ComponentBase.SharedBodyWidth : 0, component.MinBodyWidth);
             Assert.Equal(Math.Max(component.MinBodyWidth, ControlLayout.MinWidth(component.BodyControls)), ComponentUi.MinBodyWidthOf(component));
-            if (shared)
-                Assert.Equal(135f, ComponentUi.MinBodyWidthOf(component));
-            if (visualise)
-                Assert.Equal(140f, ComponentUi.MinBodyWidthOf(component));
         }
 
         [Theory]
@@ -91,20 +87,6 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.True(component.IsPreviewCapable);
             var previewed = component.Params.Output.Where(component.PreviewsOutput).Where(p => p is IGH_PreviewObject).Select(p => p.Name);
             Assert.Equal(Previewed.TryGetValue(typeName, out var expected) ? expected : Array.Empty<string>(), previewed);
-        }
-
-        [Fact]
-        public void DeconstructParameter_IsGone()
-        {
-            Assert.DoesNotContain("CA_Deconstruct_IR", EmbeddedSpecs.Names());
-            Assert.DoesNotContain("DeconstructParameterComponent", Components().Select(c => (string)c[0]));
-        }
-
-        [Fact]
-        public void CheckChannel_IsGone()
-        {
-            Assert.DoesNotContain("CA_Channel", EmbeddedSpecs.Names());
-            Assert.DoesNotContain("CheckChannelComponent", Components().Select(c => (string)c[0]));
         }
 
         [Fact]

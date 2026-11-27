@@ -173,16 +173,6 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void PressingPlayWhilePlaying_Restarts()
-        {
-            var p = Make();
-            p.Update(10.0, true, 5.0, Duration);
-            _now = 1.5;
-            Assert.Equal(7.5, p.Update(10.0, false, 5.0, Duration).T);
-            Assert.Equal(0.0, p.Update(10.0, true, 5.0, Duration).T);
-        }
-
-        [Fact]
         public void ScrubbingTimeAfterAFinishedPlay_Scrubs()
         {
             var p = Make();

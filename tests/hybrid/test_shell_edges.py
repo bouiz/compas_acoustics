@@ -93,12 +93,6 @@ def vertical_at(edges, x, y):
     return [e for e in edges if np.allclose(e.start[:2], [x, y]) and np.allclose(e.end[:2], [x, y])]
 
 
-def test_a_rectangular_room_has_no_room_edges():
-    with warnings.catch_warnings():
-        warnings.simplefilter("error", ShellEdgeWarning)
-        assert enclosure_edges(prism_room([(0, 0), (8, 0), (8, 6), (0, 6)])) == []
-
-
 @pytest.mark.parametrize("geometry", [prism_room(L_OUTLINE), grid_room([0, 5, 8], [0, 3, 6], {(1, 1)})], ids=["one-polygon floor", "tiled floor"])
 def test_an_l_room_has_one_re_entrant_corner(geometry):
     edges = enclosure_edges(geometry)

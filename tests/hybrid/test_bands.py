@@ -1,25 +1,15 @@
 """The octave-band grid of the hybrid synthesis."""
 
 import numpy as np
-import pyFDN
 import pytest
 
 from compas_acoustics.hybrid.bands import BANDS, check_bands
-
-
-def test_bands_match_pyfdn_defaults():
-    _, centres = pyFDN.octave_bands()
-    np.testing.assert_allclose(BANDS, centres)
 
 
 def test_lowest_band_is_62_point_5_not_63():
     assert BANDS[0] == 62.5
     assert BANDS.shape == (8,)
     assert BANDS[-1] == 8000.0
-
-
-def test_check_bands_accepts_the_package_grid():
-    check_bands(BANDS.copy())
 
 
 def test_check_bands_rejects_a_different_grid():

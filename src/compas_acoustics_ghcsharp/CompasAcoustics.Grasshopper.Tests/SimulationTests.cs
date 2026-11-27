@@ -25,12 +25,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(true, settings["air_absorption"]);
             Assert.False(settings.ContainsKey("energy_thres"));
             Assert.Equal(1.5, settings["duration"]);
-        }
-
-        [Fact]
-        public void Mono_SendsNoNormalize()
-        {
-            Assert.False(SimulationSettings.Mono(2, true, 1000, 1.5, 3, out _).ContainsKey("normalize"));
+            Assert.False(settings.ContainsKey("normalize"));
         }
 
         [Fact]
