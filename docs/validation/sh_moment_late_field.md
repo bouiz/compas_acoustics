@@ -204,8 +204,17 @@ What got worse:
   2.5/0.04/0.47). That part is 36 to 53 dB below the loudest 50 ms in the corridor; a decay per direction fitted from
   the rays would let the shape keep evolving.
 - In the corridor the moments' EDT is 0.23 +- 0.09 s short of the reference over seeds 1 to 4 on v0.2.0 (the FDN's
-  0.05 s long), where its T30 and C50 are closer than the FDN's. The corridor's decay is strongly bent (a fast early
-  part, then the axial energy between the end walls). Not yet explained.
+  0.05 s long). The end walls, 24 m apart, return the energy in clusters with almost nothing between them, so the
+  energy decay curve is a staircase, and at the far receiver its first step lies at about -10 dB: EDT is ~0.6 s or
+  ~1.14 s, and 1 dB in the first cluster decides which (seeds 1 to 6: the reference 1.14 s in 5 of 6 at 500 Hz, the
+  moments 0.57 to 0.75 s in 5 of 6). The step lies at -9.4 +- 1.2 dB in the reference, -11.5 +- 1.4 dB in the
+  moments, -9.1 +- 1.3 dB in the FDN (500 Hz, EDC at 150 ms). The moments follow the rays' expected decay: images
+  plus the rays' expected late energy, with no noise, give a mean EDT of 0.66 s, the moments 0.63 s, the reference
+  0.76 s (both receivers, 500 Hz to 2 kHz), and their late energy has no systematic offset from pyroomacoustics' tail
+  rebuilt 16 times from the same rays. The reference's step is higher by pyroomacoustics' 0.44 dB tail excess (0.01 s
+  of expected EDT) and by its realisation: its tail and images interfere in the first clusters (correlation -0.8 to
+  +0.4 per 10 ms window at 500 Hz between draws). The FDN spreads its energy into the gaps, so its step is higher
+  too. T30 is not affected (within 0.03 s).
 - On v0.2.0 (references traced with at least 20 000 rays) the EDT of the room with an absorbing floor and ceiling is
   -0.02 +- 0.03 s over seeds 1 to 4. The analysis below was made before, on `d1da8db`.
 - In the room with an absorbing floor and ceiling the moments' EDT is short of the 2 s reference's: over seeds 42 and
