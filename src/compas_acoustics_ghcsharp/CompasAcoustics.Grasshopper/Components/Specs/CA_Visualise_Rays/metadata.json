@@ -2,7 +2,7 @@
     "name": "Visualise Rays",
     "nickname": "Rays",
     "subcategory": "Display",
-    "description": "Trace rays from the scene's sources, for display and for Visualise Billiard: each ray as a polyline over its wall hits, with the scattered rays when scattering is on. Press Play to draw the rays growing from the sources as sound travels; the same button reads Pause while playing and holds them where they are, Rewind goes back to the start. Nothing is drawn before Play. The Preview button shows or hides the drawing.",
+    "description": "Trace rays from the scene's sources, for display: each ray as a polyline over its wall hits, with the scattered rays when scattering is on. Press Play to draw the rays growing from the sources as sound travels; the same button reads Pause while playing and holds them where they are, Rewind goes back to the start, the time slider scrubs and Speed sets how fast they grow. Nothing is drawn before Play or a time. The Preview button shows or hides the drawing.",
     "exposure": 2,
     "ports": {
         "inputParameters": [
@@ -70,12 +70,26 @@
                 "optional": true,
                 "scriptParamAccess": 0,
                 "typeHintID": "int"
+            },
+            {
+                "name": "time",
+                "description": "Time in ms. Alone: the rays as far as sound has travelled at that time (a slider scrubs). With Play: where playback stops (default: the end).",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "float"
+            },
+            {
+                "name": "speed",
+                "description": "Playback speed, a factor of the default, which draws the whole ray field in 10 s: 0.5 is half as fast, 2 twice.",
+                "optional": true,
+                "scriptParamAccess": 0,
+                "typeHintID": "float"
             }
         ],
         "outputParameters": [
             {
                 "name": "ray_field",
-                "description": "The RayField, whole, for Visualise Billiard."
+                "description": "The RayField, whole."
             },
             {
                 "name": "rays",

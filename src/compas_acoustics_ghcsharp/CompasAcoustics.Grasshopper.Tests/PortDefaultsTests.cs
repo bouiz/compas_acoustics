@@ -23,7 +23,7 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal(1.0, Port("CA_Regularized_Fitness", "k").Default);
             Assert.Null(Port("CA_Simulate_Mono", "duration").Default);
             Assert.Null(Port("CA_Simulate_Mono", "n_rays").Default);
-            Assert.Null(Port("CA_Visualise_Billiard", "speed").Default);
+            Assert.Null(Port("CA_Visualise_Rays", "speed").Default);
         }
 
         [Fact]

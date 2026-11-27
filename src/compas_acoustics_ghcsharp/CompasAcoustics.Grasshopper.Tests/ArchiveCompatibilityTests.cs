@@ -695,5 +695,69 @@ namespace CompasAcoustics.Grasshopper.Tests
             Assert.Equal("hypercardioid", fresh.Choice("directivity"));
             Assert.Equal(new[] { "70" }, ControlState.PersistentAll(fresh.Params.Input.Single(p => p.Name == "spl")));
         }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void VisualiseRaysSavedBeforeItsPlayback_ReadsItsPorts_TimeAndSpeedHiddenAsTheOthers(bool hidden)
+        {
+            var old = new VisualiseRaysComponent();
+            foreach (var name in new[] { "time", "speed" })
+                old.Params.UnregisterInputParameter(old.Params.Input.Single(p => p.Name == name));
+            ControlState.Assign(old.Params.Input.Single(p => p.Name == "n_rays"), new[] { "200" });
+            if (hidden)
+                old.ShowControlPorts(false);
+            var fresh = new VisualiseRaysComponent();
+            var (archive, read) = SaveThenRead(old, fresh);
+            Assert.True(read);
+            Assert.Empty(Errors(archive));
+            Assert.Equal(new[] { "200" }, ControlState.PersistentAll(fresh.ControlPort("n_rays")!));
+            foreach (var name in new[] { "time", "speed" })
+            {
+                Assert.Equal(hidden, fresh.IsHidden(fresh.ControlPort(name)!));
+                Assert.Equal(!hidden, fresh.Params.Input.Any(p => p.Name == name));
+            }
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void ABilliardSavedWhenItPlayedARayField_ReadsWithTheInputsOfANewOne(bool hidden)
+        {
+            var old = new VisualiseBilliardComponent();
+            foreach (var port in old.Params.Input.ToList())
+                old.Params.UnregisterInputParameter(port);
+            var former = new IGH_Param[] { new Param_RayField(), new Param_Number(), new Param_Boolean(), new Param_Number() };
+            var names = hidden ? new[] { "ray_field" } : new[] { "ray_field", "time", "play", "speed" };
+            for (var i = 0; i < names.Length; i++)
+            {
+                former[i].Name = former[i].NickName = names[i];
+                old.Params.RegisterInputParam(former[i]);
+            }
+            if (!hidden)
+                ControlState.Assign(old.Params.Input.Single(p => p.Name == "time"), new[] { "250" });
+            old.CreateAttributes();
+            foreach (var p in old.Params)
+                if (p.Attributes == null)
+                    p.CreateAttributes();
+            var archive = new GH_Archive();
+            var node = archive.CreateTopLevelNode("component");
+            Assert.True(old.Write(node));
+            node.RemoveItem("control_inputs_shown");
+            node.RemoveItem("control_inputs_hidden");
+            node.SetBoolean("control_inputs_shown", !hidden);
+            node.SetString("control_inputs_hidden", hidden ? "time\nspeed\nplay" : "");
+            if (hidden)
+                node.SetString("control_value_time", "250");
+            var back = new GH_Archive();
+            back.Deserialize_Binary(archive.Serialize_Binary());
+            var fresh = new VisualiseBilliardComponent();
+            fresh.CreateAttributes();
+            Assert.True(fresh.Read(back.GetRootNode.FindChunk("component")));
+            Assert.Empty(Errors(back));
+            Assert.False(fresh.ControlPortsShown);
+            Assert.Equal(new[] { "scene", "n_balls", "direction", "angle" }, fresh.Params.Input.Select(p => p.Name).ToArray());
+            Assert.Equal(new[] { "particles" }, fresh.Params.Output.Select(p => p.Name).ToArray());
+        }
     }
 }
