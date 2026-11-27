@@ -36,6 +36,12 @@ image sources (and diffracted paths); only the stochastic tail changes.
 | `"directional"`, same reference | the reference run's bins | the rays' moments, the run's rays sorted on the 480-direction moment grid |
 | reference given as responses (a dict, a name), or `late_envelope=False`, or an Eyring/Sabine tail | the energy the FDN would radiate in expectation (`network_energy`: the last order's images, and with scattering the scattered parts, decaying at the target RT, one free path later), brought to the reference by the late envelope's gains, which may now raise it up to 12 dB | as the rows above; `"directional"` traces its own histogram on the moment grid |
 
+With the rays' energy (the first two rows) the images keep only their specular part, `prod sqrt(1 - s)`, as with
+`scattering=True` and as pyroomacoustics' own images do: the rays carry every reflection's scattered part, from the
+first order on, and images keeping the whole reflection counted the early orders' scattered energy twice (+0.22 dB
+per order at `s = 0.05`; the hybrid's images were 0.2 to 1.2 dB above the reference's between 0 and 180 ms in the
+room with an absorbing floor and ceiling, 0.0 dB after the change, and 0.0 dB in the same room with no scattering).
+
 `late_field="fdn"` keeps the FDN. `generation["late_field"]` records the choice, `generation["late_energy"]`
 (`"rays"` or `"network"`) where the energy came from. `Binaural` keeps the FDN.
 
@@ -96,18 +102,18 @@ diffuse field, mean 250 Hz - 4 kHz (the rays' in brackets). Time: preparing and 
 
 | room | N | late field | time s | dT30 s | dEDT s | dC50 dB | late level dB | cov err | dipoles x/y/z (rays) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| diffuse office | 1 | moments, omni | 0.53 | -0.005 | +0.020 | -0.98 | 0.76 | 0.31 | 0.99/1.07/1.03 (1.04/0.98/0.98) |
-| | | FDN, omni | 3.04 | +0.015 | +0.042 | +0.18 | 2.61 | 0.45 | 1.23/1.25/1.43 |
-| | 3 | moments, omni | 0.77 | +0.015 | +0.012 | -0.68 | 1.20 | 0.58 | 1.00/1.09/1.29 |
-| | | FDN, omni | 3.05 | +0.015 | +0.042 | +0.18 | 2.61 | 0.75 | 1.23/1.25/1.43 |
-| absorbing floor and ceiling | 1 | moments, directional | 1.26 | +0.005 | -0.203 | +0.18 | 0.82 | 0.17 | 1.37/1.45/0.09 (1.46/1.45/0.09) |
-| | | FDN, directional | 16.30 | +0.090 | -0.018 | -0.44 | 0.85 | 0.19 | 1.46/1.40/0.27 |
-| | 3 | moments, directional | 1.89 | +0.025 | -0.247 | +0.38 | 0.78 | 0.28 | 1.43/1.55/0.09 |
-| | | FDN, directional | 16.37 | +0.090 | -0.018 | -0.44 | 0.85 | 0.36 | 1.46/1.40/0.27 |
-| corridor | 1 | moments, directional | 1.41 | -0.070 | -0.015 | +0.84 | 2.51 | 0.23 | 2.85/0.06/0.08 (2.87/0.05/0.08) |
-| | | FDN, directional | 19.89 | -0.002 | +0.178 | -1.77 | 2.36 | 0.27 | 2.58/0.21/0.27 |
-| | 3 | moments, directional | 2.41 | -0.057 | +0.002 | +0.18 | 2.60 | 0.34 | 2.94/0.06/0.08 |
-| | | FDN, directional | 19.93 | -0.002 | +0.178 | -1.77 | 2.36 | 0.50 | 2.58/0.21/0.27 |
+| diffuse office | 1 | moments, omni | 0.51 | -0.003 | +0.028 | -1.18 | 0.76 | 0.31 | 0.99/1.07/1.03 (1.04/0.98/0.98) |
+| | | FDN, omni | 3.09 | +0.015 | +0.042 | +0.18 | 2.61 | 0.45 | 1.23/1.25/1.43 |
+| | 3 | moments, omni | 0.76 | +0.015 | +0.027 | -0.99 | 1.25 | 0.58 | 1.00/1.09/1.29 |
+| | | FDN, omni | 3.06 | +0.015 | +0.042 | +0.18 | 2.61 | 0.75 | 1.23/1.25/1.43 |
+| absorbing floor and ceiling | 1 | moments, directional | 1.30 | -0.003 | -0.142 | -0.10 | 0.76 | 0.17 | 1.37/1.45/0.09 (1.46/1.45/0.09) |
+| | | FDN, directional | 16.36 | +0.090 | -0.018 | -0.44 | 0.85 | 0.19 | 1.46/1.40/0.27 |
+| | 3 | moments, directional | 2.05 | +0.022 | -0.207 | +0.12 | 0.74 | 0.28 | 1.43/1.55/0.09 |
+| | | FDN, directional | 16.54 | +0.090 | -0.018 | -0.44 | 0.85 | 0.36 | 1.46/1.40/0.27 |
+| corridor | 1 | moments, directional | 1.46 | -0.060 | -0.008 | +0.86 | 1.61 | 0.23 | 2.85/0.06/0.08 (2.87/0.05/0.08) |
+| | | FDN, directional | 19.97 | -0.002 | +0.178 | -1.77 | 2.36 | 0.27 | 2.58/0.21/0.27 |
+| | 3 | moments, directional | 2.43 | -0.047 | +0.007 | +0.17 | 1.75 | 0.34 | 2.94/0.06/0.08 |
+| | | FDN, directional | 19.89 | -0.002 | +0.178 | -1.77 | 2.36 | 0.50 | 2.58/0.21/0.27 |
 
 The full table (both late envelopes, every row) is in `summary.md`. In short:
 
@@ -120,11 +126,13 @@ The full table (both late envelopes, every row) is in `summary.md`. In short:
 - **"omni"** leaves the late field near isotropic in every room, as the FDN's omni mode does; it does not follow the
   rays' anisotropy (that is `"directional"`'s job, and "omni" stays the default for the reasons in the CHANGELOG of
   `late_envelope`).
-- **Energy and decay.** The late level is within 0.7 to 1.2 dB of the reference's late part in the shoeboxes, where
-  the FDN's attenuate-only gains left it 2.6 to 2.8 dB low in the office; T30 within 0.07 s of the reference (the
-  FDN's 0.09 s), EDT within 0.02 s in the office and the corridor (the FDN's 0.18 to 0.23 s long in the corridor).
-  In the room with an absorbing floor and ceiling the moments' EDT is 0.20 to 0.25 s short (the FDN's 0.02 to
-  0.06 s): see Known limits. The corridor's late level differs by 2.5 dB for both
+- **Energy and decay.** The late level is within 0.7 to 1.8 dB of the reference's late part (the corridor's 2.5 dB
+  before the images kept their specular part), where the FDN's attenuate-only gains left it 2.6 to 2.8 dB low in the
+  office; T30 within 0.06 s of the reference (the FDN's 0.09 s), EDT within 0.03 s in the office and the corridor
+  (the FDN's 0.18 to 0.23 s long in the corridor). In the room with an absorbing floor and ceiling the moments' EDT
+  is 0.14 to 0.21 s short with seed 42 (the FDN's 0.02 s): see Known limits. The office's C50 of -1.0 to -1.2 dB is
+  seed 42's: over seeds 42, 1 and 2 it is -0.35 dB overall and within 0.73 dB in every band (the FDN's -0.08 dB,
+  up to 2.7 dB in one band). The corridor's late level differs by 2.5 dB for both
   late fields: the reference's sparse early tail in the low bands.
 - **Time.** 0.5 to 2.4 s per pair against 3 to 20 s, 4 to 15 times faster (the FDN's directional shares cost most).
 
@@ -143,6 +151,9 @@ top of it, uncommitted at the time of recording). Recordings in `examples/result
 - The fitted start after the rays (`d1da8db_sh_moments_holdfit` against `d1da8db_sh_moments_final`): `foa` changes by
   at most -72 dB re peak and its parameters by 0.01 at most (T30 against mono 0.022 -> 0.025 s); `diffraction`, whose
   energy is the network's, and `mono` are bit-identical. The table below is the fitted start's.
+- The images' specular part with the rays' energy (`d1da8db_sh_moments_scatterfix`): `foa` runs with
+  `scattering=True`, whose images kept their specular part already, and changes by at most -72.7 dB re peak;
+  `diffraction` and `mono` are bit-identical.
 
 Which recording is closer to the room's own `Mono` run, |hybrid - mono| averaged over the 6 pairs, overall values
 (the largest single band in brackets), `examples/benchmarks/regression_against_mono.py`:
@@ -187,17 +198,18 @@ What got worse:
   rate (the corridor's FDN turns fully axial after 1.5 s, the held moments stay at their last x/y/z of
   2.5/0.04/0.47). That part is 36 to 53 dB below the loudest 50 ms in the corridor; a decay per direction fitted from
   the rays would let the shape keep evolving.
-- In the room with an absorbing floor and ceiling the moments' EDT is 0.20 to 0.25 s shorter than the 2 s
-  reference's (seed 42), the FDN's 0.02 to 0.06 s; it is the same with and without the fitted start, and was hidden
-  while the reference was cut at 0.5 s. Over seeds 42 and 1 to 5 (12 responses) the moments are 0.13 +- 0.03 s short
-  (11 of 12), the FDN +0.003 s: a bias, which seed 42 shows at its largest. This room's EDT is fragile: its decay
-  lingers between -5 and -10 dB for 300 ms, and the reference's EDT varies by 0.18 s between seeds. What is known:
-  - The reference's tail holds 10.5 % (+0.44 dB) more energy than its own rays from about 20 ms on.
+- In the room with an absorbing floor and ceiling the moments' EDT is short of the 2 s reference's: over seeds 42 and
+  1 to 5 (12 responses) by 0.13 +- 0.03 s before the images kept their specular part, 0.09 +- 0.03 s after, the
+  FDN's by +0.003 s. This room's EDT is fragile: its decay lingers between -5 and -10 dB for 300 ms, and the
+  reference's EDT varies by 0.18 s between seeds. Splitting the reference into its image and ray parts:
+  - The images: the hybrid's counted the early orders' scattered energy twice, fixed (above), a third of the bias.
+  - The reference's ray part holds 10.5 % (+0.44 dB) more energy than its own rays from about 20 ms on.
     pyroomacoustics scales each impulse of its Poisson sequence by `1 / sqrt(local power)`, the power a two-bin
     rolling mean (`simulation/rt.py`, `directional_sequence`, `seq_rolling_power(..., filter_length_mult=2)`); a
     sequence asked for unit energy per bin delivers 1.10 to 1.11 at 144 and 1500 m^3. The moments deliver the rays'
-    energy (1.001). The FDN follows the reference's measured envelope, excess included.
-  - Raising the moments' late field by that 0.44 dB moves the bias from -0.13 to -0.09 s: about a third of it.
-  - The rest: between 25 and 75 ms the hybrid (image sources plus the moments' late field) holds 0.5 to 2.5 dB
-    more than the reference (C50 +0.66 dB with the 0.44 dB raised), where the image sources and the rays' first
-    bins overlap. Not yet explained; the next step is to split the reference into its image-source and ray parts.
+    energy (1.001). The FDN follows the reference's measured envelope, excess included. Raising the moments by that
+    0.44 dB leaves -0.06 +- 0.03 s: another third.
+  - The rest (-0.06 +- 0.03 s, two standard errors; C50 +0.5 dB): the moments follow the reference's histogram
+    within 0.3 dB but for the onset, which their 20 ms smoothing spreads towards the direct sound (+5 dB at 12 to
+    25 ms, worth 0.006 s of EDT); likely the reference's sequence, whose energy per bin is lower while it is sparse
+    (1.0 to 1.07 in its first 40 ms against 1.10 later). Not pursued.

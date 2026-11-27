@@ -244,3 +244,23 @@ def test_the_rays_late_field_carries_the_references_late_energy():
     difference = 10 * np.log10(bands(result.late[:n, 0]) / late_part)
     assert result.core.late.source == "rays"
     assert np.all(np.abs(difference[2:7]) < 1.5), difference
+
+
+def test_with_the_rays_energy_the_images_keep_only_their_specular_part():
+    """The reference run's rays carry every reflection's scattered part, so with their energy the images keep
+    ``prod sqrt(1 - s)``, as pyroomacoustics' own images do; the FDN's images keep the whole reflection."""
+    scene = ca.Scene("scattering", sampling_rate=FS)
+    scene.add_acoustic_objects(ca.AcousticObjectsLibrary.shoebox_room(6, 5, 3, materials=ca.AcousticMaterial("wall", 0.2, 0.3)))
+    scene.add_source(ca.Source("talker", 1.5, 1.5, 1.6))
+    scene.add_receiver(ca.Receiver("listener", 4.0, 3.0, 1.2))
+    gains = {}
+    for late_field in ("moments", "fdn"):
+        method = ca.Ambisonics(sh_order=1, duration=0.5, image_source_order=2, late_field=late_field)
+        scene.simulate(method)
+        ((result,),) = [list(method.results.values())]
+        gains[late_field] = result.core.images
+    moments, fdn = gains["moments"], gains["fdn"]
+    assert moments.delay.shape == fdn.delay.shape and np.allclose(moments.delay, fdn.delay)
+    for order in (0, 1, 2):
+        ratio = moments.gain[moments.order == order] ** 2 / fdn.gain[fdn.order == order] ** 2
+        np.testing.assert_allclose(ratio, 0.7**order, rtol=1e-6)

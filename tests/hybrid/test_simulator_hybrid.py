@@ -663,7 +663,8 @@ def test_a_traced_reference_shares_its_search_and_rays_with_the_early_field_and_
 @pytest.mark.parametrize("scattering", [False, True])
 def test_a_given_mono_reference_at_the_methods_order_lends_its_search_to_the_early_field(scattering):
     """Bit for bit what its responses given as a dict give, with which the early field searches its own room; the
-    FDN's late field too. The moments' late field takes the Mono's rays, which the dict does not have."""
+    FDN's late field too. The moments' late field takes the Mono's rays, which the dict does not have, and those rays
+    carry the reflections' scattered parts: its images keep their specular parts, those of ``scattering=True``."""
     settings = dict(sh_order=1, image_source_order=3, scattering=scattering, duration=0.5, seed=0)
     scene = make(panel=True)
     by_dict = scene.simulate(Ambisonics(references(scene), late_field="fdn", **settings))
@@ -672,9 +673,13 @@ def test_a_given_mono_reference_at_the_methods_order_lends_its_search_to_the_ear
         assert np.array_equal(by_method[key].ir, ir.ir)
     dict_method, mono_method = Ambisonics(references(scene), **settings), Ambisonics(Mono(**FAST_RT), **settings)
     by_dict, by_method = scene.simulate(dict_method), scene.simulate(mono_method)
+    specular = Ambisonics(references(scene), **dict(settings, scattering=True))
+    scene.simulate(specular)
     for key, ir in by_dict.items():
         assert ir.generation["late_energy"] == "network" and by_method[key].generation["late_energy"] == "rays"
-        np.testing.assert_array_equal(dict_method.results[key].early, mono_method.results[key].early)
+        np.testing.assert_array_equal(mono_method.results[key].core.images.gain, specular.results[key].core.images.gain)
+        if scattering:
+            np.testing.assert_array_equal(dict_method.results[key].early, mono_method.results[key].early)
 
 
 @pytest.mark.parametrize("method", [Ambisonics, Binaural])

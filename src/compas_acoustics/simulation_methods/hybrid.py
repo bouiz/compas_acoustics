@@ -259,7 +259,12 @@ class _HybridMethod(SimulationMethod):
         # A room built with ray_tracing=True holds each image's specular product, prod sqrt(1 - s); built on
         # complementary_scattering it holds the scattered one. Where a reference run has searched the room, its search
         # is reused and the other builds' damping is derived from it.
-        early_room = self._built(geometry, context, air, ray_tracing=self.scattering)
+        # The moments' late energy is the reference run's own rays when it traced them (_histograms), and those rays
+        # carry every reflection's scattered part, as in pyroomacoustics' own responses: the images then keep only
+        # their specular part, or the scattered energy of the early orders would be counted twice.
+        moments = self.late_field == "moments"
+        rays_carry_scattering = moments and run is not None and (run.histograms is not None or self.late_envelope == "omni")
+        early_room = self._built(geometry, context, air, ray_tracing=self.scattering or rays_carry_scattering)
         if run is None:
             early_room.image_source_model()
             room, damping = early_room, None
@@ -589,7 +594,9 @@ _ENGINE_PARAMETERS = """
     scattering : bool, default=False
         Surface scattering after Ewert et al. (2025): each image keeps its specular part, ``prod sqrt(1 - s)``, in the
         early field; its scattered part, ``prod sqrt(s)``, enters the delay lines of its hemisphere through an allpass
-        cascade. Both come from the one image source search.
+        cascade. Both come from the one image source search. With the moments' late field taking the rays' energy
+        (``generation["late_energy"] == "rays"``) the images keep their specular part either way: the rays carry the
+        scattered parts.
 
     Attributes
     ----------
