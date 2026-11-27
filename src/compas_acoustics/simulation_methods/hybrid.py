@@ -1,4 +1,7 @@
-""":class:`Binaural` and :class:`Ambisonics`: image sources, optional edge diffraction, a directional FDN.
+""":class:`Binaural` and :class:`Ambisonics`: image sources, optional edge diffraction, a late field.
+
+:class:`Binaural`'s late field is a directional FDN; :class:`Ambisonics`' is Gaussian noise shaped by the spherical
+harmonic energy moments of the rays (:mod:`compas_acoustics.hybrid.moments`), or the FDN with ``late_field="fdn"``.
 
 One image source search serves every pair. A ray-tracing tail's reference shares that search and, with
 ``late_envelope="directional"``, its ray trace gives the directional histograms; a given ray-tracing ``Mono``
@@ -40,6 +43,7 @@ from compas_acoustics.hybrid.early import image_sources
 from compas_acoustics.hybrid.envelope import histogram_rays
 from compas_acoustics.hybrid.late import MIN_DELAYS
 from compas_acoustics.hybrid.late import fdn_directions
+from compas_acoustics.hybrid.moments import moment_grid
 from compas_acoustics.hybrid.pair import Pair
 from compas_acoustics.hybrid.scattering import complementary_scattering
 from compas_acoustics.hybrid.synthesis import HybridResult
@@ -112,9 +116,15 @@ def _emitted_gain(directivity, direction):
 
 
 class _HybridMethod(SimulationMethod):
-    """References, image sources, network and directional histograms; a subclass sets ``num_delays`` and renders."""
+    """References, image sources, late field and directional histograms; a subclass sets ``num_delays`` and renders.
+
+    ``late_field`` is ``"fdn"`` (delay lines) or ``"moments"`` (ambisonic noise shaped by the rays' moments, which
+    needs ``sh_order``).
+    """
 
     num_delays: int
+    late_field: str = "fdn"
+    sh_order: int | None = None
 
     def __init__(
         self,
@@ -212,11 +222,15 @@ class _HybridMethod(SimulationMethod):
         # With a late envelope the method's own reference is traced with the histogram's ray count in both modes;
         # only "directional" bins the rays on the lines' directions.
         grid = directions = None
+        moments = self.late_field == "moments"
         if self.late_envelope:
             grid = fdn_directions(self.num_delays).cartesian
             grid = grid / np.linalg.norm(grid, axis=1, keepdims=True)
             if self.late_envelope == "directional":
-                directions = [grid @ rotation.T for rotation in rotations]
+                # the moments sort the rays on their own grid; the ray count stays the lines' (grid), so both late
+                # fields trace the same reference. With "omni" the moments take the reference's omnidirectional bins.
+                sorted_on = moment_grid() if moments else grid
+                directions = [sorted_on @ rotation.T for rotation in rotations]
         jobs.progress("references")
         references, air_absorption, air, description, run = self._references(context, geometry, grid, directions)
         self.reference_rirs = references
@@ -241,7 +255,8 @@ class _HybridMethod(SimulationMethod):
             "late_envelope": self.late_envelope,
             "directional_absorption": self.directional_absorption,
             "scattering": self.scattering,
-            "num_delays": self.num_delays,
+            "num_delays": self.num_delays if not moments else None,
+            "late_field": self.late_field,
             "histogram_rays": None,
             "seed": self.seed,
             "scene": getattr(context.scene, "name", None),
@@ -250,10 +265,10 @@ class _HybridMethod(SimulationMethod):
             generation["n_jobs"] = self.n_jobs
         if self.per_pair_seeds:
             generation["per_pair_seeds"] = True
-        histograms, generation["histogram_rays"] = self._histograms(context, geometry, room, run, grid, directions, air_absorption, air)
+        histograms, generation["histogram_rays"], rays_are_the_reference = self._histograms(context, geometry, room, run, grid, directions, air_absorption, air)
 
         inputs = self._pair_inputs(context, geometry, room, rotations, references, damping, scattered, histograms, air_absorption, air)
-        return self._rendered(inputs, rng, generation, context.sampling_rate)
+        return self._rendered(inputs, rng, generation, context.sampling_rate, rays_are_the_reference)
 
     @staticmethod
     def _check(context: SimulationContext) -> None:
@@ -286,7 +301,12 @@ class _HybridMethod(SimulationMethod):
         # A room built with ray_tracing=True holds each image's specular product, prod sqrt(1 - s); built on
         # complementary_scattering it holds the scattered one. Where a reference run has searched the room, its search
         # is reused and the other builds' damping is derived from it.
-        early_room = self._built(geometry, context, air, ray_tracing=self.scattering)
+        # The moments' late energy is the reference run's own rays when it traced them (_histograms), and those rays
+        # carry every reflection's scattered part, as in pyroomacoustics' own responses: the images then keep only
+        # their specular part, or the scattered energy of the early orders would be counted twice.
+        moments = self.late_field == "moments"
+        rays_carry_scattering = moments and run is not None and (run.histograms is not None or self.late_envelope == "omni")
+        early_room = self._built(geometry, context, air, ray_tracing=self.scattering or rays_carry_scattering)
         if run is None:
             search_images(early_room)
             room, damping = early_room, None
@@ -298,12 +318,17 @@ class _HybridMethod(SimulationMethod):
         return room, damping, scattered
 
     def _histograms(self, context, geometry, room, run, grid, directions, air_absorption, air):
-        """``(histograms [mic][source] or None, their ray count or None)``: the reference run's, or traced here for
-        ``late_envelope="directional"`` with a given reference."""
+        """``(histograms [mic][source] or None, their ray count or None, whether they are the reference's own rays)``:
+        the reference run's (with the moments and ``late_envelope="omni"``, its omnidirectional bins), or traced here
+        for ``late_envelope="directional"`` with a given reference."""
         if run is not None and run.histograms is not None:
-            return run.histograms, int(run.room.rt_args["n_rays"])
+            return run.histograms, int(run.room.rt_args["n_rays"]), True
+        if self.late_field == "moments" and self.late_envelope == "omni" and run is not None:
+            from compas_acoustics.room.raytracing import omni_histograms
+
+            return omni_histograms(run, air_absorption), int(run.room.rt_args["n_rays"]), True
         if self.late_envelope != "directional":
-            return None, None
+            return None, None, False
         from compas_acoustics.room.raytracing import directional_histograms
         from compas_acoustics.worker import jobs
 
@@ -327,7 +352,7 @@ class _HybridMethod(SimulationMethod):
             n_jobs=self.n_jobs,
             per_pair_seeds=self.per_pair_seeds,
         )
-        return histograms, n_rays
+        return histograms, n_rays, False
 
     def _rays(self, volume, speed_of_sound, grid) -> int:
         """The rays of a trace the method makes itself: ``n_rays``, else those at which a direction of ``grid`` has its
@@ -408,8 +433,9 @@ class _HybridMethod(SimulationMethod):
                 )
         return inputs
 
-    def _rendered(self, inputs, rng, generation, fs) -> dict:
+    def _rendered(self, inputs, rng, generation, fs, rays_are_the_reference=False) -> dict:
         """The pairs rendered on threads, the responses by key in the pairs' order; :attr:`results` filled.
+        ``rays_are_the_reference``: the pairs' histograms hold the reference's own rays, past the image source order.
 
         Every pair goes through three steps, early reflections, late reverberation and the output's encoding; the
         pool threads post ``(pair, step)`` and the calling thread reports the slowest pair's step as
@@ -418,8 +444,17 @@ class _HybridMethod(SimulationMethod):
 
         steps = ("early reflections", "late reverberation", f"{self.output} encoding")
         events = queue.SimpleQueue()
+        moments = self.late_field == "moments"
+        late = dict(late_field="moments", sh_order=self.sh_order) if moments else {}
 
         def rendered(k, item):
+            per_pair = dict(late)
+            if moments:
+                per_pair.update(
+                    late_rays=item.histogram,
+                    energy_from_rays=item.histogram is not None and rays_are_the_reference,
+                    shape_from_rays=item.histogram is not None and self.late_envelope == "directional",
+                )
             core = prepare(
                 item.pair,
                 item.iss,
@@ -429,12 +464,13 @@ class _HybridMethod(SimulationMethod):
                 num_delays=self.num_delays,
                 directional_absorption=self.directional_absorption,
                 late_envelope=item.reference if self.late_envelope else None,
-                directional_envelope=item.histogram,
+                directional_envelope=None if moments else item.histogram,
                 diffraction=self.diffraction,
                 rng=rng,
                 scattering=self.scattering,
                 source_gain=item.source_gain,
                 on_step=lambda name: events.put((k, steps.index(name))),
+                **per_pair,
             )
             events.put((k, 2))
             response = self._response(core, item.key, item.source, item.receiver, generation)
@@ -463,10 +499,11 @@ class _HybridMethod(SimulationMethod):
                 jobs.check()
 
         # As many threads as keep the pairs' peak memory under 4 GB (about 17 arrays of (n_samples, num_delays) per
-        # pair; cap and estimate are the package's); results do not depend on the thread count and keep the pairs'
-        # order.
+        # pair, or of (n_samples, channels) with the moments; cap and estimate are the package's); results do not
+        # depend on the thread count and keep the pairs' order.
         longest = max(item.duration for item in inputs)
-        peak = 17 * np.ceil(longest * fs) * self.num_delays * 8
+        width = max((self.sh_order + 1) ** 2, 16) if moments else self.num_delays
+        peak = 17 * np.ceil(longest * fs) * width * 8
         workers = max(1, min(len(inputs), os.cpu_count() or 1, int(4e9 // peak)))
         rirs = {}
         with ThreadPoolExecutor(workers) as pool:
@@ -562,9 +599,12 @@ class _HybridMethod(SimulationMethod):
         elif isinstance(self.reference, str):
             references, description = context.scene.impulse_responses(self.reference), self.reference
         elif isinstance(self.reference, Mono):
-            references, run = self.reference._run(context)
+            same_order = self.reference.image_source_order == self.image_source_order
+            # the moments take the reference's own rays where its run is this method's search (same order)
+            sorted_too = self.late_field == "moments" and same_order and directions is not None
+            references, run = self.reference._run(context, directions if sorted_too else None)
             description = self.reference.generation
-            if self.reference.image_source_order != self.image_source_order:
+            if not same_order:
                 run = None
         else:
             references, description = self.reference, "dict"
@@ -675,7 +715,9 @@ _ENGINE_PARAMETERS = """
     scattering : bool, default=False
         Surface scattering after Ewert et al. (2025): each image keeps its specular part, ``prod sqrt(1 - s)``, in the
         early field; its scattered part, ``prod sqrt(s)``, enters the delay lines of its hemisphere through an allpass
-        cascade. Both come from the one image source search.
+        cascade. Both come from the one image source search. With the moments' late field taking the rays' energy
+        (``generation["late_energy"] == "rays"``) the images keep their specular part either way: the rays carry the
+        scattered parts.
     n_jobs : int, default=1
         Processes for the reference run (``Mono(n_jobs=...)``, when the method runs it) and the directional
         histograms, whose rays it splits.
@@ -797,10 +839,16 @@ class Binaural(_HybridMethod):
 
 
 class Ambisonics(_HybridMethod):
-    """Ambisonic room impulse responses: image sources, optional edge diffraction, a directional FDN.
+    """Ambisonic room impulse responses: image sources, optional edge diffraction, a late field of shaped noise.
 
-    As :class:`Binaural`, with every early path encoded at its direction and every delay line projected from
-    its direction at ``sh_order``. Responses are ACN in ``normalization``, stored under ``'ambisonics'``.
+    The early field is that of :class:`Binaural`, every path encoded at its direction. The late field is Gaussian
+    noise whose channel covariance follows, per octave band and 4 ms bin, the spherical harmonic energy moments of
+    the traced rays up to twice ``sh_order``, ``C_ij = sum_k G_ijk M_k`` (:mod:`compas_acoustics.hybrid.moments`):
+    each channel's decay and the correlation between channels, so the late field's diffuseness, anisotropy and
+    direction, to the extent an order-``sh_order`` signal carries them. Its energy is the rays' own where the method
+    traces the reference with them; otherwise it is what the FDN would radiate, brought to the reference as the
+    FDN's lines were. ``late_field="fdn"`` keeps the FDN of :class:`Binaural`, every delay line projected from its
+    direction. Responses are ACN in ``normalization``, stored under ``'ambisonics'``.
 
     Parameters
     ----------
@@ -813,6 +861,14 @@ class Ambisonics(_HybridMethod):
         depend on the count.
     normalization : {"SN3D", "N3D"}, default="SN3D"
         ACN channel order, W = 1 for a unit plane wave.
+    late_field : {"moments", "fdn"}, default="moments"
+        ``"moments"``: noise shaped by the rays' moments. With ``late_envelope="omni"`` and a reference the
+        method traces itself (``tail="ray_tracing"``, or a ``Mono`` at the method's ``image_source_order``), its
+        energy per band is the rays' and its directions the boundary's reflection (``directional_absorption``);
+        with ``"directional"`` its directions are the rays' too; with a reference given as responses, or ``False``,
+        its energy is the network's (brought to the reference by a late envelope, also raised, by up to 12 dB).
+        ``"fdn"``: the directional FDN, as before. ``generation["late_field"]`` records it and, per response,
+        ``generation["late_energy"]`` whether the energy came from the ``"rays"`` or the ``"network"``.
 
     Examples
     --------
@@ -836,6 +892,7 @@ class Ambisonics(_HybridMethod):
         sh_order=1,
         normalization="SN3D",
         *,
+        late_field="moments",
         tail=None,
         image_source_order=3,
         n_slopes=1,
@@ -858,6 +915,9 @@ class Ambisonics(_HybridMethod):
             raise ValueError(f"normalization must be 'SN3D' or 'N3D', not {normalization!r}")
         if sh_order < 0:
             raise ValueError("sh_order must be non-negative")
+        if late_field not in ("moments", "fdn"):
+            raise ValueError(f"late_field must be 'moments' or 'fdn', not {late_field!r}")
+        self.late_field = late_field
         super().__init__(
             reference=reference,
             tail=tail,
@@ -888,6 +948,9 @@ class Ambisonics(_HybridMethod):
 
     def _response(self, core, key, source, receiver, generation):
         result = render_ambisonics(core, self.sh_order, self.normalization)
+        generation = dict(generation, sh_order=self.sh_order)
+        if core.late is not None:
+            generation["late_energy"] = core.late.source
         return result, ImpulseResponse(
             name=key,
             source=source,
@@ -895,7 +958,7 @@ class Ambisonics(_HybridMethod):
             ir=result.rir,
             sampling_rate=int(core.fs),
             normalized=self.normalize,
-            generation=dict(generation, sh_order=self.sh_order),
+            generation=generation,
             ambisonic_order=self.sh_order,
             normalization=self.normalization.lower(),
             channel_order="acn",

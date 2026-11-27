@@ -16,8 +16,11 @@ import spharpy
 from .diffraction import encode_btms
 from .diffraction import encode_diffraction
 from .early import encode
+from .envelope import MOMENTS_MAX_GAIN
+from .envelope import shape_late
 from .late import MIN_DELAYS
 from .late import fdn_directions
+from .moments import synthesize
 from .synthesis import HybridCore
 from .synthesis import HybridResult
 
@@ -30,19 +33,35 @@ def render_ambisonics(core: HybridCore, sh_order: int = 1, normalization: Litera
     Every early path is encoded at its direction and every line projected through the output matrix
     (:func:`ambisonic_output_matrix`). Everything is computed in N3D; ``normalization`` sets the output, SN3D
     (AmbiX) or N3D, both with W = 1 for a unit plane wave. An order the core's grid cannot carry raises.
+
+    A core prepared with ``late_field="moments"`` has no lines: its late field is synthesized at ``sh_order``
+    (:func:`~compas_acoustics.hybrid.moments.synthesize`) and, where its energy is the network's and not the rays',
+    brought to the reference by the late envelope as the lines would be, raised up to ``MOMENTS_MAX_GAIN`` too.
     """
     if normalization not in ("SN3D", "N3D"):
         raise ValueError(f"normalization must be 'SN3D' or 'N3D', not {normalization!r}")
-    C = ambisonic_output_matrix(sh_order, fdn_directions(core.lines.shape[1]))
     n = core.n_samples
+    early = _early(core, sh_order, n)
+    if core.late is not None:
+        late = synthesize(core.late, sh_order, core.fs)
+        if core.late.follows_reference and core.late_envelope is not None:
+            late = shape_late(late, early[:, 0], late[:, 0], core.late_envelope, core.fs, max_gain=MOMENTS_MAX_GAIN)
+        early, late = (_from_n3d(x, normalization) for x in (early, late))
+        return HybridResult(core=core, rir=early + late, early=early, late=late, late_lines=None, normalization=normalization)
+    C = ambisonic_output_matrix(sh_order, fdn_directions(core.lines.shape[1]))
+    lines = core.shaped_lines(early[:, 0])
+    early, late = (_from_n3d(x, normalization) for x in (early, lines @ C.T))
+    return HybridResult(core=core, rir=early + late, early=early, late=late, late_lines=lines, normalization=normalization)
+
+
+def _early(core: HybridCore, sh_order: int, n: int) -> np.ndarray:
+    """The early paths encoded at their directions, N3D, (n, (sh_order + 1) ** 2)."""
     early = encode(core.images, sh_order, n)
     if core.diffraction_paths:
         early = early + encode_diffraction(list(core.diffraction_paths), sh_order, n, core.fs)
     if core.btms_contributions:
         early = early + encode_btms(list(core.btms_contributions), sh_order, n, core.fs)
-    lines = core.shaped_lines(early[:, 0])
-    early, late = (_from_n3d(x, normalization) for x in (early, lines @ C.T))
-    return HybridResult(core=core, rir=early + late, early=early, late=late, late_lines=lines, normalization=normalization)
+    return early
 
 
 def _from_n3d(x: np.ndarray, normalization: str) -> np.ndarray:
