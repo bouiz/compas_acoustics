@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+### Removed
+
+
+## [0.2.0] 2026-11-27
+
+### Added
+
 * Added the proxy reference to the virtual coefficient lab: `ScatteringSample.as_drawn(mesh, reference=proxy)` takes the simplified mesh the room model will carry the lab's s on, so that s measures the share of the detailed object's reflection that the proxy does not reproduce; `sample.reference_kind` is `"flat"` or `"proxy"`, and a proxy result is flagged non-ISO.
 * Added the diffusion coefficient to the lab: `diffusion_coefficient` (ISO 17497-2 eq. 6) and `normalised_diffusion`, and `ScatteringResult.d_angle`, `d_bands` and `d_octaves` (d_n per source, one-third-octave band and octave, with the same random-incidence weights as s), returned by every method.
 * Added `method="geometric"` to `measure_scattering`: a fast heuristic preview (seconds, against minutes for Kirchhoff). `n_rays` specular rays per source direction reflect off the rigid sample and reference, mounted in a rigid baffle at z = 0, and are binned on the receiver hemisphere; s is the geometric `s_max` times the depth curve `1 - exp(-(2 pi f h / c)^2)`, with no phase and no diffraction. Its accuracy against Kirchhoff is recorded in the module docstring of `compas_acoustics.lab.geometric`. It needs `trimesh` (and `embreex` for speed) on Python >= 3.11, which the `lab` extra now installs.
