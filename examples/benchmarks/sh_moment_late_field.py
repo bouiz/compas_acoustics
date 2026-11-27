@@ -107,7 +107,8 @@ CASES = {
 
 
 class Timer:
-    """Wall time of the late field's preparation (``prepare``) and rendering (``render_ambisonics``), summed over pairs."""
+    """Wall time of the late field's preparation (``prepare``) and rendering (``render_ambisonics``), summed over
+    pairs."""
 
     def __init__(self):
         self.lock = threading.Lock()
@@ -231,8 +232,8 @@ def run_case(case, orders):
             with timer.installed():
                 irs = scene.simulate(method)
             total = time.perf_counter() - start
-            # the rays every setting traces its reference with (the late envelope's rule on the 96 lines' grid)
-            method.histogram_rays = hybrid_methods._HybridMethod._histogram_rays(RoomGeometry.from_scene(scene).to_pra(FS, 0), hybrid_methods.fdn_directions(96).cartesian)
+            # the rays every setting traces its reference with
+            method.histogram_rays = int(next(iter(method.reference_rirs.values())).generation["n_rays"])
             if truths is None:
                 truths = truth(scene, method, sh_order, CASES[case].get("duration"))
             for key, ir in irs.items():

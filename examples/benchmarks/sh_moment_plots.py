@@ -127,7 +127,7 @@ def simulate(case, sh_order):
         )
         irs = scene.simulate(method)
         results[late_field] = next(method.results[key] for key, ir in irs.items() if ir.receiver.name == "receiver_0")
-    method.histogram_rays = hybrid_methods._HybridMethod._histogram_rays(RoomGeometry.from_scene(scene).to_pra(FS, 0), hybrid_methods.fdn_directions(96).cartesian)
+    method.histogram_rays = int(next(iter(method.reference_rirs.values())).generation["n_rays"])
     return scene, method, results
 
 
@@ -155,7 +155,7 @@ def plot_geometry(case, scene, result, band_hz, path):
     # the early arrivals at receiver_0, from the image sources in the receiver's frame
     images = result.core.images
     receiver = np.asarray(spec["receivers"][0])
-    rotation = result.core.spec.receiver_rotation
+    rotation = result.core.pair.receiver_rotation
     b = int(np.argmin(np.abs(np.asarray(images.bands) - band_hz)))
     energy = np.asarray(images.gain[:, b], dtype=float) ** 2
     level = 10 * np.log10(energy / energy.max() + 1e-30)
@@ -195,7 +195,7 @@ def _map(ax, values, title):
 
 def plot_doa(case, histogram, results, sh_order, band, band_hz, path):
     moments_result, fdn_result = results["moments"], results["fdn"]
-    rotation = moments_result.core.spec.receiver_rotation
+    rotation = moments_result.core.pair.receiver_rotation
     start = float(np.max(moments_result.core.images.delay))
     hist_band = int(np.argmin(np.abs(np.asarray(histogram.bands) - band_hz)))
     moments = histogram_moments(histogram, 2 * sh_order, rotation)  # (n_bands, n_bins, n_moments)
@@ -244,7 +244,7 @@ def plot_doa(case, histogram, results, sh_order, band, band_hz, path):
 
 def plot_dipoles(case, histogram, results, sh_order, band, band_hz, path, step=0.05):
     """Dipole energies (x, y, z) / their mean over time, windows of ``step`` seconds."""
-    rotation = results["moments"].core.spec.receiver_rotation
+    rotation = results["moments"].core.pair.receiver_rotation
     start = float(np.max(results["moments"].core.images.delay))
     hist_band = int(np.argmin(np.abs(np.asarray(histogram.bands) - band_hz)))
     moments = histogram_moments(histogram, 2 * sh_order, rotation)

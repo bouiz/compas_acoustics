@@ -2,7 +2,8 @@
 
 Validation record of branch `feat/sh-moment-late-field`, which replaces the 96-line FDN of `Ambisonics` with
 Gaussian noise shaped by the spherical harmonic energy moments of the rays (`compas_acoustics.hybrid.moments`).
-Recorded on top of `d1da8db` (the `engine-integration` tip). Not a docs page (excluded in `mkdocs.yml`).
+Recorded on top of `d1da8db` (the `engine-integration` tip); the three-room benchmark rerun on upstream v0.2.0
+(`dbdf390`). Not a docs page (excluded in `mkdocs.yml`).
 
 ## The method
 
@@ -102,39 +103,43 @@ diffuse field, mean 250 Hz - 4 kHz (the rays' in brackets). Time: preparing and 
 
 | room | N | late field | time s | dT30 s | dEDT s | dC50 dB | late level dB | cov err | dipoles x/y/z (rays) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| diffuse office | 1 | moments, omni | 0.51 | -0.003 | +0.028 | -1.18 | 0.76 | 0.31 | 0.99/1.07/1.03 (1.04/0.98/0.98) |
-| | | FDN, omni | 3.09 | +0.015 | +0.042 | +0.18 | 2.61 | 0.45 | 1.23/1.25/1.43 |
-| | 3 | moments, omni | 0.76 | +0.015 | +0.027 | -0.99 | 1.25 | 0.58 | 1.00/1.09/1.29 |
-| | | FDN, omni | 3.06 | +0.015 | +0.042 | +0.18 | 2.61 | 0.75 | 1.23/1.25/1.43 |
-| absorbing floor and ceiling | 1 | moments, directional | 1.30 | -0.003 | -0.142 | -0.10 | 0.76 | 0.17 | 1.37/1.45/0.09 (1.46/1.45/0.09) |
-| | | FDN, directional | 16.36 | +0.090 | -0.018 | -0.44 | 0.85 | 0.19 | 1.46/1.40/0.27 |
-| | 3 | moments, directional | 2.05 | +0.022 | -0.207 | +0.12 | 0.74 | 0.28 | 1.43/1.55/0.09 |
-| | | FDN, directional | 16.54 | +0.090 | -0.018 | -0.44 | 0.85 | 0.36 | 1.46/1.40/0.27 |
-| corridor | 1 | moments, directional | 1.46 | -0.060 | -0.008 | +0.86 | 1.61 | 0.23 | 2.85/0.06/0.08 (2.87/0.05/0.08) |
-| | | FDN, directional | 19.97 | -0.002 | +0.178 | -1.77 | 2.36 | 0.27 | 2.58/0.21/0.27 |
-| | 3 | moments, directional | 2.43 | -0.047 | +0.007 | +0.17 | 1.75 | 0.34 | 2.94/0.06/0.08 |
-| | | FDN, directional | 19.89 | -0.002 | +0.178 | -1.77 | 2.36 | 0.50 | 2.58/0.21/0.27 |
+| diffuse office | 1 | moments, omni | 0.51 | -0.007 | -0.025 | +0.40 | 0.90 | 0.32 | 0.99/1.07/1.03 (1.06/1.01/0.93) |
+| | | FDN, omni | 2.99 | +0.020 | +0.012 | +1.39 | 2.31 | 0.46 | 1.23/1.25/1.43 |
+| | 3 | moments, omni | 0.76 | +0.007 | -0.023 | +0.55 | 1.28 | 0.57 | 1.01/1.10/1.29 |
+| | | FDN, omni | 2.96 | +0.020 | +0.012 | +1.39 | 2.31 | 0.75 | 1.23/1.25/1.43 |
+| absorbing floor and ceiling | 1 | moments, directional | 1.34 | -0.022 | +0.115 | +0.16 | 0.72 | 0.16 | 1.35/1.51/0.09 (1.43/1.49/0.08) |
+| | | FDN, directional | 16.56 | -0.020 | +0.087 | -0.45 | 0.73 | 0.18 | 1.43/1.39/0.26 |
+| | 3 | moments, directional | 1.94 | +0.015 | +0.110 | +0.37 | 0.93 | 0.26 | 1.37/1.68/0.09 |
+| | | FDN, directional | 16.89 | -0.020 | +0.087 | -0.45 | 0.73 | 0.34 | 1.43/1.39/0.26 |
+| corridor | 1 | moments, directional | 1.46 | -0.002 | -0.213 | +0.32 | 2.04 | 0.23 | 3.05/0.05/0.06 (2.89/0.04/0.07) |
+| | | FDN, directional | 20.22 | -0.103 | +0.092 | -2.08 | 2.31 | 0.28 | 2.60/0.20/0.24 |
+| | 3 | moments, directional | 2.01 | +0.030 | -0.230 | -0.03 | 2.23 | 0.28 | 3.26/0.06/0.08 |
+| | | FDN, directional | 20.19 | -0.103 | +0.092 | -2.08 | 2.31 | 0.48 | 2.60/0.20/0.24 |
+
+Over seeds 1 to 4 (first order, directional, 8 responses each, mean +- standard error):
+
+| room | late field | dT30 s | dEDT s | dC50 dB |
+| --- | --- | --- | --- | --- |
+| diffuse office | moments | +0.009 +- 0.006 | -0.028 +- 0.012 | +0.65 +- 0.31 |
+| | FDN | -0.000 +- 0.002 | +0.027 +- 0.008 | +0.16 +- 0.33 |
+| absorbing floor and ceiling | moments | +0.025 +- 0.008 | -0.023 +- 0.032 | +0.60 +- 0.16 |
+| | FDN | +0.015 +- 0.014 | +0.037 +- 0.025 | -0.37 +- 0.20 |
+| corridor | moments | -0.026 +- 0.036 | -0.227 +- 0.085 | +0.54 +- 0.48 |
+| | FDN | -0.071 +- 0.042 | +0.048 +- 0.024 | -2.19 +- 0.56 |
 
 The full table (both late envelopes, every row) is in `summary.md`. In short:
 
 - **Spatial.** With `"directional"` the moments reproduce the rays' anisotropy: the vertical dipole of the room with
-  an absorbing floor and ceiling is 0.09 as in the rays (the FDN's 0.27), the corridor's axial dipole 2.85 to 2.94
-  against the rays' 2.87 with the cross dipoles at 0.06 to 0.08 (the FDN's 0.21 to 0.27). The covariance error is
-  lower than the FDN's in every room and order, most at third order (0.34 against 0.50 in the corridor), where the
-  FDN's 96-direction grid leaks between channels. In the diffuse office both late fields stay near isotropic; the
-  moments' dipoles are closer to 1.
-- **"omni"** leaves the late field near isotropic in every room, as the FDN's omni mode does; it does not follow the
-  rays' anisotropy (that is `"directional"`'s job, and "omni" stays the default for the reasons in the CHANGELOG of
-  `late_envelope`).
-- **Energy and decay.** The late level is within 0.7 to 1.8 dB of the reference's late part (the corridor's 2.5 dB
-  before the images kept their specular part), where the FDN's attenuate-only gains left it 2.6 to 2.8 dB low in the
-  office; T30 within 0.06 s of the reference (the FDN's 0.09 s), EDT within 0.03 s in the office and the corridor
-  (the FDN's 0.18 to 0.23 s long in the corridor). In the room with an absorbing floor and ceiling the moments' EDT
-  is 0.14 to 0.21 s short with seed 42 (the FDN's 0.02 s): see Known limits. The office's C50 of -1.0 to -1.2 dB is
-  seed 42's: over seeds 42, 1 and 2 it is -0.35 dB overall and within 0.73 dB in every band (the FDN's -0.08 dB,
-  up to 2.7 dB in one band). The corridor's late level differs by 2.5 dB for both
-  late fields: the reference's sparse early tail in the low bands.
-- **Time.** 0.5 to 2.4 s per pair against 3 to 20 s, 4 to 15 times faster (the FDN's directional shares cost most).
+  an absorbing floor and ceiling is 0.09 as in the rays (the FDN's 0.26), the corridor's cross dipoles 0.05 to 0.08
+  as in the rays (the FDN's 0.20 to 0.24). The covariance error is lower than the FDN's in every room and order, most
+  at third order (0.28 against 0.48 in the corridor), where the FDN's 96-direction grid leaks between channels.
+- **"omni"** leaves the late field near isotropic in every room, as the FDN's omni mode does.
+- **Energy and decay.** Over seeds T30 is within 0.03 s of the reference (the FDN's up to 0.07 s short in the
+  corridor), EDT within 0.03 s in the office and the room with an absorbing floor and ceiling, and C50 0.5 to 0.65 dB
+  high in every room (the FDN's 2.2 dB low in the corridor). The office's late level is 0.9 to 1.3 dB from the
+  reference's late part, the FDN's 2.3 dB (its attenuate-only gains). The corridor's EDT is 0.23 +- 0.09 s short
+  (the FDN's 0.05 s long): see Known limits.
+- **Time.** 0.5 to 2.0 s per pair against 3 to 20 s: 4 to 7 times faster with "omni", 8 to 14 with "directional".
 
 ## Regression: HIL D 24.1
 
@@ -198,6 +203,11 @@ What got worse:
   rate (the corridor's FDN turns fully axial after 1.5 s, the held moments stay at their last x/y/z of
   2.5/0.04/0.47). That part is 36 to 53 dB below the loudest 50 ms in the corridor; a decay per direction fitted from
   the rays would let the shape keep evolving.
+- In the corridor the moments' EDT is 0.23 +- 0.09 s short of the reference over seeds 1 to 4 on v0.2.0 (the FDN's
+  0.05 s long), where its T30 and C50 are closer than the FDN's. The corridor's decay is strongly bent (a fast early
+  part, then the axial energy between the end walls). Not yet explained.
+- On v0.2.0 (references traced with at least 20 000 rays) the EDT of the room with an absorbing floor and ceiling is
+  -0.02 +- 0.03 s over seeds 1 to 4. The analysis below was made before, on `d1da8db`.
 - In the room with an absorbing floor and ceiling the moments' EDT is short of the 2 s reference's: over seeds 42 and
   1 to 5 (12 responses) by 0.13 +- 0.03 s before the images kept their specular part, 0.09 +- 0.03 s after, the
   FDN's by +0.003 s. This room's EDT is fragile: its decay lingers between -5 and -10 dB for 300 ms, and the

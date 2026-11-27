@@ -5,7 +5,9 @@ closer to the reference the hybrid follows: the example's ``Mono`` (ray-traced) 
 ``foa`` and ``diffraction`` and every parameter, the mean over pairs of |hybrid - mono|, overall value (and the
 largest over the per-band values).
 
-    python examples/benchmarks/regression_against_mono.py examples/results/reference/<before> examples/results/reference/<after>
+    python examples/benchmarks/regression_against_mono.py <recording before> <recording after>
+
+with the recordings' directories, ``examples/results/reference/<name>``.
 """
 
 import json
