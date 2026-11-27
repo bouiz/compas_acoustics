@@ -11,7 +11,7 @@ PLUGIN = ROOT / "src" / "compas_acoustics_ghcsharp" / "CompasAcoustics.Grasshopp
 
 
 def test_the_plugin_requires_the_package_version():
-    # CompasAcousticsVersion is the minimum the plugin accepts: always the current release (bump-my-version keeps it in step)
+    # CompasAcousticsVersion, the minimum the plugin accepts, is the current release: bump-my-version keeps it in step
     csproj = (PLUGIN / "CompasAcoustics.Grasshopper.csproj").read_text()
     minimum = re.search(r"<CompasAcousticsVersion>([^<]+)</", csproj).group(1)
     assert minimum == compas_acoustics.__version__
