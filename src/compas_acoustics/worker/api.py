@@ -41,6 +41,7 @@ from compas_acoustics.analyser import PARAMETERS
 from compas_acoustics.analyser import frequency_response
 from compas_acoustics.analyser import time_response
 from compas_acoustics.auraliser import Auraliser
+from compas_acoustics.directivity import is_sofa
 from compas_acoustics.fitness import regularized_fitness as _regularized_fitness
 from compas_acoustics.pb import SCHEMA
 from compas_acoustics.pb.types import Audio
@@ -181,7 +182,7 @@ def make_source(name, position, direction=None, directivity=None, sound_file=Non
     keeps the default.
     """
     directivity = directivity or "omnidirectional"
-    if directivity not in CARDIOID_P:
+    if directivity not in CARDIOID_P and not is_sofa(directivity):
         raise ValueError("Input parameter 'directivity' is not valid.")
     source = Source(
         name or "my_source",
