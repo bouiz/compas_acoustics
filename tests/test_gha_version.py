@@ -10,13 +10,17 @@ ROOT = Path(__file__).parents[1]
 PLUGIN = ROOT / "src" / "compas_acoustics_ghcsharp" / "CompasAcoustics.Grasshopper"
 
 
-def test_the_package_version_is_in_the_plugins_range():
-    # semver, as Worker.Compatible: from CompasAcousticsVersion up to its next breaking release
+def test_the_plugin_requires_the_package_version():
+    # CompasAcousticsVersion, the minimum the plugin accepts, is the current release: bump-my-version keeps it in step
     csproj = (PLUGIN / "CompasAcoustics.Grasshopper.csproj").read_text()
-    minimum = tuple(map(int, re.search(r"<CompasAcousticsVersion>(\d+)\.(\d+)\.(\d+)</", csproj).groups()))
-    version = tuple(map(int, re.match(r"(\d+)\.(\d+)\.(\d+)", compas_acoustics.__version__).groups()))
-    below = (0, minimum[1] + 1, 0) if minimum[0] == 0 else (minimum[0] + 1, 0, 0)
-    assert minimum <= version < below
+    minimum = re.search(r"<CompasAcousticsVersion>([^<]+)</", csproj).group(1)
+    assert minimum == compas_acoustics.__version__
+
+
+def test_the_plugin_has_the_package_version():
+    # the plugin is released with the library: bump-my-version keeps <Version> in step
+    csproj = (PLUGIN / "CompasAcoustics.Grasshopper.csproj").read_text()
+    assert re.search(r"<Version>([^<]+)</Version>", csproj).group(1) == compas_acoustics.__version__
 
 
 def test_the_plugins_schema_hash_is_the_packages():

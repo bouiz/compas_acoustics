@@ -116,6 +116,17 @@ filename = "src/compas_acoustics/__init__.py"
 search = "{current_version}"
 replace = "{new_version}"
 
+# the Grasshopper plugin has the library's version, and requires the library release it is built with
+[[tool.bumpversion.files]]
+filename = "src/compas_acoustics_ghcsharp/CompasAcoustics.Grasshopper/CompasAcoustics.Grasshopper.csproj"
+search = "<Version>{current_version}</Version>"
+replace = "<Version>{new_version}</Version>"
+
+[[tool.bumpversion.files]]
+filename = "src/compas_acoustics_ghcsharp/CompasAcoustics.Grasshopper/CompasAcoustics.Grasshopper.csproj"
+search = "<CompasAcousticsVersion>{current_version}</CompasAcousticsVersion>"
+replace = "<CompasAcousticsVersion>{new_version}</CompasAcousticsVersion>"
+
 [[tool.bumpversion.files]]
 filename = "CHANGELOG.md"
 search = "Unreleased"

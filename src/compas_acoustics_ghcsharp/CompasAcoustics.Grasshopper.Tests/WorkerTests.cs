@@ -310,12 +310,12 @@ namespace CompasAcoustics.Grasshopper.Tests
         }
 
         [Fact]
-        public void ThePackageVersion_IsCompatible()
+        public void ThePlugin_RequiresThePackageVersion()
         {
             var init = File.ReadAllText(Path.Combine(InteropTests.RepositoryRoot(), "src", "compas_acoustics", "__init__.py"));
             var python = System.Text.RegularExpressions.Regex.Match(init, "__version__ = \"([^\"]+)\"");
             Assert.True(python.Success, "__version__ is not in src/compas_acoustics/__init__.py");
-            Assert.True(Versions.Compatible(python.Groups[1].Value), $"compas_acoustics {python.Groups[1].Value} is not in the plugin's {Versions.Requirement}");
+            Assert.Equal(python.Groups[1].Value, Versions.Library);
         }
 
         [Theory]
