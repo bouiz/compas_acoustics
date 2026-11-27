@@ -34,7 +34,7 @@ from compas_acoustics.room.geometry import _polygon_area_normal_and_mean  # noqa
 
 H = 3.0
 TILT = np.linspace(0.8, 1.2, 8)
-EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
+EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples", "benchmarks")
 
 
 def materials(*names):
@@ -193,7 +193,7 @@ def partition_on_split_wall():
 
 
 def hil():
-    """examples/hil_d24_1.obj, loaded as examples/hil_d24_1.py loads it."""
+    """examples/benchmarks/hil_d24_1.obj, loaded as examples/benchmarks/hil_d24_1.py loads it."""
     sys.path.insert(0, EXAMPLES)
     try:
         from hil_d24_1 import OBJ_PATH
@@ -215,6 +215,12 @@ def hil():
 
 def _same_ends(a, b, tol=1e-6):
     return (np.allclose(a.start, b.start, atol=tol) and np.allclose(a.end, b.end, atol=tol)) or (np.allclose(a.start, b.end, atol=tol) and np.allclose(a.end, b.start, atol=tol))
+
+
+def _contains(edge, point) -> bool:
+    """Whether a point on the edge's line lies on the physical edge."""
+    z = float((np.asarray(point) - edge.start) @ edge.axis)
+    return -1e-9 <= z <= edge.length + 1e-9
 
 
 def _same_faces(a, b, tol=1e-6):
@@ -371,7 +377,7 @@ def test_hil_d24_1():
     try:
         geometry = hil()
     except Exception as error:  # noqa: BLE001 - the example needs the materials library and the OBJ
-        pytest.skip(f"examples/hil_d24_1 does not load: {error}")
+        pytest.skip(f"examples/benchmarks/hil_d24_1 does not load: {error}")
     t0 = time.perf_counter()
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
@@ -402,7 +408,7 @@ def test_hil_d24_1():
         covered_by_pieces.update(pieces)
         for z in np.linspace(0.0, 1.0, 201)[1:-1]:
             x = a.start + z * (a.end - a.start)
-            in_piece = any(sector[j].contains(x) for j in pieces)
+            in_piece = any(_contains(sector[j], x) for j in pieces)
             third = [k for k in range(len(occ.polygons)) if k not in a.faces and _on_polygon(x, occ.polygons[k], 2e-3)]
             # wherever the legacy edge is not in the sector output, another polygon meets it
             assert in_piece or third, (i, z)
