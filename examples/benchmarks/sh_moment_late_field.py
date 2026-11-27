@@ -83,6 +83,9 @@ CASES = {
         },
         source=(2.0, 2.0, 1.5),
         receivers=[(5.5, 4.0, 1.2), (7.0, 1.0, 1.6)],
+        # Eyring predicts 0.5 s; the horizontal energy between the plaster walls decays at about 1 s, and a reference
+        # cut at 0.5 s (28 to 35 dB down) would end the decay its T30 is measured on
+        duration=2.0,
     ),
     "corridor": dict(
         dims=(24.0, 2.5, 3.0),

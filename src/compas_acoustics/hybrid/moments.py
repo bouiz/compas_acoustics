@@ -81,6 +81,10 @@ ENERGY_SMOOTH_MS = 20.0
 #: rays have decayed this far (the rays thin out towards the end of the trace; as the directional shares do).
 HOLD_DB = 60.0
 
+#: The rays before the hold that set the level the continuation starts from, and over which it fades in: the last
+#: bins hold few rays, and one of them would carry its noise into the whole continuation.
+HOLD_FIT_MS = 150.0
+
 # 13.8155...: an energy that decays 60 dB in T seconds decays by exp(-RT_RATE / T) per second
 RT_RATE = 6.0 * np.log(10.0)
 
@@ -253,7 +257,8 @@ def ray_late_field(histogram, sh_order: int, rotation: np.ndarray | None, target
     ``energy`` (N_BANDS + 1, n) is the W energy per sample, the bins' over ``ENERGY_SMOOTH_MS``; ``shape`` (N_BANDS + 1,
     n_bins, (2N + 1) ** 2) the moments over ``SMOOTH_MS`` divided by their W, per bin, or None without ``shape``.
     Once a band's rays have decayed ``HOLD_DB`` (or the histogram ends) its energy decays at the target's slowest
-    reverberation time from there and its shape is held. Bins before the rays arrive take the first shape. The
+    reverberation time from there, from the level of its last ``HOLD_FIT_MS`` of rays and faded in over them, and its
+    shape is held. Bins before the rays arrive take the first shape. The
     16 kHz band is the histogram's own row where it has one (the tracer's at 48 kHz); otherwise the 8 kHz row,
     decaying from it at the network's 16 kHz decay.
     """
@@ -270,6 +275,7 @@ def ray_late_field(histogram, sh_order: int, rotation: np.ndarray | None, target
         extra = np.exp(-RT_RATE * (1.0 / rt[-1] - 1.0 / rt[-2]) * (np.arange(n_bins) + 0.5) * histogram.bin_size)
         moments = np.concatenate([moments, moments[-1:] * extra[np.newaxis, :, np.newaxis]], axis=0)
 
+    fit_bins = max(int(round(HOLD_FIT_MS * 1e-3 / histogram.bin_size)), 1)
     smooth_e = _hann(ENERGY_SMOOTH_MS * 1e-3 / histogram.bin_size)
     energy_bins = np.maximum(fftconvolve(moments[:, :, 0], smooth_e[np.newaxis], mode="same", axes=1), 0.0)  # (9, n_bins)
     raw = moments[:, :, 0]
@@ -287,9 +293,23 @@ def ray_late_field(histogram, sh_order: int, rotation: np.ndarray | None, target
         per_bin = np.zeros(n_bins_out)
         m = min(hold, n_bins_out)
         per_bin[:m] = energy_bins[b, :m]
+        # the continuation's level at the hold: the trend of the last HOLD_FIT_MS of rays, not one bin's. Their own
+        # decay per bin from the energy of the window's two halves (sums: empty bins count), the level from all of
+        # it; faded in over the window along that trend, then the target's decay from the hold
+        half = (hold - max(hold - fit_bins, 0)) // 2
+        first = hold - 2 * half
+        target_decay = np.exp(-RT_RATE / rt[b] * (np.arange(n_bins_out) - (hold - 1)) * histogram.bin_size)
+        start = float(energy_bins[b, hold - 1])
+        older, newer = (float(np.sum(raw[b, first : first + half])), float(np.sum(raw[b, first + half : hold]))) if half else (0.0, 0.0)
+        if older > 0.0 and newer > 0.0:
+            per_bin_decay = min((newer / older) ** (1.0 / half), 1.0)
+            trend = per_bin_decay ** (np.arange(n_bins_out) - (hold - 1.0))
+            start = float(np.sum(raw[b, first:hold]) / np.sum(trend[first:hold]))
+            fade = np.arange(first, m)
+            weight = (fade - first + 1.0) / (hold - first)
+            per_bin[fade] = (1.0 - weight) * energy_bins[b, fade] + weight * start * trend[fade]
         if m < n_bins_out:
-            start = energy_bins[b, hold - 1]
-            per_bin[m:] = start * np.exp(-RT_RATE / rt[b] * (np.arange(m, n_bins_out) - (hold - 1)) * histogram.bin_size)
+            per_bin[m:] = start * target_decay[m:]
         energy[b] = np.interp(np.arange(n_samples), times, per_bin / bin_samples, left=per_bin[0] / bin_samples)
 
     if not shape:

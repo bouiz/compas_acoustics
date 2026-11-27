@@ -197,12 +197,27 @@ def test_the_rays_energy_is_the_bins_per_sample_and_continues_at_the_target_past
     np.testing.assert_allclose(shape[3, 0], shape[3, 50])  # before the rays: their first shape
 
 
+def test_one_loud_bin_before_the_hold_does_not_lift_the_continuation():
+    """The last bins before the hold hold few rays; the continuation starts from the level of the last HOLD_FIT_MS of
+    them, so a bin ten times too loud there moves it by under 1.5 dB (one bin's 10 dB), and the energy has no step at the hold."""
+    histogram = ray_histogram()
+    edc = np.cumsum(histogram.energy[0, 3, ::-1])[::-1]
+    hold = int(np.flatnonzero(edc <= 1e-6 * edc[0])[0])
+    histogram.energy[0, :, hold - 1] *= 10.0
+    energy, _, _ = ray_late_field(histogram, 1, None, target(0.6), int(1.5 * FS), FS, shape=False)
+    expected = np.exp(-6 * np.log(10) * 1.2 / 0.6) / 192
+    assert abs(10 * np.log10(energy[3, int(1.2 * FS)] / expected)) < 1.5
+    level = 10 * np.log10(energy[3, int(0.3 * FS) : int(1.4 * FS)])
+    assert np.max(np.abs(np.diff(level[:: FS // 250]))) < 0.4 + 100.0 / 250  # 4 ms steps: the decay's 0.4 dB, no jump
+
+
 def test_without_a_16_khz_row_the_8_khz_row_decays_at_the_networks_top_rate():
     energy, _, _ = ray_late_field(ray_histogram(bands=8), 1, None, target(0.6), FS, FS, shape=False)
     nine, _, _ = ray_late_field(ray_histogram(bands=9), 1, None, target(0.6), FS, FS, shape=False)
     t = int(0.5 * FS)
     assert energy[8, t] < 0.5 * energy[7, t]
-    assert nine[8, t] == pytest.approx(nine[7, t])
+    early = int(0.3 * FS)  # the histogram's own row, before the continuation fades in at the 16 kHz target's decay
+    assert nine[8, early] == pytest.approx(nine[7, early])
 
 
 # ---------------------------------------------------------------- in the method --

@@ -67,12 +67,27 @@ libroom (`Microphone::log_histogram`).
   which the band takes its share of the spectrum, exactly as pyroomacoustics builds the reference's tail from the same
   bins (`seq_bp * sqrt(hist)`). Normalising each band to unit variance had made the late field 11 to 15 dB too loud.
 
+### After the rays
+
+A band's rays thin out towards the end of the trace: pyroomacoustics drops a ray once it has lost 70 dB
+(`energy_thres=1e-7`), and the last bins hold a few rays each. Once a band's rays have decayed 60 dB (`HOLD_DB`,
+their own Schroeder integral) or the histogram ends, the late energy continues at the target's slowest reverberation
+time and the directional shape is held at its last value. The continuation starts from the trend of the last 150 ms
+of rays (`HOLD_FIT_MS`): their own decay per bin from the energy of the window's two halves, their level at the hold
+from all of it, faded in over the window. Starting from the last bin instead carried that bin's noise into the
+whole continuation: in the corridor the late energy stepped up 5 to 9 dB at the hold and decayed from there.
+
+Where that happens in the corridor (receiver 0, `examples/results/sh_moments/plots/corridor_tail_decay*.png`): at
+596 ms (672 ms at receiver 1), 36 to 49 dB below the loudest 50 ms in the 125 Hz to 4 kHz bands, with 0.02 to 0.08 %
+of the late energy after it. With the fitted start the moments' decay past the hold lies within 1 to 3 dB of the
+FDN's. The reference cannot judge that part: it is built from the same rays and ends where they do.
+
 ## Benchmark: three rooms
 
 `examples/benchmarks/sh_moment_late_field.py`, results in `examples/results/sh_moments/summary.md`. Three shoeboxes
 of increasing anisotropy, two receivers each, first and third order, all on the same rays (seed 42). The corridor's
-duration is set to 2.5 s: Eyring predicts 0.5 s there, and a reference cut at 0.5 s ends the decay it is compared
-with (the method warns of that).
+duration is set to 2.5 s and the absorbing floor and ceiling room's to 2 s: Eyring predicts 0.5 s in both, and a
+reference cut at 0.5 s (28 to 35 dB down in the second room) ends the decay its T30 is measured on.
 
 Means over the receivers. dT30, dEDT (500 Hz - 2 kHz), dC50: the W channel minus the reference. Late level: the late
 field's energy minus the reference's late part, mean |dB| 125 Hz - 8 kHz. Cov err: |R - R_rays| / |R_rays|,
@@ -81,23 +96,23 @@ diffuse field, mean 250 Hz - 4 kHz (the rays' in brackets). Time: preparing and 
 
 | room | N | late field | time s | dT30 s | dEDT s | dC50 dB | late level dB | cov err | dipoles x/y/z (rays) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| diffuse office | 1 | moments, omni | 0.51 | -0.005 | +0.020 | -0.98 | 0.76 | 0.31 | 0.99/1.07/1.03 (1.04/0.98/0.98) |
-| | | FDN, omni | 3.01 | +0.015 | +0.042 | +0.18 | 2.61 | 0.45 | 1.23/1.25/1.43 |
-| | 3 | moments, omni | 0.74 | +0.015 | +0.012 | -0.68 | 1.20 | 0.58 | 1.00/1.09/1.29 |
-| | | FDN, omni | 3.04 | +0.015 | +0.042 | +0.18 | 2.61 | 0.75 | 1.23/1.25/1.43 |
-| absorbing floor and ceiling | 1 | moments, directional | 1.21 | -0.068 | +0.000 | +0.09 | 0.69 | 0.17 | 1.50/1.38/0.09 (1.51/1.41/0.09) |
-| | | FDN, directional | 8.16 | +0.077 | -0.045 | -0.35 | 0.77 | 0.20 | 1.55/1.28/0.26 |
-| | 3 | moments, directional | 1.74 | -0.085 | +0.008 | +0.28 | 0.80 | 0.28 | 1.54/1.50/0.09 |
-| | | FDN, directional | 8.25 | +0.077 | -0.045 | -0.35 | 0.77 | 0.37 | 1.55/1.28/0.26 |
-| corridor | 1 | moments, directional | 1.29 | -0.022 | -0.015 | +0.84 | 2.51 | 0.23 | 2.85/0.06/0.08 (2.87/0.05/0.08) |
-| | | FDN, directional | 19.57 | -0.002 | +0.178 | -1.77 | 2.36 | 0.27 | 2.58/0.21/0.27 |
-| | 3 | moments, directional | 2.01 | -0.008 | +0.002 | +0.18 | 2.60 | 0.34 | 2.94/0.06/0.08 |
-| | | FDN, directional | 19.85 | -0.002 | +0.178 | -1.77 | 2.36 | 0.50 | 2.58/0.21/0.27 |
+| diffuse office | 1 | moments, omni | 0.53 | -0.005 | +0.020 | -0.98 | 0.76 | 0.31 | 0.99/1.07/1.03 (1.04/0.98/0.98) |
+| | | FDN, omni | 3.04 | +0.015 | +0.042 | +0.18 | 2.61 | 0.45 | 1.23/1.25/1.43 |
+| | 3 | moments, omni | 0.77 | +0.015 | +0.012 | -0.68 | 1.20 | 0.58 | 1.00/1.09/1.29 |
+| | | FDN, omni | 3.05 | +0.015 | +0.042 | +0.18 | 2.61 | 0.75 | 1.23/1.25/1.43 |
+| absorbing floor and ceiling | 1 | moments, directional | 1.26 | +0.005 | -0.203 | +0.18 | 0.82 | 0.17 | 1.37/1.45/0.09 (1.46/1.45/0.09) |
+| | | FDN, directional | 16.30 | +0.090 | -0.018 | -0.44 | 0.85 | 0.19 | 1.46/1.40/0.27 |
+| | 3 | moments, directional | 1.89 | +0.025 | -0.247 | +0.38 | 0.78 | 0.28 | 1.43/1.55/0.09 |
+| | | FDN, directional | 16.37 | +0.090 | -0.018 | -0.44 | 0.85 | 0.36 | 1.46/1.40/0.27 |
+| corridor | 1 | moments, directional | 1.41 | -0.070 | -0.015 | +0.84 | 2.51 | 0.23 | 2.85/0.06/0.08 (2.87/0.05/0.08) |
+| | | FDN, directional | 19.89 | -0.002 | +0.178 | -1.77 | 2.36 | 0.27 | 2.58/0.21/0.27 |
+| | 3 | moments, directional | 2.41 | -0.057 | +0.002 | +0.18 | 2.60 | 0.34 | 2.94/0.06/0.08 |
+| | | FDN, directional | 19.93 | -0.002 | +0.178 | -1.77 | 2.36 | 0.50 | 2.58/0.21/0.27 |
 
 The full table (both late envelopes, every row) is in `summary.md`. In short:
 
 - **Spatial.** With `"directional"` the moments reproduce the rays' anisotropy: the vertical dipole of the room with
-  an absorbing floor and ceiling is 0.09 as in the rays (the FDN's 0.26), the corridor's axial dipole 2.85 to 2.94
+  an absorbing floor and ceiling is 0.09 as in the rays (the FDN's 0.27), the corridor's axial dipole 2.85 to 2.94
   against the rays' 2.87 with the cross dipoles at 0.06 to 0.08 (the FDN's 0.21 to 0.27). The covariance error is
   lower than the FDN's in every room and order, most at third order (0.34 against 0.50 in the corridor), where the
   FDN's 96-direction grid leaks between channels. In the diffuse office both late fields stay near isotropic; the
@@ -106,10 +121,12 @@ The full table (both late envelopes, every row) is in `summary.md`. In short:
   rays' anisotropy (that is `"directional"`'s job, and "omni" stays the default for the reasons in the CHANGELOG of
   `late_envelope`).
 - **Energy and decay.** The late level is within 0.7 to 1.2 dB of the reference's late part in the shoeboxes, where
-  the FDN's attenuate-only gains left it 2.6 to 2.8 dB low in the office; T30 within 0.09 s, EDT within 0.02 s of the
-  reference (the FDN's EDT 0.18 to 0.23 s long in the corridor). The corridor's late level differs by 2.5 dB for both
+  the FDN's attenuate-only gains left it 2.6 to 2.8 dB low in the office; T30 within 0.07 s of the reference (the
+  FDN's 0.09 s), EDT within 0.02 s in the office and the corridor (the FDN's 0.18 to 0.23 s long in the corridor).
+  In the room with an absorbing floor and ceiling the moments' EDT is 0.20 to 0.25 s short (the FDN's 0.02 to
+  0.06 s): see Known limits. The corridor's late level differs by 2.5 dB for both
   late fields: the reference's sparse early tail in the low bands.
-- **Time.** 0.5 to 2 s per pair against 3 to 20 s, 4 to 15 times faster (the FDN's directional shares cost most).
+- **Time.** 0.5 to 2.4 s per pair against 3 to 20 s, 4 to 15 times faster (the FDN's directional shares cost most).
 
 ## Regression: HIL D 24.1
 
@@ -123,13 +140,16 @@ top of it, uncommitted at the time of recording). Recordings in `examples/result
   tail is a new noise; the largest difference -7.2 and -7.7 dB re peak.
 - Tests: 1325 passed before, 1350 after (25 new), 2 skipped.
 - Time: `foa` 443 -> 414 s, `diffraction` 306 -> 207 s (both include the mono trace).
+- The fitted start after the rays (`d1da8db_sh_moments_holdfit` against `d1da8db_sh_moments_final`): `foa` changes by
+  at most -72 dB re peak and its parameters by 0.01 at most (T30 against mono 0.022 -> 0.025 s); `diffraction`, whose
+  energy is the network's, and `mono` are bit-identical. The table below is the fitted start's.
 
 Which recording is closer to the room's own `Mono` run, |hybrid - mono| averaged over the 6 pairs, overall values
 (the largest single band in brackets), `examples/benchmarks/regression_against_mono.py`:
 
 | | foa before | foa after | diffraction before | diffraction after |
 | --- | --- | --- | --- | --- |
-| T30 s | 0.057 (0.11) | **0.022** (0.16) | 0.057 (0.11) | **0.030** (0.08) |
+| T30 s | 0.057 (0.11) | **0.025** (0.16) | 0.057 (0.11) | **0.030** (0.08) |
 | T20 s | 0.077 (0.27) | **0.048** (0.16) | 0.078 (0.28) | **0.040** (0.15) |
 | EDT s | **0.047** (0.45) | 0.083 (0.46) | 0.052 (0.47) | **0.015** (0.14) |
 | C50 dB | 1.31 (6.4) | **0.72** (11.1) | 1.01 (7.2) | **0.70** (5.3) |
@@ -163,3 +183,10 @@ What got worse:
   network's: the late fields differ (the early fields are bit-identical).
 - The moments of a reference with few rays are as noisy as that reference; they are smoothed over 20 ms (energy) and
   100 ms (shape).
+- Past the rays' -60 dB point the directional shape is held, where the FDN's lines keep decaying each at its own
+  rate (the corridor's FDN turns fully axial after 1.5 s, the held moments stay at their last x/y/z of
+  2.5/0.04/0.47). That part is 36 to 53 dB below the loudest 50 ms in the corridor; a decay per direction fitted from
+  the rays would let the shape keep evolving.
+- In the room with an absorbing floor and ceiling the moments' EDT is 0.20 to 0.25 s shorter than the 2 s
+  reference's, the FDN's 0.02 to 0.06 s; it is the same with and without the fitted start, and was hidden while the
+  reference was cut at 0.5 s. Not yet explained.
