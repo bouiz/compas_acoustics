@@ -561,6 +561,23 @@ def _directional_histogram(room, lines: list, directions: np.ndarray, duration: 
     )
 
 
+def omni_histograms(run: "RayTracedRun", air_absorption: bool) -> List[List["DirectionalHistogram"]]:
+    """The run's omnidirectional ray histograms ``[mic][source]``, each as a :class:`DirectionalHistogram` of one
+    direction.
+
+    The bins of the responses themselves, on the package scale with air absorption applied per bin, as
+    :func:`directional_histograms` gives them: their sum over directions without sorting the rays. ``air_absorption``
+    is the run's.
+    """
+    room = run.room
+    duration = float(room.rt_args["time_thres"])
+    one = np.array([[1.0, 0.0, 0.0]])
+    return [
+        [_directional_histogram(room, [np.asarray(line, dtype=float) for line in per_source], one, duration, air_absorption) for per_source in per_mic]
+        for per_mic in room.rt_histograms
+    ]
+
+
 @dataclass(frozen=True)
 class DirectionalHistogram:
     """The ray-traced energy of one source at one receiver, per direction of arrival, band and time bin.

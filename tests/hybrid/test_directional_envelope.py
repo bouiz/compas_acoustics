@@ -301,7 +301,7 @@ def late_level_by_x(result, a=0.15, b=0.6):
 
 
 def test_the_directional_envelope_quietens_the_lines_facing_the_absorbing_wall():
-    kwargs = dict(tail="ray_tracing", duration=0.8, directional_absorption=False)
+    kwargs = dict(tail="ray_tracing", duration=0.8, directional_absorption=False, late_field="fdn")
     plain = ca.Ambisonics(late_envelope=False, **kwargs)
     asymmetric_scene().simulate(plain)
     directional = ca.Ambisonics(late_envelope="directional", **kwargs)
@@ -314,7 +314,7 @@ def test_the_directional_envelope_quietens_the_lines_facing_the_absorbing_wall()
 
 def test_the_omni_envelope_leaves_the_lines_alike():
     """Without the rays' shares the lines keep the network's even spread over directions."""
-    omni = ca.Ambisonics(late_envelope="omni", tail="ray_tracing", duration=0.8, directional_absorption=False)
+    omni = ca.Ambisonics(late_envelope="omni", tail="ray_tracing", duration=0.8, directional_absorption=False, late_field="fdn")
     ir = next(iter(asymmetric_scene().simulate(omni).values()))
     assert ir.generation["late_envelope"] == "omni"
     assert ir.generation["histogram_rays"] is None
@@ -325,7 +325,7 @@ def test_the_omni_envelope_leaves_the_lines_alike():
 
 def test_the_histogram_follows_the_receivers_orientation():
     """Facing -x, the absorbing wall is in front: the quiet lines are those at +x of the receiver's frame."""
-    kwargs = dict(tail="ray_tracing", duration=0.8, directional_absorption=False, late_envelope="directional")
+    kwargs = dict(tail="ray_tracing", duration=0.8, directional_absorption=False, late_envelope="directional", late_field="fdn")
     turned = ca.Ambisonics(**kwargs)
     asymmetric_scene(direction=[-1, 0, 0]).simulate(turned)
     (result,) = turned.results.values()
@@ -378,3 +378,28 @@ def test_the_reference_run_sorts_its_own_rays_by_direction():
         assert np.array_equal(run.responses[m][0], plain.responses[m][0])
         assert np.array_equal(run.histograms[m][0].energy, alone[m][0].energy)
         assert np.array_equal(run.histograms[m][0].directions, alone[m][0].directions)
+
+
+def late_level_by_x_of_the_channels(result, a=0.15, b=0.6):
+    """The late field's energy from -x minus that from +x in dB, through cardioids W -+ X / sqrt(3)
+    (N3D: X = sqrt(3) cos)."""
+    late = np.asarray(result.late, dtype=float)[int(a * FS) : int(b * FS)]
+    w, x = late[:, 0], late[:, 3] * (1.0 if result.normalization == "N3D" else np.sqrt(3.0)) / np.sqrt(3.0)
+    return 10 * np.log10(np.sum((w - x) ** 2) / np.sum((w + x) ** 2))
+
+
+@pytest.mark.parametrize("direction, sign", [(None, -1.0), ([-1, 0, 0], 1.0)])
+def test_the_moments_late_field_is_quieter_from_the_absorbing_wall(direction, sign):
+    """The rays' moments put less late energy towards the absorbing wall, at -x of the room; turned to face -x, the
+    receiver hears it at +x of its frame. "omni" keeps it alike on both sides (no directional absorption). The rays'
+    own late field leans about 0.5 dB that way through first-order cardioids here, as the FDN's shares do."""
+    kwargs = dict(tail="ray_tracing", duration=0.8, directional_absorption=False, normalization="N3D")
+    directional = ca.Ambisonics(late_envelope="directional", **kwargs)
+    ir = next(iter(asymmetric_scene(direction).simulate(directional).values()))
+    assert ir.generation["late_field"] == "moments" and ir.generation["late_energy"] == "rays"
+    (result,) = directional.results.values()
+    assert sign * late_level_by_x_of_the_channels(result) > 0.3
+    omni = ca.Ambisonics(late_envelope="omni", **kwargs)
+    asymmetric_scene(direction).simulate(omni)
+    (result,) = omni.results.values()
+    assert abs(late_level_by_x_of_the_channels(result)) < 0.2

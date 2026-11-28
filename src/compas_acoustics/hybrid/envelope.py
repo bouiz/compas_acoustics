@@ -27,7 +27,9 @@ The package's own choices, in none of these sources:
 - Shaping the lines of a feedback delay network, by the omnidirectional gains and by the directional shares:
   Schroeder steers a Poisson noise process with one probability per group, and Kirsch's gains are fixed boundary
   filters.
-- The late target ``E_ref - E_early``, and gains capped at 1, so a hybrid quieter than its reference stays so.
+- The late target ``E_ref - E_early``, and gains capped at 1, so a hybrid quieter than its reference stays so. The
+  moments' late field (:mod:`~compas_acoustics.hybrid.moments`), a smooth expected energy with no fine structure of
+  its own to amplify, is raised to the reference too, up to ``MOMENTS_MAX_GAIN``.
 - The end of the early images (:func:`_early_end`): 13 dB below the reference, both smoothed over 10 ms.
 - Pooling each time bin over neighbouring directions with the weights of Kirsch et al. (2023, Eq. 4),
   ``max(u_i . u_j, 0) ** (N / 6)``, which they use to map their 96 scanned directions onto fewer sources; with 96
@@ -48,6 +50,8 @@ import pyfar as pf
 import scipy.fft
 
 SMOOTH_MS = 100.0
+# the largest gain on the moments' late field (12 dB): it may be raised to the reference, the network's may not
+MOMENTS_MAX_GAIN = 4.0
 # a reference this far from the hybrid over its first 50 ms is on another scale; 6 dB, 50 ms and the onset at 1e-3
 # of the peak are the package's choice
 SCALE_WARN_DB = 6.0
@@ -164,8 +168,8 @@ def _early_end(ref_b: np.ndarray, early_b: np.ndarray, fs: float) -> int:
     return int(max(last))
 
 
-def envelope_gains(reference: np.ndarray, early_w: np.ndarray, late_w: np.ndarray, fs: float) -> np.ndarray:
-    """Per-band gains in [0, 1] for the late field, shape (n_bands, len(late_w)), on the bank's bands.
+def envelope_gains(reference: np.ndarray, early_w: np.ndarray, late_w: np.ndarray, fs: float, max_gain: float = 1.0) -> np.ndarray:
+    """Per-band gains in [0, ``max_gain``] for the late field, shape (n_bands, len(late_w)), on the bank's bands.
 
     ``reference`` is an omnidirectional response of the same pair on the package's scale; ``early_w`` and ``late_w``
     are the W channels of the hybrid's two parts. A reference shorter than the late field has its last gain held.
@@ -184,7 +188,7 @@ def envelope_gains(reference: np.ndarray, early_w: np.ndarray, late_w: np.ndarra
     gains = np.ones_like(e_late)
     active = e_late > 1e-12 * e_late.max(axis=1, keepdims=True)
     gains[active] = np.sqrt(target[active] / e_late[active])
-    gains = np.minimum(gains, 1.0)
+    gains = np.minimum(gains, max_gain)
 
     window = round(SMOOTH_MS * 1e-3 * fs)
     earliest = _early_end(ref_b[:8], early_b[:8], fs) + window
@@ -193,15 +197,16 @@ def envelope_gains(reference: np.ndarray, early_w: np.ndarray, late_w: np.ndarra
         late_energy = e_late[k, start:hold].sum()
         if late_energy > 0.0:
             held = np.sqrt(target[k, start:hold].sum() / late_energy)
-            gains[k, hold:] = min(held, 1.0)
+            gains[k, hold:] = min(held, max_gain)
     if gains.shape[0] > 8:
         gains[8] = gains[7]  # above about 11.2 kHz: no estimate of its own
 
     return np.pad(gains, ((0, 0), (0, n - m)), mode="edge")
 
 
-def shape_late(signals: np.ndarray, early_w: np.ndarray, late_w: np.ndarray, reference: np.ndarray, fs: float, histogram=None) -> np.ndarray:
-    """The network's lines ``signals`` (n, K) with the gains of :func:`envelope_gains` on every column.
+def shape_late(signals: np.ndarray, early_w: np.ndarray, late_w: np.ndarray, reference: np.ndarray, fs: float, histogram=None, max_gain: float = 1.0) -> np.ndarray:
+    """``signals`` (n, K), the network's lines or the moments' late field, with the gains of :func:`envelope_gains`
+    on every column, up to ``max_gain``.
 
     ``late_w`` is the lines' sum through ``C``, ``early_w`` the early field's W channel, and ``reference`` is on the
     same scale; if ``early_w + late_w`` and the reference differ by more than ``SCALE_WARN_DB`` over the first 50 ms,
@@ -238,7 +243,7 @@ def shape_late(signals: np.ndarray, early_w: np.ndarray, late_w: np.ndarray, ref
                 stacklevel=2,
             )
 
-    gains = envelope_gains(reference, early_w, late_w, fs)
+    gains = envelope_gains(reference, early_w, late_w, fs, max_gain)
     if histogram is None:
         return np.einsum("bn,bnc->nc", gains, octave_band_split(signals, fs))
     shaped = np.zeros_like(signals)
