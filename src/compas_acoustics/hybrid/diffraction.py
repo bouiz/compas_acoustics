@@ -1,13 +1,19 @@
 """Edge diffraction around obstacles and at the room's own corners, as paths of the early field.
 
-The geometry is here: which edges diffract (:func:`diffraction_edges`: the free edges of closed convex and planar
-obstacles and, on a closed boundary, every room edge opening wider than pi), what blocks a path (:class:`Occluders`) and
+The geometry is here: which edges diffract (:func:`diffraction_edges`), what blocks a path (:class:`Occluders`) and
 the path over an edge (:func:`wedge_path`); the filters are in :mod:`~compas_acoustics.hybrid.udfa` and
-:mod:`~compas_acoustics.hybrid.btms`. :func:`diffraction_paths` renders first order by UDFA (Kirsch and Ewert 2023), an
-object being the sum of its edges' paths (Sec. VI); the three-sided barrier of Kirsch and Ewert (2024, Sec. 3.3) is
-defined for an infinite double edge and is not used. :func:`btms_paths` renders first order by BTMS and, on the direct
-path, second order. With ``max_order >= 1`` a first-order path may have one enclosure reflection before or after the
-edge.
+:mod:`~compas_acoustics.hybrid.btms`. :func:`diffraction_edges` is the one place every consumer takes the edges from,
+and it picks the detector by how the room was built. A room of a prepared mesh
+(:meth:`~compas_acoustics.RoomGeometry.from_prepared`, or ``from_scene`` with ``prepare``) carries which sides of each
+drawn polygon the air touches, and its edges are those of the sector detector
+(:func:`compas_acoustics.geometry.sector_edges`): every edge whose air sector opens wider than pi, whatever the roles,
+closed boundary or not. Any other room keeps the role-based detectors: the free edges of closed and planar obstacles
+(:func:`obstacle_edges`) and, on a closed boundary, every room edge opening wider than pi (:func:`enclosure_edges`).
+:func:`set_diffraction_edges` makes a room use a chosen subset. :func:`diffraction_paths` renders first order by UDFA
+(Kirsch and Ewert 2023), an object being the sum of its edges' paths (Sec. VI); the three-sided barrier of Kirsch and
+Ewert (2024, Sec. 3.3) is defined for an infinite double edge and is not used. :func:`btms_paths` renders first order
+by BTMS and, on the direct path, second order. With ``max_order >= 1`` a first-order path may have one enclosure
+reflection before or after the edge.
 """
 
 from __future__ import annotations
@@ -217,6 +223,10 @@ class ShellEdgeWarning(UserWarning):
     boundary that is not closed."""
 
 
+class AmbiguousEdgeWarning(UserWarning):
+    """Edge pieces where the sector detector found faces disagreeing on which side is air: no edge there."""
+
+
 def _inside_polygon(points: np.ndarray, normal: np.ndarray, x: np.ndarray) -> bool:
     """Crossing-number test in the polygon's plane, dropping its largest normal axis."""
     keep = [i for i in range(3) if i != int(np.argmax(np.abs(normal)))]
@@ -397,16 +407,31 @@ def _merge_collinear(pieces):
     return [(origin + lo * axis, origin + hi * axis, tuple(sorted(set(o)))) for lo, hi, o in merged]
 
 
+def _outward_normals(geometry: RoomGeometry, faces) -> dict | None:
+    """Unit normals pointing out of a closed obstacle component, from its consistent winding; None if it has none."""
+    from compas_acoustics.room.geometry import _orient
+    from compas_acoustics.room.geometry import _signed_volume
+
+    polygons = [list(geometry.obstacle_faces[i]) for i in faces]
+    flips, _, defect = _orient(geometry.vertices, polygons)
+    if defect is not None:
+        return None
+    wound = [p[::-1] if flip else p for p, flip in zip(polygons, flips)]
+    sign = 1.0 if _signed_volume(geometry.vertices, wound) > 0.0 else -1.0
+    return {i: sign * _polygon_area_normal_and_mean(geometry.vertices[w])[1] for i, w in zip(faces, wound)}
+
+
 def obstacle_edges(geometry: RoomGeometry) -> list[Edge]:
     """The diffracting edges of a mesh's obstacles.
 
-    A closed convex component gives wedges, theta_w = pi + the angle between its faces' outward normals; a planar
-    component gives knife edges along its outline. Any other component is skipped, with one :class:`ObstacleEdgeWarning`
-    counting them by material. Edges lying on an enclosure face or on another obstacle are dropped, and a component
-    whose rim lies there (a bottomless box on the floor) still counts as closed. ``Edge.component`` indexes
+    A closed convex component gives wedges, theta_w = pi + the angle between its faces' outward normals; a closed
+    component that is not convex (an L-shaped counter) gives a wedge at each convex edge; a planar component gives knife
+    edges along its outline. Any other component is skipped, with one :class:`ObstacleEdgeWarning` counting them by
+    material. Edges lying on an enclosure face or on another obstacle are dropped, and a component whose rim lies
+    there (a bottomless box on the floor) still counts as closed. ``Edge.component`` indexes
     :func:`obstacle_components`.
     """
-    occ = Occluders.from_geometry(geometry)
+    occ = _cached(geometry, "occluders", lambda: Occluders.from_geometry(geometry))
     edges: list[Edge] = []
     skipped: dict[str, int] = {}
     for c, faces in enumerate(obstacle_components(geometry)):
@@ -432,7 +457,14 @@ def obstacle_edges(geometry: RoomGeometry) -> list[Edge]:
         else:
             closed = all(len(owners) == 2 for _, _, owners in free)
             convex = closed and all(bool(np.all((points - info[i][2]) @ normal[i] < 1e-6)) for i in faces)
-            if not convex:
+            outward = None
+            if closed and not convex:
+                # a closed solid that is not convex (an L-shaped counter): outward normals from its winding, and only
+                # its convex edges diffract, the re-entrant ones opening less than pi to the air
+                outward = _outward_normals(geometry, faces)
+                if outward is not None:
+                    normal = outward
+            if not closed or (not convex and outward is None):
                 material = geometry.obstacle_face_materials[faces[0]]
                 skipped[material] = skipped.get(material, 0) + 1
                 continue
@@ -440,6 +472,8 @@ def obstacle_edges(geometry: RoomGeometry) -> list[Edge]:
                 cos_ij = float(np.clip(normal[i] @ normal[j], -1.0, 1.0))
                 if cos_ij > 1.0 - 1e-8:
                     continue
+                if not convex and (info[j][2] - (p + q) / 2.0) @ normal[i] > -1e-9:
+                    continue  # re-entrant
                 if tuple(np.round(normal[i], 6)) > tuple(np.round(normal[j], 6)):
                     i, j = j, i
                 axis = _canonical_axis(p, q)
@@ -485,7 +519,7 @@ def enclosure_edges(geometry: RoomGeometry) -> list[Edge]:
     if not geometry.is_closed:
         warnings.warn("the boundary does not close a volume: room-boundary edges are not searched", ShellEdgeWarning, stacklevel=2)
         return []
-    occ = Occluders.from_geometry(geometry)
+    occ = _cached(geometry, "occluders", lambda: Occluders.from_geometry(geometry))
     n = len(occ.polygons) - occ.n_obstacle
     sides = _enclosure_sides(geometry, n)
     vertices = geometry.vertices
@@ -549,9 +583,71 @@ def enclosure_edges(geometry: RoomGeometry) -> list[Edge]:
 
 
 def diffraction_edges(geometry: RoomGeometry) -> list[Edge]:
-    """Every diffracting edge: the obstacles' (:func:`obstacle_edges`), then the room boundary's
-    (:func:`enclosure_edges`)."""
-    return obstacle_edges(geometry) + enclosure_edges(geometry)
+    """Every diffracting edge of the room, which every renderer (:func:`diffraction_paths`, :func:`btms_paths`) takes
+    and their ``edge`` indices refer to.
+
+    A room that carries its drawn polygons' sides (``geometry.drawn_sides``: a room of a prepared mesh) gets the sector
+    detector's edges (:func:`compas_acoustics.geometry.sector_edges_from_room`, with the sides' ``min_excess`` and
+    ``min_length``), and one :class:`AmbiguousEdgeWarning` when it left out pieces whose faces disagree on where the
+    air is. Any other room gets the obstacles' edges (:func:`obstacle_edges`), then the room boundary's
+    (:func:`enclosure_edges`). Detected once per geometry: every pair of a run asks for them. After
+    :func:`set_diffraction_edges` it returns exactly the edges set, until :func:`clear_diffraction_edges`.
+    """
+    selected = _SELECTED.get(geometry)
+    if selected is not None:
+        return list(selected)
+    return list(_cached(geometry, "edges", lambda: _detected_edges(geometry)))
+
+
+def _detected_edges(geometry: RoomGeometry) -> list[Edge]:
+    sides = getattr(geometry, "drawn_sides", None)
+    if sides is None:
+        return obstacle_edges(geometry) + enclosure_edges(geometry)
+    from compas_acoustics.geometry.edges import sector_edges_from_room
+
+    edges, diagnostics = sector_edges_from_room(geometry, min_excess=sides.min_excess, min_length=sides.min_length, return_diagnostics=True)
+    if diagnostics.ambiguous:
+        count = diagnostics.ambiguous
+        warnings.warn(
+            f"{count} edge piece{'s' if count > 1 else ''} where the faces disagree on which side is air: no diffraction there",
+            AmbiguousEdgeWarning,
+            stacklevel=4,
+        )
+    return edges
+
+
+def set_diffraction_edges(geometry: RoomGeometry, edges) -> None:
+    """Make :func:`diffraction_edges` return exactly ``edges`` for this geometry, so every path renders those only.
+
+    ``edges`` must come from :func:`diffraction_edges` of the same geometry (a filtered subset, in any order): their
+    ``faces`` index its :class:`Occluders`. The paths' ``edge`` indices then refer to this list. ``None`` clears the
+    selection, as :func:`clear_diffraction_edges` does. The selection lives as long as the geometry and belongs to that
+    instance; the hybrid methods carry it over to the copy they render with (their materials' absorption capped), any
+    other copy (``dataclasses.replace``) starts without one.
+    """
+    if edges is None:
+        clear_diffraction_edges(geometry)
+        return
+    edges = tuple(edges)
+    if not all(isinstance(e, Edge) for e in edges):
+        raise TypeError("set_diffraction_edges takes Edge objects from diffraction_edges")
+    with _PARTS_LOCK:
+        _SELECTED[geometry] = edges
+
+
+def clear_diffraction_edges(geometry: RoomGeometry) -> None:
+    """Drop a :func:`set_diffraction_edges` selection: :func:`diffraction_edges` returns the detected edges again."""
+    with _PARTS_LOCK:
+        _SELECTED.pop(geometry, None)
+
+
+def _keep_selection(source: RoomGeometry, target: RoomGeometry) -> None:
+    """Give ``target``, a copy of ``source`` with the same faces (``dataclasses.replace`` of its materials), the edge
+    selection of ``source``, if it has one."""
+    with _PARTS_LOCK:
+        selected = _SELECTED.get(source)
+        if selected is not None:
+            _SELECTED[target] = selected
 
 
 @dataclass(frozen=True)
@@ -676,18 +772,26 @@ def _clear(occ: Occluders, points: list[np.ndarray], on: list[frozenset[int]]) -
     return not any(occ.blocked(a, b, sa | sb) for (a, sa), (b, sb) in pairwise(zip(points, on)))
 
 
+# Per geometry object: its occluders and detected edges (by kind), and its edge selection (set_diffraction_edges).
+# Reentrant: building the edges may ask for another part.
 _PARTS: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
-_PARTS_LOCK = threading.Lock()
+_SELECTED: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+_PARTS_LOCK = threading.RLock()
+
+
+def _cached(geometry: RoomGeometry, kind: str, make):
+    """``make()`` once per geometry object and ``kind``, on any thread (a run renders all its pairs, on threads, from
+    one geometry), so the edge warnings come once per geometry; the geometry is immutable, and so is what it gives."""
+    with _PARTS_LOCK:
+        parts = _PARTS.setdefault(geometry, {})
+        if kind not in parts:
+            parts[kind] = make()
+        return parts[kind]
 
 
 def _geometry_parts(geometry: RoomGeometry) -> tuple[Occluders, list[Edge]]:
-    """The occluders and the diffracting edges of a geometry, built once per geometry object (a run renders all its
-    pairs, on threads, from one geometry), so the edge warnings come once per geometry."""
-    with _PARTS_LOCK:
-        parts = _PARTS.get(geometry)
-        if parts is None:
-            parts = _PARTS[geometry] = (Occluders.from_geometry(geometry), diffraction_edges(geometry))
-    return parts
+    """The occluders and the diffracting edges of a geometry (:func:`diffraction_edges`, a selection included)."""
+    return _cached(geometry, "occluders", lambda: Occluders.from_geometry(geometry)), diffraction_edges(geometry)
 
 
 @dataclass(frozen=True)
