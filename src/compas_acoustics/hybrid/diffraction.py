@@ -895,7 +895,8 @@ def encode_diffraction(
 
     def render(weights):
         gains = np.array([p.band_gain / (4.0 * np.pi * p.distance) for p in paths])
-        return render_transfers(np.array([p.delay for p in paths]), [p.transfer for p in paths], gains, weights, BANDS, fs, n_samples)
+        # UDFA's transfers are low-passes without a delay of their own: evaluated on the smooth knots
+        return render_transfers(np.array([p.delay for p in paths]), [p.transfer for p in paths], gains, weights, BANDS, fs, n_samples, smooth=True)
 
     return _encode(paths, sh_order, n_samples, normalization, extra_weights, render)
 
