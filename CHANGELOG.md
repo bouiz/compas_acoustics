@@ -29,6 +29,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 * Changed the `Analyser` to give the same results 5 to 25 times faster: each octave band is filtered only until its filter has rung out after the last non-zero sample (the rest is below 1e-30 of its energy, and was arithmetic on subnormal numbers), the zero-phase bands are kept for the analyser's lifetime (cleared when the response or the rate changes), and the STI takes the analyser's octave bank, the same as pyrato's, with one complex exponential per modulation frequency for all bands. One filter bank is designed per rate, in place of eight.
+* Added `compas_acoustics.progress.reporting(callback)`: follow a simulation's stages from any caller, and stop it by raising from the callback, without the worker.
+* Added `SpecularPath.band_gain` (walls, air and spreading per band) and `rays.diffracted_paths(scene)`: the UDFA paths with their polylines (`DiffractionPath.points`), zones and band gains, for display.
+* Added `AcousticMaterial.from_pyroomacoustics(name)` and `pyroomacoustics_material_names()`. `MaterialsLibrary.material_from_name` falls back to pyroomacoustics' database for a name the library lacks.
+
+### Changed
+
+* Changed `import compas_acoustics` to import its public names on first use, so the import no longer loads pyroomacoustics, pyfar or COMPAS until they are needed.
+
 ### Removed
 
 
