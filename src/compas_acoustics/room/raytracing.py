@@ -51,6 +51,72 @@ from .geometry import SYNTHESIS_BANDS
 from .geometry import RoomGeometry
 from .geometry import pra_octave_grid
 
+# A source's rays are traced in up to this many equal parts, each reported as traced (stage "ray tracing").
+RAY_REPORT_PARTS = 16
+
+
+def _report_parts(n_rays: int) -> int:
+    """The largest power of two up to :data:`RAY_REPORT_PARTS` that divides ``n_rays``."""
+    parts = RAY_REPORT_PARTS
+    while parts > 1 and n_rays % parts:
+        parts //= 2
+    return parts
+
+
+def _trace(engine, directions, energies, position, s: int, n_sources: int) -> None:
+    """``engine.ray_tracing(directions, energies, position)``, reporting the rays traced so far of all sources.
+
+    The engine gives each ray of a call ``ENERGY_0 / (rays in the call)``. The rays go in equal parts whose number
+    is a power of two, each with its energies divided by that number: the factor is a power of two on both sides of
+    the product, so every ray starts with the same float32 energy as in one call, and the rays run in the same order
+    with the same random draws. The histograms are bit-identical to one call's."""
+    from compas_acoustics.worker import jobs
+
+    n = len(directions)
+    parts = _report_parts(n)
+    size = n // parts
+    if parts > 1:
+        energies = np.asarray(energies, dtype=np.float32) / np.float32(parts)
+    jobs.progress("ray tracing", s * n, n_sources * n)
+    for k in range(parts):
+        part = slice(k * size, (k + 1) * size)
+        engine.ray_tracing(directions[part], energies[part], position)
+        jobs.progress("ray tracing", s * n + (k + 1) * size, n_sources * n)
+
+
+class _CountingImages:
+    """A room's engine that reports, as each source's image source search ends, the reflections found so far."""
+
+    def __init__(self, engine):
+        self._engine = engine
+        self.found = 0
+
+    def __getattr__(self, name):
+        return getattr(self._engine, name)
+
+    def image_source_model(self, position):
+        from compas_acoustics.worker import jobs
+
+        visible = self._engine.image_source_model(position)
+        if visible > 0:
+            self.found += int(np.count_nonzero(np.asarray(self._engine.orders)))
+        jobs.progress("image sources", self.found)
+        return visible
+
+
+def search_images(room) -> None:
+    """``room.image_source_model()``, reporting ``("image sources", reflections found)`` as each source's search ends.
+
+    pyroomacoustics searches one source per engine call; the engine is wrapped for the call only. A reflection is a
+    visible image of order one or more (the direct sound is not counted)."""
+    engine = room.room_engine
+    room.room_engine = _CountingImages(engine)
+    try:
+        room.image_source_model()
+    finally:
+        room.room_engine = engine
+
+
 __all__ = [
     "MIN_RAYS",
     "MAX_DURATION",
@@ -146,7 +212,7 @@ def _pair_responses(room, seed=None) -> List[List[np.ndarray]]:
     With a ``seed``, each pair's ray-traced tail restarts its random sequence from :func:`stable_seed` of it and the
     pair's positions, so a run that renders only some pairs draws the same tails as one that renders them all."""
     if room.simulator_state["ism_needed"] and not room.simulator_state["ism_done"]:
-        room.image_source_model()
+        search_images(room)
     if room.simulator_state["rt_needed"] and not room.simulator_state["rt_done"]:
         room.ray_tracing()
     hpf = None
@@ -274,7 +340,7 @@ def ray_traced_run(
         room, duration, unit = _traced_room(
             geometry, sources, mic_positions, fs, directions, max_order, duration, n_rays, receiver_radius, energy_threshold, air_absorption, seed, air
         )
-        room.image_source_model()
+        search_images(room)
         lines = _ray_tracing(room, unit, n_jobs=n_jobs, seed=seed, per_source=per_pair_seeds)
         rirs = _pair_responses(room, seed if per_pair_seeds else None)
         histograms = None
@@ -319,7 +385,7 @@ def _each_source_traced(room, seed=None):
     engine = room.room_engine
     n_rays = room.rt_args["n_rays"]
     n_bands = len(room.octave_bands.get_bw()) if room.is_multi_band else 1
-    for source in room.sources:
+    for s, source in enumerate(room.sources):
         if seed is not None:
             pra.random.seed(int(seed))
         if source.directivity is None:
@@ -328,7 +394,7 @@ def _each_source_traced(room, seed=None):
         else:
             ray_directions, ray_energies = source.directivity.sample_rays(n_rays)
             ray_energies = np.broadcast_to(ray_energies, (n_rays, n_bands))
-        engine.ray_tracing(ray_directions, ray_energies, source.position)
+        _trace(engine, ray_directions, ray_energies, source.position, s, len(room.sources))
         yield
         engine.reset_mics()
 
