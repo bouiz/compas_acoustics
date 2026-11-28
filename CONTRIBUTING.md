@@ -22,11 +22,16 @@ In short, this is how that works.
    ```
 
 5. Start making your changes on a branch off **main**.
-6. Make sure lint and all tests still pass:
+6. Make sure lint, all tests and the docs build still pass:
 
    ```bash
-   invoke lint
-   invoke test
+   invoke lint            # ruff check
+   invoke check           # docs consistency, coding style, ...
+   invoke format          # then git status must show no change (CI's format check)
+   invoke test            # full pytest suite
+   invoke testdocs        # docstring examples
+   invoke testcodeblocks  # doc code blocks (currently collects 0)
+   invoke docs            # MkDocs build into dist/docs; needs docs/_images/fingerprints.json from the Rhino capture
    ```
 
    If you changed the Grasshopper plugin (`src/compas_acoustics_ghcsharp/`), also run its tests (they need the .NET 8 SDK):
