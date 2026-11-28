@@ -9,7 +9,7 @@ from scipy.signal import sosfilt
 
 from compas_acoustics.defaults import Defaults
 
-__all__ = ["Analyser", "frequency_response", "time_response"]
+__all__ = ["Analyser", "decay_end", "frequency_response", "time_response"]
 
 # Title, x label and y label of each parameter, in the order of analyse(); the Grasshopper plots read it through the
 # worker
@@ -30,6 +30,27 @@ PARAMETERS = {
 }
 _PARAM_NAMES = list(PARAMETERS)
 
+# The methods each parameter of analyse() needs
+_PARAM_GROUPS = {
+    "reverberation": ("EDT", "T20", "T30"),
+    "clarity": ("C50", "C80", "D50"),
+    "drr": ("DRR",),
+    "center_time": ("Ts",),
+    "sti": ("STI",),
+    "strength": ("G", "SPL"),
+    "lateral": ("LF", "LFC"),
+}
+
+# A band filter has rung out once its impulse response is this far below its peak (-300 dB): the energy left after
+# that is below 1e-30 of what came before, far under any metric's rounding (the package's choice)
+_RING_OUT = 1e-15
+# The zero padding after a filtered segment, so that the filters ring out (and the longest ring-out kept)
+_RING_PAD_S = 0.5
+# STI: samples per block of the modulation transfer sum, which keeps the complex exponentials small
+_MTF_BLOCK = 1 << 16
+# IEC 60268-16:2020 Section 6.1, the 14 modulation frequencies in Hz
+_MODULATION_FREQUENCIES = np.array([0.63, 0.80, 1.0, 1.25, 1.60, 2.0, 2.5, 3.15, 4.0, 5.0, 6.3, 8.0, 10.0, 12.5])
+
 CHANNEL_NOTE = "Impulse response has {} channels; analysing channel 0 only."
 
 # pyrato < 1.0 (the only one on Python 3.9) has no `parameters` module
@@ -41,22 +62,44 @@ _A_WEIGHTS = {125: -16.1, 250: -8.6, 500: -3.2, 1000: 0.0, 2000: 1.2, 4000: 1.0,
 
 
 @lru_cache(maxsize=None)
-def _octave_band_filter(sampling_rate, center_frequency):
-    # One octave band of pyfar's filter bank (Butterworth, order 14; IEC 61260-1:2014). A range of +-10 % of the centre
-    # selects that band alone. The filter keeps no state, so one design is reused.
-    return pf.dsp.filter.fractional_octave_bands(
-        signal=None,
-        num_fractions=1,
-        sampling_rate=sampling_rate,
-        frequency_range=(center_frequency * 0.9, center_frequency * 1.1),
-        order=14,
-    )
+def _octave_bank(sampling_rate):
+    # pyfar's octave filter bank, 125 Hz - 8 kHz (Butterworth, order 14; IEC 61260-1:2014), the bank of pyrato's STI as
+    # well. The filter keeps no state, so one design is reused.
+    return pf.dsp.filter.fractional_octave_bands(signal=None, num_fractions=1, sampling_rate=sampling_rate, frequency_range=(125, 8000), order=14)
+
+
+def _ring_length(sos, sampling_rate):
+    """Samples until the filter ``sos`` has rung out after an impulse (``_RING_OUT``), at most ``_RING_PAD_S``."""
+    impulse = np.zeros(int(round(_RING_PAD_S * sampling_rate)))
+    impulse[0] = 1.0
+    response = np.abs(sosfilt(sos, impulse))
+    above = np.flatnonzero(response > _RING_OUT * response.max())
+    return int(above[-1]) + 1 if above.size else impulse.size
 
 
 @lru_cache(maxsize=None)
-def _octave_bank(sampling_rate):
-    # The seven bands of _octave_band_filter in one filter: the same coefficients and samples, one call per segment
-    return pf.dsp.filter.fractional_octave_bands(signal=None, num_fractions=1, sampling_rate=sampling_rate, frequency_range=(125, 8000), order=14)
+def _octave_bank_sos(sampling_rate):
+    """``{centre frequency: (sos, ring length)}`` of the bands of :func:`_octave_bank`."""
+    coefficients = np.asarray(_octave_bank(sampling_rate).coefficients, dtype=float)
+    return {f: (np.ascontiguousarray(sos), _ring_length(sos, sampling_rate)) for f, sos in zip(Defaults().DEFAULT_FREQUENCY_BANDS, coefficients)}
+
+
+def _filter_until_rung_out(sos, ring, signal):
+    """``sosfilt(sos, signal)`` (what pyfar's ``FilterSOS.process`` runs, bit for bit), computed only until the filter
+    has rung out after the last non-zero sample, and zero after.
+
+    Past that point the exact output is below ``_RING_OUT`` of the filter's peak response, and computing it means
+    arithmetic on subnormal numbers, which costs 20 to 80 times a normal sample: the high bands ring out within
+    milliseconds of a segment's zero padding.
+    """
+    signal = np.asarray(signal, dtype=float)
+    out = np.zeros(signal.size)
+    nonzero = np.flatnonzero(signal)
+    if not nonzero.size:
+        return out
+    stop = min(signal.size, int(nonzero[-1]) + 1 + ring)
+    out[:stop] = sosfilt(sos, signal[:stop])
+    return out
 
 
 def _level_ratio(first, second):
@@ -81,9 +124,14 @@ def _channels_first(ir):
     return np.atleast_2d(np.asarray(ir, dtype=float).T)
 
 
-def _decay_end(ir, trim_db, margin=0.05):
-    """Samples of ``ir`` (channels, samples) until the Schroeder curve of all channels falls ``trim_db`` below its
-    start, lengthened by the fraction ``margin``."""
+def decay_end(ir, trim_db, margin=0.05):
+    """Samples of ``ir`` (channels, samples) until the backward-integrated energy (Schroeder curve) of all channels
+    falls ``trim_db`` below its start, lengthened by the fraction ``margin``; the whole length when it never does.
+
+    The length to keep of a response whose reverberation has decayed by ``trim_db``: it follows the room's decay, not
+    the level of the direct sound.
+    """
+    ir = np.atleast_2d(np.asarray(ir, dtype=float))
     remaining = np.cumsum(np.sum(ir**2, axis=0)[::-1])[::-1]
     if remaining[0] == 0:
         return ir.shape[1]
@@ -122,7 +170,7 @@ def time_response(ir, sampling_rate, db=True, trim_db=None):
     """
     ir = _channels_first(ir)
     if trim_db is not None:
-        ir = ir[:, : _decay_end(ir, trim_db)]
+        ir = ir[:, : decay_end(ir, trim_db)]
     times = np.arange(ir.shape[1]) / sampling_rate
     return times, _level_re_peak(ir) if db else ir
 
@@ -150,18 +198,33 @@ def frequency_response(ir, sampling_rate, num_fractions=3, frequency_range=(20.0
     return smoothed.frequencies[keep], _level_re_peak(smoothed.freq[..., keep])
 
 
+def _nonlinearity(edc_db: np.ndarray, fs: int, high: float, low: float) -> float:
+    """ISO 3382-2:2008 Annex B non-linearity, ``1000 (1 - r^2)`` per mille, of the decay curve between ``high`` and
+    ``low`` dB; NaN when the curve does not fall below ``low`` or holds fewer than three samples in the range."""
+    inside = np.flatnonzero((edc_db <= high) & (edc_db >= low))
+    if inside.size < 3 or not np.any(edc_db < low):
+        return float("nan")
+    t = inside / float(fs)
+    r = np.corrcoef(t, edc_db[inside])[0, 1]
+    return round(float(1000.0 * (1.0 - r * r)), 2)
+
+
 class Analyser:
     """Room acoustic parameters of an impulse response (:meth:`analyse`).
 
-    Every window starts at ``onset``, the direct sound of channel 0 as ``pyfar.dsp.find_impulse_response_start``
-    finds it with the 20 dB criterion of ISO 3382-1:2009, p. 22.
+    Every window starts at ``onset``, the direct sound of the analysed channel as
+    ``pyfar.dsp.find_impulse_response_start`` finds it with the 20 dB criterion of ISO 3382-1:2009, p. 22.
 
     Parameters
     ----------
     ir : list, np.ndarray or ImpulseResponse
         (samples,) or (samples, channels). LF and LFC take the first-order channels of an ambisonic
-        :class:`ImpulseResponse`, every other parameter channel 0 (the omnidirectional component, or the left ear).
-        An :class:`ImpulseResponse` is analysed at its raw level and sets :attr:`sampling_rate`.
+        :class:`ImpulseResponse`, every other parameter the channel ``channel``. An :class:`ImpulseResponse` is
+        analysed at its raw level and sets :attr:`sampling_rate`.
+    channel : int, optional
+        The channel analysed: 0 is the omnidirectional component of an ambisonic response or the left ear of a
+        binaural one, 1 the right ear. Default: channel 0, with a note (:data:`CHANNEL_NOTE`) for a response of
+        several channels.
 
     Examples
     --------
@@ -180,11 +243,10 @@ class Analyser:
     True
     """
 
-    def __init__(self, ir):
+    def __init__(self, ir, channel=None):
+        self._channel = channel
         self.ir = ir
         self.analysis_data = None
-        # Zero-phase bands of self.ir by centre frequency, kept while analyse() runs
-        self._bands_from_onset = None
         sampling_rate = getattr(ir, "sampling_rate", None)
         self.sampling_rate = int(sampling_rate) if sampling_rate is not None else Defaults().SAMPLING_RATE
 
@@ -198,14 +260,18 @@ class Analyser:
         self._package_scale = (getattr(ir, "generation", None) or {}).get("scale") == "package"
         # the spatial parameters need the response's channels, source and receiver
         self._response = ir
-        self._ir = self._as_mono_array(ir)
+        self._ir = self._as_mono_array(ir, getattr(self, "_channel", None))
         # pyfar's start sample is -1 for a response whose first sample is already within 20 dB of its maximum
         start = pf.dsp.find_impulse_response_start(pf.Signal(self._ir, getattr(ir, "sampling_rate", None) or Defaults().SAMPLING_RATE), threshold=20)
         self.onset = max(0, int(np.squeeze(start)))
+        # Zero-phase bands of self.ir by centre frequency (:meth:`_band_from_onset`), shared by the reverberation times,
+        # the centre time, the decay curves and the reliability while the response and the rate stay
+        self._bands_from_onset = {}
 
     @staticmethod
-    def _as_mono_array(ir):
-        """A 1D array of an impulse response, at the raw level for an ImpulseResponse."""
+    def _as_mono_array(ir, channel=None):
+        """A 1D array of one channel of an impulse response (``channel``; default 0, with a note for several), at the
+        raw level for an ImpulseResponse."""
         if hasattr(ir, "denormalized"):
             ir = ir.denormalized()
         elif hasattr(ir, "ir") and hasattr(ir, "sampling_rate"):
@@ -216,9 +282,15 @@ class Analyser:
         if ir_array.ndim > 2:
             raise ValueError(f"Impulse response must be 1D or 2D, got {ir_array.ndim}D.")
         if ir_array.ndim == 2:
-            if ir_array.shape[1] > 1:
-                warnings.warn(CHANNEL_NOTE.format(ir_array.shape[1]))
-            ir_array = ir_array[:, 0]
+            if channel is None:
+                if ir_array.shape[1] > 1:
+                    warnings.warn(CHANNEL_NOTE.format(ir_array.shape[1]))
+                channel = 0
+            if not 0 <= int(channel) < ir_array.shape[1]:
+                raise ValueError(f"channel {channel} is not among the response's {ir_array.shape[1]} channels")
+            ir_array = ir_array[:, int(channel)]
+        elif channel not in (None, 0):
+            raise ValueError(f"channel {channel} of a one-channel response")
         return ir_array
 
     @property
@@ -230,19 +302,23 @@ class Analyser:
         if not isinstance(sampling_rate, int):
             raise TypeError("Sampling rate must be an integer.")
         self._sampling_rate = sampling_rate
+        self._bands_from_onset = {}  # filtered at another rate
 
     @property
     def frequency_bands(self):
         return Defaults().DEFAULT_FREQUENCY_BANDS
 
     def _filter_impulse_response(self, impulse_response, center_frequency):
-        sig = pf.Signal(np.asarray(impulse_response, dtype=float), self.sampling_rate)
-        return _octave_band_filter(self.sampling_rate, center_frequency).process(sig).time.squeeze()
+        """The causal octave band of ``impulse_response`` (same length), up to where the filter has rung out
+        (:func:`_filter_until_rung_out`)."""
+        sos, ring = _octave_bank_sos(self.sampling_rate)[center_frequency]
+        return _filter_until_rung_out(sos, ring, impulse_response)
 
     def _band_signals(self, segment) -> dict:
-        """Causal octave bands of a time segment by centre frequency, padded 0.5 s so that the filters ring out."""
-        padded = pf.Signal(np.concatenate([np.asarray(segment, dtype=float), np.zeros(int(0.5 * self.sampling_rate))]), self.sampling_rate)
-        return dict(zip(self.frequency_bands, _octave_bank(self.sampling_rate).process(padded).time.squeeze()))
+        """Causal octave bands of a time segment by centre frequency, padded ``_RING_PAD_S`` so that the filters ring
+        out."""
+        padded = np.concatenate([np.asarray(segment, dtype=float), np.zeros(int(_RING_PAD_S * self.sampling_rate))])
+        return {f: _filter_until_rung_out(sos, ring, padded) for f, (sos, ring) in _octave_bank_sos(self.sampling_rate).items()}
 
     def _band_edcs(self, segment):
         """Schroeder curves of :meth:`_band_signals`, one channel per band."""
@@ -265,18 +341,16 @@ class Analyser:
             The band and the index of the direct sound in it.
         """
         kept = self._bands_from_onset
-        if kept is not None and center_frequency in kept:
+        if center_frequency in kept:
             return kept[center_frequency]
         fs = self.sampling_rate
         lead = int(round(0.1 * fs))
         onset = self.onset
-        padded = np.concatenate([np.zeros(lead), self.ir, np.zeros(int(0.5 * fs))])
+        padded = np.concatenate([np.zeros(lead), self.ir, np.zeros(int(_RING_PAD_S * fs))])
         forward = self._filter_impulse_response(padded, center_frequency)
         zero_phase = self._filter_impulse_response(forward[::-1], center_frequency)[::-1]
-        band = zero_phase[onset:], lead
-        if kept is not None:
-            kept[center_frequency] = band
-        return band
+        kept[center_frequency] = zero_phase[onset:], lead
+        return kept[center_frequency]
 
     def reverberation_times(self) -> dict:
         """EDT, T20 and T30 per band (ISO 3382-1:2009).
@@ -314,6 +388,56 @@ class Analyser:
                 f"pyrato could not evaluate the decay in the {', '.join(f'{f:g}' for f in failed)} Hz band(s) ({next(iter(failed.values()))}); EDT, T20 and T30 are NaN there."
             )
         return results
+
+    def decay_curves(self) -> dict:
+        """The energy decay curve per band that :meth:`reverberation_times` evaluates.
+
+        Returns
+        -------
+        dict
+            ``'freqs'``; ``'times'``, seconds from the direct sound; ``'edc_db'``, one array per band in dB, 0 at the
+            direct sound (Schroeder backward integration of the zero-phase band, to the last non-zero sample).
+        """
+        ir_array = self.ir
+        onset = self.onset
+        end = int(np.flatnonzero(ir_array)[-1]) + 1 if np.any(ir_array) else len(ir_array)
+        curves = []
+        for center_freq in self.frequency_bands:
+            band, direct = self._band_from_onset(center_freq)
+            energy = np.cumsum(band[direct : direct + end - onset][::-1] ** 2)[::-1]
+            with np.errstate(divide="ignore", invalid="ignore"):
+                curves.append(10.0 * np.log10(energy / energy[0]) if energy.size and energy[0] > 0 else np.full(energy.size, -np.inf))
+        n = max((c.size for c in curves), default=0)
+        return {"freqs": list(self.frequency_bands), "times": np.arange(n) / self.sampling_rate, "edc_db": curves}
+
+    def reliability(self, nonlinearity_limit: float = 10.0) -> dict:
+        """How far each band's decay supports EDT, T20 and T30 (ISO 3382-1:2009 and ISO 3382-2:2008 Annex B).
+
+        A response cut at a fixed length bends its decay curve down at the end, so the usable range is the drop
+        reached at 90 % of the curve. EDT needs 10 dB of it and 10 dB to spare (20 dB), T20 its -5 to -25 dB range and
+        10 dB to spare (35 dB), T30 45 dB; the margins are the package's choice. The non-linearity
+        ``xi = 1000 (1 - r^2)`` of the line fitted over each range marks a curved decay (coupled volumes, a cut tail)
+        above ``nonlinearity_limit`` per mille (Annex B).
+
+        Returns
+        -------
+        dict
+            ``'freqs'``, and per band ``'range_db'``, ``'T20_xi'`` and ``'T30_xi'`` (per mille, NaN where the range
+            is not reached), ``'EDT_reliable'``, ``'T20_reliable'`` and ``'T30_reliable'``.
+        """
+        curves = self.decay_curves()
+        out = {"freqs": curves["freqs"], "range_db": [], "T20_xi": [], "T30_xi": [], "EDT_reliable": [], "T20_reliable": [], "T30_reliable": []}
+        for edc in curves["edc_db"]:
+            finite = edc[np.isfinite(edc)]
+            usable = float(-edc[min(int(0.9 * edc.size), edc.size - 1)]) if edc.size else 0.0
+            usable = usable if np.isfinite(usable) else (float(-finite.min()) if finite.size else 0.0)
+            out["range_db"].append(round(usable, 1))
+            for key, low, needed in (("T20", -25.0, 35.0), ("T30", -35.0, 45.0)):
+                xi = _nonlinearity(edc, self.sampling_rate, -5.0, low)
+                out[f"{key}_xi"].append(xi)
+                out[f"{key}_reliable"].append(bool(usable >= needed and np.isfinite(xi) and xi <= nonlinearity_limit))
+            out["EDT_reliable"].append(bool(usable >= 20.0))
+        return out
 
     def clarity_definition(self) -> dict:
         """C50, C80 and D50 per band (ISO 3382-1:2009).
@@ -409,11 +533,10 @@ class Analyser:
         min_samples = int(np.ceil(1.6 * self.sampling_rate))
         if ir_array.size < min_samples:
             ir_array = np.pad(ir_array, (0, min_samples - ir_array.size))
-        sig = pf.Signal(ir_array, self.sampling_rate)
         snr_arg = float(snr) if np.ndim(snr) == 0 else snr
         try:
             # (7 octave bands, 14 modulation frequencies)
-            mtf = np.squeeze(np.asarray(pyrato.parameters.modulation_transfer_function(sig, snr=snr_arg)))
+            mtf = self._modulation_transfer_function(ir_array, snr_arg)
             snr_app = 10.0 * np.log10(mtf / (1.0 - mtf + 1e-12) + 1e-12)
             mti = np.mean(np.clip((snr_app + 15.0) / 30.0, 0, 1), axis=-1)
             # The public STI function computes the MTF again; pyrato's private reduction (Annex A.2.1) halves the cost
@@ -421,12 +544,40 @@ class Analyser:
             if sti_calc is not None and mtf.shape == (7, 14):
                 sti_val = round(float(sti_calc(mtf)), 4)
             else:
+                sig = pf.Signal(ir_array, self.sampling_rate)
                 sti_val = round(float(np.squeeze(pyrato.parameters.speech_transmission_index_indirect(sig, snr=snr_arg))), 4)
         except Exception as e:
             warnings.warn(f"STI computation failed: {e}")
             mti = np.full(7, np.nan)
             sti_val = np.nan
         return {"mti": mti, "sti": sti_val}
+
+    def _modulation_transfer_function(self, ir_array, snr) -> np.ndarray:
+        """The MTF (7 octave bands 125-8000 Hz, 14 modulation frequencies) of IEC 60268-16:2020 Section 6.1, as
+        ``pyrato.parameters.modulation_transfer_function`` computes it without levels, from the same filter bank.
+
+        Faster, to rounding: each band is filtered only until it has rung out (:func:`_filter_until_rung_out`; the
+        exact rest is below 1e-30 of its energy), and the sum over time takes one complex exponential per modulation
+        frequency and sample for all bands at once (a matrix product, in blocks), not one per band.
+        """
+        fs = self.sampling_rate
+        snr = np.full(7, float(snr)) if np.ndim(snr) == 0 else np.asarray(snr, dtype=float)
+        if snr.shape != (7,):
+            raise ValueError(f"snr must have shape (7,) for 7 octave bands (125 Hz - 8 kHz), but got {snr.shape}.")
+        if np.any(snr < 20):
+            warnings.warn("Input 'snr' should be at least 20 dB for every octave band.", stacklevel=3)
+        energy = np.stack([_filter_until_rung_out(sos, ring, ir_array) for sos, ring in _octave_bank_sos(fs).values()]) ** 2
+        last = np.flatnonzero(np.any(energy > 0, axis=0))
+        stop = int(last[-1]) + 1 if last.size else 0
+        numerator = np.zeros((7, _MODULATION_FREQUENCIES.size), dtype=complex)
+        for start in range(0, stop, _MTF_BLOCK):
+            end = min(stop, start + _MTF_BLOCK)
+            times = np.arange(start, end) / fs
+            numerator += energy[:, start:end] @ np.exp(-2j * np.pi * _MODULATION_FREQUENCIES[:, None] * times).T
+        with np.errstate(divide="ignore", invalid="ignore"):
+            mtf = np.abs(numerator) / np.sum(energy, axis=-1)[:, None]
+        mtf *= 1 / (1 + 10 ** (-snr[:, None] / 10))
+        return np.clip(mtf, 0, 1)
 
     def stage_support(self) -> dict:
         """ST_early and ST_late per band (Gade; ISO 3382-1:2009 Annex C), for source and receiver 1 m apart.
@@ -601,74 +752,77 @@ class Analyser:
 
         The worker computes only these, for a client whose pyrato cannot (:func:`compas_acoustics.worker.analyse`).
         """
-        freqs = list(self.frequency_bands)
+        return {**self._sti(), **self._strength()}
+
+    def _sti(self) -> dict:
+        """``'STI'`` (per band the modulation transfer indices) and ``'STI_overall'``, as :meth:`analyse` gives them."""
         sti_data = self.speech_transmission_index()
-        # G needs the absolute level; an array or a normalized-only response has none
+        return {"STI": np.array([round(mti, 2) for mti in sti_data["mti"]], dtype=float).tolist(), "STI_overall": round(float(sti_data["sti"]), 4)}
+
+    def _strength(self) -> dict:
+        """``'G'`` per band and ``'G_overall'``, as :meth:`analyse` gives them: NaN without an absolute level (an array
+        or a normalized-only response)."""
         if _PYRATO_PARAMETERS and self._package_scale:
             strength = self.sound_strength()
-            g_vector, g_overall = strength["G"], strength["G_overall"]
-        else:
-            g_vector, g_overall = [np.nan] * len(freqs), np.nan
+            return {"G": np.array(strength["G"], dtype=float).tolist(), "G_overall": strength["G_overall"]}
+        return {"G": [np.nan] * len(self.frequency_bands), "G_overall": np.nan}
 
-        sti_vector = [round(mti, 2) for mti in sti_data["mti"]]
-        return {
-            "STI": np.array(sti_vector, dtype=float).tolist(),
-            "STI_overall": round(float(sti_data["sti"]), 4),
-            "G": np.array(g_vector, dtype=float).tolist(),
-            "G_overall": g_overall,
-        }
-
-    def analyse(self) -> dict:
-        """Every parameter of :data:`_PARAM_NAMES` per band and as ``'<name>_overall'``.
+    def analyse(self, parameters=None) -> dict:
+        """The parameters of :data:`_PARAM_NAMES` per band and as ``'<name>_overall'``.
 
         The overall values of EDT, T20, T30, C50, C80, D50 and Ts average 500 and 1000 Hz, after the single-number
         averages of ISO 3382-1:2009 Table A.1; the same average for all seven is the package's choice. The others have
         their own. The per-band ``'STI'`` values are the modulation transfer indices, ``'STI_overall'`` the STI.
+
+        Parameters
+        ----------
+        parameters : list of str, optional
+            The parameters to compute, from :data:`_PARAM_NAMES` (default: all). Only the methods they need run, and
+            the result holds only them: ``("T30", "EDT", "C50", "C80", "D50", "STI")`` skips the sound strength, the
+            DRR, the centre time and the lateral fractions. SPL needs G, which is then computed too.
         """
-        # reverberation_times and center_time take the same zero-phase bands
-        self._bands_from_onset = {}
-        try:
-            rt = self.reverberation_times()
-            clarity = self.clarity_definition()
-            drr = self.direct_to_reverberant_ratio()
-            ct = self.center_time()
-        finally:
-            self._bands_from_onset = None
-        sti_and_strength = self._sti_and_strength()
-        lateral = self.lateral_fraction()
-        level = getattr(getattr(self._response, "source", None), "spl", None)
-        if level is not None and not all(np.isnan(np.asarray(sti_and_strength["G"], dtype=float))):
-            spl = self.sound_pressure_level(level, strength={"G": sti_and_strength["G"]})
+        if parameters is None:
+            wanted = list(_PARAM_NAMES)
         else:
-            spl = {"SPL": [np.nan] * len(self.frequency_bands), "SPL_overall": np.nan}
+            unknown = sorted(set(parameters) - set(_PARAM_NAMES))
+            if unknown:
+                raise ValueError(f"Unknown parameter(s) {unknown}; choose from {_PARAM_NAMES}.")
+            wanted = [p for p in _PARAM_NAMES if p in set(parameters)]
+
+        def needs(group):
+            return any(p in wanted for p in _PARAM_GROUPS[group])
 
         freqs = list(self.frequency_bands)
-        param_vectors = {
-            "EDT": rt["EDT"],
-            "T20": rt["T20"],
-            "T30": rt["T30"],
-            "C50": clarity["C50"],
-            "C80": clarity["C80"],
-            "D50": clarity["D50"],
-            "DRR": drr["DRR"],
-            "Ts": ct["Ts"],
-            "STI": sti_and_strength["STI"],
-            "G": sti_and_strength["G"],
-            "SPL": spl["SPL"],
-            "LF": lateral["LF"],
-            "LFC": lateral["LFC"],
-        }
-        own_overall = {
-            "STI": sti_and_strength["STI_overall"],
-            "G": sti_and_strength["G_overall"],
-            "DRR": drr["DRR_overall"],
-            "LF": lateral["LF_overall"],
-            "LFC": lateral["LFC_overall"],
-            "SPL": spl["SPL_overall"],
-        }
+        param_vectors, own_overall = {}, {}
+        # reverberation_times and center_time take the same zero-phase bands (kept by the analyser)
+        if needs("reverberation"):
+            param_vectors.update(self.reverberation_times())
+        if needs("clarity"):
+            param_vectors.update(self.clarity_definition())
+        if needs("drr"):
+            drr = self.direct_to_reverberant_ratio()
+            param_vectors["DRR"], own_overall["DRR"] = drr["DRR"], drr["DRR_overall"]
+        if needs("center_time"):
+            param_vectors.update(self.center_time())
+        if needs("sti"):
+            sti = self._sti()
+            param_vectors["STI"], own_overall["STI"] = sti["STI"], sti["STI_overall"]
+        if needs("strength"):
+            strength = self._strength()
+            param_vectors["G"], own_overall["G"] = strength["G"], strength["G_overall"]
+            level = getattr(getattr(self._response, "source", None), "spl", None)
+            if level is not None and not all(np.isnan(np.asarray(strength["G"], dtype=float))):
+                spl = self.sound_pressure_level(level, strength={"G": strength["G"]})
+            else:
+                spl = {"SPL": [np.nan] * len(freqs), "SPL_overall": np.nan}
+            param_vectors["SPL"], own_overall["SPL"] = spl["SPL"], spl["SPL_overall"]
+        if needs("lateral"):
+            lateral = self.lateral_fraction()
+            for key in ("LF", "LFC"):
+                param_vectors[key], own_overall[key] = lateral[key], lateral[f"{key}_overall"]
 
         result = {"freqs": freqs}
-        for param in _PARAM_NAMES:
+        for param in wanted:
             vals = np.array(param_vectors[param], dtype=float)
             result[param] = vals.tolist()
             if param in own_overall:
@@ -685,13 +839,13 @@ class Analyser:
         Parameters
         ----------
         parameters : str or list of str, optional
-            Default: all.
+            Default: all that were analysed.
         show_bands : bool, optional
             Per-band values.
         show_overall : bool, optional
             Overall values.
         """
-        params = parameters if parameters else _PARAM_NAMES
+        params = parameters if parameters else [p for p in _PARAM_NAMES if p in self.analysis_data]
         if isinstance(params, str):
             params = [params]
         freqs = self.analysis_data["freqs"]
@@ -714,7 +868,7 @@ class Analyser:
                 if param not in _PARAM_NAMES:
                     raise ValueError(f"Parameter '{param}' not found in results. Available parameters: {_PARAM_NAMES}")
         else:
-            parameters = _PARAM_NAMES
+            parameters = [p for p in _PARAM_NAMES if p in self.analysis_data]
 
         for param in parameters:
             y = np.array(self.analysis_data[param], dtype=float)
@@ -767,12 +921,12 @@ class Analyser:
         ----------
         filepath : str
         parameters : str or list of str, optional
-            Default: all.
+            Default: all that were analysed.
         """
         import csv
 
         if parameters is None:
-            parameters = _PARAM_NAMES
+            parameters = [p for p in _PARAM_NAMES if p in self.analysis_data]
         elif isinstance(parameters, str):
             parameters = [parameters]
 
