@@ -7,7 +7,7 @@ import numpy as np
 import pyfar as pf
 import pytest
 
-from compas_acoustics.hybrid.early import ImageSourceSet, encode
+from compas_acoustics.hybrid.early import ImageSourceSet, _delay_phase, encode, render_transfers
 from _rooms import images
 from _rooms import pair as make_pair
 from compas_acoustics.hybrid.synthesis import prepare
@@ -362,11 +362,41 @@ def flat(f):
     return np.ones(np.shape(f), dtype=complex)
 
 
-def test_a_flat_path_renders_exactly_like_an_image_source():
+def test_a_flat_path_renders_like_an_image_source():
+    # the diffracted paths' band magnitude is interpolated from the smooth knots (render_transfers(smooth=True)),
+    # the image sources' is evaluated on every bin: the two agree to the knots' interpolation error, near -100 dB
     doa, d, g = np.array([1.0, -2.0, 0.5]), 3.7, np.linspace(0.9, 0.5, 8)
     path = DiffractionPath(d / C, d, doa, g, flat, 0, "view", 0)
     iss = ImageSourceSet(delay=np.array([d / C]), gain=(g / (4 * np.pi * d))[None, :], doa=pf.Coordinates(*doa), order=np.array([0]), bands=BANDS.copy(), fs=FS)
-    np.testing.assert_allclose(encode_diffraction([path], 2, 4096, FS), encode(iss, 2, 4096), atol=1e-14)
+    expected = encode(iss, 2, 4096)
+    np.testing.assert_allclose(encode_diffraction([path], 2, 4096, FS), expected, atol=1e-5 * np.abs(expected).max())
+
+
+def test_smooth_rendering_matches_every_bin_for_udfa_paths():
+    # the room's own diffracted paths (obstacle, first order), on the knots and on every bin
+    paths = diffraction_paths(pair_at([2.0, 4.0, 1.5], [8.0, 4.0, 1.5]), max_order=1)
+    assert paths
+    args = (
+        np.array([p.delay for p in paths]),
+        [p.transfer for p in paths],
+        np.array([p.band_gain / (4 * np.pi * p.distance) for p in paths]),
+        np.ones((len(paths), 1)),
+        BANDS,
+        FS,
+        16384,
+    )
+    exact = render_transfers(*args)
+    smooth = render_transfers(*args, smooth=True)
+    assert 10 * np.log10(np.sum((smooth - exact) ** 2) / np.sum(exact**2)) < -90.0
+
+
+@pytest.mark.parametrize("delay", [0.0, 1.234e-3, 0.4321, 2.5])
+def test_delay_phase_is_the_exponential_on_every_bin(delay):
+    # the exponential's own rounding grows with its argument (2 pi f delay, up to 1.5e6 rad here): about an ulp of it
+    n, step = 32769, FS / 65536
+    for tau, phase in ((delay, _delay_phase(n, step, delay)), (2 * delay, _delay_phase(n, step, [delay, 2 * delay])[:, 1])):
+        expected = np.exp(-2j * np.pi * np.arange(n) * step * tau)
+        np.testing.assert_allclose(phase, expected, rtol=0, atol=1e-13 + 1e-15 * 2 * np.pi * n * step * tau)
 
 
 def test_rendering_is_linear_in_the_transfer():

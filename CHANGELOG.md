@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+* The diffracted paths of the hybrid render 6-15x faster: `render_transfers(..., smooth=True)`, which `encode_diffraction` uses, evaluates each UDFA path's transfer and band magnitude on 2048 geometric knots and interpolates them onto the FFT bins, and builds the delay's phase from two short tables. The encoded early part changes by about -100 dB.
+
 ### Removed
 
 

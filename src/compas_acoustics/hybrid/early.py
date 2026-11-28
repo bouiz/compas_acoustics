@@ -14,6 +14,13 @@ from compas_acoustics.room.reflections import first_of_each_position
 from .bands import BANDS, N_BANDS, check_bands
 from .pair import Pair
 
+#: Geometric knots, from ``SMOOTH_KNOTS_FROM_HZ`` to Nyquist (and one at DC), on which
+#: :func:`render_transfers` evaluates a smooth path's transfer and band magnitude before interpolating them onto the
+#: FFT bins. 2048 knots over 1 Hz to 24 kHz are 1 % apart: linear interpolation of a low-pass that varies on a
+#: log-frequency scale then errs by about (0.01)^2 / 8 of it, near -100 dB.
+SMOOTH_KNOTS = 2048
+SMOOTH_KNOTS_FROM_HZ = 1.0
+
 
 @dataclass(frozen=True)
 class ImageSourceSet:
@@ -242,19 +249,73 @@ def render_transfers(
     bands: np.ndarray,
     fs: float,
     n_samples: int,
+    *,
+    smooth: bool = False,
 ) -> np.ndarray:
-    """As :func:`render_images`, for paths whose band magnitude ``gains[m]`` is multiplied by ``transfers[m](freq)``."""
+    """As :func:`render_images`, for paths whose band magnitude ``gains[m]`` is multiplied by ``transfers[m](freq)``.
+
+    ``smooth``: the transfers vary slowly in log frequency and hold no delay of their own (UDFA's low-passes). Each
+    path's transfer and band magnitude are then evaluated on the ``SMOOTH_KNOTS`` knots and interpolated onto the FFT
+    bins, and only its delay is applied per bin (:func:`_delay_phase`): a path costs a few vector operations over the
+    bins instead of its transfer's every power and angle at each of them.
+    """
     delays = np.asarray(delays, dtype=float)
     weights = np.asarray(weights, dtype=float).reshape(delays.size, -1)
     nfft, freq = _fft_grid(n_samples, fs)
-    magnitude = _band_magnitude_fn(freq, bands, fs)
-    spectrum = _accumulate(
-        lambda m: transfers[m](freq) * magnitude(gains[m]) * np.exp(-2j * np.pi * freq * delays[m]),
-        np.flatnonzero(delays * fs < n_samples),
-        weights,
-        freq.size,
-    )
+    inside = np.flatnonzero(delays * fs < n_samples)
+    if not smooth:
+        magnitude = _band_magnitude_fn(freq, bands, fs)
+        spectrum = _accumulate(
+            lambda m: transfers[m](freq) * magnitude(gains[m]) * np.exp(-2j * np.pi * freq * delays[m]),
+            inside,
+            weights,
+            freq.size,
+        )
+        return _finish(spectrum, freq, nfft, n_samples)
+
+    knots, to_bins = _smooth_knots(freq)
+    magnitude = _band_magnitude_fn(knots, bands, fs)
+    step = fs / nfft
+    weights = np.asarray(weights, dtype=complex)
+    spectrum = np.zeros((freq.size, weights.shape[1]), dtype=complex)
+    # as _accumulate, 16 paths at a time: their knots interpolated onto the bins in one sparse product
+    for start in range(0, inside.size, 16):
+        chunk = inside[start : start + 16]
+        on_knots = np.empty((knots.size, chunk.size), dtype=complex)
+        for k, m in enumerate(chunk):
+            on_knots[:, k] = transfers[m](knots) * magnitude(gains[m])
+        columns = to_bins @ on_knots
+        columns *= _delay_phase(freq.size, step, delays[chunk])
+        spectrum += columns @ weights[chunk]
     return _finish(spectrum, freq, nfft, n_samples)
+
+
+def _smooth_knots(freq: np.ndarray):
+    """``(knots, to_bins)``: DC and ``SMOOTH_KNOTS`` geometric knots up to ``freq``'s last, and the sparse matrix
+    (bins, knots) that interpolates values on them linearly onto ``freq``."""
+    from scipy.sparse import csr_matrix
+
+    top = float(freq[-1])
+    knots = np.concatenate([[0.0], np.geomspace(min(SMOOTH_KNOTS_FROM_HZ, top / 2.0), top, SMOOTH_KNOTS)])
+    left = np.clip(np.searchsorted(knots, freq, side="right") - 1, 0, knots.size - 2)
+    frac = (freq - knots[left]) / (knots[left + 1] - knots[left])
+    rows = np.repeat(np.arange(freq.size), 2)
+    cols = np.stack([left, left + 1], axis=1).reshape(-1)
+    values = np.stack([1.0 - frac, frac], axis=1).reshape(-1)
+    return knots, csr_matrix((values, (rows, cols)), shape=(freq.size, knots.size))
+
+
+def _delay_phase(n_freq: int, step: float, delays) -> np.ndarray:
+    """``exp(-2j pi k step delay)`` for the bins ``k < n_freq``, (n_freq,) for one delay or (n_freq, n_delays), as
+    outer products of two tables of about ``sqrt(n_freq)`` exponentials (``k = a * block + b``): exact to rounding,
+    without an exponential per bin."""
+    single = np.ndim(delays) == 0
+    w = -2.0 * np.pi * step * np.atleast_1d(np.asarray(delays, dtype=float))
+    block = int(np.ceil(np.sqrt(n_freq)))
+    fine = np.exp(1j * np.outer(np.arange(block), w))  # (block, D)
+    coarse = np.exp(1j * np.outer(block * np.arange(int(np.ceil(n_freq / block))), w))  # (n_blocks, D)
+    phase = (coarse[:, np.newaxis, :] * fine[np.newaxis, :, :]).reshape(-1, w.size)[:n_freq]
+    return phase[:, 0] if single else phase
 
 
 def render_signals(
