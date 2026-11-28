@@ -92,12 +92,12 @@ def default_rays(volume: float, receiver_radius: float, speed_of_sound: float) -
 def default_duration(geometry: RoomGeometry, air_absorption: bool, air=None, factor: float = DURATION_RT_FACTOR) -> float:
     """How long to simulate this room: ``factor`` times the longest Eyring RT, within 0.5 s and ``MAX_DURATION``.
 
-    Eyring only sizes the buffer, so its diffuse-field check is skipped. A scene that closes no volume gets 10 s,
-    pyroomacoustics' default ray time limit.
+    Eyring only sizes the buffer, so its diffuse-field check is skipped. A scene that closes no volume and has no
+    given air volume gets 10 s.
     Hitting ``MAX_DURATION`` warns: the rays then live for hundreds of reflections, and the cause is usually a
     large surface without low-frequency absorption.
     """
-    if not geometry.is_closed:
+    if not getattr(geometry, "has_volume", geometry.is_closed):
         return 10.0
     rt = predicted_rt(geometry, air_absorption=air_absorption, air=air, warn=False)
     longest = int(np.argmax(rt))
