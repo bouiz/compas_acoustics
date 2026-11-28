@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import numpy as np
-import pyFDN
 
 from compas_acoustics.room.geometry import SYNTHESIS_BANDS
 
-_, BANDS = pyFDN.octave_bands()
+try:
+    import pyFDN
+
+    _, BANDS = pyFDN.octave_bands()
+except ImportError:  # the mono method's diffraction needs the grid, not the network
+    BANDS = np.asarray(SYNTHESIS_BANDS, dtype=float)
 N_BANDS = BANDS.size
 
 
