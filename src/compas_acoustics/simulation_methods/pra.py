@@ -324,7 +324,8 @@ class Mono(SimulationMethod):
                 if not self.ray_tracing:  # natural length: room for the latest path and its filters
                     n = max(n, int(np.ceil(max(p.delay for p in paths) * fs)) + 1024)
                 gains = np.array([p.band_gain / (4.0 * np.pi * p.distance) for p in paths])
-                rendered = render_transfers(np.array([p.delay for p in paths]), [p.transfer for p in paths], gains, np.ones((len(paths), 1)), BANDS, fs, n)[:, 0]
+                # UDFA's transfers are smooth low-passes: on the knots, as the hybrid encodes them
+                rendered = render_transfers(np.array([p.delay for p in paths]), [p.transfer for p in paths], gains, np.ones((len(paths), 1)), BANDS, fs, n, smooth=True)[:, 0]
                 rendered[: base.size] += base
                 out[m][s] = rendered
         return out
